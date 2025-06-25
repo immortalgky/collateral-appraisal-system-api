@@ -71,13 +71,13 @@ namespace Request.Data.Migrations
 
                             SqlServerPropertyBuilderExtensions.UseIdentityColumn(b1.Property<long>("CustomerId"));
 
-                            b1.Property<string>("ContactNo")
+                            b1.Property<string>("ContactNumber")
                                 .IsRequired()
                                 .HasMaxLength(20)
                                 .HasColumnType("varchar")
                                 .HasColumnName("ContactNumber");
 
-                            b1.Property<string>("CustName")
+                            b1.Property<string>("Name")
                                 .IsRequired()
                                 .HasMaxLength(80)
                                 .HasColumnType("nvarchar(80)")
@@ -378,7 +378,7 @@ namespace Request.Data.Migrations
 
                             b1.HasIndex("RequestId");
 
-                            b1.ToTable("RequestPropertys", "request");
+                            b1.ToTable("RequestProperties", "request");
 
                             b1.WithOwner()
                                 .HasForeignKey("RequestId");

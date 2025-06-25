@@ -1,4 +1,4 @@
-namespace Request.Requests.Features.UpdataProperty;
+namespace Request.Requests.Features.UpdateProperty;
 
 public record UpdatePropertyCommand (long Id, List<PropertyDto> Property) : ICommand<UpdatePropertyResult>;
 public record UpdatePropertyResult (bool IsSuccess);
