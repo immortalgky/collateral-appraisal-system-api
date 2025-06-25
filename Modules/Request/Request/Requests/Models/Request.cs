@@ -109,4 +109,9 @@ public class Request : Aggregate<long>
 
         _property.Add(property);
     }
+
+    public void ClearProperty()
+    {
+        _property.Clear();
+    }
 }
