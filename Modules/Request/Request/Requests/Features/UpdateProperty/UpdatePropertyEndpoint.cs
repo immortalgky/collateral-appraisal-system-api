@@ -1,7 +1,6 @@
-using Request.Requests.Features.UpdataProperty;
 using UpdatePropertyRequest = System.Collections.Generic.List<Request.Contracts.Requests.Dtos.PropertyDto>;
 
-namespace Request.Requests.Features.AddProperty;
+namespace Request.Requests.Features.UpdateProperty;
 
 public record UpdatePropertyResponse(bool IsSuccess);
 
