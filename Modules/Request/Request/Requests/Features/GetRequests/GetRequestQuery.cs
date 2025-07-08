@@ -1,3 +1,5 @@
+using Shared.Pagination;
+
 namespace Request.Requests.Features.GetRequests;
 
-public record GetRequestQuery : IQuery<GetRequestResult>;
+public record GetRequestQuery(PaginationRequest PaginationRequest) : IQuery<GetRequestResult>;

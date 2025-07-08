@@ -18,6 +18,7 @@ public static class RequestModule
 
         // Application User Case services
         services.AddScoped<IRequestRepository, RequestRepository>();
+        services.AddScoped<IRequestReadRepository, RequestReadRepository>();
         services.AddTransient<IAppraisalNumberGenerator, AppraisalNumberGenerator>();
 
         // Infrastructure services

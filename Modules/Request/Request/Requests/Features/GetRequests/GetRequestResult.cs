@@ -1,3 +1,5 @@
+using Shared.Pagination;
+
 namespace Request.Requests.Features.GetRequests;
 
-public record GetRequestResult(List<RequestDto> Requests);
+public record GetRequestResult(PaginatedResult<RequestDto> Result);

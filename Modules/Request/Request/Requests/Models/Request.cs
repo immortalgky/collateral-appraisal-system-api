@@ -92,10 +92,10 @@ public class Request : Aggregate<long>
         Requestor requestor
     )
     {
-        if (Status != RequestStatus.Draft && Status != RequestStatus.New)
-        {
-            throw new InvalidOperationException("Cannot update request details when the status is not Draft or New.");
-        }
+        RuleCheck.Valid()
+            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
+                "Cannot update request details when the status is not Draft or New.")
+            .ThrowIfInvalid();
 
         var newDetail = RequestDetail.Create(
             purpose,
@@ -119,10 +119,10 @@ public class Request : Aggregate<long>
 
     public void UpdateCustomers(List<RequestCustomer> customers)
     {
-        if (Status != RequestStatus.Draft && Status != RequestStatus.New)
-        {
-            throw new InvalidOperationException("Cannot update request customers when the status is not Draft or New.");
-        }
+        RuleCheck.Valid()
+            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
+                "Cannot update request customers when the status is not Draft or New.")
+            .ThrowIfInvalid();
 
         if (!_customers.SequenceEqual(customers))
         {
@@ -133,11 +133,10 @@ public class Request : Aggregate<long>
 
     public void UpdateProperties(List<RequestProperty> properties)
     {
-        if (Status != RequestStatus.Draft && Status != RequestStatus.New)
-        {
-            throw new InvalidOperationException(
-                "Cannot update request properties when the status is not Draft or New.");
-        }
+        RuleCheck.Valid()
+            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
+                "Cannot update request properties when the status is not Draft or New.")
+            .ThrowIfInvalid();
 
         if (!_properties.SequenceEqual(properties))
         {
@@ -148,10 +147,9 @@ public class Request : Aggregate<long>
 
     public void AddCustomer(string name, string contactNumber)
     {
-        if (_customers.Any(c => c.Name == name))
-        {
-            throw new ArgumentException($"Customer with name '{name}' already exists.");
-        }
+        RuleCheck.Valid()
+            .AddErrorIf(_customers.Any(c => c.Name == name), "Customer with name '{name}' already exists.")
+            .ThrowIfInvalid();
 
         var customer = RequestCustomer.Create(name, contactNumber);
 
@@ -163,10 +161,9 @@ public class Request : Aggregate<long>
         var initialCount = _customers.Count;
         var customers = _customers.Where(c => c.Name != name).ToList();
 
-        if (initialCount == customers.Count)
-        {
-            throw new ArgumentException($"Customer with name '{name}' does not exist.");
-        }
+        RuleCheck.Valid()
+            .AddErrorIf(initialCount == customers.Count, $"Customer with name '{name}' does not exist.")
+            .ThrowIfInvalid();
 
         _customers.Clear();
         _customers.AddRange(customers);
@@ -174,11 +171,10 @@ public class Request : Aggregate<long>
 
     public void AddProperty(string propertyType, string buildingType, decimal? sellingPrice)
     {
-        if (_properties.Any(p => p.PropertyType == propertyType && p.BuildingType == buildingType))
-        {
-            throw new ArgumentException(
-                $"Property with type '{propertyType}' and building type '{buildingType}' already exists.");
-        }
+        RuleCheck.Valid()
+            .AddErrorIf(_properties.Any(p => p.PropertyType == propertyType && p.BuildingType == buildingType),
+                $"Property with type '{propertyType}' and building type '{buildingType}' already exists.")
+            .ThrowIfInvalid();
 
         var property = RequestProperty.Of(propertyType, buildingType, sellingPrice);
 
@@ -191,11 +187,9 @@ public class Request : Aggregate<long>
         var properties = _properties.Where(c => c.PropertyType != propertyType && c.BuildingType != buildingType)
             .ToList();
 
-        if (initialCount == properties.Count)
-        {
-            throw new ArgumentException(
+        RuleCheck.Valid()
+            .AddErrorIf(initialCount == properties.Count,
                 $"Property with type '{propertyType}' and building type '{buildingType}' does not exist.");
-        }
 
         _properties.Clear();
         _properties.AddRange(properties);
