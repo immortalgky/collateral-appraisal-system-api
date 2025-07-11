@@ -31,6 +31,7 @@
         <ProjectReference Include="../../Shared/Shared/Shared.csproj"/>
         <ProjectReference Include="..\..\Modules\Auth\Auth\Auth.csproj"/>
         <ProjectReference Include="..\..\Modules\Auth\OAuth2OpenId\OAuth2OpenId.csproj"/>
+        <ProjectReference Include="../../Modules/Document/Document/Document.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

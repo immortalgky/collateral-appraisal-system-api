@@ -12,9 +12,10 @@ builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(conte
 var requestAssembly = typeof(RequestModule).Assembly;
 var authAssembly = typeof(AuthModule).Assembly;
 var notificationAssembly = typeof(NotificationModule).Assembly;
+var documentAssembly = typeof(DocumentModule).Assembly;
 
-builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly);
-builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly);
+builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly);
+builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -33,7 +34,8 @@ builder.Services
     .AddRequestModule(builder.Configuration)
     .AddAuthModule(builder.Configuration)
     .AddNotificationModule(builder.Configuration)
-    .AddOpenIddictModule(builder.Configuration);
+    .AddOpenIddictModule(builder.Configuration)
+    .AddDocumentModule(builder.Configuration);
 
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -87,7 +89,8 @@ app
     .UseRequestModule()
     .UseAuthModule()
     .UseNotificationModule()
-    .UseOpenIddictModule();
+    .UseOpenIddictModule()
+    .UseDocumentModule();
 
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
