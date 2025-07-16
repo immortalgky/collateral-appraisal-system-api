@@ -1,0 +1,11 @@
+namespace Assignment.Data.Repository;
+
+public interface IAssignmentRepository
+{
+    Task<Assignments.Models.Assignment> GetAssignment(long requestId, bool asNoTracking = true,
+        CancellationToken cancellationToken = default);
+
+    Task<Assignments.Models.Assignment> CreateAssignment(Assignments.Models.Assignment assignment,
+        CancellationToken cancellationToken = default);
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+}

@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+        <ProjectReference Include="../../../Shared/Shared/Shared.csproj" />
+        <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+        <Folder Include="Assignments\Features\UpdateAssignment\" />
+        <Folder Include="Data\Migrations\" />
+        <Folder Include="Data\Seed\" />
+        <Folder Include="Assignment\Dtos\" />
+  </ItemGroup>
+
+  <ItemGroup>
+        <EditorConfigFiles Remove=".editorconfig" />
+  </ItemGroup>
+</Project>
