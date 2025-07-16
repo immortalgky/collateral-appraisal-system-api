@@ -10,11 +10,12 @@ builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(conte
 
 // Common services: carter, mediatR, fluentvalidators, etc.
 var requestAssembly = typeof(RequestModule).Assembly;
+var assignmentAssembly = typeof(AssignmentModule).Assembly;
 var authAssembly = typeof(AuthModule).Assembly;
 var notificationAssembly = typeof(NotificationModule).Assembly;
 
-builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly);
-builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly);
+builder.Services.AddCarterWithAssemblies(requestAssembly,assignmentAssembly, authAssembly, notificationAssembly);
+builder.Services.AddMediatRWithAssemblies(requestAssembly,assignmentAssembly, authAssembly, notificationAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -33,6 +34,7 @@ builder.Services
     .AddRequestModule(builder.Configuration)
     .AddAuthModule(builder.Configuration)
     .AddNotificationModule(builder.Configuration)
+    .AddAssignmentModule(builder.Configuration)
     .AddOpenIddictModule(builder.Configuration);
 
 // Configure JSON serialization
@@ -87,6 +89,7 @@ app
     .UseRequestModule()
     .UseAuthModule()
     .UseNotificationModule()
+    .UseAssignmentModule()
     .UseOpenIddictModule();
 
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
