@@ -1,10 +1,14 @@
-﻿namespace Parameter;
+﻿using Shared.Data.Interceptors;
+
+namespace Parameter;
 
 public static class ParameterModule
 {
     public static IServiceCollection AddParameterModule(this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddScoped<IParameterRepository, ParameterRepository>();
+
         services.AddDbContext<ParameterDbContext>((sp, options) =>
         {
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());

@@ -13,7 +13,7 @@ builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(conte
 var requestAssembly = typeof(RequestModule).Assembly;
 var authAssembly = typeof(AuthModule).Assembly;
 var notificationAssembly = typeof(NotificationModule).Assembly;
-var parameterAssembly = typeof(ParameterModel).Assembly;
+var parameterAssembly = typeof(ParameterModule).Assembly;
 
 builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, parameterAssembly);
 builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, parameterAssembly);
