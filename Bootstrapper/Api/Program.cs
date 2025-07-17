@@ -1,4 +1,5 @@
 using System.Globalization;
+using Mapster.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,9 +13,10 @@ builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(conte
 var requestAssembly = typeof(RequestModule).Assembly;
 var authAssembly = typeof(AuthModule).Assembly;
 var notificationAssembly = typeof(NotificationModule).Assembly;
+var parameterAssembly = typeof(ParameterModel).Assembly;
 
-builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly);
-builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly);
+builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, parameterAssembly);
+builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, parameterAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -33,7 +35,8 @@ builder.Services
     .AddRequestModule(builder.Configuration)
     .AddAuthModule(builder.Configuration)
     .AddNotificationModule(builder.Configuration)
-    .AddOpenIddictModule(builder.Configuration);
+    .AddOpenIddictModule(builder.Configuration)
+    .AddParameterModule(builder.Configuration);
 
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -87,7 +90,8 @@ app
     .UseRequestModule()
     .UseAuthModule()
     .UseNotificationModule()
-    .UseOpenIddictModule();
+    .UseOpenIddictModule()
+    .UseParameterModule();
 
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
