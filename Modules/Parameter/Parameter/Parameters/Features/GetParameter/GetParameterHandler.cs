@@ -1,8 +1,3 @@
-using Mapster;
-using Microsoft.IdentityModel.Tokens;
-using Parameter.Parameters.Exceptions;
-
-
 namespace Parameter.Parameters.Features.GetParameter;
 
 internal class GetParameterHandler(IParameterRepository parameterRepository) : IQueryHandler<GetParameterQuery, GetParameterResult>

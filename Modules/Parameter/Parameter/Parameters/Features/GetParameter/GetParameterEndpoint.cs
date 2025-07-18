@@ -1,16 +1,12 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Routing;
-
 namespace Parameter.Parameters.Features.GetParameter;
 
 public class GetParameterEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/parameter", async ([AsParameters]ParameterDto parameter, [FromServices]ISender sender) =>
+        app.MapGet("/parameter", async ([AsParameters]ParameterDto parameter, ISender sender) =>
         {
-            var query = new GetParameterQuery(parameter);
+            var query = parameter.Adapt<GetParameterQuery>() with {Parameter = parameter};
 
             var result = await sender.Send(query);
 

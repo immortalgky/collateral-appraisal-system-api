@@ -42,8 +42,6 @@ public class ParameterRepository(ParameterDbContext dbContext) : IParameterRepos
 
         var result = await query.ToListAsync(cancellationToken);
 
-        if (result is null) throw new ParameterNotFoundException(request);
-
         return result;
     }
 }

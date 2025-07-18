@@ -1,6 +1,4 @@
-﻿using Shared.Data.Interceptors;
-
-namespace Parameter;
+﻿namespace Parameter;
 
 public static class ParameterModule
 {
