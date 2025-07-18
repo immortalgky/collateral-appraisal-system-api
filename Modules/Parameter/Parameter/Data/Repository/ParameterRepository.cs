@@ -16,32 +16,15 @@ public class ParameterRepository(ParameterDbContext dbContext) : IParameterRepos
     {
         var query = dbContext.Parameters.AsQueryable();
 
-        if (request.ParId.HasValue && request.ParId.Value != 0)
-            query = query.Where(d => d.Id == request.ParId.Value);
+        query = query.WhereIf(request.ParId.HasValue && request.ParId.Value != 0, d => d.Id == request.ParId.Value)
+            .WhereIf(!string.IsNullOrWhiteSpace(request.Group), d => d.Group == request.Group)
+            .WhereIf(!string.IsNullOrWhiteSpace(request.Country), d => d.Group == request.Country)
+            .WhereIf(!string.IsNullOrWhiteSpace(request.Language), d => d.Group == request.Language)
+            .WhereIf(!string.IsNullOrWhiteSpace(request.Code), d => d.Group == request.Code)
+            .WhereIf(!string.IsNullOrWhiteSpace(request.Description), d => d.Group == request.Description)
+            .WhereIf(!string.IsNullOrWhiteSpace(request.Active), d => d.Group == request.Active)
+            .WhereIf(!string.IsNullOrWhiteSpace(request.SeqNo), d => d.Group == request.SeqNo);
 
-        if (!string.IsNullOrWhiteSpace(request.Group))
-            query = query.Where(d => d.Group == request.Group);
-
-        if (!string.IsNullOrWhiteSpace(request.Country))
-            query = query.Where(d => d.Country == request.Country);
-
-        if (!string.IsNullOrWhiteSpace(request.Language))
-            query = query.Where(d => d.Language == request.Language);
-
-        if (!string.IsNullOrWhiteSpace(request.Code))
-            query = query.Where(d => d.Code == request.Code);
-
-        if (!string.IsNullOrWhiteSpace(request.Description))
-            query = query.Where(d => d.Description == request.Description);
-
-        if (!string.IsNullOrWhiteSpace(request.Active))
-            query = query.Where(d => d.Active == request.Active);
-
-        if (!string.IsNullOrWhiteSpace(request.SeqNo))
-            query = query.Where(d => d.SeqNo == request.SeqNo);
-
-        var result = await query.ToListAsync(cancellationToken);
-
-        return result;
+        return await query.ToListAsync(cancellationToken);
     }
 }
