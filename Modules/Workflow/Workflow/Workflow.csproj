@@ -9,6 +9,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj"/>
         <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
+        <ProjectReference Include="..\Task\Task.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

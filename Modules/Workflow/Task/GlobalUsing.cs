@@ -1,0 +1,9 @@
+global using Microsoft.EntityFrameworkCore;
+global using Shared.Data.Extensions;
+global using System.Reflection;
+global using Microsoft.AspNetCore.Builder;
+global using Microsoft.EntityFrameworkCore.Diagnostics;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.DependencyInjection;
+global using Task.Data;
+global using Task.Data.Repository;

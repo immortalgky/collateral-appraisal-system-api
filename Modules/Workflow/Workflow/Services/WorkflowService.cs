@@ -15,14 +15,14 @@ public class WorkflowService(
     IStimulusHasher hasher
 ) : IWorkflowService
 {
-    public async Task StartWorkflowAsync(Guid requestId)
+    public async System.Threading.Tasks.Task StartWorkflowAsync(Guid requestId)
     {
         await eventPublisher.PublishAsync("KickstartWorkflow",
             payload: new { RequestId = requestId, AssignTo = "TestUser", AssignType = "U" },
             correlationId: requestId.ToString());
     }
 
-    public async Task DecisionAsync(string correlationId, string activityName, string actiontaken)
+    public async System.Threading.Tasks.Task DecisionAsync(string correlationId, string activityName, string actiontaken)
     {
         await bookmarkQueue.EnqueueAsync(new NewBookmarkQueueItem
         {
