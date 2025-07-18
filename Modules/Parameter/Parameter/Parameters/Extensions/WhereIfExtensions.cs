@@ -1,6 +1,6 @@
 using System.Linq.Expressions;
 
-namespace Shared.Exceptions;
+namespace Parameter.Parameters.Extensions;
 
 public static class WhereIfExtensions
 {

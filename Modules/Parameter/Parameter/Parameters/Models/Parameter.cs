@@ -7,8 +7,8 @@ public class Parameter : Aggregate<long>
     public string Language { get; private set; } = default!;
     public string Code { get; private set; } = default!;
     public string Description { get; private set; } = default!;
-    public string Active { get; private set; } = default!;
-    public string SeqNo { get; private set; } = default!;
+    public bool IsActive { get; private set; }
+    public int SeqNo { get; private set; }
 
     private Parameter()
     {
@@ -20,8 +20,8 @@ public class Parameter : Aggregate<long>
         string language,
         string code,
         string description,
-        string active,
-        string seqNo
+        bool isActive,
+        int seqNo
     )
     {
         Group = group;
@@ -29,7 +29,7 @@ public class Parameter : Aggregate<long>
         Language = language;
         Code = code;
         Description = description;
-        Active = active;
+        IsActive = isActive;
         SeqNo = seqNo;
     }
 
@@ -39,8 +39,8 @@ public class Parameter : Aggregate<long>
         string language,
         string code,
         string description,
-        string active,
-        string seqNo
+        bool isActive,
+        int seqNo
     )
     {
         return new Parameter(
@@ -49,7 +49,7 @@ public class Parameter : Aggregate<long>
             language,
             code,
             description,
-            active,
+            isActive,
             seqNo
         );
     }

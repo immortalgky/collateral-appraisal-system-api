@@ -15,11 +15,12 @@ global using Microsoft.EntityFrameworkCore.Diagnostics;
 
 global using Parameter.Data;
 global using Parameter.Data.Repository;
-global using Parameter.Parameters.Models;
+global using Parameter.Parameters.Extensions;
 global using Parameter.Parameters.Exceptions;
 global using Parameter.Contracts.Parameters.Dtos;
 
 global using Shared.DDD;
 global using Shared.Exceptions;
+global using Shared.Extensions;
 global using Shared.Data.Extensions;
 global using Shared.Contracts.CQRS;

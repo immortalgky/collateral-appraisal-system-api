@@ -12,7 +12,7 @@ using Parameter.Data;
 namespace Parameter.Data.Migrations
 {
     [DbContext(typeof(ParameterDbContext))]
-    [Migration("20250717034705_Initial")]
+    [Migration("20250718095532_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -34,10 +34,6 @@ namespace Parameter.Data.Migrations
                         .HasColumnName("ParId");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("Active")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Code")
                         .IsRequired()
@@ -62,13 +58,15 @@ namespace Parameter.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Language")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("SeqNo")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("SeqNo")
+                        .HasColumnType("int");
 
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(10)

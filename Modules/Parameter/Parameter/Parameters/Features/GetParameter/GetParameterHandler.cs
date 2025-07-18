@@ -4,7 +4,7 @@ internal class GetParameterHandler(IParameterRepository parameterRepository) : I
 {
     public async Task<GetParameterResult> Handle(GetParameterQuery query, CancellationToken cancellationToken)
     {
-        var filter = query.Parameter.Adapt<ParameterDto>();
+        var filter = query.Parameter;
 
         var parameter = await parameterRepository.GetParameter(filter, false, cancellationToken);
 

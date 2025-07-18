@@ -8,6 +8,6 @@ public record ParameterDto
     string? Language,
     string? Code,
     string? Description,
-    string? Active,
-    string? SeqNo
+    bool? IsActive,
+    int? SeqNo
 );
