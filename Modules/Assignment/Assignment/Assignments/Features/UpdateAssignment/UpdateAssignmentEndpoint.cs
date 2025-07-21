@@ -4,11 +4,22 @@ namespace Assignment.Assignments.Features.UpdateAssignment
     {
         public void AddRoutes(IEndpointRouteBuilder app)
         {
-            app.MapPut("/assigments/{id:long}",
+            app.MapPut("/assignments/{id:long}",
                     async (long id, UpdateAssignmentRequest request, ISender sender, CancellationToken cancellationToken) =>
                     {
-                        var command = request.Adapt<UpdateAssignmentCommand>() with { Id = id };
-
+                        var command = request.Adapt<UpdateAssignmentCommand>() with { Id = id};
+                        // var command = new UpdateAssignmentCommand(
+                        //     id,
+                        //     request.RequestID,
+                        //     request.AssignmentMethod,
+                        //     request.ExternalCompanyID,
+                        //     request.ExternalCompanyAssignType,
+                        //     request.ExtApprStaff,
+                        //     request.ExtApprStaffAssignmentType,
+                        //     request.IntApprStaff,
+                        //     request.IntApprStaffAssignmentType,
+                        //     request.Remark
+                        // );
                         var result = await sender.Send(command, cancellationToken);
 
                         var response = result.Adapt<UpdateAssignmentResult>();

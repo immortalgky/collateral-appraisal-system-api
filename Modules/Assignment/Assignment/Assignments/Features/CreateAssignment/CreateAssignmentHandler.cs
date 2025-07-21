@@ -15,7 +15,7 @@ internal class CreateAssignmentHandler(
      private static Models.Assignment CreateNewAssignment(CreateAssignmentCommand command)
     {
         var request = Models.Assignment.Create(
-            command.ReqID,
+            command.RequestID,
             command.AssignmentMethod,
             command.ExternalCompanyID,
             command.ExternalCompanyAssignType,

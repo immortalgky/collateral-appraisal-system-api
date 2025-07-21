@@ -1,7 +1,7 @@
 namespace Assignment.Assignments.Features.CreateAssignment;
 
 public record CreateAssignmentRequest(
-    string ReqID,
+    long RequestID,
     string AssignmentMethod,
     string ExternalCompanyID,
     string ExternalCompanyAssignType,

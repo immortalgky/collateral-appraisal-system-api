@@ -4,9 +4,9 @@ public class CreateAssignmentCommandValidator : AbstractValidator<CreateAssignme
 {
     public CreateAssignmentCommandValidator()
     {
-        RuleFor(x => x.ReqID)
+        RuleFor(x => x.RequestID)
             .NotEmpty()
-            .WithMessage("ReqID is required.");
+            .WithMessage("RequestID is required.");
 
         RuleFor(x => x.AssignmentMethod)
             .NotEmpty()

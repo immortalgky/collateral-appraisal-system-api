@@ -2,7 +2,7 @@ namespace Assignment.Assignments.ValueObjects;
 
 public class AssignmentDetail : ValueObject
 {
-    public string ReqID { get; private set; } = default!;
+    public long ReqID { get; private set; } = default!;
     public string AssignmentMethod { get; private set; } = default!;
     public string ExternalCompanyID { get; private set; } = default!;
     public string ExternalCompanyAssignType { get; private set; } = default!;
@@ -19,7 +19,7 @@ public class AssignmentDetail : ValueObject
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     private AssignmentDetail(
-        string reqID,
+        long reqID,
         string assignmentMethod,
         string externalCompanyID,
         string externalCompanyAssignType,
@@ -43,7 +43,7 @@ public class AssignmentDetail : ValueObject
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public static AssignmentDetail Create(
-        string reqID,
+        long reqID,
         string assignmentMethod,
         string externalCompanyID,
         string externalCompanyAssignType,
@@ -54,7 +54,6 @@ public class AssignmentDetail : ValueObject
         string remark
     )
     {
-        ArgumentNullException.ThrowIfNull(reqID);
         ArgumentNullException.ThrowIfNull(assignmentMethod);
        
         return new AssignmentDetail(

@@ -2,7 +2,7 @@ namespace Assignment.Data.Repository;
 
 public interface IAssignmentRepository
 {
-    Task<Assignments.Models.Assignment> GetAssignment(long requestId, bool asNoTracking = true,
+    Task<Assignments.Models.Assignment> GetAssignmentById(long requestId, bool asNoTracking = true,
         CancellationToken cancellationToken = default);
 
     Task<Assignments.Models.Assignment> CreateAssignment(Assignments.Models.Assignment assignment,

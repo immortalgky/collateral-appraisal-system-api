@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Assignment.Configurations;
+// using Assignment.Configurations;
 using Assignment.Data.Repository;
 using Shared.Data.Extensions;
 using Shared.Data.Interceptors;
@@ -13,7 +13,7 @@ public static class AssignmentModule
     public static IServiceCollection AddAssignmentModule(this IServiceCollection services, IConfiguration configuration)
     {
         // Configure Mapster mappings
-        MappingConfiguration.ConfigureMappings();
+        // MappingConfiguration.ConfigureMappings();
 
         // Application User Case services
         services.AddScoped<IAssignmentRepository, AssignmentRepository>();

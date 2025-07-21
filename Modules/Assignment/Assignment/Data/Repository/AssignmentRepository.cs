@@ -5,11 +5,11 @@ namespace Assignment.Data.Repository;
 
 public class AssignmentRepository(AssignmentDbContext dbContext) : IAssignmentRepository
 {
-    public async Task<Assignments.Models.Assignment> GetAssignment(long requestId, bool asNoTracking = true,
+    public async Task<Assignments.Models.Assignment> GetAssignmentById(long requestId, bool asNoTracking = true,
         CancellationToken cancellationToken = default)
     {
         var query = dbContext.Assignments
-            .Where(r => r.Id == requestId);
+            .Where(r => r.RequestId == requestId);
 
         if (asNoTracking) query = query.AsNoTracking();
 
@@ -23,7 +23,7 @@ public class AssignmentRepository(AssignmentDbContext dbContext) : IAssignmentRe
     {
         dbContext.Assignments.Add(assignment);
         await dbContext.SaveChangesAsync(cancellationToken);
-
+        
         return assignment;
     }
 

@@ -1,9 +1,9 @@
 namespace Assignment.Assignments.Features.UpdateAssignment;
 
 public record UpdateAssignmentRequest(
-    string ReqID,
+    long RequestId,
     string AssignmentMethod,
-    string ExternalCompanyID,
+    string ExternalCompanyId,
     string ExternalCompanyAssignType,
     string ExtApprStaff,
     string ExtApprStaffAssignmentType,

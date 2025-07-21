@@ -1,80 +1,92 @@
-using Assignment.Assignments.ValueObjects;
-
 namespace Assignment.Assignments.Models;
 
 public class Assignment : Aggregate<long>
 {
-    public AssignmentDetail Detail { get; private set; } = default!;
+    public long RequestId { get; private set; } = default!;
+    public string AssignmentMethod { get; private set; } = default!;
+    public string ExternalCompanyID { get; private set; } = default!;
+    public string ExternalCompanyAssignType { get; private set; } = default!;
+    public string ExtApprStaff { get; private set; } = default!;
+    public string ExtApprStaffAssignmentType { get; private set; } = default!;
+    public string IntApprStaff { get; private set; } = default!;
+    public string IntApprStaffAssignmentType { get; private set; } = default!;
+    public string Remark { get; private set; } = default!;
 
     private Assignment()
     {
         // For EF Core
     }
 
-    private Assignment(AssignmentDetail detail)
+    private Assignment(
+            long requestId,
+            string assignmentMethod,
+            string externalCompanyID,
+            string externalCompanyAssignType, 
+            string extApprStaff,
+            string extApprStaffAssignmentType,
+            string intApprStaff,
+            string intApprStaffAssignmentType,
+            string remark)
     {
-        Detail = detail;
+        RequestId = requestId;
+        AssignmentMethod = assignmentMethod;
+        ExternalCompanyID = externalCompanyID;
+        ExternalCompanyAssignType = externalCompanyAssignType; 
+        ExtApprStaff = extApprStaff;
+        ExtApprStaffAssignmentType = extApprStaffAssignmentType;
+        IntApprStaff = intApprStaff;
+        IntApprStaffAssignmentType = intApprStaffAssignmentType;
+        Remark = remark;
 
         AddDomainEvent(new AssignmentCreatedEvent(this));
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public static Assignment Create(
-            string ReqID,
-            string AssignmentMethod,
-            string ExternalCompanyID,
-            string ExternalCompanyAssignType,
-            string ExtApprStaff,
-            string ExtApprStaffAssignmentType,
-            string IntApprStaff,
-            string IntApprStaffAssignmentType,
-            string Remark
+            long requestId,
+            string assignmentMethod,
+            string externalCompanyID,
+            string externalCompanyAssignType, 
+            string extApprStaff,
+            string extApprStaffAssignmentType,
+            string intApprStaff,
+            string intApprStaffAssignmentType,
+            string remark
     )
     {
-        var detail = AssignmentDetail.Create(
-            ReqID,
-            AssignmentMethod,
-            ExternalCompanyID,
-            ExternalCompanyAssignType,
-            ExtApprStaff,
-            ExtApprStaffAssignmentType,
-            IntApprStaff,
-            IntApprStaffAssignmentType,
-            Remark
-        );
-
-        return new Assignment(detail);
+        return new Assignment(requestId,
+             assignmentMethod,
+             externalCompanyID,
+             externalCompanyAssignType, 
+             extApprStaff,
+             extApprStaffAssignmentType,
+             intApprStaff,
+             intApprStaffAssignmentType,
+             remark);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public void UpdateDetail(
-        string ReqID,
-            string AssignmentMethod,
-            string ExternalCompanyID,
-            string ExternalCompanyAssignType,
-            string ExtApprStaff,
-            string ExtApprStaffAssignmentType,
-            string IntApprStaff,
-            string IntApprStaffAssignmentType,
-            string Remark
+        long requestId,
+            string assignmentMethod,
+            string externalCompanyID,
+            string externalCompanyAssignType, 
+            string extApprStaff,
+            string extApprStaffAssignmentType,
+            string intApprStaff,
+            string intApprStaffAssignmentType,
+            string remark
     )
     {
-        var newDetail =  AssignmentDetail.Create(
-            ReqID,
-            AssignmentMethod,
-            ExternalCompanyID,
-            ExternalCompanyAssignType,
-            ExtApprStaff,
-            ExtApprStaffAssignmentType,
-            IntApprStaff,
-            IntApprStaffAssignmentType,
-            Remark
-        );
-
-        if (!Detail.Equals(newDetail))
-        {
-            Detail = newDetail;
-        }
+        RequestId = requestId;
+        AssignmentMethod = assignmentMethod;
+        ExternalCompanyID = externalCompanyID;
+        ExternalCompanyAssignType = externalCompanyAssignType; 
+        ExtApprStaff = extApprStaff;
+        ExtApprStaffAssignmentType = extApprStaffAssignmentType;
+        IntApprStaff = intApprStaff;
+        IntApprStaffAssignmentType = intApprStaffAssignmentType;
+        Remark = remark;
     }
 
 }

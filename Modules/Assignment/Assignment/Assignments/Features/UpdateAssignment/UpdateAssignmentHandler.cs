@@ -9,9 +9,9 @@ internal class UpdateAssignmentHandler(AssignmentDbContext dbContext)
         if (request is null) throw new AssignmentNotFoundException(command.Id);
 
         request.UpdateDetail(
-            command.ReqID,
+            command.RequestId,
             command.AssignmentMethod,
-            command.ExternalCompanyID,
+            command.ExternalCompanyId,
             command.ExternalCompanyAssignType,
             command.ExtApprStaff,
             command.ExtApprStaffAssignmentType,

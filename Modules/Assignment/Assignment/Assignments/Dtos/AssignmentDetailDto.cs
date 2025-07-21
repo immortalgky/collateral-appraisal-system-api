@@ -2,7 +2,7 @@ namespace Assignment.Assignments.Dtos;
 
 public record AssignmentDetailDto(
     long Id,
-    string ReqID,
+    long RequestID,
     string AssignmentMethod,
     string ExternalCompanyID,
     string ExternalCompanyAssignType,
