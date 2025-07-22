@@ -13,6 +13,8 @@ public static class ParameterModule
             options.UseSqlServer(configuration.GetConnectionString("Database"));
         });
 
+        services.AddScoped<IDataSeeder<ParameterDbContext>, ParameterDataSeed>();
+
         return services;
     }
 
