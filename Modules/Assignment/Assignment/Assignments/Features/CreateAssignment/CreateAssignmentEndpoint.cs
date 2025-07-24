@@ -9,9 +9,9 @@ public class CreateAssignmentEndpoint : ICarterModule
                 {
                     // var command = request.Adapt<CreateAssignmentCommand>();
                     var command = new CreateAssignmentCommand(
-                            request.RequestID,
+                            request.RequestId,
                             request.AssignmentMethod,
-                            request.ExternalCompanyID,
+                            request.ExternalCompanyId,
                             request.ExternalCompanyAssignType,
                             request.ExtApprStaff,
                             request.ExtApprStaffAssignmentType,

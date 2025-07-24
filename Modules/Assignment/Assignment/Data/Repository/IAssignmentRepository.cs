@@ -7,5 +7,8 @@ public interface IAssignmentRepository
 
     Task<Assignments.Models.Assignment> CreateAssignment(Assignments.Models.Assignment assignment,
         CancellationToken cancellationToken = default);
+
+    Task<bool> UpdateAssignment(long Id,Assignments.Models.Assignment assignment,
+        CancellationToken cancellationToken = default);
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

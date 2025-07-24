@@ -4,7 +4,7 @@ public class AssignmentDetail : ValueObject
 {
     public long ReqID { get; private set; } = default!;
     public string AssignmentMethod { get; private set; } = default!;
-    public string ExternalCompanyID { get; private set; } = default!;
+    public string ExternalCompanyId { get; private set; } = default!;
     public string ExternalCompanyAssignType { get; private set; } = default!;
     public string ExtApprStaff { get; private set; } = default!;
     public string ExtApprStaffAssignmentType { get; private set; } = default!;
@@ -21,7 +21,7 @@ public class AssignmentDetail : ValueObject
     private AssignmentDetail(
         long reqID,
         string assignmentMethod,
-        string externalCompanyID,
+        string externalCompanyId,
         string externalCompanyAssignType,
         string extApprStaff,
         string extApprStaffAssignmentType,
@@ -32,7 +32,7 @@ public class AssignmentDetail : ValueObject
     {
         ReqID = reqID;
         AssignmentMethod = assignmentMethod;
-        ExternalCompanyID  = externalCompanyID;
+        ExternalCompanyId  = externalCompanyId;
         ExternalCompanyAssignType = externalCompanyAssignType;
         ExtApprStaff = extApprStaff;
         ExtApprStaffAssignmentType = extApprStaffAssignmentType;
@@ -45,7 +45,7 @@ public class AssignmentDetail : ValueObject
     public static AssignmentDetail Create(
         long reqID,
         string assignmentMethod,
-        string externalCompanyID,
+        string externalCompanyId,
         string externalCompanyAssignType,
         string extApprStaff,
         string extApprStaffAssignmentType,
@@ -59,7 +59,7 @@ public class AssignmentDetail : ValueObject
         return new AssignmentDetail(
             reqID,
             assignmentMethod,
-            externalCompanyID,
+            externalCompanyId,
             externalCompanyAssignType,
             extApprStaff,
             extApprStaffAssignmentType,

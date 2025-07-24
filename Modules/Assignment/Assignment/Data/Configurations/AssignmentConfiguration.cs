@@ -8,7 +8,7 @@ public class AssignmentConfiguration : IEntityTypeConfiguration<Assignments.Mode
         builder.Property(p => p.Id).HasColumnName("AssignmentId").UseIdentityColumn();
         builder.Property(p => p.RequestId).HasColumnName("RequestId");
         builder.Property(p => p.AssignmentMethod).HasColumnName("AssignmentMethod").HasMaxLength(10);
-        builder.Property(p => p.ExternalCompanyID).HasColumnName("ExternalCompanyID").HasMaxLength(10);
+        builder.Property(p => p.ExternalCompanyId).HasColumnName("ExternalCompanyId").HasMaxLength(10);
         builder.Property(p => p.ExternalCompanyAssignType).HasColumnName("ExternalCompanyAssignType");
         builder.Property(p => p.ExtApprStaff).HasColumnName("ExtApprStaff").HasMaxLength(10);
         builder.Property(p => p.ExtApprStaffAssignmentType).HasColumnName("ExtApprStaffAssignmentType").HasMaxLength(10);

@@ -27,6 +27,32 @@ public class AssignmentRepository(AssignmentDbContext dbContext) : IAssignmentRe
         return assignment;
     }
 
+
+    public async Task<bool> UpdateAssignment(long Id, Assignments.Models.Assignment assignment,
+        CancellationToken cancellationToken = default)
+    { 
+        var request = await dbContext.Assignments.FindAsync(Id, cancellationToken);
+        bool result = true;
+
+        if (request is null)
+            result = false;
+        else
+            request.UpdateDetail(
+                assignment.RequestId,
+                assignment.AssignmentMethod,
+                assignment.ExternalCompanyId,
+                assignment.ExternalCompanyAssignType,
+                assignment.ExtApprStaff,
+                assignment.ExtApprStaffAssignmentType,
+                assignment.IntApprStaff,
+                assignment.IntApprStaffAssignmentType,
+                assignment.Remark
+            );
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return result;
+    }
+
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return await dbContext.SaveChangesAsync(cancellationToken);

@@ -1,14 +1,13 @@
 namespace Assignment.Assignments.Features.UpdateAssignment;
 
-internal class UpdateAssignmentHandler(AssignmentDbContext dbContext)
+internal class UpdateAssignmentHandler(
+    IAssignmentRepository assignmentRepository)
     : ICommandHandler<UpdateAssignmentCommand, UpdateAssignmentResult>
 {
     public async Task<UpdateAssignmentResult> Handle(UpdateAssignmentCommand command, CancellationToken cancellationToken)
     {
-        var request = await dbContext.Assignments.FindAsync([command.Id], cancellationToken);
-        if (request is null) throw new AssignmentNotFoundException(command.Id);
 
-        request.UpdateDetail(
+        var request = Models.Assignment.UpdateDetailObject(
             command.RequestId,
             command.AssignmentMethod,
             command.ExternalCompanyId,
@@ -19,9 +18,8 @@ internal class UpdateAssignmentHandler(AssignmentDbContext dbContext)
             command.IntApprStaffAssignmentType,
             command.Remark
         );
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return new UpdateAssignmentResult(true);
+        bool result = await assignmentRepository.UpdateAssignment(command.Id,request, cancellationToken);
+        if (result != true) throw new AssignmentNotFoundException(command.Id);
+        return new UpdateAssignmentResult(result);
     }
 }

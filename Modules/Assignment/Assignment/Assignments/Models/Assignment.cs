@@ -4,7 +4,7 @@ public class Assignment : Aggregate<long>
 {
     public long RequestId { get; private set; } = default!;
     public string AssignmentMethod { get; private set; } = default!;
-    public string ExternalCompanyID { get; private set; } = default!;
+    public string ExternalCompanyId { get; private set; } = default!;
     public string ExternalCompanyAssignType { get; private set; } = default!;
     public string ExtApprStaff { get; private set; } = default!;
     public string ExtApprStaffAssignmentType { get; private set; } = default!;
@@ -20,7 +20,7 @@ public class Assignment : Aggregate<long>
     private Assignment(
             long requestId,
             string assignmentMethod,
-            string externalCompanyID,
+            string externalCompanyId,
             string externalCompanyAssignType, 
             string extApprStaff,
             string extApprStaffAssignmentType,
@@ -30,7 +30,7 @@ public class Assignment : Aggregate<long>
     {
         RequestId = requestId;
         AssignmentMethod = assignmentMethod;
-        ExternalCompanyID = externalCompanyID;
+        ExternalCompanyId = externalCompanyId;
         ExternalCompanyAssignType = externalCompanyAssignType; 
         ExtApprStaff = extApprStaff;
         ExtApprStaffAssignmentType = extApprStaffAssignmentType;
@@ -45,7 +45,7 @@ public class Assignment : Aggregate<long>
     public static Assignment Create(
             long requestId,
             string assignmentMethod,
-            string externalCompanyID,
+            string externalCompanyId,
             string externalCompanyAssignType, 
             string extApprStaff,
             string extApprStaffAssignmentType,
@@ -56,7 +56,7 @@ public class Assignment : Aggregate<long>
     {
         return new Assignment(requestId,
              assignmentMethod,
-             externalCompanyID,
+             externalCompanyId,
              externalCompanyAssignType, 
              extApprStaff,
              extApprStaffAssignmentType,
@@ -69,8 +69,8 @@ public class Assignment : Aggregate<long>
     public void UpdateDetail(
         long requestId,
             string assignmentMethod,
-            string externalCompanyID,
-            string externalCompanyAssignType, 
+            string externalCompanyId,
+            string externalCompanyAssignType,
             string extApprStaff,
             string extApprStaffAssignmentType,
             string intApprStaff,
@@ -80,13 +80,37 @@ public class Assignment : Aggregate<long>
     {
         RequestId = requestId;
         AssignmentMethod = assignmentMethod;
-        ExternalCompanyID = externalCompanyID;
-        ExternalCompanyAssignType = externalCompanyAssignType; 
+        ExternalCompanyId = externalCompanyId;
+        ExternalCompanyAssignType = externalCompanyAssignType;
         ExtApprStaff = extApprStaff;
         ExtApprStaffAssignmentType = extApprStaffAssignmentType;
         IntApprStaff = intApprStaff;
         IntApprStaffAssignmentType = intApprStaffAssignmentType;
         Remark = remark;
+        
     }
-
+     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    public static Assignment UpdateDetailObject(
+        long requestId,
+            string assignmentMethod,
+            string externalCompanyId,
+            string externalCompanyAssignType,
+            string extApprStaff,
+            string extApprStaffAssignmentType,
+            string intApprStaff,
+            string intApprStaffAssignmentType,
+            string remark
+    )
+    {
+        return new Assignment(
+             requestId,
+             assignmentMethod,
+             externalCompanyId,
+             externalCompanyAssignType, 
+             extApprStaff,
+             extApprStaffAssignmentType,
+             intApprStaff,
+             intApprStaffAssignmentType,
+             remark);
+    }
 }

@@ -1,9 +1,9 @@
 namespace Assignment.Assignments.Features.CreateAssignment;
 
 public record CreateAssignmentCommand(
-    long RequestID,
+    long RequestId,
     string AssignmentMethod,
-    string ExternalCompanyID,
+    string ExternalCompanyId,
     string ExternalCompanyAssignType,
     string ExtApprStaff,
     string ExtApprStaffAssignmentType,
