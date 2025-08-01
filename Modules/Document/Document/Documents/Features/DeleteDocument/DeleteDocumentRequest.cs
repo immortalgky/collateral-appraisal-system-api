@@ -1,3 +1,3 @@
 namespace Document.Documents.Features.DeleteDocument;
 
-public record DeleteDocumentRequest(long Id, string RelateRequest);
+public record DeleteDocumentRequest(long Id);

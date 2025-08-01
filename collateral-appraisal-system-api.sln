@@ -42,6 +42,7 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Document", "Modules\Document\Document\Document.csproj", "{9F3CD4BC-115B-4A1A-803B-E29AF7F42530}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Document.Contracts", "Modules\Document\Document.Contracts\Document.Contracts.csproj", "{13F55613-B5E3-4060-979F-EBF107A3FFE8}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Assignment", "Assignment", "{45AA2E44-E332-4B62-B1F7-0B066509961B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assignment", "Modules\Assignment\Assignment\Assignment.csproj", "{C1E5A34A-98CB-4105-85BF-CD42B16409DB}"
