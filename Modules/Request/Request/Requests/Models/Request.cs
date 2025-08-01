@@ -189,7 +189,8 @@ public class Request : Aggregate<long>
 
         RuleCheck.Valid()
             .AddErrorIf(initialCount == properties.Count,
-                $"Property with type '{propertyType}' and building type '{buildingType}' does not exist.");
+                $"Property with type '{propertyType}' and building type '{buildingType}' does not exist.")
+            .ThrowIfInvalid();
 
         _properties.Clear();
         _properties.AddRange(properties);
