@@ -18,6 +18,7 @@ public class Login(
         ReturnUrl = returnUrl ?? "/";
     }
 
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> OnPostAsync()
     {
         logger.LogInformation("Login attempt for user: {Username}", Username);

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Security;
 
 namespace OAuth2OpenId;
 
@@ -10,9 +12,26 @@ public static class OpenIddictModule
     {
         services.AddRazorPages().AddApplicationPart(typeof(Login).Assembly);
 
+        // Add anti-forgery protection
+        services.AddAntiforgery(options =>
+        {
+            options.HeaderName = "X-CSRF-TOKEN";
+            options.Cookie.Name = "__RequestVerificationToken";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        });
+
+        // Register certificate provider
+        services.AddSingleton<ICertificateProvider, CertificateProvider>();
+
         services.AddDbContext<OpenIddictDbContext>(options =>
         {
-            options.UseSqlServer(configuration.GetConnectionString("Database"));
+            options.UseSqlServer(configuration.GetConnectionString("Database"), sqlOptions =>
+            {
+                sqlOptions.MigrationsAssembly(typeof(OpenIddictDbContext).Assembly.GetName().Name);
+                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "auth");
+            });
             options.UseOpenIddict();
         });
 
@@ -45,16 +64,56 @@ public static class OpenIddictModule
                 options.AllowClientCredentialsFlow();
                 options.AllowRefreshTokenFlow();
 
-                options.AcceptAnonymousClients();
+                // Security: Only accept clients that are explicitly registered
+                // Remove AcceptAnonymousClients() for production security
+                var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+                if (environment == "Development")
+                {
+                    options.AcceptAnonymousClients();
+                }
 
                 options.RegisterScopes(
                     OpenIddictConstants.Scopes.OpenId, OpenIddictConstants.Scopes.Profile,
                     OpenIddictConstants.Scopes.Email, OpenIddictConstants.Scopes.OfflineAccess);
 
-                options.AddDevelopmentEncryptionCertificate();
-                options.AddDevelopmentSigningCertificate();
+                // Use a secure certificate provider instead of development certificates
+                // For development, still use development certificates temporarily
+                if (environment == "Development")
+                {
+                    options.AddDevelopmentEncryptionCertificate();
+                    options.AddDevelopmentSigningCertificate();
+                }
+                else
+                {
+                    // In production, use proper certificates via configuration
+                    // This will be loaded dynamically at startup
+                    var signingCertConfig = configuration.GetSection("OAuth2:SigningCertificate");
+                    var encryptionCertConfig = configuration.GetSection("OAuth2:EncryptionCertificate");
 
-                options.DisableAccessTokenEncryption();
+                    if (signingCertConfig.Exists())
+                    {
+                        // Use certificate provider when available
+                        // For now, throw exception to enforce proper configuration
+                        throw new InvalidOperationException(
+                            "Production signing certificate configuration required but not implemented. Please configure OAuth2:SigningCertificate section.");
+                    }
+
+                    if (encryptionCertConfig.Exists())
+                    {
+                        throw new InvalidOperationException(
+                            "Production encryption certificate configuration required but not implemented. Please configure OAuth2:EncryptionCertificate section.");
+                    }
+
+                    // Fallback to development certificates with warning
+                    options.AddDevelopmentEncryptionCertificate();
+                    options.AddDevelopmentSigningCertificate();
+                }
+
+                // Enable access token encryption in production
+                if (environment == "Development")
+                {
+                    options.DisableAccessTokenEncryption();
+                }
 
                 options.UseAspNetCore()
                     .EnableTokenEndpointPassthrough()

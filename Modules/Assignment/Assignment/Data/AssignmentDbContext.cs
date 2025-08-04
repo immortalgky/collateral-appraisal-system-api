@@ -1,5 +1,6 @@
 namespace Assignment.Data;
 
+<<<<<<< HEAD
 public class AssignmentDbContext : DbContext
 {
     public AssignmentDbContext(DbContextOptions<AssignmentDbContext> options) : base(options)
@@ -20,6 +21,22 @@ public class AssignmentDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
         // Call the base method to ensure any additional configurations are applied
+=======
+public class AssignmentDbContext(DbContextOptions<AssignmentDbContext> options) : DbContext(options)
+{
+    public DbSet<PendingTask> PendingTasks => Set<PendingTask>();
+    public DbSet<CompletedTask> CompletedTasks => Set<CompletedTask>();
+    public DbSet<RoundRobinQueue> RoundRobinQueue => Set<RoundRobinQueue>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasDefaultSchema("assignment");
+
+        modelBuilder.ApplyGlobalConventions();
+
+        modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+
+>>>>>>> 3434ca92f42e614d268511d3a6e0d95cb6f4d666
         base.OnModelCreating(modelBuilder);
     }
 }

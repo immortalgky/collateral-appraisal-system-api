@@ -1,14 +1,34 @@
+using System.Linq;
+using Microsoft.Extensions.Configuration;
+
 namespace OAuth2OpenId.Data.Seed;
 
-public class AuthDataSeed(UserManager<ApplicationUser> userManager, IOpenIddictApplicationManager manager)
+public class AuthDataSeed(
+    UserManager<ApplicationUser> userManager,
+    IOpenIddictApplicationManager manager,
+    IConfiguration configuration)
     : IDataSeeder<OpenIddictDbContext>
 {
     public async Task SeedAllAsync()
     {
-        if (await userManager.FindByNameAsync("admin") is null)
+        // Create a default admin user only if configured
+        var adminConfig = configuration.GetSection("SeedData:AdminUser");
+        var adminUsername = adminConfig["Username"];
+        var adminPassword = adminConfig["Password"];
+
+        if (!string.IsNullOrEmpty(adminUsername) && !string.IsNullOrEmpty(adminPassword))
         {
-            var admin = new ApplicationUser { UserName = "admin" };
-            await userManager.CreateAsync(admin, "P@ssw0rd!");
+            if (await userManager.FindByNameAsync(adminUsername) is null)
+            {
+                var admin = new ApplicationUser { UserName = adminUsername };
+                var result = await userManager.CreateAsync(admin, adminPassword);
+
+                if (!result.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to create admin user: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+                }
+            }
         }
 
         if (await manager.FindByClientIdAsync("spa") is null)
@@ -22,7 +42,6 @@ public class AuthDataSeed(UserManager<ApplicationUser> userManager, IOpenIddictA
                 RedirectUris =
                 {
                     new Uri("https://localhost:7111/callback"),
-                    new Uri("https://www.google.com/"),
                     new Uri("https://localhost:3000/callback")
                 },
                 Permissions =

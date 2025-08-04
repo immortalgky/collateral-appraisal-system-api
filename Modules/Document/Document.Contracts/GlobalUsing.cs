@@ -1,0 +1,1 @@
+﻿global using Document.Contracts.Documents.Dtos;

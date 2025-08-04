@@ -2,9 +2,6 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Request.Configurations;
-using Request.Data.Repository;
-using Request.Requests.Services;
-using Shared.Data.Extensions;
 using Shared.Data.Interceptors;
 
 namespace Request;
@@ -18,6 +15,7 @@ public static class RequestModule
 
         // Application User Case services
         services.AddScoped<IRequestRepository, RequestRepository>();
+        services.AddScoped<IRequestReadRepository, RequestReadRepository>();
         services.AddTransient<IAppraisalNumberGenerator, AppraisalNumberGenerator>();
 
         // Infrastructure services
@@ -27,7 +25,11 @@ public static class RequestModule
         services.AddDbContext<RequestDbContext>((sp, options) =>
         {
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
-            options.UseSqlServer(configuration.GetConnectionString("Database"));
+            options.UseSqlServer(configuration.GetConnectionString("Database"), sqlOptions =>
+            {
+                sqlOptions.MigrationsAssembly(typeof(RequestDbContext).Assembly.GetName().Name);
+                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "request");
+            });
         });
 
         services.AddScoped<IDataSeeder<RequestDbContext>, RequestDataSeed>();

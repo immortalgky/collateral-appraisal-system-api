@@ -1,4 +1,6 @@
-using System.Globalization;
+using MassTransit;
+using MassTransit.EntityFrameworkCoreIntegration;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,22 +10,74 @@ builder.Services.AddOpenApi();
 
 builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(context.Configuration));
 
+// Add shared services (time abstraction, security, etc.)
+builder.Services.AddSharedServices(builder.Configuration);
+
 // Common services: carter, mediatR, fluentvalidators, etc.
 var requestAssembly = typeof(RequestModule).Assembly;
 var assignmentAssembly = typeof(AssignmentModule).Assembly;
 var authAssembly = typeof(AuthModule).Assembly;
 var notificationAssembly = typeof(NotificationModule).Assembly;
+var documentAssembly = typeof(DocumentModule).Assembly;
+var assignmentAssemblyAssembly = typeof(AssignmentModule).Assembly;
 
-builder.Services.AddCarterWithAssemblies(requestAssembly,assignmentAssembly, authAssembly, notificationAssembly);
-builder.Services.AddMediatRWithAssemblies(requestAssembly,assignmentAssembly, authAssembly, notificationAssembly);
+builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly);
+builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("Redis");
 });
 
-builder.Services.AddMassTransitWithAssemblies(builder.Configuration, requestAssembly, authAssembly,
-    notificationAssembly);
+// builder.Services.AddMassTransitWithAssemblies(builder.Configuration, requestAssembly, authAssembly,
+//     notificationAssembly);
+
+builder.Services.AddDbContext<AppraisalSagaDbContext>((sp, options) =>
+{
+    options.UseSqlServer(builder.Configuration.GetConnectionString("Database"), sqlOptions =>
+    {
+        sqlOptions.MigrationsAssembly(typeof(AppraisalSagaDbContext).Assembly.GetName().Name);
+        sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "saga");
+        sqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
+    });
+});
+
+builder.Services.AddMassTransit(config =>
+{
+    config.SetKebabCaseEndpointNameFormatter();
+
+    config.AddSagaStateMachine<AppraisalStateMachine, AppraisalSagaState>()
+        .EntityFrameworkRepository(r =>
+        {
+            r.ConcurrencyMode = ConcurrencyMode.Pessimistic; // Safer for SQL Server
+            r.ExistingDbContext<AppraisalSagaDbContext>();
+            r.LockStatementProvider = new SqlServerLockStatementProvider();
+        });
+
+    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssemblyAssembly);
+    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssemblyAssembly);
+    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssemblyAssembly);
+    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssemblyAssembly);
+
+    config.UsingRabbitMq((context, configurator) =>
+    {
+        configurator.Host(new Uri(builder.Configuration["RabbitMQ:Host"]!), host =>
+        {
+            host.Username(builder.Configuration["RabbitMQ:Username"]!);
+            host.Password(builder.Configuration["RabbitMQ:Password"]!);
+        });
+
+        configurator.ConfigureEndpoints(context);
+
+        configurator.PrefetchCount = 16;
+        configurator.UseMessageRetry(r => r.Exponential(5,
+            TimeSpan.FromSeconds(1),
+            TimeSpan.FromSeconds(30),
+            TimeSpan.FromSeconds(5)));
+
+        configurator.UseInMemoryOutbox(context);
+    });
+});
 
 builder.Services.AddHttpClient("CAS", client => { client.BaseAddress = new Uri("https://localhost:7111"); });
 
@@ -34,7 +88,6 @@ builder.Services
     .AddRequestModule(builder.Configuration)
     .AddAuthModule(builder.Configuration)
     .AddNotificationModule(builder.Configuration)
-    .AddAssignmentModule(builder.Configuration)
     .AddOpenIddictModule(builder.Configuration);
 
 // Configure JSON serialization
@@ -52,10 +105,11 @@ builder.Services.AddCors(options =>
     options.AddPolicy("SPAPolicy",
         policy =>
         {
-            policy.WithOrigins("https://localhost:3000")
+            policy
+                .WithOrigins("https://localhost:3000", "https://localhost:7111", "null")
                 .AllowAnyHeader()
                 .AllowAnyMethod()
-                .AllowCredentials(); // Optional if you need cookies/auth headers
+                .AllowCredentials(); // Required for SignalR
         });
 });
 
@@ -66,6 +120,7 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 if (app.Environment.IsDevelopment()) app.UseDeveloperExceptionPage();
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
@@ -82,17 +137,16 @@ app.MapRazorPages();
 app.MapControllers();
 app.MapCarter();
 
-app.UseSerilogRequestLogging();
-app.UseExceptionHandler(options => { });
-
 app
     .UseRequestModule()
     .UseAuthModule()
     .UseNotificationModule()
-    .UseAssignmentModule()
     .UseOpenIddictModule();
 
-CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
-CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
+app.UseSerilogRequestLogging();
+app.UseExceptionHandler(options => { });
+
+// CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+// CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
 await app.RunAsync();
