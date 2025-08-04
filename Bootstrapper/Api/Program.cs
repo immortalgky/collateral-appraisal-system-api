@@ -153,3 +153,5 @@ app.UseExceptionHandler(options => { });
 // CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
 await app.RunAsync();
+
+public partial class Program { }

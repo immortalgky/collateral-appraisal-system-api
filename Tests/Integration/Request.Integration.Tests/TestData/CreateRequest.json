@@ -1,0 +1,66 @@
+{
+  "id": 0,
+  "appraisalNo": "string",
+  "status": "string",
+  "purpose": "string",
+  "hasAppraisalBook": true,
+  "priority": "string",
+  "reference": {
+    "prevAppraisalNo": "string",
+    "prevAppraisalValue": 0,
+    "prevAppraisalDate": "2025-06-20T08:39:32.515Z"
+  },
+  "channel": "string",
+  "loanApplicationNo": "string",
+  "limitAmt": 0,
+  "occurConstInspec": 0,
+  "totalSellingPrice": 0,
+  "address": {
+    "houseNo": "string",
+    "roomNo": "string",
+    "floorNo": "string",
+    "locationIdentifier": "string",
+    "moo": "string",
+    "soi": "string",
+    "road": "string",
+    "subDistrict": "string",
+    "district": "string",
+    "province": "string",
+    "postcode": "string"
+  },
+  "contact": {
+    "contactPersonName": "string",
+    "contactPersonContactNo": "string",
+    "projectCode": "string"
+  },
+  "fee": {
+    "feeType": "string",
+    "feeRemark": "string"
+  },
+  "requestor": {
+    "requestorEmpId": "string",
+    "requestorName": "string",
+    "requestorEmail": "string",
+    "requestorContactNo": "string",
+    "requestorAo": "string",
+    "requestorBranch": "string",
+    "requestorBusinessUnit": "string",
+    "requestorDepartment": "string",
+    "requestorSection": "string",
+    "requestorCostCenter": "string"
+  },
+  "customers": [
+    {
+      "name": "abc",
+      "contactNumber": "0123456789"
+    }
+  ],
+  "properties": [
+    {
+      "propertyType": "abc",
+      "buildingType": "abc",
+      "sellingPrice": 1
+    }
+  ],
+  "comments": []
+}
