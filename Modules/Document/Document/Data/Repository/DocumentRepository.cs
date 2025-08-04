@@ -29,17 +29,35 @@ public class DocumentRepository(DocumentDbContext dbContext) : IDocumentReposito
         return document ?? throw new DocumentNotFoundException(documentId);
     }
 
+    public async Task<bool> GetDocument(string filePath, string request, long id,
+        bool asNoTracking = true, CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.Documents.Where(r => r.FilePath == filePath);
+
+        var result = await query.AnyAsync(r => r.RelateId == id && r.RelateRequest == request, cancellationToken);
+        
+        return result; 
+    }
+
     public async Task<bool> DeleteDocument(long id,
         CancellationToken cancellationToken = default)
     {
-        var document = await GetDocumentById(id, false, cancellationToken);
+        var document = await GetDocumentById(id, false, cancellationToken) ?? throw new DocumentNotFoundException(id);
 
         dbContext.Documents.Remove(document);
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return true;
     }
 
+    public async Task<bool> DeleteDocument(string filePath,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await dbContext.Documents.AnyAsync(r => r.FilePath == filePath, cancellationToken);
+
+        return result;
+    }
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return await dbContext.SaveChangesAsync(cancellationToken);

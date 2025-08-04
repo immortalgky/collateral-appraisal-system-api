@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Document.Data;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Document.Services;
 
 namespace Document;
 
@@ -13,6 +14,8 @@ public static class DocumentModule
         MappingConfiguration.ConfigureMappings();
         
         services.AddScoped<IDocumentRepository, DocumentRepository>();
+
+        services.AddScoped<IDocumentService, DocumentService>();
 
         services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
         services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventInterceptor>();
