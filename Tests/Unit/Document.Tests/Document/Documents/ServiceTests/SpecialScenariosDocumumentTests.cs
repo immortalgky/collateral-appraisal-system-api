@@ -80,7 +80,6 @@ public class SpecialUploadScenariosTests : DocumentServiceTestBase
         Assert.All(result.Result, r => Assert.True(r.IsSuccess));
     }
 
-
     [Fact]
     public async Task ShouldAllow_EmptyComment()
     {
