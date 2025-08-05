@@ -1,47 +1,58 @@
+using System.Security.Cryptography;
 using Document.Documents.Exceptions;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Document.Tests.Document.Documents.ServiceTests;
 
 public class InvalidDocumentServiceTests : DocumentServiceTestBase
 {
-    // [Fact]
-    // public async Task ShouldFail_UploadFileWithoutExtension()
-    // {
-    //     var file = CreateMockFile("noextension", GenerateBytes(1024));
+    [Fact]
+    public async Task ShouldFail_UploadFileWithoutExtension()
+    {
+        var file = CreateMockFile("noextension", GenerateBytes(1024));
 
-    //     var result = await _service.UploadAsync(new List<IFormFile> { file }, "Request", 201, CancellationToken.None);
+        var result = await _service.UploadAsync(new List<IFormFile> { file }, "Request", 201, CancellationToken.None);
 
-    //     Assert.False(result.Result[0].IsSuccess);
+        Assert.False(result.Result[0].IsSuccess);
 
-    //     Assert.Contains("size", result.Result[0].Comment, StringComparison.OrdinalIgnoreCase);
-    // }
+        Assert.Contains("extension", result.Result[0].Comment, StringComparison.OrdinalIgnoreCase);
+    }
 
-    // [Fact]
-    // public async Task ShouldFail_UploadTxtFile()
-    // {
-    //     var file = CreateMockFile("note.txt", GenerateBytes(1024));
-    //     var ex = await Assert.ThrowsAsync<UploadDocumentException>(() =>
-    //         _service.UploadAsync(new List<IFormFile> { file }, "Request", 202, CancellationToken.None));
-    //     Assert.Contains("extension", ex.Message, StringComparison.OrdinalIgnoreCase);
-    // }
+    [Fact]
+    public async Task ShouldFail_UploadTxtFile()
+    {
+        var file = CreateMockFile("note.txt", GenerateBytes(1024));
 
-    // [Fact]
-    // public async Task ShouldFail_UploadFileOver5Mb()
-    // {
-    //     var file = CreateMockFile("too_big.pdf", GenerateBytes(5 * 1024 * 1024 + 1));
-    //     var ex = await Assert.ThrowsAsync<UploadDocumentException>(() =>
-    //         _service.UploadAsync(new List<IFormFile> { file }, "Request", 203, CancellationToken.None));
-    //     Assert.Contains("size", ex.Message, StringComparison.OrdinalIgnoreCase);
-    // }
+        var result = await _service.UploadAsync(new List<IFormFile> { file }, "Request", 201, CancellationToken.None);
 
-    // [Fact]
-    // public async Task ShouldFail_UploadZeroByteFile()
-    // {
-    //     var file = CreateMockFile("empty.pdf", []);
-    //     var ex = await Assert.ThrowsAsync<UploadDocumentException>(() =>
-    //         _service.UploadAsync(new List<IFormFile> { file }, "Request", 204, CancellationToken.None));
-    //     Assert.Contains("empty", ex.Message, StringComparison.OrdinalIgnoreCase);
-    // }
+        Assert.False(result.Result[0].IsSuccess);
+
+        Assert.Contains("extension", result.Result[0].Comment, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ShouldFail_UploadFileOver5Mb()
+    {
+        var file = CreateMockFile("too_big.pdf", GenerateBytes(5 * 1024 * 1024 + 1));
+
+        var result = await _service.UploadAsync(new List<IFormFile> { file }, "Request", 201, CancellationToken.None);
+
+        Assert.False(result.Result[0].IsSuccess);
+
+        Assert.Contains("exceeded", result.Result[0].Comment, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ShouldFail_UploadZeroByteFile()
+    {
+        var file = CreateMockFile("empty.pdf", []);
+
+        var result = await _service.UploadAsync(new List<IFormFile> { file }, "Request", 201, CancellationToken.None);
+
+        Assert.False(result.Result[0].IsSuccess);
+
+        Assert.Contains("empty", result.Result[0].Comment, StringComparison.OrdinalIgnoreCase);
+    }
 
     [Fact]
     public async Task ShouldFail_UploadMoreThan5Files()
@@ -94,39 +105,19 @@ public class InvalidDocumentServiceTests : DocumentServiceTestBase
         Assert.False(result.Result[1].IsSuccess);
     }
 
-    // [Fact]
-    // public async Task ShouldFail_DiskFullException()
-    // {
-    //     var file = CreateMockFile("diskfull.pdf", GenerateBytes(1024));
+    [Fact]
+    public async Task ShouldFail_DiskFullException()
+    {
+        var file = CreateMockFile("diskfull.pdf", GenerateBytes(1024));
 
-    //     _repo.GetDocument(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<long>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-    //         .Returns(false);
+        var service = new FaultyFileWriteService(_repo);
 
-    //     var service = new FaultyFileWriteService(_repo);
+        var result = await service.UploadAsync([file], "Request", 208, CancellationToken.None);
 
-    //     var ex = await Assert.ThrowsAsync<UploadDocumentException>(() =>
-    //         service.UploadAsync([file], "Request", 208, CancellationToken.None));
+        Assert.False(result.Result[0].IsSuccess);
 
-    //     Assert.Contains("Storage full", ex.Message);
-    // }
-
-    // [Fact]
-    // public async Task ShouldFail_FileWriteIOException()
-    // {
-    //     var readOnlyFolder = Path.Combine(Path.GetTempPath(), "ReadOnlyUpload");
-
-    //     if (!Directory.Exists(readOnlyFolder))
-    //         Directory.CreateDirectory(readOnlyFolder);
-
-    //     var file = CreateMockFile("file.pdf", GenerateBytes(1024));
-
-    //     var ex = await Assert.ThrowsAsync<UploadDocumentException>(() =>
-    //         _service.UploadAsync(new List<IFormFile> { file }, "REQ", 209, CancellationToken.None));
-
-    //     Assert.Contains("Storage full", ex.Message, StringComparison.OrdinalIgnoreCase);
-
-    //     Directory.Delete(readOnlyFolder, true);
-    // }
+        Assert.Contains("Storage full", result.Result[0].Comment, StringComparison.OrdinalIgnoreCase);
+    }
 
     [Fact]
     public async Task ShouldFail_UploadCancelledToken()
@@ -139,39 +130,24 @@ public class InvalidDocumentServiceTests : DocumentServiceTestBase
             _service.UploadAsync([file], "Request", 210, token.Token));
     }
 
-    // [Fact]
-    // public async Task ShouldFail_FilePathAlreadyExists()
-    // {
-    //     var file = CreateMockFile("exists.pdf", GenerateBytes(1024));
-    //     var path = Path.Combine(Directory.GetCurrentDirectory(), "Upload", "exists.pdf");
-    //     File.WriteAllBytes(path, GenerateBytes(1024));
+    [Fact]
+    public async Task ShouldFail_FilePathAlreadyExists()
+    {
+        var file = CreateMockFile("exists.pdf", GenerateBytes(1024));
 
-    //     _repo.GetDocument(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<long>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-    //         .Returns(false);
+        var path = Path.Combine(Directory.GetCurrentDirectory(), "Upload", "exists.pdf");
 
-    //     var ex = await Assert.ThrowsAsync<UploadDocumentException>(() =>
-    //         _service.UploadAsync([file], "Request", 211, CancellationToken.None));
+        File.WriteAllBytes(path, GenerateBytes(1024));
 
-    //     Assert.Contains("Duplicate", ex.Message, StringComparison.OrdinalIgnoreCase);
+        _repo.GetDocument(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<long>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(true);
 
-    //     File.Delete(path); // cleanup
-    // }
+        var result = await _service.UploadAsync([file], "Request", 211, CancellationToken.None);
 
-    // [Fact]
-    // public async Task ShouldFail_WrongContentType()
-    // {
-    //     var stream = new MemoryStream(GenerateBytes(1024));
-    //     var file = new FormFile(stream, 0, stream.Length, "file", "file.pdf")
-    //     {
-    //         Headers = new HeaderDictionary(),
-    //         ContentType = "application/txt"
-    //     };
+        Assert.False(result.Result[0].IsSuccess);
 
-    //     var ex = await Assert.ThrowsAsync<UploadDocumentException>(() =>
-    //         _service.UploadAsync([file], "Request", 212, CancellationToken.None));
-
-    //     Assert.Contains("extension", ex.Message, StringComparison.OrdinalIgnoreCase);
-    // }
+        Assert.Contains("Duplicate", result.Result[0].Comment, StringComparison.OrdinalIgnoreCase);
+    }
 
     [Fact]
     public async Task ShouldFail_WithoutFileStream()
