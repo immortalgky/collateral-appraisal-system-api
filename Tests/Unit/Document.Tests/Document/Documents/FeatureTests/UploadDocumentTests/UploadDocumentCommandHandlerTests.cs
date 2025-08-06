@@ -1,7 +1,3 @@
-using Document.Contracts.Documents.Dtos;
-using Document.Documents.Features.UploadDocument;
-using NSubstitute.ExceptionExtensions;
-
 namespace Document.Tests.Document.Documents.FeatureTests.UploadDocumentTests;
 
 public class UploadDocumentQueryHandlerTests : DocumentServiceTestBase
