@@ -1,26 +1,28 @@
+using Request.RequestComments.Models;
+
 namespace Request.Requests.Models;
 
 public class Request : Aggregate<long>
 {
-    public AppraisalNumber AppraisalNo { get; private set; } = default!;
+    public AppraisalNumber? AppraisalNo { get; private set; }
     public RequestStatus Status { get; private set; } = default!;
     public RequestDetail Detail { get; private set; } = default!;
 
+    // Customers
     private readonly List<RequestCustomer> _customers = [];
-    private readonly List<RequestProperty> _properties = [];
-    private readonly List<RequestComment> _comments = [];
     public IReadOnlyList<RequestCustomer> Customers => _customers.AsReadOnly();
+
+    // Properties
+    private readonly List<RequestProperty> _properties = [];
     public IReadOnlyList<RequestProperty> Properties => _properties.AsReadOnly();
-    public IReadOnlyList<RequestComment> Comments => _comments.AsReadOnly();
 
     private Request()
     {
         // For EF Core
     }
 
-    private Request(AppraisalNumber appraisalNo, RequestStatus status, RequestDetail detail)
+    private Request(RequestStatus status, RequestDetail detail)
     {
-        AppraisalNo = appraisalNo;
         Status = status;
         Detail = detail;
 
@@ -29,7 +31,6 @@ public class Request : Aggregate<long>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public static Request Create(
-        AppraisalNumber appraisalNo,
         string purpose,
         bool hasAppraisalBook,
         string priority,
@@ -57,7 +58,14 @@ public class Request : Aggregate<long>
             requestor
         );
 
-        return new Request(appraisalNo, RequestStatus.New, requestDetail);
+        return new Request(RequestStatus.New, requestDetail);
+    }
+
+    public void SetAppraisalNumber(AppraisalNumber appraisalNo)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appraisalNo);
+
+        AppraisalNo = appraisalNo;
     }
 
     private void UpdateStatus(RequestStatus status)
@@ -194,32 +202,5 @@ public class Request : Aggregate<long>
 
         _properties.Clear();
         _properties.AddRange(properties);
-    }
-
-    public void AddComment(string comment)
-    {
-        _comments.Add(RequestComment.Create(comment));
-    }
-
-    public void UpdateComment(long commentId, string newComment)
-    {
-        var comment = _comments.FirstOrDefault(c => c.Id == commentId);
-        if (comment == null)
-        {
-            throw new NotFoundException($"Comment with ID '{commentId}' does not exist.");
-        }
-
-        comment.Update(newComment);
-    }
-
-    public void RemoveComment(long commentId)
-    {
-        var comment = _comments.FirstOrDefault(c => c.Id == commentId);
-        if (comment == null)
-        {
-            throw new NotFoundException($"Comment with ID '{commentId}' does not exist.");
-        }
-
-        _comments.Remove(comment);
     }
 }

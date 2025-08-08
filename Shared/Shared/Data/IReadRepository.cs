@@ -17,17 +17,38 @@ namespace Shared.Data
     {
         // Basic read operations
         Task<T?> GetByIdAsync(TId id, CancellationToken cancellationToken = default);
+
+        Task<TProjection?> GetByIdAsync<TProjection>(TId id, Expression<Func<T, TProjection>> selector,
+            CancellationToken cancellationToken = default);
+
         Task<IEnumerable<T>> GetAllAsync(CancellationToken cancellationToken = default);
+
+        Task<IEnumerable<TProjection>> GetAllAsync<TProjection>(Expression<Func<T, TProjection>> selector,
+            CancellationToken cancellationToken = default);
 
         Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate,
             CancellationToken cancellationToken = default);
 
+        Task<IEnumerable<TProjection>> FindAsync<TProjection>(Expression<Func<T, bool>> predicate,
+            Expression<Func<T, TProjection>> selector, CancellationToken cancellationToken = default);
+
         Task<IEnumerable<T>> FindAsync(ISpecification<T> specification, CancellationToken cancellationToken = default);
+
+        Task<IEnumerable<TProjection>> FindAsync<TProjection>(ISpecification<T> specification,
+            Expression<Func<T, TProjection>> selector, CancellationToken cancellationToken = default);
 
         Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate,
             CancellationToken cancellationToken = default);
 
+        Task<TProjection?> FirstOrDefaultAsync<TProjection>(Expression<Func<T, bool>> predicate,
+            Expression<Func<T, TProjection>> selector, CancellationToken cancellationToken = default);
+
+
         Task<T?> FirstOrDefaultAsync(ISpecification<T> specification, CancellationToken cancellationToken = default);
+
+        Task<TProjection?> FirstOrDefaultAsync<TProjection>(ISpecification<T> specification,
+            Expression<Func<T, TProjection>> selector, CancellationToken cancellationToken = default);
+
 
         // Existence checks
         Task<bool> ExistsAsync(TId id, CancellationToken cancellationToken = default);
@@ -59,7 +80,7 @@ namespace Shared.Data
         Task<PaginatedResult<T>> GetPaginatedAsync<TKey>(PaginationRequest request, ISpecification<T> specification,
             Expression<Func<T, TKey>> orderBy, bool ascending = true, CancellationToken cancellationToken = default);
 
-        // Projection operations
+        // Paginated projection operations
         Task<PaginatedResult<TProjection>> GetPaginatedAsync<TProjection>(PaginationRequest request,
             Expression<Func<T, TProjection>> selector, CancellationToken cancellationToken = default);
 

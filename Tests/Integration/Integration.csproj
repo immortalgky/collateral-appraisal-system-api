@@ -37,12 +37,17 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Bootstrapper\Api\Api.csproj" />
+    <ProjectReference Include="..\..\Database\Database.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="**\TestData\**\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Document.Integrations.Tests\" />
   </ItemGroup>
 
 </Project>

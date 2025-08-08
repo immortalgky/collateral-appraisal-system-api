@@ -23,12 +23,106 @@ namespace Request.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Request.RequestComments.Models.RequestComment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Comment")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("RequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestId");
+
+                    b.ToTable("RequestComments", "request");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.RequestTitle", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("BuildingType")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CollateralType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("NoOfBuilding")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Owner")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<long>("RequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("TitleDetail")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TitleNo")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("UsageArea")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RequestTitles", "request");
+                });
+
             modelBuilder.Entity("Request.Requests.Models.Request", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("RequestId");
+                        .HasColumnType("bigint");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
@@ -51,106 +145,254 @@ namespace Request.Data.Migrations
                     b.ToTable("Requests", "request");
                 });
 
-            modelBuilder.Entity("Request.Requests.Models.RequestDocument", b =>
+            modelBuilder.Entity("Request.RequestTitles.Models.RequestTitle", b =>
                 {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("DocumentId");
+                    b.OwnsOne("Request.Requests.ValueObjects.Address", "DopaAddress", b1 =>
+                        {
+                            b1.Property<long>("RequestTitleId")
+                                .HasColumnType("bigint");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                            b1.Property<string>("BuildingNo")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("DopaBuildingNo");
 
-                    b.Property<string>("Comment")
-                        .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                            b1.Property<string>("District")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("DopaDistrict");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
+                            b1.Property<string>("FloorNo")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("DopaFloorNo");
 
-                    b.Property<DateTime?>("CreatedOn")
-                        .HasColumnType("datetime2");
+                            b1.Property<string>("HouseNo")
+                                .HasMaxLength(30)
+                                .HasColumnType("nvarchar(30)")
+                                .HasColumnName("DopaHouseNo");
 
-                    b.Property<string>("DocType")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
+                            b1.Property<string>("Moo")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("DopaMoo");
 
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                            b1.Property<string>("Postcode")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("DopaPostcode");
 
-                    b.Property<string>("FilePath")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                            b1.Property<string>("Province")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("DopaProvince");
 
-                    b.Property<string>("Prefix")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                            b1.Property<string>("Road")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("DopaRoad");
 
-                    b.Property<short>("Set")
-                        .HasColumnType("smallint");
+                            b1.Property<string>("RoomNo")
+                                .HasMaxLength(30)
+                                .HasColumnType("nvarchar(30)")
+                                .HasColumnName("DopaRoomNo");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
+                            b1.Property<string>("Soi")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("DopaSoi");
 
-                    b.Property<DateTime?>("UpdatedOn")
-                        .HasColumnType("datetime2");
+                            b1.Property<string>("SubDistrict")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("DopaSubDistrict");
 
-                    b.Property<DateTime?>("UploadDate")
-                        .HasColumnType("datetime2");
+                            b1.HasKey("RequestTitleId");
 
-                    b.HasKey("Id");
+                            b1.ToTable("RequestTitles", "request");
 
-                    b.ToTable("RequestDocuments", "request");
+                            b1.WithOwner()
+                                .HasForeignKey("RequestTitleId");
+                        });
+
+                    b.OwnsOne("Request.Requests.ValueObjects.Address", "TitleAddress", b1 =>
+                        {
+                            b1.Property<long>("RequestTitleId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<string>("BuildingNo")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("BuildingNo");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("District");
+
+                            b1.Property<string>("FloorNo")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("FloorNo");
+
+                            b1.Property<string>("HouseNo")
+                                .HasMaxLength(30)
+                                .HasColumnType("nvarchar(30)")
+                                .HasColumnName("HouseNo");
+
+                            b1.Property<string>("Moo")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("Moo");
+
+                            b1.Property<string>("Postcode")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("Postcode");
+
+                            b1.Property<string>("Province")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("Province");
+
+                            b1.Property<string>("Road")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("Road");
+
+                            b1.Property<string>("RoomNo")
+                                .HasMaxLength(30)
+                                .HasColumnType("nvarchar(30)")
+                                .HasColumnName("RoomNo");
+
+                            b1.Property<string>("Soi")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("Soi");
+
+                            b1.Property<string>("SubDistrict")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("SubDistrict");
+
+                            b1.HasKey("RequestTitleId");
+
+                            b1.ToTable("RequestTitles", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestTitleId");
+                        });
+
+                    b.OwnsOne("Request.RequestTitles.ValueObjects.LandArea", "LandArea", b1 =>
+                        {
+                            b1.Property<long>("RequestTitleId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<int?>("Ngan")
+                                .HasColumnType("int")
+                                .HasColumnName("Ngan");
+
+                            b1.Property<int?>("Rai")
+                                .HasColumnType("int")
+                                .HasColumnName("Rai");
+
+                            b1.Property<decimal?>("Wa")
+                                .HasPrecision(4, 2)
+                                .HasColumnType("decimal(4,2)")
+                                .HasColumnName("Wa");
+
+                            b1.HasKey("RequestTitleId");
+
+                            b1.ToTable("RequestTitles", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestTitleId");
+                        });
+
+                    b.OwnsOne("Request.RequestTitles.ValueObjects.Machine", "Machine", b1 =>
+                        {
+                            b1.Property<long>("RequestTitleId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<string>("MachineInvoiceNo")
+                                .HasMaxLength(20)
+                                .HasColumnType("nvarchar(20)")
+                                .HasColumnName("MachineInvoiceNo");
+
+                            b1.Property<string>("MachineRegistrationNo")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("MachineRegistrationNo");
+
+                            b1.Property<string>("MachineRegistrationStatus")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("MachineRegistrationStatus");
+
+                            b1.Property<string>("MachineStatus")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("MachineStatus");
+
+                            b1.Property<string>("MachineType")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("MachineType");
+
+                            b1.HasKey("RequestTitleId");
+
+                            b1.ToTable("RequestTitles", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestTitleId");
+                        });
+
+                    b.OwnsOne("Request.RequestTitles.ValueObjects.Vehicle", "Vehicle", b1 =>
+                        {
+                            b1.Property<long>("RequestTitleId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<string>("VehicleLocation")
+                                .HasMaxLength(300)
+                                .HasColumnType("nvarchar(300)")
+                                .HasColumnName("VehicleLocation");
+
+                            b1.Property<string>("VehicleRegistrationNo")
+                                .HasMaxLength(20)
+                                .HasColumnType("nvarchar(20)")
+                                .HasColumnName("VehicleRegistrationNo");
+
+                            b1.Property<string>("VehicleType")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("VehicleType");
+
+                            b1.HasKey("RequestTitleId");
+
+                            b1.ToTable("RequestTitles", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestTitleId");
+                        });
+
+                    b.Navigation("DopaAddress")
+                        .IsRequired();
+
+                    b.Navigation("LandArea")
+                        .IsRequired();
+
+                    b.Navigation("Machine")
+                        .IsRequired();
+
+                    b.Navigation("TitleAddress")
+                        .IsRequired();
+
+                    b.Navigation("Vehicle")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Request.Requests.Models.Request", b =>
                 {
-                    b.OwnsMany("Request.Requests.Models.RequestComment", "Comments", b1 =>
-                        {
-                            b1.Property<long>("Id")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("bigint");
-
-                            SqlServerPropertyBuilderExtensions.UseIdentityColumn(b1.Property<long>("Id"));
-
-                            b1.Property<string>("Comment")
-                                .IsRequired()
-                                .HasMaxLength(250)
-                                .HasColumnType("nvarchar(250)")
-                                .HasColumnName("Comment");
-
-                            b1.Property<string>("CreatedBy")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)");
-
-                            b1.Property<DateTime?>("CreatedOn")
-                                .HasColumnType("datetime2");
-
-                            b1.Property<long>("RequestId")
-                                .HasColumnType("bigint");
-
-                            b1.Property<string>("UpdatedBy")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)");
-
-                            b1.Property<DateTime?>("UpdatedOn")
-                                .HasColumnType("datetime2");
-
-                            b1.HasKey("Id");
-
-                            b1.HasIndex("RequestId");
-
-                            b1.ToTable("RequestComments", "request");
-
-                            b1.WithOwner()
-                                .HasForeignKey("RequestId");
-                        });
-
                     b.OwnsOne("Request.Requests.ValueObjects.AppraisalNumber", "AppraisalNo", b1 =>
                         {
                             b1.Property<long>("RequestId")
@@ -165,7 +407,8 @@ namespace Request.Data.Migrations
                             b1.HasKey("RequestId");
 
                             b1.HasIndex("Value")
-                                .IsUnique();
+                                .IsUnique()
+                                .HasFilter("[AppraisalNo] IS NOT NULL");
 
                             b1.ToTable("Requests", "request");
 
@@ -243,70 +486,6 @@ namespace Request.Data.Migrations
 
                             b1.WithOwner()
                                 .HasForeignKey("RequestId");
-
-                            b1.OwnsOne("Request.Requests.ValueObjects.Address", "Address", b2 =>
-                                {
-                                    b2.Property<long>("RequestDetailRequestId")
-                                        .HasColumnType("bigint");
-
-                                    b2.Property<string>("District")
-                                        .IsRequired()
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("District");
-
-                                    b2.Property<string>("FloorNo")
-                                        .HasColumnType("nvarchar(max)")
-                                        .HasColumnName("FloorNo");
-
-                                    b2.Property<string>("HouseNo")
-                                        .HasColumnType("nvarchar(max)")
-                                        .HasColumnName("HouseNo");
-
-                                    b2.Property<string>("LocationIdentifier")
-                                        .HasColumnType("nvarchar(max)")
-                                        .HasColumnName("LocationIdentifier");
-
-                                    b2.Property<string>("Moo")
-                                        .HasColumnType("nvarchar(max)")
-                                        .HasColumnName("Moo");
-
-                                    b2.Property<string>("Postcode")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("Postcode");
-
-                                    b2.Property<string>("Province")
-                                        .IsRequired()
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("Province");
-
-                                    b2.Property<string>("Road")
-                                        .HasColumnType("nvarchar(max)")
-                                        .HasColumnName("Road");
-
-                                    b2.Property<string>("RoomNo")
-                                        .HasColumnType("nvarchar(max)")
-                                        .HasColumnName("RoomNo");
-
-                                    b2.Property<string>("Soi")
-                                        .HasColumnType("nvarchar(max)")
-                                        .HasColumnName("Soi");
-
-                                    b2.Property<string>("SubDistrict")
-                                        .IsRequired()
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("SubDistrict");
-
-                                    b2.HasKey("RequestDetailRequestId");
-
-                                    b2.ToTable("RequestDetails", "request");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("RequestDetailRequestId");
-                                });
 
                             b1.OwnsOne("Request.Requests.ValueObjects.Contact", "Contact", b2 =>
                                 {
@@ -417,6 +596,74 @@ namespace Request.Data.Migrations
                                         .HasForeignKey("RequestDetailRequestId");
                                 });
 
+                            b1.OwnsOne("Request.Requests.ValueObjects.Address", "Address", b2 =>
+                                {
+                                    b2.Property<long>("RequestDetailRequestId")
+                                        .HasColumnType("bigint");
+
+                                    b2.Property<string>("District")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("District");
+
+                                    b2.Property<string>("FloorNo")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("FloorNo");
+
+                                    b2.Property<string>("HouseNo")
+                                        .HasMaxLength(30)
+                                        .HasColumnType("nvarchar(30)")
+                                        .HasColumnName("HouseNo");
+
+                                    b2.Property<string>("Moo")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Moo");
+
+                                    b2.Property<string>("Postcode")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("Postcode");
+
+                                    b2.Property<string>("ProjectName")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("LocationIdentifier");
+
+                                    b2.Property<string>("Province")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("Province");
+
+                                    b2.Property<string>("Road")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Road");
+
+                                    b2.Property<string>("RoomNo")
+                                        .HasMaxLength(30)
+                                        .HasColumnType("nvarchar(30)")
+                                        .HasColumnName("RoomNo");
+
+                                    b2.Property<string>("Soi")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Soi");
+
+                                    b2.Property<string>("SubDistrict")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("SubDistrict");
+
+                                    b2.HasKey("RequestDetailRequestId");
+
+                                    b2.ToTable("RequestDetails", "request");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RequestDetailRequestId");
+                                });
+
                             b1.OwnsOne("Request.Requests.ValueObjects.Requestor", "Requestor", b2 =>
                                 {
                                     b2.Property<long>("RequestDetailRequestId")
@@ -442,7 +689,8 @@ namespace Request.Data.Migrations
 
                                     b2.Property<string>("RequestorContactNo")
                                         .IsRequired()
-                                        .HasColumnType("nvarchar(max)")
+                                        .HasMaxLength(20)
+                                        .HasColumnType("nvarchar(20)")
                                         .HasColumnName("RequestorContactNo");
 
                                     b2.Property<string>("RequestorCostCenter")
@@ -459,7 +707,8 @@ namespace Request.Data.Migrations
 
                                     b2.Property<string>("RequestorEmail")
                                         .IsRequired()
-                                        .HasColumnType("nvarchar(max)")
+                                        .HasMaxLength(40)
+                                        .HasColumnType("nvarchar(40)")
                                         .HasColumnName("RequestorEmail");
 
                                     b2.Property<string>("RequestorEmpId")
@@ -470,7 +719,8 @@ namespace Request.Data.Migrations
 
                                     b2.Property<string>("RequestorName")
                                         .IsRequired()
-                                        .HasColumnType("nvarchar(max)")
+                                        .HasMaxLength(40)
+                                        .HasColumnType("nvarchar(40)")
                                         .HasColumnName("RequestorName");
 
                                     b2.Property<string>("RequestorSection")
@@ -563,10 +813,7 @@ namespace Request.Data.Migrations
                                 .HasForeignKey("RequestId");
                         });
 
-                    b.Navigation("AppraisalNo")
-                        .IsRequired();
-
-                    b.Navigation("Comments");
+                    b.Navigation("AppraisalNo");
 
                     b.Navigation("Customers");
 

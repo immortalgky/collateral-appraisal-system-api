@@ -20,9 +20,6 @@
     <ItemGroup>
         <!-- Hide the content files that come from the Microsoft.CodeAnalysis.Workspaces.Common package. -->
         <Content Update="$(NuGetPackageRoot)\microsoft.codeanalysis.workspaces.msbuild\**\**" Visible="false"/>
-        <Content Include="..\..\.dockerignore">
-            <Link>.dockerignore</Link>
-        </Content>
     </ItemGroup>
 
     <ItemGroup>
@@ -38,5 +35,9 @@
     <ItemGroup>
         <Content Remove="wwwroot\*"/>
         <None Include="wwwroot\*" CopyToOutputDirectory="Always" CopyToPublishDirectory="PreserveNewest"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="wwwroot\" />
     </ItemGroup>
 </Project>

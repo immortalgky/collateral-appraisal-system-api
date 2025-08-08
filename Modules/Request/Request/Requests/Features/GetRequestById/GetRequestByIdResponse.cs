@@ -2,6 +2,8 @@ namespace Request.Requests.Features.GetRequestById;
 
 public record GetRequestByIdResponse(
     long Id,
-    string AppraisalNo,
+    string? AppraisalNo,
     string Status,
-    RequestDetailDto Detail);
+    RequestDetailDto Detail,
+    List<RequestCustomerDto> Customers,
+    List<RequestPropertyDto> Properties);

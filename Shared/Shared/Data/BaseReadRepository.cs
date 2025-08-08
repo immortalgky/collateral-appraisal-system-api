@@ -166,7 +166,49 @@ namespace Shared.Data
             return await CreatePaginatedResultAsync(query, request, cancellationToken);
         }
 
-        // Projection operations
+        // Basic projection operations
+        public virtual async Task<TProjection?> GetByIdAsync<TProjection>(TId id,
+            Expression<Func<T, TProjection>> selector, CancellationToken cancellationToken = default)
+        {
+            return await GetReadQuery().Where(e => e.Id.Equals(id)).Select(selector)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public virtual async Task<IEnumerable<TProjection>> GetAllAsync<TProjection>(
+            Expression<Func<T, TProjection>> selector, CancellationToken cancellationToken = default)
+        {
+            return await GetReadQuery().Select(selector).ToListAsync(cancellationToken);
+        }
+
+        public virtual async Task<IEnumerable<TProjection>> FindAsync<TProjection>(
+            Expression<Func<T, bool>> predicate, Expression<Func<T, TProjection>> selector,
+            CancellationToken cancellationToken = default)
+        {
+            return await GetReadQuery().Where(predicate).Select(selector).ToListAsync(cancellationToken);
+        }
+
+        public virtual async Task<IEnumerable<TProjection>> FindAsync<TProjection>(ISpecification<T> specification,
+            Expression<Func<T, TProjection>> selector, CancellationToken cancellationToken = default)
+        {
+            return await GetReadQuery().Where(specification.ToExpression()).Select(selector)
+                .ToListAsync(cancellationToken);
+        }
+
+        public virtual async Task<TProjection?> FirstOrDefaultAsync<TProjection>(
+            Expression<Func<T, bool>> predicate, Expression<Func<T, TProjection>> selector,
+            CancellationToken cancellationToken = default)
+        {
+            return await GetReadQuery().Where(predicate).Select(selector).FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public virtual async Task<TProjection?> FirstOrDefaultAsync<TProjection>(ISpecification<T> specification,
+            Expression<Func<T, TProjection>> selector, CancellationToken cancellationToken = default)
+        {
+            return await GetReadQuery().Where(specification.ToExpression()).Select(selector)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        // Paginated projection operations
         public virtual async Task<PaginatedResult<TProjection>> GetPaginatedAsync<TProjection>(
             PaginationRequest request, Expression<Func<T, TProjection>> selector,
             CancellationToken cancellationToken = default)

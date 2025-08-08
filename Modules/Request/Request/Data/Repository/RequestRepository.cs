@@ -1,45 +1,39 @@
-using System.Globalization;
+using Request.Services;
 
 namespace Request.Data.Repository;
 
-public class RequestRepository(RequestDbContext dbContext) : IRequestRepository
+public class RequestRepository(RequestDbContext dbContext, IAppraisalNumberGenerator generator) : IRequestRepository
 {
-    public async Task<Requests.Models.Request> GetRequest(long requestId, bool asNoTracking = true,
+    public async Task<Requests.Models.Request> GetByIdAsync(long requestId,
         CancellationToken cancellationToken = default)
     {
-        var query = dbContext.Requests
-            .Where(r => r.Id == requestId);
-
-        if (asNoTracking) query = query.AsNoTracking();
-
-        var request = await query.SingleOrDefaultAsync(cancellationToken);
-
-        return request ?? throw new RequestNotFoundException(requestId);
+        return await dbContext.Requests.FindAsync([requestId], cancellationToken);
     }
 
-    public async Task<Requests.Models.Request> CreateRequest(Requests.Models.Request request,
+    public async Task<Requests.Models.Request> CreateRequestAsync(Requests.Models.Request request,
         CancellationToken cancellationToken = default)
     {
+        // Generate appraisal number if not already set
+        if (request.AppraisalNo == null)
+        {
+            var appraisalNumber = await generator.GenerateAsync(cancellationToken);
+            request.SetAppraisalNumber(appraisalNumber);
+        }
+
         dbContext.Requests.Add(request);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return request;
     }
 
-    public async Task<bool> DeleteRequest(long requestId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteRequestAsync(long requestId, CancellationToken cancellationToken = default)
     {
-        var request = await GetRequest(requestId, false, cancellationToken);
+        var request = await GetByIdAsync(requestId, cancellationToken);
 
         dbContext.Requests.Remove(request);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return true;
-    }
-
-    public async Task<int> GetNextAppraisalNumber(CancellationToken cancellationToken = default)
-    {
-        return (await dbContext.Database
-            .SqlQuery<int>($"EXEC request.GetNextAppraisalNumber").ToListAsync(cancellationToken)).FirstOrDefault();
     }
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

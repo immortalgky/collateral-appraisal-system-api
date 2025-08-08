@@ -5,7 +5,6 @@ public static class InitialData
     public static IEnumerable<Requests.Models.Request> Requests => new List<Requests.Models.Request>
     {
         Request.Requests.Models.Request.Create(
-            AppraisalNumber.Create("SEED-00001"),
             "Appraisal",
             true,
             "High",
@@ -25,6 +24,7 @@ public static class InitialData
                 "123",
                 "A1",
                 "2",
+                "A",
                 "Location 1",
                 "5",
                 "Soi 10",

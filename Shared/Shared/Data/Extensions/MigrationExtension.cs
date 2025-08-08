@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,9 +8,15 @@ namespace Shared.Data.Extensions;
 
 public static class MigrationExtension
 {
-    public static IApplicationBuilder UseMigration<TContext>(this IApplicationBuilder app) where TContext : DbContext
+    public static async Task<IApplicationBuilder> UseMigration<TContext>(this IApplicationBuilder app) where TContext : DbContext
     {
-        MigrateDatabaseAsync<TContext>(app.ApplicationServices).GetAwaiter().GetResult();
+        using var context = Activator.CreateInstance<TContext>()!;
+        var pending = await context.Database.GetPendingMigrationsAsync();
+
+        if (pending.Any())
+        {
+            MigrateDatabaseAsync<TContext>(app.ApplicationServices).GetAwaiter().GetResult();
+        }
         SeedDatabaseAsync<TContext>(app.ApplicationServices).GetAwaiter().GetResult();
         return app;
     }

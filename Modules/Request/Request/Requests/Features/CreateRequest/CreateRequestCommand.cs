@@ -13,6 +13,5 @@ public record CreateRequestCommand(
     FeeDto Fee,
     RequestorDto Requestor,
     List<RequestCustomerDto> Customers,
-    List<RequestPropertyDto> Properties,
-    List<RequestCommentDto> Comments
+    List<RequestPropertyDto> Properties
 ) : ICommand<CreateRequestResult>;

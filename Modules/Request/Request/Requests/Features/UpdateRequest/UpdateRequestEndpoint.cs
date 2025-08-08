@@ -4,7 +4,7 @@ public class UpdateRequestEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPut("/requests/{id:long}",
+        app.MapPatch("/requests/{id:long}",
                 async (long id, UpdateRequestRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
                     var command = request.Adapt<UpdateRequestCommand>() with { Id = id };

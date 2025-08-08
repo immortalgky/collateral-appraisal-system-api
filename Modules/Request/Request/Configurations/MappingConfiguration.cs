@@ -26,7 +26,8 @@ public static class MappingConfiguration
                 src.HouseNo,
                 src.RoomNo,
                 src.FloorNo,
-                src.LocationIdentifier,
+                src.BuildingNo,
+                src.ProjectName,
                 src.Moo,
                 src.Soi,
                 src.Road,
@@ -79,12 +80,6 @@ public static class MappingConfiguration
                 src.PropertyType,
                 src.BuildingType,
                 src.SellingPrice
-            ));
-
-        TypeAdapterConfig<RequestCommentDto, RequestComment>
-            .NewConfig()
-            .ConstructUsing(src => RequestComment.Create(
-                src.Comment
             ));
     }
 }

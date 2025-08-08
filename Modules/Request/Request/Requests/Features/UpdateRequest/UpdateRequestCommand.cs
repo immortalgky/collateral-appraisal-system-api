@@ -14,6 +14,5 @@ public record UpdateRequestCommand(
     FeeDto Fee,
     RequestorDto Requestor,
     List<RequestCustomerDto> Customers,
-    List<RequestPropertyDto> Properties,
-    List<RequestCommentDto> Comments
+    List<RequestPropertyDto> Properties
 ) : ICommand<UpdateRequestResult>;

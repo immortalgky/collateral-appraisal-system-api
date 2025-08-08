@@ -320,6 +320,14 @@ public class MigrationService : IMigrationService
             return configConnectionString;
         }
 
+        // Try standard ConnectionStrings section
+        var standardConnectionString = _configuration.GetConnectionString("DefaultConnection")
+                                       ?? _configuration.GetConnectionString($"Database:{environment}");
+        if (!string.IsNullOrEmpty(standardConnectionString))
+        {
+            return standardConnectionString;
+        }
+
         throw new InvalidOperationException($"No connection string configured for environment '{environment}'. " +
                                             $"Set it in appsettings.Database.json under Environments:{environment}:ConnectionString.");
     }
