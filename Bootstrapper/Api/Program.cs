@@ -1,7 +1,6 @@
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.EntityFrameworkCore;
-using Shared.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,10 +18,10 @@ var requestAssembly = typeof(RequestModule).Assembly;
 var authAssembly = typeof(AuthModule).Assembly;
 var notificationAssembly = typeof(NotificationModule).Assembly;
 var documentAssembly = typeof(DocumentModule).Assembly;
-var assignmentAssembly = typeof(AssignmentModule).Assembly;
+var assignmentAssemblyAssembly = typeof(AssignmentModule).Assembly;
 
-builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssembly);
-builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssembly);
+builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssemblyAssembly);
+builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssemblyAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -31,9 +30,6 @@ builder.Services.AddStackExchangeRedisCache(options =>
 
 // builder.Services.AddMassTransitWithAssemblies(builder.Configuration, requestAssembly, authAssembly,
 //     notificationAssembly);
-
-builder.Services.AddScoped<ISqlConnectionFactory>(provider =>
-    new SqlConnectionFactory(builder.Configuration.GetConnectionString("Database")!));
 
 builder.Services.AddDbContext<AppraisalSagaDbContext>((sp, options) =>
 {
@@ -57,10 +53,10 @@ builder.Services.AddMassTransit(config =>
             r.LockStatementProvider = new SqlServerLockStatementProvider();
         });
 
-    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
+    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssemblyAssembly);
+    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssemblyAssembly);
+    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssemblyAssembly);
+    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssemblyAssembly);
 
     config.UsingRabbitMq((context, configurator) =>
     {
@@ -122,7 +118,7 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
-//if (app.Environment.IsDevelopment()) app.UseDeveloperExceptionPage();
+if (app.Environment.IsDevelopment()) app.UseDeveloperExceptionPage();
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
@@ -134,8 +130,6 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseCors("SPAPolicy");
-app.UseSerilogRequestLogging();
-app.UseExceptionHandler(options => { });
 
 app.UseRouting();
 app.UseAuthentication();
@@ -151,6 +145,12 @@ app
     .UseDocumentModule()
     .UseAssignmentModule()
     .UseOpenIddictModule();
+
+app.UseSerilogRequestLogging();
+app.UseExceptionHandler(options => { });
+
+// CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+// CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
 await app.RunAsync();
 

@@ -5,6 +5,7 @@ namespace Request.Tests.TestData;
 public static class ModelsTestData
 {
     public static Requests.Models.Request RequestGeneral() => Requests.Models.Request.Create(
+        AppraisalNumber.Create("SEED-00001"),
         "Appraisal",
         true,
         "High",
@@ -24,7 +25,6 @@ public static class ModelsTestData
             "123",
             "A1",
             "2",
-            "1",
             "Location 1",
             "5",
             "Soi 10",
