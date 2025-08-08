@@ -1,3 +1,7 @@
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 
 namespace Shared.Pagination
@@ -16,8 +20,8 @@ namespace Shared.Pagination
         /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
         /// <returns>A paginated result.</returns>
         public static async Task<PaginatedResult<T>> ToPaginatedResultAsync<T>(
-            this IQueryable<T> query,
-            PaginationRequest request,
+            this IQueryable<T> query, 
+            PaginationRequest request, 
             CancellationToken cancellationToken = default)
         {
             var count = await query.CountAsync(cancellationToken);

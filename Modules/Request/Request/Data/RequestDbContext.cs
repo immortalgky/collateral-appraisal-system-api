@@ -7,8 +7,6 @@ public class RequestDbContext : DbContext
     }
 
     public DbSet<Requests.Models.Request> Requests => Set<Requests.Models.Request>();
-    public DbSet<RequestComment> RequestComments => Set<RequestComment>();
-    public DbSet<RequestTitle> RequestTitles => Set<RequestTitle>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
