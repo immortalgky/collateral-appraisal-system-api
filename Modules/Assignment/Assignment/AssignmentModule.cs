@@ -1,3 +1,8 @@
+using Assignment.Workflow.Repositories;
+using Assignment.Workflow.Activities;
+using Assignment.Workflow.Engine;
+using Assignment.Workflow.Services;
+
 namespace Assignment;
 
 public static class AssignmentModule
@@ -18,6 +23,13 @@ public static class AssignmentModule
         services.AddScoped<WorkloadBasedAssigneeSelector>();
         services.AddScoped<RandomAssigneeSelector>();
         services.AddScoped<IAssigneeSelectorFactory, AssigneeSelectorFactory>();
+
+        // Workflow services
+        services.AddScoped<IWorkflowDefinitionRepository, WorkflowDefinitionRepository>();
+        services.AddScoped<IWorkflowInstanceRepository, WorkflowInstanceRepository>();
+        services.AddScoped<IWorkflowActivityFactory, WorkflowActivityFactory>();
+        services.AddScoped<IWorkflowEngine, WorkflowEngine>();
+        services.AddScoped<IWorkflowNotificationService, WorkflowNotificationService>();
 
         // Assignment DbContext with its own migration assembly and history table
         services.AddDbContext<AssignmentDbContext>((sp, options) =>
