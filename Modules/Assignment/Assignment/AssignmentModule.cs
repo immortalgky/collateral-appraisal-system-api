@@ -62,6 +62,9 @@ public static class AssignmentModule
         app.UseMigration<AssignmentDbContext>();
         app.UseMigration<AppraisalSagaDbContext>();
 
+        // Configure SignalR workflow hub
+        app.UseEndpoints(endpoints => { endpoints.MapHub<Assignment.Workflow.Hubs.WorkflowHub>("/workflowHub"); });
+
         return app;
     }
 }
