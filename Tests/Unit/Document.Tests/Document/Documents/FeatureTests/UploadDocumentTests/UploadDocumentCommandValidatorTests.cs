@@ -23,7 +23,7 @@ public class UploadDocumentCommandValidatorTests : DocumentServiceTestBase
         var result = _validator.Validate(command);
 
         Assert.Contains(result.Errors,
-            e => e.PropertyName == "Documents" && e.ErrorMessage.Contains("Document is required"));
+            e => e.PropertyName == "Documents" && e.ErrorMessage.Contains("At least one document is required."));
     }
 
     [Fact]
