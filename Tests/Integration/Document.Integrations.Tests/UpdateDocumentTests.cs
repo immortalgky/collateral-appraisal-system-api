@@ -19,7 +19,7 @@ public class UpdateDocumentByIdTests(IntegrationTestFixture fixture) : Integrati
     private readonly string newComment = "Hello World!";
 
     [Fact]
-    public async Task UploadDocument_ValidId()
+    public async Task UpdateDocument_ValidId()
     {
         using var multipartContent = TestFileHelpers.CreateHttp(n);
 
