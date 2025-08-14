@@ -9,7 +9,8 @@ public class RequestSubmissionActivity : WorkflowActivityBase
     public override string Name => "Request Submission";
     public override string Description => "Handles the initial appraisal request submission";
 
-    public override async Task<ActivityResult> ExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    public override async Task<ActivityResult> ExecuteAsync(ActivityContext context,
+        CancellationToken cancellationToken = default)
     {
         var propertyType = GetProperty<string>(context, "propertyType");
         var propertyAddress = GetProperty<string>(context, "propertyAddress");
@@ -37,7 +38,7 @@ public class RequestSubmissionActivity : WorkflowActivityBase
             ["estimatedValue"] = estimatedValue,
             ["purpose"] = purpose,
             ["requestorId"] = requestorId ?? string.Empty,
-            ["submittedAt"] = DateTime.UtcNow,
+            ["submittedAt"] = DateTime.Now,
             ["status"] = "submitted"
         };
 
@@ -58,16 +59,19 @@ public class RequestSubmissionActivity : WorkflowActivityBase
         };
     }
 
-    public override Task<Core.ValidationResult> ValidateAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    public override Task<Core.ValidationResult> ValidateAsync(ActivityContext context,
+        CancellationToken cancellationToken = default)
     {
         var errors = new List<string>();
-        
+
         // Validate that required properties exist in the activity definition
         if (!context.Properties.ContainsKey("propertyType")) errors.Add("propertyType property is required");
         if (!context.Properties.ContainsKey("propertyAddress")) errors.Add("propertyAddress property is required");
         if (!context.Properties.ContainsKey("estimatedValue")) errors.Add("estimatedValue property is required");
         if (!context.Properties.ContainsKey("purpose")) errors.Add("purpose property is required");
 
-        return Task.FromResult(errors.Any() ? Core.ValidationResult.Failure(errors.ToArray()) : Core.ValidationResult.Success());
+        return Task.FromResult(errors.Any()
+            ? Core.ValidationResult.Failure(errors.ToArray())
+            : Core.ValidationResult.Success());
     }
 }

@@ -1,0 +1,12 @@
+# Load Appraisal Workflow into Backend
+# Use this HTTP request to create the workflow definition
+
+### Create Workflow Definition
+
+### Variables for the request
+@baseUrl = https://localhost:7111
+
+POST {{baseUrl}}/api/workflows/definitions
+Content-Type: application/json
+
+< appraisal-workflow.json

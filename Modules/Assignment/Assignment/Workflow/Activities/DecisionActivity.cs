@@ -9,12 +9,14 @@ public class DecisionActivity : WorkflowActivityBase
     public override string Name => "Decision Activity";
     public override string Description => "Routes workflow based on conditions or decision rules";
 
-    public override async Task<ActivityResult> ExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    public override async Task<ActivityResult> ExecuteAsync(ActivityContext context,
+        CancellationToken cancellationToken = default)
     {
-        var conditions = GetProperty<Dictionary<string, string>>(context, "conditions", new Dictionary<string, string>());
-        var defaultRoute = GetProperty<string>(context, "defaultRoute");
-        
-        // Evaluate conditions to determine next activity
+        var conditions =
+            GetProperty<Dictionary<string, string>>(context, "conditions", new Dictionary<string, string>());
+        var defaultDecision = GetProperty<string>(context, "defaultDecision", "default");
+
+        // Evaluate conditions to determine decision result
         foreach (var condition in conditions)
         {
             if (EvaluateCondition(context, condition.Value))
@@ -23,40 +25,47 @@ public class DecisionActivity : WorkflowActivityBase
                 {
                     ["decision"] = condition.Key,
                     ["condition"] = condition.Value,
-                    ["evaluatedAt"] = DateTime.UtcNow
+                    ["evaluatedAt"] = DateTime.Now
                 };
 
-                return ActivityResult.Success(outputData, condition.Key);
+                return ActivityResult.Success(outputData);
             }
         }
 
-        // If no conditions match, use default route
-        if (!string.IsNullOrEmpty(defaultRoute))
+        // If no conditions match, use the default decision
+        var defaultOutputData = new Dictionary<string, object>
         {
-            var outputData = new Dictionary<string, object>
-            {
-                ["decision"] = "default",
-                ["evaluatedAt"] = DateTime.UtcNow
-            };
+            ["decision"] = defaultDecision,
+            ["evaluatedAt"] = DateTime.Now
+        };
 
-            return ActivityResult.Success(outputData, defaultRoute);
-        }
-
-        return ActivityResult.Failed("No matching condition found and no default route specified");
+        return ActivityResult.Success(defaultOutputData);
     }
 
-    public override Task<Core.ValidationResult> ValidateAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    public override Task<Core.ValidationResult> ValidateAsync(ActivityContext context,
+        CancellationToken cancellationToken = default)
     {
         var errors = new List<string>();
-        
-        var conditions = GetProperty<Dictionary<string, string>>(context, "conditions", new Dictionary<string, string>());
-        var defaultRoute = GetProperty<string>(context, "defaultRoute");
-        
-        if (!conditions.Any() && string.IsNullOrEmpty(defaultRoute))
+
+        var conditions =
+            GetProperty<Dictionary<string, string>>(context, "conditions", new Dictionary<string, string>());
+
+        if (!conditions.Any())
         {
-            errors.Add("DecisionActivity must have at least one condition or a default route");
+            errors.Add("DecisionActivity must have at least one condition");
         }
 
-        return Task.FromResult(errors.Any() ? Core.ValidationResult.Failure(errors.ToArray()) : Core.ValidationResult.Success());
+        // Validate condition expressions
+        foreach (var condition in conditions)
+        {
+            if (string.IsNullOrWhiteSpace(condition.Value))
+            {
+                errors.Add($"Condition for decision '{condition.Key}' cannot be empty");
+            }
+        }
+
+        return Task.FromResult(errors.Any()
+            ? Core.ValidationResult.Failure(errors.ToArray())
+            : Core.ValidationResult.Success());
     }
 }

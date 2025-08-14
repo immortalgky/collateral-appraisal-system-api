@@ -1,5 +1,3 @@
-using Shared.DDD;
-
 namespace Assignment.Workflow.Models;
 
 public class WorkflowDefinition : Entity<Guid>
@@ -15,7 +13,10 @@ public class WorkflowDefinition : Entity<Guid>
     public new DateTime? UpdatedOn { get; private set; }
     public new string? UpdatedBy { get; private set; }
 
-    private WorkflowDefinition() { }
+    private WorkflowDefinition()
+    {
+        // For EF Core
+    }
 
     public static WorkflowDefinition Create(
         string name,
@@ -33,7 +34,7 @@ public class WorkflowDefinition : Entity<Guid>
             IsActive = true,
             JsonDefinition = jsonDefinition,
             Category = category,
-            CreatedOn = DateTime.UtcNow,
+            CreatedOn = DateTime.Now,
             CreatedBy = createdBy
         };
     }
@@ -49,7 +50,7 @@ public class WorkflowDefinition : Entity<Guid>
         Description = description;
         JsonDefinition = jsonDefinition;
         Category = category;
-        UpdatedOn = DateTime.UtcNow;
+        UpdatedOn = DateTime.Now;
         UpdatedBy = updatedBy;
         Version++;
     }

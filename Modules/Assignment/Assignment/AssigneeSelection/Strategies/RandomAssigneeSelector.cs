@@ -36,7 +36,7 @@ public class RandomAssigneeSelector : IAssigneeSelector
             {
                 ["SelectionStrategy"] = "Random",
                 ["EligibleUserCount"] = eligibleUsers.Count,
-                ["SelectionTimestamp"] = DateTime.UtcNow // For debugging/audit purposes
+                ["SelectionTimestamp"] = DateTime.Now // For debugging/audit purposes
             });
         }
         catch (Exception ex)

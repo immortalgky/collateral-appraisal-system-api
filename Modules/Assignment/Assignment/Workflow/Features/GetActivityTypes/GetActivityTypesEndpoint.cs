@@ -1,9 +1,5 @@
-using Assignment.Workflow.Activities;
-using Carter;
-using MediatR;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
+using Assignment.Workflow.Activities.Factories;
+using Assignment.Workflow.Schema;
 
 namespace Assignment.Workflow.Features.GetActivityTypes;
 
@@ -12,27 +8,27 @@ public class GetActivityTypesEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapGet("/api/workflows/activity-types", async (
-            ISender sender,
-            CancellationToken cancellationToken) =>
-        {
-            var query = new GetActivityTypesQuery();
-            var result = await sender.Send(query, cancellationToken);
-            return Results.Ok(result);
-        })
-        .WithName("GetActivityTypes")
-        .WithTags("Workflows");
+                ISender sender,
+                CancellationToken cancellationToken) =>
+            {
+                var query = new GetActivityTypesQuery();
+                var result = await sender.Send(query, cancellationToken);
+                return Results.Ok(result);
+            })
+            .WithName("GetActivityTypes")
+            .WithTags("Workflows");
 
         app.MapGet("/api/workflows/activity-types/{activityType}", async (
-            string activityType,
-            ISender sender,
-            CancellationToken cancellationToken) =>
-        {
-            var query = new GetActivityTypeDefinitionQuery { ActivityType = activityType };
-            var result = await sender.Send(query, cancellationToken);
-            return Results.Ok(result);
-        })
-        .WithName("GetActivityTypeDefinition")
-        .WithTags("Workflows");
+                string activityType,
+                ISender sender,
+                CancellationToken cancellationToken) =>
+            {
+                var query = new GetActivityTypeDefinitionQuery { ActivityType = activityType };
+                var result = await sender.Send(query, cancellationToken);
+                return Results.Ok(result);
+            })
+            .WithName("GetActivityTypeDefinition")
+            .WithTags("Workflows");
     }
 }
 
@@ -69,10 +65,11 @@ public class GetActivityTypesQueryHandler : IRequestHandler<GetActivityTypesQuer
         _activityFactory = activityFactory;
     }
 
-    public async Task<GetActivityTypesResponse> Handle(GetActivityTypesQuery request, CancellationToken cancellationToken)
+    public async Task<GetActivityTypesResponse> Handle(GetActivityTypesQuery request,
+        CancellationToken cancellationToken)
     {
         var activityTypes = _activityFactory.GetAvailableActivityTypes();
-        
+
         var dtos = activityTypes.Select(type =>
         {
             var definition = _activityFactory.GetActivityTypeDefinition(type);
@@ -91,7 +88,8 @@ public class GetActivityTypesQueryHandler : IRequestHandler<GetActivityTypesQuer
     }
 }
 
-public class GetActivityTypeDefinitionQueryHandler : IRequestHandler<GetActivityTypeDefinitionQuery, ActivityTypeDefinition>
+public class
+    GetActivityTypeDefinitionQueryHandler : IRequestHandler<GetActivityTypeDefinitionQuery, ActivityTypeDefinition>
 {
     private readonly IWorkflowActivityFactory _activityFactory;
 
@@ -100,7 +98,8 @@ public class GetActivityTypeDefinitionQueryHandler : IRequestHandler<GetActivity
         _activityFactory = activityFactory;
     }
 
-    public async Task<ActivityTypeDefinition> Handle(GetActivityTypeDefinitionQuery request, CancellationToken cancellationToken)
+    public async Task<ActivityTypeDefinition> Handle(GetActivityTypeDefinitionQuery request,
+        CancellationToken cancellationToken)
     {
         return _activityFactory.GetActivityTypeDefinition(request.ActivityType);
     }

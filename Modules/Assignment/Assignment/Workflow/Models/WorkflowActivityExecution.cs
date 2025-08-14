@@ -20,7 +20,10 @@ public class WorkflowActivityExecution : Entity<Guid>
 
     public WorkflowInstance WorkflowInstance { get; private set; } = default!;
 
-    private WorkflowActivityExecution() { }
+    private WorkflowActivityExecution()
+    {
+        // For EF Core
+    }
 
     public static WorkflowActivityExecution Create(
         Guid workflowInstanceId,
@@ -32,14 +35,14 @@ public class WorkflowActivityExecution : Entity<Guid>
     {
         return new WorkflowActivityExecution
         {
-            Id = Guid.NewGuid(),
+            //Id = Guid.NewGuid(),
             WorkflowInstanceId = workflowInstanceId,
             ActivityId = activityId,
             ActivityName = activityName,
             ActivityType = activityType,
             Status = ActivityExecutionStatus.Pending,
             AssignedTo = assignedTo,
-            StartedOn = DateTime.UtcNow,
+            StartedOn = DateTime.Now,
             InputData = inputData ?? new Dictionary<string, object>()
         };
     }
@@ -47,7 +50,7 @@ public class WorkflowActivityExecution : Entity<Guid>
     public void Start()
     {
         Status = ActivityExecutionStatus.InProgress;
-        StartedOn = DateTime.UtcNow;
+        StartedOn = DateTime.Now;
     }
 
     public void Complete(
@@ -56,7 +59,7 @@ public class WorkflowActivityExecution : Entity<Guid>
         string? comments = null)
     {
         Status = ActivityExecutionStatus.Completed;
-        CompletedOn = DateTime.UtcNow;
+        CompletedOn = DateTime.Now;
         CompletedBy = completedBy;
         OutputData = outputData ?? new Dictionary<string, object>();
         Comments = comments;
@@ -65,14 +68,14 @@ public class WorkflowActivityExecution : Entity<Guid>
     public void Fail(string errorMessage)
     {
         Status = ActivityExecutionStatus.Failed;
-        CompletedOn = DateTime.UtcNow;
+        CompletedOn = DateTime.Now;
         ErrorMessage = errorMessage;
     }
 
     public void Skip(string reason)
     {
         Status = ActivityExecutionStatus.Skipped;
-        CompletedOn = DateTime.UtcNow;
+        CompletedOn = DateTime.Now;
         Comments = reason;
     }
 }

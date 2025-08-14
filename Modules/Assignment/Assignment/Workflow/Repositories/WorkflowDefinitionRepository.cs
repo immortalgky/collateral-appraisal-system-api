@@ -11,7 +11,8 @@ public class WorkflowDefinitionRepository : BaseRepository<WorkflowDefinition, G
     {
     }
 
-    public async Task<IEnumerable<WorkflowDefinition>> GetByCategory(string category, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<WorkflowDefinition>> GetByCategory(string category,
+        CancellationToken cancellationToken = default)
     {
         return await DbSet
             .Where(x => x.Category == category)
@@ -20,7 +21,8 @@ public class WorkflowDefinitionRepository : BaseRepository<WorkflowDefinition, G
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IEnumerable<WorkflowDefinition>> GetActiveDefinitions(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<WorkflowDefinition>> GetActiveDefinitions(
+        CancellationToken cancellationToken = default)
     {
         return await DbSet
             .Where(x => x.IsActive)
@@ -28,7 +30,8 @@ public class WorkflowDefinitionRepository : BaseRepository<WorkflowDefinition, G
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<WorkflowDefinition?> GetByNameAndVersion(string name, int version, CancellationToken cancellationToken = default)
+    public async Task<WorkflowDefinition?> GetByNameAndVersion(string name, int version,
+        CancellationToken cancellationToken = default)
     {
         return await DbSet
             .FirstOrDefaultAsync(x => x.Name == name && x.Version == version, cancellationToken);
@@ -46,5 +49,10 @@ public class WorkflowDefinitionRepository : BaseRepository<WorkflowDefinition, G
     {
         return await DbSet
             .AnyAsync(x => x.Name == name, cancellationToken);
+    }
+
+    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        await Context.SaveChangesAsync(cancellationToken);
     }
 }

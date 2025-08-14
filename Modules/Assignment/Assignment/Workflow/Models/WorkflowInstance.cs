@@ -20,7 +20,10 @@ public class WorkflowInstance : Entity<Guid>
     public WorkflowDefinition WorkflowDefinition { get; private set; } = default!;
     public List<WorkflowActivityExecution> ActivityExecutions { get; private set; } = new();
 
-    private WorkflowInstance() { }
+    private WorkflowInstance()
+    {
+        // For EF Core
+    }
 
     public static WorkflowInstance Create(
         Guid workflowDefinitionId,
@@ -37,7 +40,7 @@ public class WorkflowInstance : Entity<Guid>
             CorrelationId = correlationId,
             Status = WorkflowStatus.Running,
             CurrentActivityId = string.Empty,
-            StartedOn = DateTime.UtcNow,
+            StartedOn = DateTime.Now,
             StartedBy = startedBy,
             Variables = initialVariables ?? new Dictionary<string, object>()
         };
@@ -52,11 +55,12 @@ public class WorkflowInstance : Entity<Guid>
     public void UpdateStatus(WorkflowStatus status, string? errorMessage = null)
     {
         Status = status;
+        
         if (status == WorkflowStatus.Completed || status == WorkflowStatus.Failed || status == WorkflowStatus.Cancelled)
         {
-            CompletedOn = DateTime.UtcNow;
+            CompletedOn = DateTime.Now;
         }
-        
+
         if (!string.IsNullOrEmpty(errorMessage))
         {
             ErrorMessage = errorMessage;

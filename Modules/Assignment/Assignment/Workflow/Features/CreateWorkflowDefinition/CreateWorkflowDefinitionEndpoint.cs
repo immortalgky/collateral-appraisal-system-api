@@ -16,24 +16,24 @@ public class CreateWorkflowDefinitionEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPost("/api/workflows/definitions", async (
-            CreateWorkflowDefinitionRequest request,
-            ISender sender,
-            CancellationToken cancellationToken) =>
-        {
-            var command = new CreateWorkflowDefinitionCommand
+                CreateWorkflowDefinitionRequest request,
+                ISender sender,
+                CancellationToken cancellationToken) =>
             {
-                Name = request.Name,
-                Description = request.Description,
-                Category = request.Category,
-                WorkflowSchema = request.WorkflowSchema,
-                CreatedBy = request.CreatedBy // In real app, get from current user context
-            };
-            
-            var result = await sender.Send(command, cancellationToken);
-            return Results.Created($"/api/workflows/definitions/{result.Id}", result);
-        })
-        .WithName("CreateWorkflowDefinition")
-        .WithTags("Workflows");
+                var command = new CreateWorkflowDefinitionCommand
+                {
+                    Name = request.Name,
+                    Description = request.Description,
+                    Category = request.Category,
+                    WorkflowSchema = request.WorkflowSchema,
+                    CreatedBy = request.CreatedBy // In real app, get from current user context
+                };
+
+                var result = await sender.Send(command, cancellationToken);
+                return Results.Created($"/api/workflows/definitions/{result.Id}", result);
+            })
+            .WithName("CreateWorkflowDefinition")
+            .WithTags("Workflows");
     }
 }
 
@@ -64,7 +64,9 @@ public record CreateWorkflowDefinitionResponse
     public List<string> ValidationErrors { get; init; } = new();
 }
 
-public class CreateWorkflowDefinitionCommandHandler : IRequestHandler<CreateWorkflowDefinitionCommand, CreateWorkflowDefinitionResponse>
+public class
+    CreateWorkflowDefinitionCommandHandler : IRequestHandler<CreateWorkflowDefinitionCommand,
+    CreateWorkflowDefinitionResponse>
 {
     private readonly IWorkflowDefinitionRepository _repository;
     private readonly IWorkflowEngine _workflowEngine;
@@ -77,7 +79,8 @@ public class CreateWorkflowDefinitionCommandHandler : IRequestHandler<CreateWork
         _workflowEngine = workflowEngine;
     }
 
-    public async Task<CreateWorkflowDefinitionResponse> Handle(CreateWorkflowDefinitionCommand request, CancellationToken cancellationToken)
+    public async Task<CreateWorkflowDefinitionResponse> Handle(CreateWorkflowDefinitionCommand request,
+        CancellationToken cancellationToken)
     {
         // Validate workflow definition
         var isValid = await _workflowEngine.ValidateWorkflowDefinitionAsync(request.WorkflowSchema, cancellationToken);
@@ -91,6 +94,7 @@ public class CreateWorkflowDefinitionCommandHandler : IRequestHandler<CreateWork
         }
 
         // Check if name already exists
+
         var existingDefinition = await _repository.GetLatestVersion(request.Name, cancellationToken);
         var version = existingDefinition?.Version + 1 ?? 1;
 
@@ -106,6 +110,7 @@ public class CreateWorkflowDefinitionCommandHandler : IRequestHandler<CreateWork
             request.CreatedBy);
 
         await _repository.AddAsync(workflowDefinition, cancellationToken);
+        await _repository.SaveChangesAsync(cancellationToken);
 
         return new CreateWorkflowDefinitionResponse
         {

@@ -9,18 +9,19 @@ public class AdminReviewActivity : WorkflowActivityBase
     public override string Name => "Admin Review";
     public override string Description => "Admin reviews and approves/rejects the appraisal request";
 
-    public override async Task<ActivityResult> ExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    public override async Task<ActivityResult> ExecuteAsync(ActivityContext context,
+        CancellationToken cancellationToken = default)
     {
         // This is a human task that requires external completion
         // The workflow engine will wait for admin input via API
-        
+
         var reviewDeadline = GetProperty<DateTime?>(context, "reviewDeadline");
         var autoApprovalThreshold = GetProperty<decimal?>(context, "autoApprovalThreshold");
         var estimatedValue = GetVariable<decimal>(context, "estimatedValue");
 
         var outputData = new Dictionary<string, object>
         {
-            ["assignedAt"] = DateTime.UtcNow,
+            ["assignedAt"] = DateTime.Now,
             ["assigneeRole"] = "Admin",
             ["estimatedValue"] = estimatedValue
         };
@@ -35,8 +36,8 @@ public class AdminReviewActivity : WorkflowActivityBase
         {
             outputData["decision"] = "auto-approved";
             outputData["autoApproval"] = true;
-            outputData["reviewedAt"] = DateTime.UtcNow;
-            
+            outputData["reviewedAt"] = DateTime.Now;
+
             var variableUpdates = new Dictionary<string, object>
             {
                 ["adminDecision"] = "approved",
@@ -49,7 +50,8 @@ public class AdminReviewActivity : WorkflowActivityBase
                 OutputData = outputData,
                 VariableUpdates = variableUpdates,
                 NextActivityId = "staff-assignment",
-                Comments = $"Auto-approved due to value ${estimatedValue:N0} being below threshold ${autoApprovalThreshold.Value:N0}"
+                Comments =
+                    $"Auto-approved due to value ${estimatedValue:N0} being below threshold ${autoApprovalThreshold.Value:N0}"
             };
         }
 
@@ -57,7 +59,8 @@ public class AdminReviewActivity : WorkflowActivityBase
         return ActivityResult.Pending(outputData: outputData);
     }
 
-    public override Task<Core.ValidationResult> ValidateAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    public override Task<Core.ValidationResult> ValidateAsync(ActivityContext context,
+        CancellationToken cancellationToken = default)
     {
         // Admin review activity doesn't require specific validation
         return Task.FromResult(Core.ValidationResult.Success());
@@ -70,7 +73,7 @@ public class AdminReviewActivity : WorkflowActivityBase
         {
             ["decision"] = decision,
             ["reviewedBy"] = reviewedBy,
-            ["reviewedAt"] = DateTime.UtcNow,
+            ["reviewedAt"] = DateTime.Now,
             ["comments"] = comments
         };
 

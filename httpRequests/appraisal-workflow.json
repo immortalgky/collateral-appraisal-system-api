@@ -1,0 +1,329 @@
+{
+  "name": "Collateral Appraisal Workflow",
+  "description": "Complete appraisal workflow from request submission through verification",
+  "category": "Appraisal",
+  "createdBy": "system-admin",
+  "workflowSchema": {
+      "id": "appraisal-workflow",
+      "name": "Collateral Appraisal Workflow",
+      "description": "Complete appraisal workflow from request submission through verification",
+      "category": "Appraisal",
+      "activities": [
+        {
+          "id": "start-activity",
+          "name": "Workflow Start",
+          "type": "StartActivity",
+          "description": "Initial workflow entry point",
+          "properties": {},
+          "position": { "x": 100, "y": 100 },
+          "requiredRoles": [],
+          "isStartActivity": true,
+          "isEndActivity": false
+        },
+        {
+          "id": "admin-review",
+          "name": "Admin Review",
+          "type": "TaskActivity",
+          "description": "Admin reviews the submitted request and decides next action",
+          "properties": {
+            "assigneeRole": "Admin",
+            "timeoutDuration": "PT72H"
+          },
+          "position": { "x": 300, "y": 100 },
+          "requiredRoles": ["Admin"],
+          "isStartActivity": false,
+          "isEndActivity": false
+        },
+        {
+          "id": "admin-decision",
+          "name": "Admin Decision",
+          "type": "DecisionActivity",
+          "description": "Admin decides whether to proceed, reject, or request more information",
+          "properties": {
+            "conditions": {
+              "proceed": "decisionTaken == 'P'",
+              "reject": "decisionTaken == 'REJ'",
+              "request_more_info": "decisionTaken == 'R'"
+            },
+            "defaultDecision": "proceed"
+          },
+          "position": { "x": 500, "y": 100 },
+          "requiredRoles": [],
+          "isStartActivity": false,
+          "isEndActivity": false
+        },
+        {
+          "id": "appraisal-staff-work",
+          "name": "Appraisal Staff Work",
+          "type": "TaskActivity",
+          "description": "Appraisal staff conducts the property appraisal",
+          "properties": {
+            "assigneeRole": "AppraisalStaff",
+            "timeoutDuration": "PT72H"
+          },
+          "position": { "x": 300, "y": 300 },
+          "requiredRoles": ["AppraisalStaff"],
+          "isStartActivity": false,
+          "isEndActivity": false
+        },
+        {
+          "id": "staff-decision",
+          "name": "Staff Decision",
+          "type": "DecisionActivity",
+          "description": "Staff decides to proceed to checker or route back for more info",
+          "properties": {
+            "conditions": {
+              "proceed": "decisionTaken == 'P'",
+              "route_back_admin": "decisionTaken == 'R'"
+            },
+            "defaultDecision": "proceed"
+          },
+          "position": { "x": 500, "y": 300 },
+          "requiredRoles": [],
+          "isStartActivity": false,
+          "isEndActivity": false
+        },
+        {
+          "id": "appraisal-checker-review",
+          "name": "Appraisal Checker Review",
+          "type": "TaskActivity",
+          "description": "Checker reviews the appraisal work for accuracy and completeness",
+          "properties": {
+            "assigneeRole": "AppraisalChecker",
+            "timeoutDuration": "PT48H"
+          },
+          "position": { "x": 300, "y": 500 },
+          "requiredRoles": ["AppraisalChecker"],
+          "isStartActivity": false,
+          "isEndActivity": false
+        },
+        {
+          "id": "checker-decision",
+          "name": "Checker Decision",
+          "type": "DecisionActivity",
+          "description": "Checker decides to proceed, route back to staff, or escalate",
+          "properties": {
+            "conditions": {
+              "proceed": "decisionTaken == 'P'",
+              "route_back_staff": "decisionTaken == 'R'"
+            },
+            "defaultDecision": "proceed"
+          },
+          "position": { "x": 500, "y": 500 },
+          "requiredRoles": [],
+          "isStartActivity": false,
+          "isEndActivity": false
+        },
+        {
+          "id": "appraisal-verifier-review",
+          "name": "Appraisal Verifier Review",
+          "type": "TaskActivity",
+          "description": "Final verification and sign-off on the appraisal",
+          "properties": {
+            "assigneeRole": "AppraisalVerifier",
+            "timeoutDuration": "PT24H"
+          },
+          "position": { "x": 300, "y": 700 },
+          "requiredRoles": ["AppraisalVerifier"],
+          "isStartActivity": false,
+          "isEndActivity": false
+        },
+        {
+          "id": "verifier-decision",
+          "name": "Verifier Decision",
+          "type": "DecisionActivity",
+          "description": "Final decision to approve, send back for corrections, or escalate",
+          "properties": {
+            "conditions": {
+              "approve": "decisionTaken == 'APP'",
+              "route_back_checker": "decisionTaken == 'R'"
+            },
+            "defaultDecision": "approve"
+          },
+          "position": { "x": 500, "y": 700 },
+          "requiredRoles": [],
+          "isStartActivity": false,
+          "isEndActivity": false
+        },
+        {
+          "id": "request-maker",
+          "name": "Request Maker",
+          "type": "TaskActivity",
+          "description": "Request maker submits appraisal request and may need to provide additional information",
+          "properties": {
+            "assigneeRole": "RequestMaker",
+            "timeoutDuration": "PT48H"
+          },
+          "position": { "x": 700, "y": 200 },
+          "requiredRoles": ["RequestMaker"],
+          "isStartActivity": false,
+          "isEndActivity": false
+        },
+        {
+          "id": "workflow-completed",
+          "name": "Appraisal Completed",
+          "type": "EndActivity",
+          "description": "Appraisal process successfully completed",
+          "properties": {
+            "completionMessage": "Appraisal has been successfully completed and approved"
+          },
+          "position": { "x": 300, "y": 900 },
+          "requiredRoles": [],
+          "isStartActivity": false,
+          "isEndActivity": true
+        },
+        {
+          "id": "workflow-rejected",
+          "name": "Request Rejected",
+          "type": "EndActivity",
+          "description": "Request has been rejected",
+          "properties": {
+            "completionMessage": "Request has been rejected and workflow terminated"
+          },
+          "position": { "x": 700, "y": 900 },
+          "requiredRoles": [],
+          "isStartActivity": false,
+          "isEndActivity": true
+        }
+      ],
+      "transitions": [
+        {
+          "id": "start-to-admin",
+          "from": "start-activity",
+          "to": "admin-review",
+          "condition": null,
+          "properties": {},
+          "type": "Normal"
+        },
+        {
+          "id": "admin-to-decision",
+          "from": "admin-review",
+          "to": "admin-decision",
+          "condition": null,
+          "properties": {},
+          "type": "Normal"
+        },
+        {
+          "id": "admin-proceed",
+          "from": "admin-decision",
+          "to": "appraisal-staff-work",
+          "condition": "proceed",
+          "properties": {},
+          "type": "Conditional"
+        },
+        {
+          "id": "admin-reject",
+          "from": "admin-decision",
+          "to": "workflow-rejected",
+          "condition": "reject",
+          "properties": {},
+          "type": "Conditional"
+        },
+        {
+          "id": "admin-request-info",
+          "from": "admin-decision",
+          "to": "request-maker",
+          "condition": "request_more_info",
+          "properties": {},
+          "type": "Conditional"
+        },
+        {
+          "id": "info-back-to-admin",
+          "from": "request-maker",
+          "to": "admin-review",
+          "condition": null,
+          "properties": {},
+          "type": "Normal"
+        },
+        {
+          "id": "staff-to-decision",
+          "from": "appraisal-staff-work",
+          "to": "staff-decision",
+          "condition": null,
+          "properties": {},
+          "type": "Normal"
+        },
+        {
+          "id": "staff-proceed",
+          "from": "staff-decision",
+          "to": "appraisal-checker-review",
+          "condition": "proceed",
+          "properties": {},
+          "type": "Conditional"
+        },
+        {
+          "id": "staff-back-to-admin",
+          "from": "staff-decision",
+          "to": "admin-review",
+          "condition": "route_back_admin",
+          "properties": {},
+          "type": "Conditional"
+        },
+        {
+          "id": "checker-to-decision",
+          "from": "appraisal-checker-review",
+          "to": "checker-decision",
+          "condition": null,
+          "properties": {},
+          "type": "Normal"
+        },
+        {
+          "id": "checker-proceed",
+          "from": "checker-decision",
+          "to": "appraisal-verifier-review",
+          "condition": "proceed",
+          "properties": {},
+          "type": "Conditional"
+        },
+        {
+          "id": "checker-back-to-staff",
+          "from": "checker-decision",
+          "to": "appraisal-staff-work",
+          "condition": "route_back_staff",
+          "properties": {},
+          "type": "Conditional"
+        },
+        {
+          "id": "verifier-to-decision",
+          "from": "appraisal-verifier-review",
+          "to": "verifier-decision",
+          "condition": null,
+          "properties": {},
+          "type": "Normal"
+        },
+        {
+          "id": "verifier-approve",
+          "from": "verifier-decision",
+          "to": "workflow-completed",
+          "condition": "approve",
+          "properties": {},
+          "type": "Conditional"
+        },
+        {
+          "id": "verifier-back-to-checker",
+          "from": "verifier-decision",
+          "to": "appraisal-checker-review",
+          "condition": "route_back_checker",
+          "properties": {},
+          "type": "Conditional"
+        }
+      ],
+      "variables": {
+        "decisionTaken": "",
+        "other_variable": "Other value"
+      },
+      "metadata": {
+        "author": "System Admin",
+        "createdDate": "2024-01-15T00:00:00Z",
+        "version": "1.0",
+        "tags": ["appraisal", "workflow"],
+        "customProperties": {
+          "department": "Appraisal",
+          "businessProcess": "Collateral Valuation",
+          "slaHours": 999
+        }
+      }
+    
+  }
+}
+

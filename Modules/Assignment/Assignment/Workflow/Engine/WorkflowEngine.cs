@@ -1,12 +1,10 @@
 using Assignment.Workflow.Activities;
 using Assignment.Workflow.Activities.Core;
+using Assignment.Workflow.Activities.Factories;
 using Assignment.Workflow.Models;
 using Assignment.Workflow.Repositories;
 using Assignment.Workflow.Schema;
-using MassTransit;
-using Microsoft.Extensions.Logging;
-using Shared.Messaging.Events;
-using System.Text.Json;
+using Shared.Extensions;
 
 namespace Assignment.Workflow.Engine;
 
@@ -40,7 +38,8 @@ public class WorkflowEngine : IWorkflowEngine
         string? correlationId = null,
         CancellationToken cancellationToken = default)
     {
-        var workflowDefinition = await _workflowDefinitionRepository.GetByIdAsync(workflowDefinitionId, cancellationToken);
+        var workflowDefinition =
+            await _workflowDefinitionRepository.GetByIdAsync(workflowDefinitionId, cancellationToken);
         if (workflowDefinition == null)
         {
             throw new InvalidOperationException($"Workflow definition not found: {workflowDefinitionId}");
@@ -53,8 +52,8 @@ public class WorkflowEngine : IWorkflowEngine
         }
 
         // Find start activity
-        var startActivity = workflowSchema.Activities.FirstOrDefault(a => a.IsStartActivity) 
-                           ?? workflowSchema.Activities.First();
+        var startActivity = workflowSchema.Activities.FirstOrDefault(a => a.IsStartActivity)
+                            ?? workflowSchema.Activities.First();
 
         // Create workflow instance
         var workflowInstance = WorkflowInstance.Create(
@@ -66,13 +65,14 @@ public class WorkflowEngine : IWorkflowEngine
 
         workflowInstance.SetCurrentActivity(startActivity.Id);
 
-        await _workflowInstanceRepository.AddAsync(workflowInstance, cancellationToken);
-
-        _logger.LogInformation("Started workflow instance {WorkflowInstanceId} for definition {WorkflowDefinitionId}", 
+        _logger.LogInformation("Started workflow instance {WorkflowInstanceId} for definition {WorkflowDefinitionId}",
             workflowInstance.Id, workflowDefinitionId);
 
         // Execute first activity
         await ExecuteActivityAsync(workflowInstance, workflowSchema, startActivity, cancellationToken);
+
+        await _workflowInstanceRepository.AddAsync(workflowInstance, cancellationToken);
+        await _workflowInstanceRepository.SaveChangesAsync(cancellationToken);
 
         // Publish workflow started event
         await _publishEndpoint.Publish(new WorkflowStarted
@@ -96,13 +96,15 @@ public class WorkflowEngine : IWorkflowEngine
         string? comments = null,
         CancellationToken cancellationToken = default)
     {
-        var workflowInstance = await _workflowInstanceRepository.GetWithExecutionsAsync(workflowInstanceId, cancellationToken);
+        var workflowInstance =
+            await _workflowInstanceRepository.GetByIdAsync(workflowInstanceId, cancellationToken);
         if (workflowInstance == null)
         {
             throw new InvalidOperationException($"Workflow instance not found: {workflowInstanceId}");
         }
 
-        var workflowDefinition = await _workflowDefinitionRepository.GetByIdAsync(workflowInstance.WorkflowDefinitionId, cancellationToken);
+        var workflowDefinition =
+            await _workflowDefinitionRepository.GetByIdAsync(workflowInstance.WorkflowDefinitionId, cancellationToken);
         var workflowSchema = JsonSerializer.Deserialize<WorkflowSchema>(workflowDefinition!.JsonDefinition);
 
         // Find current activity execution
@@ -117,14 +119,26 @@ public class WorkflowEngine : IWorkflowEngine
         // Complete the activity execution
         activityExecution.Complete(completedBy, outputData, comments);
 
+        // Convert JsonElement values to proper types
+        var convertedOutputData = outputData.ConvertJsonElements();
+
         // Update workflow variables
-        if (outputData.ContainsKey("variableUpdates") && outputData["variableUpdates"] is Dictionary<string, object> variableUpdates)
+        Console.WriteLine(convertedOutputData.GetType().Name);
+        if (convertedOutputData.ContainsKey("variableUpdates") &&
+            convertedOutputData["variableUpdates"] is Dictionary<string, object> variableUpdates)
         {
             workflowInstance.UpdateVariables(variableUpdates);
         }
 
-        // Determine next activity
-        var nextActivityId = outputData.ContainsKey("nextActivityId") ? outputData["nextActivityId"]?.ToString() : null;
+        // Determine next activity using transitions
+        var activityResult = new ActivityResult
+        {
+            Status = ActivityResultStatus.Completed,
+            OutputData = convertedOutputData
+        };
+
+        var nextActivityId =
+            await DetermineNextActivityAsync(workflowSchema!, activityId, activityResult, workflowInstance);
         if (!string.IsNullOrEmpty(nextActivityId))
         {
             var nextActivity = workflowSchema!.Activities.FirstOrDefault(a => a.Id == nextActivityId);
@@ -141,7 +155,7 @@ public class WorkflowEngine : IWorkflowEngine
             _logger.LogInformation("Workflow instance {WorkflowInstanceId} completed", workflowInstanceId);
         }
 
-        await _workflowInstanceRepository.UpdateAsync(workflowInstance, cancellationToken);
+        await _workflowInstanceRepository.SaveChangesAsync(cancellationToken);
 
         // Publish activity completed event
         await _publishEndpoint.Publish(new WorkflowActivityCompleted
@@ -149,7 +163,7 @@ public class WorkflowEngine : IWorkflowEngine
             WorkflowInstanceId = workflowInstanceId,
             ActivityId = activityId,
             CompletedBy = completedBy,
-            CompletedAt = DateTime.UtcNow,
+            CompletedAt = DateTime.Now,
             OutputData = outputData,
             Comments = comments
         }, cancellationToken);
@@ -157,17 +171,20 @@ public class WorkflowEngine : IWorkflowEngine
         return workflowInstance;
     }
 
-    public async Task<WorkflowInstance?> GetWorkflowInstanceAsync(Guid workflowInstanceId, CancellationToken cancellationToken = default)
+    public async Task<WorkflowInstance?> GetWorkflowInstanceAsync(Guid workflowInstanceId,
+        CancellationToken cancellationToken = default)
     {
         return await _workflowInstanceRepository.GetWithExecutionsAsync(workflowInstanceId, cancellationToken);
     }
 
-    public async Task<IEnumerable<WorkflowInstance>> GetUserTasksAsync(string userId, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<WorkflowInstance>> GetUserTasksAsync(string userId,
+        CancellationToken cancellationToken = default)
     {
         return await _workflowInstanceRepository.GetByAssignee(userId, cancellationToken);
     }
 
-    public async Task<bool> ValidateWorkflowDefinitionAsync(WorkflowSchema workflowSchema, CancellationToken cancellationToken = default)
+    public async Task<bool> ValidateWorkflowDefinitionAsync(WorkflowSchema workflowSchema,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -189,7 +206,7 @@ public class WorkflowEngine : IWorkflowEngine
                 var validationResult = await workflowActivity.ValidateAsync(context, cancellationToken);
                 if (!validationResult.IsValid)
                 {
-                    _logger.LogWarning("Activity {ActivityId} validation failed: {Errors}", 
+                    _logger.LogWarning("Activity {ActivityId} validation failed: {Errors}",
                         activity.Id, string.Join(", ", validationResult.Errors));
                     return false;
                 }
@@ -216,27 +233,135 @@ public class WorkflowEngine : IWorkflowEngine
         }
     }
 
-    public async Task CancelWorkflowAsync(Guid workflowInstanceId, string cancelledBy, string reason, CancellationToken cancellationToken = default)
+    public async Task CancelWorkflowAsync(Guid workflowInstanceId, string cancelledBy, string reason,
+        CancellationToken cancellationToken = default)
     {
-        var workflowInstance = await _workflowInstanceRepository.GetByIdAsync(workflowInstanceId, cancellationToken);
+        var workflowInstance =
+            await _workflowInstanceRepository.GetByIdAsync(workflowInstanceId, cancellationToken);
         if (workflowInstance == null)
         {
             throw new InvalidOperationException($"Workflow instance not found: {workflowInstanceId}");
         }
 
         workflowInstance.UpdateStatus(WorkflowStatus.Cancelled, reason);
-        await _workflowInstanceRepository.UpdateAsync(workflowInstance, cancellationToken);
+        await _workflowInstanceRepository.SaveChangesAsync(cancellationToken);
 
         await _publishEndpoint.Publish(new WorkflowCancelled
         {
             WorkflowInstanceId = workflowInstanceId,
             CancelledBy = cancelledBy,
-            CancelledAt = DateTime.UtcNow,
+            CancelledAt = DateTime.Now,
             Reason = reason
         }, cancellationToken);
 
-        _logger.LogInformation("Workflow instance {WorkflowInstanceId} cancelled by {CancelledBy}: {Reason}", 
+        _logger.LogInformation("Workflow instance {WorkflowInstanceId} cancelled by {CancelledBy}: {Reason}",
             workflowInstanceId, cancelledBy, reason);
+    }
+
+    private Task<string?> DetermineNextActivityAsync(
+        WorkflowSchema workflowSchema,
+        string currentActivityId,
+        ActivityResult activityResult,
+        WorkflowInstance workflowInstance)
+    {
+        // First check if activity explicitly specified next activity (fallback for legacy behavior)
+        if (!string.IsNullOrEmpty(activityResult.NextActivityId))
+        {
+            return Task.FromResult<string?>(activityResult.NextActivityId);
+        }
+
+        // Find transitions from current activity
+        var transitions = workflowSchema.Transitions
+            .Where(t => t.From == currentActivityId)
+            .OrderBy(t => t.Type == TransitionType.Normal ? 1 : 0) // Prioritize conditional transitions
+            .ToList();
+
+        if (!transitions.Any())
+        {
+            return Task.FromResult<string?>(null); // No transitions defined, workflow ends
+        }
+
+        // For decision activities, check output data for decision result
+        var currentActivity = workflowSchema.Activities.FirstOrDefault(a => a.Id == currentActivityId);
+        if (currentActivity?.Type == ActivityTypes.DecisionActivity)
+        {
+            // Look for decision result in output data
+            if (activityResult.OutputData.TryGetValue("decision", out var decisionValue))
+            {
+                var decision = decisionValue?.ToString();
+
+                // Find transition matching the decision
+                var decisionTransition = transitions.FirstOrDefault(t =>
+                    t.Type == TransitionType.Conditional &&
+                    EvaluateTransitionCondition(t, decision, workflowInstance));
+
+                if (decisionTransition != null)
+                {
+                    return Task.FromResult<string?>(decisionTransition.To);
+                }
+            }
+        }
+
+        // Evaluate conditional transitions
+        foreach (var transition in transitions.Where(t => t.Type == TransitionType.Conditional))
+        {
+            if (EvaluateTransitionCondition(transition, null, workflowInstance))
+            {
+                return Task.FromResult<string?>(transition.To);
+            }
+        }
+
+        // Return first normal transition as default
+        var normalTransition = transitions.FirstOrDefault(t => t.Type == TransitionType.Normal);
+        return Task.FromResult(normalTransition?.To);
+    }
+
+    private bool EvaluateTransitionCondition(TransitionDefinition transition, string? decisionValue,
+        WorkflowInstance workflowInstance)
+    {
+        if (string.IsNullOrEmpty(transition.Condition))
+            return true; // No condition means always true
+
+        // For decision-based transitions, check if condition matches decision
+        if (!string.IsNullOrEmpty(decisionValue))
+        {
+            return string.Equals(transition.Condition, decisionValue, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // For other conditional transitions, evaluate against workflow variables
+        try
+        {
+            var condition = transition.Condition;
+            var parts = condition.Split(new[] { "==", "!=", ">=", "<=", ">", "<" },
+                StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2) return false;
+
+            var variable = parts[0].Trim();
+            var expectedValue = parts[1].Trim().Trim('\'', '"');
+
+            if (!workflowInstance.Variables.TryGetValue(variable, out var actualValueObj))
+                return false;
+
+            var actualValue = actualValueObj?.ToString() ?? string.Empty;
+
+            var op = condition.Contains("==") ? "==" :
+                condition.Contains("!=") ? "!=" :
+                condition.Contains(">=") ? ">=" :
+                condition.Contains("<=") ? "<=" :
+                condition.Contains(">") ? ">" :
+                condition.Contains("<") ? "<" : "==";
+
+            return op switch
+            {
+                "==" => string.Equals(actualValue, expectedValue, StringComparison.OrdinalIgnoreCase),
+                "!=" => !string.Equals(actualValue, expectedValue, StringComparison.OrdinalIgnoreCase),
+                _ => true // For now, default to true for unsupported operations
+            };
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async Task ExecuteActivityAsync(
@@ -245,76 +370,90 @@ public class WorkflowEngine : IWorkflowEngine
         ActivityDefinition activityDefinition,
         CancellationToken cancellationToken)
     {
-        try
+        var activitiesToExecute = new Queue<ActivityDefinition>();
+        activitiesToExecute.Enqueue(activityDefinition);
+
+        while (activitiesToExecute.Count > 0)
         {
-            // Create activity execution record
-            var activityExecution = WorkflowActivityExecution.Create(
-                workflowInstance.Id,
-                activityDefinition.Id,
-                activityDefinition.Name,
-                activityDefinition.Type,
-                workflowInstance.CurrentAssignee,
-                workflowInstance.Variables);
+            var currentActivity = activitiesToExecute.Dequeue();
 
-            workflowInstance.AddActivityExecution(activityExecution);
-            activityExecution.Start();
-
-            // Create and execute activity
-            var activity = _activityFactory.CreateActivity(activityDefinition.Type);
-            var context = new ActivityContext
+            try
             {
-                WorkflowInstanceId = workflowInstance.Id,
-                ActivityId = activityDefinition.Id,
-                Properties = activityDefinition.Properties,
-                Variables = workflowInstance.Variables,
-                InputData = new Dictionary<string, object>(),
-                CurrentAssignee = workflowInstance.CurrentAssignee
-            };
+                // Create an activity execution record
+                var activityExecution = WorkflowActivityExecution.Create(
+                    workflowInstance.Id,
+                    currentActivity.Id,
+                    currentActivity.Name,
+                    currentActivity.Type,
+                    workflowInstance.CurrentAssignee,
+                    workflowInstance.Variables);
 
-            var result = await activity.ExecuteAsync(context, cancellationToken);
+                workflowInstance.AddActivityExecution(activityExecution);
+                activityExecution.Start();
 
-            if (result.Status == ActivityResultStatus.Completed)
-            {
-                activityExecution.Complete("system", result.OutputData, result.Comments);
-
-                // Update workflow variables
-                if (result.VariableUpdates.Any())
+                // Create and execute activity
+                var activity = _activityFactory.CreateActivity(currentActivity.Type);
+                var context = new ActivityContext
                 {
-                    workflowInstance.UpdateVariables(result.VariableUpdates);
-                }
+                    WorkflowInstanceId = workflowInstance.Id,
+                    ActivityId = currentActivity.Id,
+                    Properties = currentActivity.Properties,
+                    Variables = workflowInstance.Variables,
+                    InputData = new Dictionary<string, object>(),
+                    CurrentAssignee = workflowInstance.CurrentAssignee
+                };
 
-                // Move to next activity if specified
-                if (!string.IsNullOrEmpty(result.NextActivityId))
+                var result = await activity.ExecuteAsync(context, cancellationToken);
+
+                if (result.Status == ActivityResultStatus.Completed)
                 {
-                    var nextActivity = workflowSchema.Activities.FirstOrDefault(a => a.Id == result.NextActivityId);
-                    if (nextActivity != null)
+                    activityExecution.Complete("system", result.OutputData, result.Comments);
+
+                    // Update workflow variables
+                    if (result.VariableUpdates.Any())
                     {
-                        workflowInstance.SetCurrentActivity(nextActivity.Id);
-                        // Recursively execute next activity if it's not a human task
-                        if (nextActivity.Type != ActivityTypes.TaskActivity)
+                        workflowInstance.UpdateVariables(result.VariableUpdates);
+                    }
+
+                    // Determine next activity using transitions
+                    var nextActivityId =
+                        await DetermineNextActivityAsync(workflowSchema, currentActivity.Id, result,
+                            workflowInstance);
+                    if (!string.IsNullOrEmpty(nextActivityId))
+                    {
+                        var nextActivity = workflowSchema.Activities.FirstOrDefault(a => a.Id == nextActivityId);
+                        if (nextActivity != null)
                         {
-                            await ExecuteActivityAsync(workflowInstance, workflowSchema, nextActivity, cancellationToken);
+                            workflowInstance.SetCurrentActivity(nextActivity.Id);
+                            activitiesToExecute.Enqueue(nextActivity);
                         }
                     }
+                    else
+                    {
+                        // No next activity, workflow is completed
+                        workflowInstance.UpdateStatus(WorkflowStatus.Completed);
+                        _logger.LogInformation("Workflow instance {WorkflowInstanceId} completed", workflowInstance.Id);
+                    }
                 }
-            }
-            else if (result.Status == ActivityResultStatus.Failed)
-            {
-                activityExecution.Fail(result.ErrorMessage ?? "Activity execution failed");
-                workflowInstance.UpdateStatus(WorkflowStatus.Failed, result.ErrorMessage);
-            }
-            // For Pending status, activity remains in progress for external completion
+                else if (result.Status == ActivityResultStatus.Failed)
+                {
+                    activityExecution.Fail(result.ErrorMessage ?? "Activity execution failed");
+                    workflowInstance.UpdateStatus(WorkflowStatus.Failed, result.ErrorMessage);
+                }
+                // For Pending status, activity remains in progress for external completion
 
-            _logger.LogInformation("Executed activity {ActivityId} for workflow {WorkflowInstanceId} with status {Status}", 
-                activityDefinition.Id, workflowInstance.Id, result.Status);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error executing activity {ActivityId} for workflow {WorkflowInstanceId}", 
-                activityDefinition.Id, workflowInstance.Id);
-            
-            workflowInstance.UpdateStatus(WorkflowStatus.Failed, ex.Message);
-            throw;
+                _logger.LogInformation(
+                    "Executed activity {ActivityId} for workflow {WorkflowInstanceId} with status {Status}",
+                    currentActivity.Id, workflowInstance.Id, result.Status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error executing activity {ActivityId} for workflow {WorkflowInstanceId}",
+                    currentActivity.Id, workflowInstance.Id);
+
+                workflowInstance.UpdateStatus(WorkflowStatus.Failed, ex.Message);
+                throw;
+            }
         }
     }
 }

@@ -1,0 +1,22 @@
+# Resume Workflow Instance
+# Resume a workflow instance that is currently suspended.
+
+### Variables for the request
+@baseUrl = https://localhost:7111
+@workflowInstanceId = 3bf8e3fb-bc94-48b2-b7ce-7a9440310f52
+@activityId = appraisal-verifier-review
+
+### Create Workflow Definition
+// @timeout = 30000 m
+POST {{baseUrl}}/api/workflows/instances/{{workflowInstanceId}}/activities/{{activityId}}/complete
+Content-Type: application/json
+
+{
+  "outputData": {
+    "variableUpdates": {
+      "decisionTaken": "APP"
+    }
+  },
+  "completedBy": "system",
+  "comments": "completed activity"
+}
