@@ -4,9 +4,7 @@ using Microsoft.AspNetCore.Http;
 namespace Integration.Document.Integrations.Tests;
 
 public static class TestFileHelpers
-{
-    public static long CurrId = 1;
-    public static IFormFile CreateMockFile(string fileName, byte[] content, string contentType = "application/pdf")
+{    public static IFormFile CreateMockFile(string fileName, byte[] content, string contentType = "application/pdf")
     {
         var stream = new MemoryStream(content);
         return new FormFile(stream, 0, stream.Length, "file", fileName)

@@ -1,0 +1,10 @@
+global using System.Text.Json;
+global using Document.Contracts.Documents.Dtos;
+global using Document.Documents.Features.DeleteDocument;
+global using Document.Documents.Features.UpdateDocument;
+global using Document.Documents.Features.UpdateDocument;
+global using Document.Documents.Features.GetDocuments;
+global using Document.Documents.Features.GetDocumentById;
+global using Integration.Fixtures;
+global using Integration.Helpers;
+global using Xunit.Sdk;
