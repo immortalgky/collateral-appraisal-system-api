@@ -5,9 +5,7 @@ public class UploadDocumentCommandValidator : AbstractValidator<UploadDocumentCo
     public UploadDocumentCommandValidator()
     {
         RuleFor(x => x.Documents)
-            .NotNull()
-            .WithMessage("Document is required.")
-            .Must(document => document.Count > 0)
+            .NotEmpty()
             .WithMessage("At least one document is required.");
 
         RuleFor(x => x.RelateRequest)
