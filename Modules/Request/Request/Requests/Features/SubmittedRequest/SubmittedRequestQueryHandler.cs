@@ -1,7 +1,3 @@
-using MassTransit;
-using MassTransit.Transports;
-using Shared.Messaging.Events;
-
 namespace Request.Requests.Features.SubmittedRequest;
 
 internal class SubmittedRequestQueryHandler(IRequestTitleReadRepository readRepository,

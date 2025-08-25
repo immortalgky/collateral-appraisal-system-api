@@ -4,7 +4,7 @@ public class SubmittedRequestEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/request/{requestId:long}/submitted", async (long requestId, ISender sender) =>
+        app.MapPost("/requests/{requestId:long}/submit", async (long requestId, ISender sender) =>
         {
             var query = new SubmittedRequestQuery(requestId);
             
