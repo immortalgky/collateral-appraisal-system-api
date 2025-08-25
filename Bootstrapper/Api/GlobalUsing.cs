@@ -3,6 +3,7 @@ global using Carter;
 global using Shared.Extensions;
 global using Shared.Exceptions.Handler;
 global using Serilog;
+global using Collateral;
 global using Auth;
 global using Microsoft.Extensions.FileProviders;
 global using OAuth2OpenId;

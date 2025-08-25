@@ -19,14 +19,17 @@ global using Carter;
 global using FluentValidation;
 global using MediatR;
 global using Mapster;
+global using MassTransit;
 
 // ===== SHARED INFRASTRUCTURE =====
 global using Shared.DDD;
+global using Shared.Dtos;
 global using Shared.Data;
 global using Shared.Data.Extensions;
 global using Shared.Data.Seed;
 global using Shared.Exceptions;
 global using Shared.Contracts.CQRS;
+global using Shared.Messaging.Events;
 
 // ===== REQUEST MODULE - CORE =====
 global using Request.Data;
@@ -34,7 +37,6 @@ global using Request.Data.Repository;
 global using Request.Data.Seed;
 
 // ===== REQUEST MODULE - CONTRACTS =====
-global using Request.Contracts.Requests.Dtos;
 global using Request.Contracts.Requests.Features.GetRequestById;
 
 // ===== REQUEST MODULE - AGGREGATES =====
