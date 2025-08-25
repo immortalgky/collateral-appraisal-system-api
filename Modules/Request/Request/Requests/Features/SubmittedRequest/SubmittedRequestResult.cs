@@ -1,3 +1,3 @@
 namespace Request.Requests.Features.SubmittedRequest;
 
-public record SubmittedRequestResult(bool IsSusses);
+public record SubmittedRequestResult(bool IsSuccess);
