@@ -223,7 +223,6 @@ namespace Collateral.Data.Migrations
                     VesselId = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     CollatId = table.Column<long>(type: "bigint", nullable: false),
-                    ApprId = table.Column<long>(type: "bigint", nullable: false),
                     VesselName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     Brand = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     Model = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),

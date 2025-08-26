@@ -118,8 +118,7 @@ namespace Collateral.Data.Migrations
                         .HasColumnType("nvarchar(10)");
 
                     b.Property<long>("CollatId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("CollatId");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(10)
@@ -178,8 +177,7 @@ namespace Collateral.Data.Migrations
                         .HasColumnType("nvarchar(10)");
 
                     b.Property<long>("CollatId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("CollatId");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("CondoName")
                         .IsRequired()
@@ -245,8 +243,7 @@ namespace Collateral.Data.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
                     b.Property<long>("CollatId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("CollatId");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(10)
@@ -295,8 +292,7 @@ namespace Collateral.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<long>("CollatId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("CollatId");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(10)
@@ -394,9 +390,6 @@ namespace Collateral.Data.Migrations
                         .HasColumnName("VesselId");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<long>("ApprId")
-                        .HasColumnType("bigint");
 
                     b.Property<long>("CollatId")
                         .HasColumnType("bigint");
@@ -1058,26 +1051,19 @@ namespace Collateral.Data.Migrations
 
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralMaster", b =>
                 {
-                    b.Navigation("CollateralBuilding")
-                        .IsRequired();
+                    b.Navigation("CollateralBuilding");
 
-                    b.Navigation("CollateralCondo")
-                        .IsRequired();
+                    b.Navigation("CollateralCondo");
 
-                    b.Navigation("CollateralLand")
-                        .IsRequired();
+                    b.Navigation("CollateralLand");
 
-                    b.Navigation("CollateralMachine")
-                        .IsRequired();
+                    b.Navigation("CollateralMachine");
 
-                    b.Navigation("CollateralVehicle")
-                        .IsRequired();
+                    b.Navigation("CollateralVehicle");
 
-                    b.Navigation("CollateralVessel")
-                        .IsRequired();
+                    b.Navigation("CollateralVessel");
 
-                    b.Navigation("LandTitle")
-                        .IsRequired();
+                    b.Navigation("LandTitle");
                 });
 #pragma warning restore 612, 618
         }
