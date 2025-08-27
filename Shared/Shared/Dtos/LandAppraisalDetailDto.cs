@@ -1,7 +1,6 @@
 namespace Shared.Dtos;
 
 public record LandAppraisalDetailDto(
-    long ApprId,
     string? PropertyName,
     string? CheckOwner,
     string? Owner,
