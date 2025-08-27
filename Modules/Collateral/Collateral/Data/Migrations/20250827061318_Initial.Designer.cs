@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Collateral.Data.Migrations
 {
     [DbContext(typeof(CollateralDbContext))]
-    [Migration("20250826090806_Initial")]
+    [Migration("20250827061318_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -339,8 +339,7 @@ namespace Collateral.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CollatId")
-                        .IsUnique();
+                    b.HasIndex("CollatId");
 
                     b.ToTable("LandTitles", "collateral");
                 });
@@ -707,8 +706,8 @@ namespace Collateral.Data.Migrations
             modelBuilder.Entity("Collateral.CollateralProperties.Models.LandTitle", b =>
                 {
                     b.HasOne("Collateral.CollateralMasters.Models.CollateralMaster", null)
-                        .WithOne("LandTitle")
-                        .HasForeignKey("Collateral.CollateralProperties.Models.LandTitle", "CollatId")
+                        .WithMany("LandTitles")
+                        .HasForeignKey("CollatId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1066,7 +1065,7 @@ namespace Collateral.Data.Migrations
 
                     b.Navigation("CollateralVessel");
 
-                    b.Navigation("LandTitle");
+                    b.Navigation("LandTitles");
                 });
 #pragma warning restore 612, 618
         }

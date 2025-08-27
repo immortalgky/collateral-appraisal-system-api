@@ -12,9 +12,9 @@ public class CollateralMasterConfigurations : IEntityTypeConfiguration<Collatera
             .HasForeignKey<CollateralLand>(p => p.CollatId)
             .IsRequired();
 
-        builder.HasOne(p => p.LandTitle)
+        builder.HasMany(p => p.LandTitles)
             .WithOne()
-            .HasForeignKey<LandTitle>(p => p.CollatId)
+            .HasForeignKey(p => p.CollatId)
             .IsRequired();
 
         builder.HasOne(p => p.CollateralBuilding)

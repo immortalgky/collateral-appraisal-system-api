@@ -344,8 +344,7 @@ namespace Collateral.Data.Migrations
                 name: "IX_LandTitles_CollatId",
                 schema: "collateral",
                 table: "LandTitles",
-                column: "CollatId",
-                unique: true);
+                column: "CollatId");
         }
 
         /// <inheritdoc />
