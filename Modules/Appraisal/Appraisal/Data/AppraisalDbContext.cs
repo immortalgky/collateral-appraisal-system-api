@@ -1,5 +1,3 @@
-using Appraisal.AppraisalProperties.Models;
-
 namespace Appraisal.Data;
 
 public class AppraisalDbContext : DbContext

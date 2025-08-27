@@ -13,9 +13,12 @@ global using Appraisal.MachineAppraisalDetails.Models;
 global using Appraisal.MachineAppraisalDetails.ValueObjects;
 global using Appraisal.VehicleAppraisalDetails.Models;
 global using Appraisal.VesselAppraisalDetails.Models;
+global using Appraisal.AppraisalProperties.Models;
+
+global using Appraisal.Contracts.Appraisals.Dto;
 
 global using Shared.Data.Extensions;
 global using Shared.DDD;
-
+global using Shared.Contracts.CQRS;
 
 global using System.Reflection;

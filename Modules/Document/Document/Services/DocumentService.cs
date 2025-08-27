@@ -113,3 +113,10 @@ public class DocumentService(IDocumentRepository documentRepository) : IDocument
         return ex.HResult == unchecked((int)0x80070070); // ERROR_DISK_FULL
     }
 }
+
+
+
+master 
+    type: CondoAppraisalDetail
+
+
