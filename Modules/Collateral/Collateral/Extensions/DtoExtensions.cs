@@ -160,6 +160,23 @@ public static class DtoExtensions
         return CollateralSize.Create(dto.Capacity, dto.Width, dto.Length, dto.Height);
     }
 
+    public static CollateralMasterDto ToDto(this CollateralMaster domain)
+    {
+        return new CollateralMasterDto(
+            domain.CollatType.ToString(),
+            domain.HostCollatId,
+            domain.CollateralLand?.ToDto(),
+            [.. domain
+                .LandTitles
+                .Select(landTitle => landTitle.ToDto())],
+            domain.CollateralBuilding?.ToDto(),
+            domain.CollateralCondo?.ToDto(),
+            domain.CollateralMachine?.ToDto(),
+            domain.CollateralVehicle?.ToDto(),
+            domain.CollateralVessel?.ToDto()
+        );
+    }
+
     public static CollateralLandDto ToDto(this CollateralLand domain)
     {
         return new CollateralLandDto(

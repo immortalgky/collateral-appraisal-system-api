@@ -1,3 +1,5 @@
+using Shared.Pagination;
+
 namespace Collateral.Services;
 
 public interface ICollateralService
@@ -14,6 +16,10 @@ public interface ICollateralService
     Task DeleteCollateral(long collatId, CancellationToken cancellationToken = default);
     Task<CollateralMaster> GetCollateralById(
         long collatId,
+        CancellationToken cancellationToken = default
+    );
+    Task<PaginatedResult<CollateralMaster>> GetCollateralPaginatedAsync(
+        PaginationRequest request,
         CancellationToken cancellationToken = default
     );
 }

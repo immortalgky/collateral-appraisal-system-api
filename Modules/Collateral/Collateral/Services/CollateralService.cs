@@ -1,3 +1,5 @@
+using Shared.Pagination;
+
 namespace Collateral.Services;
 
 public class CollateralService(ICollateralRepository collateralRepository) : ICollateralService
@@ -71,10 +73,7 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
 
     public async Task DeleteCollateral(long collatId, CancellationToken cancellationToken = default)
     {
-        var collateral = await collateralRepository.GetCollateralByIdAsync(
-            collatId,
-            cancellationToken
-        );
+        var collateral = await GetCollateralById(collatId, cancellationToken);
         await collateralRepository.DeleteAsync(collateral, cancellationToken);
         await collateralRepository.SaveChangesAsync(cancellationToken);
     }
@@ -84,9 +83,15 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
         CancellationToken cancellationToken = default
     )
     {
-        return await collateralRepository.GetIncludedCollateralByIdAsync(
-            collatId,
-            cancellationToken
-        );
+        return await collateralRepository.GetByIdAsync(collatId, cancellationToken)
+            ?? throw new NotFoundException("Cannot find collateral with this ID.");
+    }
+
+    public async Task<PaginatedResult<CollateralMaster>> GetCollateralPaginatedAsync(
+        PaginationRequest request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        return await collateralRepository.GetPaginatedAsync(request, cancellationToken);
     }
 }
