@@ -1,9 +1,26 @@
 namespace Collateral.Services;
 
-public class CollateralService(
-    ICollateralRepository collateralRepository
-) : ICollateralService
+public class CollateralService(ICollateralRepository collateralRepository) : ICollateralService
 {
+    public async Task CreateDefaultCollateral(
+        List<RequestTitleDto> requestTitles,
+        CancellationToken cancellationToken = default
+    )
+    {
+        foreach (var requestTitleDto in requestTitles)
+        {
+            var collateralMaster = CollateralMaster.Create(CollateralType.Land, null);
+            await collateralRepository.AddAsync(collateralMaster, cancellationToken);
+            var collateralLand = CollateralLand.FromRequestTitleDto(
+                collateralMaster.Id,
+                requestTitleDto
+            );
+            collateralMaster.SetCollateralLand(collateralLand);
+        }
+
+        await collateralRepository.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<CollateralMaster> CreateCollateral(
         CollateralType collatType,
         CollateralDto collateral,
@@ -11,7 +28,7 @@ public class CollateralService(
     )
     {
         var collateralMaster = CollateralMaster.Create(collatType, null);
-        await collateralRepository.CreateCollateralMasterAsync(collateralMaster, cancellationToken);
+        await collateralRepository.AddAsync(collateralMaster, cancellationToken);
 
         switch (collatType)
         {
@@ -50,5 +67,26 @@ public class CollateralService(
         await collateralRepository.SaveChangesAsync(cancellationToken);
 
         return collateralMaster;
+    }
+
+    public async Task DeleteCollateral(long collatId, CancellationToken cancellationToken = default)
+    {
+        var collateral = await collateralRepository.GetCollateralByIdAsync(
+            collatId,
+            cancellationToken
+        );
+        await collateralRepository.DeleteAsync(collateral, cancellationToken);
+        await collateralRepository.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<CollateralMaster> GetCollateralById(
+        long collatId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        return await collateralRepository.GetIncludedCollateralByIdAsync(
+            collatId,
+            cancellationToken
+        );
     }
 }

@@ -1,30 +1,40 @@
+using Shared.Data;
+
 namespace Collateral.Data.Repository;
 
-public class CollateralRepository(CollateralDbContext dbContext) : ICollateralRepository
+public class CollateralRepository(CollateralDbContext context)
+    : BaseRepository<CollateralMaster, long>(context),
+        ICollateralRepository
 {
-    public async Task<CollateralMaster> CreateCollateralMasterAsync(CollateralMaster collateral, CancellationToken cancellationToken = default)
+    public async Task<CollateralMaster> GetCollateralByIdAsync(
+        long collatId,
+        CancellationToken cancellationToken = default
+    )
     {
-        await dbContext.CollateralMasters.AddAsync(collateral, cancellationToken);
-        return collateral;
+        return await context.CollateralMasters.FindAsync([collatId], cancellationToken)
+            ?? throw new NotFoundException("Cannot find a collateral with this id.");
     }
 
-    public async Task<CollateralMaster?> GetNullableCollateralMasterByIdAsync(long collatId, CancellationToken cancellationToken = default) {
-        return await dbContext.CollateralMasters.FindAsync([collatId], cancellationToken);
-    }
-
-    public async Task<CollateralMaster> GetCollateralMasterByIdAsync(long collatId, CancellationToken cancellationToken = default) {
-        return await dbContext.CollateralMasters.FindAsync([collatId], cancellationToken) ?? throw new NotFoundException("Cannot find a collateral with this id.");
-    }
-
-    public async Task<bool> DeleteCollateralMasterAsync(long collatId, CancellationToken cancellationToken = default)
+    public async Task<CollateralMaster> GetIncludedCollateralByIdAsync(
+        long collatId,
+        CancellationToken cancellationToken = default
+    )
     {
-        var collateral = await GetCollateralMasterByIdAsync(collatId, cancellationToken);
-        dbContext.CollateralMasters.Remove(collateral);
-        return true;
+        return await context
+                .CollateralMasters.Include(c => c.CollateralLand)
+                .Include(c => c.CollateralBuilding)
+                .Include(c => c.CollateralCondo)
+                .Include(c => c.CollateralMachine)
+                .Include(c => c.CollateralVehicle)
+                .Include(c => c.CollateralVessel)
+                .Include(c => c.LandTitles)
+                .Where(c => c.Id == collatId)
+                .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Cannot find a collateral with this id.");
     }
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        return await dbContext.SaveChangesAsync(cancellationToken);
+        return await context.SaveChangesAsync(cancellationToken);
     }
 }

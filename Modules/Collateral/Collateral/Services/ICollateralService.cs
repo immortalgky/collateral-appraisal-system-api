@@ -2,5 +2,18 @@ namespace Collateral.Services;
 
 public interface ICollateralService
 {
-    public Task<CollateralMaster> CreateCollateral(CollateralType collatType, CollateralDto collateral, CancellationToken cancellationToken = default);
+    Task CreateDefaultCollateral(
+        List<RequestTitleDto> requestTitles,
+        CancellationToken cancellationToken = default
+    );
+    Task<CollateralMaster> CreateCollateral(
+        CollateralType collatType,
+        CollateralDto collateral,
+        CancellationToken cancellationToken = default
+    );
+    Task DeleteCollateral(long collatId, CancellationToken cancellationToken = default);
+    Task<CollateralMaster> GetCollateralById(
+        long collatId,
+        CancellationToken cancellationToken = default
+    );
 }

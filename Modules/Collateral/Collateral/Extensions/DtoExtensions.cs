@@ -1,6 +1,3 @@
-using Collateral.CollateralMasters.ValueObjects;
-using Collateral.CollateralProperties.ValueObjects;
-
 namespace Collateral.Extensions;
 
 public static class DtoExtensions
@@ -161,5 +158,142 @@ public static class DtoExtensions
     public static CollateralSize ToDomain(this CollateralSizeDto dto)
     {
         return CollateralSize.Create(dto.Capacity, dto.Width, dto.Length, dto.Height);
+    }
+
+    public static CollateralLandDto ToDto(this CollateralLand domain)
+    {
+        return new CollateralLandDto(
+            domain.Coordinate.ToDto(),
+            domain.CollateralLocation.ToDto(),
+            domain.LandDesc
+        );
+    }
+
+    public static LandTitleDto ToDto(this LandTitle domain)
+    {
+        return new LandTitleDto(
+            domain.SeqNo,
+            domain.LandTitleDocumentDetail.ToDto(),
+            domain.LandTitleArea.ToDto(),
+            domain.DocumentType,
+            domain.Rawang,
+            domain.AerialPhotoNo,
+            domain.BoundaryMarker,
+            domain.BoundaryMarkerOther,
+            domain.DocValidate,
+            domain.PricePerSquareWa,
+            domain.GovernmentPrice
+        );
+    }
+
+    public static CollateralBuildingDto ToDto(this CollateralBuilding domain)
+    {
+        return new CollateralBuildingDto(
+            domain.BuildingNo,
+            domain.ModelName,
+            domain.HouseNo,
+            domain.BuiltOnTitleNo,
+            domain.Owner
+        );
+    }
+
+    public static CollateralCondoDto ToDto(this CollateralCondo domain)
+    {
+        return new CollateralCondoDto(
+            domain.CondoName,
+            domain.BuildingNo,
+            domain.ModelName,
+            domain.BuiltOnTitleNo,
+            domain.CondoRegisNo,
+            domain.RoomNo,
+            domain.FloorNo,
+            domain.UsableArea,
+            domain.CollateralLocation.ToDto(),
+            domain.Coordinate.ToDto(),
+            domain.Owner
+        );
+    }
+
+    public static CollateralLocationDto ToDto(this CollateralLocation domain)
+    {
+        return new CollateralLocationDto(
+            domain.SubDistrict,
+            domain.District,
+            domain.Province,
+            domain.LandOffice
+        );
+    }
+
+    public static CoordinateDto ToDto(this Coordinate domain)
+    {
+        return new CoordinateDto(domain.Latitude, domain.Longitude);
+    }
+
+    public static LandTitleAreaDto ToDto(this LandTitleArea domain)
+    {
+        return new LandTitleAreaDto(domain.Rai, domain.Ngan, domain.Wa, domain.TotalAreaInSqWa);
+    }
+
+    public static LandTitleDocumentDetailDto ToDto(this LandTitleDocumentDetail domain)
+    {
+        return new LandTitleDocumentDetailDto(
+            domain.TitleNo,
+            domain.BookNo,
+            domain.PageNo,
+            domain.LandNo,
+            domain.SurveyNo,
+            domain.SheetNo
+        );
+    }
+
+    public static CollateralMachineDto ToDto(this CollateralMachine domain)
+    {
+        return new CollateralMachineDto(
+            domain.CollateralMachineProperty.ToDto(),
+            domain.CollateralMachineDetail.ToDto(),
+            domain.CollateralMachineSize.ToDto(),
+            domain.ChassisNo
+        );
+    }
+
+    public static CollateralVehicleDto ToDto(this CollateralVehicle domain)
+    {
+        return new CollateralVehicleDto(
+            domain.CollateralVehicleProperty.ToDto(),
+            domain.CollateralVehicleDetail.ToDto(),
+            domain.CollateralVehicleSize.ToDto(),
+            domain.ChassisNo
+        );
+    }
+
+    public static CollateralVesselDto ToDto(this CollateralVessel domain)
+    {
+        return new CollateralVesselDto(
+            domain.CollateralVesselProperty.ToDto(),
+            domain.CollateralVesselDetail.ToDto(),
+            domain.CollateralVesselSize.ToDto()
+        );
+    }
+
+    public static CollateralDetailDto ToDto(this CollateralDetail domain)
+    {
+        return new CollateralDetailDto(
+            domain.EngineNo,
+            domain.RegistrationNo,
+            domain.YearOfManufacture,
+            domain.CountryOfManufacture,
+            domain.PurchaseDate,
+            domain.PurchasePrice
+        );
+    }
+
+    public static CollateralPropertyDto ToDto(this CollateralProperty domain)
+    {
+        return new CollateralPropertyDto(domain.Name, domain.Brand, domain.Model, domain.EnergyUse);
+    }
+
+    public static CollateralSizeDto ToDto(this CollateralSize domain)
+    {
+        return new CollateralSizeDto(domain.Capacity, domain.Width, domain.Length, domain.Height);
     }
 }

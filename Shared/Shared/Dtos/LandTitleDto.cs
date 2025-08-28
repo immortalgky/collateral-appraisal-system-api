@@ -1,7 +1,6 @@
 namespace Shared.Dtos;
 
 public record LandTitleDto(
-    long CollatId,
     int SeqNo,
     LandTitleDocumentDetailDto LandTitleDocumentDetail,
     LandTitleAreaDto LandTitleArea,

@@ -1,6 +1,6 @@
 namespace Collateral.Collateral.Shared.Features.DeleteCollateral;
 
-public class DeleteCollateralCommandHandler(ICollateralRepository collateralRepository)
+public class DeleteCollateralCommandHandler(ICollateralService collateralService)
     : ICommandHandler<DeleteCollateralCommand, DeleteCollateralResult>
 {
     public async Task<DeleteCollateralResult> Handle(
@@ -8,8 +8,7 @@ public class DeleteCollateralCommandHandler(ICollateralRepository collateralRepo
         CancellationToken cancellationToken
     )
     {
-        await collateralRepository.DeleteCollateralMasterAsync(command.Id, cancellationToken);
-        await collateralRepository.SaveChangesAsync(cancellationToken);
+        await collateralService.DeleteCollateral(command.Id, cancellationToken);
         return new DeleteCollateralResult(true);
     }
 }
