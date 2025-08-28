@@ -8,9 +8,9 @@ public class GetCollateralByIdEndpoint : ICarterModule
                 "/collaterals/{id:long}",
                 async (long id, ISender sender, CancellationToken cancellationToken) =>
                 {
-                    var command = new GetCollateralByIdQuery(id);
+                    var query = new GetCollateralByIdQuery(id);
 
-                    var result = await sender.Send(command, cancellationToken);
+                    var result = await sender.Send(query, cancellationToken);
 
                     var response = result.Adapt<GetCollateralByIdResponse>();
 

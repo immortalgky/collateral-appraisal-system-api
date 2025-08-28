@@ -4,11 +4,11 @@ public class GetCollateralByIdQueryHandler(ICollateralService collateralService)
     : IQueryHandler<GetCollateralByIdQuery, GetCollateralByIdResult>
 {
     public async Task<GetCollateralByIdResult> Handle(
-        GetCollateralByIdQuery command,
+        GetCollateralByIdQuery query,
         CancellationToken cancellationToken
     )
     {
-        var collateral = await collateralService.GetCollateralById(command.Id, cancellationToken);
+        var collateral = await collateralService.GetCollateralById(query.Id, cancellationToken);
         return ConvertModelToDto(collateral);
     }
 
