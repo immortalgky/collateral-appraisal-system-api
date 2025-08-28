@@ -5,7 +5,7 @@ public class CollateralMasterConfigurations : IEntityTypeConfiguration<Collatera
     public void Configure(EntityTypeBuilder<CollateralMaster> builder)
     {
         builder.Property(p => p.Id).HasColumnName("CollatId");
-        builder.Property(p => p.CollatType).UseCodeConfig();
+        builder.Property(p => p.CollatType).UseCodeConfig().HasConversion<string>();
 
         builder.HasOne(p => p.CollateralLand)
             .WithOne()

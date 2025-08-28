@@ -4,5 +4,6 @@ public record CollateralVehicleDto(
     long CollatId,
     CollateralPropertyDto CollateralVehicleProperty,
     CollateralDetailDto CollateralVehicleDetail,
-    CollateralSizeDto CollateralVehicleSize
+    CollateralSizeDto CollateralVehicleSize,
+    string ChassisNo
 );

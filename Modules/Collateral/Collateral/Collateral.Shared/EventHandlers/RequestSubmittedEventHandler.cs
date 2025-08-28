@@ -13,7 +13,7 @@ public class RequestSubmittedIntegrationEventHandler(ILogger<RequestSubmittedInt
 
         foreach (var requestTitleDto in context.Message.RequestTitles)
         {
-            var collateralMaster = CollateralMaster.Create("land", null);
+            var collateralMaster = CollateralMaster.Create(CollateralType.Land, null);
             await collateralRepository.CreateCollateralMasterAsync(collateralMaster);
             var collateralLand = CollateralLand.FromRequestTitleDto(collateralMaster.Id, requestTitleDto);
             collateralMaster.SetCollateralLand(collateralLand);

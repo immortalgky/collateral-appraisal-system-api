@@ -1,10 +1,10 @@
-using Collateral.CollateralProperties.Models;
+using Collateral.CollateralMasters.ValueObjects;
 
 namespace Collateral.CollateralMasters.Models;
 
 public class CollateralMaster : Aggregate<long>
 {
-    public string CollatType { get; private set; } = default!;
+    public CollateralType CollatType { get; private set; } = default!;
     public long? HostCollatId { get; private set; } = default!;
     public CollateralMachine? CollateralMachine { get; private set; }
     public CollateralVehicle? CollateralVehicle { get; private set; }
@@ -13,24 +13,20 @@ public class CollateralMaster : Aggregate<long>
     public CollateralLand? CollateralLand { get; private set; }
     public CollateralBuilding? CollateralBuilding { get; private set; }
     public CollateralCondo? CollateralCondo { get; private set; }
-    public LandTitle? LandTitle { get; private set; }
+    public List<LandTitle> LandTitles { get; private set; } = [];
 
     private CollateralMaster()
     {
     }
 
-    private CollateralMaster(string collateralType, long? hostCollateralId)
+    private CollateralMaster(CollateralType collateralType, long? hostCollateralId)
     {
-        ArgumentNullException.ThrowIfNull(collateralType);
-
         CollatType = collateralType;
         HostCollatId = hostCollateralId;
     }
 
-    public static CollateralMaster Create(string collatType, long? hostCollatId)
+    public static CollateralMaster Create(CollateralType collatType, long? hostCollatId)
     {
-        ArgumentNullException.ThrowIfNull(collatType);
-
         return new CollateralMaster(
             collatType,
             hostCollatId
@@ -67,8 +63,13 @@ public class CollateralMaster : Aggregate<long>
         CollateralVessel = collateralVessel;
     }
 
-    public void SetLandTitle(LandTitle landTitle)
+    public void SetLandTitle(List<LandTitle> landTitles)
     {
-        LandTitle = landTitle;
+        LandTitles = landTitles;
+    }
+
+    public void AddLandTitle(LandTitle landTitle)
+    {
+        LandTitles.Add(landTitle);
     }
 }
