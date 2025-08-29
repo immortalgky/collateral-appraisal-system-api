@@ -8,7 +8,17 @@ public class CollateralRepository(CollateralDbContext context)
 {
     protected override IQueryable<CollateralMaster> GetReadQuery()
     {
-        return base.GetReadQuery()
+        return IncludeQuery(base.GetReadQuery());
+    }
+
+    protected override IQueryable<CollateralMaster> GetTrackedQuery()
+    {
+        return IncludeQuery(base.GetTrackedQuery());
+    }
+
+    private static IQueryable<CollateralMaster> IncludeQuery(IQueryable<CollateralMaster> query)
+    {
+        return query
             .Include(c => c.CollateralLand)
             .Include(c => c.CollateralBuilding)
             .Include(c => c.CollateralCondo)
@@ -16,6 +26,14 @@ public class CollateralRepository(CollateralDbContext context)
             .Include(c => c.CollateralVehicle)
             .Include(c => c.CollateralVessel)
             .Include(c => c.LandTitles);
+    }
+
+    public async Task<CollateralMaster?> GetByIdTrackedAsync(
+        long id,
+        CancellationToken cancellationToken = default
+    )
+    {
+        return await GetTrackedQuery().FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
     }
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

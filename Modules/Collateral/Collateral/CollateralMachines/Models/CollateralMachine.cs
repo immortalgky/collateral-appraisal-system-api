@@ -1,6 +1,6 @@
 namespace Collateral.CollateralMachines.Models;
 
-public class CollateralMachine : Aggregate<long>
+public class CollateralMachine : Aggregate<long>, ICollateralModel
 {
     public long CollatId { get; private set; } = default!;
     public CollateralProperty CollateralMachineProperty { get; private set; } = default!;
@@ -24,6 +24,7 @@ public class CollateralMachine : Aggregate<long>
         CollateralMachineSize = collateralMachineSize;
         ChassisNo = chassisNo;
     }
+
     public static CollateralMachine Create(
         long collatId,
         CollateralProperty collateralMachineProperty,
@@ -39,5 +40,36 @@ public class CollateralMachine : Aggregate<long>
             collateralMachineSize,
             chassisNo
         );
+    }
+
+    public void Update(ICollateralModel? collateral)
+    {
+        if (collateral is CollateralMachine collateralMachine)
+        {
+            Update(collateralMachine);
+        }
+    }
+
+    public void Update(CollateralMachine collateralMachine)
+    {
+        if (!CollateralMachineProperty.Equals(collateralMachine.CollateralMachineProperty))
+        {
+            CollateralMachineProperty = collateralMachine.CollateralMachineProperty;
+        }
+
+        if (!CollateralMachineDetail.Equals(collateralMachine.CollateralMachineDetail))
+        {
+            CollateralMachineDetail = collateralMachine.CollateralMachineDetail;
+        }
+
+        if (!CollateralMachineSize.Equals(collateralMachine.CollateralMachineSize))
+        {
+            CollateralMachineSize = collateralMachine.CollateralMachineSize;
+        }
+
+        if (!ChassisNo.Equals(collateralMachine.ChassisNo))
+        {
+            ChassisNo = collateralMachine.ChassisNo;
+        }
     }
 }

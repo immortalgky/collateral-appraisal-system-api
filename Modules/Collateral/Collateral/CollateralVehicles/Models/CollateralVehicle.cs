@@ -1,6 +1,6 @@
 namespace Collateral.CollateralVehicles.Models;
 
-public class CollateralVehicle : Aggregate<long>
+public class CollateralVehicle : Aggregate<long>, ICollateralModel
 {
     public long CollatId { get; private set; } = default!;
     public CollateralProperty CollateralVehicleProperty { get; private set; } = default!;
@@ -24,6 +24,7 @@ public class CollateralVehicle : Aggregate<long>
         CollateralVehicleSize = collateralVehicleSize;
         ChassisNo = chassisNo;
     }
+
     public static CollateralVehicle Create(
         long collatId,
         CollateralProperty collateralVehicleProperty,
@@ -39,5 +40,36 @@ public class CollateralVehicle : Aggregate<long>
             collateralVehicleSize,
             chassisNo
         );
+    }
+
+    public void Update(ICollateralModel? collateral)
+    {
+        if (collateral is CollateralVehicle collateralVehicle)
+        {
+            Update(collateralVehicle);
+        }
+    }
+
+    public void Update(CollateralVehicle collateralVehicle)
+    {
+        if (!CollateralVehicleProperty.Equals(collateralVehicle.CollateralVehicleProperty))
+        {
+            CollateralVehicleProperty = collateralVehicle.CollateralVehicleProperty;
+        }
+
+        if (!CollateralVehicleDetail.Equals(collateralVehicle.CollateralVehicleDetail))
+        {
+            CollateralVehicleDetail = collateralVehicle.CollateralVehicleDetail;
+        }
+
+        if (!CollateralVehicleSize.Equals(collateralVehicle.CollateralVehicleSize))
+        {
+            CollateralVehicleSize = collateralVehicle.CollateralVehicleSize;
+        }
+
+        if (!ChassisNo.Equals(collateralVehicle.ChassisNo))
+        {
+            ChassisNo = collateralVehicle.ChassisNo;
+        }
     }
 }

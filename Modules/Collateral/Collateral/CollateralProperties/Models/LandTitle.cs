@@ -1,8 +1,6 @@
-using Collateral.CollateralProperties.ValueObjects;
-
 namespace Collateral.CollateralProperties.Models;
 
-public class LandTitle : Entity<long>
+public class LandTitle : Entity<long>, ICollateralModel
 {
     public long CollatId { get; private set; }
     public int SeqNo { get; private set; }
@@ -19,7 +17,10 @@ public class LandTitle : Entity<long>
 
     private LandTitle() { }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "SonarQube",
+        "S107:Methods should not have too many parameters"
+    )]
     private LandTitle(
         long collatId,
         int seqNo,
@@ -49,7 +50,10 @@ public class LandTitle : Entity<long>
         GovernmentPrice = governmentPrice;
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "SonarQube",
+        "S107:Methods should not have too many parameters"
+    )]
     public static LandTitle Create(
         long collatId,
         int seqNo,
@@ -79,5 +83,74 @@ public class LandTitle : Entity<long>
             pricePerSquareWa,
             governmentPrice
         );
+    }
+
+    public void Update(ICollateralModel? collateral)
+    {
+        if (collateral is LandTitle landTitle)
+        {
+            Update(landTitle);
+        }
+    }
+
+    public void Update(LandTitle landTitle)
+    {
+        if (!SeqNo.Equals(landTitle.SeqNo))
+        {
+            SeqNo = landTitle.SeqNo;
+        }
+
+        if (!LandTitleDocumentDetail.Equals(landTitle.LandTitleDocumentDetail))
+        {
+            LandTitleDocumentDetail = landTitle.LandTitleDocumentDetail;
+        }
+
+        if (!LandTitleArea.Equals(landTitle.LandTitleArea))
+        {
+            LandTitleArea = landTitle.LandTitleArea;
+        }
+
+        if (!DocumentType.Equals(landTitle.DocumentType))
+        {
+            DocumentType = landTitle.DocumentType;
+        }
+
+        if (!Rawang.Equals(landTitle.Rawang))
+        {
+            Rawang = landTitle.Rawang;
+        }
+
+        if (AerialPhotoNo is null || !AerialPhotoNo.Equals(landTitle.AerialPhotoNo))
+        {
+            AerialPhotoNo = landTitle.AerialPhotoNo;
+        }
+
+        if (BoundaryMarker is null || !BoundaryMarker.Equals(landTitle.BoundaryMarker))
+        {
+            BoundaryMarker = landTitle.BoundaryMarker;
+        }
+
+        if (
+            BoundaryMarkerOther is null
+            || !BoundaryMarkerOther.Equals(landTitle.BoundaryMarkerOther)
+        )
+        {
+            BoundaryMarkerOther = landTitle.BoundaryMarkerOther;
+        }
+
+        if (!DocValidate.Equals(landTitle.DocValidate))
+        {
+            DocValidate = landTitle.DocValidate;
+        }
+
+        if (PricePerSquareWa is null || !PricePerSquareWa.Equals(landTitle.PricePerSquareWa))
+        {
+            PricePerSquareWa = landTitle.PricePerSquareWa;
+        }
+
+        if (GovernmentPrice is null || !GovernmentPrice.Equals(landTitle.GovernmentPrice))
+        {
+            GovernmentPrice = landTitle.GovernmentPrice;
+        }
     }
 }

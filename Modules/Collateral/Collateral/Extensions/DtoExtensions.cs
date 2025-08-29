@@ -16,6 +16,27 @@ public static class DtoExtensions
         };
     }
 
+    public static CollateralMaster ToDomain(this CollateralMasterDto dto)
+    {
+        var collateral = CollateralMaster.Create(
+            Enum.Parse<CollateralType>(dto.CollatType),
+            dto.HostCollatId
+        );
+        collateral.SetCollateralLand(dto.CollateralLand?.ToDomain(dto.CollatId));
+        collateral.SetCollateralBuilding(dto.CollateralBuilding?.ToDomain(dto.CollatId));
+        collateral.SetCollateralCondo(dto.CollateralCondo?.ToDomain(dto.CollatId));
+        collateral.SetCollateralMachine(dto.CollateralMachine?.ToDomain(dto.CollatId));
+        collateral.SetCollateralVehicle(dto.CollateralVehicle?.ToDomain(dto.CollatId));
+        collateral.SetCollateralVessel(dto.CollateralVessel?.ToDomain(dto.CollatId));
+        if (dto.LandTitles is not null)
+        {
+            collateral.SetLandTitles(
+                [.. dto.LandTitles.Select(landTitle => landTitle.ToDomain(dto.CollatId))]
+            );
+        }
+        return collateral;
+    }
+
     public static CollateralLand ToDomain(this CollateralLandDto dto, long collatId)
     {
         return CollateralLand.Create(
@@ -163,12 +184,11 @@ public static class DtoExtensions
     public static CollateralMasterDto ToDto(this CollateralMaster domain)
     {
         return new CollateralMasterDto(
+            domain.Id,
             domain.CollatType.ToString(),
             domain.HostCollatId,
             domain.CollateralLand?.ToDto(),
-            [.. domain
-                .LandTitles
-                .Select(landTitle => landTitle.ToDto())],
+            [.. domain.LandTitles.Select(landTitle => landTitle.ToDto())],
             domain.CollateralBuilding?.ToDto(),
             domain.CollateralCondo?.ToDto(),
             domain.CollateralMachine?.ToDto(),

@@ -22,4 +22,9 @@ public interface ICollateralService
         PaginationRequest request,
         CancellationToken cancellationToken = default
     );
+    Task UpdateCollateral(
+        long collatId,
+        CollateralMasterDto dto,
+        CancellationToken cancellationToken = default
+    );
 }

@@ -1,6 +1,6 @@
 namespace Collateral.CollateralProperties.Models;
 
-public class CollateralBuilding : Entity<long>
+public class CollateralBuilding : Entity<long>, ICollateralModel
 {
     public long CollatId { get; private set; }
     public string BuildingNo { get; private set; } = default!;
@@ -45,5 +45,41 @@ public class CollateralBuilding : Entity<long>
             builtOnTitleNo,
             owner
         );
+    }
+
+    public void Update(ICollateralModel? collateral)
+    {
+        if (collateral is CollateralBuilding collateralBuilding)
+        {
+            Update(collateralBuilding);
+        }
+    }
+
+    public void Update(CollateralBuilding collateralBuilding)
+    {
+        if (!BuildingNo.Equals(collateralBuilding.BuildingNo))
+        {
+            BuildingNo = collateralBuilding.BuildingNo;
+        }
+
+        if (!ModelName.Equals(collateralBuilding.ModelName))
+        {
+            ModelName = collateralBuilding.ModelName;
+        }
+
+        if (!HouseNo.Equals(collateralBuilding.HouseNo))
+        {
+            HouseNo = collateralBuilding.HouseNo;
+        }
+
+        if (!BuiltOnTitleNo.Equals(collateralBuilding.BuiltOnTitleNo))
+        {
+            BuiltOnTitleNo = collateralBuilding.BuiltOnTitleNo;
+        }
+
+        if (!Owner.Equals(collateralBuilding.Owner))
+        {
+            Owner = collateralBuilding.Owner;
+        }
     }
 }

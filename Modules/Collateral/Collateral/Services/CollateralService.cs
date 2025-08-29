@@ -41,7 +41,7 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
                     .LandTitles!.Select(dto => dto.ToDomain(collateralMaster.Id))
                     .ToList();
                 collateralMaster.SetCollateralLand(collateralLand);
-                collateralMaster.SetLandTitle(landTitles);
+                collateralMaster.SetLandTitles(landTitles);
                 break;
             case CollateralType.Building:
                 var collateralBuilding = collateral.CollateralBuilding!.ToDomain(
@@ -93,5 +93,21 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
     )
     {
         return await collateralRepository.GetPaginatedAsync(request, cancellationToken);
+    }
+
+    public async Task UpdateCollateral(
+        long collatId,
+        CollateralMasterDto dto,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var collateral =
+            await collateralRepository.GetByIdTrackedAsync(collatId, cancellationToken)
+            ?? throw new NotFoundException("Cannot get collateral with this id");
+        var inputCollateral = dto.ToDomain();
+
+        collateral.Update(inputCollateral);
+
+        await collateralRepository.SaveChangesAsync(cancellationToken);
     }
 }
