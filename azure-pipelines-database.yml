@@ -1,0 +1,211 @@
+# Database Deployment Pipeline
+trigger:
+  branches:
+    include:
+    - main
+    - develop
+  paths:
+    include:
+    - Database/Scripts/*
+    - Database/Migration/*
+    - Database/Configuration/*
+
+variables:
+  - group: Database-Deployment-Variables
+  - name: BuildConfiguration
+    value: 'Release'
+
+stages:
+- stage: Validate
+  displayName: 'Validate Database Scripts'
+  jobs:
+  - job: ValidateScripts
+    displayName: 'Validate SQL Scripts'
+    pool:
+      vmImage: 'windows-latest'
+    
+    steps:
+    - checkout: self
+      fetchDepth: 1
+    
+    - task: PowerShell@2
+      displayName: 'Validate SQL Syntax'
+      inputs:
+        targetType: 'filePath'
+        filePath: 'Database/Tools/ValidateScripts.ps1'
+        arguments: '-ScriptsPath "Database/Scripts"'
+        failOnStderr: true
+    
+    - task: DotNetCoreCLI@2
+      displayName: 'Build Database Project'
+      inputs:
+        command: 'build'
+        projects: 'Database/Database.csproj'
+        arguments: '--configuration $(BuildConfiguration)'
+
+- stage: DeployDev
+  displayName: 'Deploy to Development'
+  dependsOn: Validate
+  condition: succeeded()
+  jobs:
+  - deployment: DeployToDev
+    displayName: 'Deploy to Development Environment'
+    environment: 'Database-Development'
+    pool:
+      vmImage: 'windows-latest'
+    
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+            fetchDepth: 1
+          
+          - task: PowerShell@2
+            displayName: 'Backup Development Database'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $connectionString = "$(DevConnectionString)"
+                $backupPath = "$(Agent.TempDirectory)/CollateralAppraisal_Dev_$(Build.BuildNumber).bak"
+                
+                $sql = "BACKUP DATABASE [CollateralAppraisalSystem_Dev] TO DISK = '$backupPath'"
+                
+                try {
+                  $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+                  $connection.Open()
+                  $command = $connection.CreateCommand()
+                  $command.CommandText = $sql
+                  $command.CommandTimeout = 300
+                  $command.ExecuteNonQuery()
+                  $connection.Close()
+                  Write-Host "Backup created: $backupPath"
+                } catch {
+                  Write-Error "Backup failed: $($_.Exception.Message)"
+                  exit 1
+                }
+          
+          - task: DotNetCoreCLI@2
+            displayName: 'Run Database Migrations'
+            inputs:
+              command: 'run'
+              projects: 'Database/Database.csproj'
+              arguments: 'migrate Development'
+            env:
+              DATABASE_CONNECTION_STRING: $(DevConnectionString)
+          
+          - task: PowerShell@2
+            displayName: 'Verify Deployment'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $connectionString = "$(DevConnectionString)"
+                
+                # Verify migration history
+                $sql = "SELECT COUNT(*) FROM dbo.DatabaseMigrationHistory WHERE ExecutedOn >= DATEADD(MINUTE, -10, GETDATE())"
+                
+                $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+                $connection.Open()
+                $command = $connection.CreateCommand()
+                $command.CommandText = $sql
+                $recentMigrations = $command.ExecuteScalar()
+                $connection.Close()
+                
+                if ($recentMigrations -gt 0) {
+                  Write-Host "Deployment verified: $recentMigrations recent migrations found"
+                } else {
+                  Write-Warning "No recent migrations found - this may indicate an issue"
+                }
+
+- stage: IntegrationTests
+  displayName: 'Run Integration Tests'
+  dependsOn: DeployDev
+  condition: succeeded()
+  jobs:
+  - job: DatabaseTests
+    displayName: 'Database Integration Tests'
+    pool:
+      vmImage: 'windows-latest'
+    
+    steps:
+    - checkout: self
+    
+    - task: DotNetCoreCLI@2
+      displayName: 'Run Database Tests'
+      inputs:
+        command: 'test'
+        projects: 'Database.IntegrationTests/Database.IntegrationTests.csproj'
+        arguments: '--configuration $(BuildConfiguration) --logger trx --collect:"XPlat Code Coverage"'
+      env:
+        DATABASE_CONNECTION_STRING: $(DevConnectionString)
+    
+    - task: PublishTestResults@2
+      displayName: 'Publish Test Results'
+      inputs:
+        testResultsFormat: 'VSTest'
+        testResultsFiles: '**/*.trx'
+        mergeTestResults: true
+
+- stage: DeployTest
+  displayName: 'Deploy to Test Environment'
+  dependsOn: IntegrationTests
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  jobs:
+  - deployment: DeployToTest
+    displayName: 'Deploy to Test Environment'
+    environment: 'Database-Test'
+    pool:
+      vmImage: 'windows-latest'
+    
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - template: templates/deploy-database.yml
+            parameters:
+              environment: 'Test'
+              connectionString: '$(TestConnectionString)'
+              approvalRequired: false
+
+- stage: DeployStaging
+  displayName: 'Deploy to Staging'
+  dependsOn: DeployTest
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: DeployToStaging
+    displayName: 'Deploy to Staging Environment'
+    environment: 'Database-Staging'
+    pool:
+      vmImage: 'windows-latest'
+    
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - template: templates/deploy-database.yml
+            parameters:
+              environment: 'Staging'
+              connectionString: '$(StagingConnectionString)'
+              approvalRequired: true
+
+- stage: DeployProduction
+  displayName: 'Deploy to Production'
+  dependsOn: DeployStaging
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: DeployToProduction
+    displayName: 'Deploy to Production Environment'
+    environment: 'Database-Production'
+    pool:
+      vmImage: 'windows-latest'
+    
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - template: templates/deploy-database.yml
+            parameters:
+              environment: 'Production'
+              connectionString: '$(ProductionConnectionString)'
+              approvalRequired: true
+              requireHealthCheck: true

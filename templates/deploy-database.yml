@@ -1,0 +1,183 @@
+parameters:
+- name: environment
+  type: string
+- name: connectionString
+  type: string
+- name: approvalRequired
+  type: boolean
+  default: false
+- name: requireHealthCheck
+  type: boolean
+  default: false
+
+steps:
+- checkout: self
+  fetchDepth: 1
+
+- ${{ if parameters.approvalRequired }}:
+  - task: ManualValidation@0
+    displayName: 'Manual Approval for ${{ parameters.environment }}'
+    inputs:
+      notifyUsers: '$(DeploymentApprovers)'
+      instructions: 'Please review and approve deployment to ${{ parameters.environment }} environment'
+
+- task: PowerShell@2
+  displayName: 'Pre-Deployment Validation'
+  inputs:
+    targetType: 'inline'
+    script: |
+      Write-Host "Starting pre-deployment validation for ${{ parameters.environment }}"
+      
+      # Test database connectivity
+      $connectionString = "${{ parameters.connectionString }}"
+      try {
+        $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+        $connection.Open()
+        $connection.Close()
+        Write-Host "Database connectivity verified"
+      } catch {
+        Write-Error "Cannot connect to database: $($_.Exception.Message)"
+        exit 1
+      }
+      
+      # Check for blocking processes
+      $sql = "SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE database_id = DB_ID() AND session_id != @@SPID"
+      $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+      $connection.Open()
+      $command = $connection.CreateCommand()
+      $command.CommandText = $sql
+      $activeSessions = $command.ExecuteScalar()
+      $connection.Close()
+      
+      if ($activeSessions -gt 5) {
+        Write-Warning "High number of active sessions detected: $activeSessions"
+        Write-Host "Consider deploying during maintenance window"
+      }
+
+- task: PowerShell@2
+  displayName: 'Create Database Backup'
+  inputs:
+    targetType: 'inline'
+    script: |
+      $connectionString = "${{ parameters.connectionString }}"
+      $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+      $backupPath = "$(Agent.TempDirectory)/CollateralAppraisal_${{ parameters.environment }}_${timestamp}.bak"
+      
+      $databaseName = if ("${{ parameters.environment }}" -eq "Production") { "CollateralAppraisalSystem" } else { "CollateralAppraisalSystem_${{ parameters.environment }}" }
+      $sql = "BACKUP DATABASE [$databaseName] TO DISK = '$backupPath' WITH COMPRESSION, CHECKSUM"
+      
+      try {
+        $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+        $connection.Open()
+        $command = $connection.CreateCommand()
+        $command.CommandText = $sql
+        $command.CommandTimeout = 900  # 15 minutes
+        $command.ExecuteNonQuery()
+        $connection.Close()
+        
+        Write-Host "Backup created: $backupPath"
+        Write-Host "##vso[task.setvariable variable=BackupPath]$backupPath"
+      } catch {
+        Write-Error "Backup failed: $($_.Exception.Message)"
+        exit 1
+      }
+
+- task: DotNetCoreCLI@2
+  displayName: 'Deploy Database Changes'
+  inputs:
+    command: 'run'
+    projects: 'Database/Database.csproj'
+    arguments: 'migrate ${{ parameters.environment }}'
+  env:
+    DATABASE_CONNECTION_STRING: ${{ parameters.connectionString }}
+
+- task: PowerShell@2
+  displayName: 'Post-Deployment Verification'
+  inputs:
+    targetType: 'inline'
+    script: |
+      $connectionString = "${{ parameters.connectionString }}"
+      
+      Write-Host "Running post-deployment verification"
+      
+      # Check migration history
+      $sql = "SELECT TOP 5 ScriptName, ExecutedOn, Success FROM dbo.DatabaseMigrationHistory ORDER BY ExecutedOn DESC"
+      $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+      $connection.Open()
+      $command = $connection.CreateCommand()
+      $command.CommandText = $sql
+      $reader = $command.ExecuteReader()
+      
+      Write-Host "Recent migrations:"
+      while ($reader.Read()) {
+        $status = if ($reader["Success"]) { "SUCCESS" } else { "FAILED" }
+        Write-Host "  $($reader['ScriptName']) - $($reader['ExecutedOn']) - $status"
+      }
+      $reader.Close()
+      
+      # Verify key database objects exist
+      $objectChecks = @(
+        "SELECT COUNT(*) FROM sys.views WHERE schema_id = SCHEMA_ID('request') AND name LIKE 'vw_%'",
+        "SELECT COUNT(*) FROM sys.procedures WHERE schema_id = SCHEMA_ID('request') AND name LIKE 'sp_%'",
+        "SELECT COUNT(*) FROM sys.objects WHERE schema_id = SCHEMA_ID('request') AND name LIKE 'fn_%'"
+      )
+      
+      foreach ($check in $objectChecks) {
+        $command.CommandText = $check
+        $count = $command.ExecuteScalar()
+        Write-Host "Object check result: $count objects found"
+      }
+      
+      $connection.Close()
+      Write-Host "Post-deployment verification completed"
+
+- ${{ if parameters.requireHealthCheck }}:
+  - task: PowerShell@2
+    displayName: 'Production Health Check'
+    inputs:
+      targetType: 'inline'
+      script: |
+        Write-Host "Running production health check"
+        
+        # Run health check queries
+        $connectionString = "${{ parameters.connectionString }}"
+        $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+        $connection.Open()
+        
+        # Check system health
+        $healthChecks = @(
+          @{ Name = "Database Size"; Query = "SELECT SUM(size * 8.0 / 1024) as SizeMB FROM sys.database_files" },
+          @{ Name = "Active Connections"; Query = "SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE is_user_process = 1" },
+          @{ Name = "Blocking Sessions"; Query = "SELECT COUNT(*) FROM sys.dm_exec_requests WHERE blocking_session_id > 0" },
+          @{ Name = "Recent Errors"; Query = "SELECT COUNT(*) FROM sys.dm_db_log_stats(DB_ID()) WHERE log_since_last_backup > 1000" }
+        )
+        
+        foreach ($check in $healthChecks) {
+          $command = $connection.CreateCommand()
+          $command.CommandText = $check.Query
+          $result = $command.ExecuteScalar()
+          Write-Host "$($check.Name): $result"
+        }
+        
+        $connection.Close()
+        Write-Host "Health check completed"
+
+- task: PowerShell@2
+  displayName: 'Send Deployment Notification'
+  condition: always()
+  inputs:
+    targetType: 'inline'
+    script: |
+      $status = if ("$(Agent.JobStatus)" -eq "Succeeded") { "SUCCESS" } else { "FAILED" }
+      $environment = "${{ parameters.environment }}"
+      $buildNumber = "$(Build.BuildNumber)"
+      
+      Write-Host "Deployment to $environment completed with status: $status"
+      
+      # Send notification (implement your notification logic here)
+      # Examples: Teams webhook, email, Slack, etc.
+      
+      if ($status -eq "FAILED") {
+        Write-Host "##vso[task.logissue type=error]Deployment to $environment failed"
+        exit 1
+      }

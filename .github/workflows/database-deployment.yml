@@ -1,0 +1,211 @@
+name: Database Deployment
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+    - 'Database/Scripts/**'
+    - 'Database/Migration/**'
+    - 'Database/Configuration/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+    - 'Database/Scripts/**'
+    - 'Database/Migration/**'
+
+env:
+  DOTNET_VERSION: '9.0.x'
+
+jobs:
+  validate:
+    name: Validate Database Scripts
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Validate SQL Scripts
+      shell: pwsh
+      run: |
+        ./Database/Tools/ValidateScripts.ps1 -ScriptsPath "Database/Scripts"
+    
+    - name: Build Database Project
+      run: dotnet build Database/Database.csproj --configuration Release
+
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: windows-latest
+    needs: validate
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    environment: development
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Deploy to Development
+      shell: pwsh
+      run: |
+        $env:DATABASE_CONNECTION_STRING = "${{ secrets.DEV_CONNECTION_STRING }}"
+        dotnet run --project Database/Database.csproj migrate Development
+    
+    - name: Run Integration Tests
+      run: |
+        dotnet test Database.IntegrationTests/Database.IntegrationTests.csproj --configuration Release --logger trx
+      env:
+        DATABASE_CONNECTION_STRING: ${{ secrets.DEV_CONNECTION_STRING }}
+    
+    - name: Publish Test Results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Database Integration Tests
+        path: '**/*.trx'
+        reporter: dotnet-trx
+
+  deploy-test:
+    name: Deploy to Test
+    runs-on: windows-latest
+    needs: deploy-dev
+    if: github.ref == 'refs/heads/develop'
+    environment: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Deploy to Test
+      shell: pwsh
+      run: |
+        $env:DATABASE_CONNECTION_STRING = "${{ secrets.TEST_CONNECTION_STRING }}"
+        dotnet run --project Database/Database.csproj migrate Test
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: windows-latest
+    needs: deploy-dev
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Create Database Backup
+      shell: pwsh
+      run: |
+        $connectionString = "${{ secrets.STAGING_CONNECTION_STRING }}"
+        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        $backupPath = "CollateralAppraisal_Staging_${timestamp}.bak"
+        
+        $sql = "BACKUP DATABASE [CollateralAppraisalSystem_Staging] TO DISK = '$backupPath' WITH COMPRESSION"
+        
+        $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+        $connection.Open()
+        $command = $connection.CreateCommand()
+        $command.CommandText = $sql
+        $command.CommandTimeout = 600
+        $command.ExecuteNonQuery()
+        $connection.Close()
+        
+        Write-Output "Backup created: $backupPath"
+    
+    - name: Deploy to Staging
+      shell: pwsh
+      run: |
+        $env:DATABASE_CONNECTION_STRING = "${{ secrets.STAGING_CONNECTION_STRING }}"
+        dotnet run --project Database/Database.csproj migrate Staging
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: windows-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Production Pre-Deployment Checks
+      shell: pwsh
+      run: |
+        Write-Output "Running production pre-deployment checks"
+        
+        # Check database connectivity
+        $connectionString = "${{ secrets.PRODUCTION_CONNECTION_STRING }}"
+        $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+        $connection.Open()
+        $connection.Close()
+        Write-Output "Database connectivity verified"
+        
+        # Additional production-specific checks can be added here
+    
+    - name: Create Production Backup
+      shell: pwsh
+      run: |
+        $connectionString = "${{ secrets.PRODUCTION_CONNECTION_STRING }}"
+        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        $backupPath = "CollateralAppraisal_Production_${timestamp}.bak"
+        
+        $sql = "BACKUP DATABASE [CollateralAppraisalSystem] TO DISK = '$backupPath' WITH COMPRESSION, CHECKSUM"
+        
+        $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+        $connection.Open()
+        $command = $connection.CreateCommand()
+        $command.CommandText = $sql
+        $command.CommandTimeout = 1800  # 30 minutes for production backup
+        $command.ExecuteNonQuery()
+        $connection.Close()
+        
+        Write-Output "Production backup created: $backupPath"
+    
+    - name: Deploy to Production
+      shell: pwsh
+      run: |
+        $env:DATABASE_CONNECTION_STRING = "${{ secrets.PRODUCTION_CONNECTION_STRING }}"
+        dotnet run --project Database/Database.csproj migrate Production
+    
+    - name: Production Health Check
+      shell: pwsh
+      run: |
+        Write-Output "Running production health check"
+        
+        $connectionString = "${{ secrets.PRODUCTION_CONNECTION_STRING }}"
+        $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+        $connection.Open()
+        
+        # Verify recent migrations
+        $sql = "SELECT COUNT(*) FROM dbo.DatabaseMigrationHistory WHERE ExecutedOn >= DATEADD(MINUTE, -30, GETDATE()) AND Success = 1"
+        $command = $connection.CreateCommand()
+        $command.CommandText = $sql
+        $recentMigrations = $command.ExecuteScalar()
+        
+        $connection.Close()
+        
+        Write-Output "Recent successful migrations: $recentMigrations"
+        
+        if ($recentMigrations -eq 0) {
+          Write-Warning "No recent migrations found - verify deployment status"
+        }

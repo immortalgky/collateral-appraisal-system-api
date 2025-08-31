@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SignalR Notification Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        .container { 
+            display: flex; 
+            gap: 20px; 
+        }
+        .panel { 
+            flex: 1; 
+            border: 1px solid #ccc; 
+            padding: 15px; 
+            border-radius: 5px; 
+        }
+        .notification { 
+            background: #f0f8ff; 
+            border: 1px solid #0066cc; 
+            padding: 10px; 
+            margin: 5px 0; 
+            border-radius: 3px; 
+        }
+        .group-notification { 
+            background: #fff0f0; 
+            border: 1px solid #cc0066; 
+            padding: 10px; 
+            margin: 5px 0; 
+            border-radius: 3px; 
+        }
+        button { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 8px 16px; 
+            margin: 5px; 
+            border-radius: 3px; 
+            cursor: pointer; 
+        }
+        button:hover { 
+            background: #0056b3; 
+        }
+        button:disabled { 
+            background: #ccc; 
+            cursor: not-allowed; 
+        }
+        .status { 
+            padding: 10px; 
+            border-radius: 3px; 
+            margin: 10px 0; 
+        }
+        .connected { 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .disconnected { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+        .log { 
+            background: #f8f9fa; 
+            border: 1px solid #dee2e6; 
+            padding: 10px; 
+            font-family: monospace; 
+            font-size: 12px; 
+            max-height: 300px; 
+            overflow-y: auto; 
+        }
+        input, select { 
+            padding: 5px; 
+            margin: 5px; 
+            border: 1px solid #ccc; 
+            border-radius: 3px; 
+        }
+    </style>
+</head>
+<body>
+    <h1>🔔 Real-time Notification Test Dashboard</h1>
+    
+    <div id="status" class="status disconnected">
+        ❌ Disconnected from SignalR Hub
+    </div>
+
+    <div class="container">
+        <!-- Connection Panel -->
+        <div class="panel">
+            <h3>🔗 SignalR Connection</h3>
+            <input type="text" id="serverUrl" value="https://localhost:7111/notificationHub" placeholder="SignalR Hub URL">
+            <input type="text" id="userId" value="testuser" placeholder="User ID">
+            <br>
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button onclick="joinGroup()">Join User Group</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+
+        <!-- Test Events Panel -->
+        <div class="panel">
+            <h3>🧪 Test Events</h3>
+            
+            <h4>🔗 Correlation ID</h4>
+            <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 15px;">
+                <input type="text" id="correlationId" placeholder="CorrelationId (auto-generated)" style="flex: 1; font-family: monospace; font-size: 11px;">
+                <button onclick="generateNewCorrelationId()" style="padding: 5px 10px;">Generate New</button>
+                <button onclick="clearCorrelationId()" style="padding: 5px 10px;">Clear</button>
+            </div>
+            <div style="font-size: 12px; color: #666; margin-bottom: 15px;">
+                💡 Use same CorrelationId to link related events in workflow testing
+            </div>
+            
+            <h4>Task Completion</h4>
+            <select id="taskName">
+                <option value="Admin">Admin</option>
+                <option value="AppraisalStaff">AppraisalStaff</option>
+                <option value="AppraisalChecker">AppraisalChecker</option>
+                <option value="AppraisalVerifier">AppraisalVerifier</option>
+            </select>
+            <select id="actionTaken">
+                <option value="P">Proceed (P)</option>
+                <option value="R">Return (R)</option>
+            </select>
+            <br>
+            <button onclick="simulateTaskCompletion()">Simulate Task Completion</button>
+            
+            <h4>Task Assignment</h4>
+            <input type="text" id="assignedTo" value="testuser" placeholder="Assigned To">
+            <input type="text" id="assignedType" value="U" placeholder="Assignment Type">
+            <br>
+            <button onclick="simulateTaskAssignment()">Simulate Task Assignment</button>
+            
+            <h4>Workflow Transition</h4>
+            <input type="number" id="requestId" value="1" placeholder="Request ID">
+            <input type="text" id="currentState" value="Admin" placeholder="Current State">
+            <br>
+            <button onclick="simulateTransition()">Simulate Transition</button>
+            
+            <h4>🚀 Workflow Testing</h4>
+            <button onclick="runFullWorkflowTest()" style="background: #28a745;">Run Full Workflow Test</button>
+            <button onclick="runSingleTaskFlow()" style="background: #17a2b8;">Single Task Flow</button>
+        </div>
+
+        <!-- API Testing Panel -->
+        <div class="panel">
+            <h3>🌐 API Testing</h3>
+            <button onclick="getNotifications()">Get My Notifications</button>
+            <button onclick="getUnreadNotifications()">Get Unread Only</button>
+            <button onclick="getWorkflowStatus()">Get Workflow Status</button>
+            <button onclick="markAllAsRead()">Mark All as Read</button>
+            
+            <h4>Results:</h4>
+            <div id="apiResults" class="log"></div>
+        </div>
+    </div>
+
+    <!-- Notifications Panel -->
+    <div class="panel">
+        <h3>📬 Received Notifications</h3>
+        <div id="notifications"></div>
+    </div>
+
+    <!-- Log Panel -->
+    <div class="panel">
+        <h3>📋 Connection Log</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script src="https://unpkg.com/@microsoft/signalr@latest/dist/browser/signalr.min.js"></script>
+    <script>
+        let connection = null;
+        let notificationCount = 0;
+
+        function log(message) {
+            const now = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += `[${now}] ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(connected) {
+            const statusDiv = document.getElementById('status');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            
+            if (connected) {
+                statusDiv.innerHTML = '✅ Connected to SignalR Hub';
+                statusDiv.className = 'status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            } else {
+                statusDiv.innerHTML = '❌ Disconnected from SignalR Hub';
+                statusDiv.className = 'status disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+            }
+        }
+
+        async function connect() {
+            const url = document.getElementById('serverUrl').value;
+            
+            connection = new signalR.HubConnectionBuilder()
+                .withUrl(url)
+                .configureLogging(signalR.LogLevel.Information)
+                .build();
+
+            // Set up event listeners
+            connection.on("ReceiveNotification", function (notification) {
+                log("📧 Personal Notification received");
+                displayNotification(notification, 'personal');
+            });
+
+            connection.on("ReceiveGroupNotification", function (notification) {
+                log("📢 Group Notification received");
+                displayNotification(notification, 'group');
+            });
+
+            connection.onclose(function () {
+                log("❌ Connection closed");
+                updateStatus(false);
+            });
+
+            try {
+                await connection.start();
+                log("✅ SignalR Connected successfully!");
+                updateStatus(true);
+                await joinGroup();
+            } catch (err) {
+                log("❌ SignalR Connection failed: " + err);
+                updateStatus(false);
+            }
+        }
+
+        async function disconnect() {
+            if (connection) {
+                await connection.stop();
+                log("🔌 Disconnected from SignalR");
+                updateStatus(false);
+            }
+        }
+
+        async function joinGroup() {
+            if (connection && connection.state === signalR.HubConnectionState.Connected) {
+                const userId = document.getElementById('userId').value;
+                try {
+                    await connection.invoke("JoinGroup", `User_${userId}`);
+                    log(`👥 Joined user group: User_${userId}`);
+                } catch (err) {
+                    log("❌ Failed to join group: " + err);
+                }
+            }
+        }
+
+        function displayNotification(notification, type) {
+            const notificationsDiv = document.getElementById('notifications');
+            const notificationDiv = document.createElement('div');
+            notificationDiv.className = type === 'personal' ? 'notification' : 'group-notification';
+            
+            notificationCount++;
+            // Extract CorrelationId from metadata if available
+            const correlationId = notification.metadata?.correlationId || notification.Metadata?.correlationId || 'N/A';
+            const displayCorrelationId = correlationId !== 'N/A' ? correlationId.substring(0, 8) + '...' : 'N/A';
+            
+            notificationDiv.innerHTML = `
+                <strong>#${notificationCount} ${type === 'personal' ? '📧 Personal' : '📢 Group'} Notification</strong><br>
+                <strong>Title:</strong> ${notification.title || notification.Title || 'N/A'}<br>
+                <strong>Message:</strong> ${notification.message || notification.Message || 'N/A'}<br>
+                <strong>Time:</strong> ${new Date().toLocaleTimeString()}<br>
+                <strong>CorrelationId:</strong> <span style="font-family: monospace; color: #666;">${displayCorrelationId}</span><br>
+                <details>
+                    <summary>Raw Data</summary>
+                    <pre>${JSON.stringify(notification, null, 2)}</pre>
+                </details>
+            `;
+            
+            notificationsDiv.insertBefore(notificationDiv, notificationsDiv.firstChild);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            document.getElementById('notifications').innerHTML = '';
+            document.getElementById('apiResults').innerHTML = '';
+            notificationCount = 0;
+        }
+
+        // CorrelationId Utility Functions
+        function generateGuid() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function generateNewCorrelationId() {
+            const correlationId = generateGuid();
+            document.getElementById('correlationId').value = correlationId;
+            log(`🔗 Generated new CorrelationId: ${correlationId.substring(0, 8)}...`);
+        }
+
+        function clearCorrelationId() {
+            document.getElementById('correlationId').value = '';
+            log('🗑️ Cleared CorrelationId');
+        }
+
+        function getOrCreateCorrelationId() {
+            let correlationId = document.getElementById('correlationId').value.trim();
+            if (!correlationId) {
+                correlationId = generateGuid();
+                document.getElementById('correlationId').value = correlationId;
+                log(`🔗 Auto-generated CorrelationId: ${correlationId.substring(0, 8)}...`);
+            }
+            return correlationId;
+        }
+
+        // API Testing Functions
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            try {
+                const options = {
+                    method,
+                    headers: { 'Content-Type': 'application/json' }
+                };
+                
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+
+                const response = await fetch(`https://localhost:7111${endpoint}`, options);
+                const result = await response.json();
+                
+                // Show CorrelationId in results if present in body
+                const correlationInfo = body?.correlationId ? 
+                    `<div style="color: #666; font-size: 12px; font-family: monospace;">CorrelationId: ${body.correlationId.substring(0, 8)}...</div>` : '';
+                
+                document.getElementById('apiResults').innerHTML = 
+                    `<strong>${method} ${endpoint}</strong><br>${correlationInfo}<pre>${JSON.stringify(result, null, 2)}</pre>`;
+                
+                return result;
+            } catch (err) {
+                document.getElementById('apiResults').innerHTML = 
+                    `<strong>Error:</strong> ${err.message}`;
+            }
+        }
+
+        async function simulateTaskCompletion() {
+            const correlationId = getOrCreateCorrelationId();
+            const body = {
+                correlationId: correlationId,
+                taskName: document.getElementById('taskName').value,
+                actionTaken: document.getElementById('actionTaken').value
+            };
+            
+            await apiCall('/api/test/notifications/task-completed', 'POST', body);
+            log(`🎭 Simulated task completion: ${body.taskName} -> ${body.actionTaken} [${correlationId.substring(0, 8)}...]`);
+        }
+
+        async function simulateTaskAssignment() {
+            const correlationId = getOrCreateCorrelationId();
+            const body = {
+                correlationId: correlationId,
+                assignedTo: document.getElementById('assignedTo').value,
+                assignedType: document.getElementById('assignedType').value,
+                taskName: document.getElementById('taskName').value
+            };
+            
+            await apiCall('/api/test/notifications/task-assigned', 'POST', body);
+            log(`🎭 Simulated task assignment: ${body.taskName} -> ${body.assignedTo} [${correlationId.substring(0, 8)}...]`);
+        }
+
+        async function simulateTransition() {
+            const correlationId = getOrCreateCorrelationId();
+            const body = {
+                correlationId: correlationId,
+                requestId: parseInt(document.getElementById('requestId').value),
+                currentState: document.getElementById('currentState').value,
+                assignedTo: document.getElementById('assignedTo').value,
+                assignedType: document.getElementById('assignedType').value
+            };
+            
+            await apiCall('/api/test/notifications/transition-completed', 'POST', body);
+            log(`🎭 Simulated transition: Request ${body.requestId} -> ${body.currentState} [${correlationId.substring(0, 8)}...]`);
+        }
+
+        async function getNotifications() {
+            const userId = document.getElementById('userId').value;
+            await apiCall(`/api/notifications/${userId}`);
+        }
+
+        async function getUnreadNotifications() {
+            const userId = document.getElementById('userId').value;
+            await apiCall(`/api/notifications/${userId}/unread`);
+        }
+
+        async function getWorkflowStatus() {
+            const requestId = document.getElementById('requestId').value;
+            await apiCall(`/api/workflow/${requestId}/status`);
+        }
+
+        async function markAllAsRead() {
+            const userId = document.getElementById('userId').value;
+            await apiCall(`/api/notifications/users/${userId}/read-all`, 'PATCH');
+        }
+
+        // Workflow Testing Functions
+        async function runFullWorkflowTest() {
+            log('🚀 Starting Full Workflow Test...');
+            
+            // Generate a new correlation ID for this workflow
+            const correlationId = generateGuid();
+            document.getElementById('correlationId').value = correlationId;
+            log(`🔗 Using CorrelationId: ${correlationId.substring(0, 8)}... for full workflow`);
+
+            const requestId = parseInt(document.getElementById('requestId').value);
+            const assignedUser = document.getElementById('assignedTo').value;
+
+            try {
+                // Step 1: Simulate Admin Task Assignment
+                log('📋 Step 1: Admin Task Assignment...');
+                await simulateTaskAssignment();
+                await sleep(1000);
+
+                // Step 2: Complete Admin Task (Proceed)
+                log('📋 Step 2: Complete Admin Task (Proceed)...');
+                document.getElementById('taskName').value = 'Admin';
+                document.getElementById('actionTaken').value = 'P';
+                await simulateTaskCompletion();
+                await sleep(1000);
+
+                // Step 3: AppraisalStaff Assignment
+                log('📋 Step 3: AppraisalStaff Assignment...');
+                document.getElementById('taskName').value = 'AppraisalStaff';
+                document.getElementById('currentState').value = 'AppraisalStaff';
+                await simulateTaskAssignment();
+                await sleep(1000);
+
+                // Step 4: Complete AppraisalStaff Task
+                log('📋 Step 4: Complete AppraisalStaff Task...');
+                await simulateTaskCompletion();
+                await sleep(1000);
+
+                // Step 5: Final Transition
+                log('📋 Step 5: Workflow Transition...');
+                await simulateTransition();
+
+                log('✅ Full Workflow Test Completed!');
+            } catch (error) {
+                log(`❌ Workflow Test Failed: ${error.message}`);
+            }
+        }
+
+        async function runSingleTaskFlow() {
+            log('🔄 Starting Single Task Flow...');
+            
+            const correlationId = getOrCreateCorrelationId();
+            log(`🔗 Using CorrelationId: ${correlationId.substring(0, 8)}... for single task flow`);
+
+            try {
+                // Assignment -> Completion -> Transition
+                log('📋 Step 1: Task Assignment...');
+                await simulateTaskAssignment();
+                await sleep(1500);
+
+                log('📋 Step 2: Task Completion...');
+                await simulateTaskCompletion();
+                await sleep(1500);
+
+                log('📋 Step 3: Workflow Transition...');
+                await simulateTransition();
+
+                log('✅ Single Task Flow Completed!');
+            } catch (error) {
+                log(`❌ Single Task Flow Failed: ${error.message}`);
+            }
+        }
+
+        // Utility function for delays
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Auto-connect on page load
+        window.addEventListener('load', function() {
+            log('📄 Page loaded. Click Connect to start testing.');
+            // Generate initial CorrelationId
+            generateNewCorrelationId();
+        });
+    </script>
+</body>
+</html>

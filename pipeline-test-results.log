@@ -1,0 +1,23 @@
+[2025-07-31 22:16:34] [INFO] Starting pipeline validation tests
+[2025-07-31 22:16:34] [INFO] Testing environments: Development
+[2025-07-31 22:16:34] [INFO] Testing Development environment...
+[2025-07-31 22:16:51] [INFO] Starting pipeline validation tests
+[2025-07-31 22:16:51] [INFO] Testing environments: Development
+[2025-07-31 22:16:51] [INFO] Testing Development environment...
+[2025-07-31 22:16:51] [WARNING] No connection string configured for Development (DEV_CONNECTION_STRING)
+[2025-07-31 22:16:51] [INFO] Testing migration build for Development
+[2025-07-31 22:16:52] [SUCCESS] Migration build test passed for Development
+[2025-07-31 22:16:52] [INFO] Testing migration validation for Development
+[2025-07-31 22:16:52] [SUCCESS] Migration validation test passed for Development
+[2025-07-31 22:16:52] [INFO] Testing required script files for Development
+[2025-07-31 22:16:52] [SUCCESS] Found        9 SQL script files
+[2025-07-31 22:16:52] [SUCCESS] All required script files found for Development
+[2025-07-31 22:16:52] [INFO] Testing configuration files for Development
+[2025-07-31 22:16:52] [SUCCESS] Configuration file is valid JSON for Development
+[2025-07-31 22:16:52] [ERROR] Development environment validation completed with failures
+[2025-07-31 22:16:52] [INFO] Pipeline Validation Test Summary
+[2025-07-31 22:16:52] [INFO] ================================
+[2025-07-31 22:16:52] [INFO] Test Date: Thu Jul 31 22:16:52 +07 2025
+[2025-07-31 22:16:52] [INFO] Environments Tested: Development
+[2025-07-31 22:16:52] [INFO] Detailed results saved to: pipeline-test-results-20250731-221651.json
+[2025-07-31 22:16:52] [ERROR] Some tests failed - please review the results before deploying
