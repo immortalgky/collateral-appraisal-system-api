@@ -1,11 +1,15 @@
 using Assignment.Workflow.Models;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Assignment.Data.Configurations;
 
 public class WorkflowInstanceConfiguration : IEntityTypeConfiguration<WorkflowInstance>
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+    
     public void Configure(EntityTypeBuilder<WorkflowInstance> builder)
     {
         builder.ToTable("WorkflowInstances");
@@ -33,13 +37,13 @@ public class WorkflowInstanceConfiguration : IEntityTypeConfiguration<WorkflowIn
         builder.Property(x => x.StartedBy)
             .IsRequired()
             .HasMaxLength(100);
-            
+        
         builder.Property(x => x.Variables)
             .HasConversion(
-                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
-                v => System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new Dictionary<string, object>())
+                v => JsonSerializer.Serialize(v, SerializerOptions),
+                v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, SerializerOptions) ?? new Dictionary<string, object>())
             .HasColumnType("nvarchar(max)");
-            
+        
         builder.Property(x => x.ErrorMessage)
             .HasMaxLength(2000);
             

@@ -1,0 +1,19 @@
+# Resume Workflow Instance
+# Resume a workflow instance that is currently suspended.
+
+### Variables for the request
+@workflowInstanceId = 6b66aa6f-29e8-42c3-baa7-26d03c431b30
+@activityId = appraisal-checker
+
+### Resume Workflow Instance
+// @timeout = 30000 m
+POST {{baseUrl}}/api/workflows/instances/{{workflowInstanceId}}/activities/{{activityId}}/complete
+Content-Type: application/json
+
+{
+  "completedBy": "user123",
+  "input": {
+    "decisionTaken": "P",
+    "comments": "Task completed via UI"
+  }
+}

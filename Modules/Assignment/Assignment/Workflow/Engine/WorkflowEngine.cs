@@ -1,189 +1,312 @@
-using Assignment.Workflow.Activities;
 using Assignment.Workflow.Activities.Core;
 using Assignment.Workflow.Activities.Factories;
 using Assignment.Workflow.Models;
-using Assignment.Workflow.Repositories;
 using Assignment.Workflow.Schema;
-using Shared.Extensions;
+using Assignment.Workflow.Services;
 
 namespace Assignment.Workflow.Engine;
 
+/// <summary>
+/// Core workflow engine - Orchestration responsibilities
+/// Coordinates workflow execution, manages activity lifecycle, and handles execution flow
+/// </summary>
 public class WorkflowEngine : IWorkflowEngine
 {
-    private readonly IWorkflowDefinitionRepository _workflowDefinitionRepository;
-    private readonly IWorkflowInstanceRepository _workflowInstanceRepository;
     private readonly IWorkflowActivityFactory _activityFactory;
-    private readonly IPublishEndpoint _publishEndpoint;
+    private readonly IFlowControlManager _flowControlManager;
+    private readonly IWorkflowLifecycleManager _lifecycleManager;
+    private readonly IWorkflowPersistenceService _persistenceService;
     private readonly ILogger<WorkflowEngine> _logger;
 
     public WorkflowEngine(
-        IWorkflowDefinitionRepository workflowDefinitionRepository,
-        IWorkflowInstanceRepository workflowInstanceRepository,
         IWorkflowActivityFactory activityFactory,
-        IPublishEndpoint publishEndpoint,
+        IFlowControlManager flowControlManager,
+        IWorkflowLifecycleManager lifecycleManager,
+        IWorkflowPersistenceService persistenceService,
         ILogger<WorkflowEngine> logger)
     {
-        _workflowDefinitionRepository = workflowDefinitionRepository;
-        _workflowInstanceRepository = workflowInstanceRepository;
         _activityFactory = activityFactory;
-        _publishEndpoint = publishEndpoint;
+        _flowControlManager = flowControlManager;
+        _lifecycleManager = lifecycleManager;
+        _persistenceService = persistenceService;
         _logger = logger;
     }
 
-    public async Task<WorkflowInstance> StartWorkflowAsync(
-        Guid workflowDefinitionId,
-        string instanceName,
-        string startedBy,
-        Dictionary<string, object>? initialVariables = null,
-        string? correlationId = null,
+    public async Task<ActivityResult> ExecuteActivityAsync(
+        ActivityDefinition activityDefinition,
+        ActivityContext context,
         CancellationToken cancellationToken = default)
     {
-        var workflowDefinition =
-            await _workflowDefinitionRepository.GetByIdAsync(workflowDefinitionId, cancellationToken);
-        if (workflowDefinition == null)
+        try
         {
-            throw new InvalidOperationException($"Workflow definition not found: {workflowDefinitionId}");
+            var activity = _activityFactory.CreateActivity(activityDefinition.Type);
+
+            _logger.LogDebug("ORCHESTRATION: Executing activity {ActivityId} of type {ActivityType}",
+                activityDefinition.Id, activityDefinition.Type);
+
+            var result = await activity.ExecuteAsync(context, cancellationToken);
+
+            _logger.LogDebug("ORCHESTRATION: Activity {ActivityId} execution completed with status {Status}",
+                activityDefinition.Id, result.Status);
+
+            return result;
         }
-
-        var workflowSchema = JsonSerializer.Deserialize<WorkflowSchema>(workflowDefinition.JsonDefinition);
-        if (workflowSchema == null)
+        catch (Exception ex)
         {
-            throw new InvalidOperationException($"Invalid workflow definition JSON for: {workflowDefinitionId}");
+            _logger.LogError(ex, "ORCHESTRATION: Failed to execute activity {ActivityId}", activityDefinition.Id);
+            return ActivityResult.Failed($"Activity execution failed: {ex.Message}");
         }
-
-        // Find start activity
-        var startActivity = workflowSchema.Activities.FirstOrDefault(a => a.IsStartActivity)
-                            ?? workflowSchema.Activities.First();
-
-        // Create workflow instance
-        var workflowInstance = WorkflowInstance.Create(
-            workflowDefinitionId,
-            instanceName,
-            correlationId,
-            startedBy,
-            initialVariables);
-
-        workflowInstance.SetCurrentActivity(startActivity.Id);
-
-        _logger.LogInformation("Started workflow instance {WorkflowInstanceId} for definition {WorkflowDefinitionId}",
-            workflowInstance.Id, workflowDefinitionId);
-
-        // Execute first activity
-        await ExecuteActivityAsync(workflowInstance, workflowSchema, startActivity, cancellationToken);
-
-        await _workflowInstanceRepository.AddAsync(workflowInstance, cancellationToken);
-        await _workflowInstanceRepository.SaveChangesAsync(cancellationToken);
-
-        // Publish workflow started event
-        await _publishEndpoint.Publish(new WorkflowStarted
-        {
-            WorkflowInstanceId = workflowInstance.Id,
-            WorkflowDefinitionId = workflowDefinitionId,
-            InstanceName = instanceName,
-            StartedBy = startedBy,
-            StartedAt = workflowInstance.StartedOn,
-            CorrelationId = correlationId
-        }, cancellationToken);
-
-        return workflowInstance;
     }
 
-    public async Task<WorkflowInstance> ResumeWorkflowAsync(
-        Guid workflowInstanceId,
-        string activityId,
-        Dictionary<string, object> outputData,
-        string completedBy,
-        string? comments = null,
+    public async Task<ActivityResult> ResumeActivityAsync(
+        ActivityDefinition activityDefinition,
+        ActivityContext context,
+        Dictionary<string, object> resumeInput,
         CancellationToken cancellationToken = default)
     {
-        var workflowInstance =
-            await _workflowInstanceRepository.GetByIdAsync(workflowInstanceId, cancellationToken);
-        if (workflowInstance == null)
+        try
         {
-            throw new InvalidOperationException($"Workflow instance not found: {workflowInstanceId}");
+            var activity = _activityFactory.CreateActivity(activityDefinition.Type);
+
+            _logger.LogDebug("ORCHESTRATION: Resuming activity {ActivityId} of type {ActivityType}",
+                activityDefinition.Id, activityDefinition.Type);
+
+            var result = await activity.ResumeAsync(context, resumeInput, cancellationToken);
+
+            _logger.LogDebug("ORCHESTRATION: Activity {ActivityId} resume completed with status {Status}",
+                activityDefinition.Id, result.Status);
+
+            return result;
         }
-
-        var workflowDefinition =
-            await _workflowDefinitionRepository.GetByIdAsync(workflowInstance.WorkflowDefinitionId, cancellationToken);
-        var workflowSchema = JsonSerializer.Deserialize<WorkflowSchema>(workflowDefinition!.JsonDefinition);
-
-        // Find current activity execution
-        var activityExecution = workflowInstance.ActivityExecutions
-            .FirstOrDefault(ae => ae.ActivityId == activityId && ae.Status == ActivityExecutionStatus.InProgress);
-
-        if (activityExecution == null)
+        catch (Exception ex)
         {
-            throw new InvalidOperationException($"Activity execution not found or not in progress: {activityId}");
+            _logger.LogError(ex, "ORCHESTRATION: Failed to resume activity {ActivityId}", activityDefinition.Id);
+            return ActivityResult.Failed($"Activity resume failed: {ex.Message}");
         }
+    }
 
-        // Complete the activity execution
-        activityExecution.Complete(completedBy, outputData, comments);
-
-        // Convert JsonElement values to proper types
-        var convertedOutputData = outputData.ConvertJsonElements();
-
-        // Update workflow variables
-        Console.WriteLine(convertedOutputData.GetType().Name);
-        if (convertedOutputData.ContainsKey("variableUpdates") &&
-            convertedOutputData["variableUpdates"] is Dictionary<string, object> variableUpdates)
+    public async Task<WorkflowExecutionResult> ExecuteWorkflowAsync(
+        WorkflowSchema workflowSchema,
+        WorkflowInstance workflowInstance,
+        ActivityDefinition startActivity,
+        CancellationToken cancellationToken = default)
+    {
+        try
         {
-            workflowInstance.UpdateVariables(variableUpdates);
+            _logger.LogInformation("ORCHESTRATION: Starting workflow execution for instance {WorkflowInstanceId}",
+                workflowInstance.Id);
+
+            var activitiesToExecute = new Queue<ActivityDefinition>();
+            activitiesToExecute.Enqueue(startActivity);
+
+            while (activitiesToExecute.Count > 0)
+            {
+                var currentActivity = activitiesToExecute.Dequeue();
+
+                var context = CreateActivityContext(workflowInstance, currentActivity);
+                ActivityResult result;
+                
+                try
+                {
+                    result = await ExecuteActivityAsync(currentActivity, context, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ORCHESTRATION: Critical error executing activity {ActivityId} in workflow {WorkflowInstanceId}",
+                        currentActivity.Id, workflowInstance.Id);
+                    
+                    await _lifecycleManager.TransitionWorkflowStateAsync(
+                        workflowInstance, WorkflowStatus.Failed, ex.Message, cancellationToken);
+                    
+                    return WorkflowExecutionResult.Failed(workflowInstance, $"Activity execution error: {ex.Message}");
+                }
+
+                // Update workflow variables from the activity output
+                try
+                {
+                    if (result.OutputData.Any())
+                    {
+                        workflowInstance.UpdateVariables(result.OutputData);
+                        await _persistenceService.UpdateWorkflowInstanceAsync(workflowInstance, cancellationToken);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ORCHESTRATION: Failed to update workflow variables for instance {WorkflowInstanceId}",
+                        workflowInstance.Id);
+                    
+                    await _lifecycleManager.TransitionWorkflowStateAsync(
+                        workflowInstance, WorkflowStatus.Failed, ex.Message, cancellationToken);
+                    
+                    return WorkflowExecutionResult.Failed(workflowInstance, $"Variable update error: {ex.Message}");
+                }
+
+                // Handle execution result
+                WorkflowExecutionResult? executionResult;
+                try
+                {
+                    executionResult = await HandleActivityExecutionResult(
+                        workflowSchema, workflowInstance, currentActivity, result, activitiesToExecute, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ORCHESTRATION: Failed to handle activity execution result for activity {ActivityId} in workflow {WorkflowInstanceId}",
+                        currentActivity.Id, workflowInstance.Id);
+                    
+                    await _lifecycleManager.TransitionWorkflowStateAsync(
+                        workflowInstance, WorkflowStatus.Failed, ex.Message, cancellationToken);
+                    
+                    return WorkflowExecutionResult.Failed(workflowInstance, $"Execution result handling error: {ex.Message}");
+                }
+
+                if (executionResult != null)
+                {
+                    return executionResult;
+                }
+            }
+
+            // If we get here, workflow completed successfully
+            await _lifecycleManager.CompleteWorkflowAsync(workflowInstance, cancellationToken);
+            
+            return WorkflowExecutionResult.Completed(workflowInstance);
         }
-
-        // Determine next activity using transitions
-        var activityResult = new ActivityResult
+        catch (Exception ex)
         {
-            Status = ActivityResultStatus.Completed,
-            OutputData = convertedOutputData
-        };
+            _logger.LogError(ex, "ORCHESTRATION: Workflow execution failed for instance {WorkflowInstanceId}",
+                workflowInstance.Id);
 
-        var nextActivityId =
-            await DetermineNextActivityAsync(workflowSchema!, activityId, activityResult, workflowInstance);
-        if (!string.IsNullOrEmpty(nextActivityId))
+            await _lifecycleManager.TransitionWorkflowStateAsync(
+                workflowInstance, WorkflowStatus.Failed, ex.Message, cancellationToken);
+
+            return WorkflowExecutionResult.Failed(workflowInstance, ex.Message);
+        }
+    }
+
+    public async Task<WorkflowExecutionResult> ResumeWorkflowExecutionAsync(
+        WorkflowSchema workflowSchema,
+        WorkflowInstance workflowInstance,
+        ActivityDefinition currentActivity,
+        Dictionary<string, object> resumeInput,
+        CancellationToken cancellationToken = default)
+    {
+        try
         {
-            var nextActivity = workflowSchema!.Activities.FirstOrDefault(a => a.Id == nextActivityId);
+            _logger.LogInformation(
+                "ORCHESTRATION: Resuming workflow execution for instance {WorkflowInstanceId} at activity {ActivityId}",
+                workflowInstance.Id, currentActivity.Id);
+
+            var context = CreateActivityContext(workflowInstance, currentActivity);
+            ActivityResult result;
+            
+            try
+            {
+                result = await ResumeActivityAsync(currentActivity, context, resumeInput, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ORCHESTRATION: Critical error resuming activity {ActivityId} in workflow {WorkflowInstanceId}",
+                    currentActivity.Id, workflowInstance.Id);
+                
+                await _lifecycleManager.TransitionWorkflowStateAsync(
+                    workflowInstance, WorkflowStatus.Failed, ex.Message, cancellationToken);
+                
+                return WorkflowExecutionResult.Failed(workflowInstance, $"Activity resume error: {ex.Message}");
+            }
+
+            // Update workflow variables from the activity output
+            try
+            {
+                if (result.OutputData.Any())
+                {
+                    workflowInstance.UpdateVariables(result.OutputData);
+                    await _persistenceService.UpdateWorkflowInstanceAsync(workflowInstance, cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ORCHESTRATION: Failed to update workflow variables during resume for instance {WorkflowInstanceId}",
+                    workflowInstance.Id);
+                
+                await _lifecycleManager.TransitionWorkflowStateAsync(
+                    workflowInstance, WorkflowStatus.Failed, ex.Message, cancellationToken);
+                
+                return WorkflowExecutionResult.Failed(workflowInstance, $"Variable update error during resume: {ex.Message}");
+            }
+
+            // Determine next activity using flow control manager
+            string? nextActivityId;
+            try
+            {
+                nextActivityId = await _flowControlManager.DetermineNextActivityAsync(
+                    workflowSchema, currentActivity.Id, result, workflowInstance.Variables, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ORCHESTRATION: Failed to determine next activity for workflow {WorkflowInstanceId}",
+                    workflowInstance.Id);
+                
+                await _lifecycleManager.TransitionWorkflowStateAsync(
+                    workflowInstance, WorkflowStatus.Failed, ex.Message, cancellationToken);
+                
+                return WorkflowExecutionResult.Failed(workflowInstance, $"Flow control error: {ex.Message}");
+            }
+
+            if (string.IsNullOrEmpty(nextActivityId))
+            {
+                // Workflow completed
+                try
+                {
+                    await _lifecycleManager.CompleteWorkflowAsync(workflowInstance, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ORCHESTRATION: Failed to complete workflow {WorkflowInstanceId}",
+                        workflowInstance.Id);
+                    return WorkflowExecutionResult.Failed(workflowInstance, $"Workflow completion error: {ex.Message}");
+                }
+                return WorkflowExecutionResult.Completed(workflowInstance);
+            }
+
+            // Continue execution through automated activities until reaching a pending state or completion
+            var nextActivity = workflowSchema.Activities.FirstOrDefault(a => a.Id == nextActivityId);
             if (nextActivity != null)
             {
-                workflowInstance.SetCurrentActivity(nextActivity.Id);
-                await ExecuteActivityAsync(workflowInstance, workflowSchema, nextActivity, cancellationToken);
+                try
+                {
+                    await _lifecycleManager.AdvanceWorkflowAsync(workflowInstance, nextActivityId,
+                        cancellationToken: cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ORCHESTRATION: Failed to advance workflow {WorkflowInstanceId} to activity {NextActivityId}",
+                        workflowInstance.Id, nextActivityId);
+                    
+                    await _lifecycleManager.TransitionWorkflowStateAsync(
+                        workflowInstance, WorkflowStatus.Failed, ex.Message, cancellationToken);
+                    
+                    return WorkflowExecutionResult.Failed(workflowInstance, $"Workflow advancement error: {ex.Message}");
+                }
+
+                // Execute automated activities in sequence until reaching a TaskActivity or completion
+                return await ExecuteWorkflowAsync(workflowSchema, workflowInstance, nextActivity, cancellationToken);
             }
+
+            return WorkflowExecutionResult.Failed(workflowInstance, "Unknown workflow activity");
         }
-        else
+        catch (Exception ex)
         {
-            // No next activity, workflow is completed
-            workflowInstance.UpdateStatus(WorkflowStatus.Completed);
-            _logger.LogInformation("Workflow instance {WorkflowInstanceId} completed", workflowInstanceId);
+            _logger.LogError(ex, "ORCHESTRATION: Workflow resume failed for instance {WorkflowInstanceId}",
+                workflowInstance.Id);
+
+            await _lifecycleManager.TransitionWorkflowStateAsync(
+                workflowInstance, WorkflowStatus.Failed, ex.Message, cancellationToken);
+
+            return WorkflowExecutionResult.Failed(workflowInstance, ex.Message);
         }
-
-        await _workflowInstanceRepository.SaveChangesAsync(cancellationToken);
-
-        // Publish activity completed event
-        await _publishEndpoint.Publish(new WorkflowActivityCompleted
-        {
-            WorkflowInstanceId = workflowInstanceId,
-            ActivityId = activityId,
-            CompletedBy = completedBy,
-            CompletedAt = DateTime.Now,
-            OutputData = outputData,
-            Comments = comments
-        }, cancellationToken);
-
-        return workflowInstance;
     }
 
-    public async Task<WorkflowInstance?> GetWorkflowInstanceAsync(Guid workflowInstanceId,
-        CancellationToken cancellationToken = default)
-    {
-        return await _workflowInstanceRepository.GetWithExecutionsAsync(workflowInstanceId, cancellationToken);
-    }
-
-    public async Task<IEnumerable<WorkflowInstance>> GetUserTasksAsync(string userId,
-        CancellationToken cancellationToken = default)
-    {
-        return await _workflowInstanceRepository.GetByAssignee(userId, cancellationToken);
-    }
-
-    public async Task<bool> ValidateWorkflowDefinitionAsync(WorkflowSchema workflowSchema,
+    public async Task<bool> ValidateWorkflowDefinitionAsync(
+        WorkflowSchema workflowSchema,
         CancellationToken cancellationToken = default)
     {
         try
@@ -191,6 +314,12 @@ public class WorkflowEngine : IWorkflowEngine
             // Basic validation
             if (string.IsNullOrEmpty(workflowSchema.Name)) return false;
             if (!workflowSchema.Activities.Any()) return false;
+
+            // Validate transitions using flow control manager
+            if (!_flowControlManager.ValidateWorkflowTransitions(workflowSchema))
+            {
+                return false;
+            }
 
             // Validate each activity
             foreach (var activity in workflowSchema.Activities)
@@ -212,277 +341,212 @@ public class WorkflowEngine : IWorkflowEngine
                 }
             }
 
-            // Validate transitions
-            foreach (var transition in workflowSchema.Transitions)
-            {
-                var fromActivity = workflowSchema.Activities.FirstOrDefault(a => a.Id == transition.From);
-                var toActivity = workflowSchema.Activities.FirstOrDefault(a => a.Id == transition.To);
-
-                if (fromActivity == null || toActivity == null)
-                {
-                    return false;
-                }
-            }
-
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error validating workflow definition");
+            _logger.LogError(ex, "ORCHESTRATION: Error validating workflow definition");
             return false;
         }
     }
 
-    public async Task CancelWorkflowAsync(Guid workflowInstanceId, string cancelledBy, string reason,
-        CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Creates activity context for workflow execution
+    /// </summary>
+    private ActivityContext CreateActivityContext(WorkflowInstance workflowInstance,
+        ActivityDefinition activityDefinition)
     {
-        var workflowInstance =
-            await _workflowInstanceRepository.GetByIdAsync(workflowInstanceId, cancellationToken);
-        if (workflowInstance == null)
+        // Extract runtime override for this specific activity (if any)
+        RuntimeOverride? activityRuntimeOverride = null;
+        if (workflowInstance.RuntimeOverrides.TryGetValue(activityDefinition.Id, out var runtimeOverride))
         {
-            throw new InvalidOperationException($"Workflow instance not found: {workflowInstanceId}");
+            activityRuntimeOverride = runtimeOverride;
+            _logger.LogDebug("Found runtime override for activity {ActivityId}: {Override}",
+                activityDefinition.Id, runtimeOverride.OverrideReason);
         }
 
-        workflowInstance.UpdateStatus(WorkflowStatus.Cancelled, reason);
-        await _workflowInstanceRepository.SaveChangesAsync(cancellationToken);
-
-        await _publishEndpoint.Publish(new WorkflowCancelled
+        return new ActivityContext
         {
-            WorkflowInstanceId = workflowInstanceId,
-            CancelledBy = cancelledBy,
-            CancelledAt = DateTime.Now,
-            Reason = reason
-        }, cancellationToken);
-
-        _logger.LogInformation("Workflow instance {WorkflowInstanceId} cancelled by {CancelledBy}: {Reason}",
-            workflowInstanceId, cancelledBy, reason);
+            WorkflowInstanceId = workflowInstance.Id,
+            ActivityId = activityDefinition.Id,
+            Properties = activityDefinition.Properties,
+            Variables = workflowInstance.Variables,
+            InputData = new Dictionary<string, object>(),
+            CurrentAssignee = workflowInstance.CurrentAssignee,
+            WorkflowInstance = workflowInstance,
+            RuntimeOverrides = activityRuntimeOverride
+        };
     }
 
-    private Task<string?> DetermineNextActivityAsync(
+    /// <summary>
+    /// Handles the result of activity execution and determines workflow flow
+    /// </summary>
+    private async Task<WorkflowExecutionResult?> HandleActivityExecutionResult(
         WorkflowSchema workflowSchema,
-        string currentActivityId,
-        ActivityResult activityResult,
-        WorkflowInstance workflowInstance)
-    {
-        // First check if activity explicitly specified next activity (fallback for legacy behavior)
-        if (!string.IsNullOrEmpty(activityResult.NextActivityId))
-        {
-            return Task.FromResult<string?>(activityResult.NextActivityId);
-        }
-
-        // Find transitions from current activity
-        var transitions = workflowSchema.Transitions
-            .Where(t => t.From == currentActivityId)
-            .OrderBy(t => t.Type == TransitionType.Normal ? 1 : 0) // Prioritize conditional transitions
-            .ToList();
-
-        if (!transitions.Any())
-        {
-            return Task.FromResult<string?>(null); // No transitions defined, workflow ends
-        }
-
-        // For decision activities, check output data for decision result
-        var currentActivity = workflowSchema.Activities.FirstOrDefault(a => a.Id == currentActivityId);
-        if (currentActivity?.Type == ActivityTypes.DecisionActivity)
-        {
-            // Look for decision result in output data
-            if (activityResult.OutputData.TryGetValue("decision", out var decisionValue))
-            {
-                var decision = decisionValue?.ToString();
-
-                // Find transition matching the decision
-                var decisionTransition = transitions.FirstOrDefault(t =>
-                    t.Type == TransitionType.Conditional &&
-                    EvaluateTransitionCondition(t, decision, workflowInstance));
-
-                if (decisionTransition != null)
-                {
-                    return Task.FromResult<string?>(decisionTransition.To);
-                }
-            }
-        }
-
-        // Evaluate conditional transitions
-        foreach (var transition in transitions.Where(t => t.Type == TransitionType.Conditional))
-        {
-            if (EvaluateTransitionCondition(transition, null, workflowInstance))
-            {
-                return Task.FromResult<string?>(transition.To);
-            }
-        }
-
-        // Return first normal transition as default
-        var normalTransition = transitions.FirstOrDefault(t => t.Type == TransitionType.Normal);
-        return Task.FromResult(normalTransition?.To);
-    }
-
-    private bool EvaluateTransitionCondition(TransitionDefinition transition, string? decisionValue,
-        WorkflowInstance workflowInstance)
-    {
-        if (string.IsNullOrEmpty(transition.Condition))
-            return true; // No condition means always true
-
-        // For decision-based transitions, check if condition matches decision
-        if (!string.IsNullOrEmpty(decisionValue))
-        {
-            return string.Equals(transition.Condition, decisionValue, StringComparison.OrdinalIgnoreCase);
-        }
-
-        // For other conditional transitions, evaluate against workflow variables
-        try
-        {
-            var condition = transition.Condition;
-            var parts = condition.Split(new[] { "==", "!=", ">=", "<=", ">", "<" },
-                StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length != 2) return false;
-
-            var variable = parts[0].Trim();
-            var expectedValue = parts[1].Trim().Trim('\'', '"');
-
-            if (!workflowInstance.Variables.TryGetValue(variable, out var actualValueObj))
-                return false;
-
-            var actualValue = actualValueObj?.ToString() ?? string.Empty;
-
-            var op = condition.Contains("==") ? "==" :
-                condition.Contains("!=") ? "!=" :
-                condition.Contains(">=") ? ">=" :
-                condition.Contains("<=") ? "<=" :
-                condition.Contains(">") ? ">" :
-                condition.Contains("<") ? "<" : "==";
-
-            return op switch
-            {
-                "==" => string.Equals(actualValue, expectedValue, StringComparison.OrdinalIgnoreCase),
-                "!=" => !string.Equals(actualValue, expectedValue, StringComparison.OrdinalIgnoreCase),
-                _ => true // For now, default to true for unsupported operations
-            };
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private async Task ExecuteActivityAsync(
         WorkflowInstance workflowInstance,
-        WorkflowSchema workflowSchema,
-        ActivityDefinition activityDefinition,
+        ActivityDefinition currentActivity,
+        ActivityResult result,
+        Queue<ActivityDefinition> activitiesToExecute,
         CancellationToken cancellationToken)
     {
-        var activitiesToExecute = new Queue<ActivityDefinition>();
-        activitiesToExecute.Enqueue(activityDefinition);
-
-        while (activitiesToExecute.Count > 0)
+        switch (result.Status)
         {
-            var currentActivity = activitiesToExecute.Dequeue();
+            case ActivityResultStatus.Completed:
+                // Determine next activity using flow control manager
+                var nextActivityId = await _flowControlManager.DetermineNextActivityAsync(
+                    workflowSchema, currentActivity.Id, result, workflowInstance.Variables, cancellationToken);
 
-            try
-            {
-                // Create an activity execution record
-                var activityExecution = WorkflowActivityExecution.Create(
-                    workflowInstance.Id,
-                    currentActivity.Id,
-                    currentActivity.Name,
-                    currentActivity.Type,
-                    workflowInstance.CurrentAssignee,
-                    workflowInstance.Variables);
-
-                workflowInstance.AddActivityExecution(activityExecution);
-                activityExecution.Start();
-
-                // Create and execute activity
-                var activity = _activityFactory.CreateActivity(currentActivity.Type);
-                var context = new ActivityContext
+                if (!string.IsNullOrEmpty(nextActivityId))
                 {
-                    WorkflowInstanceId = workflowInstance.Id,
-                    ActivityId = currentActivity.Id,
-                    Properties = currentActivity.Properties,
-                    Variables = workflowInstance.Variables,
-                    InputData = new Dictionary<string, object>(),
-                    CurrentAssignee = workflowInstance.CurrentAssignee
-                };
-
-                var result = await activity.ExecuteAsync(context, cancellationToken);
-
-                if (result.Status == ActivityResultStatus.Completed)
-                {
-                    activityExecution.Complete("system", result.OutputData, result.Comments);
-
-                    // Update workflow variables
-                    if (result.VariableUpdates.Any())
+                    var nextActivity = workflowSchema.Activities.FirstOrDefault(a => a.Id == nextActivityId);
+                    if (nextActivity != null)
                     {
-                        workflowInstance.UpdateVariables(result.VariableUpdates);
-                    }
-
-                    // Determine next activity using transitions
-                    var nextActivityId =
-                        await DetermineNextActivityAsync(workflowSchema, currentActivity.Id, result,
-                            workflowInstance);
-                    if (!string.IsNullOrEmpty(nextActivityId))
-                    {
-                        var nextActivity = workflowSchema.Activities.FirstOrDefault(a => a.Id == nextActivityId);
-                        if (nextActivity != null)
-                        {
-                            workflowInstance.SetCurrentActivity(nextActivity.Id);
-                            activitiesToExecute.Enqueue(nextActivity);
-                        }
-                    }
-                    else
-                    {
-                        // No next activity, workflow is completed
-                        workflowInstance.UpdateStatus(WorkflowStatus.Completed);
-                        _logger.LogInformation("Workflow instance {WorkflowInstanceId} completed", workflowInstance.Id);
+                        await _lifecycleManager.AdvanceWorkflowAsync(workflowInstance, nextActivityId,
+                            cancellationToken: cancellationToken);
+                        
+                        activitiesToExecute.Enqueue(nextActivity);
                     }
                 }
-                else if (result.Status == ActivityResultStatus.Failed)
-                {
-                    activityExecution.Fail(result.ErrorMessage ?? "Activity execution failed");
-                    workflowInstance.UpdateStatus(WorkflowStatus.Failed, result.ErrorMessage);
-                }
-                // For Pending status, activity remains in progress for external completion
 
-                _logger.LogInformation(
-                    "Executed activity {ActivityId} for workflow {WorkflowInstanceId} with status {Status}",
-                    currentActivity.Id, workflowInstance.Id, result.Status);
-            }
-            catch (Exception ex)
+                // If nextActivityId is null, the workflow will complete naturally
+                break;
+
+            case ActivityResultStatus.Failed:
+                await _lifecycleManager.TransitionWorkflowStateAsync(
+                    workflowInstance, WorkflowStatus.Failed, result.ErrorMessage, cancellationToken);
+                return WorkflowExecutionResult.Failed(workflowInstance, result.ErrorMessage ?? "Activity failed");
+
+            case ActivityResultStatus.Pending:
+                // Activity requires external completion
+                _logger.LogInformation("ORCHESTRATION: Activity {ActivityId} requires external completion",
+                    currentActivity.Id);
+                return WorkflowExecutionResult.Pending(workflowInstance, currentActivity.Id);
+
+            default:
+                return WorkflowExecutionResult.Failed(workflowInstance,
+                    $"Unknown activity result status: {result.Status}");
+        }
+
+        return null; // Continue execution
+    }
+
+
+    public async Task<WorkflowExecutionResult> StartWorkflowAsync(
+        Guid workflowDefinitionId,
+        string instanceName,
+        string startedBy,
+        Dictionary<string, object>? initialVariables = null,
+        string? correlationId = null,
+        Dictionary<string, RuntimeOverride>? assignmentOverrides = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("ORCHESTRATION: Starting complete workflow for definition {WorkflowDefinitionId}",
+                workflowDefinitionId);
+
+            // 1. Load workflow schema via persistence service
+            var workflowSchema =
+                await _persistenceService.GetWorkflowSchemaAsync(workflowDefinitionId, cancellationToken);
+            if (workflowSchema == null)
             {
-                _logger.LogError(ex, "Error executing activity {ActivityId} for workflow {WorkflowInstanceId}",
-                    currentActivity.Id, workflowInstance.Id);
-
-                workflowInstance.UpdateStatus(WorkflowStatus.Failed, ex.Message);
-                throw;
+                return WorkflowExecutionResult.Failed(null, $"Workflow definition not found: {workflowDefinitionId}");
             }
+
+            // 2. Initialize a workflow instance via lifecycle manager
+            var workflowInstance = await _lifecycleManager.InitializeWorkflowAsync(
+                workflowDefinitionId, workflowSchema, instanceName, startedBy, initialVariables, correlationId,
+                assignmentOverrides, cancellationToken);
+
+            // 3. Get start activity
+            var startActivity = _flowControlManager.GetStartActivity(workflowSchema);
+
+            // 4. Execute a workflow via an existing orchestration method
+            var executionResult =
+                await ExecuteWorkflowAsync(workflowSchema, workflowInstance, startActivity, cancellationToken);
+
+            _logger.LogInformation("ORCHESTRATION: Complete workflow startup finished with status {Status}",
+                executionResult.Status);
+
+            return executionResult;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "ORCHESTRATION: Failed to start complete workflow for definition {WorkflowDefinitionId}",
+                workflowDefinitionId);
+
+            return WorkflowExecutionResult.Failed(null, ex.Message);
         }
     }
-}
 
-// New workflow events for MassTransit
-public record WorkflowStarted
-{
-    public Guid WorkflowInstanceId { get; init; }
-    public Guid WorkflowDefinitionId { get; init; }
-    public string InstanceName { get; init; } = default!;
-    public string StartedBy { get; init; } = default!;
-    public DateTime StartedAt { get; init; }
-    public string? CorrelationId { get; init; }
-}
+    public async Task<WorkflowExecutionResult> ResumeWorkflowAsync(
+        Guid workflowInstanceId,
+        string activityId,
+        string completedBy,
+        Dictionary<string, object>? input = null,
+        Dictionary<string, RuntimeOverride>? nextAssignmentOverrides = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation(
+                "ORCHESTRATION: Resuming complete workflow for instance {WorkflowInstanceId} at activity {ActivityId}",
+                workflowInstanceId, activityId);
 
-public record WorkflowActivityCompleted
-{
-    public Guid WorkflowInstanceId { get; init; }
-    public string ActivityId { get; init; } = default!;
-    public string CompletedBy { get; init; } = default!;
-    public DateTime CompletedAt { get; init; }
-    public Dictionary<string, object> OutputData { get; init; } = new();
-    public string? Comments { get; init; }
-}
+            // 1. Load workflow instance and schema via persistence service
+            var workflowInstance =
+                await _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, cancellationToken);
+            if (workflowInstance == null)
+            {
+                return WorkflowExecutionResult.Failed(null, $"Workflow instance not found: {workflowInstanceId}");
+            }
 
-public record WorkflowCancelled
-{
-    public Guid WorkflowInstanceId { get; init; }
-    public string CancelledBy { get; init; } = default!;
-    public DateTime CancelledAt { get; init; }
-    public string Reason { get; init; } = default!;
+            var workflowSchema =
+                await _persistenceService.GetWorkflowSchemaAsync(workflowInstance.WorkflowDefinitionId,
+                    cancellationToken);
+            if (workflowSchema == null)
+            {
+                return WorkflowExecutionResult.Failed(workflowInstance,
+                    $"Workflow definition not found: {workflowInstance.WorkflowDefinitionId}");
+            }
+
+            // 2. Validate current activity
+            if (workflowInstance.CurrentActivityId != activityId)
+            {
+                return WorkflowExecutionResult.Failed(workflowInstance,
+                    $"Activity {activityId} is not the current activity");
+            }
+
+            var currentActivity = workflowSchema.Activities.FirstOrDefault(a => a.Id == activityId);
+            if (currentActivity == null)
+            {
+                return WorkflowExecutionResult.Failed(workflowInstance, $"Activity definition not found: {activityId}");
+            }
+
+            // 3. Update workflow instance with new runtime overrides if provided
+            if (nextAssignmentOverrides != null && nextAssignmentOverrides.Any())
+            {
+                workflowInstance.UpdateRuntimeOverrides(nextAssignmentOverrides);
+                _logger.LogDebug("ORCHESTRATION: Updated workflow instance {WorkflowInstanceId} with {Count} runtime overrides",
+                    workflowInstanceId, nextAssignmentOverrides.Count);
+            }
+
+            // 4. Resume the workflow via the existing orchestration method
+            var executionResult = await ResumeWorkflowExecutionAsync(workflowSchema, workflowInstance, currentActivity,
+                input ?? new Dictionary<string, object>(), cancellationToken);
+
+            _logger.LogInformation("ORCHESTRATION: Complete workflow resume finished with status {Status}",
+                executionResult.Status);
+
+            return executionResult;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ORCHESTRATION: Failed to resume complete workflow for instance {WorkflowInstanceId}",
+                workflowInstanceId);
+
+            return WorkflowExecutionResult.Failed(null, ex.Message);
+        }
+    }
 }

@@ -1,4 +1,5 @@
 using Shared.DDD;
+using Assignment.Workflow.Activities.Core;
 
 namespace Assignment.Workflow.Models;
 
@@ -14,6 +15,7 @@ public class WorkflowInstance : Entity<Guid>
     public DateTime? CompletedOn { get; private set; }
     public string StartedBy { get; private set; } = default!;
     public Dictionary<string, object> Variables { get; private set; } = new();
+    public Dictionary<string, RuntimeOverride> RuntimeOverrides { get; private set; } = new();
     public string? ErrorMessage { get; private set; }
     public int RetryCount { get; private set; }
 
@@ -30,7 +32,8 @@ public class WorkflowInstance : Entity<Guid>
         string name,
         string? correlationId,
         string startedBy,
-        Dictionary<string, object>? initialVariables = null)
+        Dictionary<string, object>? initialVariables = null,
+        Dictionary<string, RuntimeOverride>? runtimeOverrides = null)
     {
         return new WorkflowInstance
         {
@@ -42,7 +45,8 @@ public class WorkflowInstance : Entity<Guid>
             CurrentActivityId = string.Empty,
             StartedOn = DateTime.Now,
             StartedBy = startedBy,
-            Variables = initialVariables ?? new Dictionary<string, object>()
+            Variables = initialVariables ?? new Dictionary<string, object>(),
+            RuntimeOverrides = runtimeOverrides ?? new Dictionary<string, RuntimeOverride>()
         };
     }
 
@@ -72,6 +76,17 @@ public class WorkflowInstance : Entity<Guid>
         foreach (var variable in variables)
         {
             Variables[variable.Key] = variable.Value;
+        }
+    }
+
+    public void UpdateRuntimeOverrides(Dictionary<string, RuntimeOverride>? runtimeOverrides)
+    {
+        if (runtimeOverrides != null)
+        {
+            foreach (var kvp in runtimeOverrides)
+            {
+                RuntimeOverrides[kvp.Key] = kvp.Value;
+            }
         }
     }
 

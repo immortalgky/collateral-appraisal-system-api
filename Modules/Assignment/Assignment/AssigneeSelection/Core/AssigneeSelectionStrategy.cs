@@ -20,7 +20,17 @@ public enum AssigneeSelectionStrategy
     /// <summary>
     /// Random assignment
     /// </summary>
-    Random
+    Random,
+
+    /// <summary>
+    /// Assign to the user who completed this activity previously (route-back)
+    /// </summary>
+    PreviousOwner,
+
+    /// <summary>
+    /// Assign to supervisor/manager
+    /// </summary>
+    Supervisor
 }
 
 /// <summary>
@@ -37,6 +47,8 @@ public static class AssignmentStrategyExtensions
         AssigneeSelectionStrategy.RoundRobin => "round_robin",
         AssigneeSelectionStrategy.WorkloadBased => "workload_based",
         AssigneeSelectionStrategy.Random => "random",
+        AssigneeSelectionStrategy.PreviousOwner => "previous_owner",
+        AssigneeSelectionStrategy.Supervisor => "supervisor",
         _ => throw new ArgumentOutOfRangeException(nameof(strategy), strategy, "Unknown assignment strategy")
     };
 
@@ -49,6 +61,8 @@ public static class AssignmentStrategyExtensions
         "round_robin" => AssigneeSelectionStrategy.RoundRobin,
         "workload_based" => AssigneeSelectionStrategy.WorkloadBased,
         "random" => AssigneeSelectionStrategy.Random,
+        "previous_owner" => AssigneeSelectionStrategy.PreviousOwner,
+        "supervisor" => AssigneeSelectionStrategy.Supervisor,
         _ => throw new ArgumentException($"Unknown assignment strategy: {strategyString}", nameof(strategyString))
     };
 }

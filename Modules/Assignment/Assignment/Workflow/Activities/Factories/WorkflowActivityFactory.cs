@@ -27,7 +27,22 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
             throw new ArgumentException($"Unknown activity type: {activityType}");
         }
 
-        return (IWorkflowActivity)Activator.CreateInstance(type)!;
+        // Use service provider for dependency injection when available
+        var serviceInstance = _serviceProvider.GetService(type) as IWorkflowActivity;
+        if (serviceInstance != null)
+        {
+            return serviceInstance;
+        }
+
+        // Fallback to activator for types without dependencies
+        try
+        {
+            return (IWorkflowActivity)Activator.CreateInstance(type)!;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to create instance of activity type '{activityType}'. Ensure the type has a parameterless constructor or is registered in DI.", ex);
+        }
     }
 
     public IEnumerable<string> GetAvailableActivityTypes()
@@ -49,9 +64,12 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
     {
         // Core activities
         _activityTypes[ActivityTypes.TaskActivity] = typeof(TaskActivity);
-        _activityTypes[ActivityTypes.DecisionActivity] = typeof(DecisionActivity);
+        _activityTypes[ActivityTypes.IfElseActivity] = typeof(IfElseActivity);
+        _activityTypes[ActivityTypes.SwitchActivity] = typeof(SwitchActivity);
         _activityTypes[ActivityTypes.StartActivity] = typeof(StartActivity);
         _activityTypes[ActivityTypes.EndActivity] = typeof(EndActivity);
+        _activityTypes[ActivityTypes.ForkActivity] = typeof(ForkActivity);
+        _activityTypes[ActivityTypes.JoinActivity] = typeof(JoinActivity);
 
         // Appraisal-specific activities
         _activityTypes[AppraisalActivityTypes.RequestSubmission] = typeof(RequestSubmissionActivity);
@@ -89,7 +107,7 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
         {
             Type = ActivityTypes.TaskActivity,
             Name = "Task Activity",
-            Description = "Assigns a task to a user or role for completion",
+            Description = "Assigns a task to a user or role for completion using various strategies",
             Category = "Tasks",
             Icon = "user-circle",
             Color = "#10b981",
@@ -102,8 +120,34 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
                 },
                 new()
                 {
+                    Name = "assignmentStrategy", DisplayName = "Assignment Strategy", Type = "string", Required = false,
+                    DefaultValue = "Manual", Description = "Strategy for assigning tasks",
+                    Options = new List<string> { "Manual", "RoundRobin", "Random", "WorkloadBased" }
+                },
+                new()
+                {
+                    Name = "userGroups", DisplayName = "User Groups", Type = "array", Required = false,
+                    Description = "List of user groups eligible for assignment"
+                },
+                new()
+                {
+                    Name = "activityName", DisplayName = "Activity Name", Type = "string", Required = false,
+                    Description = "Name of the activity for assignment tracking"
+                },
+                new()
+                {
                     Name = "formFields", DisplayName = "Form Fields", Type = "array", Required = false,
                     Description = "List of form fields to display"
+                },
+                new()
+                {
+                    Name = "inputMappings", DisplayName = "Input Variable Mappings", Type = "object", Required = false,
+                    Description = "Map input field names to workflow variable names (e.g. {\"propertyValue\": \"estimatedValue\", \"decision\": \"{activityId}_actionTaken\"})"
+                },
+                new()
+                {
+                    Name = "outputMappings", DisplayName = "Output Variable Mappings", Type = "object", Required = false,
+                    Description = "Map activity outputs to workflow variables (e.g. {\"calculatedValue\": \"finalPropertyValue\"})"
                 },
                 new()
                 {
@@ -118,26 +162,46 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
             }
         };
 
-        // Decision Activity Definition
-        _activityDefinitions[ActivityTypes.DecisionActivity] = new ActivityTypeDefinition
+
+        // IfElse Activity Definition
+        _activityDefinitions[ActivityTypes.IfElseActivity] = new ActivityTypeDefinition
         {
-            Type = ActivityTypes.DecisionActivity,
-            Name = "Decision Activity",
-            Description = "Routes workflow based on conditions",
-            Category = "Control Flow",
-            Icon = "code-branch",
-            Color = "#f59e0b",
+            Type = ActivityTypes.IfElseActivity,
+            Name = "If-Else Decision",
+            Description = "Binary conditional routing based on boolean expression evaluation. Outputs result: true/false for transition-based routing.",
+            Category = "Flow Control",
+            Icon = "git-branch",
+            Color = "#fb923c",
             Properties = new List<ActivityPropertyDefinition>
             {
                 new()
                 {
-                    Name = "conditions", DisplayName = "Conditions", Type = "object", Required = true,
-                    Description = "Key-value pairs of route-condition mappings"
+                    Name = "condition", DisplayName = "Condition", Type = "string", Required = true,
+                    Description = "Boolean expression to evaluate (e.g., 'amount > 50000 && status == \"approved\"'). Use transitions with conditions like 'result == true' to route."
+                }
+            }
+        };
+
+        // Switch Activity Definition
+        _activityDefinitions[ActivityTypes.SwitchActivity] = new ActivityTypeDefinition
+        {
+            Type = ActivityTypes.SwitchActivity,
+            Name = "Switch Decision",
+            Description = "Multi-branch conditional routing with support for comparisons and value matching. Outputs case: matched_condition for transition-based routing.",
+            Category = "Flow Control", 
+            Icon = "share-2",
+            Color = "#a855f7",
+            Properties = new List<ActivityPropertyDefinition>
+            {
+                new()
+                {
+                    Name = "expression", DisplayName = "Expression", Type = "string", Required = true,
+                    Description = "Expression to evaluate for switch routing (e.g., 'amount', 'status', 'category')"
                 },
                 new()
                 {
-                    Name = "defaultRoute", DisplayName = "Default Route", Type = "string", Required = false,
-                    Description = "Default activity if no conditions match"
+                    Name = "cases", DisplayName = "Cases", Type = "array", Required = true,
+                    Description = "Array of case conditions to match (e.g., ['< 10000', '>= 50000', 'approved']). Use transitions with conditions like 'case == \"< 10000\"' to route."
                 }
             }
         };
@@ -189,6 +253,78 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
                 {
                     Name = "autoApprovalThreshold", DisplayName = "Auto Approval Threshold", Type = "number",
                     Required = false, Description = "Value below which requests are auto-approved"
+                }
+            }
+        };
+
+        // Fork Activity Definition
+        _activityDefinitions[ActivityTypes.ForkActivity] = new ActivityTypeDefinition
+        {
+            Type = ActivityTypes.ForkActivity,
+            Name = "Fork Activity",
+            Description = "Splits workflow execution into multiple parallel branches",
+            Category = "Control Flow",
+            Icon = "git-branch",
+            Color = "#8b5cf6",
+            Properties = new List<ActivityPropertyDefinition>
+            {
+                new()
+                {
+                    Name = "branches", DisplayName = "Branches", Type = "array", Required = true,
+                    Description = "List of parallel branches to execute"
+                },
+                new()
+                {
+                    Name = "forkType", DisplayName = "Fork Type", Type = "string", Required = false,
+                    DefaultValue = "all", Description = "Type of fork execution (all, any, conditional)",
+                    Options = new List<string> { "all", "any", "conditional" }
+                },
+                new()
+                {
+                    Name = "maxConcurrency", DisplayName = "Max Concurrency", Type = "number", Required = false,
+                    DefaultValue = "0", Description = "Maximum number of concurrent branches (0 = unlimited)"
+                }
+            }
+        };
+
+        // Join Activity Definition  
+        _activityDefinitions[ActivityTypes.JoinActivity] = new ActivityTypeDefinition
+        {
+            Type = ActivityTypes.JoinActivity,
+            Name = "Join Activity",
+            Description = "Synchronizes and merges multiple parallel workflow branches",
+            Category = "Control Flow",
+            Icon = "git-merge",
+            Color = "#10b981",
+            Properties = new List<ActivityPropertyDefinition>
+            {
+                new()
+                {
+                    Name = "forkId", DisplayName = "Fork ID", Type = "string", Required = true,
+                    Description = "ID of the fork activity to join"
+                },
+                new()
+                {
+                    Name = "joinType", DisplayName = "Join Type", Type = "string", Required = false,
+                    DefaultValue = "all", Description = "Join synchronization strategy",
+                    Options = new List<string> { "all", "any", "first", "majority" }
+                },
+                new()
+                {
+                    Name = "timeoutMinutes", DisplayName = "Timeout (minutes)", Type = "number", Required = false,
+                    DefaultValue = "0", Description = "Timeout in minutes (0 = no timeout)"
+                },
+                new()
+                {
+                    Name = "mergeStrategy", DisplayName = "Merge Strategy", Type = "string", Required = false,
+                    DefaultValue = "combine", Description = "How to merge branch outputs",
+                    Options = new List<string> { "combine", "override", "first", "last" }
+                },
+                new()
+                {
+                    Name = "timeoutAction", DisplayName = "Timeout Action", Type = "string", Required = false,
+                    DefaultValue = "fail", Description = "Action to take on timeout",
+                    Options = new List<string> { "fail", "proceed" }
                 }
             }
         };

@@ -18,31 +18,59 @@ public class ManualAssigneeSelector : IAssigneeSelector
     {
         try
         {
-            var manualAssignee = GetManualAssigneeFromContext(context);
+            var manualAssignee = context.UserCode;
+            var manualAssigneeGroups = context.UserGroups;
 
-            if (string.IsNullOrEmpty(manualAssignee))
+            // Check for user assignment first (higher priority)
+            if (!string.IsNullOrEmpty(manualAssignee))
             {
-                return AssigneeSelectionResult.Failure(
-                    "Manual assignment requires an explicit assignee to be specified");
+                var isEligible = await ValidateAssigneeEligibilityAsync(manualAssignee, context, cancellationToken);
+
+                if (!isEligible)
+                {
+                    return AssigneeSelectionResult.Failure(
+                        $"Specified assignee '{manualAssignee}' is not eligible for this assignment");
+                }
+
+                _logger.LogInformation("Manual selector assigned user {UserId} for activity {ActivityName}",
+                    manualAssignee, context.ActivityName);
+
+                return AssigneeSelectionResult.Success(manualAssignee, new Dictionary<string, object>
+                {
+                    ["SelectionStrategy"] = "Manual",
+                    ["AssignmentType"] = "User",
+                    ["ManuallySpecified"] = true,
+                    ["AssignedBy"] = GetAssignerFromContext(context) ?? "system"
+                });
             }
 
-            var isEligible = await ValidateAssigneeEligibilityAsync(manualAssignee, context, cancellationToken);
-
-            if (!isEligible)
+            // Check for group assignment
+            if (manualAssigneeGroups.Any())
             {
-                return AssigneeSelectionResult.Failure(
-                    $"Specified assignee '{manualAssignee}' is not eligible for this assignment");
+                var isGroupValid = await ValidateGroupEligibilityAsync(manualAssigneeGroups, context, cancellationToken);
+
+                if (!isGroupValid)
+                {
+                    return AssigneeSelectionResult.Failure(
+                        $"Specified group '{manualAssigneeGroups}' is not eligible for this assignment");
+                }
+
+                _logger.LogInformation("Manual selector assigned to group {GroupId} for activity {ActivityName}",
+                    manualAssigneeGroups, context.ActivityName);
+
+                // For group assignment, return null assignee but include group info in metadata
+                return AssigneeSelectionResult.Success(null!, new Dictionary<string, object>
+                {
+                    ["SelectionStrategy"] = "Manual",
+                    ["AssignmentType"] = "Group",
+                    ["AssignedGroup"] = manualAssigneeGroups,
+                    ["ManuallySpecified"] = true,
+                    ["AssignedBy"] = GetAssignerFromContext(context) ?? "system"
+                });
             }
 
-            _logger.LogInformation("Manual selector assigned user {UserId} for activity {ActivityName}",
-                manualAssignee, context.ActivityName);
-
-            return AssigneeSelectionResult.Success(manualAssignee, new Dictionary<string, object>
-            {
-                ["SelectionStrategy"] = "Manual",
-                ["ManuallySpecified"] = true,
-                ["AssignedBy"] = GetAssignerFromContext(context) ?? "system"
-            });
+            return AssigneeSelectionResult.Failure(
+                "Manual assignment requires either an explicit assignee or assignee group to be specified");
         }
         catch (Exception ex)
         {
@@ -53,7 +81,7 @@ public class ManualAssigneeSelector : IAssigneeSelector
 
     private string? GetManualAssigneeFromContext(AssignmentContext context)
     {
-        if (context.AdditionalCriteria?.TryGetValue("ManualAssignee", out var assignee) == true)
+        if (context.Properties?.TryGetValue("ManualAssignee", out var assignee) == true)
         {
             return assignee?.ToString();
         }
@@ -61,9 +89,19 @@ public class ManualAssigneeSelector : IAssigneeSelector
         return null;
     }
 
+    private string? GetManualAssigneeGroupFromContext(AssignmentContext context)
+    {
+        if (context.Properties?.TryGetValue("ManualAssigneeGroup", out var group) == true)
+        {
+            return group?.ToString();
+        }
+
+        return null;
+    }
+
     private string? GetAssignerFromContext(AssignmentContext context)
     {
-        if (context.AdditionalCriteria?.TryGetValue("AssignedBy", out var assigner) == true)
+        if (context.Properties?.TryGetValue("AssignedBy", out var assigner) == true)
         {
             return assigner?.ToString();
         }
@@ -84,5 +122,20 @@ public class ManualAssigneeSelector : IAssigneeSelector
         // - User is available (not on leave, etc.)
 
         return !string.IsNullOrWhiteSpace(assigneeId);
+    }
+
+    private async Task<bool> ValidateGroupEligibilityAsync(List<string> groupIds, AssignmentContext context,
+        CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+
+        // TODO: Implement actual group validation logic here.
+        // Could be extended to check:
+        // - Group exists and is active
+        // - Group has eligible members
+        // - Group has required permissions for the task
+        // - Group is not overloaded with assignments
+
+        return groupIds.Any();
     }
 }

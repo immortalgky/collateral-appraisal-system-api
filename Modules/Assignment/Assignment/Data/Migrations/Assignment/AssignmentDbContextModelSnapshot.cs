@@ -23,6 +23,90 @@ namespace Assignment.Data.Migrations.Assignment
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Assignment.Data.Entities.TaskAssignmentConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActivityId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("AdditionalConfiguration")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AdminPoolId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("AssigneeGroup")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("EscalateToAdminPool")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("PrimaryStrategies")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RouteBackStrategies")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SpecificAssignee")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("WorkflowDefinitionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActivityId")
+                        .HasDatabaseName("IX_TaskAssignmentConfigurations_ActivityId");
+
+                    b.HasIndex("IsActive")
+                        .HasDatabaseName("IX_TaskAssignmentConfigurations_IsActive");
+
+                    b.HasIndex("ActivityId", "WorkflowDefinitionId")
+                        .HasDatabaseName("IX_TaskAssignmentConfigurations_ActivityId_WorkflowDefinitionId");
+
+                    b.ToTable("TaskAssignmentConfigurations", "assignment");
+                });
+
             modelBuilder.Entity("Assignment.Tasks.Models.CompletedTask", b =>
                 {
                     b.Property<Guid>("Id")
@@ -251,7 +335,11 @@ namespace Assignment.Data.Migrations.Assignment
 
                     b.HasIndex("Status");
 
-                    b.HasIndex("WorkflowInstanceId");
+                    b.HasIndex("AssignedTo", "Status")
+                        .HasDatabaseName("IX_WorkflowActivityExecutions_AssignedTo_Status");
+
+                    b.HasIndex("WorkflowInstanceId", "Status")
+                        .HasDatabaseName("IX_WorkflowActivityExecutions_WorkflowInstanceId_Status");
 
                     b.ToTable("WorkflowActivityExecutions", "assignment");
                 });

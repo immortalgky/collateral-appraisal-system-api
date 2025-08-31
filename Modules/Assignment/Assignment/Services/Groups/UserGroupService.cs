@@ -16,8 +16,11 @@ public class UserGroupService : IUserGroupService
         // Testing purposes only
         _groupMemberships = new Dictionary<string, List<string>>
         {
-            ["Juniors"] = new() { "Alice", "Bob", "Charlie" },
-            ["Seniors"] = new() { "Dave", "Eve", "Frank" }
+            ["RequestMaker"] = new() { "maker_001", "maker_002", "maker_003" },
+            ["Admin"] = new() { "admin_001", "admin_002", "admin_003" },
+            ["AppraisalStaff"] = new() { "staff_001", "staff_002", "staff_003" },
+            ["AppraisalChecker"] = new() { "checker_001", "checker_002", "checker_003" },
+            ["AppraisalVerifier"] = new() { "verifier_001", "verifier_002", "verifier_003" }
         };
     }
 

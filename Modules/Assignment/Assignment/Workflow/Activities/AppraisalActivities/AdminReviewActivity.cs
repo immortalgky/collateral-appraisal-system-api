@@ -1,5 +1,6 @@
 using Assignment.Workflow.Activities.Core;
 using Assignment.Workflow.Schema;
+using Assignment.Workflow.Models;
 
 namespace Assignment.Workflow.Activities.AppraisalActivities;
 
@@ -9,8 +10,7 @@ public class AdminReviewActivity : WorkflowActivityBase
     public override string Name => "Admin Review";
     public override string Description => "Admin reviews and approves/rejects the appraisal request";
 
-    public override async Task<ActivityResult> ExecuteAsync(ActivityContext context,
-        CancellationToken cancellationToken = default)
+    protected override async Task<ActivityResult> ExecuteActivityAsync(ActivityContext context, CancellationToken cancellationToken = default)
     {
         // This is a human task that requires external completion
         // The workflow engine will wait for admin input via API
@@ -38,17 +38,14 @@ public class AdminReviewActivity : WorkflowActivityBase
             outputData["autoApproval"] = true;
             outputData["reviewedAt"] = DateTime.Now;
 
-            var variableUpdates = new Dictionary<string, object>
-            {
-                ["adminDecision"] = "approved",
-                ["autoApproved"] = true
-            };
+            // Add workflow variables to output data
+            outputData["adminDecision"] = "approved";
+            outputData["autoApproved"] = true;
 
             return new ActivityResult
             {
                 Status = ActivityResultStatus.Completed,
                 OutputData = outputData,
-                VariableUpdates = variableUpdates,
                 NextActivityId = "staff-assignment",
                 Comments =
                     $"Auto-approved due to value ${estimatedValue:N0} being below threshold ${autoApprovalThreshold.Value:N0}"
@@ -77,12 +74,10 @@ public class AdminReviewActivity : WorkflowActivityBase
             ["comments"] = comments
         };
 
-        var variableUpdates = new Dictionary<string, object>
-        {
-            ["adminDecision"] = decision,
-            ["adminComments"] = comments,
-            ["reviewedBy"] = reviewedBy
-        };
+        // Add workflow variables to output data
+        outputData["adminDecision"] = decision;
+        outputData["adminComments"] = comments;
+        outputData["reviewedBy"] = reviewedBy;
 
         var nextActivity = decision.ToLower() switch
         {
@@ -95,7 +90,6 @@ public class AdminReviewActivity : WorkflowActivityBase
         {
             Status = ActivityResultStatus.Completed,
             OutputData = outputData,
-            VariableUpdates = variableUpdates,
             NextActivityId = nextActivity,
             Comments = $"Admin {decision.ToLower()} the request: {comments}"
         };

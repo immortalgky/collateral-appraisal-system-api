@@ -1,4 +1,4 @@
-using Assignment.Workflow.Engine;
+using Assignment.Workflow.Services;
 using Assignment.Workflow.Models;
 using Assignment.Workflow.Repositories;
 using Assignment.Workflow.Schema;
@@ -69,21 +69,21 @@ public class
     CreateWorkflowDefinitionResponse>
 {
     private readonly IWorkflowDefinitionRepository _repository;
-    private readonly IWorkflowEngine _workflowEngine;
+    private readonly IWorkflowService _workflowService;
 
     public CreateWorkflowDefinitionCommandHandler(
         IWorkflowDefinitionRepository repository,
-        IWorkflowEngine workflowEngine)
+        IWorkflowService workflowService)
     {
         _repository = repository;
-        _workflowEngine = workflowEngine;
+        _workflowService = workflowService;
     }
 
     public async Task<CreateWorkflowDefinitionResponse> Handle(CreateWorkflowDefinitionCommand request,
         CancellationToken cancellationToken)
     {
         // Validate workflow definition
-        var isValid = await _workflowEngine.ValidateWorkflowDefinitionAsync(request.WorkflowSchema, cancellationToken);
+        var isValid = await _workflowService.ValidateWorkflowDefinitionAsync(request.WorkflowSchema, cancellationToken);
         if (!isValid)
         {
             return new CreateWorkflowDefinitionResponse

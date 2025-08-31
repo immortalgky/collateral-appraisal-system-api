@@ -63,5 +63,11 @@ public class WorkflowActivityExecutionConfiguration : IEntityTypeConfiguration<W
         builder.HasIndex(x => x.Status);
         builder.HasIndex(x => x.AssignedTo);
         builder.HasIndex(x => x.StartedOn);
+        
+        // Optimized composite indexes for hybrid approach performance
+        builder.HasIndex(x => new { x.WorkflowInstanceId, x.Status })
+            .HasDatabaseName("IX_WorkflowActivityExecutions_WorkflowInstanceId_Status");
+        builder.HasIndex(x => new { x.AssignedTo, x.Status })
+            .HasDatabaseName("IX_WorkflowActivityExecutions_AssignedTo_Status");
     }
 }

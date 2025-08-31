@@ -1,5 +1,6 @@
 using Assignment.Workflow.Activities.Core;
 using Assignment.Workflow.Schema;
+using Assignment.Workflow.Models;
 
 namespace Assignment.Workflow.Activities.AppraisalActivities;
 
@@ -9,8 +10,7 @@ public class RequestSubmissionActivity : WorkflowActivityBase
     public override string Name => "Request Submission";
     public override string Description => "Handles the initial appraisal request submission";
 
-    public override async Task<ActivityResult> ExecuteAsync(ActivityContext context,
-        CancellationToken cancellationToken = default)
+    protected override async Task<ActivityResult> ExecuteActivityAsync(ActivityContext context, CancellationToken cancellationToken = default)
     {
         var propertyType = GetProperty<string>(context, "propertyType");
         var propertyAddress = GetProperty<string>(context, "propertyAddress");
@@ -42,18 +42,10 @@ public class RequestSubmissionActivity : WorkflowActivityBase
             ["status"] = "submitted"
         };
 
-        var variableUpdates = new Dictionary<string, object>
-        {
-            ["estimatedValue"] = estimatedValue,
-            ["propertyType"] = propertyType,
-            ["purpose"] = purpose
-        };
-
         return new ActivityResult
         {
             Status = ActivityResultStatus.Completed,
             OutputData = outputData,
-            VariableUpdates = variableUpdates,
             NextActivityId = "admin-review",
             Comments = $"Request submitted for {propertyType} property at {propertyAddress}"
         };

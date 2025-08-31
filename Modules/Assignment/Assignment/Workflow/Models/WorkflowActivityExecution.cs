@@ -78,6 +78,18 @@ public class WorkflowActivityExecution : Entity<Guid>
         CompletedOn = DateTime.Now;
         Comments = reason;
     }
+
+    public void Cancel(string reason)
+    {
+        Status = ActivityExecutionStatus.Cancelled;
+        CompletedOn = DateTime.Now;
+        Comments = reason;
+    }
+
+    public void UpdateAssignee(string? assigneeId)
+    {
+        AssignedTo = assigneeId;
+    }
 }
 
 public enum ActivityExecutionStatus

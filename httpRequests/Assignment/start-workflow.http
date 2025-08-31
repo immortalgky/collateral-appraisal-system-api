@@ -1,0 +1,17 @@
+# Start a workflow instance using the workflow definition
+# This request starts a workflow instance based on the provided definition.
+
+### Start Workflow Instance
+// @timeout = 30000 m
+POST {{baseUrl}}/api/workflows/instances/start
+Content-Type: application/json
+
+{
+  "workflowDefinitionId": "1a382feb-5fd3-4b3c-9540-ba0b8734fcf8",
+  "instanceName": "Collateral Appraisal Workflow",
+  "startedBy": "system",
+  "initialVariables": {
+    "test": "test"
+  },
+  "correlationId": "1"
+}

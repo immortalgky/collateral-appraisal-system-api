@@ -1,16 +1,112 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using Assignment.Workflow.Engine.Expression;
+using Assignment.Workflow.Models;
 
 namespace Assignment.Workflow.Activities.Core;
 
 public abstract class WorkflowActivityBase : IWorkflowActivity
 {
+    private readonly ExpressionEvaluator _expressionEvaluator = new();
+
     public abstract string ActivityType { get; }
     public abstract string Name { get; }
     public virtual string Description => Name;
 
-    public abstract Task<ActivityResult> ExecuteAsync(ActivityContext context,
+    public virtual async Task<ActivityResult> ExecuteAsync(ActivityContext context,
+        CancellationToken cancellationToken = default)
+    {
+        WorkflowActivityExecution? execution = null;
+
+        try
+        {
+            // Activity creates and manages its own execution
+            execution = CreateActivityExecution(context);
+
+            // Add execution to workflow instance and set current activity
+            context.WorkflowInstance.AddActivityExecution(execution);
+            context.WorkflowInstance.SetCurrentActivity(context.ActivityId);
+
+            // Start execution tracking
+            execution.Start();
+
+            // Call the derived class implementation
+            var result = await ExecuteActivityAsync(context, cancellationToken);
+
+            // Update execution based on result
+            if (result.Status == ActivityResultStatus.Completed)
+            {
+                execution.Complete("system", result.OutputData, result.Comments);
+            }
+            else if (result.Status == ActivityResultStatus.Failed)
+            {
+                execution.Fail(result.ErrorMessage ?? "Activity execution failed");
+            }
+            // For Pending status, execution remains InProgress
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            execution?.Fail(ex.Message);
+            return ActivityResult.Failed(ex.Message);
+        }
+    }
+
+    protected abstract Task<ActivityResult> ExecuteActivityAsync(ActivityContext context,
         CancellationToken cancellationToken = default);
+
+    public virtual async Task<ActivityResult> ResumeAsync(ActivityContext context,
+        Dictionary<string, object> resumeInput,
+        CancellationToken cancellationToken = default)
+    {
+        // Find the in-progress execution for this activity
+        var execution = FindActivityExecution(context);
+        if (execution == null)
+        {
+            return ActivityResult.Failed($"No in-progress execution found for activity {context.ActivityId}");
+        }
+
+        try
+        {
+            // Call the derived class implementation or use default behavior
+            var result = await ResumeActivityAsync(context, resumeInput, cancellationToken);
+
+            // Update execution based on result
+            if (result.Status == ActivityResultStatus.Completed)
+            {
+                execution.Complete(GetCompletedBy(resumeInput), result.OutputData, result.Comments);
+            }
+            else if (result.Status == ActivityResultStatus.Failed)
+            {
+                execution.Fail(result.ErrorMessage ?? "Activity resume failed");
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            execution.Fail(ex.Message);
+            return ActivityResult.Failed(ex.Message);
+        }
+    }
+
+    protected virtual Task<ActivityResult> ResumeActivityAsync(ActivityContext context,
+        Dictionary<string, object> resumeInput,
+        CancellationToken cancellationToken = default)
+    {
+        // Default implementation: transform resume input into workflow variables
+        // Activities can override this to implement custom input/output mapping
+        var outputData = new Dictionary<string, object>();
+
+        // Map common fields with activity prefix to avoid conflicts
+        if (resumeInput.TryGetValue("decisionTaken", out var decision))
+        {
+            outputData[$"{NormalizeActivityId(context.ActivityId)}_decisionTaken"] = decision;
+            outputData["decision"] = decision; // Also keep for transition evaluation
+        }
+
+        return Task.FromResult(ActivityResult.Success(outputData: outputData));
+    }
 
     public virtual Task<ValidationResult> ValidateAsync(ActivityContext context,
         CancellationToken cancellationToken = default)
@@ -18,9 +114,58 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
         return Task.FromResult(ValidationResult.Success());
     }
 
+    // Helper methods for execution management
+
+    protected virtual WorkflowActivityExecution CreateActivityExecution(ActivityContext context)
+    {
+        return WorkflowActivityExecution.Create(
+            context.WorkflowInstance.Id,
+            context.ActivityId,
+            Name,
+            ActivityType,
+            null,
+            context.Variables);
+    }
+
+    protected virtual WorkflowActivityExecution? FindActivityExecution(ActivityContext context)
+    {
+        return context.WorkflowInstance.ActivityExecutions
+            .FirstOrDefault(ae =>
+                ae.ActivityId == context.ActivityId && ae.Status == ActivityExecutionStatus.InProgress);
+    }
+
+    protected virtual void SetActivityAssignee(ActivityContext context, string? assigneeId)
+    {
+        if (!string.IsNullOrEmpty(assigneeId))
+        {
+            // Update current activity with assignee
+            context.WorkflowInstance.SetCurrentActivity(context.ActivityId, assigneeId);
+        }
+    }
+
+    private string GetCompletedBy(Dictionary<string, object> resumeInput)
+    {
+        if (resumeInput.TryGetValue("completedBy", out var completedBy))
+        {
+            return completedBy.ToString() ?? "system";
+        }
+
+        return "system";
+    }
+
     protected T GetProperty<T>(ActivityContext context, string key, T defaultValue = default!)
     {
-        if (context.Properties.TryGetValue(key, out var value))
+        return GetValue(context.Properties, key, defaultValue);
+    }
+
+    protected T GetVariable<T>(ActivityContext context, string key, T defaultValue = default!)
+    {
+        return GetValue(context.Variables, key, defaultValue);
+    }
+
+    private T GetValue<T>(IDictionary<string, object> source, string key, T defaultValue = default!)
+    {
+        if (source.TryGetValue(key, out var value))
         {
             // Direct type match - fastest path
             if (value is T typedValue)
@@ -137,83 +282,28 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
                (trimmed.StartsWith("[") && trimmed.EndsWith("]"));
     }
 
-    protected T GetVariable<T>(ActivityContext context, string key, T defaultValue = default!)
-    {
-        if (context.Variables.TryGetValue(key, out var value))
-        {
-            // Direct type match - fastest path
-            if (value is T typedValue)
-                return typedValue;
-
-            // Handle JsonElement from frontend data
-            if (value is JsonElement jsonElement)
-            {
-                return HandleJsonElement(jsonElement, defaultValue);
-            }
-
-            // Handle string conversion
-            if (typeof(T) == typeof(string))
-            {
-                return (T)(object)(value.ToString() ?? string.Empty);
-            }
-
-            // Handle complex object conversion via JSON (for DTOs, dictionaries, etc.)
-            if (!typeof(T).IsPrimitive && typeof(T) != typeof(string) && typeof(T) != typeof(DateTime))
-            {
-                return HandleComplexTypeConversion(value, defaultValue);
-            }
-
-            // Handle primitive type conversion
-            if (value is IConvertible convertible)
-            {
-                try
-                {
-                    return (T)Convert.ChangeType(convertible, typeof(T));
-                }
-                catch
-                {
-                    return defaultValue;
-                }
-            }
-        }
-
-        return defaultValue;
-    }
-
     protected bool EvaluateCondition(ActivityContext context, string? condition)
     {
         if (string.IsNullOrEmpty(condition))
             return true;
 
-        // Simple condition evaluation - can be enhanced with expression engine
-        // For now, support basic variable comparisons like "status == 'approved'"
         try
         {
-            var parts = condition.Split(new[] { "==", "!=", ">=", "<=", ">", "<" },
-                StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length != 2) return false;
-
-            var variable = parts[0].Trim();
-            var expectedValue = parts[1].Trim().Trim('\'', '"');
-            var actualValue = GetVariable<string>(context, variable);
-
-            var op = condition.Contains("==") ? "==" :
-                condition.Contains("!=") ? "!=" :
-                condition.Contains(">=") ? ">=" :
-                condition.Contains("<=") ? "<=" :
-                condition.Contains(">") ? ">" :
-                condition.Contains("<") ? "<" : "==";
-
-            return op switch
-            {
-                "==" => string.Equals(actualValue, expectedValue, StringComparison.OrdinalIgnoreCase),
-                "!=" => !string.Equals(actualValue, expectedValue, StringComparison.OrdinalIgnoreCase),
-                _ => true // For now, default to true for unsupported operations
-            };
+            return _expressionEvaluator.EvaluateExpression(condition, context.Variables);
         }
         catch
         {
             return false;
         }
+    }
+
+    protected bool ValidateExpression(string expression, out string? errorMessage)
+    {
+        return _expressionEvaluator.ValidateExpression(expression, out errorMessage);
+    }
+
+    protected string NormalizeActivityId(string activityId)
+    {
+        return activityId.Replace("-", "_");
     }
 }

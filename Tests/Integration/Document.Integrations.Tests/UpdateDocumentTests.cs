@@ -10,7 +10,6 @@ using Integration.Helpers;
 
 namespace Integration.Document.Integrations.Tests;
 
-
 public class UpdateDocumentByIdTests(IntegrationTestFixture fixture) : IntegrationTestBase(fixture)
 {
     private readonly string relateRequest = "Request";
@@ -23,7 +22,8 @@ public class UpdateDocumentByIdTests(IntegrationTestFixture fixture) : Integrati
     {
         using var multipartContent = TestFileHelpers.CreateHttp(n);
 
-        var uploadResponse = await _client.PostAsync($"/documents/{relateRequest}/{id}", multipartContent, TestContext.Current.CancellationToken);
+        var uploadResponse = await _client.PostAsync($"/documents/{relateRequest}/{id}", multipartContent,
+            TestContext.Current.CancellationToken);
         uploadResponse.EnsureSuccessStatusCode();
         var uploadResponseBody = await uploadResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var uploadResult = JsonSerializer.Deserialize<List<UploadResultDto>>(uploadResponseBody, JsonHelper.Options);
@@ -39,7 +39,8 @@ public class UpdateDocumentByIdTests(IntegrationTestFixture fixture) : Integrati
         };
 
         var updateContent = JsonContent.Create(updateRequest);
-        var updateResponse = await _client.PutAsync($"/documents/{TestFileHelpers.CurrId}", updateContent, TestContext.Current.CancellationToken);
+        var updateResponse = await _client.PutAsync($"/documents/{TestFileHelpers.CurrId}", updateContent,
+            TestContext.Current.CancellationToken);
         updateResponse.EnsureSuccessStatusCode();
         var updateResponseBody = await updateResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var updateResult = JsonSerializer.Deserialize<UpdateDocumentResponse>(updateResponseBody, JsonHelper.Options);
@@ -47,7 +48,8 @@ public class UpdateDocumentByIdTests(IntegrationTestFixture fixture) : Integrati
         Assert.NotNull(updateResult);
         Assert.True(updateResult.IsSuccess);
 
-        var getResponse = await _client.GetAsync($"/documents/{TestFileHelpers.CurrId}", TestContext.Current.CancellationToken);
+        var getResponse =
+            await _client.GetAsync($"/documents/{TestFileHelpers.CurrId}", TestContext.Current.CancellationToken);
         getResponse.EnsureSuccessStatusCode();
         var getResponseBody = await getResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var getResult = JsonSerializer.Deserialize<DocumentDto>(getResponseBody, JsonHelper.Options);
@@ -59,7 +61,8 @@ public class UpdateDocumentByIdTests(IntegrationTestFixture fixture) : Integrati
         Assert.Equal(newComment, getResult.Comment);
         Assert.False(string.IsNullOrWhiteSpace(getResult.Filename));
 
-        var deleteResponse = await _client.DeleteAsync($"/documents/{TestFileHelpers.CurrId++}", TestContext.Current.CancellationToken);
+        var deleteResponse = await _client.DeleteAsync($"/documents/{TestFileHelpers.CurrId++}",
+            TestContext.Current.CancellationToken);
         deleteResponse.EnsureSuccessStatusCode();
         var deleteResponseBody = await deleteResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var deleteResult = JsonSerializer.Deserialize<DeleteDocumentResult>(deleteResponseBody, JsonHelper.Options);

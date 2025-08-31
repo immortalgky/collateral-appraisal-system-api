@@ -7,7 +7,6 @@ public class ActivityResult
     public string? NextActivityId { get; init; }
     public string? ErrorMessage { get; init; }
     public string? Comments { get; init; }
-    public Dictionary<string, object> VariableUpdates { get; init; } = new();
 
     public static ActivityResult Success(Dictionary<string, object>? outputData = null, string? nextActivityId = null,
         string? comments = null)
@@ -21,24 +20,23 @@ public class ActivityResult
         };
     }
 
-    public static ActivityResult Pending(string? nextActivityId = null,
-        Dictionary<string, object>? variableUpdates = null, Dictionary<string, object>? outputData = null)
+    public static ActivityResult Pending(Dictionary<string, object>? outputData = null, string? nextActivityId = null)
     {
         return new ActivityResult
         {
             Status = ActivityResultStatus.Pending,
             NextActivityId = nextActivityId,
-            VariableUpdates = variableUpdates ?? new Dictionary<string, object>(),
             OutputData = outputData ?? new Dictionary<string, object>()
         };
     }
 
-    public static ActivityResult Failed(string errorMessage)
+    public static ActivityResult Failed(string errorMessage, Dictionary<string, object>? outputData = null)
     {
         return new ActivityResult
         {
             Status = ActivityResultStatus.Failed,
-            ErrorMessage = errorMessage
+            ErrorMessage = errorMessage,
+            OutputData = outputData ?? new Dictionary<string, object>()
         };
     }
 }
