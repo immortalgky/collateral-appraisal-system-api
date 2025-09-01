@@ -85,7 +85,7 @@ public static class DtoExtensions
         );
 
         var machineDetail = MachineDetail.Create(
-            GeneralMachinery.Crate(dto.Industrial, dto.SurveyNo, dto.ApprNo),
+            GeneralMachinery.Create(dto.Industrial, dto.SurveyNo, dto.ApprNo),
             AtSurveyDate.Create(
                 dto.Installed ?? 0,
                 dto.ApprScrap ?? string.Empty,
@@ -97,7 +97,7 @@ public static class DtoExtensions
                 dto.MarketDemand ?? false,
                 dto.MarketDemandRemark ?? string.Empty
             ),
-            RightsAndConditionsOfLegalRestrictions.Crate(
+            RightsAndConditionsOfLegalRestrictions.Create(
                 dto.Proprietor ?? string.Empty,
                 dto.Owner ?? string.Empty,
                 dto.MachineLocation ?? string.Empty,
@@ -122,7 +122,7 @@ public static class DtoExtensions
         );
 
     public static GeneralMachinery ToEntity(this GeneralMachineryDto dto) =>
-        GeneralMachinery.Crate(
+        GeneralMachinery.Create(
             dto.Industrial,
             dto.SurveyNo,
             dto.ApprNo
@@ -142,7 +142,7 @@ public static class DtoExtensions
         );
 
     public static RightsAndConditionsOfLegalRestrictions ToEntity(this RightsAndConditionsOfLegalRestrictionsDto dto) =>
-        RightsAndConditionsOfLegalRestrictions.Crate(
+        RightsAndConditionsOfLegalRestrictions.Create(
             dto.Proprietor ?? string.Empty,
             dto.Owner ?? string.Empty,
             dto.MachineLocation ?? string.Empty,

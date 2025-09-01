@@ -202,7 +202,7 @@ public class RequestAppraisal : Aggregate<long>
                     d.ApprDate ?? string.Empty,
                     d.ApprCollatType ?? string.Empty);
                 var machineDetail = MachineDetail.Create(
-                    GeneralMachinery.Crate(d.Industrial, d.SurveyNo, d.ApprNo),
+                    GeneralMachinery.Create(d.Industrial, d.SurveyNo, d.ApprNo),
                     AtSurveyDate.Create(
                         d.Installed ?? 0,
                         d.ApprScrap ?? string.Empty,
@@ -213,7 +213,7 @@ public class RequestAppraisal : Aggregate<long>
                         d.Performance ?? string.Empty,
                         d.MarketDemand ?? false,
                         d.MarketDemandRemark ?? string.Empty),
-                    RightsAndConditionsOfLegalRestrictions.Crate(
+                    RightsAndConditionsOfLegalRestrictions.Create(
                         d.Proprietor ?? string.Empty,
                         d.Owner ?? string.Empty,
                         d.MachineLocation ?? string.Empty,

@@ -7,9 +7,7 @@ internal class UpdateAppraisalDetailCommandHandler(IAppraisalService appraisalSe
 {
     public async Task<UpdateAppraisalDetailResult> Handle(UpdateAppraisalDetailCommand command, CancellationToken cancellationToken)
     {
-        await appraisalService.GetRequestAppraisalDetailByIdAsync(command.Id, cancellationToken);
-
-    var newAppraisalDetail = await appraisalService.UpdateRequestAppraisalDetail(command.Appraisal, command.Id, cancellationToken);
+        var newAppraisalDetail = await appraisalService.UpdateRequestAppraisalDetail(command.Appraisal, command.Id, cancellationToken);
 
         await appraisalService.UpdateRequestAppraisalDetailAsync(newAppraisalDetail, cancellationToken);
 

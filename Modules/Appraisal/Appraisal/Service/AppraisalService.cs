@@ -60,7 +60,9 @@ public class AppraisalService(IAppraisalRepository appraisalRepository) : IAppra
     public async Task<RequestAppraisal> UpdateRequestAppraisalDetail(RequestAppraisalDto appraisalDto, long id, CancellationToken cancellationToken = default)
     {
         var existing = await GetRequestAppraisalDetailByIdAsync(id, cancellationToken);
+
         existing.Update(appraisalDto);
+        
         return existing;
     }
 

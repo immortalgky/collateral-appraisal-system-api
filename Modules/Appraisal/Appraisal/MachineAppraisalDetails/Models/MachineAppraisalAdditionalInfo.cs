@@ -53,7 +53,7 @@ public class MachineAppraisalAdditionalInfo : Entity<long>
             dto.ApprCollatType ?? string.Empty
         );
 
-        var generalMachinery = GeneralMachinery.Crate(
+        var generalMachinery = GeneralMachinery.Create(
             dto.Industrial,
             dto.SurveyNo,
             dto.ApprNo
@@ -69,7 +69,7 @@ public class MachineAppraisalAdditionalInfo : Entity<long>
             dto.MarketDemand ?? false,
             dto.MarketDemandRemark ?? string.Empty
         );
-        var rights = RightsAndConditionsOfLegalRestrictions.Crate(
+        var rights = RightsAndConditionsOfLegalRestrictions.Create(
             dto.Proprietor ?? string.Empty,
             dto.Owner ?? string.Empty,
             dto.MachineLocation ?? string.Empty,

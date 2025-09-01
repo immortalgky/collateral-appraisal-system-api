@@ -19,7 +19,7 @@ public class GeneralMachinery : ValueObject
         ApprNo = appNo;
     }
 
-    public static GeneralMachinery Crate(
+    public static GeneralMachinery Create(
         string? industrial,
         int? surveyNo,
         int? appNo
