@@ -1,6 +1,6 @@
 namespace Collateral.CollateralVessels.Models;
 
-public class CollateralVessel : Aggregate<long>, ICollateralModel
+public class CollateralVessel : Aggregate<long>
 {
     public long CollatId { get; private set; } = default!;
     public CollateralProperty CollateralVesselProperty { get; private set; } = default!;
@@ -35,14 +35,6 @@ public class CollateralVessel : Aggregate<long>, ICollateralModel
             collateralVesselDetail,
             collateralVesselSize
         );
-    }
-
-    public void Update(ICollateralModel? collateral)
-    {
-        if (collateral is CollateralVessel collateralVessel)
-        {
-            Update(collateralVessel);
-        }
     }
 
     public void Update(CollateralVessel collateralVessel)

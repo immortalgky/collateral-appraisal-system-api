@@ -1,6 +1,6 @@
 namespace Collateral.CollateralProperties.Models;
 
-public class CollateralCondo : Entity<long>, ICollateralModel
+public class CollateralCondo : Entity<long>
 {
     public long CollatId { get; private set; }
     public string CondoName { get; private set; } = default!;
@@ -83,14 +83,6 @@ public class CollateralCondo : Entity<long>, ICollateralModel
             coordinate,
             owner
         );
-    }
-
-    public void Update(ICollateralModel? collateral)
-    {
-        if (collateral is CollateralCondo collateralCondo)
-        {
-            Update(collateralCondo);
-        }
     }
 
     public void Update(CollateralCondo collateralCondo)

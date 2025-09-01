@@ -1,6 +1,6 @@
 namespace Collateral.CollateralVehicles.Models;
 
-public class CollateralVehicle : Aggregate<long>, ICollateralModel
+public class CollateralVehicle : Aggregate<long>
 {
     public long CollatId { get; private set; } = default!;
     public CollateralProperty CollateralVehicleProperty { get; private set; } = default!;
@@ -40,14 +40,6 @@ public class CollateralVehicle : Aggregate<long>, ICollateralModel
             collateralVehicleSize,
             chassisNo
         );
-    }
-
-    public void Update(ICollateralModel? collateral)
-    {
-        if (collateral is CollateralVehicle collateralVehicle)
-        {
-            Update(collateralVehicle);
-        }
     }
 
     public void Update(CollateralVehicle collateralVehicle)

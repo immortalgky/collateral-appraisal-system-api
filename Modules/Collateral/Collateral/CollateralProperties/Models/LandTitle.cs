@@ -1,6 +1,6 @@
 namespace Collateral.CollateralProperties.Models;
 
-public class LandTitle : Entity<long>, ICollateralModel
+public class LandTitle : Entity<long>
 {
     public long CollatId { get; private set; }
     public int SeqNo { get; private set; }
@@ -83,14 +83,6 @@ public class LandTitle : Entity<long>, ICollateralModel
             pricePerSquareWa,
             governmentPrice
         );
-    }
-
-    public void Update(ICollateralModel? collateral)
-    {
-        if (collateral is LandTitle landTitle)
-        {
-            Update(landTitle);
-        }
     }
 
     public void Update(LandTitle landTitle)

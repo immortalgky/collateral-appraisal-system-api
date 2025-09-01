@@ -21,7 +21,6 @@ global using Shared.Exceptions;
 global using System.Reflection;
 
 global using Collateral.Data;
-global using Collateral.Collateral.Shared.Models;
 global using Collateral.Collateral.Shared.ValueObjects;
 global using Collateral.CollateralProperties.Models;
 global using Collateral.CollateralProperties.ValueObjects;

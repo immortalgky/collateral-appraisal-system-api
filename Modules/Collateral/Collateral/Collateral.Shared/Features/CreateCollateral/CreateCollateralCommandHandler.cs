@@ -11,16 +11,18 @@ public class CreateCollateralCommandHandler(ICollateralService collateralService
         _ = Enum.TryParse(command.CollatType, out CollateralType collatType);
         var collateralMaster = await collateralService.CreateCollateral(
             collatType,
-            new CollateralDto()
-            {
-                CollateralLand = command.CollateralLand,
-                LandTitles = command.LandTitles,
-                CollateralBuilding = command.CollateralBuilding,
-                CollateralCondo = command.CollateralCondo,
-                CollateralMachine = command.CollateralMachine,
-                CollateralVehicle = command.CollateralVehicle,
-                CollateralVessel = command.CollateralVessel,
-            },
+            new CollateralMasterDto(
+                0,
+                command.CollatType,
+                0,
+                command.CollateralLand,
+                command.LandTitles,
+                command.CollateralBuilding,
+                command.CollateralCondo,
+                command.CollateralMachine,
+                command.CollateralVehicle,
+                command.CollateralVessel
+            ),
             cancellationToken
         );
         return new CreateCollateralResult(collateralMaster.Id);

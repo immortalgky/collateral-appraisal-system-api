@@ -25,7 +25,7 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
 
     public async Task<CollateralMaster> CreateCollateral(
         CollateralType collatType,
-        CollateralDto collateral,
+        CollateralMasterDto collateral,
         CancellationToken cancellationToken = default
     )
     {
@@ -35,19 +35,14 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
         switch (collatType)
         {
             case CollateralType.Land:
-                var collateralLand = collateral.CollateralLand!.ToDomain(collateralMaster.Id);
-
-                var landTitles = collateral
-                    .LandTitles!.Select(dto => dto.ToDomain(collateralMaster.Id))
-                    .ToList();
-                collateralMaster.SetCollateralLand(collateralLand);
-                collateralMaster.SetLandTitles(landTitles);
+                CreateCollateralLand(collateralMaster, collateral);
                 break;
             case CollateralType.Building:
-                var collateralBuilding = collateral.CollateralBuilding!.ToDomain(
-                    collateralMaster.Id
-                );
-                collateralMaster.SetCollateralBuilding(collateralBuilding);
+                CreateCollateralBuilding(collateralMaster, collateral);
+                break;
+            case CollateralType.LandAndBuilding:
+                CreateCollateralLand(collateralMaster, collateral);
+                CreateCollateralBuilding(collateralMaster, collateral);
                 break;
             case CollateralType.Condo:
                 var collateralCondo = collateral.CollateralCondo!.ToDomain(collateralMaster.Id);
@@ -69,6 +64,27 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
         await collateralRepository.SaveChangesAsync(cancellationToken);
 
         return collateralMaster;
+    }
+
+    private static void CreateCollateralLand(
+        CollateralMaster collateralMaster,
+        CollateralMasterDto dto
+    )
+    {
+        var collateralLand = dto.CollateralLand!.ToDomain(collateralMaster.Id);
+
+        var landTitles = dto.LandTitles!.Select(dto => dto.ToDomain(collateralMaster.Id)).ToList();
+        collateralMaster.SetCollateralLand(collateralLand);
+        collateralMaster.SetLandTitles(landTitles);
+    }
+
+    private static void CreateCollateralBuilding(
+        CollateralMaster collateralMaster,
+        CollateralMasterDto dto
+    )
+    {
+        var collateralBuilding = dto.CollateralBuilding!.ToDomain(collateralMaster.Id);
+        collateralMaster.SetCollateralBuilding(collateralBuilding);
     }
 
     public async Task DeleteCollateral(long collatId, CancellationToken cancellationToken = default)

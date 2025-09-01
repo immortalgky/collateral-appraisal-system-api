@@ -10,7 +10,7 @@ public interface ICollateralService
     );
     Task<CollateralMaster> CreateCollateral(
         CollateralType collatType,
-        CollateralDto collateral,
+        CollateralMasterDto collateral,
         CancellationToken cancellationToken = default
     );
     Task DeleteCollateral(long collatId, CancellationToken cancellationToken = default);
