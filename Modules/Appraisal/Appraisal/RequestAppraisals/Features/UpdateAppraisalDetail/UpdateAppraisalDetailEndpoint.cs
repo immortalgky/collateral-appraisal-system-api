@@ -2,6 +2,7 @@ using Carter;
 using Mapster;
 using MediatR;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
 namespace Appraisal.RequestAppraisals.Features.UpdateAppraisalDetail;
@@ -11,7 +12,7 @@ public class UpdateAppraisalEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPut("/requests/collateral/appraisal/{apprId:long}",
-            async (UpdateAppraisalDetailRequest request, long apprId, ISender sender) =>
+            async ([FromBody] UpdateAppraisalDetailRequest request, long apprId, ISender sender) =>
             {
                 var command = new UpdateAppraisalDetailCommand(apprId, request.RequestAppraisal);
 

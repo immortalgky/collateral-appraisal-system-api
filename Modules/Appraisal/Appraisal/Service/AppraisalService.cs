@@ -4,6 +4,7 @@ using Mapster;
 using Appraisal.Exceptions;
 using Appraisal.RequestAppraisals.Features.GetAppraisalDetail;
 using Shared.Pagination;
+using Appraisal.RequestAppraisals.Features.GetAppraisalDetailById;
 
 namespace Appraisal.Service;
 
@@ -56,13 +57,11 @@ public class AppraisalService(IAppraisalRepository appraisalRepository) : IAppra
         await appraisalRepository.SaveChangesAsync(cancellationToken);
     }
 
-    public RequestAppraisal UpdateRequestAppraisalDetail(RequestAppraisalDto appraisalDto)
+    public async Task<RequestAppraisal> UpdateRequestAppraisalDetail(RequestAppraisalDto appraisalDto, long id, CancellationToken cancellationToken = default)
     {
-        var appraisalDetail = CreateRequestAppraisalDetail(appraisalDto, 0, 0);
-
-        var newAppraisalDetail = appraisalDetail.Update(appraisalDetail);
-
-        return newAppraisalDetail;
+        var existing = await GetRequestAppraisalDetailByIdAsync(id, cancellationToken);
+        existing.Update(appraisalDto);
+        return existing;
     }
 
     public async Task<PaginatedResult<RequestAppraisal>> GetRequestAppraisalDetailAsync(PaginationRequest pagination, CancellationToken cancellationToken = default!)

@@ -1,3 +1,5 @@
+using Appraisal.Contracts.Appraisals.Dto;
+using Appraisal.Extensions;
 using Appraisal.AppraisalProperties.ValueObjects;
 
 namespace Appraisal.AppraisalProperties.Models;
@@ -94,6 +96,31 @@ public class CondoAppraisalDetail : Entity<long>
         if (model.CondoAppraisalAreaDetails is not null)
         {
             _condoAppraisalAreaDetails.AddRange(model.CondoAppraisalAreaDetails);
+        }
+    }
+
+    // Overload: Update using DTO (map DTO -> ValueObjects)
+    public void Update(CondoAppraisalDetailDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        ObligationDetail = dto.ObligationDetail.ToEntity();
+        DocValidate = dto.DocValidate;
+        CondominiumLocation = dto.CondominiumLocation.ToEntity();
+        CondoAttribute = dto.CondoAttribute.ToEntity();
+        Expropriation = dto.Expropriation.ToEntity();
+        CondominiumFacility = dto.CondominiumFacility.ToEntity();
+        CondoPrice = dto.CondoPrice.ToEntity();
+        ForestBoundary = dto.ForestBoundary.ToEntity();
+        Remark = dto.Remark;
+
+        _condoAppraisalAreaDetails.Clear();
+        if (dto.CondoAppraisalAreaDetails is not null)
+        {
+            foreach (var a in dto.CondoAppraisalAreaDetails)
+            {
+                _condoAppraisalAreaDetails.Add(CondoAppraisalAreaDetail.Create(a.AreaDesc, a.AreaSize));
+            }
         }
     }
 }

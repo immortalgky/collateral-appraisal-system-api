@@ -1,3 +1,7 @@
+using Appraisal.Extensions;
+using Appraisal.AppraisalProperties.ValueObjects;
+using Appraisal.Appraisal.Shared.ValueObjects;
+
 namespace Appraisal.RequestAppraisals.Models;
 
 public class RequestAppraisal : Aggregate<long>
@@ -82,36 +86,193 @@ public class RequestAppraisal : Aggregate<long>
         VesselAppraisalDetail = vessel;
         return this;
     }
-    public RequestAppraisal Update(RequestAppraisal appraisal)
+    public RequestAppraisal Update(RequestAppraisalDto appraisal)
     {
         ArgumentNullException.ThrowIfNull(appraisal);
 
-        LandAppraisalDetail = UpdateDetail(LandAppraisalDetail, appraisal.LandAppraisalDetail);
-        BuildingAppraisalDetail = UpdateDetail(BuildingAppraisalDetail, appraisal.BuildingAppraisalDetail);
-        CondoAppraisalDetail = UpdateDetail(CondoAppraisalDetail, appraisal.CondoAppraisalDetail);
-        MachineAppraisalDetail = UpdateDetail(MachineAppraisalDetail, appraisal.MachineAppraisalDetail);
-        MachineAppraisalAdditionalInfo = UpdateDetail(MachineAppraisalAdditionalInfo, appraisal.MachineAppraisalAdditionalInfo);
-        VehicleAppraisalDetail = UpdateDetail(VehicleAppraisalDetail, appraisal.VehicleAppraisalDetail);
-        VesselAppraisalDetail = UpdateDetail(VesselAppraisalDetail, appraisal.VesselAppraisalDetail);
-
-        return this;
-    }
-
-    private static T? UpdateDetail<T>(T? current, T? updated) where T : class
-    {
-        if (current is not null && updated is not null && !updated.Equals(current))
+        if (appraisal.LandAppraisalDetail is not null)
         {
-            var updateMethod = current.GetType().GetMethod("Update");
-            if (updateMethod != null)
+            if (LandAppraisalDetail is null)
             {
-                updateMethod.Invoke(current, [updated]);
-                return current;
+                var d = appraisal.LandAppraisalDetail;
+                LandAppraisalDetail = LandAppraisalDetail.Create(
+                    d.ApprId,
+                    d.PropertyName ?? string.Empty,
+                    d.CheckOwner ?? string.Empty,
+                    d.Owner ?? string.Empty,
+                    d.ObligationDetail.ToEntity(),
+                    d.LandLocationDetail.ToEntity(),
+                    d.LandFillDetail.ToEntity(),
+                    d.LandAccessibilityDetail.ToEntity(),
+                    d.AnticipationOfProp,
+                    d.LandLimitation.ToEntity(),
+                    d.Eviction,
+                    d.Allocation,
+                    d.ConsecutiveArea.ToEntity(),
+                    d.LandMiscellaneousDetail.ToEntity());
+            }
+            else
+            {
+                LandAppraisalDetail.Update(appraisal.LandAppraisalDetail);
             }
         }
-        else if (current is null && updated is not null)
+
+        if (appraisal.BuildingAppraisalDetail is not null)
         {
-            return updated;
+            if (BuildingAppraisalDetail is null)
+            {
+                var d = appraisal.BuildingAppraisalDetail;
+                BuildingAppraisalDetail = BuildingAppraisalDetail.Create(
+                    d.ApprId,
+                    d.BuildingInformation.ToEntity(),
+                    d.BuildingTypeDetail.ToEntity(),
+                    d.DecorationDetail.ToEntity(),
+                    d.Encroachment.ToEntity(),
+                    d.BuildingConstructionInformation.ToEntity(),
+                    d.BuildingMaterial,
+                    d.BuildingStyle,
+                    d.ResidentialStatus.ToEntity(),
+                    d.BuildingStructureDetail.ToEntity(),
+                    d.UtilizationDetail.ToEntity(),
+                    d.Remark);
+                // surfaces & depreciation details appended via dedicated Update(dto)
+                BuildingAppraisalDetail.Update(d);
+            }
+            else
+            {
+                BuildingAppraisalDetail.Update(appraisal.BuildingAppraisalDetail);
+            }
         }
-        return current;
+
+        if (appraisal.CondoAppraisalDetail is not null)
+        {
+            if (CondoAppraisalDetail is null)
+            {
+                var d = appraisal.CondoAppraisalDetail;
+                CondoAppraisalDetail = CondoAppraisalDetail.Create(
+                    d.ApprId,
+                    d.ObligationDetail.ToEntity(),
+                    d.DocValidate,
+                    d.CondominiumLocation.ToEntity(),
+                    d.CondoAttribute.ToEntity(),
+                    d.Expropriation.ToEntity(),
+                    d.CondominiumFacility.ToEntity(),
+                    d.CondoPrice.ToEntity(),
+                    d.ForestBoundary.ToEntity(),
+                    d.Remark);
+                CondoAppraisalDetail.Update(d);
+            }
+            else
+            {
+                CondoAppraisalDetail.Update(appraisal.CondoAppraisalDetail);
+            }
+        }
+
+        if (appraisal.MachineAppraisalDetail is not null)
+        {
+            if (MachineAppraisalDetail is null)
+            {
+                var d = appraisal.MachineAppraisalDetail;
+                MachineAppraisalDetail = MachineAppraisalDetail.Create(
+                    d.ApprId,
+                    AppraisalDetail.Create(
+                        d.MachineAppraisalDetail.CanUse,
+                        d.MachineAppraisalDetail.Location,
+                        d.MachineAppraisalDetail.ConditionUse,
+                        d.MachineAppraisalDetail.UsePurpose,
+                        d.MachineAppraisalDetail.Part,
+                        d.MachineAppraisalDetail.Remark,
+                        d.MachineAppraisalDetail.Other,
+                        d.MachineAppraisalDetail.AppraiserOpinion));
+            }
+            else
+            {
+                MachineAppraisalDetail.Update(appraisal.MachineAppraisalDetail);
+            }
+        }
+
+        if (appraisal.MachineAppraisalAdditionalInfo is not null)
+        {
+            if (MachineAppraisalAdditionalInfo is null)
+            {
+                var d = appraisal.MachineAppraisalAdditionalInfo;
+                var purpose = PurposeAndLocationMachine.Create(
+                    d.Assignment ?? string.Empty,
+                    d.ApprCollatPurpose ?? string.Empty,
+                    d.ApprDate ?? string.Empty,
+                    d.ApprCollatType ?? string.Empty);
+                var machineDetail = MachineDetail.Create(
+                    GeneralMachinery.Crate(d.Industrial, d.SurveyNo, d.ApprNo),
+                    AtSurveyDate.Create(
+                        d.Installed ?? 0,
+                        d.ApprScrap ?? string.Empty,
+                        d.NoOfAppraise ?? 0,
+                        d.NotInstalled ?? 0,
+                        d.Maintenance ?? string.Empty,
+                        d.Exterior ?? string.Empty,
+                        d.Performance ?? string.Empty,
+                        d.MarketDemand ?? false,
+                        d.MarketDemandRemark ?? string.Empty),
+                    RightsAndConditionsOfLegalRestrictions.Crate(
+                        d.Proprietor ?? string.Empty,
+                        d.Owner ?? string.Empty,
+                        d.MachineLocation ?? string.Empty,
+                        d.Obligation ?? string.Empty,
+                        d.Other ?? string.Empty));
+                MachineAppraisalAdditionalInfo = MachineAppraisalAdditionalInfo.Create(d.ApprId, purpose, machineDetail);
+            }
+            else
+            {
+                MachineAppraisalAdditionalInfo.Update(appraisal.MachineAppraisalAdditionalInfo);
+            }
+        }
+
+        if (appraisal.VehicleAppraisalDetail is not null)
+        {
+            if (VehicleAppraisalDetail is null)
+            {
+                var d = appraisal.VehicleAppraisalDetail;
+                VehicleAppraisalDetail = VehicleAppraisalDetail.Create(
+                    d.ApprId,
+                    AppraisalDetail.Create(
+                        d.AppraisalDetail.CanUse,
+                        d.AppraisalDetail.Location,
+                        d.AppraisalDetail.ConditionUse,
+                        d.AppraisalDetail.UsePurpose,
+                        d.AppraisalDetail.Part,
+                        d.AppraisalDetail.Remark,
+                        d.AppraisalDetail.Other,
+                        d.AppraisalDetail.AppraiserOpinion));
+            }
+            else
+            {
+                VehicleAppraisalDetail.Update(appraisal.VehicleAppraisalDetail);
+            }
+        }
+
+        if (appraisal.VesselAppraisalDetail is not null)
+        {
+            if (VesselAppraisalDetail is null)
+            {
+                var d = appraisal.VesselAppraisalDetail;
+                VesselAppraisalDetail = VesselAppraisalDetail.Create(
+                    d.ApprId,
+                    AppraisalDetail.Create(
+                        d.AppraisalDetail.CanUse,
+                        d.AppraisalDetail.Location,
+                        d.AppraisalDetail.ConditionUse,
+                        d.AppraisalDetail.UsePurpose,
+                        d.AppraisalDetail.Part,
+                        d.AppraisalDetail.Remark,
+                        d.AppraisalDetail.Other,
+                        d.AppraisalDetail.AppraiserOpinion));
+            }
+            else
+            {
+                VesselAppraisalDetail.Update(appraisal.VesselAppraisalDetail);
+            }
+        }
+
+        return this;
     }
 }

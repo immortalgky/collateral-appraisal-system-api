@@ -1,3 +1,5 @@
+using Appraisal.Contracts.Appraisals.Dto;
+using Appraisal.Extensions;
 using Appraisal.AppraisalProperties.ValueObjects;
 
 namespace Appraisal.AppraisalProperties.Models;
@@ -91,34 +93,60 @@ public class BuildingAppraisalDetail : Entity<long>
             remark
         );
     }
-
-    public void Update(BuildingAppraisalDetail model)
+    public void Update(BuildingAppraisalDetailDto dto)
     {
-        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(dto);
 
-        BuildingInformation = model.BuildingInformation;
-        BuildingTypeDetail = model.BuildingTypeDetail;
-        DecorationDetail = model.DecorationDetail;
-        Encroachment = model.Encroachment;
-        BuildingConstructionInformation = model.BuildingConstructionInformation;
-        BuildingMaterial = model.BuildingMaterial;
-        BuildingStyle = model.BuildingStyle;
-        ResidentialStatus = model.ResidentialStatus;
-        BuildingStructureDetail = model.BuildingStructureDetail;
-        UtilizationDetail = model.UtilizationDetail;
-        Remark = model.Remark;
+        BuildingInformation = dto.BuildingInformation.ToEntity();
+        BuildingTypeDetail = dto.BuildingTypeDetail.ToEntity();
+        DecorationDetail = dto.DecorationDetail.ToEntity();
+        Encroachment = dto.Encroachment.ToEntity();
+        BuildingConstructionInformation = dto.BuildingConstructionInformation.ToEntity();
+        BuildingMaterial = dto.BuildingMaterial;
+        BuildingStyle = dto.BuildingStyle;
+        ResidentialStatus = dto.ResidentialStatus.ToEntity();
+        BuildingStructureDetail = dto.BuildingStructureDetail.ToEntity();
+        UtilizationDetail = dto.UtilizationDetail.ToEntity();
+        Remark = dto.Remark;
 
-        // Collections: replace content (VO entities)
         _buildingAppraisalSurfaces.Clear();
-        if (model.BuildingAppraisalSurfaces is not null)
+        if (dto.BuildingAppraisalSurfaces is not null)
         {
-            _buildingAppraisalSurfaces.AddRange(model.BuildingAppraisalSurfaces);
+            foreach (var s in dto.BuildingAppraisalSurfaces)
+            {
+                _buildingAppraisalSurfaces.Add(BuildingAppraisalSurface.Create(
+                    s.FromFloorNo,
+                    s.ToFloorNo,
+                    s.FloorType,
+                    s.FloorStructure,
+                    s.FloorStructureOther,
+                    s.FloorSurface,
+                    s.FloorSurfaceOther));
+            }
         }
 
         _buildingAppraisalDepreciationDetails.Clear();
-        if (model.BuildingAppraisalDepreciationDetails is not null)
+        if (dto.BuildingAppraisalDepreciationDetails is not null)
         {
-            _buildingAppraisalDepreciationDetails.AddRange(model.BuildingAppraisalDepreciationDetails);
+            foreach (var d in dto.BuildingAppraisalDepreciationDetails)
+            {
+                var detail = BuildingAppraisalDepreciationDetail.Create(
+                    d.AreaDesc,
+                    d.Area,
+                    d.PricePerSqM,
+                    d.PriceBeforeDegradation,
+                    d.Year,
+                    d.DegradationYearPct,
+                    d.TotalDegradationPct,
+                    d.PriceDegradation,
+                    d.TotalPrice,
+                    d.AppraisalMethod
+                );
+
+                // Note: Value object 'detail' contains its own periods collection; if the VO supports composition set here accordingly
+                _buildingAppraisalDepreciationDetails.Add(detail);
+                // If VO needs periods association method, call it here (not present in current VO definition)
+            }
         }
     }
 }

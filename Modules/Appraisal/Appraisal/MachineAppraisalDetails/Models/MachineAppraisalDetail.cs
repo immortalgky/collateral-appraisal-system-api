@@ -1,3 +1,5 @@
+using Appraisal.Contracts.Appraisals.Dto;
+using Appraisal.Appraisal.Shared.ValueObjects;
 namespace Appraisal.MachineAppraisalDetails.Models;
 
 public class MachineAppraisalDetail : Entity<long>
@@ -32,5 +34,22 @@ public class MachineAppraisalDetail : Entity<long>
     {
         ArgumentNullException.ThrowIfNull(model);
         AppraisalDetail = model.AppraisalDetail;
+    }
+
+    // Overload: Update using DTO (map DTO -> ValueObjects)
+    public void Update(MachineAppraisalDetailDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+        var vo = AppraisalDetail.Create(
+            dto.MachineAppraisalDetail.CanUse,
+            dto.MachineAppraisalDetail.Location,
+            dto.MachineAppraisalDetail.ConditionUse,
+            dto.MachineAppraisalDetail.UsePurpose,
+            dto.MachineAppraisalDetail.Part,
+            dto.MachineAppraisalDetail.Remark,
+            dto.MachineAppraisalDetail.Other,
+            dto.MachineAppraisalDetail.AppraiserOpinion
+        );
+        AppraisalDetail = vo;
     }
 }
