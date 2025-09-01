@@ -115,6 +115,9 @@ public class CollateralMaster : Aggregate<long>
         var newLandTitleSet = new HashSet<LandTitle>(newLandTitles, comparer);
 
         LandTitles.RemoveAll(landTitle => !newLandTitleSet.Contains(landTitle));
+
+        // Even if the input has new land titles with duplicated id
+        // All of them will still be added (because we don't use the hash set when adding)
         foreach (var newLandTitle in newLandTitles)
         {
             if (landTitleDict.TryGetValue(newLandTitle.Id, out LandTitle? landTitle))
@@ -123,6 +126,7 @@ public class CollateralMaster : Aggregate<long>
             }
             else
             {
+                newLandTitle.Id = 0;
                 LandTitles.Add(newLandTitle);
             }
         }

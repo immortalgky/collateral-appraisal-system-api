@@ -66,6 +66,7 @@ public static class DtoExtensions
     {
         return LandTitle.Create(
             collatId,
+            dto.Id,
             dto.SeqNo,
             dto.LandTitleDocumentDetail.ToDomain(),
             dto.LandTitleArea.ToDomain(),
@@ -209,6 +210,7 @@ public static class DtoExtensions
     public static LandTitleDto ToDto(this LandTitle domain)
     {
         return new LandTitleDto(
+            domain.Id,
             domain.SeqNo,
             domain.LandTitleDocumentDetail.ToDto(),
             domain.LandTitleArea.ToDto(),

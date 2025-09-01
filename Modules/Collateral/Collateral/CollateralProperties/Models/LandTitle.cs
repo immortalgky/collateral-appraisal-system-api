@@ -23,6 +23,7 @@ public class LandTitle : Entity<long>
     )]
     private LandTitle(
         long collatId,
+        long id,
         int seqNo,
         LandTitleDocumentDetail landTitleDocumentDetail,
         LandTitleArea landTitleArea,
@@ -37,6 +38,7 @@ public class LandTitle : Entity<long>
     )
     {
         CollatId = collatId;
+        Id = id;
         SeqNo = seqNo;
         LandTitleDocumentDetail = landTitleDocumentDetail;
         LandTitleArea = landTitleArea;
@@ -56,6 +58,7 @@ public class LandTitle : Entity<long>
     )]
     public static LandTitle Create(
         long collatId,
+        long id,
         int seqNo,
         LandTitleDocumentDetail landTitleDocumentDetail,
         LandTitleArea landTitleArea,
@@ -71,6 +74,7 @@ public class LandTitle : Entity<long>
     {
         return new LandTitle(
             collatId,
+            id,
             seqNo,
             landTitleDocumentDetail,
             landTitleArea,
