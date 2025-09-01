@@ -8,7 +8,7 @@ internal class CreateAppraisalDetailCommandHandler(IAppraisalService appraisalSe
 {
     public async Task<CreateAppraisalDetailResult> Handle(CreateAppraisalDetailCommand command, CancellationToken cancellationToken)
     {
-        var appraisal = appraisalService.CreateRequestAppraisalDetail(command.Appraisal, command.RequestId, command.RequestId);
+        var appraisal = appraisalService.CreateRequestAppraisalDetail(command.Appraisal, command.RequestId, command.CollateralId);
 
         await appraisalService.AddRequestAppraisalDetailAsync(appraisal, cancellationToken);
 

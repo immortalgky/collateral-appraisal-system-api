@@ -99,21 +99,21 @@ public class AppraisalService(IAppraisalRepository appraisalRepository) : IAppra
 
     private static void AttachLand(RequestAppraisalDto appraisal, RequestAppraisal result)
     {
-        if (appraisal.LandAppraisalDetail is null) throw new RequestAppraisalDetailIsNulLException("Land");
+        if (appraisal.LandAppraisalDetail is null) throw new RequestAppraisalDetailIsNullException("Land");
         var land = appraisal.LandAppraisalDetail;
         result.WithLand(land.ToAggregate());
     }
 
     private static void AttachBuilding(RequestAppraisalDto appraisal, RequestAppraisal result)
     {
-        if (appraisal.BuildingAppraisalDetail is null) throw new RequestAppraisalDetailIsNulLException("Land");
+        if (appraisal.BuildingAppraisalDetail is null) throw new RequestAppraisalDetailIsNullException("Building");
         var building = appraisal.BuildingAppraisalDetail;
         result.WithBuilding(building.ToAggregate());
     }
 
     private static void AttachCondo(RequestAppraisalDto appraisal, RequestAppraisal result)
     {
-        if (appraisal.CondoAppraisalDetail is null) throw new RequestAppraisalDetailIsNulLException("Condo");
+        if (appraisal.CondoAppraisalDetail is null) throw new RequestAppraisalDetailIsNullException("Condo");
         var condo = appraisal.CondoAppraisalDetail;
         result.WithCondo(condo.ToAggregate());
     }
@@ -121,7 +121,7 @@ public class AppraisalService(IAppraisalRepository appraisalRepository) : IAppra
     private static void AttachLandAndBuilding(RequestAppraisalDto appraisal, RequestAppraisal result)
     {
         if (appraisal.LandAppraisalDetail is null || appraisal.BuildingAppraisalDetail is null)
-            throw new RequestAppraisalDetailIsNulLException("LandAndHouse");
+            throw new RequestAppraisalDetailIsNullException("LandAndHouse");
 
         var land = appraisal.LandAppraisalDetail;
         var building = appraisal.BuildingAppraisalDetail;
@@ -131,28 +131,28 @@ public class AppraisalService(IAppraisalRepository appraisalRepository) : IAppra
 
     private static void AttachMachine(RequestAppraisalDto appraisal, RequestAppraisal result)
     {
-        if (appraisal.MachineAppraisalDetail is null) throw new RequestAppraisalDetailIsNulLException("Machine");
+        if (appraisal.MachineAppraisalDetail is null) throw new RequestAppraisalDetailIsNullException("Machine");
         var machine = appraisal.MachineAppraisalDetail;
         result.WithMachine(machine.ToAggregate());
     }
 
     private static void AttachMachineAdditional(RequestAppraisalDto appraisal, RequestAppraisal result)
     {
-        if (appraisal.MachineAppraisalAdditionalInfo is null) throw new RequestAppraisalDetailIsNulLException("MachineInfo");
+        if (appraisal.MachineAppraisalAdditionalInfo is null) throw new RequestAppraisalDetailIsNullException("MachineInfo");
         var machineInfo = appraisal.MachineAppraisalAdditionalInfo;
         result.WithMachineInfo(machineInfo.ToAggregate());
     }
 
     private static void AttachVehicle(RequestAppraisalDto appraisal, RequestAppraisal result)
     {
-        if (appraisal.VehicleAppraisalDetail is null) throw new RequestAppraisalDetailIsNulLException("Vehicle");
+        if (appraisal.VehicleAppraisalDetail is null) throw new RequestAppraisalDetailIsNullException("Vehicle");
         var vehicle = appraisal.VehicleAppraisalDetail;
         result.WithVehicle(vehicle.ToAggregate());
     }
 
     private static void AttachVessel(RequestAppraisalDto appraisal, RequestAppraisal result)
     {
-        if (appraisal.VesselAppraisalDetail is null) throw new RequestAppraisalDetailIsNulLException("Vessel");
+        if (appraisal.VesselAppraisalDetail is null) throw new RequestAppraisalDetailIsNullException("Vessel");
         var vessel = appraisal.VesselAppraisalDetail;
         result.WithVessel(vessel.ToAggregate());
     }
