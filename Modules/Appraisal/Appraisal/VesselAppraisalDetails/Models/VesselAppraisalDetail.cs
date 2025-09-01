@@ -25,4 +25,10 @@ public class VesselAppraisalDetail : Entity<long>
             appraisalDetail
         );
     }
+
+    public void Update(VesselAppraisalDetail model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        AppraisalDetail = model.AppraisalDetail;
+    }
 }

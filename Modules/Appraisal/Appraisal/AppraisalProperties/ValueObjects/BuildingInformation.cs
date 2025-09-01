@@ -15,10 +15,10 @@ public class BuildingInformation : ValueObject
     private BuildingInformation(
         string noHouseNumber,
         decimal? landArea,
-        string buildingCondition,
-        string buildingStatus,
+        string? buildingCondition,
+        string? buildingStatus,
         DateTime? licenseExpirationDate,
-        string isAppraise,
+        string? isAppraise,
         ObligationDetail obligationDetail
     )
     {
@@ -34,10 +34,10 @@ public class BuildingInformation : ValueObject
     public static BuildingInformation Create(
         string noHouseNumber,
         decimal? landArea,
-        string buildingCondition,
-        string buildingStatus,
+        string? buildingCondition,
+        string? buildingStatus,
         DateTime? licenseExpirationDate,
-        string isAppraise,
+        string? isAppraise,
         ObligationDetail obligationDetail
     )
     {
@@ -51,4 +51,24 @@ public class BuildingInformation : ValueObject
             obligationDetail
         );
     }
+    public void Update(BuildingInformation buildingInformation)
+    {
+        RuleCheck.Valid()
+            .AddErrorIf(!IsEmpty() && !IsPropertyEmpty(buildingInformation) && !StructuralEquals(buildingInformation),
+                "Cannot Update Detail When Building Information Noting Change")
+            .ThrowIfInvalid();
+
+        var newBuildingInformation = BuildingInformation.Create(
+            buildingInformation.NoHouseNumber,
+            buildingInformation.LandArea,
+            buildingInformation.BuildingCondition,
+            buildingInformation.BuildingStatus,
+            buildingInformation.LicenseExpirationDate,
+            buildingInformation.IsAppraise,
+            buildingInformation.ObligationDetail
+        );
+
+        
+    }
+    
 }

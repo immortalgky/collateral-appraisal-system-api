@@ -27,4 +27,10 @@ public class MachineAppraisalDetail : Entity<long>
             appraisalDetail
         );
     }
+
+    public void Update(MachineAppraisalDetail model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        AppraisalDetail = model.AppraisalDetail;
+    }
 }

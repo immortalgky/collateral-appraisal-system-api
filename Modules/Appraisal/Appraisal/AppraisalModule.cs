@@ -1,9 +1,16 @@
+using Appraisal.Data.Repository;
+using Appraisal.Service;
+
 namespace Appraisal;
 
 public static class AppraisalModule
 {
     public static IServiceCollection AddAppraisalModule(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddScoped<IAppraisalRepository, AppraisalRepository>();
+
+        services.AddScoped<IAppraisalService, AppraisalService>();
+
         services.AddDbContext<AppraisalDbContext>((sp, options) =>
         {
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());

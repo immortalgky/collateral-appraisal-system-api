@@ -1,0 +1,3 @@
+namespace Appraisal.RequestAppraisals.Features.CreateAppraisalDetail;
+
+public record CreateAppraisalDetailResponse(RequestAppraisalDto Appraisal);

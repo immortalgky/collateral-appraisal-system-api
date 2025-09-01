@@ -24,8 +24,7 @@ public class BuildingAppraisalDetail : Entity<long>
         _buildingAppraisalSurfaces.AsReadOnly();
 
     // BuildingAppraisalDepreciationDetail
-    private readonly List<BuildingAppraisalDepreciationDetail> _buildingAppraisalDepreciationDetails =
-    [];
+    private readonly List<BuildingAppraisalDepreciationDetail> _buildingAppraisalDepreciationDetails = [];
     public IReadOnlyList<BuildingAppraisalDepreciationDetail> BuildingAppraisalDepreciationDetails =>
         _buildingAppraisalDepreciationDetails.AsReadOnly();
 
@@ -91,5 +90,35 @@ public class BuildingAppraisalDetail : Entity<long>
             utilizationDetail,
             remark
         );
+    }
+
+    public void Update(BuildingAppraisalDetail model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        BuildingInformation = model.BuildingInformation;
+        BuildingTypeDetail = model.BuildingTypeDetail;
+        DecorationDetail = model.DecorationDetail;
+        Encroachment = model.Encroachment;
+        BuildingConstructionInformation = model.BuildingConstructionInformation;
+        BuildingMaterial = model.BuildingMaterial;
+        BuildingStyle = model.BuildingStyle;
+        ResidentialStatus = model.ResidentialStatus;
+        BuildingStructureDetail = model.BuildingStructureDetail;
+        UtilizationDetail = model.UtilizationDetail;
+        Remark = model.Remark;
+
+        // Collections: replace content (VO entities)
+        _buildingAppraisalSurfaces.Clear();
+        if (model.BuildingAppraisalSurfaces is not null)
+        {
+            _buildingAppraisalSurfaces.AddRange(model.BuildingAppraisalSurfaces);
+        }
+
+        _buildingAppraisalDepreciationDetails.Clear();
+        if (model.BuildingAppraisalDepreciationDetails is not null)
+        {
+            _buildingAppraisalDepreciationDetails.AddRange(model.BuildingAppraisalDepreciationDetails);
+        }
     }
 }

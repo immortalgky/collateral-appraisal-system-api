@@ -47,14 +47,6 @@ public class AppraisalDetail : ValueObject
             string? appraiserOpinion
         )
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(location);
-        ArgumentException.ThrowIfNullOrWhiteSpace(conditionUse);
-        ArgumentException.ThrowIfNullOrWhiteSpace(usePurpose);
-        ArgumentException.ThrowIfNullOrWhiteSpace(part);
-        ArgumentException.ThrowIfNullOrWhiteSpace(remark);
-        ArgumentException.ThrowIfNullOrWhiteSpace(other);
-        ArgumentException.ThrowIfNullOrWhiteSpace(appraiserOpinion);
-
         return new AppraisalDetail(
             canUse,
             location,

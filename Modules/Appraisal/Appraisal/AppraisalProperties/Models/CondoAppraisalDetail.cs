@@ -75,4 +75,25 @@ public class CondoAppraisalDetail : Entity<long>
             remark
         );
     }
+
+    public void Update(CondoAppraisalDetail model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        ObligationDetail = model.ObligationDetail;
+        DocValidate = model.DocValidate;
+        CondominiumLocation = model.CondominiumLocation;
+        CondoAttribute = model.CondoAttribute;
+        Expropriation = model.Expropriation;
+        CondominiumFacility = model.CondominiumFacility;
+        CondoPrice = model.CondoPrice;
+        ForestBoundary = model.ForestBoundary;
+        Remark = model.Remark;
+
+        _condoAppraisalAreaDetails.Clear();
+        if (model.CondoAppraisalAreaDetails is not null)
+        {
+            _condoAppraisalAreaDetails.AddRange(model.CondoAppraisalAreaDetails);
+        }
+    }
 }

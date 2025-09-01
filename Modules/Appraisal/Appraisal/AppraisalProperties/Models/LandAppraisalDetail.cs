@@ -90,4 +90,24 @@ public class LandAppraisalDetail : Entity<long>
             landMiscellaneousDetail
         );
     }
+
+    public void Update(LandAppraisalDetail model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        PropertyName = model.PropertyName;
+        CheckOwner = model.CheckOwner;
+        Owner = model.Owner;
+        AnticipationOfProp = model.AnticipationOfProp;
+        Eviction = model.Eviction;
+        Allocation = model.Allocation;
+
+        ObligationDetail = model.ObligationDetail;
+        LandLocationDetail = model.LandLocationDetail;
+        LandFillDetail = model.LandFillDetail;
+        LandAccessibilityDetail = model.LandAccessibilityDetail;
+        LandLimitation = model.LandLimitation;
+        ConsecutiveArea = model.ConsecutiveArea;
+        LandMiscellaneousDetail = model.LandMiscellaneousDetail;
+    }
 }

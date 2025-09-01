@@ -32,4 +32,11 @@ public class MachineAppraisalAdditionalInfo : Entity<long>
             machineDetail
         );
     }
+
+    public void Update(MachineAppraisalAdditionalInfo model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        PurposeAndLocationMachine = model.PurposeAndLocationMachine;
+        MachineDetail = model.MachineDetail;
+    }
 }
