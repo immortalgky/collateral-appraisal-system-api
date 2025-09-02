@@ -1,5 +1,3 @@
-using Appraisal.Contracts.Appraisals.Dto;
-using Appraisal.Appraisal.Shared.ValueObjects;
 namespace Appraisal.MachineAppraisalDetails.Models;
 
 public class MachineAppraisalDetail : Entity<long>

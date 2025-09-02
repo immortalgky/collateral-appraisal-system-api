@@ -1,4 +1,3 @@
-using Appraisal.Contracts.Appraisals.Dto;
 using Appraisal.Extensions;
 using Appraisal.AppraisalProperties.ValueObjects;
 

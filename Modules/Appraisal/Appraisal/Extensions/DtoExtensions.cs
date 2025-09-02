@@ -35,14 +35,42 @@ public static class DtoExtensions
             dto.ResidentialStatus.ToEntity(),
             dto.BuildingStructureDetail.ToEntity(),
             dto.UtilizationDetail.ToEntity(),
-            dto.Remark
-        );
-    public static CondoAppraisalAreaDetail ToAggregate(this CondoAppraisalAreaDetailDto dto) =>
-        CondoAppraisalAreaDetail.Create(
-            dto.AreaDesc,
-            dto.AreaSize
+            dto.Remark,
+            dto.BuildingAppraisalSurfaces.Select(serface => serface.ToEntity()).ToList(),
+            dto.BuildingAppraisalDepreciationDetails.Select(depreciation => depreciation.ToEntity()).ToList()
         );
 
+    public static BuildingAppraisalDepreciationDetail ToEntity(this BuildingAppraisalDepreciationDetailDto dto) =>
+        BuildingAppraisalDepreciationDetail.Create(
+            dto.AreaDesc,
+            dto.Area,
+            dto.PricePerSqM,
+            dto.PriceBeforeDegradation,
+            dto.Year,
+            dto.DegradationYearPct,
+            dto.TotalDegradationPct,
+            dto.PriceDegradation,
+            dto.TotalPrice,
+            dto.AppraisalMethod,
+            dto.BuildingAppraisalDepreciationPeriods.Select(s => s.ToEntity()).ToList()
+        );
+
+    public static BuildingAppraisalDepreciationPeriod ToEntity(this BuildingAppraisalDepreciationPeriodDto dto) =>
+        BuildingAppraisalDepreciationPeriod.Create(
+            dto.AtYear,
+            dto.DepreciationPerYear
+        );
+
+    public static BuildingAppraisalSurface ToEntity(this BuildingAppraisalSurfaceDto dto) =>
+        BuildingAppraisalSurface.Create(
+            dto.FromFloorNo,
+            dto.ToFloorNo,
+            dto.FloorType,
+            dto.FloorStructure,
+            dto.FloorStructureOther,
+            dto.FloorSurface,
+            dto.FloorSurfaceOther
+        );
     public static MachineAppraisalDetail ToAggregate(this MachineAppraisalDetailDto dto) =>
         MachineAppraisalDetail.Create(
             dto.ApprId,
@@ -61,8 +89,9 @@ public static class DtoExtensions
             dto.AppraisalDetail.ToEntity()
         );
 
-    public static CondoAppraisalDetail ToAggregate(this CondoAppraisalDetailDto dto) =>
-        CondoAppraisalDetail.Create(
+    public static CondoAppraisalDetail ToAggregate(this CondoAppraisalDetailDto dto)
+    {
+        return CondoAppraisalDetail.Create(
             dto.ApprId,
             dto.ObligationDetail.ToEntity(),
             dto.DocValidate,
@@ -72,8 +101,10 @@ public static class DtoExtensions
             dto.CondominiumFacility.ToEntity(),
             dto.CondoPrice.ToEntity(),
             dto.ForestBoundary.ToEntity(),
-            dto.Remark
+            dto.Remark,
+            dto.CondoAppraisalAreaDetails.Select(condo => condo.ToEntity()).ToList()
         );
+    }
 
     public static MachineAppraisalAdditionalInfo ToAggregate(this MachineAppraisalAdditionalInfoDto dto)
     {
@@ -155,6 +186,12 @@ public static class DtoExtensions
             dto.GeneralMachinery.ToEntity(),
             dto.AtSurveyDate.ToEntity(),
             dto.RightsAndConditionsOfLegalRestrictions.ToEntity()
+        );
+
+    public static CondoAppraisalAreaDetail ToEntity(this CondoAppraisalAreaDetailDto dto) =>
+        CondoAppraisalAreaDetail.Create(
+            dto.AreaDesc,
+            dto.AreaSize
         );
 
     public static CondominiumLocation ToEntity(this CondominiumLocationDto dto) =>

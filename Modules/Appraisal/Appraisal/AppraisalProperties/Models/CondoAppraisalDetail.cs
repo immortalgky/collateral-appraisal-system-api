@@ -35,7 +35,8 @@ public class CondoAppraisalDetail : Entity<long>
         CondominiumFacility condominiumFacility,
         CondoPrice condoPrice,
         ForestBoundary forestBoundary,
-        string? remark
+        string? remark,
+        List<CondoAppraisalAreaDetail> condoAppraisalAreaDetails
     )
     {
         ApprId = apprId;
@@ -48,6 +49,8 @@ public class CondoAppraisalDetail : Entity<long>
         CondoPrice = condoPrice;
         ForestBoundary = forestBoundary;
         Remark = remark;
+
+        _condoAppraisalAreaDetails.AddRange(condoAppraisalAreaDetails);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
@@ -61,9 +64,10 @@ public class CondoAppraisalDetail : Entity<long>
         CondominiumFacility condominiumFacility,
         CondoPrice condoPrice,
         ForestBoundary forestBoundary,
-        string? remark
+        string? remark,
+        List<CondoAppraisalAreaDetail> condoAppraisalAreaDetails
     )
-    {
+    { 
         return new CondoAppraisalDetail(
             apprId,
             obligationDetail,
@@ -74,7 +78,8 @@ public class CondoAppraisalDetail : Entity<long>
             condominiumFacility,
             condoPrice,
             forestBoundary,
-            remark
+            remark,
+            condoAppraisalAreaDetails
         );
     }
 

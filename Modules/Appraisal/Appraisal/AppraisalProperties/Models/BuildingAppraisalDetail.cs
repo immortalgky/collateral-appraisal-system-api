@@ -45,7 +45,9 @@ public class BuildingAppraisalDetail : Entity<long>
         ResidentialStatus residentialStatus,
         BuildingStructureDetail buildingStructureDetail,
         UtilizationDetail utilizationDetail,
-        string? remark
+        string? remark,
+        List<BuildingAppraisalSurface> buildingAppraisalSurfaces,
+        List<BuildingAppraisalDepreciationDetail> buildingAppraisalDepreciationDetails
     )
     {
         ApprId = apprId;
@@ -60,6 +62,10 @@ public class BuildingAppraisalDetail : Entity<long>
         BuildingStructureDetail = buildingStructureDetail;
         UtilizationDetail = utilizationDetail;
         Remark = remark;
+
+        _buildingAppraisalSurfaces.AddRange(buildingAppraisalSurfaces);
+        _buildingAppraisalDepreciationDetails.AddRange(buildingAppraisalDepreciationDetails);
+
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
@@ -75,7 +81,9 @@ public class BuildingAppraisalDetail : Entity<long>
         ResidentialStatus residentialStatus,
         BuildingStructureDetail buildingStructureDetail,
         UtilizationDetail utilizationDetail,
-        string? remark
+        string? remark,
+        List<BuildingAppraisalSurface> buildingAppraisalSurfaces,
+        List<BuildingAppraisalDepreciationDetail> buildingAppraisalDepreciationDetails
     )
     {
         return new BuildingAppraisalDetail(
@@ -90,7 +98,9 @@ public class BuildingAppraisalDetail : Entity<long>
             residentialStatus,
             buildingStructureDetail,
             utilizationDetail,
-            remark
+            remark,
+            buildingAppraisalSurfaces,
+            buildingAppraisalDepreciationDetails
         );
     }
     public void Update(BuildingAppraisalDetailDto dto)
@@ -108,45 +118,48 @@ public class BuildingAppraisalDetail : Entity<long>
         BuildingStructureDetail = dto.BuildingStructureDetail.ToEntity();
         UtilizationDetail = dto.UtilizationDetail.ToEntity();
         Remark = dto.Remark;
+        UpdateBuildingAppraisalSurfaces(dto.BuildingAppraisalSurfaces);
+        UpdateBuildingAppraisalDepreciationDetails(dto.BuildingAppraisalDepreciationDetails);
+    }
 
+    private void UpdateBuildingAppraisalSurfaces(IEnumerable<BuildingAppraisalSurfaceDto>? buildingAppraisalSurfaces)
+    {
         _buildingAppraisalSurfaces.Clear();
-        if (dto.BuildingAppraisalSurfaces is not null)
+        if (buildingAppraisalSurfaces is null) return;
+        foreach (var s in buildingAppraisalSurfaces)
         {
-            foreach (var s in dto.BuildingAppraisalSurfaces)
-            {
-                _buildingAppraisalSurfaces.Add(BuildingAppraisalSurface.Create(
-                    s.FromFloorNo,
-                    s.ToFloorNo,
-                    s.FloorType,
-                    s.FloorStructure,
-                    s.FloorStructureOther,
-                    s.FloorSurface,
-                    s.FloorSurfaceOther));
-            }
+            _buildingAppraisalSurfaces.Add(BuildingAppraisalSurface.Create(
+                s.FromFloorNo,
+                s.ToFloorNo,
+                s.FloorType,
+                s.FloorStructure,
+                s.FloorStructureOther,
+                s.FloorSurface,
+                s.FloorSurfaceOther));
         }
+    }
 
+    private void UpdateBuildingAppraisalDepreciationDetails(IEnumerable<BuildingAppraisalDepreciationDetailDto>? buildingAppraisalDepreciationDetails)
+    {
         _buildingAppraisalDepreciationDetails.Clear();
-        if (dto.BuildingAppraisalDepreciationDetails is not null)
+        if (buildingAppraisalDepreciationDetails is null) return;
+        foreach (var d in buildingAppraisalDepreciationDetails)
         {
-            foreach (var d in dto.BuildingAppraisalDepreciationDetails)
-            {
-                var detail = BuildingAppraisalDepreciationDetail.Create(
-                    d.AreaDesc,
-                    d.Area,
-                    d.PricePerSqM,
-                    d.PriceBeforeDegradation,
-                    d.Year,
-                    d.DegradationYearPct,
-                    d.TotalDegradationPct,
-                    d.PriceDegradation,
-                    d.TotalPrice,
-                    d.AppraisalMethod
-                );
-
-                // Note: Value object 'detail' contains its own periods collection; if the VO supports composition set here accordingly
-                _buildingAppraisalDepreciationDetails.Add(detail);
-                // If VO needs periods association method, call it here (not present in current VO definition)
-            }
+            _buildingAppraisalDepreciationDetails.Add(BuildingAppraisalDepreciationDetail.Create(
+                d.AreaDesc,
+                d.Area,
+                d.PricePerSqM,
+                d.PriceBeforeDegradation,
+                d.Year,
+                d.DegradationYearPct,
+                d.TotalDegradationPct,
+                d.PriceDegradation,
+                d.TotalPrice,
+                d.AppraisalMethod,
+                d.BuildingAppraisalDepreciationPeriods?
+                    .Select(p => p.ToEntity())
+                    .ToList() ?? new List<BuildingAppraisalDepreciationPeriod>()
+            ));
         }
     }
 }
