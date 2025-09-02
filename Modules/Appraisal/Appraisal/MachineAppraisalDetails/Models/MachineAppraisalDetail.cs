@@ -34,7 +34,6 @@ public class MachineAppraisalDetail : Entity<long>
         AppraisalDetail = model.AppraisalDetail;
     }
 
-    // Overload: Update using DTO (map DTO -> ValueObjects)
     public void Update(MachineAppraisalDetailDto dto)
     {
         ArgumentNullException.ThrowIfNull(dto);
