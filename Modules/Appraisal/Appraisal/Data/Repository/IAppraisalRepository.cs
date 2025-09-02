@@ -1,6 +1,8 @@
 namespace Appraisal.Data.Repository;
 
-public interface IAppraisalRepository
+public interface IAppraisalRepository : IRepository<RequestAppraisal, long>
 {
-    Task<long> CreateLandAppraisalDetails(LandAppraisalDetail appraisal, CancellationToken cancellationToken);
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    Task<List<RequestAppraisal>> GetByCollateralIdAsync(long collatId, CancellationToken cancellationToken = default);
 }

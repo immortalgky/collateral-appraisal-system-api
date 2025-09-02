@@ -24,7 +24,7 @@ var assignmentAssembly = typeof(AssignmentModule).Assembly;
 var collateralAssembly = typeof(CollateralModule).Assembly;
 var appraisalAssembly = typeof(AppraisalModule).Assembly;
 
-builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssembly, collateralAssembly,appraisalAssembly);
+builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
 builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
@@ -60,10 +60,10 @@ builder.Services.AddMassTransit(config =>
             r.LockStatementProvider = new SqlServerLockStatementProvider();
         });
 
-    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly);
-    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly);
-    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly);
-    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly);
+    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
 
     config.UsingRabbitMq((context, configurator) =>
     {

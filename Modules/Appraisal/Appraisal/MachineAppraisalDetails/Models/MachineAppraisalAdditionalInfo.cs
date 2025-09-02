@@ -1,3 +1,5 @@
+using Appraisal.Contracts.Appraisals.Dto;
+using Appraisal.AppraisalProperties.ValueObjects;
 namespace Appraisal.MachineAppraisalDetails.Models;
 
 public class MachineAppraisalAdditionalInfo : Entity<long>
@@ -31,5 +33,49 @@ public class MachineAppraisalAdditionalInfo : Entity<long>
             purposeAndLocationMachine,
             machineDetail
         );
+    }
+
+    public void Update(MachineAppraisalAdditionalInfo model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        PurposeAndLocationMachine = model.PurposeAndLocationMachine;
+        MachineDetail = model.MachineDetail;
+    }
+
+    // Overload: Update using DTO (map DTO -> ValueObjects)
+    public void Update(MachineAppraisalAdditionalInfoDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+        PurposeAndLocationMachine = PurposeAndLocationMachine.Create(
+            dto.Assignment ?? string.Empty,
+            dto.ApprCollatPurpose ?? string.Empty,
+            dto.ApprDate ?? string.Empty,
+            dto.ApprCollatType ?? string.Empty
+        );
+
+        var generalMachinery = GeneralMachinery.Create(
+            dto.Industrial,
+            dto.SurveyNo,
+            dto.ApprNo
+        );
+        var atSurvey = AtSurveyDate.Create(
+            dto.Installed ?? 0,
+            dto.ApprScrap ?? string.Empty,
+            dto.NoOfAppraise ?? 0,
+            dto.NotInstalled ?? 0,
+            dto.Maintenance ?? string.Empty,
+            dto.Exterior ?? string.Empty,
+            dto.Performance ?? string.Empty,
+            dto.MarketDemand ?? false,
+            dto.MarketDemandRemark ?? string.Empty
+        );
+        var rights = RightsAndConditionsOfLegalRestrictions.Create(
+            dto.Proprietor ?? string.Empty,
+            dto.Owner ?? string.Empty,
+            dto.MachineLocation ?? string.Empty,
+            dto.Obligation ?? string.Empty,
+            dto.Other ?? string.Empty
+        );
+        MachineDetail = MachineDetail.Create(generalMachinery, atSurvey, rights);
     }
 }

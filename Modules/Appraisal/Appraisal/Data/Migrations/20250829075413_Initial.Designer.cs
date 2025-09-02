@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Data.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    [Migration("20250822022626_Initial")]
+    [Migration("20250829075413_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -600,7 +600,6 @@ namespace Appraisal.Data.Migrations
                                         .HasColumnType("bigint");
 
                                     b2.Property<string>("IsObligation")
-                                        .IsRequired()
                                         .HasMaxLength(10)
                                         .HasColumnType("varchar(10)")
                                         .HasColumnName("IsObligation");
@@ -1065,7 +1064,6 @@ namespace Appraisal.Data.Migrations
                                 .HasColumnType("bigint");
 
                             b1.Property<string>("IsObligation")
-                                .IsRequired()
                                 .HasMaxLength(10)
                                 .HasColumnType("varchar(10)")
                                 .HasColumnName("IsObligation");
@@ -1360,7 +1358,6 @@ namespace Appraisal.Data.Migrations
                                 .HasColumnType("bigint");
 
                             b1.Property<string>("IsObligation")
-                                .IsRequired()
                                 .HasMaxLength(10)
                                 .HasColumnType("varchar(10)")
                                 .HasColumnName("IsObligation");
@@ -2201,26 +2198,19 @@ namespace Appraisal.Data.Migrations
 
             modelBuilder.Entity("Appraisal.RequestAppraisals.Models.RequestAppraisal", b =>
                 {
-                    b.Navigation("BuildingAppraisalDetail")
-                        .IsRequired();
+                    b.Navigation("BuildingAppraisalDetail");
 
-                    b.Navigation("CondoAppraisalDetail")
-                        .IsRequired();
+                    b.Navigation("CondoAppraisalDetail");
 
-                    b.Navigation("LandAppraisalDetail")
-                        .IsRequired();
+                    b.Navigation("LandAppraisalDetail");
 
-                    b.Navigation("MachineAppraisalAdditionalInfo")
-                        .IsRequired();
+                    b.Navigation("MachineAppraisalAdditionalInfo");
 
-                    b.Navigation("MachineAppraisalDetail")
-                        .IsRequired();
+                    b.Navigation("MachineAppraisalDetail");
 
-                    b.Navigation("VehicleAppraisalDetail")
-                        .IsRequired();
+                    b.Navigation("VehicleAppraisalDetail");
 
-                    b.Navigation("VesselAppraisalDetail")
-                        .IsRequired();
+                    b.Navigation("VesselAppraisalDetail");
                 });
 #pragma warning restore 612, 618
         }

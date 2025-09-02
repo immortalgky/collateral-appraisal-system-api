@@ -1,5 +1,3 @@
-using Appraisal.AppraisalProperties.ValueObjects;
-
 namespace Appraisal.AppraisalProperties.Models;
 
 public class CondoAppraisalDetail : Entity<long>
@@ -33,7 +31,8 @@ public class CondoAppraisalDetail : Entity<long>
         CondominiumFacility condominiumFacility,
         CondoPrice condoPrice,
         ForestBoundary forestBoundary,
-        string? remark
+        string? remark,
+        List<CondoAppraisalAreaDetail> condoAppraisalAreaDetails
     )
     {
         ApprId = apprId;
@@ -46,6 +45,8 @@ public class CondoAppraisalDetail : Entity<long>
         CondoPrice = condoPrice;
         ForestBoundary = forestBoundary;
         Remark = remark;
+
+        _condoAppraisalAreaDetails.AddRange(condoAppraisalAreaDetails);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
@@ -59,9 +60,10 @@ public class CondoAppraisalDetail : Entity<long>
         CondominiumFacility condominiumFacility,
         CondoPrice condoPrice,
         ForestBoundary forestBoundary,
-        string? remark
+        string? remark,
+        List<CondoAppraisalAreaDetail> condoAppraisalAreaDetails
     )
-    {
+    { 
         return new CondoAppraisalDetail(
             apprId,
             obligationDetail,
@@ -72,7 +74,54 @@ public class CondoAppraisalDetail : Entity<long>
             condominiumFacility,
             condoPrice,
             forestBoundary,
-            remark
+            remark,
+            condoAppraisalAreaDetails
         );
+    }
+
+    public void Update(CondoAppraisalDetail model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        ObligationDetail = model.ObligationDetail;
+        DocValidate = model.DocValidate;
+        CondominiumLocation = model.CondominiumLocation;
+        CondoAttribute = model.CondoAttribute;
+        Expropriation = model.Expropriation;
+        CondominiumFacility = model.CondominiumFacility;
+        CondoPrice = model.CondoPrice;
+        ForestBoundary = model.ForestBoundary;
+        Remark = model.Remark;
+
+        _condoAppraisalAreaDetails.Clear();
+        if (model.CondoAppraisalAreaDetails is not null)
+        {
+            _condoAppraisalAreaDetails.AddRange(model.CondoAppraisalAreaDetails);
+        }
+    }
+
+    // Overload: Update using DTO (map DTO -> ValueObjects)
+    public void Update(CondoAppraisalDetailDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        ObligationDetail = dto.ObligationDetail.ToEntity();
+        DocValidate = dto.DocValidate;
+        CondominiumLocation = dto.CondominiumLocation.ToEntity();
+        CondoAttribute = dto.CondoAttribute.ToEntity();
+        Expropriation = dto.Expropriation.ToEntity();
+        CondominiumFacility = dto.CondominiumFacility.ToEntity();
+        CondoPrice = dto.CondoPrice.ToEntity();
+        ForestBoundary = dto.ForestBoundary.ToEntity();
+        Remark = dto.Remark;
+
+        _condoAppraisalAreaDetails.Clear();
+        if (dto.CondoAppraisalAreaDetails is not null)
+        {
+            foreach (var a in dto.CondoAppraisalAreaDetails)
+            {
+                _condoAppraisalAreaDetails.Add(CondoAppraisalAreaDetail.Create(a.AreaDesc, a.AreaSize));
+            }
+        }
     }
 }

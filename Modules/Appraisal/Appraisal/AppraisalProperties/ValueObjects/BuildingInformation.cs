@@ -15,10 +15,10 @@ public class BuildingInformation : ValueObject
     private BuildingInformation(
         string noHouseNumber,
         decimal? landArea,
-        string buildingCondition,
-        string buildingStatus,
+        string? buildingCondition,
+        string? buildingStatus,
         DateTime? licenseExpirationDate,
-        string isAppraise,
+        string? isAppraise,
         ObligationDetail obligationDetail
     )
     {
@@ -34,10 +34,10 @@ public class BuildingInformation : ValueObject
     public static BuildingInformation Create(
         string noHouseNumber,
         decimal? landArea,
-        string buildingCondition,
-        string buildingStatus,
+        string? buildingCondition,
+        string? buildingStatus,
         DateTime? licenseExpirationDate,
-        string isAppraise,
+        string? isAppraise,
         ObligationDetail obligationDetail
     )
     {

@@ -30,6 +30,37 @@ public class BuildingAppraisalDepreciationDetail : ValueObject
         decimal totalDegradationPct,
         decimal priceDegradation,
         decimal totalPrice,
+        bool? appraisalMethod,
+        List<BuildingAppraisalDepreciationPeriod> buildingAppraisalDepreciationPeriods
+    )
+    {
+        AreaDesc = areaDesc;
+        Area = area;
+        PricePerSqM = pricePerSqM;
+        PriceBeforeDegradation = priceBeforeDegradation;
+        Year = year;
+        DegradationYearPct = degradationYearPct;
+        TotalDegradationPct = totalDegradationPct;
+        PriceDegradation = priceDegradation;
+        TotalPrice = totalPrice;
+        AppraisalMethod = appraisalMethod;
+
+        _buildingAppraisalDepreciationPeriods.AddRange(buildingAppraisalDepreciationPeriods);
+
+    }
+
+    // EF Core-friendly constructor: excludes navigation collection so EF can bind scalar properties only
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    private BuildingAppraisalDepreciationDetail(
+        string areaDesc,
+        decimal area,
+        decimal pricePerSqM,
+        decimal priceBeforeDegradation,
+        short year,
+        decimal degradationYearPct,
+        decimal totalDegradationPct,
+        decimal priceDegradation,
+        decimal totalPrice,
         bool? appraisalMethod
     )
     {
@@ -56,7 +87,8 @@ public class BuildingAppraisalDepreciationDetail : ValueObject
         decimal totalDegradationPct,
         decimal priceDegradation,
         decimal totalPrice,
-        bool? appraisalMethod
+        bool? appraisalMethod,
+        List<BuildingAppraisalDepreciationPeriod> buildingAppraisalDepreciationPeriods
     )
     {
         return new BuildingAppraisalDepreciationDetail(
@@ -69,7 +101,8 @@ public class BuildingAppraisalDepreciationDetail : ValueObject
             totalDegradationPct,
             priceDegradation,
             totalPrice,
-            appraisalMethod
+            appraisalMethod,
+            buildingAppraisalDepreciationPeriods
         );
     }
 }

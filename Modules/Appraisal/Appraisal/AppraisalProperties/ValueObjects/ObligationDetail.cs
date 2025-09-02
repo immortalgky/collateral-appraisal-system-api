@@ -2,7 +2,7 @@ namespace Appraisal.AppraisalProperties.ValueObjects;
 
 public class ObligationDetail : ValueObject
 {
-    public string IsObligation { get; }
+    public string? IsObligation { get; }
     public string? Obligation { get; }
 
     private ObligationDetail(string isObligation, string? obligation)

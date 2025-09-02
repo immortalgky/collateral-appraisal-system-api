@@ -26,4 +26,26 @@ public class VehicleAppraisalDetail : Entity<long>
             appraisalDetail
         );
     }
+
+    public void Update(VehicleAppraisalDetail model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        AppraisalDetail = model.AppraisalDetail;
+    }
+
+    public void Update(VehicleAppraisalDetailDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+        var vo = AppraisalDetail.Create(
+            dto.AppraisalDetail.CanUse,
+            dto.AppraisalDetail.Location,
+            dto.AppraisalDetail.ConditionUse,
+            dto.AppraisalDetail.UsePurpose,
+            dto.AppraisalDetail.Part,
+            dto.AppraisalDetail.Remark,
+            dto.AppraisalDetail.Other,
+            dto.AppraisalDetail.AppraiserOpinion
+        );
+        AppraisalDetail = vo;
+    }
 }

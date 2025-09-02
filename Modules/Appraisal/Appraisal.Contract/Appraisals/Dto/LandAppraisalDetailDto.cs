@@ -1,6 +1,7 @@
 namespace Appraisal.Contracts.Appraisals.Dto;
 
 public record LandAppraisalDetailDto(
+    long ApprId,
     string? PropertyName,
     string? CheckOwner,
     string? Owner,

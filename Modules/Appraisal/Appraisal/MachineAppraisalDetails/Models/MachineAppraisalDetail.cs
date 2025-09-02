@@ -27,4 +27,26 @@ public class MachineAppraisalDetail : Entity<long>
             appraisalDetail
         );
     }
+
+    public void Update(MachineAppraisalDetail model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        AppraisalDetail = model.AppraisalDetail;
+    }
+
+    public void Update(MachineAppraisalDetailDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+        var vo = AppraisalDetail.Create(
+            dto.MachineAppraisalDetail.CanUse,
+            dto.MachineAppraisalDetail.Location,
+            dto.MachineAppraisalDetail.ConditionUse,
+            dto.MachineAppraisalDetail.UsePurpose,
+            dto.MachineAppraisalDetail.Part,
+            dto.MachineAppraisalDetail.Remark,
+            dto.MachineAppraisalDetail.Other,
+            dto.MachineAppraisalDetail.AppraiserOpinion
+        );
+        AppraisalDetail = vo;
+    }
 }

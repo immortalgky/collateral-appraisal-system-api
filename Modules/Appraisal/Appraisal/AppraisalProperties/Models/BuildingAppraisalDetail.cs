@@ -1,5 +1,3 @@
-using Appraisal.AppraisalProperties.ValueObjects;
-
 namespace Appraisal.AppraisalProperties.Models;
 
 public class BuildingAppraisalDetail : Entity<long>
@@ -24,8 +22,7 @@ public class BuildingAppraisalDetail : Entity<long>
         _buildingAppraisalSurfaces.AsReadOnly();
 
     // BuildingAppraisalDepreciationDetail
-    private readonly List<BuildingAppraisalDepreciationDetail> _buildingAppraisalDepreciationDetails =
-    [];
+    private readonly List<BuildingAppraisalDepreciationDetail> _buildingAppraisalDepreciationDetails = [];
     public IReadOnlyList<BuildingAppraisalDepreciationDetail> BuildingAppraisalDepreciationDetails =>
         _buildingAppraisalDepreciationDetails.AsReadOnly();
 
@@ -44,7 +41,9 @@ public class BuildingAppraisalDetail : Entity<long>
         ResidentialStatus residentialStatus,
         BuildingStructureDetail buildingStructureDetail,
         UtilizationDetail utilizationDetail,
-        string? remark
+        string? remark,
+        List<BuildingAppraisalSurface> buildingAppraisalSurfaces,
+        List<BuildingAppraisalDepreciationDetail> buildingAppraisalDepreciationDetails
     )
     {
         ApprId = apprId;
@@ -59,6 +58,10 @@ public class BuildingAppraisalDetail : Entity<long>
         BuildingStructureDetail = buildingStructureDetail;
         UtilizationDetail = utilizationDetail;
         Remark = remark;
+
+        _buildingAppraisalSurfaces.AddRange(buildingAppraisalSurfaces);
+        _buildingAppraisalDepreciationDetails.AddRange(buildingAppraisalDepreciationDetails);
+
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
@@ -74,7 +77,9 @@ public class BuildingAppraisalDetail : Entity<long>
         ResidentialStatus residentialStatus,
         BuildingStructureDetail buildingStructureDetail,
         UtilizationDetail utilizationDetail,
-        string? remark
+        string? remark,
+        List<BuildingAppraisalSurface> buildingAppraisalSurfaces,
+        List<BuildingAppraisalDepreciationDetail> buildingAppraisalDepreciationDetails
     )
     {
         return new BuildingAppraisalDetail(
@@ -89,7 +94,68 @@ public class BuildingAppraisalDetail : Entity<long>
             residentialStatus,
             buildingStructureDetail,
             utilizationDetail,
-            remark
+            remark,
+            buildingAppraisalSurfaces,
+            buildingAppraisalDepreciationDetails
         );
+    }
+    public void Update(BuildingAppraisalDetailDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        BuildingInformation = dto.BuildingInformation.ToEntity();
+        BuildingTypeDetail = dto.BuildingTypeDetail.ToEntity();
+        DecorationDetail = dto.DecorationDetail.ToEntity();
+        Encroachment = dto.Encroachment.ToEntity();
+        BuildingConstructionInformation = dto.BuildingConstructionInformation.ToEntity();
+        BuildingMaterial = dto.BuildingMaterial;
+        BuildingStyle = dto.BuildingStyle;
+        ResidentialStatus = dto.ResidentialStatus.ToEntity();
+        BuildingStructureDetail = dto.BuildingStructureDetail.ToEntity();
+        UtilizationDetail = dto.UtilizationDetail.ToEntity();
+        Remark = dto.Remark;
+        UpdateBuildingAppraisalSurfaces(dto.BuildingAppraisalSurfaces);
+        UpdateBuildingAppraisalDepreciationDetails(dto.BuildingAppraisalDepreciationDetails);
+    }
+
+    private void UpdateBuildingAppraisalSurfaces(IEnumerable<BuildingAppraisalSurfaceDto>? buildingAppraisalSurfaces)
+    {
+        _buildingAppraisalSurfaces.Clear();
+        if (buildingAppraisalSurfaces is null) return;
+        foreach (var s in buildingAppraisalSurfaces)
+        {
+            _buildingAppraisalSurfaces.Add(BuildingAppraisalSurface.Create(
+                s.FromFloorNo,
+                s.ToFloorNo,
+                s.FloorType,
+                s.FloorStructure,
+                s.FloorStructureOther,
+                s.FloorSurface,
+                s.FloorSurfaceOther));
+        }
+    }
+
+    private void UpdateBuildingAppraisalDepreciationDetails(IEnumerable<BuildingAppraisalDepreciationDetailDto>? buildingAppraisalDepreciationDetails)
+    {
+        _buildingAppraisalDepreciationDetails.Clear();
+        if (buildingAppraisalDepreciationDetails is null) return;
+        foreach (var d in buildingAppraisalDepreciationDetails)
+        {
+            _buildingAppraisalDepreciationDetails.Add(BuildingAppraisalDepreciationDetail.Create(
+                d.AreaDesc,
+                d.Area,
+                d.PricePerSqM,
+                d.PriceBeforeDegradation,
+                d.Year,
+                d.DegradationYearPct,
+                d.TotalDegradationPct,
+                d.PriceDegradation,
+                d.TotalPrice,
+                d.AppraisalMethod,
+                d.BuildingAppraisalDepreciationPeriods?
+                    .Select(p => p.ToEntity())
+                    .ToList() ?? new List<BuildingAppraisalDepreciationPeriod>()
+            ));
+        }
     }
 }

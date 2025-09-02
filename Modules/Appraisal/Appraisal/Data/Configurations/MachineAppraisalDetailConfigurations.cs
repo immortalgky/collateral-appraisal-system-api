@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
 namespace Appraisal.Data.Configurations;
 
 public class MachineAppraisalDetailConfigurations : IEntityTypeConfiguration<MachineAppraisalDetail>
