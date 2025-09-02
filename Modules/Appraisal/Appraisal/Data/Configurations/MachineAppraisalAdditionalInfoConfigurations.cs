@@ -1,6 +1,4 @@
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
-namespace Collateral.Data.Configurations;
+namespace Appraisal.Data.Configurations;
 
 public class MachineAppraisalAdditionalInfoConfigurations : IEntityTypeConfiguration<MachineAppraisalAdditionalInfo>
 {

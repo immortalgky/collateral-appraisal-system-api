@@ -1,0 +1,3 @@
+namespace Appraisal.RequestAppraisals.Features.GetAppraisalDetailByCollateralId;
+
+public record GetAppraisalDetailByCollateralIdRequest(long CollateralId);

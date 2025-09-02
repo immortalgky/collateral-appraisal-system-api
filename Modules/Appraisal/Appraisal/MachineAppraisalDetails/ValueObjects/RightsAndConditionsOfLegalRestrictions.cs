@@ -25,7 +25,7 @@ public class RightsAndConditionsOfLegalRestrictions : ValueObject
         Other = other;
     }
 
-    public static RightsAndConditionsOfLegalRestrictions Crate(
+    public static RightsAndConditionsOfLegalRestrictions Create(
         string proprietor,
         string owner,
         string machineLocation,

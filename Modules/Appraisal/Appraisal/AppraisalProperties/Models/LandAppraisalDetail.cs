@@ -1,5 +1,3 @@
-using Appraisal.AppraisalProperties.ValueObjects;
-
 namespace Appraisal.AppraisalProperties.Models;
 
 public class LandAppraisalDetail : Entity<long>
@@ -89,5 +87,46 @@ public class LandAppraisalDetail : Entity<long>
             consecutiveArea,
             landMiscellaneousDetail
         );
+    }
+
+    public void Update(LandAppraisalDetail model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        PropertyName = model.PropertyName;
+        CheckOwner = model.CheckOwner;
+        Owner = model.Owner;
+        AnticipationOfProp = model.AnticipationOfProp;
+        Eviction = model.Eviction;
+        Allocation = model.Allocation;
+
+        ObligationDetail = model.ObligationDetail;
+        LandLocationDetail = model.LandLocationDetail;
+        LandFillDetail = model.LandFillDetail;
+        LandAccessibilityDetail = model.LandAccessibilityDetail;
+        LandLimitation = model.LandLimitation;
+        ConsecutiveArea = model.ConsecutiveArea;
+        LandMiscellaneousDetail = model.LandMiscellaneousDetail;
+    }
+
+    // Overload: Update using DTO (map DTO -> ValueObjects; no entity creation)
+    public void Update(LandAppraisalDetailDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        PropertyName = dto.PropertyName;
+        CheckOwner = dto.CheckOwner;
+        Owner = dto.Owner;
+        AnticipationOfProp = dto.AnticipationOfProp;
+        Eviction = dto.Eviction;
+        Allocation = dto.Allocation;
+
+        ObligationDetail = dto.ObligationDetail.ToEntity();
+        LandLocationDetail = dto.LandLocationDetail.ToEntity();
+        LandFillDetail = dto.LandFillDetail.ToEntity();
+        LandAccessibilityDetail = dto.LandAccessibilityDetail.ToEntity();
+        LandLimitation = dto.LandLimitation.ToEntity();
+        ConsecutiveArea = dto.ConsecutiveArea.ToEntity();
+        LandMiscellaneousDetail = dto.LandMiscellaneousDetail.ToEntity();
     }
 }
