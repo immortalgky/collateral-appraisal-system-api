@@ -9,7 +9,7 @@ public class GetCollateralEndpoint : ICarterModule
         app.MapGet(
                 "/collaterals",
                 async (
-                    [AsParameters] PaginationRequest request,
+                    [AsParameters] GetCollateralRequest request,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>

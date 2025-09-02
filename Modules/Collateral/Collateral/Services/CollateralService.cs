@@ -1,3 +1,5 @@
+using System.Linq.Expressions;
+using Collateral.Collateral.Shared.Features.GetCollaterals;
 using Shared.Pagination;
 
 namespace Collateral.Services;
@@ -11,7 +13,11 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
     {
         foreach (var requestTitleDto in requestTitles)
         {
-            var collateralMaster = CollateralMaster.Create(CollateralType.Land, null);
+            var collateralMaster = CollateralMaster.Create(
+                CollateralType.Land,
+                null,
+                requestTitleDto.RequestId
+            );
             await collateralRepository.AddAsync(collateralMaster, cancellationToken);
             var collateralLand = CollateralLand.FromRequestTitleDto(
                 collateralMaster.Id,
@@ -24,12 +30,18 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
     }
 
     public async Task<CollateralMaster> CreateCollateral(
-        CollateralType collatType,
         CollateralMasterDto collateral,
         CancellationToken cancellationToken = default
     )
     {
-        var collateralMaster = CollateralMaster.Create(collatType, null);
+        _ = Enum.TryParse(collateral.CollatType, out CollateralType collatType);
+        if (collateral.ReqIds.Count < 1)
+        {
+            throw new DomainException(
+                "One request ID should be provided when creating collateral."
+            );
+        }
+        var collateralMaster = CollateralMaster.Create(collatType, null, collateral.ReqIds[0]);
         await collateralRepository.AddAsync(collateralMaster, cancellationToken);
 
         switch (collatType)
@@ -104,11 +116,16 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
     }
 
     public async Task<PaginatedResult<CollateralMaster>> GetCollateralPaginatedAsync(
-        PaginationRequest request,
+        GetCollateralRequest request,
         CancellationToken cancellationToken = default
     )
     {
-        return await collateralRepository.GetPaginatedAsync(request, cancellationToken);
+        Expression<Func<CollateralMaster, bool>> predicate = p => true;
+        if (request.ReqId is not null)
+        {
+            predicate = p => p.RequestCollaterals.Any(r => r.ReqId == request.ReqId);
+        }
+        return await collateralRepository.GetPaginatedAsync(request, predicate, cancellationToken);
     }
 
     public async Task UpdateCollateral(

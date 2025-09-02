@@ -25,7 +25,8 @@ public class CollateralRepository(CollateralDbContext context)
             .Include(c => c.CollateralMachine)
             .Include(c => c.CollateralVehicle)
             .Include(c => c.CollateralVessel)
-            .Include(c => c.LandTitles);
+            .Include(c => c.LandTitles)
+            .Include(c => c.RequestCollaterals);
     }
 
     public async Task<CollateralMaster?> GetByIdTrackedAsync(

@@ -298,6 +298,30 @@ namespace Collateral.Data.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "RequestCollateral",
+                schema: "collateral",
+                columns: table => new
+                {
+                    CollatId = table.Column<long>(type: "bigint", nullable: false),
+                    ReqId = table.Column<long>(type: "bigint", nullable: false),
+                    CreatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    UpdatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RequestCollateral", x => new { x.CollatId, x.ReqId });
+                    table.ForeignKey(
+                        name: "FK_RequestCollateral_CollateralMasters_CollatId",
+                        column: x => x.CollatId,
+                        principalSchema: "collateral",
+                        principalTable: "CollateralMasters",
+                        principalColumn: "CollatId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_CollateralBuildings_CollatId",
                 schema: "collateral",
@@ -376,6 +400,10 @@ namespace Collateral.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "LandTitles",
+                schema: "collateral");
+
+            migrationBuilder.DropTable(
+                name: "RequestCollateral",
                 schema: "collateral");
 
             migrationBuilder.DropTable(

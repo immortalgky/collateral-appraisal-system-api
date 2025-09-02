@@ -20,7 +20,8 @@ public static class DtoExtensions
     {
         var collateral = CollateralMaster.Create(
             Enum.Parse<CollateralType>(dto.CollatType),
-            dto.HostCollatId
+            dto.HostCollatId,
+            dto.ReqIds
         );
         collateral.SetCollateralLand(dto.CollateralLand?.ToDomain(dto.CollatId));
         collateral.SetCollateralBuilding(dto.CollateralBuilding?.ToDomain(dto.CollatId));
@@ -194,7 +195,8 @@ public static class DtoExtensions
             domain.CollateralCondo?.ToDto(),
             domain.CollateralMachine?.ToDto(),
             domain.CollateralVehicle?.ToDto(),
-            domain.CollateralVessel?.ToDto()
+            domain.CollateralVessel?.ToDto(),
+            [.. domain.RequestCollaterals.Select(r => r.ReqId)]
         );
     }
 

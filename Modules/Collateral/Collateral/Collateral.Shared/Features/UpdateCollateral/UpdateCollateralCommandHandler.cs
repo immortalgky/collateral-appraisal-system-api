@@ -20,7 +20,8 @@ public class UpdateCollateralCommandHandler(ICollateralService collateralService
                 command.CollateralCondo,
                 command.CollateralMachine,
                 command.CollateralVehicle,
-                command.CollateralVessel
+                command.CollateralVessel,
+                []
             ),
             cancellationToken
         );

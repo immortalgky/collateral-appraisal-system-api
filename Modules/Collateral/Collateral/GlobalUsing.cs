@@ -22,6 +22,7 @@ global using System.Reflection;
 
 global using Collateral.Data;
 global using Collateral.Collateral.Shared.ValueObjects;
+global using Collateral.RequestCollaterals.Models;
 global using Collateral.CollateralProperties.Models;
 global using Collateral.CollateralProperties.ValueObjects;
 global using Collateral.CollateralMachines.Models;

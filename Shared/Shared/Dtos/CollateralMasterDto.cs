@@ -10,5 +10,6 @@ public record CollateralMasterDto(
     CollateralCondoDto? CollateralCondo,
     CollateralMachineDto? CollateralMachine,
     CollateralVehicleDto? CollateralVehicle,
-    CollateralVesselDto? CollateralVessel
+    CollateralVesselDto? CollateralVessel,
+    List<long> ReqIds
 );

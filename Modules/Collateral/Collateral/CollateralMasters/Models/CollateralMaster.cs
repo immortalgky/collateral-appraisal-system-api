@@ -13,6 +13,8 @@ public class CollateralMaster : Aggregate<long>
     public CollateralCondo? CollateralCondo { get; private set; }
     public List<LandTitle>? LandTitles { get; private set; }
 
+    public List<RequestCollateral> RequestCollaterals { get; private set; } = [];
+
     private CollateralMaster() { }
 
     private CollateralMaster(CollateralType collateralType, long? hostCollateralId)
@@ -28,9 +30,24 @@ public class CollateralMaster : Aggregate<long>
         }
     }
 
-    public static CollateralMaster Create(CollateralType collatType, long? hostCollatId)
+    private CollateralMaster(CollateralType collateralType, long? hostCollateralId, long reqId) : this(collateralType, hostCollateralId)
     {
-        return new CollateralMaster(collatType, hostCollatId);
+        RequestCollaterals.Add(RequestCollateral.Create(Id, reqId));
+    }
+
+    private CollateralMaster(CollateralType collateralType, long? hostCollateralId, List<long> reqIds) : this(collateralType, hostCollateralId)
+    {
+        RequestCollaterals = [.. reqIds.Select(r => RequestCollateral.Create(Id, r))];
+    }
+
+    public static CollateralMaster Create(CollateralType collatType, long? hostCollatId, long reqId)
+    {
+        return new CollateralMaster(collatType, hostCollatId, reqId);
+    }
+
+    public static CollateralMaster Create(CollateralType collatType, long? hostCollatId, List<long> reqIds)
+    {
+        return new CollateralMaster(collatType, hostCollatId, reqIds);
     }
 
     public void SetCollateralLand(CollateralLand? collateralLand)
@@ -108,6 +125,11 @@ public class CollateralMaster : Aggregate<long>
             LandTitles ??= [];
             LandTitles.Add(landTitle);
         }
+    }
+
+    public void AddRequestCollateral(long reqId)
+    {
+        RequestCollaterals.Add(RequestCollateral.Create(Id, reqId));
     }
 
     public void Update(CollateralMaster collateralMaster)

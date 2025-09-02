@@ -11,7 +11,7 @@ public class GetCollateralQueryHandler(ICollateralService collateralService)
     )
     {
         var pagination = await collateralService.GetCollateralPaginatedAsync(
-            query.PaginationRequest,
+            query.GetCollateralRequest,
             cancellationToken
         );
         var paginationDto = new PaginatedResult<CollateralMasterDto>(

@@ -1,3 +1,4 @@
+using Collateral.Collateral.Shared.Features.GetCollaterals;
 using Shared.Pagination;
 
 namespace Collateral.Services;
@@ -9,7 +10,6 @@ public interface ICollateralService
         CancellationToken cancellationToken = default
     );
     Task<CollateralMaster> CreateCollateral(
-        CollateralType collatType,
         CollateralMasterDto collateral,
         CancellationToken cancellationToken = default
     );
@@ -19,7 +19,7 @@ public interface ICollateralService
         CancellationToken cancellationToken = default
     );
     Task<PaginatedResult<CollateralMaster>> GetCollateralPaginatedAsync(
-        PaginationRequest request,
+        GetCollateralRequest request,
         CancellationToken cancellationToken = default
     );
     Task UpdateCollateral(

@@ -8,5 +8,6 @@ public record CreateCollateralRequest(
     CollateralCondoDto? CollateralCondo,
     CollateralMachineDto? CollateralMachine,
     CollateralVehicleDto? CollateralVehicle,
-    CollateralVesselDto? CollateralVessel
+    CollateralVesselDto? CollateralVessel,
+    long ReqId
 );

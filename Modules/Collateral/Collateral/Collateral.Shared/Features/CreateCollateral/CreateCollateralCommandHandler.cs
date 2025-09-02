@@ -8,9 +8,7 @@ public class CreateCollateralCommandHandler(ICollateralService collateralService
         CancellationToken cancellationToken
     )
     {
-        _ = Enum.TryParse(command.CollatType, out CollateralType collatType);
         var collateralMaster = await collateralService.CreateCollateral(
-            collatType,
             new CollateralMasterDto(
                 0,
                 command.CollatType,
@@ -21,7 +19,8 @@ public class CreateCollateralCommandHandler(ICollateralService collateralService
                 command.CollateralCondo,
                 command.CollateralMachine,
                 command.CollateralVehicle,
-                command.CollateralVessel
+                command.CollateralVessel,
+                [command.ReqId]
             ),
             cancellationToken
         );

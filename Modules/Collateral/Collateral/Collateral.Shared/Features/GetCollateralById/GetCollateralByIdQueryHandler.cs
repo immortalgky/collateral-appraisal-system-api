@@ -29,7 +29,8 @@ public class GetCollateralByIdQueryHandler(ICollateralService collateralService)
             collateral.CollateralLand?.ToDto(),
             collateral.CollateralBuilding?.ToDto(),
             collateral.CollateralCondo?.ToDto(),
-            landTitles
+            landTitles,
+            [.. collateral.RequestCollaterals.Select(r => r.ReqId)]
         );
     }
 }
