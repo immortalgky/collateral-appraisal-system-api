@@ -6,6 +6,8 @@ namespace Collateral.Services;
 
 public class CollateralService(ICollateralRepository collateralRepository) : ICollateralService
 {
+    private readonly string _getCollateralErrorMessage = "Cannot find collateral with this ID.";
+
     public async Task CreateDefaultCollateral(
         List<RequestTitleDto> requestTitles,
         CancellationToken cancellationToken = default
@@ -112,7 +114,7 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
     )
     {
         return await collateralRepository.GetByIdAsync(collatId, cancellationToken)
-            ?? throw new NotFoundException("Cannot find collateral with this ID.");
+            ?? throw new NotFoundException(_getCollateralErrorMessage);
     }
 
     public async Task<PaginatedResult<CollateralMaster>> GetCollateralPaginatedAsync(
@@ -136,10 +138,24 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
     {
         var collateral =
             await collateralRepository.GetByIdTrackedAsync(collatId, cancellationToken)
-            ?? throw new NotFoundException("Cannot get collateral with this id");
+            ?? throw new NotFoundException(_getCollateralErrorMessage);
         var inputCollateral = dto.ToDomain();
 
         collateral.Update(inputCollateral);
+
+        await collateralRepository.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddCollateralRequestId(
+        long collatId,
+        long reqId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var collateral =
+            await collateralRepository.GetByIdTrackedAsync(collatId, cancellationToken)
+            ?? throw new NotFoundException(_getCollateralErrorMessage);
+        collateral.AddRequestCollateral(reqId);
 
         await collateralRepository.SaveChangesAsync(cancellationToken);
     }

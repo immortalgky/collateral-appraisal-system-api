@@ -30,12 +30,18 @@ public class CollateralMaster : Aggregate<long>
         }
     }
 
-    private CollateralMaster(CollateralType collateralType, long? hostCollateralId, long reqId) : this(collateralType, hostCollateralId)
+    private CollateralMaster(CollateralType collateralType, long? hostCollateralId, long reqId)
+        : this(collateralType, hostCollateralId)
     {
         RequestCollaterals.Add(RequestCollateral.Create(Id, reqId));
     }
 
-    private CollateralMaster(CollateralType collateralType, long? hostCollateralId, List<long> reqIds) : this(collateralType, hostCollateralId)
+    private CollateralMaster(
+        CollateralType collateralType,
+        long? hostCollateralId,
+        List<long> reqIds
+    )
+        : this(collateralType, hostCollateralId)
     {
         RequestCollaterals = [.. reqIds.Select(r => RequestCollateral.Create(Id, r))];
     }
@@ -45,7 +51,11 @@ public class CollateralMaster : Aggregate<long>
         return new CollateralMaster(collatType, hostCollatId, reqId);
     }
 
-    public static CollateralMaster Create(CollateralType collatType, long? hostCollatId, List<long> reqIds)
+    public static CollateralMaster Create(
+        CollateralType collatType,
+        long? hostCollatId,
+        List<long> reqIds
+    )
     {
         return new CollateralMaster(collatType, hostCollatId, reqIds);
     }
@@ -129,6 +139,14 @@ public class CollateralMaster : Aggregate<long>
 
     public void AddRequestCollateral(long reqId)
     {
+        RuleCheck
+            .Valid()
+            .AddErrorIf(
+                RequestCollaterals.Any(r => r.ReqId == reqId),
+                "Cannot add duplicated request ID to collateral master."
+            )
+            .ThrowIfInvalid();
+
         RequestCollaterals.Add(RequestCollateral.Create(Id, reqId));
     }
 

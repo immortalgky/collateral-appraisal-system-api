@@ -27,4 +27,10 @@ public interface ICollateralService
         CollateralMasterDto dto,
         CancellationToken cancellationToken = default
     );
+
+    Task AddCollateralRequestId(
+        long collatId,
+        long reqId,
+        CancellationToken cancellationToken = default
+    );
 }
