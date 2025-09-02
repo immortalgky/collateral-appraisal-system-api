@@ -189,7 +189,7 @@ public static class DtoExtensions
             domain.CollatType.ToString(),
             domain.HostCollatId,
             domain.CollateralLand?.ToDto(),
-            [.. domain.LandTitles.Select(landTitle => landTitle.ToDto())],
+            domain.LandTitles is null ? null : [.. domain.LandTitles.Select(landTitle => landTitle.ToDto())],
             domain.CollateralBuilding?.ToDto(),
             domain.CollateralCondo?.ToDto(),
             domain.CollateralMachine?.ToDto(),

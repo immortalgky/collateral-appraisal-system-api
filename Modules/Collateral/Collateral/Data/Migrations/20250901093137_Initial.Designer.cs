@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Collateral.Data.Migrations
 {
     [DbContext(typeof(CollateralDbContext))]
-    [Migration("20250901091559_Initial")]
+    [Migration("20250901093137_Initial")]
     partial class Initial
     {
         /// <inheritdoc />

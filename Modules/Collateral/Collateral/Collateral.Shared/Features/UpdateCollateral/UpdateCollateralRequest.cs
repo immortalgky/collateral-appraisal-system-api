@@ -9,5 +9,5 @@ public record UpdateCollateralRequest(
     CollateralLandDto? CollateralLand,
     CollateralBuildingDto? CollateralBuilding,
     CollateralCondoDto? CollateralCondo,
-    List<LandTitleDto> LandTitles
+    List<LandTitleDto>? LandTitles
 );

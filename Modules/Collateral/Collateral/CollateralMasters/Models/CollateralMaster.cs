@@ -11,7 +11,7 @@ public class CollateralMaster : Aggregate<long>
     public CollateralLand? CollateralLand { get; private set; }
     public CollateralBuilding? CollateralBuilding { get; private set; }
     public CollateralCondo? CollateralCondo { get; private set; }
-    public List<LandTitle> LandTitles { get; private set; } = [];
+    public List<LandTitle>? LandTitles { get; private set; }
 
     private CollateralMaster() { }
 
@@ -19,6 +19,13 @@ public class CollateralMaster : Aggregate<long>
     {
         CollatType = collateralType;
         HostCollatId = hostCollateralId;
+        if (
+            CollatType.Equals(CollateralType.Land)
+            || CollatType.Equals(CollateralType.LandAndBuilding)
+        )
+        {
+            LandTitles = [];
+        }
     }
 
     public static CollateralMaster Create(CollateralType collatType, long? hostCollatId)
@@ -28,42 +35,79 @@ public class CollateralMaster : Aggregate<long>
 
     public void SetCollateralLand(CollateralLand? collateralLand)
     {
-        CollateralLand = collateralLand;
+        if (
+            CollatType.Equals(CollateralType.Land)
+            || CollatType.Equals(CollateralType.LandAndBuilding)
+        )
+        {
+            CollateralLand = collateralLand;
+        }
     }
 
     public void SetCollateralBuilding(CollateralBuilding? collateralBuilding)
     {
-        CollateralBuilding = collateralBuilding;
+        if (
+            CollatType.Equals(CollateralType.Building)
+            || CollatType.Equals(CollateralType.LandAndBuilding)
+        )
+        {
+            CollateralBuilding = collateralBuilding;
+        }
     }
 
     public void SetCollateralCondo(CollateralCondo? collateralCondo)
     {
-        CollateralCondo = collateralCondo;
+        if (CollatType.Equals(CollateralType.Condo))
+        {
+            CollateralCondo = collateralCondo;
+        }
     }
 
     public void SetCollateralMachine(CollateralMachine? collateralMachine)
     {
-        CollateralMachine = collateralMachine;
+        if (CollatType.Equals(CollateralType.Machine))
+        {
+            CollateralMachine = collateralMachine;
+        }
     }
 
     public void SetCollateralVehicle(CollateralVehicle? collateralVehicle)
     {
-        CollateralVehicle = collateralVehicle;
+        if (CollatType.Equals(CollateralType.Vehicle))
+        {
+            CollateralVehicle = collateralVehicle;
+        }
     }
 
     public void SetCollateralVessel(CollateralVessel? collateralVessel)
     {
-        CollateralVessel = collateralVessel;
+        if (CollatType.Equals(CollateralType.Vessel))
+        {
+            CollateralVessel = collateralVessel;
+        }
     }
 
     public void SetLandTitles(List<LandTitle> landTitles)
     {
-        LandTitles = landTitles;
+        if (
+            CollatType.Equals(CollateralType.Land)
+            || CollatType.Equals(CollateralType.LandAndBuilding)
+        )
+        {
+            LandTitles = landTitles;
+        }
     }
 
     public void AddLandTitle(LandTitle landTitle)
     {
-        LandTitles.Add(landTitle);
+        if (
+            CollatType.Equals(CollateralType.Land)
+            || CollatType.Equals(CollateralType.LandAndBuilding)
+        )
+        {
+            LandTitles ??= [];
+            LandTitles.Add(landTitle);
+        }
     }
 
     public void Update(CollateralMaster collateralMaster)
@@ -105,8 +149,20 @@ public class CollateralMaster : Aggregate<long>
         }
     }
 
-    private void UpdateLandTitles(List<LandTitle> newLandTitles)
+    private void UpdateLandTitles(List<LandTitle>? newLandTitles)
     {
+        if (
+            newLandTitles is null
+            || !(
+                CollatType.Equals(CollateralType.Land)
+                || CollatType.Equals(CollateralType.LandAndBuilding)
+            )
+        )
+        {
+            return;
+        }
+
+        LandTitles ??= [];
         var comparer = EqualityComparer<LandTitle>.Create(
             (x, y) => x?.Id == y?.Id,
             landTitle => landTitle.Id.GetHashCode()
@@ -134,6 +190,15 @@ public class CollateralMaster : Aggregate<long>
 
     private void UpdateCollateralLand(CollateralLand? collateralLand)
     {
+        if (
+            !(
+                CollatType.Equals(CollateralType.Land)
+                || CollatType.Equals(CollateralType.LandAndBuilding)
+            )
+        )
+        {
+            return;
+        }
         RuleCheck
             .Valid()
             .AddErrorIf(collateralLand is null, "Cannot set collateral land with null value.")
@@ -151,6 +216,15 @@ public class CollateralMaster : Aggregate<long>
 
     private void UpdateCollateralBuilding(CollateralBuilding? collateralBuilding)
     {
+        if (
+            !(
+                CollatType.Equals(CollateralType.Building)
+                || CollatType.Equals(CollateralType.LandAndBuilding)
+            )
+        )
+        {
+            return;
+        }
         RuleCheck
             .Valid()
             .AddErrorIf(
@@ -171,6 +245,10 @@ public class CollateralMaster : Aggregate<long>
 
     private void UpdateCollateralCondo(CollateralCondo? collateralCondo)
     {
+        if (!CollatType.Equals(CollateralType.Condo))
+        {
+            return;
+        }
         RuleCheck
             .Valid()
             .AddErrorIf(collateralCondo is null, "Cannot set collateral condo with null value.")
@@ -188,6 +266,10 @@ public class CollateralMaster : Aggregate<long>
 
     private void UpdateCollateralMachine(CollateralMachine? collateralMachine)
     {
+        if (!CollatType.Equals(CollateralType.Machine))
+        {
+            return;
+        }
         RuleCheck
             .Valid()
             .AddErrorIf(collateralMachine is null, "Cannot set collateral machine with null value.")
@@ -205,6 +287,10 @@ public class CollateralMaster : Aggregate<long>
 
     private void UpdateCollateralVehicle(CollateralVehicle? collateralVehicle)
     {
+        if (!CollatType.Equals(CollateralType.Vehicle))
+        {
+            return;
+        }
         RuleCheck
             .Valid()
             .AddErrorIf(collateralVehicle is null, "Cannot set collateral vehicle with null value.")
@@ -222,6 +308,10 @@ public class CollateralMaster : Aggregate<long>
 
     private void UpdateCollateralVessel(CollateralVessel? collateralVessel)
     {
+        if (!CollatType.Equals(CollateralType.Vessel))
+        {
+            return;
+        }
         RuleCheck
             .Valid()
             .AddErrorIf(collateralVessel is null, "Cannot set collateral vessel with null value.")
