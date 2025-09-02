@@ -1,6 +1,3 @@
-using Appraisal.Service;
-using Mapster;
-
 namespace Appraisal.RequestAppraisals.Features.GetAppraisalDetailByCollateralId;
 
 public class GetAppraisalDetailByCollateralIdQueryHandler(IAppraisalService appraisalService)

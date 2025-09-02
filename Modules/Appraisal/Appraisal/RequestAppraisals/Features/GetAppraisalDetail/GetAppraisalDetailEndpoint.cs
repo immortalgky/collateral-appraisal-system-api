@@ -1,10 +1,3 @@
-using Carter;
-using Mapster;
-using MediatR;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Shared.Pagination;
-
 namespace Appraisal.RequestAppraisals.Features.GetAppraisalDetail;
 
     public class GetAppraisalDetailEndpoint : ICarterModule

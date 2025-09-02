@@ -1,5 +1,3 @@
-using Shared.Data;
-
 namespace Appraisal.Data.Repository;
 
 public interface IAppraisalRepository : IRepository<RequestAppraisal, long>

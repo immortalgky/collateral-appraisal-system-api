@@ -1,7 +1,3 @@
-using Appraisal.Extensions;
-using Appraisal.AppraisalProperties.ValueObjects;
-using Appraisal.Appraisal.Shared.ValueObjects;
-
 namespace Appraisal.RequestAppraisals.Models;
 
 public class RequestAppraisal : Aggregate<long>
@@ -56,6 +52,7 @@ public class RequestAppraisal : Aggregate<long>
 
     public RequestAppraisal WithCondo(CondoAppraisalDetail condo)
     {
+        ArgumentNullException.ThrowIfNull(condo);
         CondoAppraisalDetail = condo;
         return this;
     }
@@ -69,6 +66,7 @@ public class RequestAppraisal : Aggregate<long>
 
     public RequestAppraisal WithMachineInfo(MachineAppraisalAdditionalInfo additional)
     {
+        ArgumentNullException.ThrowIfNull(additional);
         MachineAppraisalAdditionalInfo = additional;
         return this;
     }
@@ -90,46 +88,26 @@ public class RequestAppraisal : Aggregate<long>
     {
         ArgumentNullException.ThrowIfNull(appraisal);
 
-        if (appraisal.LandAppraisalDetail is not null)
-        {
+        if (appraisal.LandAppraisalDetail is not null && LandAppraisalDetail is not null)
             LandAppraisalDetail.Update(appraisal.LandAppraisalDetail);
-        }
-
-        if (appraisal.BuildingAppraisalDetail is not null)
-        {
-
+        
+        if (appraisal.BuildingAppraisalDetail is not null && BuildingAppraisalDetail is not null)
             BuildingAppraisalDetail.Update(appraisal.BuildingAppraisalDetail);
-        }
-
-        if (appraisal.CondoAppraisalDetail is not null)
-        {
-
+        
+        if (appraisal.CondoAppraisalDetail is not null && CondoAppraisalDetail is not null)
             CondoAppraisalDetail.Update(appraisal.CondoAppraisalDetail);
 
-        }
-
-        if (appraisal.MachineAppraisalDetail is not null)
-        {
-
+        if (appraisal.MachineAppraisalDetail is not null && MachineAppraisalDetail is not null)
             MachineAppraisalDetail.Update(appraisal.MachineAppraisalDetail);
 
-        }
-
-        if (appraisal.MachineAppraisalAdditionalInfo is not null)
-        {
+        if (appraisal.MachineAppraisalAdditionalInfo is not null && MachineAppraisalAdditionalInfo is not null)
             MachineAppraisalAdditionalInfo.Update(appraisal.MachineAppraisalAdditionalInfo);
-        }
 
-        if (appraisal.VehicleAppraisalDetail is not null)
-        {
-
+        if (appraisal.VehicleAppraisalDetail is not null && VehicleAppraisalDetail is not null)
             VehicleAppraisalDetail.Update(appraisal.VehicleAppraisalDetail);
-        }
 
-        if (appraisal.VesselAppraisalDetail is not null)
-        {
+        if (appraisal.VesselAppraisalDetail is not null && VesselAppraisalDetail is not null)
             VesselAppraisalDetail.Update(appraisal.VesselAppraisalDetail);
-        }
 
         return this;
     }

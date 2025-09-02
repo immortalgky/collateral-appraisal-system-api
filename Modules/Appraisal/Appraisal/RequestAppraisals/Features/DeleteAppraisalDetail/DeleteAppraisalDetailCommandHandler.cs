@@ -1,6 +1,3 @@
-using Appraisal.Data.Repository;
-using Appraisal.Service;
-
 namespace Appraisal.RequestAppraisals.Features.DeleteAppraisalDetail;
 
 public class DeleteAppraisalDetailCommandHandler(IAppraisalService appraisalService)

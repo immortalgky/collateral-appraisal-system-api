@@ -1,6 +1,3 @@
-using Appraisal.Extensions;
-using Appraisal.AppraisalProperties.ValueObjects;
-
 namespace Appraisal.AppraisalProperties.Models;
 
 public class LandAppraisalDetail : Entity<long>

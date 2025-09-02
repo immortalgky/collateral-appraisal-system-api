@@ -22,3 +22,22 @@ global using Shared.DDD;
 global using Shared.Contracts.CQRS;
 
 global using System.Reflection;
+
+global using Appraisal.Service;
+global using Mapster;
+global using Carter;
+global using MediatR;
+global using Microsoft.AspNetCore.Http;
+global using Microsoft.AspNetCore.Routing;
+global using Shared.Pagination;
+global using Microsoft.AspNetCore.Mvc;
+
+global using Appraisal.Data.Repository;
+global using Appraisal.Extensions;
+global using Appraisal.Exceptions;
+global using Appraisal.AppraisalProperties.ValueObjects;
+global using Shared.Exceptions;
+global using Shared.Data;
+
+
+

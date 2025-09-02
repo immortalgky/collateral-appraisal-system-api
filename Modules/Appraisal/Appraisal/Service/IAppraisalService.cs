@@ -1,6 +1,3 @@
-using Mapster;
-using Shared.Pagination;
-
 namespace Appraisal.Service;
 
 public interface IAppraisalService

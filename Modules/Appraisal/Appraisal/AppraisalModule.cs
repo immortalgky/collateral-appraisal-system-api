@@ -1,6 +1,3 @@
-using Appraisal.Data.Repository;
-using Appraisal.Service;
-
 namespace Appraisal;
 
 public static class AppraisalModule

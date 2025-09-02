@@ -1,11 +1,3 @@
-using Appraisal.Data.Repository;
-using Appraisal.Extensions;
-using Mapster;
-using Appraisal.Exceptions;
-using Appraisal.RequestAppraisals.Features.GetAppraisalDetail;
-using Shared.Pagination;
-using Appraisal.RequestAppraisals.Features.GetAppraisalDetailById;
-
 namespace Appraisal.Service;
 
 public class AppraisalService(IAppraisalRepository appraisalRepository) : IAppraisalService
@@ -123,7 +115,7 @@ public class AppraisalService(IAppraisalRepository appraisalRepository) : IAppra
     private static void AttachLandAndBuilding(RequestAppraisalDto appraisal, RequestAppraisal result)
     {
         if (appraisal.LandAppraisalDetail is null || appraisal.BuildingAppraisalDetail is null)
-            throw new RequestAppraisalDetailIsNullException("LandAndHouse");
+            throw new RequestAppraisalDetailIsNullException("LandAndBuilding");
 
         var land = appraisal.LandAppraisalDetail;
         var building = appraisal.BuildingAppraisalDetail;

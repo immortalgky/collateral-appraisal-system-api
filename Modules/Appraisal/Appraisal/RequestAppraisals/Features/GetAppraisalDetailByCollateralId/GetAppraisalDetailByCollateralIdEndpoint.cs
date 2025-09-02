@@ -1,9 +1,3 @@
-using Carter;
-using Mapster;
-using MediatR;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-
 namespace Appraisal.RequestAppraisals.Features.GetAppraisalDetailByCollateralId;
 
 public sealed class GetAppraisalDetailByCollateralIdEndpoint : ICarterModule

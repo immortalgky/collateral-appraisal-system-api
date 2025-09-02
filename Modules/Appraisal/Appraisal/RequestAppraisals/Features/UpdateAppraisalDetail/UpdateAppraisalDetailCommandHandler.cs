@@ -1,5 +1,3 @@
-using Appraisal.Service;
-
 namespace Appraisal.RequestAppraisals.Features.UpdateAppraisalDetail;
 
 internal class UpdateAppraisalDetailCommandHandler(IAppraisalService appraisalService)

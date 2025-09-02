@@ -1,8 +1,3 @@
-using Appraisal.Data.Repository;
-using Appraisal.Service;
-using Mapster;
-using Shared.Pagination;
-
 namespace Appraisal.RequestAppraisals.Features.GetAppraisalDetail;
 
 public class GetAppraisalDetailQueryHandler(

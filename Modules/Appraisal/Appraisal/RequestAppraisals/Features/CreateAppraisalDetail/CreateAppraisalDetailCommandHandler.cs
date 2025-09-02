@@ -1,6 +1,3 @@
-using Appraisal.Service;
-using Mapster;
-
 namespace Appraisal.RequestAppraisals.Features.CreateAppraisalDetail;
 
 internal class CreateAppraisalDetailCommandHandler(IAppraisalService appraisalService)

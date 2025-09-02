@@ -1,5 +1,3 @@
-using Appraisal.AppraisalProperties.ValueObjects;
-
 namespace Appraisal.Extensions;
 
 public static class DtoExtensions

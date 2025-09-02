@@ -1,6 +1,3 @@
-using Appraisal.Service;
-using Mapster;
-
 namespace Appraisal.RequestAppraisals.Features.GetAppraisalDetailById;
 
 public class GetAppraisalDetailByIdQueryHandler(IAppraisalService appraisalService)

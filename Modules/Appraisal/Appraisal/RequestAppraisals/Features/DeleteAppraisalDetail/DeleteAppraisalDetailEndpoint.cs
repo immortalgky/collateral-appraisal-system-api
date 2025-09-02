@@ -1,9 +1,3 @@
-using Carter;
-using Mapster;
-using MediatR;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-
 namespace Appraisal.RequestAppraisals.Features.DeleteAppraisalDetail;
 
 public class DeleteAppraisalDetailEndpoint : ICarterModule

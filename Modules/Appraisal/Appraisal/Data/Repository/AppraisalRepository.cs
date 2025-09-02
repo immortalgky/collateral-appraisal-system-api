@@ -1,6 +1,3 @@
-using Shared.Data;
-using Shared.Pagination;
-
 namespace Appraisal.Data.Repository;
 
 public class AppraisalRepository : BaseRepository<RequestAppraisal, long>, IAppraisalRepository

@@ -1,9 +1,3 @@
-using Carter;
-using Mapster;
-using MediatR;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-
 namespace Appraisal.RequestAppraisals.Features.CreateAppraisalDetail;
 
 public class CreateAppraisalEndpoint : ICarterModule
