@@ -1,1 +1,1 @@
-global using Request.Contracts.Requests.Dtos;
+global using Shared.Dtos;

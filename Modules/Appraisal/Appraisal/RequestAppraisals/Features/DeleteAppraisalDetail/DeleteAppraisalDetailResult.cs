@@ -1,0 +1,3 @@
+namespace Appraisal.RequestAppraisals.Features.DeleteAppraisalDetail;
+
+public record DeleteAppraisalDetailResult(bool IsSuccess);

@@ -1,0 +1,3 @@
+namespace Appraisal.RequestAppraisals.Features.GetAppraisalDetailById;
+
+public record GetAppraisalDetailByIdResult(RequestAppraisalDto Appraisal);

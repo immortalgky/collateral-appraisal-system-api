@@ -1,5 +1,3 @@
-using Request.RequestComments.Models;
-
 namespace Request.Requests;
 
 public interface IRequestRepository
