@@ -11,5 +11,5 @@ public record CollateralMasterDto(
     CollateralMachineDto? CollateralMachine,
     CollateralVehicleDto? CollateralVehicle,
     CollateralVesselDto? CollateralVessel,
-    List<long> ReqIds
+    List<CollateralEngagementDto> CollateralEngagements
 );

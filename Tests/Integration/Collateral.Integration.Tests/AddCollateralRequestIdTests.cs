@@ -1,21 +1,21 @@
-using Collateral.Collateral.Shared.Features.AddCollateralRequestId;
 using Collateral.Collateral.Shared.Features.CreateCollateral;
 using Collateral.Collateral.Shared.Features.GetCollateralById;
+using Collateral.Collateral.Shared.Features.UpdateCollateralEngagement;
 using Integration.Fixtures;
 using Integration.Helpers;
 
 namespace Integration.Collateral.Integration.Tests;
 
-public class AddCollateralRequestIdTests(IntegrationTestFixture fixture)
+public class UpdateCollateralEngagementTests(IntegrationTestFixture fixture)
     : IntegrationTestBase(fixture)
 {
     private readonly string _folderName = "Collateral.Integration.Tests";
 
     [Fact]
-    public async Task AddCollateralRequestId_ValidRequest_RequestIdIsAddedToCollateral()
+    public async Task UpdateCollateralEngagement_ValidRequest_RequestIdIsAddedToCollateral()
     {
-        var createFileName = "AddCollateralRequestId_ValidRequest_Create.json";
-        var addCollateralFileName = "AddCollateralRequestId_ValidRequest.json";
+        var createFileName = "UpdateCollateralEngagement_ValidRequest_Create.json";
+        var addCollateralFileName = "UpdateCollateralEngagement_ValidRequest.json";
 
         // Create new collateral
         var createCollateralResult =
@@ -26,24 +26,23 @@ public class AddCollateralRequestIdTests(IntegrationTestFixture fixture)
                 "/collaterals"
             );
 
-        var addCollateralRequestIdResult =
-            await TestCaseHelper.TestCreateEndpoint<AddCollateralRequestIdResult>(
+        var UpdateCollateralEngagementResult =
+            await TestCaseHelper.TestUpdateEndpoint<UpdateCollateralEngagementResult>(
                 _folderName,
                 addCollateralFileName,
                 _client,
-                $"/collaterals/{createCollateralResult.Id}/req-ids"
+                $"/collaterals/{createCollateralResult.Id}/engagements"
             );
 
-        Assert.True(addCollateralRequestIdResult.IsSuccess);
+        Assert.True(UpdateCollateralEngagementResult.IsSuccess);
 
         // Check that the request ID is added to the collateral
         var getCollateralByIdResult =
             await TestCaseHelper.TestGetByIdEndpoint<GetCollateralByIdResult>(
-                createCollateralResult.Id,
                 _client,
-                "/collaterals"
+                $"/collaterals/{createCollateralResult.Id}"
             );
 
-        Assert.Contains(getCollateralByIdResult.ReqIds, r => r == 2);
+        Assert.Contains(getCollateralByIdResult.CollateralEngagements, r => r.ReqId == 2);
     }
 }

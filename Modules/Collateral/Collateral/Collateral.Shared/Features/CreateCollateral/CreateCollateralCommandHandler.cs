@@ -20,7 +20,7 @@ public class CreateCollateralCommandHandler(ICollateralService collateralService
                 command.CollateralMachine,
                 command.CollateralVehicle,
                 command.CollateralVessel,
-                [command.ReqId]
+                [new CollateralEngagementDto(0, command.ReqId, null, null, true)]
             ),
             cancellationToken
         );

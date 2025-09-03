@@ -37,13 +37,17 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
     )
     {
         _ = Enum.TryParse(collateral.CollatType, out CollateralType collatType);
-        if (collateral.ReqIds.Count < 1)
+        if (collateral.CollateralEngagements.Count < 1)
         {
             throw new DomainException(
                 "One request ID should be provided when creating collateral."
             );
         }
-        var collateralMaster = CollateralMaster.Create(collatType, null, collateral.ReqIds[0]);
+        var collateralMaster = CollateralMaster.Create(
+            collatType,
+            null,
+            collateral.CollateralEngagements[0].ReqId
+        );
         await collateralRepository.AddAsync(collateralMaster, cancellationToken);
 
         switch (collatType)
@@ -125,7 +129,7 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
         Expression<Func<CollateralMaster, bool>> predicate = p => true;
         if (request.ReqId is not null)
         {
-            predicate = p => p.RequestCollaterals.Any(r => r.ReqId == request.ReqId);
+            predicate = p => p.CollateralEngagements.Any(r => r.ReqId == request.ReqId);
         }
         return await collateralRepository.GetPaginatedAsync(request, predicate, cancellationToken);
     }
@@ -146,7 +150,7 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
         await collateralRepository.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task AddCollateralRequestId(
+    public async Task SetOrAddActiveCollateralEngagement(
         long collatId,
         long reqId,
         CancellationToken cancellationToken = default
@@ -155,7 +159,20 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
         var collateral =
             await collateralRepository.GetByIdTrackedAsync(collatId, cancellationToken)
             ?? throw new NotFoundException(_getCollateralErrorMessage);
-        collateral.AddRequestCollateral(reqId);
+        collateral.SetOrAddActiveCollateralEngagement(reqId);
+
+        await collateralRepository.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeactivateCollateralEngagement(
+        long collatId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var collateral =
+            await collateralRepository.GetByIdTrackedAsync(collatId, cancellationToken)
+            ?? throw new NotFoundException(_getCollateralErrorMessage);
+        collateral.DeactivateCollateralEngagement();
 
         await collateralRepository.SaveChangesAsync(cancellationToken);
     }

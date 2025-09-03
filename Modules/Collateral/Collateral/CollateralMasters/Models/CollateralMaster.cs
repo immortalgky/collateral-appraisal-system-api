@@ -13,7 +13,7 @@ public class CollateralMaster : Aggregate<long>
     public CollateralCondo? CollateralCondo { get; private set; }
     public List<LandTitle>? LandTitles { get; private set; }
 
-    public List<RequestCollateral> RequestCollaterals { get; private set; } = [];
+    public List<CollateralEngagement> CollateralEngagements { get; private set; } = [];
 
     private CollateralMaster() { }
 
@@ -33,31 +33,17 @@ public class CollateralMaster : Aggregate<long>
     private CollateralMaster(CollateralType collateralType, long? hostCollateralId, long reqId)
         : this(collateralType, hostCollateralId)
     {
-        RequestCollaterals.Add(RequestCollateral.Create(Id, reqId));
+        SetOrAddActiveCollateralEngagement(reqId);
     }
 
-    private CollateralMaster(
-        CollateralType collateralType,
-        long? hostCollateralId,
-        List<long> reqIds
-    )
-        : this(collateralType, hostCollateralId)
+    public static CollateralMaster Create(CollateralType collatType, long? hostCollatId)
     {
-        RequestCollaterals = [.. reqIds.Select(r => RequestCollateral.Create(Id, r))];
+        return new CollateralMaster(collatType, hostCollatId);
     }
 
     public static CollateralMaster Create(CollateralType collatType, long? hostCollatId, long reqId)
     {
         return new CollateralMaster(collatType, hostCollatId, reqId);
-    }
-
-    public static CollateralMaster Create(
-        CollateralType collatType,
-        long? hostCollatId,
-        List<long> reqIds
-    )
-    {
-        return new CollateralMaster(collatType, hostCollatId, reqIds);
     }
 
     public void SetCollateralLand(CollateralLand? collateralLand)
@@ -137,17 +123,48 @@ public class CollateralMaster : Aggregate<long>
         }
     }
 
-    public void AddRequestCollateral(long reqId)
+    public void SetOrAddActiveCollateralEngagement(long reqId)
+    {
+        var found = false;
+        foreach (var collateralEngagement in CollateralEngagements)
+        {
+            if (collateralEngagement.ReqId == reqId)
+            {
+                collateralEngagement.Activate();
+                found = true;
+            }
+            else
+            {
+                collateralEngagement.Deactivate();
+            }
+        }
+        if (!found)
+        {
+            var collateralEngagement = CollateralEngagement.Create(Id, reqId);
+            collateralEngagement.Activate();
+            CollateralEngagements.Add(collateralEngagement);
+        }
+    }
+
+    public void AddInactiveCollateralEngagement(long reqId)
     {
         RuleCheck
             .Valid()
             .AddErrorIf(
-                RequestCollaterals.Any(r => r.ReqId == reqId),
-                "Cannot add duplicated request ID to collateral master."
+                CollateralEngagements.Any(r => r.ReqId == reqId),
+                "Cannot add collateral engagement with duplicated request ID to collateral master."
             )
             .ThrowIfInvalid();
 
-        RequestCollaterals.Add(RequestCollateral.Create(Id, reqId));
+        CollateralEngagements.Add(CollateralEngagement.Create(Id, reqId));
+    }
+
+    public void DeactivateCollateralEngagement()
+    {
+        foreach (var collateralEngagement in CollateralEngagements)
+        {
+            collateralEngagement.Deactivate();
+        }
     }
 
     public void Update(CollateralMaster collateralMaster)

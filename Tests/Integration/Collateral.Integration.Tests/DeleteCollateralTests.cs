@@ -23,9 +23,8 @@ public class DeleteCollateralTests(IntegrationTestFixture fixture) : Integration
         // Delete the Collateral
         var deleteCollateralResult =
             await TestCaseHelper.TestDeleteEndpoint<DeleteCollateralResult>(
-                createCollateralResult.Id,
                 _client,
-                url
+                $"{url}/{createCollateralResult.Id}"
             );
         Assert.True(deleteCollateralResult.IsSuccess);
 

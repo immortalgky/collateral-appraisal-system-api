@@ -11,5 +11,5 @@ public record GetCollateralByIdResponse(
     CollateralBuildingDto? CollateralBuilding,
     CollateralCondoDto? CollateralCondo,
     List<LandTitleDto>? LandTitles,
-    List<long> ReqIds
+    List<CollateralEngagementDto> CollateralEngagements
 );

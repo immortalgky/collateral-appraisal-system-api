@@ -154,9 +154,8 @@ public class UpdateCollateralTests(IntegrationTestFixture fixture) : Integration
         // Get the land title ID and use it in the update request
         var getCollateralByIdResult =
             await TestCaseHelper.TestGetByIdEndpoint<GetCollateralByIdResult>(
-                createCollateralResult.Id,
                 _client,
-                _url
+                $"{_url}/{createCollateralResult.Id}"
             );
         var landTitleId = getCollateralByIdResult.LandTitles![0].Id;
         LandTitleDto? landTitleDto = null; // Will be assigned in closure
@@ -197,9 +196,8 @@ public class UpdateCollateralTests(IntegrationTestFixture fixture) : Integration
             await TestCaseHelper.TestUpdateEndpoint<UpdateCollateralResult>(
                 _folderName,
                 updateFileName,
-                createCollateralResult.Id,
                 _client,
-                _url,
+                $"{_url}/{createCollateralResult.Id}",
                 jsonTransformFunc
             );
 
@@ -208,9 +206,8 @@ public class UpdateCollateralTests(IntegrationTestFixture fixture) : Integration
         // Get the collateral again to check the updated land title
         var secondGetCollateralByIdResult =
             await TestCaseHelper.TestGetByIdEndpoint<GetCollateralByIdResult>(
-                createCollateralResult.Id,
                 _client,
-                _url
+                $"{_url}/{createCollateralResult.Id}"
             );
 
         Assert.Equal(landTitleId, secondGetCollateralByIdResult?.LandTitles?[0].Id);
@@ -234,17 +231,15 @@ public class UpdateCollateralTests(IntegrationTestFixture fixture) : Integration
             await TestCaseHelper.TestUpdateEndpoint<UpdateCollateralResult>(
                 _folderName,
                 updateFileName,
-                createCollateralResult.Id,
                 _client,
-                _url
+                $"{_url}/{createCollateralResult.Id}"
             );
         Assert.True(updateCollateralResult.IsSuccess);
 
         var getCollateralByIdResult =
             await TestCaseHelper.TestGetByIdEndpoint<GetCollateralByIdResult>(
-                createCollateralResult.Id,
                 _client,
-                _url
+                $"{_url}/{createCollateralResult.Id}"
             );
 
         var updateCollateralJson = await JsonHelper.JsonFileToJson(_folderName, updateFileName);

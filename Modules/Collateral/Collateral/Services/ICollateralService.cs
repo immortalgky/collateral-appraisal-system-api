@@ -28,9 +28,14 @@ public interface ICollateralService
         CancellationToken cancellationToken = default
     );
 
-    Task AddCollateralRequestId(
+    Task SetOrAddActiveCollateralEngagement(
         long collatId,
         long reqId,
+        CancellationToken cancellationToken = default
+    );
+
+    Task DeactivateCollateralEngagement(
+        long collatId,
         CancellationToken cancellationToken = default
     );
 }

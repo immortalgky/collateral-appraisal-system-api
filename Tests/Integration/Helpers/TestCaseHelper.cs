@@ -36,14 +36,13 @@ internal static class TestCaseHelper
     }
 
     internal static async Task<GetByIdResult> TestGetByIdEndpoint<GetByIdResult>(
-        long id,
         HttpClient client,
         string url
     )
     {
         // Get the item by id
         var getByIdResponse = await client.GetAsync(
-            $"{url}/{id}",
+            url,
             TestContext.Current.CancellationToken
         );
 
@@ -62,14 +61,13 @@ internal static class TestCaseHelper
     }
 
     internal static async Task<DeleteResult> TestDeleteEndpoint<DeleteResult>(
-        long id,
         HttpClient client,
         string url
     )
     {
         // Delete the item
         var deleteResponse = await client.DeleteAsync(
-            $"{url}/{id}",
+            url,
             TestContext.Current.CancellationToken
         );
 
@@ -90,7 +88,6 @@ internal static class TestCaseHelper
     internal static async Task<UpdateResult> TestUpdateEndpoint<UpdateResult>(
         string folderName,
         string fileName,
-        long id,
         HttpClient client,
         string url
     )
@@ -99,7 +96,6 @@ internal static class TestCaseHelper
         return await TestUpdateEndpoint<UpdateResult>(
             folderName,
             fileName,
-            id,
             client,
             url,
             jsonTransformFunc
@@ -109,7 +105,6 @@ internal static class TestCaseHelper
     internal static async Task<UpdateResult> TestUpdateEndpoint<UpdateResult>(
         string folderName,
         string fileName,
-        long id,
         HttpClient client,
         string url,
         Func<string, string> jsonTransformFunc
@@ -119,7 +114,7 @@ internal static class TestCaseHelper
         var transformJson = jsonTransformFunc(updateJson);
         var updateContent = new StringContent(transformJson, Encoding.UTF8, "application/json");
         var updateResponse = await client.PatchAsync(
-            $"{url}/{id}",
+            url,
             updateContent,
             TestContext.Current.CancellationToken
         );

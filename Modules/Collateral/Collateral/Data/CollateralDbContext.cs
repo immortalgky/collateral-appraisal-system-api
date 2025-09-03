@@ -16,6 +16,7 @@ public class CollateralDbContext : DbContext
     public DbSet<CollateralBuilding> CollateralBuildings => Set<CollateralBuilding>();
     public DbSet<CollateralCondo> CollateralCondos => Set<CollateralCondo>();
     public DbSet<LandTitle> LandTitles => Set<LandTitle>();
+    public DbSet<CollateralEngagement> CollateralEngagements => Set<CollateralEngagement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

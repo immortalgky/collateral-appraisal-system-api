@@ -74,9 +74,8 @@ public class CreateCollateralTests(IntegrationTestFixture fixture) : Integration
         // Get the Collateral by Id
         var getCollateralByIdResult =
             await TestCaseHelper.TestGetByIdEndpoint<GetCollateralByIdResult>(
-                createCollateralResult.Id,
                 _client,
-                "/collaterals"
+                $"/collaterals/{createCollateralResult.Id}"
             );
         Assert.Equivalent(getCollateralByIdResult.Id, createCollateralResult.Id);
 

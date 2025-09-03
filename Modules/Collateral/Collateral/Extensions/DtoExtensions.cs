@@ -18,11 +18,22 @@ public static class DtoExtensions
 
     public static CollateralMaster ToDomain(this CollateralMasterDto dto)
     {
+        var activeCollateralEngagement = dto.CollateralEngagements.FirstOrDefault(c => c.IsActive);
         var collateral = CollateralMaster.Create(
             Enum.Parse<CollateralType>(dto.CollatType),
-            dto.HostCollatId,
-            dto.ReqIds
+            dto.HostCollatId
         );
+        if (activeCollateralEngagement is not null)
+        {
+            collateral.SetOrAddActiveCollateralEngagement(activeCollateralEngagement.ReqId);
+        }
+        foreach (var collateralEngagement in dto.CollateralEngagements)
+        {
+            if (!collateralEngagement.IsActive)
+            {
+                collateral.AddInactiveCollateralEngagement(collateralEngagement.ReqId);
+            }
+        }
         collateral.SetCollateralLand(dto.CollateralLand?.ToDomain(dto.CollatId));
         collateral.SetCollateralBuilding(dto.CollateralBuilding?.ToDomain(dto.CollatId));
         collateral.SetCollateralCondo(dto.CollateralCondo?.ToDomain(dto.CollatId));
@@ -190,13 +201,15 @@ public static class DtoExtensions
             domain.CollatType.ToString(),
             domain.HostCollatId,
             domain.CollateralLand?.ToDto(),
-            domain.LandTitles is null ? null : [.. domain.LandTitles.Select(landTitle => landTitle.ToDto())],
+            domain.LandTitles is null
+                ? null
+                : [.. domain.LandTitles.Select(landTitle => landTitle.ToDto())],
             domain.CollateralBuilding?.ToDto(),
             domain.CollateralCondo?.ToDto(),
             domain.CollateralMachine?.ToDto(),
             domain.CollateralVehicle?.ToDto(),
             domain.CollateralVessel?.ToDto(),
-            [.. domain.RequestCollaterals.Select(r => r.ReqId)]
+            [.. domain.CollateralEngagements.Select(c => c.ToDto())]
         );
     }
 
@@ -336,5 +349,16 @@ public static class DtoExtensions
     public static CollateralSizeDto ToDto(this CollateralSize domain)
     {
         return new CollateralSizeDto(domain.Capacity, domain.Width, domain.Length, domain.Height);
+    }
+
+    public static CollateralEngagementDto ToDto(this CollateralEngagement domain)
+    {
+        return new CollateralEngagementDto(
+            domain.Id,
+            domain.ReqId,
+            domain.LinkedAt,
+            domain.UnlinkedAt,
+            domain.IsActive
+        );
     }
 }

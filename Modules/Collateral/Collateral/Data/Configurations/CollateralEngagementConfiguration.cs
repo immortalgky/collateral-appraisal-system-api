@@ -1,14 +1,14 @@
 namespace Collateral.Data.Configurations;
 
-public class RequestCollateralConfiguration : IEntityTypeConfiguration<RequestCollateral>
+public class CollateralEngagementConfiguration : IEntityTypeConfiguration<CollateralEngagement>
 {
-    public void Configure(EntityTypeBuilder<RequestCollateral> builder)
+    public void Configure(EntityTypeBuilder<CollateralEngagement> builder)
     {
         builder.HasKey(p => new { p.Id, p.ReqId });
         builder.Property(p => p.Id).HasColumnName("CollatId");
         builder
             .HasOne<CollateralMaster>()
-            .WithMany(p => p.RequestCollaterals)
+            .WithMany(p => p.CollateralEngagements)
             .HasForeignKey(p => p.Id);
     }
 }

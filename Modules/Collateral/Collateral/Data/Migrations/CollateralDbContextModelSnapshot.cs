@@ -23,6 +23,43 @@ namespace Collateral.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Collateral.CollateralEngagements.Models.CollateralEngagement", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("bigint")
+                        .HasColumnName("CollatId");
+
+                    b.Property<long>("ReqId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LinkedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UnlinkedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id", "ReqId");
+
+                    b.ToTable("CollateralEngagements", "collateral");
+                });
+
             modelBuilder.Entity("Collateral.CollateralMachines.Models.CollateralMachine", b =>
                 {
                     b.Property<long>("Id")
@@ -415,32 +452,13 @@ namespace Collateral.Data.Migrations
                     b.ToTable("CollateralVessels", "collateral");
                 });
 
-            modelBuilder.Entity("Collateral.RequestCollaterals.Models.RequestCollateral", b =>
+            modelBuilder.Entity("Collateral.CollateralEngagements.Models.CollateralEngagement", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint")
-                        .HasColumnName("CollatId");
-
-                    b.Property<long>("ReqId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<DateTime?>("CreatedOn")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<DateTime?>("UpdatedOn")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id", "ReqId");
-
-                    b.ToTable("RequestCollateral", "collateral");
+                    b.HasOne("Collateral.CollateralMasters.Models.CollateralMaster", null)
+                        .WithMany("CollateralEngagements")
+                        .HasForeignKey("Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Collateral.CollateralMachines.Models.CollateralMachine", b =>
@@ -1076,20 +1094,13 @@ namespace Collateral.Data.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Collateral.RequestCollaterals.Models.RequestCollateral", b =>
-                {
-                    b.HasOne("Collateral.CollateralMasters.Models.CollateralMaster", null)
-                        .WithMany("RequestCollaterals")
-                        .HasForeignKey("Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralMaster", b =>
                 {
                     b.Navigation("CollateralBuilding");
 
                     b.Navigation("CollateralCondo");
+
+                    b.Navigation("CollateralEngagements");
 
                     b.Navigation("CollateralLand");
 
@@ -1100,8 +1111,6 @@ namespace Collateral.Data.Migrations
                     b.Navigation("CollateralVessel");
 
                     b.Navigation("LandTitles");
-
-                    b.Navigation("RequestCollaterals");
                 });
 #pragma warning restore 612, 618
         }
