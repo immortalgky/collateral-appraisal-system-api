@@ -1,0 +1,45 @@
+{
+  "collatType": "Land",
+  "collateralLand": {
+    "coordinate": {
+      "latitude": 13.764722,
+      "longitude": 100.538611
+    },
+    "collateralLocation": {
+      "subDistrict": "Makkasan",
+      "district": "Ratchathewi",
+      "province": "Bangkok",
+      "landOffice": "TT"
+    },
+    "landDesc": "Land"
+  },
+  "landTitles": [
+    {
+      "id": 0,
+      "seqNo": 2,
+      "landTitleDocumentDetail": {
+        "titleNo": "TL-456",
+        "bookNo": "BK-789",
+        "pageNo": "PG-101",
+        "landNo": "LN-202",
+        "surveyNo": "SV-303",
+        "sheetNo": "SHT-404"
+      },
+      "landTitleArea": {
+        "rai": 1.0,
+        "ngan": 2.0,
+        "wa": 3.0,
+        "totalAreaInSqWa": 60.0
+      },
+      "documentType": "Freehold",
+      "rawang": "Rawang Data",
+      "aerialPhotoNo": "PHOTO-001",
+      "boundaryMarker": "BM-123",
+      "boundaryMarkerOther": null,
+      "docValidate": "Valid",
+      "pricePerSquareWa": 50.0,
+      "governmentPrice": 2000000.0
+    }
+  ],
+  "reqId": 1
+}

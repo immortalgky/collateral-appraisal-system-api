@@ -1,0 +1,27 @@
+{
+  "collatType": "Machine",
+  "collateralMachine": {
+    "collateralMachineProperty": {
+      "name": "Example Machinery",
+      "brand": "ExampleBrand",
+      "model": "ModelX",
+      "energyUse": "Electric"
+    },
+    "collateralMachineDetail": {
+      "engineNo": "EN-12345",
+      "registrationNo": "REG-67890",
+      "yearOfManufacture": 2020,
+      "countryOfManufacture": "Thailand",
+      "purchaseDate": "2022-05-15",
+      "purchasePrice": 5000.0
+    },
+    "collateralMachineSize": {
+      "capacity": "5000 liters",
+      "width": 2.5,
+      "length": 4.0,
+      "height": 3.0
+    },
+    "chassisNo": "CH-54321"
+  },
+  "reqId": 1
+}

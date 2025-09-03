@@ -1,0 +1,26 @@
+{
+  "collatType": "Vehicle",
+  "collateralVehicle": {
+    "collateralVehicleProperty": {
+      "name": "Toyota Corolla2",
+      "brand": "Toyota",
+      "model": "SE 2020",
+      "energyUse": "Petrol"
+    },
+    "collateralVehicleDetail": {
+      "engineNo": "EN-123456",
+      "registrationNo": "REG-789012",
+      "yearOfManufacture": 2020,
+      "countryOfManufacture": "Thailand",
+      "purchaseDate": "2022-03-15",
+      "purchasePrice": 25000.0
+    },
+    "collateralVehicleSize": {
+      "capacity": "1,500 liters",
+      "width": 1.8,
+      "length": 4.5,
+      "height": 1.5
+    },
+    "chassisNo": "CH-001234"
+  }
+}
