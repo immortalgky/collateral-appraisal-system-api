@@ -29,9 +29,7 @@ public class AddCollateralRequestIdEndpoint : ICarterModule
             .Produces<AddCollateralRequestIdResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithSummary("Add new request ID to collateral")
-            .WithDescription(
-                "Add a new request ID to collateral."
-            )
+            .WithDescription("Add a new request ID to collateral.")
             .WithTags("Collateral");
     }
 }
