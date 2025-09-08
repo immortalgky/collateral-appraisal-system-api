@@ -215,6 +215,70 @@ namespace Request.Data.Migrations
                                 .HasForeignKey("RequestTitleId");
                         });
 
+                    b.OwnsOne("Request.RequestTitles.ValueObjects.LandArea", "LandArea", b1 =>
+                        {
+                            b1.Property<long>("RequestTitleId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<int?>("Ngan")
+                                .HasColumnType("int")
+                                .HasColumnName("Ngan");
+
+                            b1.Property<int?>("Rai")
+                                .HasColumnType("int")
+                                .HasColumnName("Rai");
+
+                            b1.Property<decimal?>("Wa")
+                                .HasPrecision(4, 2)
+                                .HasColumnType("decimal(4,2)")
+                                .HasColumnName("Wa");
+
+                            b1.HasKey("RequestTitleId");
+
+                            b1.ToTable("RequestTitles", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestTitleId");
+                        });
+
+                    b.OwnsOne("Request.RequestTitles.ValueObjects.Machine", "Machine", b1 =>
+                        {
+                            b1.Property<long>("RequestTitleId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<string>("MachineInvoiceNo")
+                                .HasMaxLength(20)
+                                .HasColumnType("nvarchar(20)")
+                                .HasColumnName("MachineInvoiceNo");
+
+                            b1.Property<string>("MachineRegistrationNo")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("MachineRegistrationNo");
+
+                            b1.Property<string>("MachineRegistrationStatus")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("MachineRegistrationStatus");
+
+                            b1.Property<string>("MachineStatus")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("MachineStatus");
+
+                            b1.Property<string>("MachineType")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("MachineType");
+
+                            b1.HasKey("RequestTitleId");
+
+                            b1.ToTable("RequestTitles", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestTitleId");
+                        });
+
                     b.OwnsOne("Request.Requests.ValueObjects.Address", "TitleAddress", b1 =>
                         {
                             b1.Property<long>("RequestTitleId")
@@ -274,70 +338,6 @@ namespace Request.Data.Migrations
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
                                 .HasColumnName("SubDistrict");
-
-                            b1.HasKey("RequestTitleId");
-
-                            b1.ToTable("RequestTitles", "request");
-
-                            b1.WithOwner()
-                                .HasForeignKey("RequestTitleId");
-                        });
-
-                    b.OwnsOne("Request.RequestTitles.ValueObjects.LandArea", "LandArea", b1 =>
-                        {
-                            b1.Property<long>("RequestTitleId")
-                                .HasColumnType("bigint");
-
-                            b1.Property<int?>("Ngan")
-                                .HasColumnType("int")
-                                .HasColumnName("Ngan");
-
-                            b1.Property<int?>("Rai")
-                                .HasColumnType("int")
-                                .HasColumnName("Rai");
-
-                            b1.Property<decimal?>("Wa")
-                                .HasPrecision(4, 2)
-                                .HasColumnType("decimal(4,2)")
-                                .HasColumnName("Wa");
-
-                            b1.HasKey("RequestTitleId");
-
-                            b1.ToTable("RequestTitles", "request");
-
-                            b1.WithOwner()
-                                .HasForeignKey("RequestTitleId");
-                        });
-
-                    b.OwnsOne("Request.RequestTitles.ValueObjects.Machine", "Machine", b1 =>
-                        {
-                            b1.Property<long>("RequestTitleId")
-                                .HasColumnType("bigint");
-
-                            b1.Property<string>("MachineInvoiceNo")
-                                .HasMaxLength(20)
-                                .HasColumnType("nvarchar(20)")
-                                .HasColumnName("MachineInvoiceNo");
-
-                            b1.Property<string>("MachineRegistrationNo")
-                                .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)")
-                                .HasColumnName("MachineRegistrationNo");
-
-                            b1.Property<string>("MachineRegistrationStatus")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
-                                .HasColumnName("MachineRegistrationStatus");
-
-                            b1.Property<string>("MachineStatus")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
-                                .HasColumnName("MachineStatus");
-
-                            b1.Property<string>("MachineType")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
-                                .HasColumnName("MachineType");
 
                             b1.HasKey("RequestTitleId");
 
@@ -487,6 +487,74 @@ namespace Request.Data.Migrations
                             b1.WithOwner()
                                 .HasForeignKey("RequestId");
 
+                            b1.OwnsOne("Request.Requests.ValueObjects.Address", "Address", b2 =>
+                                {
+                                    b2.Property<long>("RequestDetailRequestId")
+                                        .HasColumnType("bigint");
+
+                                    b2.Property<string>("District")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("District");
+
+                                    b2.Property<string>("FloorNo")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("FloorNo");
+
+                                    b2.Property<string>("HouseNo")
+                                        .HasMaxLength(30)
+                                        .HasColumnType("nvarchar(30)")
+                                        .HasColumnName("HouseNo");
+
+                                    b2.Property<string>("Moo")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Moo");
+
+                                    b2.Property<string>("Postcode")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("Postcode");
+
+                                    b2.Property<string>("ProjectName")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("LocationIdentifier");
+
+                                    b2.Property<string>("Province")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("Province");
+
+                                    b2.Property<string>("Road")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Road");
+
+                                    b2.Property<string>("RoomNo")
+                                        .HasMaxLength(30)
+                                        .HasColumnType("nvarchar(30)")
+                                        .HasColumnName("RoomNo");
+
+                                    b2.Property<string>("Soi")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Soi");
+
+                                    b2.Property<string>("SubDistrict")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("SubDistrict");
+
+                                    b2.HasKey("RequestDetailRequestId");
+
+                                    b2.ToTable("RequestDetails", "request");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RequestDetailRequestId");
+                                });
+
                             b1.OwnsOne("Request.Requests.ValueObjects.Contact", "Contact", b2 =>
                                 {
                                     b2.Property<long>("RequestDetailRequestId")
@@ -587,74 +655,6 @@ namespace Request.Data.Migrations
                                         .HasPrecision(19, 4)
                                         .HasColumnType("decimal(19,4)")
                                         .HasColumnName("PrevAppraisalValue");
-
-                                    b2.HasKey("RequestDetailRequestId");
-
-                                    b2.ToTable("RequestDetails", "request");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("RequestDetailRequestId");
-                                });
-
-                            b1.OwnsOne("Request.Requests.ValueObjects.Address", "Address", b2 =>
-                                {
-                                    b2.Property<long>("RequestDetailRequestId")
-                                        .HasColumnType("bigint");
-
-                                    b2.Property<string>("District")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("District");
-
-                                    b2.Property<string>("FloorNo")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("FloorNo");
-
-                                    b2.Property<string>("HouseNo")
-                                        .HasMaxLength(30)
-                                        .HasColumnType("nvarchar(30)")
-                                        .HasColumnName("HouseNo");
-
-                                    b2.Property<string>("Moo")
-                                        .HasMaxLength(50)
-                                        .HasColumnType("nvarchar(50)")
-                                        .HasColumnName("Moo");
-
-                                    b2.Property<string>("Postcode")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("Postcode");
-
-                                    b2.Property<string>("ProjectName")
-                                        .HasMaxLength(50)
-                                        .HasColumnType("nvarchar(50)")
-                                        .HasColumnName("LocationIdentifier");
-
-                                    b2.Property<string>("Province")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("Province");
-
-                                    b2.Property<string>("Road")
-                                        .HasMaxLength(50)
-                                        .HasColumnType("nvarchar(50)")
-                                        .HasColumnName("Road");
-
-                                    b2.Property<string>("RoomNo")
-                                        .HasMaxLength(30)
-                                        .HasColumnType("nvarchar(30)")
-                                        .HasColumnName("RoomNo");
-
-                                    b2.Property<string>("Soi")
-                                        .HasMaxLength(50)
-                                        .HasColumnType("nvarchar(50)")
-                                        .HasColumnName("Soi");
-
-                                    b2.Property<string>("SubDistrict")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("SubDistrict");
 
                                     b2.HasKey("RequestDetailRequestId");
 

@@ -1,3 +1,5 @@
+using MassTransit;
+
 namespace Document.Data;
 
 public class DocumentDbContext : DbContext

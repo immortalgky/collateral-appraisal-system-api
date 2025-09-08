@@ -27,19 +27,20 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentAssertions" Version="7.0.0" />
+    <PackageReference Include="FluentAssertions" Version="7.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.8" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Testcontainers.MsSql" Version="4.6.0" />
     <PackageReference Include="Testcontainers.RabbitMq" Version="4.6.0" />
     <PackageReference Include="xunit.v3" Version="3.0.1" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageReference Include="Dapper" Version="2.1.66" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\Bootstrapper\Api\Api.csproj" />
     <ProjectReference Include="..\..\Database\Database.csproj" />
-    <ProjectReference Include="..\..\Modules\Assignment\Assignment\Assignment.csproj" />
+    <ProjectReference Include="..\..\Modules\Workflow\Workflow\Workflow.csproj" />
   </ItemGroup>
 
   <ItemGroup>

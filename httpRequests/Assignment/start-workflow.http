@@ -7,7 +7,7 @@ POST {{baseUrl}}/api/workflows/instances/start
 Content-Type: application/json
 
 {
-  "workflowDefinitionId": "1a382feb-5fd3-4b3c-9540-ba0b8734fcf8",
+  "workflowDefinitionId": "6ce8e680-6f1d-42c9-b7cb-6d09357cee60",
   "instanceName": "Collateral Appraisal Workflow",
   "startedBy": "system",
   "initialVariables": {

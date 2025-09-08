@@ -1,6 +1,8 @@
+using Document.Data;
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.EntityFrameworkCore;
+using Request.Data;
 using Shared.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,10 +21,10 @@ var requestAssembly = typeof(RequestModule).Assembly;
 var authAssembly = typeof(AuthModule).Assembly;
 var notificationAssembly = typeof(NotificationModule).Assembly;
 var documentAssembly = typeof(DocumentModule).Assembly;
-var assignmentAssembly = typeof(AssignmentModule).Assembly;
+var workflowAssembly = typeof(WorkflowModule).Assembly;
 
-builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssembly);
-builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssembly);
+builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, workflowAssembly);
+builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, workflowAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -57,10 +59,10 @@ builder.Services.AddMassTransit(config =>
             r.LockStatementProvider = new SqlServerLockStatementProvider();
         });
 
-    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
+    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, workflowAssembly);
+    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, workflowAssembly);
+    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, workflowAssembly);
+    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, workflowAssembly);
 
     config.UsingRabbitMq((context, configurator) =>
     {
@@ -92,7 +94,7 @@ builder.Services
     .AddAuthModule(builder.Configuration)
     .AddNotificationModule(builder.Configuration)
     .AddDocumentModule(builder.Configuration)
-    .AddAssignmentModule(builder.Configuration)
+    .AddWorkflowModule(builder.Configuration)
     .AddOpenIddictModule(builder.Configuration);
 
 // Configure JSON serialization
@@ -150,7 +152,7 @@ app
     .UseAuthModule()
     .UseNotificationModule()
     .UseDocumentModule()
-    .UseAssignmentModule()
+    .UseWorkflowModule()
     .UseOpenIddictModule();
 
 await app.RunAsync();

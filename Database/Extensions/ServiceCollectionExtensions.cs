@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using Request.Data;
-using Assignment.Data;
+using Workflow.Data;
 using Document.Data;
 using Notification.Data;
 using OAuth2OpenId.Data;
@@ -58,12 +58,12 @@ public static class ServiceCollectionExtensions
             });
         });
 
-        services.AddDbContext<AssignmentDbContext>(options =>
+        services.AddDbContext<WorkflowDbContext>(options =>
         {
             options.UseSqlServer(connectionString, sqlOptions =>
             {
-                sqlOptions.MigrationsAssembly(typeof(AssignmentDbContext).Assembly.GetName().Name);
-                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "assignment");
+                sqlOptions.MigrationsAssembly(typeof(WorkflowDbContext).Assembly.GetName().Name);
+                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "workflow");
             });
         });
 

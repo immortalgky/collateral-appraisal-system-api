@@ -21,7 +21,6 @@ public class RequestRepository(RequestDbContext dbContext, IAppraisalNumberGener
         }
 
         dbContext.Requests.Add(request);
-        await dbContext.SaveChangesAsync(cancellationToken);
 
         return request;
     }

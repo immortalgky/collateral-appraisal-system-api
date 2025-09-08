@@ -1,5 +1,5 @@
 using System.Reflection;
-using Assignment;
+using Workflow;
 using Auth;
 using Database.Migration;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -136,10 +136,10 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         var authAssembly = typeof(AuthModule).Assembly;
         var notificationAssembly = typeof(NotificationModule).Assembly;
         var documentAssembly = typeof(DocumentModule).Assembly;
-        var assignmentAssembly = typeof(AssignmentModule).Assembly;
+        var workflowAssembly = typeof(WorkflowModule).Assembly;
 
         var dbContexts = GetDbContextsFromAssemblies(requestAssembly, authAssembly, notificationAssembly,
-            documentAssembly, assignmentAssembly);
+            documentAssembly, workflowAssembly);
         return dbContexts;
     }
 

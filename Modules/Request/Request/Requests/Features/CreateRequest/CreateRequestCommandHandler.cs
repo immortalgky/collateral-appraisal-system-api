@@ -26,6 +26,10 @@ internal class CreateRequestCommandHandler(
         );
 
         await requestRepository.CreateRequestAsync(request, cancellationToken);
+        
+        request.AddDomainEvent(new RequestCreatedEvent(request));
+
+        await requestRepository.SaveChangesAsync(cancellationToken);
 
         return new CreateRequestResult(request.Id);
     }

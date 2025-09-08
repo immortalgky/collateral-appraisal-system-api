@@ -6,4 +6,4 @@
 POST {{baseUrl}}/api/workflows/definitions
 Content-Type: application/json
 
-< ../../Modules/Assignment/Assignment/Workflow/Config/appraisal-workflow.json
+< ../../Modules/Workflow/Workflow/Workflow/Config/appraisal-workflow.json

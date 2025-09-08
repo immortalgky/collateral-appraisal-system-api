@@ -9,27 +9,22 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.13.0"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.13.0"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.13.0"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.13.0"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.5"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.11.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.5">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="Serilog.AspNetCore" Version="9.0.0"/>
     </ItemGroup>
 
     <ItemGroup>
-        <!-- Hide the content files that come from the Microsoft.CodeAnalysis.Workspaces.Common package. -->
-        <Content Update="$(NuGetPackageRoot)\microsoft.codeanalysis.workspaces.msbuild\**\**" Visible="false"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="../../Modules/Notification/Notification/Notification.csproj"/>
-        <ProjectReference Include="../../Modules/Request/Request/Request.csproj"/>
-        <ProjectReference Include="../../Shared/Shared/Shared.csproj"/>
+        <ProjectReference Include="..\..\Modules\Notification\Notification\Notification.csproj"/>
+        <ProjectReference Include="..\..\Modules\Request\Request\Request.csproj"/>
+        <ProjectReference Include="..\..\Shared\Shared\Shared.csproj"/>
         <ProjectReference Include="..\..\Modules\Auth\Auth\Auth.csproj"/>
         <ProjectReference Include="..\..\Modules\Auth\OAuth2OpenId\OAuth2OpenId.csproj"/>
-        <ProjectReference Include="../../Modules/Document/Document/Document.csproj"/>
-        <ProjectReference Include="..\..\Modules\Assignment\Assignment\Assignment.csproj"/>
+        <ProjectReference Include="..\..\Modules\Document\Document\Document.csproj"/>
+        <ProjectReference Include="..\..\Modules\Workflow\Workflow\Workflow.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

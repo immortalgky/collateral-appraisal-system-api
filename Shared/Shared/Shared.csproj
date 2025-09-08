@@ -27,8 +27,4 @@
         <ProjectReference Include="../Shared.Contracts/Shared.Contracts.csproj"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <Folder Include="JsonConverters\"/>
-    </ItemGroup>
-
 </Project>

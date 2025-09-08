@@ -1,3 +1,5 @@
+using MassTransit;
+
 namespace Request.Data;
 
 public class RequestDbContext : DbContext
