@@ -52,7 +52,7 @@ services:
     image: otel/opentelemetry-collector-contrib
     container_name: otelcol
     volumes:
-      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+      - ./Observability/OpenTelemetry/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
     ports:
       - 1888:1888 # pprof extension
       - 8888:8888 # Prometheus metrics exposed by the Collector
@@ -79,6 +79,8 @@ services:
     image: grafana/grafana-oss:12.0.4
     container_name: grafana
     volumes:
+      - ./Observability/Grafana/Provisioning:/etc/grafana/provisioning
+      - ./Observability/Grafana/Dashboards:/var/lib/grafana/dashboards
       - grafana_data:/var/lib/grafana
     ports:
       - "3000:3000"
@@ -93,7 +95,7 @@ services:
       - "--web.enable-remote-write-receiver"
       - "--enable-feature=native-histograms"
     volumes:
-      - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+      - ./Observability/Prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
@@ -116,7 +118,7 @@ services:
     container_name: tempo
     command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
-      - ./tempo.yaml:/etc/tempo.yaml
+      - ./Observability/Tempo/tempo.yaml:/etc/tempo.yaml
       - tempo_data:/var/tempo
     ports:
       - "63002:3200" # tempo
