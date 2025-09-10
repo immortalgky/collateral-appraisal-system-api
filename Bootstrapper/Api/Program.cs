@@ -1,6 +1,7 @@
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
 using MassTransit.Logging;
+using MassTransit.Monitoring;
 using Microsoft.EntityFrameworkCore;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -41,11 +42,12 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(tracing => tracing
         .ConfigureResource(ConfigureResource)
         .AddAspNetCoreInstrumentation()
-        .AddSource(DiagnosticHeaders.DefaultListenerName) // MassTransit
+        .AddSource(DiagnosticHeaders.DefaultListenerName) // MassTransit Traces
         .AddEntityFrameworkCoreInstrumentation()
         .AddOtlpExporter())
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
+        .AddMeter(InstrumentationOptions.MeterName) // MassTransit Meter
         .AddOtlpExporter());
 
 // Add shared services (time abstraction, security, etc.)
