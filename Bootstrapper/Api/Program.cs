@@ -1,15 +1,52 @@
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
+using MassTransit.Logging;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Shared.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+const string serviceName = "CAS";
+
+static void ConfigureResource(ResourceBuilder r)
+{
+    r.AddService(serviceName,
+        serviceVersion: "0.1",
+        serviceInstanceId: Environment.MachineName);
+}
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
 builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(context.Configuration));
+builder.Logging.AddOpenTelemetry(options =>
+{
+    options
+        .SetResourceBuilder(
+            ResourceBuilder.CreateDefault()
+                .AddService(serviceName))
+        .AddOtlpExporter(otlpOptions =>
+        {
+            otlpOptions.Endpoint = new Uri("http://localhost:4318");
+            otlpOptions.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+        });
+});
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(serviceName))
+    .WithTracing(tracing => tracing
+        .ConfigureResource(ConfigureResource)
+        .AddAspNetCoreInstrumentation()
+        .AddSource(DiagnosticHeaders.DefaultListenerName) // MassTransit
+        .AddEntityFrameworkCoreInstrumentation()
+        .AddOtlpExporter())
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddOtlpExporter());
 
 // Add shared services (time abstraction, security, etc.)
 builder.Services.AddSharedServices(builder.Configuration);
