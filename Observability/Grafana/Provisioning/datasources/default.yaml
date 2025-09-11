@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - name: prometheus
+    type: prometheus
+    url: http://prometheus:9090/
+    uid: P1809F7CD0C75ACF3
+  - name: loki
+    type: loki
+    url: http://loki:3100/
+    uid: P982945308D3682D1
+  - name: tempo
+    type: tempo
+    url: http://tempo:3200
+    uid: P8D6546721A1D106C

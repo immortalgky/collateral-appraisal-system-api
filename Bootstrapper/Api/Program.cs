@@ -1,15 +1,56 @@
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
+using MassTransit.Logging;
+using MassTransit.Monitoring;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Shared.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+const string serviceName = "CAS";
+
+static void ConfigureResource(ResourceBuilder r)
+{
+    r.AddService(serviceName,
+        serviceVersion: "0.1",
+        serviceInstanceId: Environment.MachineName);
+}
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
 builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(context.Configuration));
+builder.Logging.AddOpenTelemetry(options =>
+{
+    options
+        .SetResourceBuilder(
+            ResourceBuilder.CreateDefault()
+                .AddService(serviceName))
+        .AddOtlpExporter();
+});
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(serviceName))
+    .WithTracing(tracing => tracing
+        .ConfigureResource(ConfigureResource)
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddSource(DiagnosticHeaders.DefaultListenerName) // MassTransit Traces
+        .AddEntityFrameworkCoreInstrumentation()
+        .AddSqlClientInstrumentation(
+            options => options.SetDbStatementForText = true
+        )
+        .AddOtlpExporter())
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddSqlClientInstrumentation()
+        .AddMeter(InstrumentationOptions.MeterName) // MassTransit Meter
+        .AddOtlpExporter());
 
 // Add shared services (time abstraction, security, etc.)
 builder.Services.AddSharedServices(builder.Configuration);
