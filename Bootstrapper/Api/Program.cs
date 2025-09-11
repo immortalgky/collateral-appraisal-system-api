@@ -41,7 +41,9 @@ builder.Services.AddOpenTelemetry()
         .AddHttpClientInstrumentation()
         .AddSource(DiagnosticHeaders.DefaultListenerName) // MassTransit Traces
         .AddEntityFrameworkCoreInstrumentation()
-        .AddSqlClientInstrumentation()
+        .AddSqlClientInstrumentation(
+            options => options.SetDbStatementForText = true
+        )
         .AddOtlpExporter())
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
