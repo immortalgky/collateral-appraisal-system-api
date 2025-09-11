@@ -38,11 +38,15 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(tracing => tracing
         .ConfigureResource(ConfigureResource)
         .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
         .AddSource(DiagnosticHeaders.DefaultListenerName) // MassTransit Traces
         .AddEntityFrameworkCoreInstrumentation()
+        .AddSqlClientInstrumentation()
         .AddOtlpExporter())
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddSqlClientInstrumentation()
         .AddMeter(InstrumentationOptions.MeterName) // MassTransit Meter
         .AddOtlpExporter());
 
