@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OAuth2OpenId.Services;
 using Shared.Security;
 
 namespace OAuth2OpenId;
@@ -126,6 +127,7 @@ public static class OpenIddictModule
             });
 
         services.AddScoped<IDataSeeder<OpenIddictDbContext>, AuthDataSeed>();
+        services.AddScoped<ITokenService, TokenService>();
 
         return services;
     }

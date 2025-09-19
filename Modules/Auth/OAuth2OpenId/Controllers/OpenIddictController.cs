@@ -1,12 +1,16 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using OpenIddict.Server.AspNetCore;
+using OAuth2OpenId.Services;
 
 namespace OAuth2OpenId.Controllers;
 
-public class OpenIddictController : Controller
+public class OpenIddictController(ITokenService tokenService) : Controller
 {
+    [Authorize(AuthenticationSchemes = "Identity.Application")]
+    [AllowAnonymous]
     [HttpGet("~/connect/authorize")]
     public async Task<IActionResult> Authorize()
     {
@@ -35,6 +39,7 @@ public class OpenIddictController : Controller
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
+    [AllowAnonymous]
     [HttpPost("~/connect/token")]
     public async Task<IActionResult> Token()
     {
@@ -43,29 +48,31 @@ public class OpenIddictController : Controller
         if (request is null)
             return BadRequest(new { error = "Invalid request" });
 
-        if (!request.IsAuthorizationCodeGrantType())
+        if (!request.IsAuthorizationCodeGrantType() && !request.IsClientCredentialsGrantType())
+        {
             return BadRequest(new { error = "Unsupported grant_type" });
+        }
 
-        // Handle authorization code grant type
         var principal = (await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme))
             .Principal;
 
         if (principal == null) return BadRequest(new { error = "Invalid authorization code" });
 
-        // Get user info from the principal
-        var userId = principal.FindFirstValue(OpenIddictConstants.Claims.Subject);
-        var username = principal.FindFirstValue(OpenIddictConstants.Claims.Name);
+        if (request.IsClientCredentialsGrantType())
+            return await HandleClientCredentialsGrant(request);
 
-        var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-        identity.AddClaim(OpenIddictConstants.Claims.Subject, userId);
-        identity.AddClaim(OpenIddictConstants.Claims.Name, username);
+        return await HandleAuthorizationCodeGrant(request, principal);
+    }
 
-        foreach (var claim in identity.Claims)
-            claim.SetDestinations(OpenIddictConstants.Destinations.AccessToken,
-                OpenIddictConstants.Destinations.IdentityToken);
-
-        var claimsPrincipal = new ClaimsPrincipal(identity);
-        claimsPrincipal.SetScopes(request.GetScopes());
+    private async Task<IActionResult> HandleAuthorizationCodeGrant(OpenIddictRequest request, ClaimsPrincipal principal)
+    {
+        var claimsPrincipal = await tokenService.CreateAuthCodeFlowAccessTokenPrincipal(request, principal);
         return SignIn(claimsPrincipal, null, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
+    private async Task<IActionResult> HandleClientCredentialsGrant(OpenIddictRequest request)
+    {
+        var claimsPrincipal = await tokenService.CreateClientCredFlowAccessTokenPrincipal(request);
+        return SignIn(claimsPrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 }

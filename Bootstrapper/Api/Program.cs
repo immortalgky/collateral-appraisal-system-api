@@ -84,16 +84,14 @@ builder.Services.AddMassTransit(config =>
 
 builder.Services.AddHttpClient("CAS", client => { client.BaseAddress = new Uri("https://localhost:7111"); });
 
-builder.Services.AddAuthorization();
-
 // Module services: request, etc.
 builder.Services
     .AddRequestModule(builder.Configuration)
+    .AddOpenIddictModule(builder.Configuration)
     .AddAuthModule(builder.Configuration)
     .AddNotificationModule(builder.Configuration)
     .AddDocumentModule(builder.Configuration)
-    .AddAssignmentModule(builder.Configuration)
-    .AddOpenIddictModule(builder.Configuration);
+    .AddAssignmentModule(builder.Configuration);
 
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>

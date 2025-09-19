@@ -1,5 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
+
 namespace OAuth2OpenId.Pages.Account;
 
+[AllowAnonymous]
 public class Login(
     SignInManager<ApplicationUser> signInManager,
     ILogger<Login> logger)

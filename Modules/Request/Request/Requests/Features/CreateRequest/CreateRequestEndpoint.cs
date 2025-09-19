@@ -15,6 +15,7 @@ public class CreateRequestEndpoint : ICarterModule
 
                     return Results.Created($"/requests/{response.Id}", response);
                 })
+            .RequireAuthorization("CanWriteRequest")
             .WithName("CreateRequest")
             .Produces<CreateRequestResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)

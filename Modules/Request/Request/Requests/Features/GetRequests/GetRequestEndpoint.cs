@@ -10,9 +10,10 @@ public class GetRequestEndpoint : ICarterModule
                 async ([AsParameters] PaginationRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
                     var result = await sender.Send(new GetRequestQuery(request), cancellationToken);
-                    
+
                     return Results.Ok(result.Result);
                 })
+            .RequireAuthorization("CanReadRequest")
             .WithName("GetRequest")
             .Produces<GetRequestResult>()
             .ProducesProblem(StatusCodes.Status404NotFound)
