@@ -56,8 +56,6 @@ public class OpenIddictController(ITokenService tokenService) : Controller
         var principal = (await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme))
             .Principal;
 
-        if (principal == null) return BadRequest(new { error = "Invalid authorization code" });
-
         if (request.IsClientCredentialsGrantType())
             return await HandleClientCredentialsGrant(request);
 
@@ -66,6 +64,7 @@ public class OpenIddictController(ITokenService tokenService) : Controller
 
     private async Task<IActionResult> HandleAuthorizationCodeGrant(OpenIddictRequest request, ClaimsPrincipal principal)
     {
+        if (principal == null) return BadRequest(new { error = "Invalid authorization code" });
         var claimsPrincipal = await tokenService.CreateAuthCodeFlowAccessTokenPrincipal(request, principal);
         return SignIn(claimsPrincipal, null, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
