@@ -26,6 +26,7 @@ public class RegisterUserEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithSummary("Register new user account")
             .WithDescription("Register a new user account.")
-            .WithTags("Auth");
+            .WithTags("Auth")
+            .AllowAnonymous();
     }
 }

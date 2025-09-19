@@ -21,12 +21,12 @@ public class RegisterClientEndpoint : ICarterModule
                     return Results.Ok(response);
                 }
             )
-            .AllowAnonymous()
             .WithName("RegisterClient")
             .Produces<RegisterClientResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithSummary("Register new client")
             .WithDescription("Register a new client.")
-            .WithTags("Auth");
+            .WithTags("Auth")
+            .AllowAnonymous();
     }
 }

@@ -16,11 +16,12 @@ public class TokenEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/auth/token", [AllowAnonymous] async (TokenRequest request, ISender sender) =>
+        app.MapPost("/auth/token", async (TokenRequest request, ISender sender) =>
         {
             var command = request.Adapt<TokenCommand>();
             var result = await sender.Send(command);
             return Results.Ok(result);
-        });
+        })
+        .AllowAnonymous();
     }
 }

@@ -57,6 +57,14 @@ public static class AuthModule
                         OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
                     )
                     .Build()
+            )
+            .SetFallbackPolicy(
+                new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .AddAuthenticationSchemes(
+                        OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
+                    )
+                    .Build()
             );
         return authorizationBuilder;
     }
