@@ -12,6 +12,29 @@ public class TokenService(
     IOpenIddictApplicationManager manager
 ) : ITokenService
 {
+    private static readonly Dictionary<string, string> ClaimScopeMapping = new()
+    {
+        { OpenIddictConstants.Claims.Name, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.FamilyName, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.GivenName, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.MiddleName, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.Nickname, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.PreferredUsername, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.Profile, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.Picture, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.Website, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.Gender, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.Birthdate, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.Zoneinfo, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.Locale, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.UpdatedAt, OpenIddictConstants.Scopes.Profile },
+        { OpenIddictConstants.Claims.Email, OpenIddictConstants.Scopes.Email },
+        { OpenIddictConstants.Claims.EmailVerified, OpenIddictConstants.Scopes.Email },
+        { OpenIddictConstants.Claims.Address, OpenIddictConstants.Scopes.Address },
+        { OpenIddictConstants.Claims.PhoneNumber, OpenIddictConstants.Scopes.Phone },
+        { OpenIddictConstants.Claims.PhoneNumberVerified, OpenIddictConstants.Scopes.Phone },
+    };
+
     public async Task<ClaimsPrincipal> CreateAuthCodeFlowAccessTokenPrincipal(
         OpenIddictRequest request,
         ClaimsPrincipal principal
@@ -33,7 +56,11 @@ public class TokenService(
             "permissions",
             [.. user.Permissions.Select(permission => permission.PermissionName)]
         );
-        identity.SetClaims("roles", [.. await userManager.GetRolesAsync(user)]);
+
+        if (identity.HasScope(OpenIddictConstants.Scopes.Roles))
+        {
+            identity.SetClaims("roles", [.. await userManager.GetRolesAsync(user)]);
+        }
 
         identity.SetDestinations(GetDestinations);
 
@@ -77,15 +104,15 @@ public class TokenService(
 
     private static IEnumerable<string> GetDestinations(Claim claim)
     {
-        return claim.Type switch
+        if (ClaimScopeMapping.ContainsKey(claim.Type))
         {
-            OpenIddictConstants.Claims.Name
-                when claim.Subject.HasScope(OpenIddictConstants.Scopes.Profile) =>
-            [
-                OpenIddictConstants.Destinations.AccessToken,
-                OpenIddictConstants.Destinations.IdentityToken,
-            ],
-            _ => [OpenIddictConstants.Destinations.AccessToken],
-        };
+            return claim.Subject.HasScope(ClaimScopeMapping[claim.Type])
+                ? [OpenIddictConstants.Destinations.IdentityToken]
+                : [];
+        }
+        else
+        {
+            return [OpenIddictConstants.Destinations.AccessToken];
+        }
     }
 }
