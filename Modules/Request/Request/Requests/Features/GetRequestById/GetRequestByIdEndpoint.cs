@@ -16,6 +16,7 @@ public class GetRequestByIdEndpoint : ICarterModule
             .Produces<GetRequestByIdResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get request by ID")
-            .WithDescription("Get request by ID");
+            .WithDescription("Get request by ID")
+            .RequireAuthorization("CanReadRequest");
     }
 }

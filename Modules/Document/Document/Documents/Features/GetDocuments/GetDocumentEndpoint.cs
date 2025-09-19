@@ -13,6 +13,7 @@ public class GstDocumentEndpoint : ICarterModule
             var response = result.Adapt<GetDocumentResponse>();
 
             return Results.Ok(response.Documents);
-        });
+        })
+        .RequireAuthorization("CanReadDocument");
     }
 }

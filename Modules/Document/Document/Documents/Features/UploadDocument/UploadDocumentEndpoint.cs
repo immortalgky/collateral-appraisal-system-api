@@ -15,6 +15,7 @@ public class UploadDocumentEndpoint : ICarterModule
             var response = result.Adapt<UploadDocumentResult>();
 
             return Results.Ok(response.Result);
-        }).DisableAntiforgery();
+        }).DisableAntiforgery()
+        .RequireAuthorization("CanWriteDocument");
     }
 }

@@ -16,6 +16,7 @@ public class DeleteDocumentEndpoint : ICarterModule
             var response = result.Adapt<DeleteDocumentResponse>();
 
             return Results.Ok(response);
-        });
+        })
+        .RequireAuthorization("CanWriteDocument");
     }
 }

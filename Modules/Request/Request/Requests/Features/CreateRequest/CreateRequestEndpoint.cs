@@ -15,12 +15,12 @@ public class CreateRequestEndpoint : ICarterModule
 
                     return Results.Created($"/requests/{response.Id}", response);
                 })
-            .RequireAuthorization("CanWriteRequest")
             .WithName("CreateRequest")
             .Produces<CreateRequestResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithSummary("Create a new request")
             .WithDescription(
-                "Creates a new request in the system. The request details are provided in the request body.");
+                "Creates a new request in the system. The request details are provided in the request body.")
+            .RequireAuthorization("CanWriteRequest");
     }
 }

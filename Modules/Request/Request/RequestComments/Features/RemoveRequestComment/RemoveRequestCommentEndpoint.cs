@@ -18,6 +18,7 @@ public class RemoveRequestCommentEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Remove a comment from a request")
             .WithDescription("Removes an existing comment from the specified request. This action cannot be undone.")
-            .WithTags("Request Comments");
+            .WithTags("Request Comments")
+            .RequireAuthorization("CanWriteRequest");
     }
 }

@@ -26,6 +26,7 @@ public class UpdateRequestTitleEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update a request title")
             .WithDescription("Updates an existing title/collateral for the specified request. All title details including land area, building information, vehicle, and machine details can be modified.")
-            .WithTags("Request Titles");
+            .WithTags("Request Titles")
+            .RequireAuthorization("CanWriteRequest");
     }
 }

@@ -25,6 +25,7 @@ public class UpdateRequestCommentEndpoint : ICarterModule
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Update a request comment")
         .WithDescription("Updates an existing comment on the specified request. Only the comment text can be modified.")
-        .WithTags("Request Comments");
+        .WithTags("Request Comments")
+        .RequireAuthorization("CanWriteRequest");
     }
 }

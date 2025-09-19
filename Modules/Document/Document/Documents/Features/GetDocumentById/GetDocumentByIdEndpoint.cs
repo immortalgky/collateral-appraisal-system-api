@@ -13,6 +13,7 @@ public class GetDocumentByIdEndpoint : ICarterModule
             var response = result.Adapt<GetDocumentByIdResponse>();
 
             return Results.Ok(response.Document);
-        });
+        })
+        .RequireAuthorization("CanReadDocument");
     }
 }

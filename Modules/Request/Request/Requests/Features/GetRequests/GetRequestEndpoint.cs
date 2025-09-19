@@ -13,12 +13,12 @@ public class GetRequestEndpoint : ICarterModule
 
                     return Results.Ok(result.Result);
                 })
-            .RequireAuthorization("CanReadRequest")
             .WithName("GetRequest")
             .Produces<GetRequestResult>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get all requests")
             .WithDescription(
-                "Retrieves all requests from the system. This endpoint returns a list of requests with their details.");
+                "Retrieves all requests from the system. This endpoint returns a list of requests with their details.")
+            .RequireAuthorization("CanReadRequest");
     }
 }
