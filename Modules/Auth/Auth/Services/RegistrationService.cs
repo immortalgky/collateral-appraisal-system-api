@@ -43,7 +43,11 @@ public class RegistrationService(
     )
     {
         var clientId = Guid.NewGuid().ToString();
-        var clientSecret = RandomNumberGenerator.GetHexString(30);
+        string? clientSecret = null;
+        if (registerClientDto.ClientType == OpenIddictConstants.ClientTypes.Confidential)
+        {
+            clientSecret = RandomNumberGenerator.GetHexString(30);
+        }
 
         var applicationDescriptor = new OpenIddictApplicationDescriptor
         {
