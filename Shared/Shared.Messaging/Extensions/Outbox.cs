@@ -13,6 +13,7 @@ namespace Shared.Messaging.Extensions;
 public static class Outbox
 {
     /// <summary>
+    /// Outbox-Patten ("Outbox" is Messages Output)
     /// Outbox services for DbContext
     /// IOutboxService BackgroundService
     /// </summary>

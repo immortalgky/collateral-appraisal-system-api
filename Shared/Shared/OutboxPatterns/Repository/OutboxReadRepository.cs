@@ -31,7 +31,7 @@ public class OutboxReadRepository<TDbContext> : BaseReadRepository<OutboxMessage
         string sql = $@"
             SELECT [Id], [OccurredOn], [Payload], [EventType], [ExceptionInfo], 
                    [RetryCount], [LastRetryAt], [MaxRetries], [IsInfrastructureFailure] 
-            FROM [{schema}].[OutboxMessages] WITH (READCOMMITTED, ROWLOCK, READPAST)
+            FROM [{schema}].[OutboxMessages] WITH (READCOMMITTED, ROWLOCK, READPAST, UPDLOCK)
             WHERE (
                 ([IsInfrastructureFailure] = 0 AND [RetryCount] < [MaxRetries]) OR
                 ([IsInfrastructureFailure] = 1 AND [OccurredOn] > DATEADD(hour, -24, GETUTCDATE()))

@@ -6,38 +6,41 @@ using Shared.OutboxPatterns.Services;
 
 namespace Shared.Messaging.Services;
 
-public class OutboxService : IOutboxService
+public class OutboxService(
+    IPublishEndpoint _publishEndpoint,
+    IConfiguration _configuration,
+    IOutboxReadRepository _readRepository,
+    IOutboxRepository _repository,
+    string schema
+) : IOutboxService
 {
-    private readonly IPublishEndpoint _publishEndpoint;
-    private readonly IConfiguration _configuration;
-    private readonly IOutboxReadRepository _readRepository;
-    private readonly IOutboxRepository _repository;
-    private readonly string _schema;
-    private readonly short _chunk;
+    private readonly string _schema = schema;
+    private readonly short _chunk = _configuration.GetValue<short>("OutboxConfigurations:Chunk");
+    private int _messages = 0;
 
-    public OutboxService(
-        IPublishEndpoint publishEndpoint,
-        IConfiguration configuration,
-        IOutboxReadRepository readRepository,
-        IOutboxRepository repository,
-        string schema)
+    public async Task<int> PublishEvent(CancellationToken cancellationToken = default)
     {
-        _publishEndpoint = publishEndpoint;
-        _configuration = configuration;
-        _chunk = _configuration.GetValue<short>("OutboxConfigurations:Chunk");
-        _readRepository = readRepository;
-        _repository = repository;
-        _schema = schema;
-    }
-    public async Task<short> PublishEvent(CancellationToken cancellationToken = default)
-    {
-        var messages = await _readRepository.GetAllAsync(_schema, cancellationToken);
+        using var transaction = await _repository.BeginTransaction(cancellationToken);
 
-        if (messages.Count == 0) return 0;
+        try
+        {
+            var messages = await _readRepository.GetAllAsync(_schema, cancellationToken);
 
-        await MessageCyclesAsync(messages, cancellationToken);
+            _messages = messages.Count();
 
-        return (short)messages.Count;
+            if (messages.Count == 0) return 0;
+
+            await MessageCyclesAsync(messages, cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+
+        return _messages;
     }
 
     private async Task MessageCyclesAsync(List<OutboxPatterns.Models.OutboxMessage>? messages, CancellationToken cancellationToken)
@@ -46,9 +49,6 @@ public class OutboxService : IOutboxService
 
         foreach (var chunk in messages.Chunk(_chunk))
         {
-            // ✅ Transaction per chunk for optimal balance
-            using var transaction = await _repository.BeginTransaction(cancellationToken);
-            
             try
             {
                 foreach (var message in chunk)
@@ -69,7 +69,7 @@ public class OutboxService : IOutboxService
                         if (message.ShouldRetry())
                         {
                             message.IncrementRetry(ex.Message, isInfraFailure);
-                            await _repository.UpdateAsync(message);
+                            await _repository.UpdateAsync(message, cancellationToken);
                         }
                         else
                         {
@@ -79,11 +79,9 @@ public class OutboxService : IOutboxService
                 }
 
                 await _repository.SaveChangeAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
             }
             catch (Exception)
             {
-                await transaction.RollbackAsync(cancellationToken);
                 throw;
             }
         }

@@ -4,5 +4,5 @@ namespace Shared.OutboxPatterns.Services;
 
 public interface IOutboxService
 {
-    Task<short> PublishEvent(CancellationToken cancellationToken = default);
+    Task<int> PublishEvent(CancellationToken cancellationToken = default);
 }
