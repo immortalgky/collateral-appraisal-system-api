@@ -1,5 +1,4 @@
 using Auth.Services;
-using OAuth2OpenId.Identity.Dtos;
 
 namespace Auth.Auth.Features.RegisterUser;
 
@@ -12,7 +11,7 @@ public class RegisterUserCommandHandler(IRegistrationService registrationService
     )
     {
         var registerUserDto = command.Adapt<RegisterUserDto>();
-        var user = await registrationService.RegisterUser(registerUserDto);
+        var user = await registrationService.RegisterUser(registerUserDto, cancellationToken);
         var userId = user.Id;
         return new RegisterUserResult(userId);
     }

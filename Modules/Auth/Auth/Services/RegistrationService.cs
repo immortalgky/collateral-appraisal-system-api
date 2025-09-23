@@ -9,40 +9,80 @@ namespace Auth.Services;
 
 public class RegistrationService(
     UserManager<ApplicationUser> userManager,
-    IOpenIddictApplicationManager manager,
-    IPermissionReadRepository permissionReadRepository
+    IOpenIddictApplicationManager applicationManager,
+    IPermissionReadRepository permissionReadRepository,
+    RoleManager<ApplicationRole> roleManager
 ) : IRegistrationService
 {
-    public async Task<ApplicationUser> RegisterUser(RegisterUserDto registerUserDto)
+    public async Task<ApplicationUser> RegisterUser(
+        RegisterUserDto registerUserDto,
+        CancellationToken cancellationToken = default
+    )
     {
+        await ValidateUserPermission(registerUserDto, cancellationToken);
+        var roleNames = await GetRoleNames(registerUserDto);
+
         var user = new ApplicationUser
         {
             UserName = registerUserDto.Username,
             Email = registerUserDto.Email,
             Permissions =
             [
-                .. await Task.WhenAll(
-                    registerUserDto.Permissions.Select(async permissionId => new UserPermission
-                    {
-                        Permission =
-                            await permissionReadRepository.GetByIdAsync(permissionId)
-                            ?? throw new InvalidOperationException(
-                                $"Cannot find permission ID {permissionId}"
-                            ),
-                    })
-                ),
+                .. registerUserDto.Permissions.Select(permissionId => new UserPermission
+                {
+                    PermissionId = permissionId,
+                }),
             ],
         };
-        var result = await userManager.CreateAsync(user, registerUserDto.Password);
 
+        var result = await userManager.CreateAsync(user, registerUserDto.Password);
+        HandleIdentityResult(result);
+
+        var roleResult = await userManager.AddToRolesAsync(user, roleNames);
+        HandleIdentityResult(roleResult);
+
+        return user;
+    }
+
+    private async Task ValidateUserPermission(
+        RegisterUserDto registerUserDto,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var permissionId in registerUserDto.Permissions)
+        {
+            var isPermissionExisted = await permissionReadRepository.ExistsAsync(
+                permissionId,
+                cancellationToken
+            );
+            if (!isPermissionExisted)
+            {
+                throw new NotFoundException("Permission", permissionId);
+            }
+        }
+    }
+
+    private async Task<List<string>> GetRoleNames(RegisterUserDto registerUserDto)
+    {
+        var roleNames = new List<string>();
+        foreach (var roleId in registerUserDto.Roles)
+        {
+            var role =
+                await roleManager.FindByIdAsync(roleId.ToString())
+                ?? throw new NotFoundException("Role", roleId);
+            roleNames.Add(role.Name!);
+        }
+        return roleNames;
+    }
+
+    private static void HandleIdentityResult(IdentityResult result)
+    {
         if (!result.Succeeded)
         {
-            throw new BadRequestException(
+            throw new InvalidOperationException(
                 string.Join("; ", result.Errors.Select(error => error.Description).ToList())
             );
         }
-
-        return user;
     }
 
     public async Task<OpenIddictApplicationDescriptor> RegisterClient(
@@ -75,7 +115,7 @@ public class RegistrationService(
         applicationDescriptor.Permissions.UnionWith(registerClientDto.Permissions);
         applicationDescriptor.Requirements.UnionWith(registerClientDto.Requirements);
 
-        await manager.CreateAsync(applicationDescriptor);
+        await applicationManager.CreateAsync(applicationDescriptor);
         return applicationDescriptor;
     }
 }
