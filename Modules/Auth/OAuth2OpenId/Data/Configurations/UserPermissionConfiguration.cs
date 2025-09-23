@@ -4,8 +4,8 @@ public class UserPermissionConfiguration : IEntityTypeConfiguration<UserPermissi
 {
     public void Configure(EntityTypeBuilder<UserPermission> builder)
     {
-        builder.HasOne(p => p.User)
-            .WithMany(p => p.Permissions)
-            .HasForeignKey(p => p.UserId);
+        builder.HasKey(p => new { p.UserId, p.PermissionId });
+        builder.HasOne(p => p.User).WithMany(p => p.Permissions).HasForeignKey(p => p.UserId);
+        builder.HasOne(p => p.Permission).WithMany().HasForeignKey(p => p.PermissionId);
     }
 }

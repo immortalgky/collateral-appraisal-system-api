@@ -7,3 +7,6 @@ global using Mapster;
 global using MediatR;
 
 global using Shared.Contracts.CQRS;
+global using Shared.Pagination;
+global using OAuth2OpenId.Identity.Dtos;
+global using Auth.Extensions;

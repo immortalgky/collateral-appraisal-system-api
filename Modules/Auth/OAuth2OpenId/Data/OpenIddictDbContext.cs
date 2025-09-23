@@ -3,6 +3,7 @@ namespace OAuth2OpenId.Data;
 public class OpenIddictDbContext(DbContextOptions<OpenIddictDbContext> options)
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
 {
+    public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 

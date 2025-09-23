@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
-using OAuth2OpenId.Identity.Dtos;
+using OAuth2OpenId.Data.Repository;
 using OAuth2OpenId.Identity.Models;
 using OpenIddict.Abstractions;
 using Shared.Exceptions;
@@ -9,7 +9,8 @@ namespace Auth.Services;
 
 public class RegistrationService(
     UserManager<ApplicationUser> userManager,
-    IOpenIddictApplicationManager manager
+    IOpenIddictApplicationManager manager,
+    IPermissionReadRepository permissionReadRepository
 ) : IRegistrationService
 {
     public async Task<ApplicationUser> RegisterUser(RegisterUserDto registerUserDto)
@@ -20,10 +21,16 @@ public class RegistrationService(
             Email = registerUserDto.Email,
             Permissions =
             [
-                .. registerUserDto.Permissions.Select(permission => new UserPermission
-                {
-                    PermissionName = permission,
-                }),
+                .. await Task.WhenAll(
+                    registerUserDto.Permissions.Select(async permissionId => new UserPermission
+                    {
+                        Permission =
+                            await permissionReadRepository.GetByIdAsync(permissionId)
+                            ?? throw new InvalidOperationException(
+                                $"Cannot find permission ID {permissionId}"
+                            ),
+                    })
+                ),
             ],
         };
         var result = await userManager.CreateAsync(user, registerUserDto.Password);

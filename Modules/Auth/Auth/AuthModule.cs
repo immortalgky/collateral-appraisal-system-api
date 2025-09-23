@@ -25,6 +25,7 @@ public static class AuthModule
         services.AddAuthorizationBuilder().AddPolicies();
 
         services.AddScoped<IRegistrationService, RegistrationService>();
+        services.AddScoped<IPermissionService, PermissionService>();
 
         services.AddSingleton<IAuthorizationHandler, PermissionsHandler>();
 
