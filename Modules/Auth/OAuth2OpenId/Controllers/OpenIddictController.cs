@@ -62,11 +62,11 @@ public class OpenIddictController(ITokenService tokenService) : Controller
         return await HandleAuthorizationCodeGrant(request, principal);
     }
 
-    private async Task<IActionResult> HandleAuthorizationCodeGrant(OpenIddictRequest request, ClaimsPrincipal principal)
+    private async Task<IActionResult> HandleAuthorizationCodeGrant(OpenIddictRequest request, ClaimsPrincipal? principal)
     {
         if (principal == null) return BadRequest(new { error = "Invalid authorization code" });
         var claimsPrincipal = await tokenService.CreateAuthCodeFlowAccessTokenPrincipal(request, principal);
-        return SignIn(claimsPrincipal, null, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        return SignIn(claimsPrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     private async Task<IActionResult> HandleClientCredentialsGrant(OpenIddictRequest request)
