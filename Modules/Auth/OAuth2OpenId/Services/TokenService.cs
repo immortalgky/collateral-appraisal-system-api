@@ -9,7 +9,8 @@ namespace OAuth2OpenId.Services;
 public class TokenService(
     OpenIddictDbContext openIddictDbContext,
     UserManager<ApplicationUser> userManager,
-    IOpenIddictApplicationManager manager
+    IOpenIddictApplicationManager manager,
+    IOpenIddictScopeManager scopeManager
 ) : ITokenService
 {
     private static readonly Dictionary<string, string> ClaimScopeMapping = new()
@@ -41,20 +42,29 @@ public class TokenService(
     )
     {
         // Get user info from the principal
-        var userId = principal.FindFirstValue(OpenIddictConstants.Claims.Subject);
-        var username = principal.FindFirstValue(OpenIddictConstants.Claims.Name);
+        var userId =
+            principal.FindFirstValue(OpenIddictConstants.Claims.Subject)
+            ?? throw new InvalidOperationException("Cannot find user ID associated with the token");
+        var username =
+            principal.FindFirstValue(OpenIddictConstants.Claims.Name)
+            ?? throw new InvalidOperationException(
+                "Cannot find user name associated with the token"
+            );
 
         var userIdGuid = Guid.Parse(userId); // Can throws exception
-        var user = await openIddictDbContext
-            .Users.Include(user => user.Permissions)
-            .FirstOrDefaultAsync(user => user.Id == userIdGuid);
+        var user =
+            await openIddictDbContext
+                .Users.Include(user => user.Permissions)
+                .ThenInclude(userPermission => userPermission.Permission)
+                .FirstOrDefaultAsync(user => user.Id == userIdGuid)
+            ?? throw new InvalidOperationException("Cannot find user associated with the token.");
 
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         identity.AddClaim(OpenIddictConstants.Claims.Subject, userId);
         identity.AddClaim(OpenIddictConstants.Claims.Name, username);
         identity.SetClaims(
             "permissions",
-            [.. user.Permissions.Select(permission => permission.PermissionName)]
+            [.. user.Permissions.Select(userPermission => userPermission.Permission.PermissionCode)]
         );
 
         if (identity.HasScope(OpenIddictConstants.Scopes.Roles))
@@ -74,9 +84,13 @@ public class TokenService(
         OpenIddictRequest request
     )
     {
-        var application =
-            (OpenIddictEntityFrameworkCoreApplication)
-                await manager.FindByClientIdAsync(request.ClientId) ?? throw new Exception();
+        var clientId =
+            request.ClientId
+            ?? throw new InvalidOperationException("The client ID cannot be found in the request.");
+        var application = (OpenIddictEntityFrameworkCoreApplication)(
+            await manager.FindByClientIdAsync(request.ClientId)
+            ?? throw new InvalidOperationException("The application details cannot be found.")
+        );
 
         var identity = new ClaimsIdentity(
             TokenValidationParameters.DefaultAuthenticationType,
@@ -95,10 +109,14 @@ public class TokenService(
         identity.SetClaim("aud", "resource_server");
         identity.SetClaims("permissions", await manager.GetPermissionsAsync(application));
 
+        identity.SetScopes(request.GetScopes());
+        identity.SetResources(
+            await scopeManager.ListResourcesAsync(identity.GetScopes()).ToListAsync()
+        );
+
         identity.SetDestinations(GetDestinations);
 
         var claimsPrincipal = new ClaimsPrincipal(identity);
-        claimsPrincipal.SetScopes(request.GetScopes());
         return claimsPrincipal;
     }
 
@@ -106,7 +124,7 @@ public class TokenService(
     {
         if (ClaimScopeMapping.ContainsKey(claim.Type))
         {
-            return claim.Subject.HasScope(ClaimScopeMapping[claim.Type])
+            return claim.Subject!.HasScope(ClaimScopeMapping[claim.Type])
                 ? [OpenIddictConstants.Destinations.IdentityToken]
                 : [];
         }
