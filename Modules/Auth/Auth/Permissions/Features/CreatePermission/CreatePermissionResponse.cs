@@ -1,3 +1,3 @@
 namespace Auth.Permissions.Features.CreatePermission;
 
-public record CreatePermissionResponse(bool IsSuccess);
+public record CreatePermissionResponse(Guid Id);

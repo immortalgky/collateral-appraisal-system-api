@@ -11,7 +11,10 @@ public class CreatePermissionCommandHandler(IPermissionService permissionService
     )
     {
         var permissionDto = command.Adapt<PermissionDto>();
-        await permissionService.CreatePermission(permissionDto, cancellationToken);
-        return new CreatePermissionResult(true);
+        var createdPermission = await permissionService.CreatePermission(
+            permissionDto,
+            cancellationToken
+        );
+        return new CreatePermissionResult(createdPermission.Id);
     }
 }

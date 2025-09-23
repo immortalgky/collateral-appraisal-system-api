@@ -8,4 +8,14 @@ public static class DtoExtensions
     {
         return new PermissionDto(domain.Id, domain.PermissionCode, domain.Description);
     }
+
+    public static RoleDto ToDto(this ApplicationRole domain)
+    {
+        return new RoleDto(
+            domain.Id,
+            domain.Name ?? "",
+            domain.Description,
+            [.. domain.Permissions.Select(userPermission => userPermission.Permission.ToDto())]
+        );
+    }
 }

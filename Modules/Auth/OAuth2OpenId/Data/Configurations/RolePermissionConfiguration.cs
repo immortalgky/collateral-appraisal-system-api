@@ -4,8 +4,8 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
 {
     public void Configure(EntityTypeBuilder<RolePermission> builder)
     {
-        builder.HasOne(p => p.Role)
-            .WithMany(p => p.Permissions)
-            .HasForeignKey(p => p.RoleId);
+        builder.HasKey(p => new { p.RoleId, p.PermissionId });
+        builder.HasOne(p => p.Role).WithMany(p => p.Permissions).HasForeignKey(p => p.RoleId);
+        builder.HasOne(p => p.Permission).WithMany().HasForeignKey(p => p.PermissionId);
     }
 }

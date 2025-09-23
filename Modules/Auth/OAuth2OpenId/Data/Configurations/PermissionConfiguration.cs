@@ -6,5 +6,7 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
     {
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).HasColumnName("PermissionId");
+
+        builder.HasIndex(p => p.PermissionCode).IsUnique();
     }
 }
