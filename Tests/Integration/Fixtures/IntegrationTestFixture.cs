@@ -1,36 +1,38 @@
 using System.Reflection;
 using Assignment;
 using Auth;
-using Database.Migration;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Database.Extensions;
+using Database.Migration;
 using Document;
+using Integration.Auth;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Notification;
 using Request;
 using Testcontainers.MsSql;
 using Testcontainers.RabbitMq;
-using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace Integration.Fixtures;
 
 public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    public MsSqlContainer Mssql { get; } = new MsSqlBuilder()
-        .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
-        .Build();
+    public MsSqlContainer Mssql { get; } =
+        new MsSqlBuilder().WithImage("mcr.microsoft.com/mssql/server:2022-latest").Build();
 
-    public RabbitMqContainer RabbitMq { get; } = new RabbitMqBuilder()
-        .WithImage("rabbitmq:3-management")
-        .WithEnvironment("RABBITMQ_DEFAULT_USER", "testuser")
-        .WithEnvironment("RABBITMQ_DEFAULT_PASS", "testpw")
-        .WithPortBinding(5672, true)
-        .Build();
+    public RabbitMqContainer RabbitMq { get; } =
+        new RabbitMqBuilder()
+            .WithImage("rabbitmq:3-management")
+            .WithEnvironment("RABBITMQ_DEFAULT_USER", "testuser")
+            .WithEnvironment("RABBITMQ_DEFAULT_PASS", "testpw")
+            .WithPortBinding(5672, true)
+            .Build();
 
     public string ConnectionString
     {
@@ -39,7 +41,7 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
             var baseConnectionString = Mssql.GetConnectionString();
             var builder = new SqlConnectionStringBuilder(baseConnectionString)
             {
-                InitialCatalog = "CollateralAppraisal"
+                InitialCatalog = "CollateralAppraisal",
             };
             return builder.ConnectionString;
         }
@@ -52,16 +54,23 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
 
         // Use the Database project's setup service to handle all migrations
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                { "ConnectionStrings:DefaultConnection", ConnectionString },
-                { "ConnectionStrings:Database", ConnectionString }
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    { "ConnectionStrings:DefaultConnection", ConnectionString },
+                    { "ConnectionStrings:Database", ConnectionString },
+                }
+            )
             .Build();
 
         // Create a host with the database migration services
         var host = Host.CreateDefaultBuilder()
-            .ConfigureServices((context, services) => { services.AddDatabaseMigration(configuration); })
+            .ConfigureServices(
+                (context, services) =>
+                {
+                    services.AddDatabaseMigration(configuration);
+                }
+            )
             .ConfigureLogging(logging =>
             {
                 logging.ClearProviders();
@@ -71,7 +80,8 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
             .Build();
 
         using var scope = host.Services.CreateScope();
-        var testSetupService = scope.ServiceProvider.GetRequiredService<IDatabaseTestSetupService>();
+        var testSetupService =
+            scope.ServiceProvider.GetRequiredService<IDatabaseTestSetupService>();
 
         var setupResult = await testSetupService.SetupDatabaseAsync(ConnectionString);
         if (!setupResult)
@@ -92,26 +102,39 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", Environments.Development);
         builder.UseEnvironment(Environments.Development);
 
-        builder.ConfigureAppConfiguration((context, configBuilder) =>
-        {
-            configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+        builder.ConfigureAppConfiguration(
+            (context, configBuilder) =>
             {
-                ["ConnectionStrings:DefaultConnection"] = ConnectionString,
-                ["ConnectionStrings:Database"] = ConnectionString,
-                ["RabbitMq:Host"] = RabbitMq.GetConnectionString(),
-                ["RabbitMq:Username"] = "testuser",
-                ["RabbitMq:Password"] = "testpw",
-            });
-        });
+                configBuilder.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["ConnectionStrings:DefaultConnection"] = ConnectionString,
+                        ["ConnectionStrings:Database"] = ConnectionString,
+                        ["RabbitMq:Host"] = RabbitMq.GetConnectionString(),
+                        ["RabbitMq:Username"] = "testuser",
+                        ["RabbitMq:Password"] = "testpw",
+                    }
+                );
+            }
+        );
 
-        builder.ConfigureServices(ReplaceAllDbContextConnection);
+        builder.ConfigureServices(ConfigureBuilderServices);
     }
 
-    private void ReplaceAllDbContextConnection(IServiceCollection services)
+    protected virtual void ConfigureBuilderServices(IServiceCollection services)
+    {
+        ReplaceAllDbContextConnection(services);
+        ConfigureAuthServices(services);
+    }
+
+    protected void ReplaceAllDbContextConnection(IServiceCollection services)
     {
         var dbContexts = GetAllDbContexts();
-        var replaceMethod =
-            GetType().GetMethod("ReplaceDbContextConnection", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var replaceMethod = GetType()
+            .GetMethod(
+                "ReplaceDbContextConnection",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            )!;
         foreach (var dbContext in dbContexts)
         {
             var genericMethod = replaceMethod.MakeGenericMethod(dbContext);
@@ -119,9 +142,12 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         }
     }
 
-    private void ReplaceDbContextConnection<T>(IServiceCollection services) where T : DbContext
+    private void ReplaceDbContextConnection<T>(IServiceCollection services)
+        where T : DbContext
     {
-        var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<T>));
+        var descriptor = services.SingleOrDefault(d =>
+            d.ServiceType == typeof(DbContextOptions<T>)
+        );
         if (descriptor != null)
         {
             services.Remove(descriptor);
@@ -138,8 +164,13 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         var documentAssembly = typeof(DocumentModule).Assembly;
         var assignmentAssembly = typeof(AssignmentModule).Assembly;
 
-        var dbContexts = GetDbContextsFromAssemblies(requestAssembly, authAssembly, notificationAssembly,
-            documentAssembly, assignmentAssembly);
+        var dbContexts = GetDbContextsFromAssemblies(
+            requestAssembly,
+            authAssembly,
+            notificationAssembly,
+            documentAssembly,
+            assignmentAssembly
+        );
         return dbContexts;
     }
 
@@ -148,12 +179,29 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
         var allDbContexts = new List<Type> { };
         foreach (var assembly in assemblies)
         {
-            var dbContexts = assembly.GetTypes()
+            var dbContexts = assembly
+                .GetTypes()
                 .Where(t => t.IsClass && !t.IsAbstract && t.IsSubclassOf(typeof(DbContext)))
                 .ToArray();
             allDbContexts.AddRange(dbContexts);
         }
 
         return allDbContexts;
+    }
+
+    protected static void ConfigureAuthServices(IServiceCollection services)
+    {
+        services
+            .AddAuthentication("Test")
+            .AddScheme<AuthenticationSchemeOptions, BypassAuthenticationHandler>(
+                "Test",
+                options => { }
+            );
+        services.AddAuthorization();
+        services.Configure<AuthenticationOptions>(options =>
+        {
+            options.DefaultAuthenticateScheme = "Test";
+            options.DefaultChallengeScheme = "Test";
+        });
     }
 }
