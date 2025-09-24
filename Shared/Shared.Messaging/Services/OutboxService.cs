@@ -24,7 +24,7 @@ public class OutboxService(
 
         try
         {
-            var messages = await _readRepository.GetAllAsync(_schema, cancellationToken);
+            var messages = await _readRepository.GetMessageAsync(_schema, cancellationToken);
 
             _messages = messages.Count();
 

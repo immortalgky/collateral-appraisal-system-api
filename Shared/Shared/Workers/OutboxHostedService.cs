@@ -40,7 +40,8 @@ public class OutboxHostedService<TDbContext> : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var service = scope.ServiceProvider.GetRequiredService<IOutboxService>();
+                var contextKey = typeof(TDbContext).Name;
+                var service = scope.ServiceProvider.GetRequiredKeyedService<IOutboxService>(contextKey);
                 
                 var messagesProcessed = await service.PublishEvent(stoppingToken);
 
@@ -69,7 +70,15 @@ public class OutboxHostedService<TDbContext> : BackgroundService
             }
 
             var delay = isFastMode ? _fastInterval : _slowInterval;
-            await Task.Delay(delay, stoppingToken);
+            try
+            {
+                await Task.Delay(delay, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Stopping token was triggered - exit loop gracefully
+                break;
+            }
         }
 
         _logger.LogInformation("OutboxHostedService<{DbContextType}> stopped", typeof(TDbContext).Name);

@@ -20,22 +20,25 @@ public static class Outbox
     public static IServiceCollection AddOutbox<TDbContext>(this IServiceCollection services, string schema)
         where TDbContext : DbContext
     {       
-        // Register repositories first
-        services.AddScoped<IOutboxRepository, OutboxRepository<TDbContext>>();
+        // Register repositories with keyed services for specific DbContext type
+        var contextKey = typeof(TDbContext).Name;
         
-        services.AddScoped<IOutboxReadRepository>(provider => 
+        services.AddKeyedScoped<IOutboxRepository>(contextKey, (provider, key) => 
+            new OutboxRepository<TDbContext>(provider.GetRequiredService<TDbContext>()));
+        
+        services.AddKeyedScoped<IOutboxReadRepository>(contextKey, (provider, key) => 
             new OutboxReadRepository<TDbContext>(
                 provider.GetRequiredService<TDbContext>(),
                 provider.GetRequiredService<IConfiguration>(),
                 provider.GetRequiredService<ISqlConnectionFactory>()));
 
-        // Then register service that depends on repositories
-        services.AddScoped<IOutboxService>(provider => 
+        // Register service with the specific schema for this DbContext
+        services.AddKeyedScoped<IOutboxService>(contextKey, (provider, key) => 
             new OutboxService(
                 provider.GetRequiredService<IPublishEndpoint>(),
                 provider.GetRequiredService<IConfiguration>(),
-                provider.GetRequiredService<IOutboxReadRepository>(),
-                provider.GetRequiredService<IOutboxRepository>(),
+                provider.GetRequiredKeyedService<IOutboxReadRepository>(key),
+                provider.GetRequiredKeyedService<IOutboxRepository>(key),
                 schema));
 
         services.AddHostedService<OutboxHostedService<TDbContext>>();

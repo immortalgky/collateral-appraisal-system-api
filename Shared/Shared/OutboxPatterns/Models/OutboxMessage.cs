@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Shared.DDD;
 
 namespace Shared.OutboxPatterns.Models;
@@ -8,6 +9,7 @@ public class OutboxMessage : Entity<Guid>
     public string Payload { get; private set; } = default!;
     public string EventType { get; private set; } = default!;
     public string? ExceptionInfo { get; private set; } = default!;
+    public bool Processed { get; private set; } = false;
     public int RetryCount { get; private set; } = 0;
     public DateTime? LastRetryAt { get; private set; }
     public int MaxRetries { get; private set; } = 3;
@@ -54,7 +56,7 @@ public class OutboxMessage : Entity<Guid>
         );
     }
 
-    public bool ShouldRetry() 
+    public bool ShouldRetry()
     {
         if (IsInfrastructureFailure)
         {
@@ -63,13 +65,13 @@ public class OutboxMessage : Entity<Guid>
         }
         return RetryCount < MaxRetries;
     }
-    
+
     public void IncrementRetry(string errorMessage, bool isInfrastructureError = false)
     {
         RetryCount++;
         LastRetryAt = DateTime.UtcNow;
         IsInfrastructureFailure = isInfrastructureError;
-        
+
         var errorType = isInfrastructureError ? "INFRA" : "BUSINESS";
         ExceptionInfo = $"[{errorType}] Retry {RetryCount}: {errorMessage}";
     }
@@ -79,7 +81,7 @@ public class OutboxMessage : Entity<Guid>
         // ตรวจสอบประเภท exception
         var exceptionType = ex.GetType().Name.ToLower();
         var message = ex.Message.ToLower();
-        
+
         return exceptionType.Contains("timeout") ||
                exceptionType.Contains("connection") ||
                exceptionType.Contains("socket") ||
@@ -97,7 +99,7 @@ public class OutboxMessage : Entity<Guid>
         // ตรวจสอบ Business Logic errors ที่ควร limit retry
         var exceptionType = ex.GetType().Name.ToLower();
         var message = ex.Message.ToLower();
-        
+
         return exceptionType.Contains("jsonserializationexception") ||
                exceptionType.Contains("jsonreaderexception") ||
                exceptionType.Contains("argumentexception") ||
@@ -118,7 +120,7 @@ public class OutboxMessage : Entity<Guid>
     {
         if (IsBusinessLogicException(ex))
             return false;
-            
+
         return IsInfrastructureException(ex);
     }
 }

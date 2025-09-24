@@ -61,7 +61,7 @@ The background service uses **adaptive timing** and **optimal transaction manage
 
 ```mermaid
 graph TD
-    A[Background Service] --> B[🔍 Read Messages: No Transaction]
+    A[Background Service] --> B[🔍 Read Messages: Begin Transaction]
     B --> C[Query OutboxMessages]
     C --> D[Process Messages in Chunks]
     D --> E[📝 Write Transaction per Chunk]

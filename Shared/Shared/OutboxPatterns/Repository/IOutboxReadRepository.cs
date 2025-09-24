@@ -5,5 +5,5 @@ namespace Shared.OutboxPatterns.Repository;
 
 public interface IOutboxReadRepository : IReadRepository<OutboxMessage, Guid>
 {
-    Task<List<OutboxMessage>> GetAllAsync(string schema, CancellationToken cancellationToken = default);
+    Task<List<OutboxMessage>> GetMessageAsync(string schema, CancellationToken cancellationToken = default);
 }
