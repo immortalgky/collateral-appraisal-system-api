@@ -4,6 +4,6 @@ public record RegisterUserDto(
     string Username,
     string Password,
     string Email,
-    List<Guid> Permissions,
+    List<RegisterUserPermissionDto> Permissions,
     List<Guid> Roles
 );

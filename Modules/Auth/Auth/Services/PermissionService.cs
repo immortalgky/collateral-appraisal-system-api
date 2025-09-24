@@ -1,5 +1,6 @@
 using OAuth2OpenId.Data.Repository;
 using OAuth2OpenId.Identity.Models;
+using Shared.Exceptions;
 
 namespace Auth.Services;
 
@@ -50,5 +51,24 @@ public class PermissionService(
     {
         await permissionRepository.DeleteAsync(id, cancellationToken);
         await permissionRepository.SaveChangesAsync(cancellationToken);
+    }
+
+    internal static async Task ValidatePermissionsExistAsync(
+        List<Guid> permissionsIds,
+        IPermissionReadRepository permissionReadRepository,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var permissionId in permissionsIds)
+        {
+            var isPermissionExisted = await permissionReadRepository.ExistsAsync(
+                permissionId,
+                cancellationToken
+            );
+            if (!isPermissionExisted)
+            {
+                throw new NotFoundException("Permission", permissionId);
+            }
+        }
     }
 }

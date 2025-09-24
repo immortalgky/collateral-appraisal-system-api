@@ -19,7 +19,11 @@ public class RegistrationService(
         CancellationToken cancellationToken = default
     )
     {
-        await ValidateUserPermission(registerUserDto, cancellationToken);
+        await PermissionService.ValidatePermissionsExistAsync(
+            [.. registerUserDto.Permissions.Select(userPermission => userPermission.PermissionId)],
+            permissionReadRepository,
+            cancellationToken
+        );
         var roleNames = await GetRoleNames(registerUserDto);
 
         var user = new ApplicationUser
@@ -28,9 +32,10 @@ public class RegistrationService(
             Email = registerUserDto.Email,
             Permissions =
             [
-                .. registerUserDto.Permissions.Select(permissionId => new UserPermission
+                .. registerUserDto.Permissions.Select(userPermission => new UserPermission
                 {
-                    PermissionId = permissionId,
+                    PermissionId = userPermission.PermissionId,
+                    IsGranted = userPermission.IsGranted,
                 }),
             ],
         };
@@ -42,24 +47,6 @@ public class RegistrationService(
         HandleIdentityResult(roleResult);
 
         return user;
-    }
-
-    private async Task ValidateUserPermission(
-        RegisterUserDto registerUserDto,
-        CancellationToken cancellationToken
-    )
-    {
-        foreach (var permissionId in registerUserDto.Permissions)
-        {
-            var isPermissionExisted = await permissionReadRepository.ExistsAsync(
-                permissionId,
-                cancellationToken
-            );
-            if (!isPermissionExisted)
-            {
-                throw new NotFoundException("Permission", permissionId);
-            }
-        }
     }
 
     private async Task<List<string>> GetRoleNames(RegisterUserDto registerUserDto)

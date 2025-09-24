@@ -1,18 +1,38 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using OAuth2OpenId.Data.Repository;
 using OAuth2OpenId.Identity.Models;
 using Shared.Exceptions;
 
 namespace Auth.Services;
 
-public class RoleService(RoleManager<ApplicationRole> roleManager) : IRoleService
+public class RoleService(
+    RoleManager<ApplicationRole> roleManager,
+    IPermissionReadRepository permissionReadRepository
+) : IRoleService
 {
     public async Task<ApplicationRole> CreateRole(
-        RoleDto roleDto,
+        CreateRoleDto roleDto,
         CancellationToken cancellationToken = default
     )
     {
-        var role = new ApplicationRole { Name = roleDto.Name, Description = roleDto.Description };
+        await PermissionService.ValidatePermissionsExistAsync(
+            roleDto.Permissions,
+            permissionReadRepository,
+            cancellationToken
+        );
+        var role = new ApplicationRole
+        {
+            Name = roleDto.Name,
+            Description = roleDto.Description,
+            Permissions =
+            [
+                .. roleDto.Permissions.Select(permissionId => new RolePermission
+                {
+                    PermissionId = permissionId,
+                }),
+            ],
+        };
         var result = await roleManager.CreateAsync(role);
         if (!result.Succeeded)
         {
@@ -31,7 +51,9 @@ public class RoleService(RoleManager<ApplicationRole> roleManager) : IRoleServic
         CancellationToken cancellationToken = default
     )
     {
-        var roles = roleManager.Roles.Include(role => role.Permissions);
+        var roles = roleManager
+            .Roles.Include(role => role.Permissions)
+            .ThenInclude(rolePermission => rolePermission.Permission);
         var requests = await PaginationExtensions.ToPaginatedResultAsync(
             roles,
             paginationRequest,

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Linq;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
@@ -9,8 +10,9 @@ namespace OAuth2OpenId.Services;
 public class TokenService(
     OpenIddictDbContext openIddictDbContext,
     UserManager<ApplicationUser> userManager,
-    IOpenIddictApplicationManager manager,
-    IOpenIddictScopeManager scopeManager
+    IOpenIddictApplicationManager applicationManager,
+    IOpenIddictScopeManager scopeManager,
+    RoleManager<ApplicationRole> roleManager
 ) : ITokenService
 {
     private static readonly Dictionary<string, string> ClaimScopeMapping = new()
@@ -62,15 +64,9 @@ public class TokenService(
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         identity.AddClaim(OpenIddictConstants.Claims.Subject, userId);
         identity.AddClaim(OpenIddictConstants.Claims.Name, username);
-        identity.SetClaims(
-            "permissions",
-            [.. user.Permissions.Select(userPermission => userPermission.Permission.PermissionCode)]
-        );
+        identity.SetClaims("permissions", await GetUserPermissions(user));
 
-        if (identity.HasScope(OpenIddictConstants.Scopes.Roles))
-        {
-            identity.SetClaims("roles", [.. await userManager.GetRolesAsync(user)]);
-        }
+        identity.SetClaims("roles", [.. await userManager.GetRolesAsync(user)]);
 
         identity.SetDestinations(GetDestinations);
 
@@ -88,7 +84,7 @@ public class TokenService(
             request.ClientId
             ?? throw new InvalidOperationException("The client ID cannot be found in the request.");
         var application = (OpenIddictEntityFrameworkCoreApplication)(
-            await manager.FindByClientIdAsync(request.ClientId)
+            await applicationManager.FindByClientIdAsync(request.ClientId)
             ?? throw new InvalidOperationException("The application details cannot be found.")
         );
 
@@ -100,14 +96,17 @@ public class TokenService(
 
         identity.SetClaim(
             OpenIddictConstants.Claims.Subject,
-            await manager.GetClientIdAsync(application)
+            await applicationManager.GetClientIdAsync(application)
         );
         identity.SetClaim(
             OpenIddictConstants.Claims.Name,
-            await manager.GetDisplayNameAsync(application)
+            await applicationManager.GetDisplayNameAsync(application)
         );
         identity.SetClaim("aud", "resource_server");
-        identity.SetClaims("permissions", await manager.GetPermissionsAsync(application));
+        identity.SetClaims(
+            "permissions",
+            await applicationManager.GetPermissionsAsync(application)
+        );
 
         identity.SetScopes(request.GetScopes());
         identity.SetResources(
@@ -132,5 +131,44 @@ public class TokenService(
         {
             return [OpenIddictConstants.Destinations.AccessToken];
         }
+    }
+
+    private async Task<ImmutableArray<string>> GetUserPermissions(ApplicationUser user)
+    {
+        var permissions = new HashSet<string>();
+        var ungrantedPermissions = new HashSet<string>();
+
+        foreach (var permission in user.Permissions)
+        {
+            if (permission.IsGranted == true)
+            {
+                permissions.Add(permission.Permission.PermissionCode);
+            }
+            else
+            {
+                ungrantedPermissions.Add(permission.Permission.PermissionCode);
+            }
+        }
+
+        var roleNames = await userManager.GetRolesAsync(user);
+        foreach (var roleName in roleNames)
+        {
+            var role =
+                await roleManager
+                    .Roles.Include(role => role.Permissions)
+                    .ThenInclude(rolePermission => rolePermission.Permission)
+                    .FirstOrDefaultAsync(role => role.Name == roleName)
+                ?? throw new InvalidOperationException($"Cannot find role named {roleName}");
+
+            foreach (var rolePermission in role.Permissions)
+            {
+                if (!ungrantedPermissions.Contains(rolePermission.Permission.PermissionCode))
+                {
+                    permissions.Add(rolePermission.Permission.PermissionCode);
+                }
+            }
+        }
+
+        return [.. permissions];
     }
 }

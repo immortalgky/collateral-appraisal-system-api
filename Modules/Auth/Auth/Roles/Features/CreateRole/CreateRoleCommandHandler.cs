@@ -10,7 +10,7 @@ public class CreateRoleCommandHandler(IRoleService roleService)
         CancellationToken cancellationToken
     )
     {
-        var roleDto = command.Adapt<RoleDto>();
+        var roleDto = command.Adapt<CreateRoleDto>();
         var createdRole = await roleService.CreateRole(roleDto, cancellationToken);
         return new CreateRoleResult(createdRole.Id);
     }

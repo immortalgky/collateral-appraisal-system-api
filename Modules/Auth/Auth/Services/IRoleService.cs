@@ -5,7 +5,7 @@ namespace Auth.Services;
 public interface IRoleService
 {
     public Task<ApplicationRole> CreateRole(
-        RoleDto roleDto,
+        CreateRoleDto roleDto,
         CancellationToken cancellationToken = default
     );
     public Task<PaginatedResult<ApplicationRole>> GetRoles(
