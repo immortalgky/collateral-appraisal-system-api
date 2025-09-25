@@ -132,6 +132,7 @@ public static class OpenIddictModule
 
         services.AddScoped<IPermissionRepository, PermissionRepository>();
         services.AddScoped<IPermissionReadRepository, PermissionReadRepository>();
+        services.AddScoped<IRoleRepository, RoleRepository>();
 
         return services;
     }

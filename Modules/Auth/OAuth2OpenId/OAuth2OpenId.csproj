@@ -103,4 +103,8 @@
         <Folder Include="Data\Migrations\" />
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="Auth.Tests" />
+    </ItemGroup>
+
 </Project>

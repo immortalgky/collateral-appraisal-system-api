@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
+using OAuth2OpenId.Data.Repository;
 using OpenIddict.EntityFrameworkCore.Models;
 using OpenIddict.Server.AspNetCore;
 
@@ -12,7 +13,7 @@ public class TokenService(
     UserManager<ApplicationUser> userManager,
     IOpenIddictApplicationManager applicationManager,
     IOpenIddictScopeManager scopeManager,
-    RoleManager<ApplicationRole> roleManager
+    IRoleRepository roleRepository
 ) : ITokenService
 {
     private static readonly Dictionary<string, string> ClaimScopeMapping = new()
@@ -84,7 +85,7 @@ public class TokenService(
             request.ClientId
             ?? throw new InvalidOperationException("The client ID cannot be found in the request.");
         var application = (OpenIddictEntityFrameworkCoreApplication)(
-            await applicationManager.FindByClientIdAsync(request.ClientId)
+            await applicationManager.FindByClientIdAsync(clientId)
             ?? throw new InvalidOperationException("The application details cannot be found.")
         );
 
@@ -133,14 +134,20 @@ public class TokenService(
         }
     }
 
-    private async Task<ImmutableArray<string>> GetUserPermissions(ApplicationUser user)
+    internal async Task<ImmutableArray<string>> GetUserPermissions(ApplicationUser user)
+    {
+        var roleNames = await userManager.GetRolesAsync(user);
+        return await CalcUserPermissions(user.Permissions, roleNames, roleRepository);
+    }
+    
+    internal static async Task<ImmutableArray<string>> CalcUserPermissions(IList<UserPermission> userPermissions, IList<string> roleNames, IRoleRepository roleRepository)
     {
         var permissions = new HashSet<string>();
         var ungrantedPermissions = new HashSet<string>();
 
-        foreach (var permission in user.Permissions)
+        foreach (var permission in userPermissions)
         {
-            if (permission.IsGranted == true)
+            if (permission.IsGranted)
             {
                 permissions.Add(permission.Permission.PermissionCode);
             }
@@ -150,25 +157,22 @@ public class TokenService(
             }
         }
 
-        var roleNames = await userManager.GetRolesAsync(user);
         foreach (var roleName in roleNames)
         {
-            var role =
-                await roleManager
-                    .Roles.Include(role => role.Permissions)
-                    .ThenInclude(rolePermission => rolePermission.Permission)
-                    .FirstOrDefaultAsync(role => role.Name == roleName)
+            var role = await roleRepository.GetRoleByName(roleName)
                 ?? throw new InvalidOperationException($"Cannot find role named {roleName}");
 
-            foreach (var rolePermission in role.Permissions)
+            foreach (
+                var allowedRolePermission in role.Permissions.Where(rolePermission =>
+                    !ungrantedPermissions.Contains(rolePermission.Permission.PermissionCode)
+                )
+            )
             {
-                if (!ungrantedPermissions.Contains(rolePermission.Permission.PermissionCode))
-                {
-                    permissions.Add(rolePermission.Permission.PermissionCode);
-                }
+                permissions.Add(allowedRolePermission.Permission.PermissionCode);
             }
         }
 
         return [.. permissions];
+
     }
 }
