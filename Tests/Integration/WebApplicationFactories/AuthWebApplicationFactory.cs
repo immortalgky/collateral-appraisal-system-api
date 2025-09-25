@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
-namespace Integration.Fixtures;
+namespace Integration.WebApplicationFactories;
 
 public class AuthWebApplicationFactory(
     string mssqlConnectionString,

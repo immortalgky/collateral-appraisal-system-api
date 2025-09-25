@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Integration.Fixtures;
+namespace Integration.WebApplicationFactories;
 
 public class IntegrationTestWebApplicationFactory(
     string mssqlConnectionString,

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Notification;
 using Request;
 
-namespace Integration.Fixtures;
+namespace Integration.WebApplicationFactories;
 
 public static class WebApplicationFactoryHelper
 {

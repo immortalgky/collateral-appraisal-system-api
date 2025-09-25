@@ -1,5 +1,6 @@
 using Database.Extensions;
 using Database.Migration;
+using Integration.WebApplicationFactories;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
