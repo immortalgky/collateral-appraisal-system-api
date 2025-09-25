@@ -5,10 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Shared.Data;
 using Shared.Messaging.Services;
 using Shared.OutboxPatterns.Repository;
-using Shared.OutboxPatterns.Services;
-using Shared.Workers;
+using Shared.Messaging.Workers;
+using Shared.Messaging.OutboxPatterns.Repository;
+using Shared.Messaging.OutboxPatterns.Services;
 
-namespace Shared.Messaging.Extensions;
+namespace Shared.OutboxPatterns.Extensions;
 
 public static class Outbox
 {

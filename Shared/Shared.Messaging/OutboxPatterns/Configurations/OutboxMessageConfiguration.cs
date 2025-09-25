@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Shared.OutboxPatterns.Models;
+using Shared.Data.Models;
 
-namespace Shared.OutboxPatterns.Configurations;
+namespace Shared.Messaging.OutboxPatterns.Configurations;
 
 public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage>
 {

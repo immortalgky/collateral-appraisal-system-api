@@ -1,12 +1,11 @@
-using System.Data;
 using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Data.SqlClient;
 using Shared.Data;
-using Shared.OutboxPatterns.Models;
+using Shared.Data.Models;
 
-namespace Shared.OutboxPatterns.Repository;
+namespace Shared.Messaging.OutboxPatterns.Repository;
 
 public class OutboxReadRepository<TDbContext> : BaseReadRepository<OutboxMessage, Guid>, IOutboxReadRepository 
     where TDbContext : DbContext
@@ -35,7 +34,7 @@ public class OutboxReadRepository<TDbContext> : BaseReadRepository<OutboxMessage
         var parameters = new { batchSize = _batchSize };
 
         string sql = $@"
-            SELECT TOP (@batchSize) *
+            SELECT *
             FROM [{schema}].[OutboxMessages] 
             WITH (ROWLOCK, READPAST, UPDLOCK)
             WHERE (
@@ -47,6 +46,7 @@ public class OutboxReadRepository<TDbContext> : BaseReadRepository<OutboxMessage
                 ([IsInfrastructureFailure] = 1 AND [LastRetryAt] < DATEADD(minute, -CASE WHEN [RetryCount] > 6 THEN 64 ELSE POWER(2, [RetryCount]) END, GETUTCDATE())) OR
                 ([IsInfrastructureFailure] = 0 AND [LastRetryAt] < DATEADD(minute, -POWER(2, [RetryCount]), GETUTCDATE()))
             )
+            OFFSET 0 ROWS FETCH NEXT @batchSizeROWS ONLY
             ORDER BY [Id]";
 
         var messages = (await connection.QueryAsync<OutboxMessage>(sql, parameters)).ToList();

@@ -1,7 +1,6 @@
-using System.Diagnostics;
 using Shared.DDD;
 
-namespace Shared.OutboxPatterns.Models;
+namespace Shared.Data.Models;
 
 public class OutboxMessage : Entity<Guid>
 {
@@ -9,7 +8,6 @@ public class OutboxMessage : Entity<Guid>
     public string Payload { get; private set; } = default!;
     public string EventType { get; private set; } = default!;
     public string? ExceptionInfo { get; private set; } = default!;
-    public bool Processed { get; private set; } = false;
     public int RetryCount { get; private set; } = 0;
     public DateTime? LastRetryAt { get; private set; }
     public int MaxRetries { get; private set; } = 3;
@@ -78,7 +76,7 @@ public class OutboxMessage : Entity<Guid>
 
     private static bool IsInfrastructureException(Exception ex)
     {
-        // ตรวจสอบประเภท exception
+        // exception
         var exceptionType = ex.GetType().Name.ToLower();
         var message = ex.Message.ToLower();
 
@@ -96,7 +94,7 @@ public class OutboxMessage : Entity<Guid>
 
     private static bool IsBusinessLogicException(Exception ex)
     {
-        // ตรวจสอบ Business Logic errors ที่ควร limit retry
+        // Business Logic errors limit retry
         var exceptionType = ex.GetType().Name.ToLower();
         var message = ex.Message.ToLower();
 

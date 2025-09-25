@@ -1,8 +1,8 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Shared.Data.Models;
 using Shared.DDD;
-using Shared.OutboxPatterns.Models;
 using System.Text.Json;
 
 namespace Shared.Data.Interceptors;

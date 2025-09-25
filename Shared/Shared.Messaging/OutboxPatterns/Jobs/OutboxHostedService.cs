@@ -3,9 +3,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Shared.OutboxPatterns.Services;
+using Shared.Messaging.OutboxPatterns.Services;
 
-namespace Shared.Workers;
+namespace Shared.Messaging.Workers;
 
 public class OutboxHostedService<TDbContext> : BackgroundService
     where TDbContext : DbContext

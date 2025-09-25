@@ -1,7 +1,6 @@
 using Shared.Data;
-using Shared.OutboxPatterns.Models;
 using Microsoft.EntityFrameworkCore.Storage;
-using Microsoft.EntityFrameworkCore;
+using Shared.Data.Models;
 
 namespace Shared.OutboxPatterns.Repository;
 

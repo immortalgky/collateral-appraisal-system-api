@@ -1,0 +1,13 @@
+using Microsoft.EntityFrameworkCore.Storage;
+using Shared.Data;
+using Shared.Data.Models;
+
+namespace Shared.Messaging.OutboxPatterns.Repository;
+
+public interface IInboxRepository : IRepository<InboxMessage, Guid>
+{
+    Task<IDbContextTransaction> BeginTransaction(CancellationToken cancellationToken = default);
+    Task SaveChangAsync(CancellationToken cancellationToken = default);
+    Task<bool> DeleteMessageTimeout(CancellationToken cancellationToken);
+
+}

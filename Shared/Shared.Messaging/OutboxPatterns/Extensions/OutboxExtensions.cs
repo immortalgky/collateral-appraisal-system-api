@@ -1,7 +1,7 @@
 using System.Text.Json;
 using MassTransit;
 
-namespace Shared.Messaging.Extensions;
+namespace Shared.Messaging.OutboxPatterns.Extensions;
 
 public static class OutboxExtensions
 {

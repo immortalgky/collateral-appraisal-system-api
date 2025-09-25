@@ -2,6 +2,7 @@ using System.Reflection;
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Messaging.OutboxPatterns.Interceptors;
 
 namespace Shared.Messaging.Extensions;
 
@@ -17,7 +18,14 @@ public static class MassTransitExtensions
 
             config.SetInMemorySagaRepositoryProvider();
 
+            // Register consumers from assemblies first
             config.AddConsumers(assemblies);
+
+            // Register wrapper consumers last (higher priority for Inbox modules)
+            var wrappers = ConsumerWrapperRegistry.GetRegistered();
+            if (wrappers.Count > 0)
+                config.AddConsumers(wrappers.ToArray());
+
             config.AddSagaStateMachines(assemblies);
             config.AddSagas(assemblies);
             config.AddActivities(assemblies);

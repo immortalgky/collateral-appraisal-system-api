@@ -1,6 +1,4 @@
-using Microsoft.EntityFrameworkCore;
-
-namespace Shared.OutboxPatterns.Services;
+namespace Shared.Messaging.OutboxPatterns.Services;
 
 public interface IOutboxService
 {

@@ -7,13 +7,16 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="MassTransit" Version="8.4.1"/>
-        <PackageReference Include="MassTransit.EntityFrameworkCore" Version="8.4.1"/>
-        <PackageReference Include="MassTransit.RabbitMQ" Version="8.4.1"/>
+        <PackageReference Include="MassTransit" Version="8.4.1" />
+        <PackageReference Include="MassTransit.EntityFrameworkCore" Version="8.4.1" />
+        <PackageReference Include="MassTransit.RabbitMQ" Version="8.4.1" />
+        <PackageReference Include="Quartz" Version="3.15.0" />
+        <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.15.0" />
+        <PackageReference Include="Quartz.Extensions.Hosting" Version="3.15.0" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Shared\Shared.csproj"/>
+        <ProjectReference Include="..\Shared\Shared.csproj" />
     </ItemGroup>
 
 </Project>

@@ -1,8 +1,11 @@
 using MassTransit;
 using Microsoft.Extensions.Configuration;
-using Shared.Messaging.Extensions;
+using Shared.Data.Models;
+using Shared.Messaging.OutboxPatterns.Extensions;
+using Shared.Messaging.OutboxPatterns.Repository;
+using Shared.Messaging.OutboxPatterns.Services;
 using Shared.OutboxPatterns.Repository;
-using Shared.OutboxPatterns.Services;
+
 
 namespace Shared.Messaging.Services;
 
@@ -17,6 +20,7 @@ public class OutboxService(
     private readonly string _schema = schema;
     private readonly short _chunk = _configuration.GetValue<short>("OutboxConfigurations:Chunk");
     private int _messages = 0;
+
 
     public async Task<int> PublishEvent(CancellationToken cancellationToken = default)
     {
@@ -43,7 +47,7 @@ public class OutboxService(
         return _messages;
     }
 
-    private async Task MessageCyclesAsync(List<OutboxPatterns.Models.OutboxMessage>? messages, CancellationToken cancellationToken)
+    private async Task MessageCyclesAsync(List<OutboxMessage>? messages, CancellationToken cancellationToken)
     {
         if (messages is null) return;
 
@@ -64,7 +68,8 @@ public class OutboxService(
                     }
                     catch (Exception ex)
                     {
-                        var isInfraFailure = OutboxPatterns.Models.OutboxMessage.ShouldTreatAsInfrastructureFailure(ex);
+                        var isInfraFailure = OutboxMessage.ShouldTreatAsInfrastructureFailure(ex);
+
 
                         if (message.ShouldRetry())
                         {

@@ -1,1 +1,0 @@
-namespace Shared.OutboxPatterns.Services;

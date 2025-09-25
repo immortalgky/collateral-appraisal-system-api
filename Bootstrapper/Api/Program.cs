@@ -2,6 +2,7 @@ using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data;
+using Shared.Messaging.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,48 +46,7 @@ builder.Services.AddDbContext<AppraisalSagaDbContext>((sp, options) =>
     });
 });
 
-builder.Services.AddMassTransit(config =>
-{
-    config.SetKebabCaseEndpointNameFormatter();
-
-    config.AddSagaStateMachine<AppraisalStateMachine, AppraisalSagaState>()
-        .EntityFrameworkRepository(r =>
-        {
-            r.ConcurrencyMode = ConcurrencyMode.Pessimistic; // Safer for SQL Server
-            r.ExistingDbContext<AppraisalSagaDbContext>();
-            r.LockStatementProvider = new SqlServerLockStatementProvider();
-        });
-
-    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-
-    config.UsingRabbitMq((context, configurator) =>
-    {
-        configurator.Host(new Uri(builder.Configuration["RabbitMQ:Host"]!), host =>
-        {
-            host.Username(builder.Configuration["RabbitMQ:Username"]!);
-            host.Password(builder.Configuration["RabbitMQ:Password"]!);
-        });
-
-        configurator.ConfigureEndpoints(context);
-
-        configurator.PrefetchCount = 16;
-        configurator.UseMessageRetry(r => r.Exponential(5,
-            TimeSpan.FromSeconds(1),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.FromSeconds(5)));
-
-        configurator.UseInMemoryOutbox(context);
-    });
-});
-
-builder.Services.AddHttpClient("CAS", client => { client.BaseAddress = new Uri("https://localhost:7111"); });
-
-builder.Services.AddAuthorization();
-
-// Module services: request, etc.
+// Module services: register modules BEFORE MassTransit so consumer wrappers are registered in DI
 builder.Services
     .AddRequestModule(builder.Configuration)
     .AddAuthModule(builder.Configuration)
@@ -94,6 +54,22 @@ builder.Services
     .AddDocumentModule(builder.Configuration)
     .AddAssignmentModule(builder.Configuration)
     .AddOpenIddictModule(builder.Configuration);
+
+builder.Services.AddMassTransitWithAssemblies(builder.Configuration,
+    requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
+
+builder.Services.AddHttpClient("CAS", client => { client.BaseAddress = new Uri("https://localhost:7111"); });
+
+builder.Services.AddAuthorization();
+
+// Module services: request, etc.
+// builder.Services
+//     .AddRequestModule(builder.Configuration)
+//     .AddAuthModule(builder.Configuration)
+//     .AddNotificationModule(builder.Configuration)
+//     .AddDocumentModule(builder.Configuration)
+//     .AddAssignmentModule(builder.Configuration)
+//     .AddOpenIddictModule(builder.Configuration);
 
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>

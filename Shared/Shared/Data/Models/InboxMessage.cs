@@ -1,14 +1,13 @@
 using Shared.DDD;
 
-namespace Shared.OutboxPatterns.Models;
+namespace Shared.Data.Models;
 
 public class InboxMessage : Entity<Guid>
 {
     public DateTime OccurredOn { get; private set; } = default!;
     public string EventType { get; private set; } = default!;
     public string Payload { get; private set; } = default!;
-    public DateTime? ProcessedAt { get; private set; }
-    public bool IsProcessed { get; private set; }
+    public DateTime? ReceiveAt { get; private set; }
 
     private InboxMessage() { }
 
@@ -18,7 +17,7 @@ public class InboxMessage : Entity<Guid>
         OccurredOn = occurredOn;
         EventType = eventType;
         Payload = payload;
-        IsProcessed = false;
+        ReceiveAt = DateTime.UtcNow;
     }
 
     public static InboxMessage Create(Guid id, DateTime occurredOn, string eventType, string payload)
@@ -26,14 +25,4 @@ public class InboxMessage : Entity<Guid>
         return new InboxMessage(id, occurredOn, eventType, payload);
     }
 
-    public void MarkAsProcessed()
-    {
-        IsProcessed = true;
-        ProcessedAt = DateTime.UtcNow;
-    }
-
-    public bool IsAlreadyProcessed()
-    {
-        return IsProcessed;
-    }
 }
