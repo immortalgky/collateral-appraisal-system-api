@@ -1,0 +1,9 @@
+# Get Permission Instance by ID
+# Get Permission Instance by ID.
+
+### Variables for the request
+@permissionId = 218e4b42-6293-4f57-eb47-08ddfa581b2e
+
+### Get Permission Instance by ID
+GET {{baseURL}}/auth/permissions/{{permissionId}} HTTP/1.1
+Host: localhost:7111

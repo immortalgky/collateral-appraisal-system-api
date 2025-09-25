@@ -1,0 +1,9 @@
+# Delete Permission Instance
+# Delete a permission instance.
+
+### Variables for the request
+@permissionId = a9ff918e-a7c3-4c5f-98b9-08ddf9b9db68
+
+### Delete Permission Instance
+DELETE {{baseUrl}}/auth/permissions/{{permissionId}} HTTP/1.1
+Host: localhost:7111
