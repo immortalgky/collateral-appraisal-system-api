@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using OpenIddict.Abstractions;
 
 namespace Integration.WebApplicationFactories;
 
@@ -20,6 +22,18 @@ public class AuthWebApplicationFactory(
                     services,
                     mssqlConnectionString
                 );
+                services
+                    .AddOpenIddict()
+                    .AddServer(options =>
+                    {
+                        options.UseAspNetCore().DisableTransportSecurityRequirement();
+                        options.RegisterScopes(
+                            OpenIddictConstants.Scopes.OpenId,
+                            OpenIddictConstants.Scopes.Profile,
+                            OpenIddictConstants.Scopes.Email,
+                            OpenIddictConstants.Scopes.OfflineAccess
+                        );
+                    });
             }
         );
     }
