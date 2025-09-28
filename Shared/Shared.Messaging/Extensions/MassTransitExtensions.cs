@@ -2,7 +2,7 @@ using System.Reflection;
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Shared.Messaging.OutboxPatterns.Interceptors;
+using Shared.Messaging.OutboxPatterns.Wrappers;
 
 namespace Shared.Messaging.Extensions;
 

@@ -24,25 +24,29 @@ public class OutboxService(
 
     public async Task<int> PublishEvent(CancellationToken cancellationToken = default)
     {
-        using var transaction = await _repository.BeginTransaction(cancellationToken);
-
-        try
+        do
         {
-            var messages = await _readRepository.GetMessageAsync(_schema, cancellationToken);
+            using var transaction = await _repository.BeginTransaction(cancellationToken);
 
-            _messages = messages.Count();
+            try
+            {
+                var messages = await _readRepository.GetMessageAsync(_schema, cancellationToken);
 
-            if (messages.Count == 0) return 0;
+                _messages = messages.Count();
 
-            await MessageCyclesAsync(messages, cancellationToken);
+                if (messages.Count == 0) return 0;
+
+                await MessageCyclesAsync(messages, cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+
+            await transaction.CommitAsync(cancellationToken);
         }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
-
-        await transaction.CommitAsync(cancellationToken);
+        while (_messages > 0);
 
         return _messages;
     }

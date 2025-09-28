@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Shared.Data.Models;
 using Shared.Exceptions;
 using Shared.Messaging.OutboxPatterns.Repository;
@@ -5,6 +6,7 @@ using Shared.Messaging.OutboxPatterns.Repository;
 namespace Shared.Messaging.OutboxPatterns.Services;
 
 public class InboxService(
+    IConfiguration _configuration,
     IInboxReadRepository _readRepository,
     IInboxRepository _repository) : IInboxService
 {    public async Task CheckDuplicate(Guid id, CancellationToken cancellationToken = default)
@@ -14,9 +16,17 @@ public class InboxService(
         if (message is null)throw new NotFoundException("This Event Is Duplicate");
     }
 
-    public Task ClearTimeOutMessage(CancellationToken cancellationToken = default)
+    public async Task ClearTimeOutMessage(CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        var timeoutDate = DateTime.UtcNow.AddDays(_configuration.GetValue<int>("Jobs:RetentionDays"));
+
+        var messages = await _readRepository.GetAllAsync(cancellationToken);
+
+        foreach (var message in messages)
+        {
+            if (message.ReceiveAt < timeoutDate)
+                await _repository.DeleteAsync(message.Id, cancellationToken);
+        }
     }
 
     public async Task AddMessageInboxAsync<TMessage>(TMessage message, CancellationToken cancellationToken = default) where TMessage : class

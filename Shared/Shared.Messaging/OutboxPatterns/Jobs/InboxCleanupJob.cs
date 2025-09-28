@@ -24,7 +24,7 @@ public class InboxCleanupJob<TDbContext> : IJob
     }
     public async Task Execute(IJobExecutionContext context)
     {
-        if (!_options.Enabled) { _logger.LogDebug("🚫 Inbox cleanup job is disabled"); return; }
+        if (!_options.Enabled) { _logger.LogDebug("Inbox cleanup job is disabled"); return; }
 
         var job = System.Diagnostics.Stopwatch.StartNew();
 
@@ -34,19 +34,19 @@ public class InboxCleanupJob<TDbContext> : IJob
 
             var inboxService = scope.ServiceProvider.GetKeyedService<IInboxService>(typeof(TDbContext).Name);
 
-            if (inboxService is null) { _logger.LogWarning("⚠️ Inbox service not found for {DbContext}", typeof(TDbContext).Name); return; }
+            if (inboxService is null) { _logger.LogWarning("Inbox service not found for {DbContext}", typeof(TDbContext).Name); return; }
 
             await inboxService.ClearTimeOutMessage();
 
             job.Stop();
 
-            _logger.LogInformation("✅ Inbox cleanup completed in {Duration}ms", job.ElapsedMilliseconds);
+            _logger.LogInformation("Inbox cleanup completed in {Duration}ms", job.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
             job.Stop();
 
-            _logger.LogError(ex, "❌ Error during inbox cleanup after {Duration}ms", job.ElapsedMilliseconds);
+            _logger.LogError(ex, "Error during inbox cleanup after {Duration}ms", job.ElapsedMilliseconds);
 
             throw;
 
