@@ -5,5 +5,5 @@
 @roleId = 82c98066-a9d4-4790-8581-08ddfa72cbe8
 
 ### Get Role Instance by ID
-GET {{baseURL}}/auth/roles/{{roleId}} HTTP/1.1
+GET {{baseUrl}}/auth/roles/{{roleId}} HTTP/1.1
 Host: localhost:7111

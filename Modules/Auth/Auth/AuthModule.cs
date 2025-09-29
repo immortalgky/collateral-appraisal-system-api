@@ -43,7 +43,7 @@ public static class AuthModule
             .AddClientPermissionPolicy("CanWriteAuth", ["auth:read", "auth:write"])
             .AddClientPermissionPolicy("CanReadDocument", ["document:read"])
             .AddClientPermissionPolicy("CanWriteDocument", ["document:read", "document:write"])
-            .AddClientPermissionPolicy("CanReadDocument", ["document:read"])
+            .AddClientPermissionPolicy("CanReadNotification", ["notification:read"])
             .AddClientPermissionPolicy(
                 "CanWriteNotification",
                 ["notification:read", "notification:write"]
