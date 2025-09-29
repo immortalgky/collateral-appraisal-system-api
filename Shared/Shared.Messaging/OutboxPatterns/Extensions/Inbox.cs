@@ -11,7 +11,7 @@ public static class Inbox
         this IServiceCollection services,
         IConfiguration configuration,
         Assembly assembly
-    ) where TDbContext : DbContext
+        ) where TDbContext : DbContext
     {
         var dbContextName = typeof(TDbContext).Name;
 

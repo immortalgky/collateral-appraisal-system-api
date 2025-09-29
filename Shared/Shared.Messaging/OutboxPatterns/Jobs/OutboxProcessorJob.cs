@@ -8,8 +8,8 @@ public class OutboxProcessorJob<TDbContext> : IJob
 
     public OutboxProcessorJob(
         IServiceScopeFactory scopeFactory,
-        ILogger<OutboxProcessorJob<TDbContext>> logger,
-        IConfiguration configuration)
+        ILogger<OutboxProcessorJob<TDbContext>> logger
+        )
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
@@ -31,7 +31,7 @@ public class OutboxProcessorJob<TDbContext> : IJob
                 return;
             }
 
-            var messages = await inboxService.PublishEvent(context.CancellationToken);
+            await inboxService.PublishEvent(context.CancellationToken);
 
         }
         catch (Exception ex)
