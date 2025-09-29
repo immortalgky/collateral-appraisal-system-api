@@ -1,13 +1,4 @@
-using MassTransit;
-using Microsoft.Extensions.Configuration;
-using Shared.Data.Models;
-using Shared.Messaging.OutboxPatterns.Extensions;
-using Shared.Messaging.OutboxPatterns.Repository;
-using Shared.Messaging.OutboxPatterns.Services;
-using Shared.OutboxPatterns.Repository;
-
-
-namespace Shared.Messaging.Services;
+namespace Shared.Messaging.OutboxPatterns.Services;
 
 public class OutboxService(
     IPublishEndpoint _publishEndpoint,

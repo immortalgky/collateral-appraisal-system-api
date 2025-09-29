@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 namespace Shared.Messaging.OutboxPatterns.Wrappers;
 
 internal static class ConsumerWrapperRegistry

@@ -1,9 +1,4 @@
-﻿using MassTransit;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Shared.Messaging.OutboxPatterns.Services;
-
-namespace Shared.Messaging.OutboxPatterns.Wrappers;
+﻿namespace Shared.Messaging.OutboxPatterns.Wrappers;
 
 // Per-consumer wrapper so each consumer gets its own runtime type that MassTransit can register
 public class ConsumeWrapper<TMessage, TConsumer> : IConsumer<TMessage>

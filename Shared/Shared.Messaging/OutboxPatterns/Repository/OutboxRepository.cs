@@ -1,8 +1,4 @@
-using Shared.Data;
-using Microsoft.EntityFrameworkCore.Storage;
-using Shared.Data.Models;
-
-namespace Shared.OutboxPatterns.Repository;
+namespace Shared.Messaging.OutboxPatterns.Repository;
 
 public class OutboxRepository<TDbContext> : BaseRepository<OutboxMessage, Guid>, IOutboxRepository where TDbContext : Microsoft.EntityFrameworkCore.DbContext
 {

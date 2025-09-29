@@ -1,10 +1,3 @@
-using Dapper;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Data.SqlClient;
-using Shared.Data;
-using Shared.Data.Models;
-
 namespace Shared.Messaging.OutboxPatterns.Repository;
 
 public class OutboxReadRepository<TDbContext> : BaseReadRepository<OutboxMessage, Guid>, IOutboxReadRepository 

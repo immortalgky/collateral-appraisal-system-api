@@ -1,19 +1,12 @@
-using System.Reflection;
-using MassTransit;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Shared.Data;
-using Shared.Messaging.OutboxPatterns.Wrappers;
-using Shared.Messaging.OutboxPatterns.Repository;
-using Shared.Messaging.OutboxPatterns.Services;
-
-
 namespace Shared.Messaging.OutboxPatterns.Extensions;
 
 public static class Inbox
 {
+    /// <summary>
+    /// Outbox-Patten ("Inbox" is Messages Input)
+    /// Inbox services for DbContext
+    /// IInboxService BackgroundService
+    /// </summary>
     public static IServiceCollection AddInbox<TDbContext>(
         this IServiceCollection services,
         IConfiguration configuration,
@@ -22,7 +15,7 @@ public static class Inbox
     ) where TDbContext : DbContext
     {
         var dbContextName = typeof(TDbContext).Name;
-        
+
 
         services.AddKeyedScoped<IInboxReadRepository>(schema, (provider, key) =>
             new InboxReadRepository<TDbContext>(

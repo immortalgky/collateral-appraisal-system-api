@@ -1,8 +1,3 @@
-using Microsoft.Extensions.Configuration;
-using Shared.Data.Models;
-using Shared.Exceptions;
-using Shared.Messaging.OutboxPatterns.Repository;
-
 namespace Shared.Messaging.OutboxPatterns.Services;
 
 public class InboxService(

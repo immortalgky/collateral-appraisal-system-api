@@ -1,7 +1,3 @@
-using Microsoft.EntityFrameworkCore.Storage;
-using Shared.Data;
-using Shared.Data.Models;
-
 namespace Shared.Messaging.OutboxPatterns.Repository;
 
 public interface IInboxRepository : IRepository<InboxMessage, Guid>

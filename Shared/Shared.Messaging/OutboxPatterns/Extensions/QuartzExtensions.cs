@@ -1,8 +1,3 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Quartz;
-using Shared.Messaging.OutboxPatterns.Jobs;
-
 namespace Shared.Messaging.OutboxPatterns.Extensions;
 
 public static class QuartzJobExtensions

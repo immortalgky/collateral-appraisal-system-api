@@ -1,7 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Shared.Data.Models;
-using Shared.Messaging.OutboxPatterns.Configurations;
-
 namespace Shared.Messaging.OutboxPatterns.Extensions;
 
 public static class ModelBuilderExtensions

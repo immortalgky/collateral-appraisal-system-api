@@ -1,6 +1,3 @@
-using Shared.Data;
-using Shared.Data.Models;
-
 namespace Shared.Messaging.OutboxPatterns.Repository;
 
 public interface IOutboxReadRepository : IReadRepository<OutboxMessage, Guid>

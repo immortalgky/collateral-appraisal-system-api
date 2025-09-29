@@ -1,9 +1,3 @@
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore.Storage;
-using Microsoft.Extensions.Configuration;
-using Shared.Data;
-using Shared.Data.Models;
-
 namespace Shared.Messaging.OutboxPatterns.Repository;
 
 public class InboxRepository<TDbContext> : BaseRepository<InboxMessage, Guid>, IInboxRepository 

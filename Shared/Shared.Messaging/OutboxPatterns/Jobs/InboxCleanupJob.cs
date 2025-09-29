@@ -1,10 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Quartz;
-using Shared.Messaging.OutboxPatterns.Services;
-
 namespace Shared.Messaging.OutboxPatterns.Jobs;
 
 public class InboxCleanupJob<TDbContext> : IJob

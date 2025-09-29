@@ -1,15 +1,4 @@
-using MassTransit;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Shared.Data;
-using Shared.Messaging.Services;
-using Shared.OutboxPatterns.Repository;
-using Shared.Messaging.OutboxPatterns.Repository;
-using Shared.Messaging.OutboxPatterns.Services;
-using Shared.Messaging.OutboxPatterns.Extensions;
-
-namespace Shared.OutboxPatterns.Extensions;
+namespace Shared.Messaging.OutboxPatterns.Extensions;
 
 public static class Outbox
 {

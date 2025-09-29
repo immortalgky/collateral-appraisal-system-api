@@ -1,10 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Quartz;
-using Shared.Messaging.OutboxPatterns.Services;
-
 namespace Shared.Messaging.OutboxPatterns.Jobs;
 
 public class OutboxProcessorJob<TDbContext> : IJob
