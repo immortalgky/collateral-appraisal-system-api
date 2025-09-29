@@ -45,7 +45,7 @@ public class InboxService(
 
         await _repository.AddAsync(inboxMessage, cancellationToken);
         
-        await _repository.SaveChangAsync(cancellationToken);
+        await _repository.SaveChangeAsync(cancellationToken);
     }
 
 }

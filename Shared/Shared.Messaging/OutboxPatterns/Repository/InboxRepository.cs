@@ -42,7 +42,7 @@ public class InboxRepository<TDbContext> : BaseRepository<InboxMessage, Guid>, I
         return true;
     }
 
-    public async Task SaveChangAsync(CancellationToken cancellationToken = default)
+    public async Task SaveChangeAsync(CancellationToken cancellationToken = default)
     {
         await Context.SaveChangesAsync(cancellationToken);
     }
