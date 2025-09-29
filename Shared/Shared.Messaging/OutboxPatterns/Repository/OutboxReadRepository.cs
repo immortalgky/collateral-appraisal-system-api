@@ -4,7 +4,6 @@ public class OutboxReadRepository<TDbContext> : BaseReadRepository<OutboxMessage
     where TDbContext : DbContext
 {
     private readonly IConfiguration _configuration;
-    private readonly int _batchSize;
     private readonly string _schema;
     private readonly ISqlConnectionFactory _sqlConnectionFactory;
 
@@ -17,7 +16,6 @@ public class OutboxReadRepository<TDbContext> : BaseReadRepository<OutboxMessage
     {
         _configuration = configuration;
         _sqlConnectionFactory = sqlConnectionFactory;
-        _batchSize = _configuration.GetValue<int>("Jobs:OutboxProcessor:BatchSize");
         _schema = schema;
     }
 
@@ -25,7 +23,7 @@ public class OutboxReadRepository<TDbContext> : BaseReadRepository<OutboxMessage
     {
         await using var connection = (SqlConnection)_sqlConnectionFactory.GetOpenConnection();
 
-        var parameters = new { BatchSize = _batchSize, Schema = _schema };
+        var parameters = new { BatchSize = _configuration.GetValue<int>("Jobs:OutboxProcessor:BatchSize"), Schema = _schema };
 
         string sql = @$"
             SELECT TOP (@BatchSize) *

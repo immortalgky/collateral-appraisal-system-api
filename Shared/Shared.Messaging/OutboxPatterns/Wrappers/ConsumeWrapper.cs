@@ -58,7 +58,6 @@ public class ConsumeWrapper<TMessage, TConsumer> : IConsumer<TMessage>
         {
             _logger.LogError(ex, "An error occurred while consuming the message of type {MessageType} with MessageId: {MessageId} for module: {ModuleSchema}", 
                 typeof(TMessage).Name, context.MessageId, _moduleSchema);
-            return; // Re-throw MassTransit retry
         }
     }
 }

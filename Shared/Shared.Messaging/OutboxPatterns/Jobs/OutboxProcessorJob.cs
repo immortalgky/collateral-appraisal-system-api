@@ -37,8 +37,6 @@ public class OutboxProcessorJob<TDbContext> : IJob
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in outbox processing job for {DbContextType}", typeof(TDbContext).Name);
-
-            return;
         }
     }
 }

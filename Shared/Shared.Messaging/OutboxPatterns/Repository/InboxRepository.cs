@@ -24,9 +24,6 @@ public class InboxRepository<TDbContext> : BaseRepository<InboxMessage, Guid>, I
 
     public async Task<bool> DeleteMessageTimeout(CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_schema))
-            throw new ArgumentException("Schema cannot be null or empty.", nameof(_schema));
-
         await using var connection = (SqlConnection)_sqlConnectionFactory.GetOpenConnection();
 
         var sql = @$"

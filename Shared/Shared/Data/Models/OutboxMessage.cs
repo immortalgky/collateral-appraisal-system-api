@@ -15,17 +15,18 @@ public class OutboxMessage : Entity<Guid>
 
     private OutboxMessage() { }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     private OutboxMessage(
-        Guid id,
-        DateTime occurredOn,
-        string payload,
-        string eventType,
-        string? exceptionInfo,
-        int retryCount = 0,
-        DateTime? lastRetryAt = null,
-        int maxRetries = 3,
-        bool isInfrastructureFailure = false
-    )
+            Guid id,
+            DateTime occurredOn,
+            string payload,
+            string eventType,
+            string? exceptionInfo,
+            int retryCount = 0,
+            DateTime? lastRetryAt = null,
+            int maxRetries = 3,
+            bool isInfrastructureFailure = false
+        )
     {
         Id = id;
         OccurredOn = occurredOn;
