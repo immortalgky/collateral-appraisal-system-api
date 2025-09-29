@@ -21,9 +21,9 @@ public class OutboxService(
 
             try
             {
-                var messages = await _readRepository.GetMessageAsync(_schema, cancellationToken);
+                var messages = await _readRepository.GetMessageAsync(cancellationToken);
 
-                _messages = messages.Count();
+                _messages = messages.Count;
 
                 if (messages.Count == 0)
                 {
@@ -70,7 +70,6 @@ public class OutboxService(
                     {
                         var isInfraFailure = OutboxMessage.ShouldTreatAsInfrastructureFailure(ex);
 
-
                         if (message.ShouldRetry())
                         {
                             message.IncrementRetry(ex.Message, isInfraFailure);
@@ -85,9 +84,9 @@ public class OutboxService(
 
                 await _repository.SaveChangeAsync(cancellationToken);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                throw;
+                throw new InvalidOperationException("Boom! Message processing failed.", ex);
             }
         }
     }

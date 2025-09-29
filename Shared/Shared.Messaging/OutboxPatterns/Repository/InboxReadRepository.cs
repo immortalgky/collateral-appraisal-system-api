@@ -18,18 +18,17 @@ public class InboxReadRepository<TDbContext> : BaseReadRepository<InboxMessage, 
 
     public async Task<InboxMessage> GetMessageByIdAsync(Guid id, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_schema))
-            throw new ArgumentException("Schema cannot be null or empty.", nameof(_schema));
-
         await using var connection = (SqlConnection)_sqlConnectionFactory.GetOpenConnection();
+
+        var parameters = new { Schema = _schema };
 
         string sql = @$"
             SELECT TOP (1) *
-            FROM [{_schema}].[InboxMessages]
+            FROM [@Schema].[InboxMessages]
             WITH (ROWLOCK, UPDLOCK)
             WHERE EventId = @id";
 
-        var messages = await connection.QueryAsync<InboxMessage>(sql, new { id });
+        var messages = await connection.QueryAsync<InboxMessage>(sql, parameters);
 
         return messages.FirstOrDefault()!;
     }

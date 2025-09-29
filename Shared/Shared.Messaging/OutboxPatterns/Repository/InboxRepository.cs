@@ -5,7 +5,7 @@ public class InboxRepository<TDbContext> : BaseRepository<InboxMessage, Guid>, I
 {
     private readonly ISqlConnectionFactory _sqlConnectionFactory;
     private readonly IConfiguration _configuration;
-    private string _schema;
+    private readonly string _schema;
     public InboxRepository(
         TDbContext dbContext,
         ISqlConnectionFactory sqlConnectionFactory,

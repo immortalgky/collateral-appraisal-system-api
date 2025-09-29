@@ -37,10 +37,8 @@ public class OutboxProcessorJob<TDbContext> : IJob
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in outbox processing job for {DbContextType}", typeof(TDbContext).Name);
-            throw;
+
+            return;
         }
     }
 }
-//TODO : Best Practice For Query Messages When It Have Too Much Messages (100,000) Waiting for review***
-//TODO : Worker Is Working Single Thread ? Waiting for review***
-//TODO : Event Type Invalid For Integration Events !!! Waiting for review***

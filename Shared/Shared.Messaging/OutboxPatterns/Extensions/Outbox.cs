@@ -9,8 +9,7 @@ public static class Outbox
     /// </summary>
     public static IServiceCollection AddOutbox<TDbContext>(
         this IServiceCollection services,
-        IConfiguration configuration,
-        string schema)
+        IConfiguration configuration)
         where TDbContext : DbContext
     {       
         // Register repositories with keyed services for specific DbContext type
@@ -23,7 +22,8 @@ public static class Outbox
             new OutboxReadRepository<TDbContext>(
                 provider.GetRequiredService<TDbContext>(),
                 provider.GetRequiredService<IConfiguration>(),
-                provider.GetRequiredService<ISqlConnectionFactory>()));
+                provider.GetRequiredService<ISqlConnectionFactory>(),
+                dbContextName));
 
         // Register service with the specific schema for this DbContext
         services.AddKeyedScoped<IOutboxService>(dbContextName, (provider, key) => 
@@ -32,7 +32,7 @@ public static class Outbox
                 provider.GetRequiredService<IConfiguration>(),
                 provider.GetRequiredKeyedService<IOutboxReadRepository>(key),
                 provider.GetRequiredKeyedService<IOutboxRepository>(key),
-                schema));
+                dbContextName));
 
         services.AddOutboxJobs<TDbContext>(configuration);
         

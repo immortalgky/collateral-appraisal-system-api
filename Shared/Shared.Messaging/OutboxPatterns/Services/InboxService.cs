@@ -40,7 +40,7 @@ public class InboxService(
             eventId.Value,
             occurredOn.Value,
             messageType.FullName!,
-            System.Text.Json.JsonSerializer.Serialize(message)
+            JsonSerializer.Serialize(message)
         );
 
         await _repository.AddAsync(inboxMessage, cancellationToken);

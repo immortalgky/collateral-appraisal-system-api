@@ -10,27 +10,26 @@ public static class Inbox
     public static IServiceCollection AddInbox<TDbContext>(
         this IServiceCollection services,
         IConfiguration configuration,
-        Assembly assembly,
-        string schema
+        Assembly assembly
     ) where TDbContext : DbContext
     {
         var dbContextName = typeof(TDbContext).Name;
 
 
-        services.AddKeyedScoped<IInboxReadRepository>(schema, (provider, key) =>
+        services.AddKeyedScoped<IInboxReadRepository>(dbContextName, (provider, key) =>
             new InboxReadRepository<TDbContext>(
                 provider.GetRequiredService<TDbContext>(),
                 provider.GetRequiredService<ISqlConnectionFactory>(),
-                schema));
+                dbContextName));
 
-        services.AddKeyedScoped<IInboxRepository>(schema, (provider, key) =>
+        services.AddKeyedScoped<IInboxRepository>(dbContextName, (provider, key) =>
             new InboxRepository<TDbContext>(
                 provider.GetRequiredService<TDbContext>(),
                 provider.GetRequiredService<ISqlConnectionFactory>(),
                 provider.GetRequiredService<IConfiguration>(),
-                schema));
+                dbContextName));
 
-        services.AddKeyedScoped<IInboxService>(schema, (provider, key) =>
+        services.AddKeyedScoped<IInboxService>(dbContextName, (provider, key) =>
             new InboxService(
                 provider.GetRequiredService<IConfiguration>(),
                 provider.GetRequiredKeyedService<IInboxReadRepository>(key),
@@ -66,7 +65,7 @@ public static class Inbox
                     var inner = sp.GetRequiredService(consumerType);
                     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
                     var logger = loggerFactory.CreateLogger(wrapperType);
-                    return Activator.CreateInstance(wrapperType, inner, sp, schema, logger)!;
+                    return Activator.CreateInstance(wrapperType, inner, sp, dbContextName, logger)!;
                 });
 
                 // Track wrapper types so MassTransit can register the wrappers (so wrapper's Consume runs)

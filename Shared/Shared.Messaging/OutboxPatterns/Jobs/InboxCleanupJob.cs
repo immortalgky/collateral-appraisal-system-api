@@ -34,10 +34,9 @@ public class InboxCleanupJob<TDbContext> : IJob
         {
             job.Stop();
 
-            _logger.LogError(ex, "Error during inbox cleanup after {Duration}ms", job.ElapsedMilliseconds);
+            _logger.LogError(ex, "Error during inbox cleanup job after {Duration}ms",job.ElapsedMilliseconds);
 
-            throw;
-
+            return;
         }
     }
 
