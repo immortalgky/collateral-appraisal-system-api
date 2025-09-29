@@ -6,11 +6,11 @@ public class UpdateCollateralCommandValidator : AbstractValidator<UpdateCollater
 {
     public UpdateCollateralCommandValidator()
     {
-        RuleFor(x => x.CollateralLand)
+        RuleFor(updateCollateralCommand => updateCollateralCommand.CollateralLand)
             .NotNull()
-            .When(x =>
-                x.CollatType.Equals(CollateralType.Land)
-                || x.CollatType.Equals(CollateralType.LandAndBuilding)
+            .When(updateCollateralCommand =>
+                updateCollateralCommand.CollatType.Equals(CollateralType.Land)
+                || updateCollateralCommand.CollatType.Equals(CollateralType.LandAndBuilding)
             )
             .ChildRules(y =>
             {
@@ -42,17 +42,17 @@ public class UpdateCollateralCommandValidator : AbstractValidator<UpdateCollater
                 "Collateral land is required when the collateral type is land or land and building"
             );
 
-        RuleFor(x => x.LandTitles)
+        RuleFor(updateCollateralCommand => updateCollateralCommand.LandTitles)
             .NotNull()
-            .When(x =>
-                x.CollatType.Equals(CollateralType.Land)
-                || x.CollatType.Equals(CollateralType.LandAndBuilding)
+            .When(updateCollateralCommand =>
+                updateCollateralCommand.CollatType.Equals(CollateralType.Land)
+                || updateCollateralCommand.CollatType.Equals(CollateralType.LandAndBuilding)
             )
             .WithMessage(
                 "Land titles is required when the collateral type is land or land and building"
             );
 
-        RuleForEach(x => x.LandTitles)
+        RuleForEach(updateCollateralCommand => updateCollateralCommand.LandTitles)
             .ChildRules(landTitle =>
             {
                 landTitle
@@ -89,11 +89,11 @@ public class UpdateCollateralCommandValidator : AbstractValidator<UpdateCollater
                     .WithMessage("DocValidate is required.");
             });
 
-        RuleFor(x => x.CollateralBuilding)
+        RuleFor(updateCollateralCommand => updateCollateralCommand.CollateralBuilding)
             .NotNull()
-            .When(x =>
-                x.CollatType.Equals(CollateralType.Building)
-                || x.CollatType.Equals(CollateralType.LandAndBuilding)
+            .When(updateCollateralCommand =>
+                updateCollateralCommand.CollatType.Equals(CollateralType.Building)
+                || updateCollateralCommand.CollatType.Equals(CollateralType.LandAndBuilding)
             )
             .ChildRules(y =>
             {
@@ -109,9 +109,9 @@ public class UpdateCollateralCommandValidator : AbstractValidator<UpdateCollater
                 "Collateral building is required when the collateral type is building or land and building."
             );
 
-        RuleFor(x => x.CollateralCondo)
+        RuleFor(updateCollateralCommand => updateCollateralCommand.CollateralCondo)
             .NotNull()
-            .When(x => x.CollatType.Equals(CollateralType.Condo))
+            .When(updateCollateralCommand => updateCollateralCommand.CollatType.Equals(CollateralType.Condo))
             .ChildRules(y =>
             {
                 y.RuleFor(y => y!.CondoName).NotEmpty().WithMessage("CondoName is required.");
@@ -150,9 +150,9 @@ public class UpdateCollateralCommandValidator : AbstractValidator<UpdateCollater
             })
             .WithMessage("Collateral condo is required when the collateral type is condo.");
 
-        RuleFor(x => x.CollateralMachine)
+        RuleFor(updateCollateralCommand => updateCollateralCommand.CollateralMachine)
             .NotNull()
-            .When(x => x.CollatType.Equals(CollateralType.Machine))
+            .When(updateCollateralCommand => updateCollateralCommand.CollatType.Equals(CollateralType.Machine))
             .ChildRules(y =>
             {
                 y.RuleFor(y => y!.CollateralMachineProperty)
@@ -168,9 +168,9 @@ public class UpdateCollateralCommandValidator : AbstractValidator<UpdateCollater
             })
             .WithMessage("Collateral machine is required when the collateral type is machine.");
 
-        RuleFor(x => x.CollateralVehicle)
+        RuleFor(updateCollateralCommand => updateCollateralCommand.CollateralVehicle)
             .NotNull()
-            .When(x => x.CollatType.Equals(CollateralType.Vehicle))
+            .When(updateCollateralCommand => updateCollateralCommand.CollatType.Equals(CollateralType.Vehicle))
             .ChildRules(y =>
             {
                 y.RuleFor(y => y!.CollateralVehicleProperty)
@@ -186,9 +186,9 @@ public class UpdateCollateralCommandValidator : AbstractValidator<UpdateCollater
             })
             .WithMessage("Collateral vehicle is required when the collateral type is vehicle.");
 
-        RuleFor(x => x.CollateralVessel)
+        RuleFor(updateCollateralCommand => updateCollateralCommand.CollateralVessel)
             .NotNull()
-            .When(x => x.CollatType.Equals(CollateralType.Vessel))
+            .When(updateCollateralCommand => updateCollateralCommand.CollatType.Equals(CollateralType.Vessel))
             .ChildRules(y =>
             {
                 y.RuleFor(y => y!.CollateralVesselProperty)
