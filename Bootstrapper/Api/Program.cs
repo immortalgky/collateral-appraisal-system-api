@@ -63,13 +63,6 @@ builder.Services.AddHttpClient("CAS", client => { client.BaseAddress = new Uri("
 builder.Services.AddAuthorization();
 
 // Module services: request, etc.
-// builder.Services
-//     .AddRequestModule(builder.Configuration)
-//     .AddAuthModule(builder.Configuration)
-//     .AddNotificationModule(builder.Configuration)
-//     .AddDocumentModule(builder.Configuration)
-//     .AddAssignmentModule(builder.Configuration)
-//     .AddOpenIddictModule(builder.Configuration);
 
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
