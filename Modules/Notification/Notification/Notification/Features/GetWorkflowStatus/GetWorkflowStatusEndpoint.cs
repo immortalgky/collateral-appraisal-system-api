@@ -13,7 +13,7 @@ public class GetWorkflowStatusEndpoint : ICarterModule
             .WithSummary("Get workflow status")
             .WithDescription("Retrieves the current workflow status for a request")
             .Produces<GetWorkflowStatusResponse>()
-            .RequireAuthorization();
+            .RequireAuthorization("CanReadNotification");
     }
 
     private static async Task<IResult> GetWorkflowStatus(

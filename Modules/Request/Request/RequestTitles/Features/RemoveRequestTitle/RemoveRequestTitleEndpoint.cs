@@ -20,6 +20,7 @@ public class RemoveRequestTitleEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Remove a request title")
             .WithDescription("Removes an existing title/collateral from the specified request. This action cannot be undone.")
-            .WithTags("Request Titles");
+            .WithTags("Request Titles")
+            .RequireAuthorization("CanWriteRequest");
     }
 }

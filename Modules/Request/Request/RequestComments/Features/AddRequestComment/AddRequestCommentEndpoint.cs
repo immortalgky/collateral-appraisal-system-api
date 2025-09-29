@@ -22,6 +22,7 @@ public class AddRequestCommentEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Add a comment to a request")
             .WithDescription("Adds a new comment to the specified request. Comments are used to track communication and notes related to the appraisal request.")
-            .WithTags("Request Comments");
+            .WithTags("Request Comments")
+            .RequireAuthorization("CanWriteRequest");
     }
 }

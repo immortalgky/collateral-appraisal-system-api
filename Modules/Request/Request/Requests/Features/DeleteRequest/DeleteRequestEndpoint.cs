@@ -17,6 +17,7 @@ public class DeleteRequestEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Delete request by ID")
             .WithDescription(
-                "Deletes a request by its ID. If the request does not exist, a 404 Not Found error is returned.");
+                "Deletes a request by its ID. If the request does not exist, a 404 Not Found error is returned.")
+            .RequireAuthorization("CanWriteRequest");
     }
 }

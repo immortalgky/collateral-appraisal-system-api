@@ -2,6 +2,7 @@
 
     <PropertyGroup>
         <TargetFramework>net9.0</TargetFramework>
+        <Nullable>enable</Nullable>
         <RazorLangVersion>8.0</RazorLangVersion>
         <EnableRazorRuntimeCompilation>true</EnableRazorRuntimeCompilation>
         <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
@@ -82,23 +83,28 @@
     <!--    </ItemGroup>-->
 
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
+        <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.5"/>
-        <PackageReference Include="OpenIddict" Version="6.3.0"/>
-        <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="6.3.0"/>
-        <PackageReference Include="OpenIddict.Server.AspNetCore" Version="6.3.0"/>
-        <PackageReference Include="OpenIddict.Validation.AspNetCore" Version="6.3.0"/>
+        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.5" />
+        <PackageReference Include="OpenIddict" Version="6.3.0" />
+        <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="6.3.0" />
+        <PackageReference Include="OpenIddict.Server.AspNetCore" Version="6.3.0" />
+        <PackageReference Include="OpenIddict.Validation.AspNetCore" Version="6.3.0" />
+        <PackageReference Include="System.Linq.Async" Version="6.0.3" />
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Data\Migrations\"/>
+        <Folder Include="Data\Migrations\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Auth.Tests" />
     </ItemGroup>
 
 </Project>

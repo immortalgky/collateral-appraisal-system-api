@@ -20,6 +20,7 @@ public class GetRequestTitleByIdEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get request title by ID")
             .WithDescription("Retrieves a specific title/collateral by its ID for the specified request. Returns detailed information about the title including land area, building, vehicle, and machine details.")
-            .WithTags("Request Titles");
+            .WithTags("Request Titles")
+            .RequireAuthorization("CanReadRequest");
     }
 }

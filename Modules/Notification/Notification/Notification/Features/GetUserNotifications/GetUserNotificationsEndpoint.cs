@@ -14,14 +14,14 @@ public class GetUserNotificationsEndpoint : ICarterModule
             .WithSummary("Get user notifications")
             .WithDescription("Retrieves notifications for a specific user")
             .Produces<GetUserNotificationsResponse>()
-            .RequireAuthorization();
+            .RequireAuthorization("CanReadNotification");
 
         app.MapGet("/api/notifications/{userId}/unread", GetUnreadNotifications)
             .WithName("GetUnreadNotifications")
             .WithSummary("Get unread user notifications")
             .WithDescription("Retrieves unread notifications for a specific user")
             .Produces<GetUserNotificationsResponse>()
-            .RequireAuthorization();
+            .RequireAuthorization("CanReadNotification");
     }
 
     private static async Task<IResult> GetUserNotifications(

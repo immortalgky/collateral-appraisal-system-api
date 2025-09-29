@@ -1,0 +1,40 @@
+# Register Client Instances
+# Register client Instances.
+
+### Register Client Instances
+POST {{baseUrl}}/auth/clients HTTP/1.1
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "displayName": "abcd",
+    "clientType": "public",
+    "postLogoutRedirectUris": [
+        "https://localhost:3000/"
+    ],
+    "redirectUris": [
+        "https://localhost:3000/callback"
+    ],
+    "permissions": [
+        "ept:token",
+        "gt:client_credentials",
+        "scp:api",
+        "ept:authorization",
+        "gt:refresh_token",
+        "rst:code",
+        "scp:email",
+        "scp:profile",
+        "scp:roles",
+        "auth:read",
+        "auth:write",
+        "document:read",
+        "document:write",
+        "notification:read",
+        "notification:write",
+        "request:read",
+        "request:write"
+    ],
+    "requirements": [
+        "ft:pkce"
+    ]
+}

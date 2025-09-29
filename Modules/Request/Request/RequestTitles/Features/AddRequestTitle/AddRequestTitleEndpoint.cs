@@ -22,6 +22,7 @@ public class AddRequestTitleEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Add a new request title")
             .WithDescription("Adds a new title/collateral for the specified request. The title details including land area, building information, vehicle, and machine details are provided in the request body.")
-            .WithTags("Request Titles");
+            .WithTags("Request Titles")
+            .RequireAuthorization("CanWriteRequest");
     }
 }

@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OAuth2OpenId.Data.Repository;
+using OAuth2OpenId.Services;
 using Shared.Security;
 
 namespace OAuth2OpenId;
@@ -126,6 +128,11 @@ public static class OpenIddictModule
             });
 
         services.AddScoped<IDataSeeder<OpenIddictDbContext>, AuthDataSeed>();
+        services.AddScoped<ITokenService, TokenService>();
+
+        services.AddScoped<IPermissionRepository, PermissionRepository>();
+        services.AddScoped<IPermissionReadRepository, PermissionReadRepository>();
+        services.AddScoped<IRoleRepository, RoleRepository>();
 
         return services;
     }

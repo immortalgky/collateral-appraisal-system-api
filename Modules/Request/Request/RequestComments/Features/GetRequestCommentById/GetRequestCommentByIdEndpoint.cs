@@ -20,6 +20,7 @@ public class GetRequestCommentByIdEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get request comment by ID")
             .WithDescription("Retrieves a specific comment for the specified request. Returns detailed information about the comment including creation and modification timestamps.")
-            .WithTags("Request Comments");
+            .WithTags("Request Comments")
+            .RequireAuthorization("CanReadRequest");
     }
 }

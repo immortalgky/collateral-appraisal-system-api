@@ -13,6 +13,7 @@ public class UpdateDocumentEndpoint : ICarterModule
             var response = result.Adapt<UpdateDocumentResponse>();
 
             return Results.Ok(response);
-        });
+        })
+        .RequireAuthorization("CanWriteDocument");
     }
 }

@@ -1,9 +1,4 @@
-using Carter;
-using Mapster;
-using MediatR;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Auth.Auth.Features.Token;
 
@@ -26,6 +21,7 @@ public class TokenEndpoint : ICarterModule
             var command = request.Adapt<TokenCommand>();
             var result = await sender.Send(command);
             return Results.Ok(result);
-        });
+        })
+        .AllowAnonymous();
     }
 }

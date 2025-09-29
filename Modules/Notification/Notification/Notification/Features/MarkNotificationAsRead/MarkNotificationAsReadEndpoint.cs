@@ -13,14 +13,14 @@ public class MarkNotificationAsReadEndpoint : ICarterModule
             .WithSummary("Mark notification as read")
             .WithDescription("Marks a specific notification as read")
             .Produces<MarkNotificationAsReadResponse>()
-            .RequireAuthorization();
+            .RequireAuthorization("CanWriteNotification");
 
         app.MapPatch("/api/notifications/users/{userId}/read-all", MarkAllAsRead)
             .WithName("MarkAllNotificationsAsRead")
             .WithSummary("Mark all notifications as read")
             .WithDescription("Marks all notifications for a user as read")
             .Produces<MarkNotificationAsReadResponse>()
-            .RequireAuthorization();
+            .RequireAuthorization("CanWriteNotification");
     }
 
     private static async Task<IResult> MarkAsRead(
