@@ -1,0 +1,11 @@
+{
+  "collatType": "Building",
+  "collateralBuilding": {
+    "buildingNo": "Bldg-001",
+    "modelName": "PM-2023",
+    "houseNo": "102",
+    "builtOnTitleNo": "TL-98765",
+    "owner": "John Smith"
+  },
+  "reqId": 1
+}

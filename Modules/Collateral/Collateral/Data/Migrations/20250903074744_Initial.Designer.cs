@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Collateral.Data.Migrations
 {
     [DbContext(typeof(CollateralDbContext))]
-    [Migration("20250826090806_Initial")]
+    [Migration("20250903074744_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -25,6 +25,43 @@ namespace Collateral.Data.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("Collateral.CollateralEngagements.Models.CollateralEngagement", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("bigint")
+                        .HasColumnName("CollatId");
+
+                    b.Property<long>("ReqId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LinkedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UnlinkedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id", "ReqId");
+
+                    b.ToTable("CollateralEngagements", "collateral");
+                });
 
             modelBuilder.Entity("Collateral.CollateralMachines.Models.CollateralMachine", b =>
                 {
@@ -339,8 +376,7 @@ namespace Collateral.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CollatId")
-                        .IsUnique();
+                    b.HasIndex("CollatId");
 
                     b.ToTable("LandTitles", "collateral");
                 });
@@ -417,6 +453,15 @@ namespace Collateral.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("CollateralVessels", "collateral");
+                });
+
+            modelBuilder.Entity("Collateral.CollateralEngagements.Models.CollateralEngagement", b =>
+                {
+                    b.HasOne("Collateral.CollateralMasters.Models.CollateralMaster", null)
+                        .WithMany("CollateralEngagements")
+                        .HasForeignKey("Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Collateral.CollateralMachines.Models.CollateralMachine", b =>
@@ -707,8 +752,8 @@ namespace Collateral.Data.Migrations
             modelBuilder.Entity("Collateral.CollateralProperties.Models.LandTitle", b =>
                 {
                     b.HasOne("Collateral.CollateralMasters.Models.CollateralMaster", null)
-                        .WithOne("LandTitle")
-                        .HasForeignKey("Collateral.CollateralProperties.Models.LandTitle", "CollatId")
+                        .WithMany("LandTitles")
+                        .HasForeignKey("CollatId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1058,6 +1103,8 @@ namespace Collateral.Data.Migrations
 
                     b.Navigation("CollateralCondo");
 
+                    b.Navigation("CollateralEngagements");
+
                     b.Navigation("CollateralLand");
 
                     b.Navigation("CollateralMachine");
@@ -1066,7 +1113,7 @@ namespace Collateral.Data.Migrations
 
                     b.Navigation("CollateralVessel");
 
-                    b.Navigation("LandTitle");
+                    b.Navigation("LandTitles");
                 });
 #pragma warning restore 612, 618
         }

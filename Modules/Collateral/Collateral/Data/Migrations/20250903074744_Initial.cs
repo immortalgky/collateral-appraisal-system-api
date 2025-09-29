@@ -104,6 +104,33 @@ namespace Collateral.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "CollateralEngagements",
+                schema: "collateral",
+                columns: table => new
+                {
+                    CollatId = table.Column<long>(type: "bigint", nullable: false),
+                    ReqId = table.Column<long>(type: "bigint", nullable: false),
+                    LinkedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UnlinkedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    UpdatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CollateralEngagements", x => new { x.CollatId, x.ReqId });
+                    table.ForeignKey(
+                        name: "FK_CollateralEngagements_CollateralMasters_CollatId",
+                        column: x => x.CollatId,
+                        principalSchema: "collateral",
+                        principalTable: "CollateralMasters",
+                        principalColumn: "CollatId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "CollateralLands",
                 schema: "collateral",
                 columns: table => new
@@ -344,8 +371,7 @@ namespace Collateral.Data.Migrations
                 name: "IX_LandTitles_CollatId",
                 schema: "collateral",
                 table: "LandTitles",
-                column: "CollatId",
-                unique: true);
+                column: "CollatId");
         }
 
         /// <inheritdoc />
@@ -357,6 +383,10 @@ namespace Collateral.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "CollateralCondos",
+                schema: "collateral");
+
+            migrationBuilder.DropTable(
+                name: "CollateralEngagements",
                 schema: "collateral");
 
             migrationBuilder.DropTable(

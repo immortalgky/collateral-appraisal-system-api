@@ -1,6 +1,3 @@
-using Collateral.CollateralProperties.ValueObjects;
-using Shared.Dtos;
-
 namespace Collateral.CollateralProperties.Models;
 
 public class CollateralLand : Entity<long>
@@ -48,5 +45,23 @@ public class CollateralLand : Entity<long>
             ),
             ""
         );
+    }
+
+    public void Update(CollateralLand collateralLand)
+    {
+        if (!Coordinate.Equals(collateralLand.Coordinate))
+        {
+            Coordinate = collateralLand.Coordinate;
+        }
+
+        if (!CollateralLocation.Equals(collateralLand.CollateralLocation))
+        {
+            CollateralLocation = collateralLand.CollateralLocation;
+        }
+
+        if (!LandDesc.Equals(collateralLand.LandDesc))
+        {
+            LandDesc = collateralLand.LandDesc;
+        }
     }
 }

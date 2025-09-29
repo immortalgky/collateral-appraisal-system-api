@@ -21,6 +21,7 @@ public class CollateralVessel : Aggregate<long>
         CollateralVesselDetail = collateralVesselDetail;
         CollateralVesselSize = collateralVesselSize;
     }
+
     public static CollateralVessel Create(
         long collatId,
         CollateralProperty collateralVesselProperty,
@@ -34,5 +35,23 @@ public class CollateralVessel : Aggregate<long>
             collateralVesselDetail,
             collateralVesselSize
         );
+    }
+
+    public void Update(CollateralVessel collateralVessel)
+    {
+        if (!CollateralVesselProperty.Equals(collateralVessel.CollateralVesselProperty))
+        {
+            CollateralVesselProperty = collateralVessel.CollateralVesselProperty;
+        }
+
+        if (!CollateralVesselDetail.Equals(collateralVessel.CollateralVesselDetail))
+        {
+            CollateralVesselDetail = collateralVessel.CollateralVesselDetail;
+        }
+
+        if (!CollateralVesselSize.Equals(collateralVessel.CollateralVesselSize))
+        {
+            CollateralVesselSize = collateralVessel.CollateralVesselSize;
+        }
     }
 }

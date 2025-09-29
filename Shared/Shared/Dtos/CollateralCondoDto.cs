@@ -1,7 +1,6 @@
 namespace Shared.Dtos;
 
 public record CollateralCondoDto(
-    long CollatId,
     string CondoName,
     string BuildingNo,
     string ModelName,

@@ -1,5 +1,3 @@
-using Collateral.CollateralProperties.ValueObjects;
-
 namespace Collateral.CollateralProperties.Models;
 
 public class CollateralCondo : Entity<long>
@@ -19,7 +17,10 @@ public class CollateralCondo : Entity<long>
 
     private CollateralCondo() { }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "SonarQube",
+        "S107:Methods should not have too many parameters"
+    )]
     private CollateralCondo(
         long collatId,
         string condoName,
@@ -49,7 +50,10 @@ public class CollateralCondo : Entity<long>
         Owner = owner;
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "SonarQube",
+        "S107:Methods should not have too many parameters"
+    )]
     public static CollateralCondo Create(
         long collatId,
         string condoName,
@@ -79,5 +83,62 @@ public class CollateralCondo : Entity<long>
             coordinate,
             owner
         );
+    }
+
+    public void Update(CollateralCondo collateralCondo)
+    {
+        if (!CondoName.Equals(collateralCondo.CondoName))
+        {
+            CondoName = collateralCondo.CondoName;
+        }
+
+        if (!BuildingNo.Equals(collateralCondo.BuildingNo))
+        {
+            BuildingNo = collateralCondo.BuildingNo;
+        }
+
+        if (!ModelName.Equals(collateralCondo.ModelName))
+        {
+            ModelName = collateralCondo.ModelName;
+        }
+
+        if (!BuiltOnTitleNo.Equals(collateralCondo.BuiltOnTitleNo))
+        {
+            BuiltOnTitleNo = collateralCondo.BuiltOnTitleNo;
+        }
+
+        if (!CondoRegisNo.Equals(collateralCondo.CondoRegisNo))
+        {
+            CondoRegisNo = collateralCondo.CondoRegisNo;
+        }
+
+        if (!RoomNo.Equals(collateralCondo.RoomNo))
+        {
+            RoomNo = collateralCondo.RoomNo;
+        }
+
+        if (!FloorNo.Equals(collateralCondo.FloorNo))
+        {
+            FloorNo = collateralCondo.FloorNo;
+        }
+
+        if (!UsableArea.Equals(collateralCondo.UsableArea))
+        {
+            UsableArea = collateralCondo.UsableArea;
+        }
+
+        if (!CollateralLocation.Equals(collateralCondo.CollateralLocation))
+        {
+            CollateralLocation = collateralCondo.CollateralLocation;
+        }
+        if (!Coordinate.Equals(collateralCondo.Coordinate))
+        {
+            Coordinate = collateralCondo.Coordinate;
+        }
+
+        if (!Owner.Equals(collateralCondo.Owner))
+        {
+            Owner = collateralCondo.Owner;
+        }
     }
 }

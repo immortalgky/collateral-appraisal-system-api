@@ -5,16 +5,19 @@ public class CollateralMasterConfigurations : IEntityTypeConfiguration<Collatera
     public void Configure(EntityTypeBuilder<CollateralMaster> builder)
     {
         builder.Property(p => p.Id).HasColumnName("CollatId");
-        builder.Property(p => p.CollatType).UseCodeConfig();
+        builder.Property(p => p.CollatType).UseCodeConfig().HasConversion(
+            v => v.ToAbbreviation(),
+            v => CollateralTypeExtensions.FromAbbreviation(v)
+        );
 
         builder.HasOne(p => p.CollateralLand)
             .WithOne()
             .HasForeignKey<CollateralLand>(p => p.CollatId)
             .IsRequired();
 
-        builder.HasOne(p => p.LandTitle)
+        builder.HasMany(p => p.LandTitles)
             .WithOne()
-            .HasForeignKey<LandTitle>(p => p.CollatId)
+            .HasForeignKey(p => p.CollatId)
             .IsRequired();
 
         builder.HasOne(p => p.CollateralBuilding)

@@ -46,4 +46,32 @@ public class CollateralBuilding : Entity<long>
             owner
         );
     }
+
+    public void Update(CollateralBuilding collateralBuilding)
+    {
+        if (!BuildingNo.Equals(collateralBuilding.BuildingNo))
+        {
+            BuildingNo = collateralBuilding.BuildingNo;
+        }
+
+        if (!ModelName.Equals(collateralBuilding.ModelName))
+        {
+            ModelName = collateralBuilding.ModelName;
+        }
+
+        if (!HouseNo.Equals(collateralBuilding.HouseNo))
+        {
+            HouseNo = collateralBuilding.HouseNo;
+        }
+
+        if (!BuiltOnTitleNo.Equals(collateralBuilding.BuiltOnTitleNo))
+        {
+            BuiltOnTitleNo = collateralBuilding.BuiltOnTitleNo;
+        }
+
+        if (!Owner.Equals(collateralBuilding.Owner))
+        {
+            Owner = collateralBuilding.Owner;
+        }
+    }
 }

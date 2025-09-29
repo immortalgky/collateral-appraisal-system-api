@@ -9,7 +9,10 @@ public class LandTitleDocumentDetail : ValueObject
     public string SurveyNo { get; }
     public string? SheetNo { get; }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "SonarQube",
+        "S107:Methods should not have too many parameters"
+    )]
     private LandTitleDocumentDetail(
         string titleNo,
         string bookNo,
@@ -27,7 +30,10 @@ public class LandTitleDocumentDetail : ValueObject
         SheetNo = sheetNo;
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "SonarQube",
+        "S107:Methods should not have too many parameters"
+    )]
     public static LandTitleDocumentDetail Create(
         string titleNo,
         string bookNo,
