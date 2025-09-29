@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using MassTransit;
 using Microsoft.Extensions.Configuration;
@@ -12,19 +14,32 @@ public static class MassTransitExtensions
         IConfiguration configuration,
         params Assembly[] assemblies)
     {
+        var wrapperTypes = ConsumerWrapperRegistry.GetRegistered();
+        var wrappedConsumerTypes = ConsumerWrapperRegistry.GetWrappedConsumers();
+        var wrappedConsumerSet = new HashSet<Type>(wrappedConsumerTypes);
+
+        foreach (var consumerType in wrappedConsumerSet)
+        {
+            services.AddScoped(consumerType);
+        }
+
+        var consumerTypes = assemblies
+            .SelectMany(GetConsumerTypes)
+            .Where(type => !wrappedConsumerSet.Contains(type))
+            .Distinct()
+            .ToArray();
+
         services.AddMassTransit(config =>
         {
             config.SetKebabCaseEndpointNameFormatter();
 
             config.SetInMemorySagaRepositoryProvider();
 
-            // Register consumers from assemblies first
-            config.AddConsumers(assemblies);
+            if (consumerTypes.Length > 0)
+                config.AddConsumers(consumerTypes);
 
-            // Register wrapper consumers last (higher priority for Inbox modules)
-            var wrappers = ConsumerWrapperRegistry.GetRegistered();
-            if (wrappers.Count > 0)
-                config.AddConsumers(wrappers.ToArray());
+            if (wrapperTypes.Count > 0)
+                config.AddConsumers(wrapperTypes.ToArray());
 
             config.AddSagaStateMachines(assemblies);
             config.AddSagas(assemblies);
@@ -36,12 +51,18 @@ public static class MassTransitExtensions
                 {
                     host.Username(configuration["RabbitMQ:Username"]!);
                     host.Password(configuration["RabbitMQ:Password"]!);
-
-                    configurator.ConfigureEndpoints(context);
                 });
+
+                configurator.ConfigureEndpoints(context);
             });
         });
 
         return services;
     }
+
+    private static IEnumerable<Type> GetConsumerTypes(Assembly assembly) =>
+        assembly.GetTypes()
+            .Where(type => !type.IsAbstract && !type.IsInterface)
+            .Where(type => type.GetInterfaces()
+                .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IConsumer<>)));
 }

@@ -11,21 +11,16 @@ public class InboxCleanupJob<TDbContext> : IJob
     where TDbContext : DbContext
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly InboxCleanupOptions _options;
     private readonly ILogger<InboxCleanupJob<TDbContext>> _logger;
     public InboxCleanupJob(
         IServiceProvider serviceProvider,
-        IOptions<InboxCleanupOptions> options,
         ILogger<InboxCleanupJob<TDbContext>> logger)
     {
         _serviceProvider = serviceProvider;
-        _options = options.Value;
         _logger = logger;
     }
     public async Task Execute(IJobExecutionContext context)
     {
-        if (!_options.Enabled) { _logger.LogDebug("Inbox cleanup job is disabled"); return; }
-
         var job = System.Diagnostics.Stopwatch.StartNew();
 
         try

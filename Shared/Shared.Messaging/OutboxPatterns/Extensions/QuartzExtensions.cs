@@ -12,10 +12,6 @@ public static class QuartzJobExtensions
         IConfiguration configuration)
         where TDbContext : Microsoft.EntityFrameworkCore.DbContext
     {
-        // Configure options
-        services.Configure<InboxCleanupOptions>(
-            configuration.GetSection(InboxCleanupOptions.SectionName));
-
         // Add Quartz
         services.AddQuartz(q =>
         {
@@ -56,17 +52,6 @@ public static class QuartzJobExtensions
 
         services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
-        return services;
-    }
-
-    public static IServiceCollection AddInboxAndOutboxJobs<TDbContext>(
-        this IServiceCollection services,
-        IConfiguration configuration)
-        where TDbContext : Microsoft.EntityFrameworkCore.DbContext
-    {
-        services.AddInboxJobs<TDbContext>(configuration);
-        services.AddOutboxJobs<TDbContext>(configuration);
-        
         return services;
     }
 }

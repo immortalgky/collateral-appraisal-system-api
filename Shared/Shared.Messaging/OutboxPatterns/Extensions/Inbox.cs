@@ -23,20 +23,21 @@ public static class Inbox
     {
         var dbContextName = typeof(TDbContext).Name;
         
-        services.AddKeyedScoped<IInboxRepository>(dbContextName, (provider, key) =>
+
+        services.AddKeyedScoped<IInboxReadRepository>(schema, (provider, key) =>
+            new InboxReadRepository<TDbContext>(
+                provider.GetRequiredService<TDbContext>(),
+                provider.GetRequiredService<ISqlConnectionFactory>(),
+                schema));
+
+        services.AddKeyedScoped<IInboxRepository>(schema, (provider, key) =>
             new InboxRepository<TDbContext>(
                 provider.GetRequiredService<TDbContext>(),
                 provider.GetRequiredService<ISqlConnectionFactory>(),
                 provider.GetRequiredService<IConfiguration>(),
                 schema));
 
-        services.AddKeyedScoped<IInboxReadRepository>(dbContextName, (provider, key) =>
-            new InboxReadRepository<TDbContext>(
-                provider.GetRequiredService<TDbContext>(),
-                provider.GetRequiredService<ISqlConnectionFactory>(),
-                schema));
-
-        services.AddKeyedScoped<IInboxService>(dbContextName, (provider, key) =>
+        services.AddKeyedScoped<IInboxService>(schema, (provider, key) =>
             new InboxService(
                 provider.GetRequiredService<IConfiguration>(),
                 provider.GetRequiredKeyedService<IInboxReadRepository>(key),
@@ -44,9 +45,6 @@ public static class Inbox
             ));
 
         services.AddInboxJobs<TDbContext>(configuration);
-
-        // TODO: Implement AddInboxCleanupJob<TDbContext>(configuration) if needed, or remove this line if not required.
-        // services.AddInboxCleanupJob<TDbContext>(configuration);
 
         // Discover and register all consumers in the assembly
         var consumerTypes = assembly.GetTypes()

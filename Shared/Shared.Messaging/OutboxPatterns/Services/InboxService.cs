@@ -13,7 +13,8 @@ public class InboxService(
     {
         var message = await _readRepository.GetMessageByIdAsync(id, cancellationToken);
 
-        if (message is null)throw new NotFoundException("This Event Is Duplicate");
+        if (message is not null) 
+            throw new NotFoundException("This Event Is Duplicate");
     }
 
     public async Task ClearTimeOutMessage(CancellationToken cancellationToken = default)

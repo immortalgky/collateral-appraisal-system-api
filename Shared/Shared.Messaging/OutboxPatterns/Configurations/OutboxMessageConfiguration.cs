@@ -23,7 +23,7 @@ public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage
         
         // Properties configuration
         builder.Property(x => x.Id)
-            .ValueGeneratedNever(); // Guid จะถูกกำหนดจากภายนอก
+            .ValueGeneratedNever(); // Guid will be assigned externally
             
         builder.Property(x => x.OccurredOn)
             .IsRequired();

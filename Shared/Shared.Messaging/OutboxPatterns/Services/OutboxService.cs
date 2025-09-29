@@ -18,7 +18,7 @@ public class OutboxService(
 ) : IOutboxService
 {
     private readonly string _schema = schema;
-    private readonly short _chunk = _configuration.GetValue<short>("OutboxConfigurations:Chunk");
+    private readonly short _chunk = _configuration.GetValue<short>("Jobs:OutboxProcessor:Chunk");
     private int _messages = 0;
 
 
@@ -34,7 +34,12 @@ public class OutboxService(
 
                 _messages = messages.Count();
 
-                if (messages.Count == 0) return 0;
+                if (messages.Count == 0)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                    
+                    return 0;
+                }
 
                 await MessageCyclesAsync(messages, cancellationToken);
             }

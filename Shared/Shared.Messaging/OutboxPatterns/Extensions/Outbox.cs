@@ -7,7 +7,6 @@ using Shared.Messaging.Services;
 using Shared.OutboxPatterns.Repository;
 using Shared.Messaging.OutboxPatterns.Repository;
 using Shared.Messaging.OutboxPatterns.Services;
-using Shared.Messaging.OutboxPatterns.Jobs;
 using Shared.Messaging.OutboxPatterns.Extensions;
 
 namespace Shared.OutboxPatterns.Extensions;

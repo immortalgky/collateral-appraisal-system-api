@@ -22,7 +22,7 @@ public class InboxReadRepository<TDbContext> : BaseReadRepository<InboxMessage, 
         _schema = schema;
     }
 
-    public async Task<InboxMessage> GetMessageByIdAsync(Guid id,CancellationToken cancellationToken)
+    public async Task<InboxMessage> GetMessageByIdAsync(Guid id, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_schema))
             throw new ArgumentException("Schema cannot be null or empty.", nameof(_schema));
@@ -33,10 +33,10 @@ public class InboxReadRepository<TDbContext> : BaseReadRepository<InboxMessage, 
             SELECT TOP (1) *
             FROM [{_schema}].[InboxMessages]
             WITH (ROWLOCK, UPDLOCK)
-            WHERE Id = '{id}'";
+            WHERE EventId = @id";
 
-        var message = await connection.QueryAsync<InboxMessage>(sql, cancellationToken);
+        var messages = await connection.QueryAsync<InboxMessage>(sql, new { id });
 
-        return (InboxMessage)message;
+        return messages.FirstOrDefault()!;
     }
 }
