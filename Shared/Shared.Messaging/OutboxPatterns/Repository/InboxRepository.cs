@@ -28,7 +28,7 @@ public class InboxRepository<TDbContext> : BaseRepository<InboxMessage, Guid>, I
 
         var sql = @$"
         DELETE FROM [{_schema}].[InboxMessages] 
-        WHERE CreatedAt < @cutoffDate";
+        WHERE ReceiveAt < @cutoffDate";
 
         var cutoffDate = DateTime.UtcNow.AddDays(_configuration.GetValue<int>("OutboxConfigurations:CutOffDay"));
         var command = new SqlCommand(sql, connection);
