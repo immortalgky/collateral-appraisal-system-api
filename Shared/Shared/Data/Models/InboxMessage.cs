@@ -17,7 +17,6 @@ public class InboxMessage : Entity<Guid>
         OccurredOn = occurredOn;
         EventType = eventType;
         Payload = payload;
-        //ReceiveAt = DateTime.UtcNow;
     }
 
     public static InboxMessage Create(Guid id, DateTime occurredOn, string eventType, string payload)
