@@ -12,19 +12,19 @@ public class VesselAppraisalDetailConfigurations : IEntityTypeConfiguration<Vess
 
         builder.Property(p => p.Id).HasColumnName("VesselApprID");
 
-        builder.OwnsOne(p => p.AppraisalDetail, machineAppraisalDetail =>
+        builder.OwnsOne(p => p.AppraisalDetail, vesselAppraisalDetail =>
         {
-            machineAppraisalDetail.Property(p => p.CanUse).HasColumnName("CanUse");
-            machineAppraisalDetail.Property(p => p.Location).HasColumnName("Location")
+            vesselAppraisalDetail.Property(p => p.CanUse).HasColumnName("CanUse");
+            vesselAppraisalDetail.Property(p => p.Location).HasColumnName("Location")
                 .HasMaxLength(200);
-            machineAppraisalDetail.Property(p => p.ConditionUse).HasColumnName("ConditionUse")
+            vesselAppraisalDetail.Property(p => p.ConditionUse).HasColumnName("ConditionUse")
                 .UseNameConfig();
-            machineAppraisalDetail.Property(p => p.UsePurpose).HasColumnName("UsePurpose")
+            vesselAppraisalDetail.Property(p => p.UsePurpose).HasColumnName("UsePurpose")
                 .UseNameConfig();
-            machineAppraisalDetail.Property(p => p.Part).HasColumnName("VesselPart");
-            machineAppraisalDetail.Property(p => p.Remark).UseRemarkConfig().HasColumnName("Remark");
-            machineAppraisalDetail.Property(p => p.Other).HasColumnName("Other");
-            machineAppraisalDetail.Property(p => p.AppraiserOpinion).HasColumnName("AppraiserOpinion");        
+            vesselAppraisalDetail.Property(p => p.Part).HasColumnName("VesselPart");
+            vesselAppraisalDetail.Property(p => p.Remark).UseRemarkConfig().HasColumnName("Remark");
+            vesselAppraisalDetail.Property(p => p.Other).HasColumnName("Other");
+            vesselAppraisalDetail.Property(p => p.AppraiserOpinion).HasColumnName("AppraiserOpinion");        
         });
     }
 }

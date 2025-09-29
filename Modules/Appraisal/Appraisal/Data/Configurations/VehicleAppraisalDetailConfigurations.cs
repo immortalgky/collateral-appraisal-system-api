@@ -12,19 +12,19 @@ public class VehicleAppraisalDetailConfigurations : IEntityTypeConfiguration<Veh
 
         builder.Property(p => p.Id).HasColumnName("VehicleApprID");
 
-        builder.OwnsOne(p => p.AppraisalDetail, machineAppraisalDetail =>
+        builder.OwnsOne(p => p.AppraisalDetail, vehicleAppraisalDetail =>
         {
-            machineAppraisalDetail.Property(p => p.CanUse).HasColumnName("CanUse");
-            machineAppraisalDetail.Property(p => p.Location).HasColumnName("Location")
+            vehicleAppraisalDetail.Property(p => p.CanUse).HasColumnName("CanUse");
+            vehicleAppraisalDetail.Property(p => p.Location).HasColumnName("Location")
                 .HasMaxLength(200);
-            machineAppraisalDetail.Property(p => p.ConditionUse).HasColumnName("ConditionUse")
+            vehicleAppraisalDetail.Property(p => p.ConditionUse).HasColumnName("ConditionUse")
                 .UseNameConfig();
-            machineAppraisalDetail.Property(p => p.UsePurpose).HasColumnName("UsePurpose")
+            vehicleAppraisalDetail.Property(p => p.UsePurpose).HasColumnName("UsePurpose")
                 .UseNameConfig();
-            machineAppraisalDetail.Property(p => p.Part).HasColumnName("VehiclePart");
-            machineAppraisalDetail.Property(p => p.Remark).UseRemarkConfig().HasColumnName("Remark");
-            machineAppraisalDetail.Property(p => p.Other).HasColumnName("Other");
-            machineAppraisalDetail.Property(p => p.AppraiserOpinion).HasColumnName("AppraiserOpinion");        
+            vehicleAppraisalDetail.Property(p => p.Part).HasColumnName("VehiclePart");
+            vehicleAppraisalDetail.Property(p => p.Remark).UseRemarkConfig().HasColumnName("Remark");
+            vehicleAppraisalDetail.Property(p => p.Other).HasColumnName("Other");
+            vehicleAppraisalDetail.Property(p => p.AppraiserOpinion).HasColumnName("AppraiserOpinion");        
         });
     }
 }
