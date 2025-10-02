@@ -5,7 +5,7 @@ public static class QuartzJobExtensions
     public static IServiceCollection AddInboxJobs<TDbContext>(
         this IServiceCollection services,
         IConfiguration configuration)
-        where TDbContext : Microsoft.EntityFrameworkCore.DbContext
+        where TDbContext : DbContext
     {
         // Add Quartz
         services.AddQuartz(q =>
@@ -29,7 +29,7 @@ public static class QuartzJobExtensions
     public static IServiceCollection AddOutboxJobs<TDbContext>(
         this IServiceCollection services,
         IConfiguration configuration)
-        where TDbContext : Microsoft.EntityFrameworkCore.DbContext
+        where TDbContext : DbContext
     {
         // Add Quartz
         services.AddQuartz(q =>

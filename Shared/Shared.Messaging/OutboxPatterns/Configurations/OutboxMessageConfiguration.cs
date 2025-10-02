@@ -20,6 +20,8 @@ public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage
         // Properties configuration
         builder.Property(x => x.Id)
             .ValueGeneratedNever(); // Guid will be assigned externally
+
+        builder.Property(x => x.Id).HasColumnName("EventId");
             
         builder.Property(x => x.OccurredOn)
             .IsRequired();
@@ -34,15 +36,6 @@ public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage
             
         builder.Property(x => x.ExceptionInfo)
             .HasMaxLength(4000);
-            
-        builder.Property(x => x.RetryCount)
-            .HasDefaultValue(0);
-            
-        builder.Property(x => x.MaxRetries)
-            .HasDefaultValue(3);
-            
-        builder.Property(x => x.IsInfrastructureFailure)
-            .HasDefaultValue(false);
 
         // Ignore audit fields from Entity<Guid>
         builder.Ignore(x => x.CreatedOn);

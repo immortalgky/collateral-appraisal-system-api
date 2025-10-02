@@ -7,6 +7,7 @@ public static class OutboxExtensions
     /// </summary>
     public static async Task PublishDeserializedEvent(
         this IPublishEndpoint publishEndpoint,
+        Guid messageId,
         string jsonPayload,
         string eventTypeString,
         CancellationToken cancellationToken
@@ -19,6 +20,9 @@ public static class OutboxExtensions
         // Deserialize JSON payload to event object
         var eventObject = JsonSerializer.Deserialize(jsonPayload, eventType) ?? throw new InvalidOperationException($"Failed to deserialize event payload for type: {eventTypeString}");
 
-        await publishEndpoint.Publish(eventObject, eventType, cancellationToken);
-    }
+        await publishEndpoint.Publish(eventObject, eventType, context =>
+            {
+                context.MessageId = messageId;
+            },  cancellationToken);
+        }
 }

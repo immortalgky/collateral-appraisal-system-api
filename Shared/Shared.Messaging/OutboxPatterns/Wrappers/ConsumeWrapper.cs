@@ -22,33 +22,43 @@ public class ConsumeWrapper<TMessage, TConsumer> : IConsumer<TMessage>
     {
         try
         {
+            _logger.LogDebug("ConsumeWrapper's {CosumeType}", context.GetType());
+
             using var scope = _serviceProvider.CreateScope();
 
-            _logger.LogInformation("Attempting to get IInboxService for module schema: {ModuleSchema}", _moduleSchema);
-            
             var inboxService = scope.ServiceProvider.GetKeyedService<IInboxService>(_moduleSchema);
 
             if (inboxService == null)
             {
-                _logger.LogWarning("IInboxService not found for module schema: {ModuleSchema}. Processing message without inbox pattern.", _moduleSchema);
-                
-                // Continue processing message without inbox protection
+                 _logger.LogDebug("Get Service Fail Processed Nomal consume");
+
                 await _innerConsumer.Consume(context);
+
                 return;
             }
             
             if (context.MessageId == null)
             {
                 _logger.LogWarning("MessageId is null, cannot use inbox pattern for message type {MessageType}", typeof(TMessage).Name);
+
                 await _innerConsumer.Consume(context);
+
                 return;
             }
 
-            _logger.LogDebug("Checking for duplicate message with ID: {MessageId}", context.MessageId.Value);
-            await inboxService.CheckDuplicate(context.MessageId.Value, context.CancellationToken);
+            var eventId = context.MessageId;
 
-            _logger.LogDebug("Adding message to inbox for processing");
-            await inboxService.AddMessageInboxAsync(context.Message);
+            _logger.LogDebug("Add Event Before Processing and Check Duplicate: {EventId}", eventId.Value);
+
+            var isDuplicate = await inboxService.AddMessageInboxAsync(context, context.CancellationToken);
+            
+            if (!isDuplicate)
+            {
+                _logger.LogDebug("Duplicate message detected with EventId: {EventId}. Skipping processing.", eventId.Value);
+                return; //
+            }
+
+            _logger.LogDebug("Message added to inbox for processing with EventId: {EventId}", eventId.Value);
 
             await _innerConsumer.Consume(context); // Inner consume (Real)
             

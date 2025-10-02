@@ -17,7 +17,7 @@ public class OutboxProcessorJob<TDbContext> : IJob
 
     public async Task Execute(IJobExecutionContext context)
     {
-        _logger.LogDebug("OutboxHostedService<{DbContextType}> job started", typeof(TDbContext).Name);
+        _logger.LogInformation("OutboxHostedService<{DbContextType}> job started", typeof(TDbContext).Name);
         
         try
         {

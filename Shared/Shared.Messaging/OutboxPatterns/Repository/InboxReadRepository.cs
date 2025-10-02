@@ -20,13 +20,18 @@ public class InboxReadRepository<TDbContext> : BaseReadRepository<InboxMessage, 
     {
         await using var connection = (SqlConnection)_sqlConnectionFactory.GetOpenConnection();
 
-        var parameters = new { Schema = _schema };
+        var parameters = new { EventId = id };
 
-        string sql = @$"
-            SELECT TOP (1) *
-            FROM [@Schema].[InboxMessages]
+        string sql = $@"
+            SELECT TOP (1) 
+                EventId AS Id,
+                EventType,
+                Payload,
+                OccurredOn,
+                ReceiveAt
+            FROM [{_schema}].[InboxMessages]
             WITH (ROWLOCK, UPDLOCK)
-            WHERE EventId = @id";
+            WHERE [EventId] = @EventId";
 
         var messages = await connection.QueryAsync<InboxMessage>(sql, parameters);
 

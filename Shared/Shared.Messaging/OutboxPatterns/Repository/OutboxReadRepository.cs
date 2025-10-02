@@ -23,15 +23,24 @@ public class OutboxReadRepository<TDbContext> : BaseReadRepository<OutboxMessage
     {
         await using var connection = (SqlConnection)_sqlConnectionFactory.GetOpenConnection();
 
-        var parameters = new { BatchSize = _configuration.GetValue<int>("Jobs:OutboxProcessor:BatchSize"), Schema = _schema };
+        var parameters = new
+        {
+            BatchSize = _configuration.GetValue<int>("Jobs:OutboxProcessor:BatchSize"),
+        };
 
         string sql = @$"
-            SELECT TOP (@BatchSize) *
-            FROM [@Schema].[OutboxMessages] 
-            WITH (ROWLOCK, READPAST, UPDLOCK)
-            ORDER BY [Id]";
+            SELECT TOP (@BatchSize) 
+            EventId AS Id,
+            OccurredOn,
+            Payload,
+            EventType,
+            ExceptionInfo,
+            RetryCount,
+            ProcessingFailed
+            FROM [{_schema}].[OutboxMessages]
+            ORDER BY OccurredOn";
 
-        var messages = (await connection.QueryAsync<OutboxMessage>(sql, parameters)).ToList();
+        var messages = await connection.QueryAsync<OutboxMessage>(sql, parameters);
 
         return messages.ToList();
     }

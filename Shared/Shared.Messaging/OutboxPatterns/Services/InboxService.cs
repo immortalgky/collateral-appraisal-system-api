@@ -3,13 +3,17 @@ namespace Shared.Messaging.OutboxPatterns.Services;
 public class InboxService(
     IConfiguration _configuration,
     IInboxReadRepository _readRepository,
-    IInboxRepository _repository) : IInboxService
-{    public async Task CheckDuplicate(Guid id, CancellationToken cancellationToken = default)
+    IInboxRepository _repository,
+    ILogger<InboxService> _logger) : IInboxService
+{    public async Task<bool> CheckDuplicate(Guid id, CancellationToken cancellationToken = default)
     {
-        var message = await _readRepository.GetMessageByIdAsync(id, cancellationToken);
+        var message = await _readRepository.GetByIdAsync(id, cancellationToken);
 
-        if (message is not null) 
-            throw new NotFoundException("This Event Is Duplicate");
+        if (message is not null)
+        {
+            return true;
+        }
+        return false;
     }
 
     public async Task ClearTimeOutMessage(CancellationToken cancellationToken = default)
@@ -25,27 +29,27 @@ public class InboxService(
         }
     }
 
-    public async Task AddMessageInboxAsync<TMessage>(TMessage message, CancellationToken cancellationToken = default) where TMessage : class
+    public async Task<bool> AddMessageInboxAsync<TMessage>(ConsumeContext<TMessage> context, CancellationToken cancellationToken = default) where TMessage : class
     {
-        ArgumentNullException.ThrowIfNull(message);
+        var dup = await CheckDuplicate(context.MessageId.Value, cancellationToken);
 
-        var messageType = typeof(TMessage);
-        var eventId = messageType.GetProperty("EventId")?.GetValue(message) as Guid?;
-        var occurredOn = messageType.GetProperty("OccurredOn")?.GetValue(message) as DateTime?;
+        if (dup)
+        {
+            _logger.LogInformation("📦 Is Dup!!! ");
+            return false;
+        }
 
-        if (!eventId.HasValue || !occurredOn.HasValue)
-            throw new ArgumentException("Message must contain 'EventId' and 'OccurredOn' properties.", nameof(message));
+        var message = InboxMessage.Create(
+            context.MessageId.Value,
+            DateTime.UtcNow,
+            typeof(TMessage).Name,
+            JsonSerializer.Serialize(context.Message));
 
-        var inboxMessage = InboxMessage.Create(
-            eventId.Value,
-            occurredOn.Value,
-            messageType.FullName!,
-            JsonSerializer.Serialize(message)
-        );
+        await _repository.AddAsync(message, cancellationToken);
 
-        await _repository.AddAsync(inboxMessage, cancellationToken);
-        
         await _repository.SaveChangeAsync(cancellationToken);
+        
+        return true;
     }
 
 }

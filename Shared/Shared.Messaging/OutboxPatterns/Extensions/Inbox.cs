@@ -10,7 +10,8 @@ public static class Inbox
     public static IServiceCollection AddInbox<TDbContext>(
         this IServiceCollection services,
         IConfiguration configuration,
-        Assembly assembly
+        Assembly assembly,
+        string schema
         ) where TDbContext : DbContext
     {
         var dbContextName = typeof(TDbContext).Name;
@@ -20,20 +21,21 @@ public static class Inbox
             new InboxReadRepository<TDbContext>(
                 provider.GetRequiredService<TDbContext>(),
                 provider.GetRequiredService<ISqlConnectionFactory>(),
-                dbContextName));
+                schema));
 
         services.AddKeyedScoped<IInboxRepository>(dbContextName, (provider, key) =>
             new InboxRepository<TDbContext>(
                 provider.GetRequiredService<TDbContext>(),
                 provider.GetRequiredService<ISqlConnectionFactory>(),
                 provider.GetRequiredService<IConfiguration>(),
-                dbContextName));
+                schema));
 
         services.AddKeyedScoped<IInboxService>(dbContextName, (provider, key) =>
             new InboxService(
                 provider.GetRequiredService<IConfiguration>(),
                 provider.GetRequiredKeyedService<IInboxReadRepository>(key),
-                provider.GetRequiredKeyedService<IInboxRepository>(key)
+                provider.GetRequiredKeyedService<IInboxRepository>(key),
+                provider.GetRequiredService<ILogger<InboxService>>()
             ));
 
         services.AddInboxJobs<TDbContext>(configuration);
