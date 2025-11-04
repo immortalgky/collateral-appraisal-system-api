@@ -1,6 +1,6 @@
 namespace Request.Requests.ValueObjects;
 
-public class Requestor : ValueObject // In user table, when requestor expire we will only change status of user to expire or sth. so, In request we will keep only RequesterId.
+public class Requestor : ValueObject
 {
     public string RequestorEmpId { get; } = default!;
     public string RequestorName { get; } = default!;

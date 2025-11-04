@@ -3,20 +3,41 @@ namespace Request.Requests.ValueObjects;
 public class LoanDetail : ValueObject
 {
     public string? LoanApplicationNo { get; }
-    public decimal? LimitAmt { get; } // FacilityLimit
-    // ADD: TopUpLimit
-    // ADD: OldFacilityLimit
+    public decimal? FacilityLimit { get; }
+    public decimal? TopUpLimit { get; }
+    public decimal? OldFacilityLimit { get; }
     public decimal? TotalSellingPrice { get; }
 
-    private LoanDetail(string? loanApplicationNo, decimal? limitAmt, decimal? totalSellingPrice)
+    private LoanDetail(
+        string? loanApplicationNo, 
+        decimal? facilityLimit, 
+        decimal? topUpLimit,
+        decimal? oldFacilityLimit,
+        decimal? totalSellingPrice
+    )
     {
         LoanApplicationNo = loanApplicationNo;
-        LimitAmt = limitAmt;
+        FacilityLimit = facilityLimit;
+        TopUpLimit = topUpLimit;
+        OldFacilityLimit = oldFacilityLimit;
         TotalSellingPrice = totalSellingPrice;
     }
 
-    public static LoanDetail Create(string? loanApplicationNo, decimal? limitAmt, decimal? totalSellingPrice)
+    public static LoanDetail Create(
+        string? loanApplicationNo, 
+        decimal? facilityLimit, 
+        decimal? topUpLimit, 
+        decimal? oldFacilityLimit, 
+        decimal? totalSellingPrice
+    )
     {
-        return new LoanDetail(loanApplicationNo, limitAmt, totalSellingPrice);
+        return new LoanDetail(
+            loanApplicationNo, 
+            facilityLimit, 
+            topUpLimit, 
+            oldFacilityLimit, 
+            totalSellingPrice
+        );
+        
     }
 }

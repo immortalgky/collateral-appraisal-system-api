@@ -4,13 +4,12 @@ namespace Request.Requests.Models;
 
 public class Request : Aggregate<Guid> // Change `long` to `Guid`
 {
-    public AppraisalNumber? AppraisalNo { get; private set; } // change to RequestNumber
+    public string Purpose { get; } = default!; // move from RequestDetail
+    public string Channel { get; private set; } // move from RequestDetail
+    public string Priority { get; private set; } // move from RequestDetail
+    public RequestNumber? RequestNo { get; private set; }
     public RequestStatus Status { get; private set; } = default!;
     public RequestDetail Detail { get; private set; } = default!;
-
-    public string AppraisalType { get; private set; }
-    public string Channel { get; private set; }
-    public string Priority { get; private set; }
 
     // Customers
     private readonly List<RequestCustomer> _customers = [];
@@ -26,8 +25,18 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
         // For EF Core
     }
 
-    private Request(RequestStatus status, RequestDetail detail)
+    private Request(
+        string purpose,
+        string channel,
+        string priority,
+        RequestStatus status, 
+        RequestDetail detail
+    )
     {
+        Purpose = purpose;
+        Channel = channel;
+        Priority = priority;
+        RequestNo = RequestNumber.Create("xxxxxxx");
         Status = status;
         Detail = detail;
 
@@ -37,11 +46,14 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public static Request Create(
         string purpose,
-        bool hasAppraisalBook,
-        string priority,
         string channel,
-        int? occurConstInspec,
-        Reference reference,
+        string priority,
+
+        // Request detail
+        bool hasAppraisalBook,
+        bool isPMA,
+        string bankingSegment,
+        Guid? prevAppraisalId,
         LoanDetail loanDetail,
         Address address,
         Contact contact,
@@ -50,12 +62,10 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     )
     {
         var requestDetail = RequestDetail.Create(
-            purpose,
             hasAppraisalBook,
-            priority,
-            channel,
-            occurConstInspec,
-            reference,
+            isPMA,
+            bankingSegment,
+            prevAppraisalId,
             loanDetail,
             address,
             contact,
@@ -63,7 +73,13 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
             requestor
         );
 
-        return new Request(RequestStatus.New, requestDetail);
+        return new Request(
+            purpose,
+            channel,
+            priority,
+            RequestStatus.New, 
+            requestDetail
+        );
     }
 
     public void SetAppraisalNumber(AppraisalNumber appraisalNo)
@@ -93,11 +109,14 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public void UpdateDetail(
         string purpose,
-        bool hasAppraisalBook,
-        string priority,
         string channel,
-        int? occurConstInspec,
-        Reference reference,
+        string priority,
+
+        // Request detail
+        bool hasAppraisalBook,
+        bool isPMA,
+        string bankingSegment,
+        Guid? prevAppraisalId,
         LoanDetail loanDetail,
         Address address,
         Contact contact,
@@ -112,11 +131,14 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
 
         var newDetail = RequestDetail.Create(
             purpose,
-            hasAppraisalBook,
-            priority,
             channel,
-            occurConstInspec,
-            reference,
+            priority,
+
+            // Request detail
+            hasAppraisalBook,
+            isPMA,
+            bankingSegment,
+            prevAppraisalId,
             loanDetail,
             address,
             contact,

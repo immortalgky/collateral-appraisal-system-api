@@ -4,7 +4,7 @@ public class Contact : ValueObject
 {
     public string ContactPersonName { get; }
     public string ContactPersonContactNo { get; }
-    public string? ProjectCode { get; } // keep in string and use for find in parameter table
+    public string? ProjectCode { get; } 
 
     private Contact(string contactPersonName, string contactPersonContactNo, string? projectCode)
     {

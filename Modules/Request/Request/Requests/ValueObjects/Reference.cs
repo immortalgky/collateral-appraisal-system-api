@@ -2,7 +2,8 @@ namespace Request.Requests.ValueObjects;
 
 public class Reference : ValueObject
 {
-    public string? PrevAppraisalNo { get; }
+    // keep only AppraisalId
+    public string? PrevAppraisalNo { get; } 
     public decimal? PrevAppraisalValue { get; }
     public DateTime? PrevAppraisalDate { get; }
         

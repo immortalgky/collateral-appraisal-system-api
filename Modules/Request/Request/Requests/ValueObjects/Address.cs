@@ -5,7 +5,6 @@ public class Address : ValueObject
     public string? HouseNo { get; }
     public string? RoomNo { get; }
     public string? FloorNo { get; }
-    public string? BuildingNo { get; } // remove
     public string? ProjectName { get; } // TitleInformation can use this
     public string? Moo { get; }
     public string? Soi { get; }
@@ -21,14 +20,23 @@ public class Address : ValueObject
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
-    private Address(string? houseNo, string? roomNo, string? floorNo, string? buildingNo, string? projectName,
-        string? moo, string? soi, string? road, string? subDistrict, string? district, string? province,
-        string? postcode)
+    private Address(
+        string? houseNo, 
+        string? roomNo, 
+        string? floorNo, 
+        string? projectName,
+        string? moo, 
+        string? soi, 
+        string? road, 
+        string? subDistrict, 
+        string? district, 
+        string? province,
+        string? postcode
+    )
     {
         HouseNo = houseNo;
         RoomNo = roomNo;
         FloorNo = floorNo;
-        BuildingNo = buildingNo;
         ProjectName = projectName;
         Moo = moo;
         Soi = soi;
@@ -41,12 +49,31 @@ public class Address : ValueObject
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public static Address Create(
-        string? houseNo, string? roomNo, string? floorNo, string? buildingNo, string? projectName,
-        string? moo, string? soi, string? road, string? subDistrict, string? district, string? province,
-        string? postcode)
+        string? houseNo,
+        string? roomNo,
+        string? floorNo,
+        string? projectName,
+        string? moo,
+        string? soi,
+        string? road,
+        string? subDistrict,
+        string? district,
+        string? province,
+        string? postcode
+    )
     {
-        return new Address(houseNo, roomNo, floorNo, buildingNo, projectName,
-            moo, soi, road, subDistrict, district, province,
-            postcode);
+        return new Address(
+            houseNo, 
+            roomNo, 
+            floorNo, 
+            projectName,
+            moo, 
+            soi, 
+            road, 
+            subDistrict, 
+            district, 
+            province,
+            postcode
+        );
     }
 }
