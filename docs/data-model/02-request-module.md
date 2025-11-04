@@ -43,19 +43,19 @@ erDiagram
         guid Id PK
         string RequestNumber UK
         string Purpose
+        string Channel
+        string RequestDate
+        string RequestedBy
         string Priority
         string Status
         string SubmittedAt
         string CompletedAt
-        string Channel
+        string IsPMA
     }
     
     RequestDetail {
         guid RequestId PK
-        string RequestDate
-        string IsPMA
         string HasOwnAppraisalBook
-        string RequestedBy
         string PreviousAppraisalId
         decimal LoanAmount
         decimal FacilityLimit
@@ -99,6 +99,8 @@ erDiagram
     RequestComment {
         guid Id PK
         string Comments
+        string CommentedBy
+        string CommentedAt
     }
 ```
 
@@ -125,7 +127,12 @@ CREATE TABLE request.Requests
     RequestNumber           NVARCHAR(50) UNIQUE NOT NULL,           -- Auto-generated: REQ-000001-2025
 
     -- Purpose
-    Purpose                 NVARCHAR(100) NOT NULL,                 
+    Purpose                 NVARCHAR(100) NOT NULL,
+
+    -- Source System
+    Channel                 NVARCHAR(50) NOT NULL DEFAULT 'Manual', -- Manual, LOS, CLS
+    RequestDate             DATETIME2 NOT NULL DEFAULT GETDATE(),
+    RequestedBy             NVARCHAR(10) NOT NULL,
 
     -- Priority & Due Date
     Priority                NVARCHAR(20) NOT NULL DEFAULT 'Normal', -- Normal, High
@@ -135,13 +142,13 @@ CREATE TABLE request.Requests
     SubmittedAt             DATETIME2 NULL,
     CompletedAt             DATETIME2 NULL,
 
-    -- LOS Integration
-    Channel                 NVARCHAR(50) NOT NULL DEFAULT 'Manual', -- Manual, LOS, CLS
-
     -- Soft Delete
     IsDeleted               BIT NOT NULL DEFAULT 0,
     DeletedOn               DATETIME2 NULL,
     DeletedBy               UNIQUEIDENTIFIER NULL,
+
+    -- Special Flags
+    IsPMA                   BIT NOT NULL DEFAULT 0,
 
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETDATE(),
@@ -167,16 +174,14 @@ CREATE TABLE request.RequestDetail
     RequestId                      UNIQUEIDENTIFIER NOT NULL
 
     -- Request Information
-    RequestDate                    DATETIME2 NOT NULL DEFAULT GETDATE(),
-    IsPMA                          BIT NOT NULL DEFAULT 0,
     HasOwnAppraisalBook            BIT NOT NULL DEFAULT 0,
-    RequestedBy                    NVARCHAR(10) NOT NULL,
 
     -- Original Appraisal
     PreviousAppraisalId            UNIQUEIDENTIFIER NULL,
     
     -- Loan Information
     LoanApplicationNo              NVARCHAR(100) NULL,                     -- From LOS system
+    BankingSegment                 NVARCHAR(10) NULL,                      -- LOS, CLS
     FacilityLimit                  DECIMAL(19,4) NULL,
     PreviousFacilityLimit          DECIMAL(19,4) NULL,
     AdditionalFacilityLimit        DECIMAL(19,4) NULL,
@@ -186,7 +191,7 @@ CREATE TABLE request.RequestDetail
     HouseNo                        NVARCHAR(30) NULL,
     RoomNo                         NVARCHAR(30) NULL,
     FloorNo                        NVARCHAR(10) NULL,
-    Village                        NVARCHAR(100) NULL,
+    ProjectName                    NVARCHAR(100) NULL,
     Moo                            NVARCHAR(50) NULL,
     Soi                            NVARCHAR(100) NULL,
     Road                           NVARCHAR(100) NULL,
@@ -349,7 +354,7 @@ CREATE TABLE request.RequestTitles
     RoomNo                  NVARCHAR(30) NULL,
     FloorNo                 NVARCHAR(10) NULL,
     BuildingNo              NVARCHAR(100) NULL,
-    Village                 NVARCHAR(100) NULL,
+    ProjectName             NVARCHAR(100) NULL,
     Moo                     NVARCHAR(50) NULL,
     Soi                     NVARCHAR(100) NULL,
     Road                    NVARCHAR(100) NULL,
@@ -360,10 +365,7 @@ CREATE TABLE request.RequestTitles
         
     -- DOPA Address
     DOPAHouseNo             NVARCHAR(30) NULL,
-    DOPARoomNo              NVARCHAR(30) NULL,
-    DOPAFloorNo             NVARCHAR(10) NULL,
-    DOPABuildingNo          NVARCHAR(100) NULL,
-    DOPAVillage             NVARCHAR(100) NULL,
+    DOPAProjectName         NVARCHAR(100) NULL,
     DOPAMoo                 NVARCHAR(50) NULL,
     DOPASoi                 NVARCHAR(100) NULL,
     DOPARoad                NVARCHAR(100) NULL,
@@ -461,6 +463,8 @@ CREATE TABLE request.RequestComments
     -- Primary Key
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
     Comments                NVARCHAR(MAX) NULL
+    CommentedBy             UNIQUEIDENTIFIER NOT NULL,
+    CommentedAt             DATETIME2 NOT NULL DEFAULT GETDATE(),
     
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETDATE(),
