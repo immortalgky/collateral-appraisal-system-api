@@ -3,7 +3,9 @@ namespace Request.Requests.ValueObjects;
 public class LoanDetail : ValueObject
 {
     public string? LoanApplicationNo { get; }
-    public decimal? LimitAmt { get; }
+    public decimal? LimitAmt { get; } // FacilityLimit
+    // ADD: TopUpLimit
+    // ADD: OldFacilityLimit
     public decimal? TotalSellingPrice { get; }
 
     private LoanDetail(string? loanApplicationNo, decimal? limitAmt, decimal? totalSellingPrice)

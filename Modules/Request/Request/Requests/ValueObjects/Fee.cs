@@ -2,8 +2,9 @@ namespace Request.Requests.ValueObjects;
 
 public class Fee : ValueObject
 {
-    public string FeeType { get; }
+    public string FeeType { get; } // Parameter; change to FeePayType
     public string? FeeRemark { get; }
+    // [?] BankAbsorbAmt
 
     private Fee(string feeType, string? feeRemark)
     {

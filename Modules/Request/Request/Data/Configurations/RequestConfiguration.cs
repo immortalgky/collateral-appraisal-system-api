@@ -9,7 +9,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Requests.Models.Req
 
         builder.OwnsOne(p => p.AppraisalNo, appraisalNo =>
         {
-            appraisalNo.Property(p => p.Value).HasMaxLength(10).HasColumnName("AppraisalNo");
+            appraisalNo.Property(p => p.Value).HasMaxLength(10).HasColumnName("AppraisalNo"); // change maxLength(15)
             appraisalNo.HasIndex(p => p.Value).IsUnique();
         });
 
@@ -23,11 +23,11 @@ public class RequestConfiguration : IEntityTypeConfiguration<Requests.Models.Req
             detail.WithOwner().HasForeignKey("RequestId");
             detail.HasKey("RequestId");
 
-            detail.Property(p => p.Purpose).UseCodeConfig().HasColumnName("Purpose");
+            detail.Property(p => p.Purpose).UseCodeConfig().HasColumnName("Purpose"); // move to Request
             detail.Property(p => p.HasAppraisalBook).HasColumnName("HasAppraisalBook");
-            detail.Property(p => p.Priority).UseCodeConfig().HasColumnName("Priority");
-            detail.Property(p => p.Channel).UseCodeConfig().HasColumnName("Channel");
-            detail.Property(p => p.OccurConstInspec).HasColumnName("OccurConstInspec");
+            detail.Property(p => p.Priority).UseCodeConfig().HasColumnName("Priority"); // move to Request
+            detail.Property(p => p.Channel).UseCodeConfig().HasColumnName("Channel"); // move to Request
+            detail.Property(p => p.OccurConstInspec).HasColumnName("OccurConstInspec"); // move to ConstructionInspectionMaster
 
             detail.OwnsOne(p => p.Reference, prevAppraisal =>
             {

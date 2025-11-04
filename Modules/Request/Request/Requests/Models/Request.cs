@@ -2,11 +2,15 @@ using Request.RequestComments.Models;
 
 namespace Request.Requests.Models;
 
-public class Request : Aggregate<long>
+public class Request : Aggregate<Guid> // Change `long` to `Guid`
 {
-    public AppraisalNumber? AppraisalNo { get; private set; }
+    public AppraisalNumber? AppraisalNo { get; private set; } // change to RequestNumber
     public RequestStatus Status { get; private set; } = default!;
     public RequestDetail Detail { get; private set; } = default!;
+
+    public string AppraisalType { get; private set; }
+    public string Channel { get; private set; }
+    public string Priority { get; private set; }
 
     // Customers
     private readonly List<RequestCustomer> _customers = [];
@@ -15,6 +19,7 @@ public class Request : Aggregate<long>
     // Properties
     private readonly List<RequestProperty> _properties = [];
     public IReadOnlyList<RequestProperty> Properties => _properties.AsReadOnly();
+
 
     private Request()
     {

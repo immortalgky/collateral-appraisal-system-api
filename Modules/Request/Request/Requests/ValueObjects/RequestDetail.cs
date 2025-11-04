@@ -1,18 +1,21 @@
 namespace Request.Requests.ValueObjects;
 
-public class RequestDetail : ValueObject
+public class RequestDetail : ValueObject // [!] FK Request
 {
-    public string Purpose { get; } = default!;
+    public string Purpose { get; } = default!; // move to Request
     public bool HasAppraisalBook { get; }
-    public string Priority { get; } = default!;
-    public string Channel { get; } = default!;
-    public int? OccurConstInspec { get; }
+    public string Priority { get; } = default!; // move to Request
+    public string Channel { get; } = default!; // move to Request
+    public int? OccurConstInspec { get; } // move to ConstructionInspectionMaster
     public LoanDetail LoanDetail { get; } = default!;
     public Reference Reference { get; } = default!;
     public Address Address { get; } = default!;
     public Contact Contact { get; } = default!;
     public Fee Fee { get; } = default!;
-    public Requestor Requestor { get; } = default!;
+    public Requestor Requestor { get; } = default!; // [????] rename to RequestedBy; FK to User // on hold
+
+    // ADD: IsPMA
+    // ADD: BankingSegment
 
     private RequestDetail()
     {

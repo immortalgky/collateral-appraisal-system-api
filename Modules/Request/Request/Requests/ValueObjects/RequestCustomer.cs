@@ -2,7 +2,7 @@ namespace Request.Requests.ValueObjects;
 
 public class RequestCustomer : ValueObject
 {
-    public string Name { get; }
+    public string Name { get; } // CustomerName
     public string ContactNumber { get; }
 
 #pragma warning disable CS8618

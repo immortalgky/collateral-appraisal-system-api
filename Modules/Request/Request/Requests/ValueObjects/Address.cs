@@ -5,8 +5,8 @@ public class Address : ValueObject
     public string? HouseNo { get; }
     public string? RoomNo { get; }
     public string? FloorNo { get; }
-    public string? BuildingNo { get; }
-    public string? ProjectName { get; }
+    public string? BuildingNo { get; } // remove
+    public string? ProjectName { get; } // TitleInformation can use this
     public string? Moo { get; }
     public string? Soi { get; }
     public string? Road { get; }
