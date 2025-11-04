@@ -365,9 +365,6 @@ CREATE TABLE request.RequestTitles
         
     -- DOPA Address
     DOPAHouseNo             NVARCHAR(30) NULL,
-    DOPARoomNo              NVARCHAR(30) NULL,
-    DOPAFloorNo             NVARCHAR(10) NULL,
-    DOPABuildingNo          NVARCHAR(100) NULL,
     DOPAProjectName         NVARCHAR(100) NULL,
     DOPAMoo                 NVARCHAR(50) NULL,
     DOPASoi                 NVARCHAR(100) NULL,
