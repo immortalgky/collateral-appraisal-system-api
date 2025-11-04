@@ -10,7 +10,7 @@ public class RequestDetail : ValueObject // [!] FK Request
     public Address Address { get; } = default!;
     public Contact Contact { get; } = default!;
     public Fee Fee { get; } = default!;
-    public Requestor Requestor { get; } = default!;
+    public Requestor Requestor { get; } = default!; // RequestedBy
 
 
     private RequestDetail()

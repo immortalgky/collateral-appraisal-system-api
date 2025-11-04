@@ -3,7 +3,7 @@ namespace Request.Requests.ValueObjects;
 public class Fee : ValueObject
 {
     public string FeeType { get; }
-    public string? FeeRemark { get; }
+    public string? FeeRemark { get; } // FeeNotes
     public decimal? BankAbsorbAmount { get; }
 
     private Fee(
