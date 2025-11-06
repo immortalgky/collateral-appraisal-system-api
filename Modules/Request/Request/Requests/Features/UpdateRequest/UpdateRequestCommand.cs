@@ -1,16 +1,14 @@
 namespace Request.Requests.Features.UpdateRequest;
 
 public record UpdateRequestCommand(
-    long Id,
-    string Purpose,
+    Guid Id,
     bool HasAppraisalBook,
-    string Priority,
-    string Channel,
-    int? OccurConstInspec,
+    Guid? PreviousAppraisaId,
     ReferenceDto Reference,
     LoanDetailDto LoanDetail,
     AddressDto Address,
     ContactDto Contact,
+    AppointmentDto Appointment,
     FeeDto Fee,
     RequestorDto Requestor,
     List<RequestCustomerDto> Customers,

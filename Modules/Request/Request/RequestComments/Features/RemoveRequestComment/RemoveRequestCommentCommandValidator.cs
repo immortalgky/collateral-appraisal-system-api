@@ -7,7 +7,7 @@ public class RemoveRequestCommentCommandValidator : AbstractValidator<RemoveRequ
         RuleFor(x => x.CommentId)
             .NotNull()
             .WithMessage("Comment ID cannot be null.")
-            .GreaterThan(0)
+            // .GreaterThan(0)
             .WithMessage("Comment ID must be greater than zero.");
     }
 }

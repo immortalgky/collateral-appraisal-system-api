@@ -2,16 +2,15 @@ namespace Request.Requests.Features.CreateRequest;
 
 public record CreateRequestRequest(
     string Purpose,
-    bool HasAppraisalBook,
     string Priority,
-    ReferenceDto Reference,
-    string Channel,
-    int? OccurConstInspec,
+    bool IsPMA,
+    bool HasOwnAppraisalBook,
+    Guid? PreviousAppraisalId,
     LoanDetailDto LoanDetail,
     AddressDto Address,
     ContactDto Contact,
+    AppointmentDto Appointment,
     FeeDto Fee,
-    RequestorDto Requestor,
     List<RequestCustomerDto> Customers,
     List<RequestPropertyDto> Properties
 );

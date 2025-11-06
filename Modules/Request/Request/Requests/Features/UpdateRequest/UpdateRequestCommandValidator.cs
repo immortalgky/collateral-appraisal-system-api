@@ -4,17 +4,17 @@ public class UpdateRequestCommandValidator : AbstractValidator<UpdateRequestComm
 {
     public UpdateRequestCommandValidator()
     {
-        RuleFor(x => x.Purpose)
-            .NotEmpty()
-            .WithMessage("Purpose is required.");
+        // RuleFor(x => x.Purpose)
+        //     .NotEmpty()
+        //     .WithMessage("Purpose is required.");
 
-        RuleFor(x => x.Priority)
-            .NotEmpty()
-            .WithMessage("Priority is required.");
+        // RuleFor(x => x.Priority)
+        //     .NotEmpty()
+        //     .WithMessage("Priority is required.");
 
-        RuleFor(x => x.Channel)
-            .NotEmpty()
-            .WithMessage("Channel is required.");
+        // RuleFor(x => x.Channel)
+        //     .NotEmpty()
+        //     .WithMessage("Channel is required.");
 
         RuleFor(x => x.Address)
             .NotNull()

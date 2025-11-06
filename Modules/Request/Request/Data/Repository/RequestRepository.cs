@@ -4,7 +4,7 @@ namespace Request.Data.Repository;
 
 public class RequestRepository(RequestDbContext dbContext, IAppraisalNumberGenerator generator) : IRequestRepository
 {
-    public async Task<Requests.Models.Request> GetByIdAsync(long requestId,
+    public async Task<Requests.Models.Request> GetByIdAsync(Guid requestId,
         CancellationToken cancellationToken = default)
     {
         return await dbContext.Requests.FindAsync([requestId], cancellationToken);
@@ -14,11 +14,11 @@ public class RequestRepository(RequestDbContext dbContext, IAppraisalNumberGener
         CancellationToken cancellationToken = default)
     {
         // Generate appraisal number if not already set
-        if (request.AppraisalNo == null)
-        {
-            var appraisalNumber = await generator.GenerateAsync(cancellationToken);
-            request.SetAppraisalNumber(appraisalNumber);
-        }
+        // if (request.AppraisalNo == null)
+        // {
+        //     var appraisalNumber = await generator.GenerateAsync(cancellationToken);
+        //     request.SetAppraisalNumber(appraisalNumber);
+        // }
 
         dbContext.Requests.Add(request);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -26,7 +26,7 @@ public class RequestRepository(RequestDbContext dbContext, IAppraisalNumberGener
         return request;
     }
 
-    public async Task<bool> DeleteRequestAsync(long requestId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteRequestAsync(Guid requestId, CancellationToken cancellationToken = default)
     {
         var request = await GetByIdAsync(requestId, cancellationToken);
 

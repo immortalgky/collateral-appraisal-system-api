@@ -4,8 +4,8 @@ public class UpdateRequestTitleEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPatch("/requests/{requestId:long}/titles/{titleId:long}",
-            async (long requestId, long titleId, UpdateRequestTitleRequest request, ISender sender,
+        app.MapPatch("/requests/{requestId:Guid}/titles/{titleId:long}",
+            async (Guid requestId, long titleId, UpdateRequestTitleRequest request, ISender sender,
                 CancellationToken cancellationToken) =>
             {
                 var command = request.Adapt<UpdateRequestTitleCommand>() with 

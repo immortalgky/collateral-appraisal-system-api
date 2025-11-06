@@ -2,27 +2,27 @@ namespace Request.Requests.ValueObjects;
 
 public class Fee : ValueObject
 {
-    public string FeeType { get; }
-    public string? FeeRemark { get; } // FeeNotes
-    public decimal? BankAbsorbAmount { get; }
+    public string? FeePaymentType { get; }
+    public decimal? AbsorbedFee { get; }
+    public string? FeeNotes { get; }
 
     private Fee(
-        string feeType, 
-        string? feeRemark,
-        decimal? bankAbsorbAmount
+        string? feePaymentType, 
+        decimal? absorbedFee,
+        string? feeNotes
     )
     {
-        FeeType = feeType;
-        FeeRemark = feeRemark;
-        BankAbsorbAmount = bankAbsorbAmount;
+        FeePaymentType = feePaymentType;
+        AbsorbedFee = absorbedFee;
+        FeeNotes = feeNotes;
     }
 
     public static Fee Create(
-        string feeType, 
-        string? feeRemark,
-        decimal? bankAbsorbAmount
+        string? feePaymentType, 
+        decimal? absorbedFee,
+        string? feeNotes
     )
     {
-        return new Fee(feeType, feeRemark, bankAbsorbAmount);
+        return new Fee(feePaymentType, absorbedFee, feeNotes);
     }
 }

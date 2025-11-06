@@ -16,8 +16,11 @@ public static class DtoExtensions
     public static LoanDetail ToDomain(this LoanDetailDto? dto)
     {
         return LoanDetail.Create(
+            dto?.BankingSegment,
             dto?.LoanApplicationNo,
-            dto?.LimitAmt,
+            dto?.FacilityLimit,
+            dto?.TopUpLimit,
+            dto?.OldFacilityLimit,
             dto?.TotalSellingPrice
         );
     }
@@ -28,7 +31,6 @@ public static class DtoExtensions
             dto.HouseNo,
             dto.RoomNo,
             dto.FloorNo,
-            dto.BuildingNo,
             dto.ProjectName,
             dto.Moo,
             dto.Soi,
@@ -52,8 +54,9 @@ public static class DtoExtensions
     public static Fee ToDomain(this FeeDto dto)
     {
         return Fee.Create(
-            dto.FeeType,
-            dto.FeeRemark
+            dto.FeePaymentType,
+            dto.AbsorbedFee,
+            dto.FeeNotes
         );
     }
 
@@ -92,6 +95,6 @@ public static class DtoExtensions
 
     public static RequestComment ToDomain(this RequestCommentDto dto)
     {
-        return RequestComment.Create(0, dto.Comment);
+        return RequestComment.Create(dto.Id, dto.Comment);
     }
 }

@@ -4,8 +4,8 @@ public class AddRequestTitleCommandValidator : AbstractValidator<AddRequestTitle
 {
     public AddRequestTitleCommandValidator()
     {
-        RuleFor(x => x.RequestId)
-            .GreaterThan(0).WithMessage("RequestId must be greater than 0.");
+        // RuleFor(x => x.RequestId)
+        //     .GreaterThan(0).WithMessage("RequestId must be greater than 0.");
 
         RuleFor(x => x.CollateralType)
             .NotEmpty().WithMessage("CollateralType is required.");

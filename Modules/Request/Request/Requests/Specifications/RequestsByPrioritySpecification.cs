@@ -11,6 +11,6 @@ public class RequestsByPrioritySpecification : Specification<Requests.Models.Req
 
     public override Expression<Func<Requests.Models.Request, bool>> ToExpression()
     {
-        return request => request.Detail.Priority == _priority;
+        return request => request.Priority == _priority;
     }
 }

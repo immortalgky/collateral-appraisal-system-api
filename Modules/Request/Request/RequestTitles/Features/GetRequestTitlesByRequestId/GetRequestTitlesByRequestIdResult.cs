@@ -4,7 +4,7 @@ public record GetRequestTitlesByRequestIdResult(List<RequestTitleDto> RequestTit
 
 public record RequestTitleDto(
     long Id,
-    long RequestId,
+    Guid RequestId,
     string CollateralType,
     string? TitleNo,
     string? TitleDetail,

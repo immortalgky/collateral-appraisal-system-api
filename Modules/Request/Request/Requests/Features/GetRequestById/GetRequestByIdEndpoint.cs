@@ -4,7 +4,7 @@ public class GetRequestByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/requests/{id:long}", async (long id, ISender sender, CancellationToken cancellationToken) =>
+        app.MapGet("/requests/{id:Guid}", async (Guid id, ISender sender, CancellationToken cancellationToken) =>
             {
                 var result = await sender.Send(new GetRequestByIdQuery(id), cancellationToken);
 

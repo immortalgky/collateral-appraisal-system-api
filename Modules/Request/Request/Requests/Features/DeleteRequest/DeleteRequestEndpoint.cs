@@ -4,7 +4,7 @@ public class DeleteRequestEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapDelete("/requests/{id:long}", async (long id, ISender sender, CancellationToken cancellationToken) =>
+        app.MapDelete("/requests/{id:Guid}", async (Guid id, ISender sender, CancellationToken cancellationToken) =>
             {
                 var result = await sender.Send(new DeleteRequestCommand(id), cancellationToken);
 

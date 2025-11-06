@@ -4,8 +4,8 @@ public class GetRequestCommentByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/requests/{requestId:long}/comments/{commentId:long}",
-            async (long requestId, long commentId, ISender sender, CancellationToken cancellationToken) =>
+        app.MapGet("/requests/{requestId:Guid}/comments/{commentId:Guid}",
+            async (Guid requestId, Guid commentId, ISender sender, CancellationToken cancellationToken) =>
             {
                 var query = new GetRequestCommentByIdQuery(requestId, commentId);
 

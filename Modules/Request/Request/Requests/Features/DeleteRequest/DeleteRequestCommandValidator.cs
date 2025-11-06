@@ -7,7 +7,7 @@ public class DeleteRequestCommandValidator : AbstractValidator<DeleteRequestComm
         RuleFor(x => x.Id)
             .NotNull()
             .WithMessage("Id is required.")
-            .GreaterThan(0)
+            // .GreaterThan(0)
             .WithMessage("Id must be greater than 0.");
     }
 }

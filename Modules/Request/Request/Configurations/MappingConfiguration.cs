@@ -7,8 +7,11 @@ public static class MappingConfiguration
         TypeAdapterConfig<LoanDetailDto, LoanDetail>
             .NewConfig()
             .ConstructUsing(src => LoanDetail.Create(
+                src.BankingSegment,
                 src.LoanApplicationNo,
-                src.LimitAmt,
+                src.FacilityLimit,
+                src.TopUpLimit,
+                src.OldFacilityLimit,
                 src.TotalSellingPrice
             ));
 
@@ -26,7 +29,6 @@ public static class MappingConfiguration
                 src.HouseNo,
                 src.RoomNo,
                 src.FloorNo,
-                src.BuildingNo,
                 src.ProjectName,
                 src.Moo,
                 src.Soi,
@@ -48,8 +50,9 @@ public static class MappingConfiguration
         TypeAdapterConfig<FeeDto, Fee>
             .NewConfig()
             .ConstructUsing(src => Fee.Create(
-                src.FeeType,
-                src.FeeRemark
+                src.FeePaymentType,
+                src.AbsorbedFee,
+                src.FeeNotes
             ));
 
         TypeAdapterConfig<RequestorDto, Requestor>
@@ -81,5 +84,13 @@ public static class MappingConfiguration
                 src.BuildingType,
                 src.SellingPrice
             ));
+
+        TypeAdapterConfig<SourceDto, Source>
+            .NewConfig()
+            .ConstructUsing(src => Source.Create(
+                src.RequestedBy,
+                src.Channel
+            ));
+
     }
 }

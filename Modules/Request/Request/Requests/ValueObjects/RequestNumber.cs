@@ -3,6 +3,11 @@ namespace Request.Requests.ValueObjects;
 public class RequestNumber : ValueObject
 {
     public string Value { get; }
+    private RequestNumber()
+    {
+        // EF core
+    }
+    
     private RequestNumber(string value)
     {
         Value = value;

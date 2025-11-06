@@ -4,11 +4,20 @@ namespace Request.Requests.Models;
 
 public class Request : Aggregate<Guid> // Change `long` to `Guid`
 {
-    public string Purpose { get; } = default!; // move from RequestDetail
-    public string Channel { get; private set; } // move from RequestDetail
-    public string Priority { get; private set; } // move from RequestDetail
-    public RequestNumber? RequestNo { get; private set; }
+    public RequestNumber? RequestNumber { get; private set; }
+    public string? Purpose { get; private set; } = default!;
+    public Source Source { get; private set; } = default!;
+    public string Priority { get; private set; }
     public RequestStatus Status { get; private set; } = default!;
+    public DateTime? SubmittedAt { get; private set; }
+    public DateTime? CompletedAt { get; private set; }
+    public Deletion Deletion { get; private set; } = default!;
+    public bool IsPMA { get; private set; }
+    public Requestor Requestor { get; private set; }
+    // public DateTime CreatedAt { get; private set; }
+    // public long CreatedBy { get; private set; }
+
+    // Details
     public RequestDetail Detail { get; private set; } = default!;
 
     // Customers
@@ -26,68 +35,68 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     }
 
     private Request(
-        string purpose,
-        string channel,
-        string priority,
-        RequestStatus status, 
+        RequestNumber? requestNumber, 
+        string? purpose, 
+        string priority, 
+        RequestStatus requestStatus, 
+        Deletion deletion, 
+        bool isPMA, 
         RequestDetail detail
     )
     {
+        RequestNumber = requestNumber;
         Purpose = purpose;
-        Channel = channel;
         Priority = priority;
-        RequestNo = RequestNumber.Create("xxxxxxx");
-        Status = status;
+        Status = requestStatus;
+        Deletion = deletion;
+        IsPMA = isPMA;
         Detail = detail;
 
         AddDomainEvent(new RequestCreatedEvent(this));
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
-    public static Request Create(
-        string purpose,
-        string channel,
+    public static Request Create( 
+        string? purpose, 
         string priority,
-
-        // Request detail
-        bool hasAppraisalBook,
-        bool isPMA,
-        string bankingSegment,
-        Guid? prevAppraisalId,
+        RequestStatus requestStatus,
+        bool isPMA, 
+        bool hasOwnAppraisalBook,
+        Guid? previousAppraisalId,
         LoanDetail loanDetail,
         Address address,
         Contact contact,
-        Fee fee,
-        Requestor requestor
+        Appointment appointment,
+        Fee fee
     )
     {
         var requestDetail = RequestDetail.Create(
-            hasAppraisalBook,
-            isPMA,
-            bankingSegment,
-            prevAppraisalId,
+            hasOwnAppraisalBook,
+            previousAppraisalId,
             loanDetail,
             address,
             contact,
-            fee,
-            requestor
+            appointment,
+            fee
         );
 
         return new Request(
+            RequestNumber.Create("REQ-000001-2025"),
             purpose,
-            channel,
             priority,
-            RequestStatus.New, 
+            requestStatus,
+            Deletion.NotDeleted(),
+            isPMA,
             requestDetail
         );
     }
 
-    public void SetAppraisalNumber(AppraisalNumber appraisalNo)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(appraisalNo);
+    // public void SetAppraisalNumber(AppraisalNumber appraisalNo)
+    // {
+    //     ArgumentException.ThrowIfNullOrWhiteSpace(appraisalNo);
 
-        AppraisalNo = appraisalNo;
-    }
+    //     AppraisalNo = appraisalNo;
+    // }
 
     private void UpdateStatus(RequestStatus status)
     {
@@ -104,24 +113,19 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     public void Submit()
     {
         UpdateStatus(RequestStatus.New);
+        // update SubmittedAt
+        // update Source
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public void UpdateDetail(
-        string purpose,
-        string channel,
-        string priority,
-
-        // Request detail
         bool hasAppraisalBook,
-        bool isPMA,
-        string bankingSegment,
-        Guid? prevAppraisalId,
+        Guid? previousAppraisaId,
         LoanDetail loanDetail,
         Address address,
         Contact contact,
-        Fee fee,
-        Requestor requestor
+        Appointment appointment,
+        Fee fee
     )
     {
         RuleCheck.Valid()
@@ -130,20 +134,13 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
             .ThrowIfInvalid();
 
         var newDetail = RequestDetail.Create(
-            purpose,
-            channel,
-            priority,
-
-            // Request detail
             hasAppraisalBook,
-            isPMA,
-            bankingSegment,
-            prevAppraisalId,
+            previousAppraisaId,
             loanDetail,
             address,
             contact,
-            fee,
-            requestor
+            appointment,
+            fee
         );
 
         if (!Detail.Equals(newDetail))
@@ -230,4 +227,5 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
         _properties.Clear();
         _properties.AddRange(properties);
     }
+
 }

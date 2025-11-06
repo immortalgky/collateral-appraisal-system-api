@@ -4,8 +4,8 @@ public class AddRequestTitleEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/requests/{requestId:long}/titles",
-            async (long requestId, AddRequestTitleRequest request, ISender sender,
+        app.MapPost("/requests/{requestId:Guid}/titles",
+            async (Guid requestId, AddRequestTitleRequest request, ISender sender,
                 CancellationToken cancellationToken) =>
             {
                 var command = request.Adapt<AddRequestTitleCommand>() with { RequestId = requestId };

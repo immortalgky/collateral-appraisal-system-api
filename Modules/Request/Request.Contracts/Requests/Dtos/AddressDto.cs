@@ -4,7 +4,6 @@ public record AddressDto(
     string? HouseNo,
     string? RoomNo,
     string? FloorNo,
-    string? BuildingNo,
     string? ProjectName,
     string? Moo,
     string? Soi,

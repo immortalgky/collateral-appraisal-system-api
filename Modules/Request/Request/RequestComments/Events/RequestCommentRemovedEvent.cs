@@ -1,3 +1,3 @@
 namespace Request.RequestComments.Events;
 
-public record RequestCommentRemovedEvent(long RequestId, long CommentId, string Comment, string? RemovedBy) : IDomainEvent;
+public record RequestCommentRemovedEvent(Guid RequestId, Guid CommentId, string Comment, string? RemovedBy) : IDomainEvent;

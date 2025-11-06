@@ -12,9 +12,9 @@ public class CreateRequestCommandValidator : AbstractValidator<CreateRequestComm
             .NotEmpty()
             .WithMessage("Priority is required.");
 
-        RuleFor(x => x.Channel)
-            .NotEmpty()
-            .WithMessage("Channel is required.");
+        // RuleFor(x => x.Channel)
+        //     .NotEmpty()
+        //     .WithMessage("Channel is required.");
 
         RuleFor(x => x.Address)
             .NotNull()
@@ -28,9 +28,9 @@ public class CreateRequestCommandValidator : AbstractValidator<CreateRequestComm
             .NotNull()
             .WithMessage("Fee is required.");
 
-        RuleFor(x => x.Requestor)
-            .NotNull()
-            .WithMessage("Requestor is required.");
+        // RuleFor(x => x.Requestor)
+        //     .NotNull()
+        //     .WithMessage("Requestor is required.");
 
         RuleFor(x => x.Customers)
             .NotNull()

@@ -11,16 +11,16 @@ internal class CreateRequestCommandHandler(
         // Create a request with validated data (appraisal number will be generated in repository)
         var request = CreateNewRequest(
             command.Purpose,
-            command.HasAppraisalBook,
             command.Priority,
-            command.Channel,
-            command.OccurConstInspec,
-            command.Reference.ToDomain(),
+            RequestStatus.Draft,
+            command.IsPMA,
+            command.HasOwnAppraisalBook,
+            command.PreviousAppraisalId,
             command.LoanDetail.ToDomain(),
             command.Address.ToDomain(),
             command.Contact.ToDomain(),
+            Appointment.Create(DateTime.Now, command.Appointment.AppointmentLocation),
             command.Fee.ToDomain(),
-            command.Requestor.ToDomain(),
             command.Customers.Select(customer => customer.ToDomain()).ToList(),
             command.Properties.Select(property => property.ToDomain()).ToList()
         );
@@ -32,32 +32,32 @@ internal class CreateRequestCommandHandler(
 
     private static Models.Request CreateNewRequest(
         string purpose,
-        bool hasAppraisalBook,
         string priority,
-        string channel,
-        int? occurConstInspec,
-        Reference reference,
+        RequestStatus requestStatus,
+        bool isPMA,
+        bool hasOwnAppraisalBook,
+        Guid? previousAppraisalId,
         LoanDetail loanDetail,
         Address address,
         Contact contact,
+        Appointment appointment,
         Fee fee,
-        Requestor requestor,
         List<RequestCustomer> customers,
         List<RequestProperty> properties
     )
     {
         var request = Models.Request.Create(
             purpose,
-            hasAppraisalBook,
             priority,
-            channel,
-            occurConstInspec,
-            reference,
+            requestStatus,
+            isPMA,
+            hasOwnAppraisalBook,
+            previousAppraisalId,
             loanDetail,
             address,
             contact,
-            fee,
-            requestor
+            appointment,
+            fee
         );
 
         // Add customers

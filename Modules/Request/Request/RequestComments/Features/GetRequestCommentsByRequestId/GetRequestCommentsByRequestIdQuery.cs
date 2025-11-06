@@ -1,3 +1,3 @@
 namespace Request.RequestComments.Features.GetRequestCommentsByRequestId;
 
-public record GetRequestCommentsByRequestIdQuery(long RequestId) : IQuery<GetRequestCommentsByRequestIdResult>;
+public record GetRequestCommentsByRequestIdQuery(Guid RequestId) : IQuery<GetRequestCommentsByRequestIdResult>;

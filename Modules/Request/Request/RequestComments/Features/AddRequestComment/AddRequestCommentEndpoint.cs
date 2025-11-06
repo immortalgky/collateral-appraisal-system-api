@@ -4,8 +4,8 @@ public class AddRequestCommentEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/requests/{requestId:long}/comments",
-            async (long requestId, AddRequestCommentRequest request, ISender sender,
+        app.MapPost("/requests/{requestId:Guid}/comments",
+            async (Guid requestId, AddRequestCommentRequest request, ISender sender,
                 CancellationToken cancellationToken) =>
             {
                 var command = new AddRequestCommentCommand(requestId, request.Comment);

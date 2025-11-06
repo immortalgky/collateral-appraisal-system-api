@@ -5,7 +5,7 @@ namespace Request.Data.Repository;
 
 public class RequestCommentRepository(RequestDbContext dbContext) : IRequestCommentRepository
 {
-    public async Task<RequestComment> GetByIdAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<RequestComment> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await dbContext.RequestComments.FindAsync(id);
     }

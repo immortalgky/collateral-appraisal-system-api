@@ -4,9 +4,9 @@ public class UpdateRequestCommentEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPatch("/requests/{requestId:long}/comments/{commentId:long}", async (
-            long requestId,
-            long commentId,
+        app.MapPatch("/requests/{requestId:Guid}/comments/{commentId:Guid}", async (
+            Guid requestId,
+            Guid commentId,
             UpdateRequestCommentRequest request,
             ISender sender,
             CancellationToken cancellationToken) =>

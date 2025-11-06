@@ -56,10 +56,6 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
                 .HasMaxLength(10)
                 .HasColumnName("FloorNo");
 
-            titleAddress.Property(p => p.BuildingNo)
-                .HasMaxLength(50)
-                .HasColumnName("BuildingNo");
-
             titleAddress.Property(p => p.Moo)
                 .HasMaxLength(50)
                 .HasColumnName("Moo");
@@ -102,10 +98,6 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
             dopaAddress.Property(p => p.FloorNo)
                 .HasMaxLength(10)
                 .HasColumnName("DopaFloorNo");
-
-            dopaAddress.Property(p => p.BuildingNo)
-                .HasMaxLength(50)
-                .HasColumnName("DopaBuildingNo");
 
             dopaAddress.Property(p => p.Moo)
                 .HasMaxLength(50)

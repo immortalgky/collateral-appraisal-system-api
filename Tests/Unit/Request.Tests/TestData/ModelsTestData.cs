@@ -6,26 +6,29 @@ public static class ModelsTestData
 {
     public static Requests.Models.Request RequestGeneral() => Requests.Models.Request.Create(
         "Appraisal",
-        true,
-        "High",
-        "Online",
+        "Normal",
+        RequestStatus.Draft,
+        false,
+        false,
         null,
-        Reference.Create(
-            "PA-12345",
-            1000000,
-            DateTime.Now.AddMonths(-6)
-        ),
+        // Reference.Create(
+        //     "PA-12345",
+        //     1000000,
+        //     DateTime.Now.AddMonths(-6)
+        // ),
         LoanDetail.Create(
             "LA-67890",
+            null,
+            1700000,
             500000,
-            1200000
+            1200000,
+            1800000
         ),
         Address.Create(
             "123",
             "A1",
             "2",
-            "1",
-            "Location 1",
+            "Ideo",
             "5",
             "Soi 10",
             "Main Road",
@@ -39,21 +42,26 @@ public static class ModelsTestData
             "0123456789",
             "Project-1"
         ),
+        Appointment.Create(
+            DateTime.Now,
+            null
+        ),
         Fee.Create(
             "01",
+            1000,
             "No additional fees"
-        ),
-        Requestor.Create(
-            "EMP-001",
-            "Jane Smith",
-            "",
-            "0987654321",
-            "AO-001",
-            "01",
-            "01",
-            "01",
-            "01",
-            "01"
         )
+        // Requestor.Create(
+        //     "EMP-001",
+        //     "Jane Smith",
+        //     "",
+        //     "0987654321",
+        //     "AO-001",
+        //     "01",
+        //     "01",
+        //     "01",
+        //     "01",
+        //     "01"
+        // )
     );
 }

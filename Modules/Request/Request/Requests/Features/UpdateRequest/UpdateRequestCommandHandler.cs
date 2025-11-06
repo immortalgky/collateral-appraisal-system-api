@@ -15,17 +15,13 @@ internal class UpdateRequestCommandHandler(IRequestRepository requestRepository)
 
         // Update request details
         request.UpdateDetail(
-            command.Purpose,
             command.HasAppraisalBook,
-            command.Priority,
-            command.Channel,
-            command.OccurConstInspec,
-            command.Reference.ToDomain(),
+            command.PreviousAppraisaId,
             command.LoanDetail.ToDomain(),
             command.Address.ToDomain(),
             command.Contact.ToDomain(),
-            command.Fee.ToDomain(),
-            command.Requestor.ToDomain()
+            Appointment.Create(DateTime.Now, command.Appointment.AppointmentLocation),
+            command.Fee.ToDomain()
         );
 
         // Update customers

@@ -4,8 +4,8 @@ public class RemoveRequestTitleEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapDelete("/requests/{requestId:long}/titles/{titleId:long}",
-            async (long requestId, long titleId, ISender sender, CancellationToken cancellationToken) =>
+        app.MapDelete("/requests/{requestId:Guid}/titles/{titleId:long}",
+            async (Guid requestId, long titleId, ISender sender, CancellationToken cancellationToken) =>
             {
                 var command = new RemoveRequestTitleCommand(requestId, titleId);
 

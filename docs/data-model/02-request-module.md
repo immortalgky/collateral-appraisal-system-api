@@ -124,21 +124,21 @@ CREATE TABLE request.Requests
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
 
     -- Business Key
-    RequestNumber           NVARCHAR(50) UNIQUE NOT NULL,           -- Auto-generated: REQ-000001-2025
+    RequestNumber           NVARCHAR(10) UNIQUE NOT NULL,           -- Auto-generated: REQ-000001-2025
 
     -- Purpose
-    Purpose                 NVARCHAR(100) NOT NULL,
+    Purpose                 NVARCHAR(10) NOT NULL,
 
     -- Source System
-    Channel                 NVARCHAR(50) NOT NULL DEFAULT 'Manual', -- Manual, LOS, CLS
+    Channel                 NVARCHAR(10) NOT NULL DEFAULT 'Manual', -- Manual, LOS, CLS
     RequestDate             DATETIME2 NOT NULL DEFAULT GETDATE(),
-    RequestedBy             NVARCHAR(10) NOT NULL,
+    RequestedBy             NVARCHAR(30) NOT NULL,
 
     -- Priority & Due Date
-    Priority                NVARCHAR(20) NOT NULL DEFAULT 'Normal', -- Normal, High
+    Priority                NVARCHAR(10) NOT NULL DEFAULT 'Normal', -- Normal, High
 
     -- Status
-    Status                  NVARCHAR(50) NOT NULL DEFAULT 'Draft',  -- Draft, Submitted, Assigned, Completed, Cancelled
+    Status                  NVARCHAR(20) NOT NULL DEFAULT 'Draft',  -- Draft, Submitted, Assigned, Completed, Cancelled
     SubmittedAt             DATETIME2 NULL,
     CompletedAt             DATETIME2 NULL,
 
@@ -180,7 +180,7 @@ CREATE TABLE request.RequestDetail
     PreviousAppraisalId            UNIQUEIDENTIFIER NULL,
     
     -- Loan Information
-    LoanApplicationNo              NVARCHAR(100) NULL,                     -- From LOS system
+    LoanApplicationNo              NVARCHAR(20) NULL,                     -- From LOS system
     BankingSegment                 NVARCHAR(10) NULL,                      -- LOS, CLS
     FacilityLimit                  DECIMAL(19,4) NULL,
     PreviousFacilityLimit          DECIMAL(19,4) NULL,
@@ -230,8 +230,8 @@ CREATE TABLE request.RequestCustomers
     RequestId               UNIQUEIDENTIFIER NOT NULL,
 
     -- Customer Information (Simplified)
-    Name                    NVARCHAR(260) NOT NULL,
-    PhoneNumber             NVARCHAR(50) NULL,                      -- Phone number
+    Name                    NVARCHAR(100) NOT NULL,
+    ContactNumber             NVARCHAR(50) NULL,                      -- Phone number
 
     CONSTRAINT FK_RequestCustomer_Request FOREIGN KEY (RequestId)
         REFERENCES request.Requests(Id) ON DELETE CASCADE
@@ -272,7 +272,7 @@ CREATE TABLE request.RequestPropertyTypes
 
     -- Property Type (Simplified)
     PropertyType            NVARCHAR(50) NOT NULL,                  -- Land, Building, LandAndBuilding, Condo, Vehicle, Vessel, Machinery
-    PropertySubType         NVARCHAR(100) NULL,                     -- SingleHouse, Townhouse, Commercial, etc.
+    BuildingType         NVARCHAR(100) NULL,                     -- SingleHouse, Townhouse, Commercial, etc.
     SellingPrice            DECIMAL(19,4) NULL
 
     CONSTRAINT FK_RequestProperty_Request FOREIGN KEY (RequestId)

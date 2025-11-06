@@ -2,6 +2,7 @@ namespace Request.Requests.ValueObjects;
 
 public class LoanDetail : ValueObject
 {
+    public string? BankingSegment { get; }
     public string? LoanApplicationNo { get; }
     public decimal? FacilityLimit { get; }
     public decimal? TopUpLimit { get; }
@@ -9,6 +10,7 @@ public class LoanDetail : ValueObject
     public decimal? TotalSellingPrice { get; }
 
     private LoanDetail(
+        string? bankingSegment,
         string? loanApplicationNo, 
         decimal? facilityLimit, 
         decimal? topUpLimit,
@@ -16,6 +18,7 @@ public class LoanDetail : ValueObject
         decimal? totalSellingPrice
     )
     {
+        BankingSegment = bankingSegment;
         LoanApplicationNo = loanApplicationNo;
         FacilityLimit = facilityLimit;
         TopUpLimit = topUpLimit;
@@ -24,6 +27,7 @@ public class LoanDetail : ValueObject
     }
 
     public static LoanDetail Create(
+        string? bankingSegment,
         string? loanApplicationNo, 
         decimal? facilityLimit, 
         decimal? topUpLimit, 
@@ -32,12 +36,12 @@ public class LoanDetail : ValueObject
     )
     {
         return new LoanDetail(
+            bankingSegment,
             loanApplicationNo, 
             facilityLimit, 
             topUpLimit, 
             oldFacilityLimit, 
             totalSellingPrice
         );
-        
     }
 }

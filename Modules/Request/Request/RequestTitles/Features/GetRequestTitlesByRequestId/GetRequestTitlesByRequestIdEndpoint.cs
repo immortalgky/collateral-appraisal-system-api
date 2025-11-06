@@ -4,8 +4,8 @@ public class GetRequestTitlesByRequestIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/requests/{requestId:long}/titles",
-            async (long requestId, ISender sender, CancellationToken cancellationToken) =>
+        app.MapGet("/requests/{requestId:Guid}/titles",
+            async (Guid requestId, ISender sender, CancellationToken cancellationToken) =>
             {
                 var query = new GetRequestTitlesByRequestIdQuery(requestId);
 

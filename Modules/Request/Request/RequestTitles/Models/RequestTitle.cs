@@ -4,7 +4,7 @@ namespace Request.RequestTitles.Models;
 
 public class RequestTitle : Aggregate<long>
 {
-    public long RequestId { get; private set; }
+    public Guid RequestId { get; private set; }
     public string CollateralType { get; private set; } = default!;
     public string? TitleNo { get; private set; }
     public string? TitleDetail { get; private set; }
@@ -24,7 +24,7 @@ public class RequestTitle : Aggregate<long>
     }
 
     public static RequestTitle Create(
-        long requestId,
+        Guid requestId,
         string collateralType,
         string? titleNo,
         string? titleDetail,
