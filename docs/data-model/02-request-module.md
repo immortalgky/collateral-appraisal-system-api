@@ -132,7 +132,8 @@ CREATE TABLE request.Requests
     -- Source System
     Channel                 NVARCHAR(10) NOT NULL DEFAULT 'Manual', -- Manual, LOS, CLS
     RequestDate             DATETIME2 NOT NULL DEFAULT GETDATE(),
-    RequestedBy             NVARCHAR(30) NOT NULL,
+    RequestedBy             NVARCHAR(10) NOT NULL,
+    RequestedByName         NVARCHAR(100) NOT NULL,
 
     -- Priority & Due Date
     Priority                NVARCHAR(10) NOT NULL DEFAULT 'Normal', -- Normal, High
@@ -145,16 +146,16 @@ CREATE TABLE request.Requests
     -- Soft Delete
     IsDeleted               BIT NOT NULL DEFAULT 0,
     DeletedOn               DATETIME2 NULL,
-    DeletedBy               UNIQUEIDENTIFIER NULL,
+    DeletedBy               NVARCHAR(10) NULL,
 
     -- Special Flags
     IsPMA                   BIT NOT NULL DEFAULT 0,
 
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
+    CreatedBy               NVARCHAR(10) NOT NULL,
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
+    UpdatedBy               NVARCHAR(10) NOT NULL,
 
     CONSTRAINT CK_Request_LoanAmount CHECK (LoanAmount IS NULL OR LoanAmount > 0),
     CONSTRAINT CK_Request_Status CHECK (Status IN ('Draft', 'Submitted', 'Assigned', 'InProgress', 'Completed', 'Cancelled')),
@@ -305,14 +306,15 @@ CREATE TABLE request.RequestDocuments
     DocumentDescription     NVARCHAR(500) NULL,
 
     -- Upload Information
-    UploadedBy              UNIQUEIDENTIFIER NOT NULL,
+    UploadedBy              NVARCHAR(10) NOT NULL,
+    UploadedByName          NVARCHAR(100) NOT NULL,
     UploadedAt              DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
 
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
+    CreatedBy               NVARCHAR(10) NOT NULL,
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
+    UpdatedBy               NVARCHAR(10) NOT NULL,
 
     CONSTRAINT FK_RequestDocument_Request FOREIGN KEY (RequestId)
         REFERENCES request.Requests(Id) ON DELETE CASCADE,
@@ -404,9 +406,9 @@ CREATE TABLE request.RequestTitles
 
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
+    CreatedBy               NVARCHAR(10) NOT NULL,
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
+    UpdatedBy               NVARCHAR(10) NOT NULL,
 
     CONSTRAINT FK_RequestTitles_Request FOREIGN KEY (RequestId)
         REFERENCES request.Requests(Id) ON DELETE CASCADE,
@@ -434,7 +436,7 @@ CREATE TABLE request.RequestStatusHistory
     FromStatus              NVARCHAR(50) NULL,                      -- NULL for initial status
     ToStatus                NVARCHAR(50) NOT NULL,
     StatusChangedAt         DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    StatusChangedBy         UNIQUEIDENTIFIER NOT NULL,
+    StatusChangedBy         NVARCHAR(10) NOT NULL,
 
     -- Change Details
     ChangeReason            NVARCHAR(500) NULL,
@@ -442,9 +444,9 @@ CREATE TABLE request.RequestStatusHistory
 
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
+    CreatedBy               NVARCHAR(10) NOT NULL,
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
+    UpdatedBy               NVARCHAR(10) NOT NULL,
 
     CONSTRAINT FK_RequestStatusHistory_Request FOREIGN KEY (RequestId)
         REFERENCES request.Requests(Id) ON DELETE CASCADE
@@ -464,13 +466,14 @@ CREATE TABLE request.RequestComments
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
     Comments                NVARCHAR(MAX) NULL
     CommentedBy             UNIQUEIDENTIFIER NOT NULL,
+    CommentedByName         NVARCHAR(100) NOT NULL,
     CommentedAt             DATETIME2 NOT NULL DEFAULT GETDATE(),
     
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
+    CreatedBy               NVARCHAR(10) NOT NULL,
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
+    UpdatedBy               NVARCHAR(10) NOT NULL,
 
     CONSTRAINT FK_RequestComment_Request FOREIGN KEY (RequestId)
         REFERENCES request.Requests(Id) ON DELETE CASCADE
