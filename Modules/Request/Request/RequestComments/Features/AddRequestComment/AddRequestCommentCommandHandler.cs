@@ -14,7 +14,7 @@ public class AddRequestCommentCommandHandler(
             throw new RequestNotFoundException(command.RequestId);
         }
 
-        var comment = RequestComment.Create(command.RequestId, command.Comment);
+        var comment = RequestComment.Create(command.RequestId, command.Comment, command.CommentedBy, command.CommentedByName);
 
         await requestCommentRepository.AddAsync(comment, cancellationToken);
 

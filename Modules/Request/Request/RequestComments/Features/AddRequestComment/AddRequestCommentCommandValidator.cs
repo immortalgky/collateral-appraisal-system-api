@@ -6,14 +6,24 @@ public class AddRequestCommentCommandValidator : AbstractValidator<AddRequestCom
     {
         RuleFor(x => x.RequestId)
             .NotNull()
-            .WithMessage("Request ID cannot be null.")
-            // .GreaterThan(0)
-            .WithMessage("Request ID must be greater than 0.");
+            .WithMessage("Request ID cannot be null.");
 
         RuleFor(x => x.Comment)
             .NotEmpty()
-            .WithMessage("Comment cannot be empty.")
-            .MaximumLength(250)
-            .WithMessage("Comment cannot exceed 250 characters.");
+            .WithMessage("Comment cannot be empty.");
+
+        RuleFor(x => x.CommentedBy)
+            .NotNull()
+            .WithMessage("CommentedBy cannot be null.")
+            .MaximumLength(10)
+            .WithMessage("Comment cannot exceed 10 characters.");
+            
+
+        RuleFor(x => x.CommentedByName)
+            .NotNull()
+            .WithMessage("CommentedByName cannot be null")
+            .MaximumLength(100)
+            .WithMessage("Comment cannot exceed 100 characters.");
+
     }
 }

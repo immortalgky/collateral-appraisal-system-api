@@ -1,7 +1,7 @@
 namespace Request.RequestComments.Features.GetRequestCommentById;
 
 public record GetRequestCommentByIdResult(
-    long Id,
+    Guid Id,
     Guid RequestId,
     string Comment,
     DateTime? CreatedOn,

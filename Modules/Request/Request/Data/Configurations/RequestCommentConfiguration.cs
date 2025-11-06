@@ -6,18 +6,24 @@ public class RequestCommentConfiguration : IEntityTypeConfiguration<RequestComme
 {
     public void Configure(EntityTypeBuilder<RequestComment> builder)
     {
-        builder.HasKey(p => p.Id);
+        builder.HasKey(r => r.Id);
 
-        builder.Property(p => p.Id)
-            .UseIdentityColumn();
+        builder.Property(r => r.Id)
+            .HasColumnType("uniqueidentifier")
+            .ValueGeneratedOnAdd()
+            .HasDefaultValueSql("NEWSEQUENTIALID()");
 
-        builder.Property(p => p.RequestId)
-            .IsRequired();
-
-        builder.Property(p => p.Comment)
-            .IsRequired()
-            .HasMaxLength(250);
+        builder.Property(r => r.RequestId);
 
         builder.HasIndex(p => p.RequestId);
+
+        builder.Property(r => r.Comment);
+
+        builder.Property(r => r.CommentedBy).HasMaxLength(10);
+
+        builder.Property(r => r.CommentedByName).HasMaxLength(100);
+
+        builder.Property(r => r.CommentedAt);
+
     }
 }

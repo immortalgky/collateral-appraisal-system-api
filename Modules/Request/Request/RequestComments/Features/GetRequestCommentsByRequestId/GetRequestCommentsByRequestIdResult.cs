@@ -3,11 +3,10 @@ namespace Request.RequestComments.Features.GetRequestCommentsByRequestId;
 public record GetRequestCommentsByRequestIdResult(List<RequestCommentDto> Comments);
 
 public record RequestCommentDto(
-    long Id,
+    Guid Id,
     Guid RequestId,
     string Comment,
-    DateTime? CreatedOn,
-    string? CreatedBy,
-    DateTime? UpdatedOn,
-    string? UpdatedBy
+    string CommentedBy,
+    string CommentedByName,
+    DateTime CommentedAt
 );

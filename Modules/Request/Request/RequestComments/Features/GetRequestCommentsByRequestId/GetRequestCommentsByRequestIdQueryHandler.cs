@@ -13,10 +13,9 @@ internal class GetRequestCommentsByRequestIdQueryHandler(IRequestCommentReadRepo
                 rc.Id,
                 rc.RequestId,
                 rc.Comment,
-                rc.CreatedOn,
-                rc.CreatedBy,
-                rc.UpdatedOn,
-                rc.UpdatedBy
+                rc.CommentedBy,
+                rc.CommentedByName,
+                rc.CommentedAt
             ))
             .ToList();
 

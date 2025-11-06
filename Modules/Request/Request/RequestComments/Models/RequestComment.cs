@@ -1,23 +1,25 @@
 namespace Request.RequestComments.Models;
 
-public class RequestComment : Aggregate<long>
+public class RequestComment : Aggregate<Guid>
 {
     public Guid RequestId { get; private set; }
     public string Comment { get; private set; }
     public string CommentedBy { get; private set; }
-    public string CommentedOn { get; private set; }
-    // UpdatedkBy
-    // UpdatedOn
+    public string CommentedByName { get; private set; }
+    public DateTime CommentedAt { get; private set; }
 
-    private RequestComment(Guid requestId, string comment)
+    private RequestComment(Guid requestId, string comment, string commentedBy, string commentedByName)
     {
         RequestId = requestId;
         Comment = comment;
+        CommentedBy = commentedBy;
+        CommentedByName = commentedByName;
+        CommentedAt = DateTime.Now;
     }
 
-    public static RequestComment Create(Guid requestId, string comment)
+    public static RequestComment Create(Guid requestId, string comment, string commentedBy, string commentedByName)
     {
-        var requestComment = new RequestComment(requestId, comment);
+        var requestComment = new RequestComment(requestId, comment, commentedBy, commentedByName );
         requestComment.AddDomainEvent(new RequestCommentAddedEvent(requestId, requestComment));
         return requestComment;
     }
@@ -26,6 +28,7 @@ public class RequestComment : Aggregate<long>
     {
         var previousComment = Comment;
         Comment = comment;
+        CommentedAt = DateTime.Now;
         AddDomainEvent(new RequestCommentUpdatedEvent(RequestId, this, previousComment));
     }
 }

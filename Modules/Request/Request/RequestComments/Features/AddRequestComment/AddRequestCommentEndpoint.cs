@@ -8,7 +8,7 @@ public class AddRequestCommentEndpoint : ICarterModule
             async (Guid requestId, AddRequestCommentRequest request, ISender sender,
                 CancellationToken cancellationToken) =>
             {
-                var command = new AddRequestCommentCommand(requestId, request.Comment);
+                var command = new AddRequestCommentCommand(requestId, request.Comment, request.CommentedBy, request.CommentedByName);
 
                 var result = await sender.Send(command, cancellationToken);
 

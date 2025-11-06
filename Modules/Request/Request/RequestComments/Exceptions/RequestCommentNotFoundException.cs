@@ -1,5 +1,5 @@
 namespace Request.RequestComments.Exceptions;
 
-public class RequestCommentNotFoundException(long id) : NotFoundException("RequestComment", id)
+public class RequestCommentNotFoundException(Guid id) : NotFoundException("RequestComment", id)
 {
 }
