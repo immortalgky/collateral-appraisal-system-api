@@ -13,7 +13,7 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     public DateTime? CompletedAt { get; private set; }
     public Deletion Deletion { get; private set; } = default!;
     public bool IsPMA { get; private set; }
-    public Requestor Requestor { get; private set; }
+    // public Requestor Requestor { get; private set; }
     // public DateTime CreatedAt { get; private set; }
     // public long CreatedBy { get; private set; }
 
