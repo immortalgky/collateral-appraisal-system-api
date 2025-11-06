@@ -2,22 +2,29 @@
 
 ## Overview
 
-The Document Module provides centralized document management with versioning, access control, and cloud storage integration. All system documents (photos, PDFs, reports, templates) are managed through this module.
+The Document Module provides centralized document management with local file system storage. All system documents (photos, PDFs, reports, supporting documents) are managed through this module.
 
-### Key Features
-- Centralized document storage
-- Version control and history
-- Access control and permissions
-- Document relationships
-- Access audit logging
-- Cloud storage integration (Azure Blob, AWS S3)
-- Document templates for reports
+### Phase 1 Features (Current Implementation)
+- ✅ Centralized document storage
+- ✅ Local file system storage
+- ✅ Basic document metadata
+- ✅ Upload tracking
+- ✅ File integrity verification (checksum)
+
+### Future Enhancements (Phase 2+)
+- 🔮 Version control and history
+- 🔮 Access control and permissions
+- 🔮 Document relationships
+- 🔮 Access audit logging
+- 🔮 Document templates for reports
 
 ## Module Structure
 
 ```
-Document Module
-├── Document (Aggregate Root)
+Document Module (Phase 1)
+└── Document (Aggregate Root)
+
+Future Enhancement Tables (Phase 2+)
 ├── DocumentVersion (Version History)
 ├── DocumentRelationship (Document Links)
 ├── DocumentAccess (Access Permissions)
@@ -25,9 +32,49 @@ Document Module
 └── DocumentTemplate (Report Templates)
 ```
 
-## Core Tables
+## Entity Relationship Diagram (Phase 1)
 
-### 1. Documents (Aggregate Root)
+```mermaid
+erDiagram
+    Document {
+        guid Id PK
+        string DocumentNumber UK
+        string DocumentType
+        string DocumentCategory
+        string FileName
+        string FileExtension
+        bigint FileSizeBytes
+        string MimeType
+        string StoragePath
+        string StorageUrl
+        guid UploadedBy "User ID"
+        string UploadedByName
+        datetime UploadedAt
+        string AccessLevel
+        bool IsActive
+        bool IsArchived
+        string Description
+        string Tags "JSON array"
+        string FileChecksum
+    }
+```
+
+**Legend:**
+- **Standalone table** = No FK relationships in Phase 1
+- References to Users stored as GUIDs (no FK constraints across modules)
+- All documents (photos, PDFs, reports, supporting docs) managed through this single table
+
+**Key Design Notes:**
+1. **Centralized Management**: All system documents managed through this single table
+2. **Local Storage**: Files stored on local file system
+3. **File Integrity**: SHA256 checksum for verification
+4. **Soft Delete**: IsDeleted flag for document lifecycle management
+5. **Metadata**: JSON tags and custom metadata for extensibility
+6. **Simple Access Control**: Basic access level (Public, Internal, Confidential, Restricted)
+
+## Table Definition
+
+### Documents (Aggregate Root)
 
 Main document entity for all system documents.
 
@@ -52,44 +99,33 @@ CREATE TABLE document.Documents
     FileSizeBytes           BIGINT NOT NULL,
     MimeType                NVARCHAR(100) NOT NULL,
 
-    -- Storage
-    StorageProvider         NVARCHAR(50) NOT NULL,                   -- AzureBlobStorage, AWSS3, LocalFileSystem
-    StoragePath             NVARCHAR(500) NOT NULL,
-    StorageUrl              NVARCHAR(500) NOT NULL,
-    StorageContainer        NVARCHAR(200) NULL,                      -- Bucket/Container name
+    -- Storage (Local File System)
+    StoragePath             NVARCHAR(500) NOT NULL,                  -- Physical path: /var/uploads/documents/2025/01/abc123.pdf
+    StorageUrl              NVARCHAR(500) NOT NULL,                  -- Web access URL: /api/documents/abc123/download
 
     -- Upload Information
-    UploadedBy              UNIQUEIDENTIFIER NOT NULL,
+    UploadedBy              UNIQUEIDENTIFIER NOT NULL,               -- User ID (no FK - cross-module reference)
     UploadedByName          NVARCHAR(200) NOT NULL,
     UploadedAt              DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
 
-    -- Security
-    IsEncrypted             BIT NOT NULL DEFAULT 0,
-    EncryptionAlgorithm     NVARCHAR(50) NULL,                       -- AES256, RSA
+    -- Access Control
     AccessLevel             NVARCHAR(50) NOT NULL DEFAULT 'Internal', -- Public, Internal, Confidential, Restricted
-
-    -- Versioning
-    CurrentVersion          INT NOT NULL DEFAULT 1,
-    TotalVersions           INT NOT NULL DEFAULT 1,
 
     -- Status
     IsActive                BIT NOT NULL DEFAULT 1,
     IsArchived              BIT NOT NULL DEFAULT 0,
     ArchivedAt              DATETIME2 NULL,
     ArchivedBy              UNIQUEIDENTIFIER NULL,
+    ArchivedByName          NVARCHAR(200) NULL,
 
     -- Metadata
     Description             NVARCHAR(500) NULL,
     Tags                    NVARCHAR(MAX) NULL,                      -- JSON array of tags
     CustomMetadata          NVARCHAR(MAX) NULL,                      -- JSON for additional metadata
 
-    -- Checksum (for integrity verification)
+    -- File Integrity
     FileChecksum            NVARCHAR(100) NULL,                      -- SHA256 hash
     ChecksumAlgorithm       NVARCHAR(20) NULL DEFAULT 'SHA256',
-
-    -- Expiration
-    ExpiresAt               DATETIME2 NULL,
-    IsExpired               BIT NOT NULL DEFAULT 0,
 
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
@@ -98,253 +134,30 @@ CREATE TABLE document.Documents
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
     RowVersion              ROWVERSION NOT NULL,
 
-    -- Soft Delete
-    IsDeleted               BIT NOT NULL DEFAULT 0,
-    DeletedOn               DATETIME2 NULL,
-    DeletedBy               UNIQUEIDENTIFIER NULL,
-
     CONSTRAINT CK_Document_AccessLevel CHECK (AccessLevel IN ('Public', 'Internal', 'Confidential', 'Restricted')),
     CONSTRAINT CK_Document_FileSizeBytes CHECK (FileSizeBytes > 0)
 );
 ```
 
-### 2. DocumentVersions
+#### Key Fields Explanation
 
-Version history for documents.
+**Business Key:**
+- `DocumentNumber`: Auto-generated unique identifier (e.g., DOC-2025-00001)
 
-#### SQL Schema
+**Document Classification:**
+- `DocumentType`: Type of document (TitleDeed, Photo, Report, IDCard, etc.)
+- `DocumentCategory`: Category grouping (Legal, AppraisalMedia, Report, Supporting)
 
-```sql
-CREATE TABLE document.DocumentVersions
-(
-    -- Primary Key
-    Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+**Storage (Local File System):**
+- `StoragePath`: Physical path on disk (e.g., `/var/uploads/documents/2025/01/abc123.pdf`)
+- `StorageUrl`: Web access URL for download (e.g., `/api/documents/abc123/download`)
 
-    -- Foreign Key
-    DocumentId              UNIQUEIDENTIFIER NOT NULL,
+**Access Control:**
+- `AccessLevel`: Basic access control (Public, Internal, Confidential, Restricted)
 
-    -- Version Information
-    VersionNumber           INT NOT NULL,
-    IsCurrentVersion        BIT NOT NULL DEFAULT 0,
-
-    -- File Information
-    FileName                NVARCHAR(255) NOT NULL,
-    FileExtension           NVARCHAR(10) NOT NULL,
-    FileSizeBytes           BIGINT NOT NULL,
-
-    -- Storage
-    StoragePath             NVARCHAR(500) NOT NULL,
-    StorageUrl              NVARCHAR(500) NOT NULL,
-
-    -- Version Details
-    VersionNotes            NVARCHAR(MAX) NULL,
-    ChangeSummary           NVARCHAR(500) NULL,
-
-    -- File Checksum
-    FileChecksum            NVARCHAR(100) NULL,
-
-    -- Created By
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    CreatedByName           NVARCHAR(200) NOT NULL,
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-
-    CONSTRAINT FK_DocumentVersion_Document FOREIGN KEY (DocumentId)
-        REFERENCES document.Documents(Id) ON DELETE CASCADE,
-    CONSTRAINT UQ_DocumentVersion_DocumentId_VersionNumber UNIQUE (DocumentId, VersionNumber)
-);
-```
-
-### 3. DocumentRelationships
-
-Links between related documents.
-
-#### SQL Schema
-
-```sql
-CREATE TABLE document.DocumentRelationships
-(
-    -- Primary Key
-    Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-
-    -- Document References
-    ParentDocumentId        UNIQUEIDENTIFIER NOT NULL,
-    RelatedDocumentId       UNIQUEIDENTIFIER NOT NULL,
-
-    -- Relationship Type
-    RelationType            NVARCHAR(50) NOT NULL,                   -- Attachment, Reference, Supersedes, Amendment
-
-    -- Relationship Details
-    Description             NVARCHAR(500) NULL,
-    Notes                   NVARCHAR(MAX) NULL,
-
-    -- Order
-    DisplayOrder            INT NOT NULL DEFAULT 0,
-
-    -- Audit Fields
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
-
-    CONSTRAINT FK_DocumentRelationship_Parent FOREIGN KEY (ParentDocumentId)
-        REFERENCES document.Documents(Id),
-    CONSTRAINT FK_DocumentRelationship_Related FOREIGN KEY (RelatedDocumentId)
-        REFERENCES document.Documents(Id),
-    CONSTRAINT CK_DocumentRelationship_Type CHECK (RelationType IN ('Attachment', 'Reference', 'Supersedes', 'Amendment', 'Related')),
-    CONSTRAINT CK_DocumentRelationship_SelfReference CHECK (ParentDocumentId != RelatedDocumentId)
-);
-```
-
-### 4. DocumentAccess
-
-Access control and permissions for documents.
-
-#### SQL Schema
-
-```sql
-CREATE TABLE document.DocumentAccess
-(
-    -- Primary Key
-    Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-
-    -- Foreign Key
-    DocumentId              UNIQUEIDENTIFIER NOT NULL,
-
-    -- Access Grant
-    GrantedTo               UNIQUEIDENTIFIER NOT NULL,               -- User or Role ID
-    GrantedToType           NVARCHAR(50) NOT NULL,                   -- User, Role
-    GrantedToName           NVARCHAR(200) NOT NULL,
-
-    -- Access Level
-    AccessLevel             NVARCHAR(50) NOT NULL,                   -- Read, Write, Delete, FullControl
-    CanShare                BIT NOT NULL DEFAULT 0,
-    CanDownload             BIT NOT NULL DEFAULT 1,
-
-    -- Expiration
-    ExpiresAt               DATETIME2 NULL,
-    IsExpired               BIT NOT NULL DEFAULT 0,
-
-    -- Grant Information
-    GrantedBy               UNIQUEIDENTIFIER NOT NULL,
-    GrantedByName           NVARCHAR(200) NOT NULL,
-    GrantedAt               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    GrantReason             NVARCHAR(500) NULL,
-
-    -- Revocation
-    RevokedAt               DATETIME2 NULL,
-    RevokedBy               UNIQUEIDENTIFIER NULL,
-    RevokedByName           NVARCHAR(200) NULL,
-    RevocationReason        NVARCHAR(500) NULL,
-
-    -- Audit Fields
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
-
-    CONSTRAINT FK_DocumentAccess_Document FOREIGN KEY (DocumentId)
-        REFERENCES document.Documents(Id) ON DELETE CASCADE,
-    CONSTRAINT CK_DocumentAccess_GrantedToType CHECK (GrantedToType IN ('User', 'Role')),
-    CONSTRAINT CK_DocumentAccess_AccessLevel CHECK (AccessLevel IN ('Read', 'Write', 'Delete', 'FullControl'))
-);
-```
-
-### 5. DocumentAccessLogs
-
-Audit trail of document access.
-
-#### SQL Schema
-
-```sql
-CREATE TABLE document.DocumentAccessLogs
-(
-    -- Primary Key
-    Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-
-    -- Foreign Key
-    DocumentId              UNIQUEIDENTIFIER NOT NULL,
-
-    -- Access Information
-    AccessedBy              UNIQUEIDENTIFIER NOT NULL,
-    AccessedByName          NVARCHAR(200) NOT NULL,
-    AccessedAt              DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-
-    -- Action
-    Action                  NVARCHAR(50) NOT NULL,                   -- View, Download, Edit, Delete, Share
-
-    -- Access Details
-    AccessMethod            NVARCHAR(50) NULL,                       -- WebUI, API, Mobile
-    IpAddress               NVARCHAR(50) NULL,
-    UserAgent               NVARCHAR(500) NULL,
-    SessionId               NVARCHAR(100) NULL,
-
-    -- Result
-    AccessGranted           BIT NOT NULL,
-    DenialReason            NVARCHAR(500) NULL,
-
-    -- Document Version Accessed
-    VersionNumber           INT NULL,
-
-    -- Additional Context
-    Notes                   NVARCHAR(MAX) NULL,
-
-    -- Created On (no update for logs)
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-
-    CONSTRAINT FK_DocumentAccessLog_Document FOREIGN KEY (DocumentId)
-        REFERENCES document.Documents(Id),
-    CONSTRAINT CK_DocumentAccessLog_Action CHECK (Action IN ('View', 'Download', 'Edit', 'Delete', 'Share', 'Print'))
-);
-```
-
-### 6. DocumentTemplates
-
-Templates for generating reports and documents.
-
-#### SQL Schema
-
-```sql
-CREATE TABLE document.DocumentTemplates
-(
-    -- Primary Key
-    Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-
-    -- Template Information
-    TemplateName            NVARCHAR(200) NOT NULL,
-    TemplateCode            NVARCHAR(50) UNIQUE NOT NULL,            -- e.g., "LAND_APPRAISAL_REPORT"
-    TemplateType            NVARCHAR(50) NOT NULL,                   -- AppraisalReport, CoverLetter, Certificate
-    Description             NVARCHAR(500) NULL,
-
-    -- Template File
-    TemplateDocumentId      UNIQUEIDENTIFIER NULL,                   -- FK to Documents
-
-    -- Template Content (if inline)
-    TemplateContent         NVARCHAR(MAX) NULL,                      -- HTML, Markdown, or template syntax
-    TemplateFormat          NVARCHAR(50) NULL,                       -- HTML, Markdown, DOCX, PDF
-
-    -- Placeholders
-    SupportedPlaceholders   NVARCHAR(MAX) NULL,                      -- JSON array of placeholders
-
-    -- Settings
-    IsActive                BIT NOT NULL DEFAULT 1,
-    IsDefault               BIT NOT NULL DEFAULT 0,
-    SortOrder               INT NOT NULL DEFAULT 0,
-
-    -- Version
-    TemplateVersion         NVARCHAR(20) NULL,
-    VersionNotes            NVARCHAR(MAX) NULL,
-
-    -- Audit Fields
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
-
-    CONSTRAINT FK_DocumentTemplate_Document FOREIGN KEY (TemplateDocumentId)
-        REFERENCES document.Documents(Id),
-    CONSTRAINT CK_DocumentTemplate_Type CHECK (TemplateType IN ('AppraisalReport', 'CoverLetter', 'Certificate', 'Custom'))
-);
-```
+**File Integrity:**
+- `FileChecksum`: SHA256 hash for file integrity verification
+- `ChecksumAlgorithm`: Algorithm used for checksum (default: SHA256)
 
 ## Indexes
 
@@ -357,142 +170,7 @@ CREATE INDEX IX_Document_UploadedBy ON document.Documents(UploadedBy) WHERE IsDe
 CREATE INDEX IX_Document_UploadedAt ON document.Documents(UploadedAt DESC);
 CREATE INDEX IX_Document_AccessLevel ON document.Documents(AccessLevel) WHERE IsDeleted = 0;
 CREATE INDEX IX_Document_IsActive ON document.Documents(IsActive) WHERE IsDeleted = 0;
-CREATE INDEX IX_Document_ExpiresAt ON document.Documents(ExpiresAt) WHERE IsExpired = 0 AND ExpiresAt IS NOT NULL;
-
--- DocumentVersion indexes
-CREATE INDEX IX_DocumentVersion_DocumentId ON document.DocumentVersions(DocumentId);
-CREATE INDEX IX_DocumentVersion_IsCurrentVersion ON document.DocumentVersions(IsCurrentVersion) WHERE IsCurrentVersion = 1;
-
--- DocumentRelationship indexes
-CREATE INDEX IX_DocumentRelationship_ParentDocumentId ON document.DocumentRelationships(ParentDocumentId);
-CREATE INDEX IX_DocumentRelationship_RelatedDocumentId ON document.DocumentRelationships(RelatedDocumentId);
-
--- DocumentAccess indexes
-CREATE INDEX IX_DocumentAccess_DocumentId ON document.DocumentAccess(DocumentId);
-CREATE INDEX IX_DocumentAccess_GrantedTo ON document.DocumentAccess(GrantedTo);
-CREATE INDEX IX_DocumentAccess_ExpiresAt ON document.DocumentAccess(ExpiresAt) WHERE IsExpired = 0 AND ExpiresAt IS NOT NULL;
-
--- DocumentAccessLog indexes
-CREATE INDEX IX_DocumentAccessLog_DocumentId ON document.DocumentAccessLogs(DocumentId);
-CREATE INDEX IX_DocumentAccessLog_AccessedBy ON document.DocumentAccessLogs(AccessedBy);
-CREATE INDEX IX_DocumentAccessLog_AccessedAt ON document.DocumentAccessLogs(AccessedAt DESC);
-CREATE INDEX IX_DocumentAccessLog_Action ON document.DocumentAccessLogs(Action);
-
--- DocumentTemplate indexes
-CREATE INDEX IX_DocumentTemplate_TemplateCode ON document.DocumentTemplates(TemplateCode);
-CREATE INDEX IX_DocumentTemplate_TemplateType ON document.DocumentTemplates(TemplateType);
-CREATE INDEX IX_DocumentTemplate_IsActive ON document.DocumentTemplates(IsActive) WHERE IsActive = 1;
 ```
-
-## Entity Relationship Diagram
-
-```mermaid
-erDiagram
-    Document ||--o{ DocumentVersion : "has versions"
-    Document ||--o{ DocumentRelationship : "parent of"
-    Document ||--o{ DocumentRelationship : "related to"
-    Document ||--o{ DocumentAccess : "has permissions"
-    Document ||--o{ DocumentAccessLog : "tracks access"
-    DocumentTemplate }o--|| Document : "references (optional)"
-
-    Document {
-        guid Id PK
-        string DocumentNumber UK
-        string DocumentType
-        string DocumentCategory
-        string FileName
-        string FileExtension
-        bigint FileSizeBytes
-        string MimeType
-        string StorageProvider
-        string StoragePath
-        string StorageUrl
-        guid UploadedBy "User ID"
-        datetime UploadedAt
-        bool IsEncrypted
-        string AccessLevel
-        int CurrentVersion
-        bool IsActive
-        string FileChecksum
-    }
-
-    DocumentVersion {
-        guid Id PK
-        guid DocumentId FK
-        int VersionNumber
-        bool IsCurrentVersion
-        string FileName
-        bigint FileSizeBytes
-        string StoragePath
-        string VersionNotes
-        string FileChecksum
-        guid CreatedBy "User ID"
-        datetime CreatedOn
-    }
-
-    DocumentRelationship {
-        guid Id PK
-        guid ParentDocumentId FK
-        guid RelatedDocumentId FK
-        string RelationType
-        string Description
-        int DisplayOrder
-    }
-
-    DocumentAccess {
-        guid Id PK
-        guid DocumentId FK
-        guid GrantedTo "User or Role ID"
-        string GrantedToType
-        string AccessLevel
-        bool CanShare
-        bool CanDownload
-        datetime ExpiresAt
-        guid GrantedBy "User ID"
-        datetime RevokedAt
-        guid RevokedBy "User ID"
-    }
-
-    DocumentAccessLog {
-        guid Id PK
-        guid DocumentId FK
-        guid AccessedBy "User ID"
-        datetime AccessedAt
-        string Action
-        string AccessMethod
-        string IpAddress
-        bool AccessGranted
-        string DenialReason
-        int VersionNumber
-    }
-
-    DocumentTemplate {
-        guid Id PK
-        string TemplateName
-        string TemplateCode UK
-        string TemplateType
-        guid TemplateDocumentId FK "References Document"
-        string TemplateContent
-        string TemplateFormat
-        bool IsActive
-        bool IsDefault
-    }
-```
-
-**Legend:**
-- **Solid lines** = Internal module relationships (with FK constraints)
-- All documents (photos, PDFs, reports) managed centrally through this module
-- DocumentAccess supports both User and Role-based permissions
-- Only key fields shown for clarity; see full schemas above for complete field lists
-
-**Key Design Notes:**
-1. **Centralized Management**: All system documents managed through this single module
-2. **Version Control**: Complete version history with rollback capability
-3. **Access Control**: Granular permissions with expiration and revocation
-4. **Audit Trail**: Complete access logging for compliance
-5. **Cloud Storage**: Supports Azure Blob Storage, AWS S3, and local file system
-6. **Document Relationships**: Link related documents (attachments, amendments, supersedes)
-7. **Templates**: Reusable report templates for appraisal reports
 
 ## Enumerations
 
@@ -526,46 +204,243 @@ public enum AccessLevel
     Confidential,
     Restricted
 }
+```
 
-public enum DocumentAccessLevel
+## Usage Examples
+
+### Upload Document (Local Storage)
+
+```csharp
+var document = Document.Create(
+    documentType: DocumentType.Photo,
+    category: DocumentCategory.AppraisalMedia,
+    fileName: "property-front.jpg",
+    fileSizeBytes: 2048576,
+    storagePath: "/var/uploads/documents/2025/01/abc123-property-front.jpg",
+    storageUrl: "/api/documents/abc123/download",
+    uploadedBy: userId,
+    uploadedByName: "John Appraiser"
+);
+
+await _documentRepository.AddAsync(document);
+await _unitOfWork.SaveChangesAsync();
+```
+
+### Query Documents
+
+```csharp
+// Get all photos for an appraisal
+var photos = await _documentRepository
+    .GetByTypeAsync(DocumentType.Photo)
+    .Where(d => d.Tags.Contains(appraisalId))
+    .ToListAsync();
+
+// Get recent uploads
+var recentDocs = await _documentRepository
+    .GetRecentUploadsAsync(days: 7, userId: currentUserId);
+```
+
+### Local Storage Configuration
+
+```json
+// appsettings.json
 {
-    Read,
-    Write,
-    Delete,
-    FullControl
+  "DocumentStorage": {
+    "BasePath": "/var/uploads/documents",
+    "BaseUrl": "/api/documents",
+    "MaxFileSizeMB": 100,
+    "AllowedExtensions": [".pdf", ".jpg", ".jpeg", ".png", ".docx", ".xlsx"],
+    "OrganizeByDate": true
+  }
 }
+```
 
-public enum DocumentAction
+```csharp
+// Document storage service example
+public class LocalDocumentStorageService
 {
-    View,
-    Download,
-    Edit,
-    Delete,
-    Share,
-    Print
-}
+    private readonly string _basePath;
 
-public enum RelationType
-{
-    Attachment,
-    Reference,
-    Supersedes,
-    Amendment,
-    Related
-}
+    public async Task<string> SaveFileAsync(Stream fileStream, string fileName)
+    {
+        // Generate unique file name
+        var uniqueFileName = $"{Guid.NewGuid()}-{fileName}";
 
-public enum StorageProvider
-{
-    AzureBlobStorage,
-    AWSS3,
-    LocalFileSystem
+        // Organize by year/month
+        var datePath = DateTime.UtcNow.ToString("yyyy/MM");
+        var directoryPath = Path.Combine(_basePath, datePath);
+
+        // Ensure directory exists
+        Directory.CreateDirectory(directoryPath);
+
+        // Save file
+        var fullPath = Path.Combine(directoryPath, uniqueFileName);
+        using var fileStream = File.Create(fullPath);
+        await fileStream.CopyToAsync(fileStream);
+
+        return fullPath;
+    }
+
+    public async Task<Stream> GetFileAsync(string storagePath)
+    {
+        if (!File.Exists(storagePath))
+            throw new FileNotFoundException("Document not found");
+
+        return File.OpenRead(storagePath);
+    }
 }
 ```
 
 ---
 
-**Related Documentation**:
-- **[02-request-module.md](02-request-module.md)** - Document attachments to requests
-- **[03-appraisal-module.md](03-appraisal-module.md)** - Photos and appraisal reports
-- **[04-collateral-module.md](04-collateral-module.md)** - Final collateral documents
-- **[15-sample-data.md](15-sample-data.md)** - Sample document data
+## Future Enhancements (Phase 2+)
+
+### 1. Version Control (DocumentVersions Table)
+
+**Purpose**: Track complete version history of documents
+
+**Key Features:**
+- Store multiple versions of the same document
+- Version numbering (1, 2, 3, etc.)
+- Version notes and change summaries
+- Rollback capability to previous versions
+- Each version has its own storage path
+- Track who created each version and when
+
+**Use Cases:**
+- Report revisions after reviews
+- Document amendments
+- Compliance requirement for audit trail
+
+---
+
+### 2. Document Relationships (DocumentRelationships Table)
+
+**Purpose**: Link related documents together
+
+**Key Features:**
+- Parent-child document relationships
+- Relationship types: Attachment, Reference, Supersedes, Amendment, Related
+- Display ordering for grouped documents
+- Prevent circular references
+
+**Use Cases:**
+- Link photos to appraisal reports
+- Connect amendments to original documents
+- Group related supporting documents
+- Track document supersession chain
+
+---
+
+### 3. Access Control (DocumentAccess Table)
+
+**Purpose**: Granular permissions for document access
+
+**Key Features:**
+- Per-document access grants
+- Support both User and Role-based access
+- Access levels: Read, Write, Delete, FullControl
+- Time-based expiration
+- Share and download permissions
+- Access revocation tracking
+
+**Use Cases:**
+- Share reports with external parties (time-limited)
+- Grant temporary access to documents
+- Revoke access when staff leaves
+- Compliance with data privacy regulations
+
+---
+
+### 4. Access Audit Trail (DocumentAccessLogs Table)
+
+**Purpose**: Complete audit log of all document access
+
+**Key Features:**
+- Log every document view, download, edit, delete
+- Track IP address, user agent, session
+- Record both granted and denied access attempts
+- Immutable log entries (insert-only)
+- Track which version was accessed
+
+**Use Cases:**
+- Compliance audits
+- Security investigations
+- Usage analytics
+- Breach detection
+
+---
+
+### 5. Document Templates (DocumentTemplates Table)
+
+**Purpose**: Reusable templates for generating reports
+
+**Key Features:**
+- Pre-defined report templates (Land, Building, Condo appraisals)
+- Template codes for easy reference (e.g., "LAND_APPRAISAL_REPORT")
+- Support multiple formats (HTML, DOCX, PDF)
+- Placeholder system for data injection
+- Version tracking for template changes
+- Default template selection
+
+**Use Cases:**
+- Generate standardized appraisal reports
+- Create cover letters for submissions
+- Produce property certificates
+- Ensure consistent report formatting across all appraisals
+
+---
+
+## Implementation Priority
+
+### Phase 1 (MVP) - ✅ Current
+- **Documents** table only
+- Basic upload, storage, and retrieval
+- Local file system storage
+- File integrity verification (SHA256 checksum)
+
+### Phase 2 - 🔮 Future
+- **Cloud Storage Migration**: Move to Azure Blob or AWS S3 if needed
+- **DocumentVersions**: When report revision workflow is needed
+- **DocumentRelationships**: When document grouping becomes complex
+
+### Phase 3 - 🔮 Future
+- **DocumentAccess**: When external sharing is required
+- **DocumentAccessLogs**: When compliance audits are mandated
+
+### Phase 4 - 🔮 Future
+- **DocumentTemplates**: When report generation is automated
+- **Application-Level Encryption**: If compliance requires end-to-end encryption
+
+---
+
+## Summary
+
+The Document Module has been simplified for Phase 1 implementation:
+
+**Current Implementation (Phase 1):**
+- ✅ Single `Documents` table
+- ✅ Centralized storage for all document types
+- ✅ Local file system storage (no cloud dependencies)
+- ✅ File integrity verification (SHA256 checksum)
+- ✅ Basic metadata and tagging (JSON)
+- ✅ Access level control (Public, Internal, Confidential, Restricted)
+
+**Deferred to Future Phases:**
+- 🔮 **Phase 2**: Cloud storage migration, version control, document relationships
+- 🔮 **Phase 3**: Advanced access control, audit logging
+- 🔮 **Phase 4**: Report templates, application-level encryption
+
+**Storage Configuration:**
+```
+Base Path: /var/uploads/documents
+Organization: /YYYY/MM/[guid]-filename.ext
+Web Access: /api/documents/[documentId]/download
+Max File Size: 100 MB (configurable)
+```
+
+The module can be easily extended when business needs justify the additional complexity.
+
+---
+
+**Last Updated**: 2025-01-06
