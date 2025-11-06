@@ -6,16 +6,20 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
 {
     public RequestNumber? RequestNumber { get; private set; }
     public string? Purpose { get; private set; } = default!;
+
+    // Channel, RequestDate, RequestedBy, RequestedByName
     public Source Source { get; private set; } = default!;
     public string Priority { get; private set; }
     public RequestStatus Status { get; private set; } = default!;
     public DateTime? SubmittedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
+
+    // IsDeleted, DeleltedOn, DeletedBy
     public Deletion Deletion { get; private set; } = default!;
     public bool IsPMA { get; private set; }
-    // public Requestor Requestor { get; private set; }
-    // public DateTime CreatedAt { get; private set; }
-    // public long CreatedBy { get; private set; }
+
+    public DateTime? CreatedAt { get; private set; }
+    public string? CreateBy { get; private set; }
 
     // Details
     public RequestDetail Detail { get; private set; } = default!;
@@ -112,9 +116,22 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
 
     public void Submit()
     {
-        UpdateStatus(RequestStatus.New);
+        UpdateStatus(RequestStatus.Submitted);
         // update SubmittedAt
         // update Source
+    }
+
+    public void UpdateSource(string requestedBy, string requestedByName, string? channel)
+    {
+        RuleCheck.Valid()
+            .AddErrorIf(Status != RequestStatus.Submitted,
+                "Cannot update request customers when the status is not Draft or New.")
+            .ThrowIfInvalid();
+        
+        var newSource = Source.Create(requestedBy, requestedByName, channel);
+
+        if (!Source.Equals(newSource))
+            Source = newSource;
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
@@ -129,7 +146,7 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     )
     {
         RuleCheck.Valid()
-            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
+            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.Submitted,
                 "Cannot update request details when the status is not Draft or New.")
             .ThrowIfInvalid();
 
@@ -152,7 +169,7 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     public void UpdateCustomers(List<RequestCustomer> customers)
     {
         RuleCheck.Valid()
-            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
+            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.Submitted,
                 "Cannot update request customers when the status is not Draft or New.")
             .ThrowIfInvalid();
 
@@ -166,7 +183,7 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     public void UpdateProperties(List<RequestProperty> properties)
     {
         RuleCheck.Valid()
-            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
+            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.Submitted,
                 "Cannot update request properties when the status is not Draft or New.")
             .ThrowIfInvalid();
 

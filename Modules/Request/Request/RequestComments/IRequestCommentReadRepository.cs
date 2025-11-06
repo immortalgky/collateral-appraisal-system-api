@@ -1,5 +1,5 @@
 namespace Request.RequestComments;
 
-public interface IRequestCommentReadRepository : IReadRepository<RequestComment, Guid>
+public interface IRequestCommentReadRepository : IReadRepository<RequestComment, long>
 {
 }

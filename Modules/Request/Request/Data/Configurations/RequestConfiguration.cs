@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.ValueGeneration;
+
 namespace Request.Data.Configurations;
 
 public class RequestConfiguration : IEntityTypeConfiguration<Requests.Models.Request>
@@ -5,11 +7,11 @@ public class RequestConfiguration : IEntityTypeConfiguration<Requests.Models.Req
     public void Configure(EntityTypeBuilder<Requests.Models.Request> builder)
     {
         builder.HasKey(r => r.Id);
-        builder.Property(r => r.Id).UseIdentityColumn();
+        builder.Property(r => r.Id).HasValueGenerator(typeof(SequentialGuidValueGenerator));
 
         builder.OwnsOne(r => r.RequestNumber, requestNumber =>
         {
-            requestNumber.Property(rn => rn.Value).HasMaxLength(10).HasColumnName("RequestNumber"); 
+            requestNumber.Property(rn => rn.Value).HasMaxLength(15).HasColumnName("RequestNumber"); 
             requestNumber.HasIndex(rn => rn.Value).IsUnique();
         });
 
@@ -19,7 +21,8 @@ public class RequestConfiguration : IEntityTypeConfiguration<Requests.Models.Req
         {
             source.Property(s => s.Channel).HasMaxLength(10).HasColumnName("Channel");
             source.Property(s => s.RequestDate).HasColumnName("RequestDate");
-            source.Property(s => s.RequestedBy).HasColumnName("RequestedBy"); // key link to User
+            source.Property(s => s.RequestedBy).HasMaxLength(10).HasColumnName("RequestedBy"); // key link to User
+            source.Property(s => s.RequestedByName).HasMaxLength(100).HasColumnName("RequestedByName");
         });
 
         builder.Property(r => r.Priority).UseCodeConfig();
@@ -34,7 +37,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Requests.Models.Req
         {
             deletion.Property(d => d.IsDeleted).HasColumnName("IsDeleted");
             deletion.Property(d => d.DeletedOn).HasColumnName("DeletedOn");
-            deletion.Property(d => d.DeletedBy).HasColumnName("DeletedBy");
+            deletion.Property(d => d.DeletedBy).HasMaxLength(100).HasColumnName("DeletedBy");
         });
 
         builder.Property(r => r.IsPMA);

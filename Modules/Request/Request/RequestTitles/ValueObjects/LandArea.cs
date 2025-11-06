@@ -2,29 +2,29 @@ namespace Request.RequestTitles.ValueObjects;
 
 public class LandArea : ValueObject
 {
-    public int? Rai { get; }
-    public int? Ngan { get; }
-    public decimal? Wa { get; }
+    public int? AreaRai { get; }
+    public int? AreaNgan { get; }
+    public decimal? AreaSquareWa { get; }
 
-    private LandArea(int? rai, int? ngan, decimal? wa)
+    private LandArea(int? areaRai, int? areaNgan, decimal? areaWa)
     {
-        Rai = rai;
-        Ngan = ngan;
-        Wa = wa;
+        AreaRai = areaRai;
+        AreaNgan = areaNgan;
+        areaWa = areaWa;
     }
 
-    public static LandArea Of(int? rai, int? ngan, decimal? wa)
+    public static LandArea Of(int? areaRai, int? areaNgan, decimal? areaWa)
     {
-        return new LandArea(rai, ngan, wa);
+        return new LandArea(areaRai, areaNgan, areaWa);
     }
 
     public static LandArea Zero => new(0, 0, 0);
 
     public decimal ToTotalWa()
     {
-        var raiInWa = (Rai ?? 0) * 400m;
-        var nganInWa = (Ngan ?? 0) * 100m;
-        var wa = Wa ?? 0m;
+        var raiInWa = (AreaRai ?? 0) * 400m;
+        var nganInWa = (AreaNgan ?? 0) * 100m;
+        var wa = AreaSquareWa ?? 0m;
         return raiInWa + nganInWa + wa;
     }
 
@@ -77,7 +77,7 @@ public class LandArea : ValueObject
 
     public bool IsValid()
     {
-        return (Rai ?? 0) >= 0 && (Ngan ?? 0) >= 0 && (Wa ?? 0) >= 0;
+        return (AreaRai ?? 0) >= 0 && (AreaNgan ?? 0) >= 0 && (AreaSquareWa ?? 0) >= 0;
     }
 
     private static LandArea FromTotalWa(decimal totalWa)
@@ -98,9 +98,9 @@ public class LandArea : ValueObject
     {
         var parts = new List<string>();
         
-        if (Rai > 0) parts.Add($"{Rai} ไร่");
-        if (Ngan > 0) parts.Add($"{Ngan} งาน");
-        if (Wa > 0) parts.Add($"{Wa:F2} ตร.ว.");
+        if (AreaRai > 0) parts.Add($"{AreaRai} ไร่");
+        if (AreaNgan > 0) parts.Add($"{AreaNgan} งาน");
+        if (AreaSquareWa > 0) parts.Add($"{AreaSquareWa:F2} ตร.ว.");
         
         return parts.Count > 0 ? string.Join(" ", parts) : "0 ตร.ว.";
     }

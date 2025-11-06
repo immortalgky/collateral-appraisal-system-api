@@ -6,17 +6,34 @@ public class RequestTitle : Aggregate<long>
 {
     public Guid RequestId { get; private set; }
     public string CollateralType { get; private set; } = default!;
-    public string? TitleNo { get; private set; }
-    public string? TitleDetail { get; private set; }
-    public string? Owner { get; private set; }
+    public bool CollateralStatus { get; private set; }
+
+    // Title Deed Information
+    public string? TitleDeedNumber { get; private set; }
+    public string? DeedType { get; private set; }
+
+    
+    // Survey Information
+    public string? Rawang { get; private set; }   
+    public string? LandNumber { get; private set; }
+    public string? SurveyNumber { get; private set; }
+
+    // Area (AreaRai, AreaNgan, AreaSquareWa)
     public LandArea LandArea { get; private set; } = default!;
+
+    public string? Owner { get; private set; }
+    public string? TitleDetail { get; private set; }
+    public Vehicle Vehicle { get; private set; } = default!;
+    public Machine Machine { get; private set; } = default!;
     public string? BuildingType { get; private set; }
     public decimal? UsageArea { get; private set; }
     public int? NoOfBuilding { get; private set; }
+
+    // Address
     public Address TitleAddress { get; private set; } = default!;
+    
+    // Dopa Address
     public Address DopaAddress { get; private set; } = default!;
-    public Vehicle Vehicle { get; private set; } = default!;
-    public Machine Machine { get; private set; } = default!;
 
     private RequestTitle()
     {

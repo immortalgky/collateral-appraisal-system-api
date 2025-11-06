@@ -2,6 +2,11 @@ namespace Request.RequestTitles.ValueObjects;
 
 public class Vehicle : ValueObject
 {
+    public string? VehicleType { get; }
+    public string? VehicleRegistrationNo { get; }
+    public string? VehicleAppointmentLocation { get; }
+    public string? ChassisNumber { get; } // use for key
+    
     private Vehicle(string? vehicleType, string? vehicleRegistrationNo, string? vehicleLocation)
     {
         VehicleType = vehicleType;
@@ -9,9 +14,6 @@ public class Vehicle : ValueObject
         VehicleLocation = vehicleLocation;
     }
 
-    public string? VehicleType { get; }
-    public string? VehicleRegistrationNo { get; }
-    public string? VehicleLocation { get; }
 
     public static Vehicle Create(string? vehicleType, string? vehicleRegistrationNo, string? vehicleLocation)
     {

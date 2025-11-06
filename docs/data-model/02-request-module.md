@@ -124,7 +124,7 @@ CREATE TABLE request.Requests
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
 
     -- Business Key
-    RequestNumber           NVARCHAR(10) UNIQUE NOT NULL,           -- Auto-generated: REQ-000001-2025
+    RequestNumber           NVARCHAR(15) UNIQUE NOT NULL,           -- Auto-generated: REQ-000001-2025
 
     -- Purpose
     Purpose                 NVARCHAR(10) NOT NULL,
@@ -336,6 +336,9 @@ CREATE TABLE request.RequestTitles
 
     -- Foreign Key
     RequestId               UNIQUEIDENTIFIER NOT NULL,
+    
+    CollateralType          NVARCHAR(10) NOT NULL,
+    CollateralStatus        BIT NOT NULL DEFAULT 0,
 
     -- Title Deed Information
     TitleDeedNumber         NVARCHAR(100) NOT NULL,                 -- โฉนดเลขที่

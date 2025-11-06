@@ -89,6 +89,7 @@ public static class MappingConfiguration
             .NewConfig()
             .ConstructUsing(src => Source.Create(
                 src.RequestedBy,
+                src.RequestedByName,
                 src.Channel
             ));
 

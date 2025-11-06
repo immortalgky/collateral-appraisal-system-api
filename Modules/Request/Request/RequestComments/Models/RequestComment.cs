@@ -1,9 +1,13 @@
 namespace Request.RequestComments.Models;
 
-public class RequestComment : Aggregate<Guid>
+public class RequestComment : Aggregate<long>
 {
     public Guid RequestId { get; private set; }
     public string Comment { get; private set; }
+    public string CommentedBy { get; private set; }
+    public string CommentedOn { get; private set; }
+    // UpdatedkBy
+    // UpdatedOn
 
     private RequestComment(Guid requestId, string comment)
     {
