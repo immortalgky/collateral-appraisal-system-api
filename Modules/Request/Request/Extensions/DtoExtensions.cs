@@ -95,6 +95,6 @@ public static class DtoExtensions
 
     public static RequestComment ToDomain(this RequestCommentDto dto)
     {
-        return RequestComment.Create(dto.Id, dto.Comment);
+        return RequestComment.Create(dto.Id, dto.Comment, dto.CommentedBy, dto.CommentedByName);
     }
 }

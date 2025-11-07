@@ -1,3 +1,3 @@
 namespace Request.Contracts.Requests.Dtos;
 
-public record RequestCommentDto(Guid Id, string Comment, bool IsDeleted);
+public record RequestCommentDto(Guid Id, string Comment, string CommentedBy, string CommentedByName);
