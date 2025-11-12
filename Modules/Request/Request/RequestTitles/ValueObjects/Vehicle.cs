@@ -3,20 +3,31 @@ namespace Request.RequestTitles.ValueObjects;
 public class Vehicle : ValueObject
 {
     public string? VehicleType { get; }
-    public string? VehicleRegistrationNo { get; }
     public string? VehicleAppointmentLocation { get; }
-    public string? ChassisNumber { get; } // use for key
+    public string? ChassisNumber { get; }
     
-    private Vehicle(string? vehicleType, string? vehicleRegistrationNo, string? vehicleLocation)
+    private Vehicle(
+        string? vehicleType, 
+        string? vehicleAppointmentLocation,
+        string? chassisNumber
+    )
     {
         VehicleType = vehicleType;
-        VehicleRegistrationNo = vehicleRegistrationNo;
-        VehicleLocation = vehicleLocation;
+        VehicleAppointmentLocation = vehicleAppointmentLocation;
+        ChassisNumber = chassisNumber;
     }
 
 
-    public static Vehicle Create(string? vehicleType, string? vehicleRegistrationNo, string? vehicleLocation)
+    public static Vehicle Create(
+        string? vehicleType, 
+        string? vehicleAppointmentLocation, 
+        string? chassisNumber
+    )
     {
-        return new Vehicle(vehicleType, vehicleRegistrationNo, vehicleLocation);
+        return new Vehicle(
+            vehicleType, 
+            vehicleAppointmentLocation, 
+            chassisNumber
+        );
     }
 }

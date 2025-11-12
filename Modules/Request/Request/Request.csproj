@@ -7,19 +7,20 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../../../Shared/Shared/Shared.csproj"/>
-        <ProjectReference Include="../Request.Contracts/Request.Contracts.csproj"/>
-        <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj"/>
+        <ProjectReference Include="../../../Shared/Shared/Shared.csproj" />
+        <ProjectReference Include="../Request.Contracts/Request.Contracts.csproj" />
+        <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Data\Migrations\"/>
-        <Folder Include="Requests\Dtos\"/>
-        <Folder Include="RequestTitles\Dtos\"/>
+        <Folder Include="Data\Migrations\" />
+        <Folder Include="Requests\Dtos\" />
+        <Folder Include="RequestTitles\Dtos\" />
+        <Folder Include="RequestTitles\Features\UpdateDraftRequestTitle\" />
     </ItemGroup>
 
     <ItemGroup>
-        <EditorConfigFiles Remove=".editorconfig"/>
+        <EditorConfigFiles Remove=".editorconfig" />
     </ItemGroup>
 
     <ItemGroup>

@@ -66,6 +66,7 @@ namespace Shared.DDD
         /// <returns>This RuleCheck instance for method chaining.</returns>
         public RuleCheck AddErrors(IEnumerable<string> errors)
         {
+            
             _errors.AddRange(errors.Where(e => !string.IsNullOrWhiteSpace(e)));
             return this;
         }

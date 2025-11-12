@@ -4,31 +4,44 @@ public class Machine : ValueObject
 {
     public string? MachineStatus { get; }
     public string? MachineType { get; }
-    public string? MachineRegistrationStatus { get; }
-    public string? MachineRegistrationNo { get; }
-    public string? MachineInvoiceNo { get; }
-    public int? NoOfMachine { get; }
+    public string? InstallationStatus { get; }
+    public string? InvoiceNumber { get; }
+    public int? NumberOfMachinery { get; }
 
     private Machine()
     {
         // For EF Core
     }
 
-    private Machine(string? machineStatus, string? machineType, string? machineRegistrationStatus,
-        string? machineRegistrationNo, string? machineInvoiceNo, int? noOfMachine)
+    private Machine(
+        string? machineStatus, 
+        string? machineType, 
+        string? installationStatus, 
+        string? invoiceNumber, 
+        int? numberOfMachinery
+    )
     {
         MachineStatus = machineStatus;
         MachineType = machineType;
-        MachineRegistrationStatus = machineRegistrationStatus;
-        MachineRegistrationNo = machineRegistrationNo;
-        MachineInvoiceNo = machineInvoiceNo;
-        NoOfMachine = noOfMachine;
+        InstallationStatus = installationStatus;
+        InvoiceNumber = invoiceNumber;
+        NumberOfMachinery = numberOfMachinery;
     }
 
-    public static Machine Create(string? machineStatus, string? machineType, string? machineRegistrationStatus,
-        string? machineRegistrationNo, string? machineInvoiceNo, int? noOfMachine)
+    public static Machine Create(
+        string? machineStatus, 
+        string? machineType, 
+        string? installationStatus, 
+        string? invoiceNumber, 
+        int? numberOfMachinery
+    )
     {
-        return new Machine(machineStatus, machineType, machineRegistrationStatus, machineRegistrationNo,
-            machineInvoiceNo, noOfMachine);
+        return new Machine(
+            machineStatus, 
+            machineType, 
+            installationStatus, 
+            invoiceNumber, 
+            numberOfMachinery
+        );
     }
 }

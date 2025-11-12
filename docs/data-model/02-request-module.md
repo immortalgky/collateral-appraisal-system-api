@@ -341,24 +341,56 @@ CREATE TABLE request.RequestTitles
     CollateralStatus        BIT NOT NULL DEFAULT 0,
 
     -- Title Deed Information
-    TitleDeedNumber         NVARCHAR(100) NOT NULL,                 -- โฉนดเลขที่
+    TitleNo                 NVARCHAR(200) NOT NULL,                 -- โฉนดเลขที่
     DeedType                NVARCHAR(50) NOT NULL,                  -- Chanote, NorSor3, NorSor3Kor
+    TitleDetail             NVARCHAR(200) NOT NULL
 
     -- Survey Information
     Rawang                  NVARCHAR(100) NULL,                     -- ระวาง
-    LandNumber              NVARCHAR(50) NULL,                      -- เลขที่ดิน
-    SurveyNumber            NVARCHAR(50) NULL,                      -- หน้าสำรวจ
+    LandNo              NVARCHAR(50) NULL,                      -- เลขที่ดิน
+    SurveyNo            NVARCHAR(50) NULL,                      -- หน้าสำรวจ
 
     -- Area (Thai Land Measurement)
     AreaRai                 INT NULL,                               -- ไร่
     AreaNgan                INT NULL,                               -- งาน
     AreaSquareWa            DECIMAL(5,2) NULL,                      -- ตารางวา
 
+    -- Ownership
+    OwnerName               NVARCHAR(500) NOT NULL,
+    
+    -- Building Information
+    BuildingType            NVARCHAR(10) NULL,
+    UsableArea              DECIMAL(19,4) NULL,
+    NumberOfBuilding        INT NULL,
+    
+    -- ID (Vehicle, Machinery)
+    RegistrationNumber      NVARCHAR(50) NULL,
+    -- RegistrationStatus      NVARCHAR(10) NULL,
+    ChassisNumber           NVARCHAR(50) NULL,                      -- For Vehicle
+    
+    -- Vehicle
+    VehicleType             NVARCHAR(10) NULL,
+    VehicleAppointmentLocation NVARCHAR(300) NULL
+    
+    -- Vessel
+    VesselType              NVARCHAR(10) NULL,
+    
+    -- Machinery
+    MachineryType           NVARCHAR(10) NULL,
+    InstallationStatus      NVARCHAR(10) NULL,
+    InvoiceNumber           NVARCHAR(20) NULL,
+    NumberOfMachinery       INT NULL,
+
+    -- Condo Information
+    CondoName               NVARCHAR(100) NULL,
+    BuildingNo              NVARCHAR(100) NULL,
+    RoomNo                  NVARCHAR(30) NULL,
+    FloorNo                 NVARCHAR(10) NULL,
+
     -- Adress
     HouseNo                 NVARCHAR(30) NULL,
     RoomNo                  NVARCHAR(30) NULL,
     FloorNo                 NVARCHAR(10) NULL,
-    BuildingNo              NVARCHAR(100) NULL,
     ProjectName             NVARCHAR(100) NULL,
     Moo                     NVARCHAR(50) NULL,
     Soi                     NVARCHAR(100) NULL,
@@ -379,33 +411,10 @@ CREATE TABLE request.RequestTitles
     DOPAProvince            NVARCHAR(50) NOT NULL,
     DOPAPostcode            NVARCHAR(10) NULL
     
-    -- Ownership
-    OwnerName               NVARCHAR(500) NOT NULL,
     
-    -- Building Information
-    BuildingType            NVARCHAR(10) NULL,
-    UsableArea              DECIMAL(19,4) NULL,
-    NumberOfBuilding        INT NULL,
-    
-    -- ID (Vehicle, Machinery)
-    RegistrationNumber      NVARCHAR(50) NULL,
-    RegistrationStatus      NVARCHAR(10) NULL,
-    ChassisNumber           NVARCHAR(50) NULL,                      -- For Vehicle
-    
-    -- Vehicle
-    VehicleType             NVARCHAR(10) NULL,
-    
-    -- Vessel
-    VesselType              NVARCHAR(10) NULL,
-    
-    -- Machinery
-    MachineryType           NVARCHAR(10) NULL,
-    InstallationStatus      NVARCHAR(10) NULL,
-    InvoiceNumber           NVARCHAR(20) NULL,
-    NumberOfMachinery       INT NULL,
     
     -- Notes
-    Notes                   NVARCHAR(MAX) NULL,
+    Notes                   NVARCHAR(MAX) NULL, -- ???
 
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETDATE(),
@@ -510,7 +519,7 @@ CREATE INDEX IX_RequestDocument_DocumentType ON request.RequestDocuments(Documen
 -- RequestTitle indexes
 CREATE INDEX IX_TitleDeedInfo_RequestId ON request.TitleDeedInfo(RequestId);
 CREATE INDEX IX_TitleDeedInfo_TitleDeedNumber ON request.TitleDeedInfo(TitleDeedNumber);
-CREATE INDEX IX_TitleDeedInfo_Province ON request.TitleDeedInfo(Province);
+-- CREATE INDEX IX_TitleDeedInfo_Province ON request.TitleDeedInfo(Province);
 
 -- RequestStatusHistory indexes
 CREATE INDEX IX_RequestStatusHistory_RequestId ON request.RequestStatusHistory(RequestId);

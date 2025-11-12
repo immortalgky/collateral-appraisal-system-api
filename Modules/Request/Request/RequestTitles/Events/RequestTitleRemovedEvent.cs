@@ -1,3 +1,3 @@
 namespace Request.RequestTitles.Events;
 
-public record RequestTitleRemovedEvent(Guid RequestId, long TitleId, string CollateralType) : IDomainEvent;
+public record RequestTitleRemovedEvent(Guid RequestId, Guid TitleId, string CollateralType) : IDomainEvent;

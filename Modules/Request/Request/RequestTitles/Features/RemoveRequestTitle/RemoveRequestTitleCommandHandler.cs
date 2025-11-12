@@ -13,9 +13,8 @@ internal class RemoveRequestTitleCommandHandler(IRequestTitleRepository requestT
         }
 
         // Publish domain event
-        requestTitle.AddDomainEvent(new RequestTitleRemovedEvent(command.RequestId, command.Id,
-            requestTitle.CollateralType));
-
+        requestTitle.AddDomainEvent(new RequestTitleRemovedEvent(command.RequestId, command.Id, requestTitle.CollateralType));
+        
         await requestTitleRepository.Remove(requestTitle);
         await requestTitleRepository.SaveChangesAsync(cancellationToken);
 

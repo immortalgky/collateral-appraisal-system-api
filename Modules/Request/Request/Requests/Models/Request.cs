@@ -32,6 +32,10 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     private readonly List<RequestProperty> _properties = [];
     public IReadOnlyList<RequestProperty> Properties => _properties.AsReadOnly();
 
+    // Titles
+    private readonly List<RequestTitle> _requestTitles = [];
+    public IReadOnlyList<RequestTitle> RequestTitles => _requestTitles.AsReadOnly();
+
 
     private Request()
     {

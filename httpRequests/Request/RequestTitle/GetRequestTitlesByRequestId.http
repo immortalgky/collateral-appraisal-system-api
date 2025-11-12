@@ -1,0 +1,10 @@
+@baseUrl = https://localhost:7111
+@requestId = AEB2C52F-CB03-4AA7-868A-08DE1DD6E8B1
+
+GET {{baseUrl}}/requests/{{requestId}}/titles
+Host: localhost:7111
+Content-Type: application/json
+
+{
+
+}

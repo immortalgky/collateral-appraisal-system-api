@@ -2,7 +2,7 @@ namespace Request.Data.Repository;
 
 public class RequestTitleRepository(RequestDbContext dbContext) : IRequestTitleRepository
 {
-    public async Task<RequestTitle> GetByIdAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<RequestTitle> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await dbContext.RequestTitles.FindAsync([id], cancellationToken);
     }

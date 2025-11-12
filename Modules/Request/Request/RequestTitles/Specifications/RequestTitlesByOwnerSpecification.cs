@@ -11,6 +11,6 @@ public class RequestTitlesByOwnerSpecification : Specification<RequestTitle>
 
     public override Expression<Func<RequestTitle, bool>> ToExpression()
     {
-        return title => title.Owner != null && title.Owner.Contains(_owner);
+        return title => title.OwnerName != null && title.OwnerName.Contains(_owner);
     }
 }

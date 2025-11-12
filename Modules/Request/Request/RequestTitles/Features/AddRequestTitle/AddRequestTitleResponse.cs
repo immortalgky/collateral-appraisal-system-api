@@ -1,3 +1,3 @@
 namespace Request.RequestTitles.Features.AddRequestTitle;
 
-public record AddRequestTitleResponse(long Id);
+public record AddRequestTitleResponse(Guid Id);

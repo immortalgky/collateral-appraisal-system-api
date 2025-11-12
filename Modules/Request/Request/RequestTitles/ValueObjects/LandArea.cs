@@ -1,3 +1,5 @@
+using System.Data;
+
 namespace Request.RequestTitles.ValueObjects;
 
 public class LandArea : ValueObject
@@ -6,16 +8,16 @@ public class LandArea : ValueObject
     public int? AreaNgan { get; }
     public decimal? AreaSquareWa { get; }
 
-    private LandArea(int? areaRai, int? areaNgan, decimal? areaWa)
+    private LandArea(int? areaRai, int? areaNgan, decimal? areaSquareWa)
     {
         AreaRai = areaRai;
         AreaNgan = areaNgan;
-        areaWa = areaWa;
+        AreaSquareWa = areaSquareWa;
     }
 
-    public static LandArea Of(int? areaRai, int? areaNgan, decimal? areaWa)
+    public static LandArea Of(int? areaRai, int? areaNgan, decimal? areaSquareWa)
     {
-        return new LandArea(areaRai, areaNgan, areaWa);
+        return new LandArea(areaRai, areaNgan, areaSquareWa);
     }
 
     public static LandArea Zero => new(0, 0, 0);

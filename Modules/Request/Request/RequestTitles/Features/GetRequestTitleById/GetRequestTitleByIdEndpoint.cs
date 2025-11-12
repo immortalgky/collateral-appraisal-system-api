@@ -4,23 +4,25 @@ public class GetRequestTitleByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/requests/{requestId:Guid}/titles/{titleId:long}",
-            async (Guid requestId, long titleId, ISender sender, CancellationToken cancellationToken) =>
-            {
-                var query = new GetRequestTitleByIdQuery(requestId, titleId);
+        app.MapGet("/requests/{requestId:Guid}/titles/{titleId:Guid}",
+                async (Guid requestId, Guid titleId, ISender sender, CancellationToken cancellationToken) =>
+                {
+                    var query = new GetRequestTitleByIdQuery(requestId, titleId);
 
-                var result = await sender.Send(query, cancellationToken);
+                    var result = await sender.Send(query, cancellationToken);
 
-                var response = result.Adapt<GetRequestTitleByIdResponse>();
+                    var response = result.Adapt<GetRequestTitleByIdResponse>();
 
-                return Results.Ok(response);
-            })
+                    return Results.Ok(response);
+                })
             .WithName("GetRequestTitleById")
             .Produces<GetRequestTitleByIdResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get request title by ID")
-            .WithDescription("Retrieves a specific title/collateral by its ID for the specified request. Returns detailed information about the title including land area, building, vehicle, and machine details.")
+            .WithDescription(
+                "Retrieves a specific title/collateral by its ID for the specified request. Returns detailed information about the title including land area, building, vehicle, and machine details.")
             .WithTags("Request Titles")
-            .RequireAuthorization("CanReadRequest");
+            .AllowAnonymous();
+        // .RequireAuthorization("CanReadRequest");
     }
 }

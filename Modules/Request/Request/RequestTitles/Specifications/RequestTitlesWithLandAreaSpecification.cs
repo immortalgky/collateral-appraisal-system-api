@@ -4,7 +4,7 @@ public class RequestTitlesWithLandAreaSpecification : Specification<RequestTitle
 {
     public override Expression<Func<RequestTitle, bool>> ToExpression()
     {
-        return title => title.LandArea.Rai > 0 || title.LandArea.Ngan > 0 || title.LandArea.Wa > 0;
+        return title => title.LandArea.AreaRai > 0 || title.LandArea.AreaNgan > 0 || title.LandArea.AreaSquareWa > 0;
     }
 }
 
@@ -19,6 +19,6 @@ public class RequestTitlesWithMinimumLandAreaSpecification : Specification<Reque
 
     public override Expression<Func<RequestTitle, bool>> ToExpression()
     {
-        return title => (title.LandArea.Rai * 400 + title.LandArea.Ngan * 100 + title.LandArea.Wa) >= _minimumWa;
+        return title => (title.LandArea.AreaRai * 400 + title.LandArea.AreaNgan * 100 + title.LandArea.AreaSquareWa) >= _minimumWa;
     }
 }

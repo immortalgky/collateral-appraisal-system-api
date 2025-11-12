@@ -1,0 +1,45 @@
+@baseUrl = https://localhost:7111
+@requestId = EB09E7F2-FF78-497F-22A7-08DE20F81BC9
+POST {{baseUrl}}/requests/{{requestId}}/titles
+Host: localhost:7111
+Content-Type: application/json
+
+{
+	"collateralType": "L",
+	"collateralStatus": false,
+	"titleNo": "1212312121",
+	"deedType": "NorSor3",
+	"titleDetail": "",
+	"rawang": "xxxx",
+	"landNo": "xxxx",
+	"surveyNo": "xxxx",
+	"areaRai": 0,
+	"areaNgan": 0,
+	"areaSquareWa": 0,
+	"titleDetail": "",
+	"titleAddress":
+	{
+		"houseNo": "",
+        "projectName": "",
+        "moo": "",
+        "soi": "",
+        "road": "123456789",
+        "subDistrict": "Muang",
+        "district": "Watket",
+        "province": "Chiang Mai",
+        "postcode": "50000"
+	},
+	"dopaAddress":
+	{
+		"houseNo": "",
+        "projectName": "",
+        "moo": "",
+        "soi": "",
+        "road": "",
+        "subDistrict": "Muang",
+        "district": "Watket",
+        "province": "Chiang Mai",
+        "postcode": "50000"
+	},
+	"notes": ""
+}

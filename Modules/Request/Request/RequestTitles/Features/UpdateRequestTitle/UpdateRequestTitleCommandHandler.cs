@@ -14,17 +14,26 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
 
         requestTitle.UpdateDetails(
             command.CollateralType,
+            command.CollateralStatus,
             command.TitleNo,
+            command.DeedType,
             command.TitleDetail,
-            command.Owner,
-            LandArea.Of(command.Rai, command.Ngan, command.Wa),
+            command.Rawang,
+            command.LandNo,
+            command.SurveyNo,
+            LandArea.Of(command.AreaRai, command.AreaNgan, command.AreaSquareWa),
+            command.OwnerName,
+            command.RegistrationNo,
+            Vehicle.Create(command.VehicleType, command.VehicleAppointmentLocation, command.ChassisNumber),
+            Machine.Create(command.MachineStatus, command.MachineType, command.InstallationStatus, command.InvoiceNumber, command.NumberOfMachinery),
             command.BuildingType,
-            command.UsageArea,
+            command.UsableArea,
             command.NoOfBuilding,
+            Condo.Create(command.CondoName, command.BuildingNo, command.RoomNo, command.FloorNo),
             Address.Create(
                 command.TitleAddress.HouseNo,
-                command.TitleAddress.RoomNo,
-                command.TitleAddress.FloorNo,
+                null,
+                null,
                 command.TitleAddress.ProjectName,
                 command.TitleAddress.Moo,
                 command.TitleAddress.Soi,
@@ -35,31 +44,19 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
                 command.TitleAddress.Postcode
             ),
             Address.Create(
-                command.DopaAddress?.HouseNo,
-                command.DopaAddress?.RoomNo,
-                command.DopaAddress?.FloorNo,
-                command.DopaAddress?.ProjectName,
-                command.DopaAddress?.Moo,
-                command.DopaAddress?.Soi,
-                command.DopaAddress?.Road,
-                command.DopaAddress?.SubDistrict,
-                command.DopaAddress?.District,
-                command.DopaAddress?.Province,
-                command.DopaAddress?.Postcode
+                command.DopaAddress.HouseNo,
+                null,
+                null,
+                command.DopaAddress.ProjectName,
+                command.DopaAddress.Moo,
+                command.DopaAddress.Soi,
+                command.DopaAddress.Road,
+                command.DopaAddress.SubDistrict,
+                command.DopaAddress.District,
+                command.DopaAddress.Province,
+                command.DopaAddress.Postcode
             ),
-            Vehicle.Create(
-                command.VehicleType,
-                command.VehicleRegistrationNo,
-                command.VehicleLocation
-            ),
-            Machine.Create(
-                command.MachineStatus,
-                command.MachineType,
-                command.MachineRegistrationStatus,
-                command.MachineRegistrationNo,
-                command.MachineInvoiceNo,
-                command.NoOfMachine
-            )
+            command.Notes
         );
 
         await requestTitleRepository.SaveChangesAsync(cancellationToken);

@@ -1,0 +1,39 @@
+@baseUrl = https://localhost:7111
+@requestId = AEB2C52F-CB03-4AA7-868A-08DE1DD6E8B1
+POST {{baseUrl}}/requests/{{requestId}}/titles
+Host: localhost:7111
+Content-Type: application/json
+
+{
+	"collateralType": "V",
+	"collateralStatus": false,
+    "registrationNo": "1212312121",
+    "vehicleType": "Car",
+    "vehicleAppointmentLocation": "Q House",
+    "chassisNumber": "55555555",
+	"titleAddress":
+	{
+		"houseNo": "",
+        "projectName": "",
+        "moo": "",
+        "soi": "",
+        "road": "123456789",
+        "subDistrict": "16",
+        "district": "00",
+        "province": "50",
+        "postcode": "50000"
+	},
+	"dopaAddress":
+	{
+		"houseNo": "",
+        "projectName": "",
+        "moo": "",
+        "soi": "",
+        "road": "",
+        "subDistrict": "16",
+        "district": "00",
+        "province": "50",
+        "postcode": "50000"
+	},
+	"notes": ""
+}
