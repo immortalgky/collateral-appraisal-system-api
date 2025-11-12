@@ -9,6 +9,7 @@ public class AddRequestCommentCommandHandler(
         CancellationToken cancellationToken)
     {
         var request = await requestRepository.GetByIdAsync(command.RequestId, cancellationToken);
+        
         if (request is null)
         {
             throw new RequestNotFoundException(command.RequestId);

@@ -76,4 +76,9 @@ public class Address : ValueObject
             postcode
         );
     }
+
+    public override string ToString()
+    {
+        return $"{HouseNo} {RoomNo} {FloorNo} {ProjectName} {Moo} {Soi} {Road} {SubDistrict} {District} {Province} {Postcode}";
+    }
 }

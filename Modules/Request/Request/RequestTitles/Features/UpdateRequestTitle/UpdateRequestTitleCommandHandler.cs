@@ -3,8 +3,7 @@ namespace Request.RequestTitles.Features.UpdateRequestTitle;
 internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestTitleRepository)
     : ICommandHandler<UpdateRequestTitleCommand, UpdateRequestTitleResult>
 {
-    public async Task<UpdateRequestTitleResult> Handle(UpdateRequestTitleCommand command,
-        CancellationToken cancellationToken)
+    public async Task<UpdateRequestTitleResult> Handle(UpdateRequestTitleCommand command, CancellationToken cancellationToken)
     {
         var requestTitle = await requestTitleRepository.GetByIdAsync(command.Id, cancellationToken);
         if (requestTitle is null || requestTitle.RequestId != command.RequestId)

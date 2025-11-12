@@ -16,7 +16,6 @@
         <Folder Include="Data\Migrations\" />
         <Folder Include="Requests\Dtos\" />
         <Folder Include="RequestTitles\Dtos\" />
-        <Folder Include="RequestTitles\Features\UpdateDraftRequestTitle\" />
     </ItemGroup>
 
     <ItemGroup>

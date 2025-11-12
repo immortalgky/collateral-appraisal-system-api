@@ -421,4 +421,38 @@ public class RequestTitle : Aggregate<Guid>
         
     }
 
+    public bool HasSameContentAs(RequestTitle newRequestTitle)
+    {
+        if (newRequestTitle is null)
+            return false;
+
+        if (CollateralType != newRequestTitle.CollateralType)
+            return false;
+
+        bool checkCollateralType = CollateralType == newRequestTitle.CollateralType;
+        bool checkCollateralStatus = CollateralStatus == newRequestTitle.CollateralStatus;
+        bool checkTitleNo = TitleNo == newRequestTitle.TitleNo;
+        bool checkDeedType = DeedType == newRequestTitle.DeedType;
+        bool checkTitleDetail = TitleDetail == newRequestTitle.TitleDetail;
+        bool checkRawang = Rawang == newRequestTitle.Rawang;
+        bool checkLandNo = LandNo == newRequestTitle.LandNo;
+        bool checkSurveyNo = SurveyNo == newRequestTitle.SurveyNo;
+        bool checkLandArea = LandArea.ToString() == newRequestTitle.LandArea.ToString();
+        bool checkOwnerName = OwnerName == newRequestTitle.OwnerName;
+        bool checkRegistrationNo = RegistrationNo == newRequestTitle.RegistrationNo;
+        bool checkVehicle = Vehicle.ToString() == newRequestTitle.Vehicle.ToString();
+        bool checkMachine = Machine.ToString() == newRequestTitle.Machine.ToString();
+        bool checkBuildingType = BuildingType == newRequestTitle.BuildingType;
+        bool checkUsableArea = UsableArea == newRequestTitle.UsableArea;
+        bool checkNoOfBuilding = NoOfBuilding == newRequestTitle.NoOfBuilding;
+        bool checkCondo = Condo.ToString() == newRequestTitle.Condo.ToString();
+        bool checkTitleAddress = TitleAddress.ToString() == newRequestTitle.TitleAddress.ToString();
+        bool checkDopaAddress = DopaAddress.ToString() == newRequestTitle.DopaAddress.ToString();
+        bool checkNotes = Notes == newRequestTitle.Notes;
+        
+        return checkCollateralType && checkCollateralStatus && checkTitleNo && checkDeedType && checkTitleDetail &&
+               checkRawang && checkLandNo && checkSurveyNo && checkLandArea && checkOwnerName && checkVehicle &&
+               checkRegistrationNo && checkMachine && checkBuildingType && checkUsableArea && checkNoOfBuilding &&
+               checkCondo && checkTitleAddress && checkDopaAddress && checkNotes;
+    }
 }

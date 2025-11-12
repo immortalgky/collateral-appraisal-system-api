@@ -1,0 +1,32 @@
+@baseUrl = https://localhost:7111
+
+@requestId = EB09E7F2-FF78-497F-22A7-08DE20F81BC9
+
+@titleId = 5CF258F9-D81E-45DD-97C3-DB01C1F6048F
+
+PATCH {{baseUrl}}/requests/{{requestId}}/titles/{{titleId}}
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "collateralType": "L",
+    "titleNo": "1234",
+    "deedType": "NorSor3Kor",
+    "rawang": "01",
+    "landNo": "01",
+    "surveyNo": "01",
+    "titleAddress":
+    {
+        "subDistrict": "00",
+        "district": "00",
+        "province": "00",
+        "postcode": "00"
+    },
+    "dopaAddress": 
+    {
+        "subDistrict": "00",
+        "district": "00",
+        "province": "00",
+        "postcode": "00"
+    }
+}

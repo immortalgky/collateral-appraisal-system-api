@@ -1,0 +1,39 @@
+using System;
+
+namespace Request.RequestTitles.Features.UpdateDraftRequestTitle;
+
+public record UpdateDraftRequestTitleCommand(
+    Guid Id,
+    Guid RequestId,
+    string? CollateralType,
+    bool? CollateralStatus,
+    string? TitleNo,
+    string? DeedType,
+    string? TitleDetail,
+    string? Rawang,
+    string? LandNo,
+    string? SurveyNo,
+    int? AreaRai,
+    int? AreaNgan,
+    decimal? AreaSquareWa,
+    string? OwnerName,
+    string? RegistrationNo,
+    string? VehicleType,
+    string? VehicleAppointmentLocation,
+    string? ChassisNumber,
+    string? MachineStatus,
+    string? MachineType,
+    string? InstallationStatus,
+    string? InvoiceNumber,
+    int? NumberOfMachinery,
+    string? BuildingType,
+    decimal? UsableArea,
+    int? NoOfBuilding,
+    string? CondoName,
+    string? BuildingNo,
+    string? RoomNo,
+    string? FloorNo,
+    AddressDto? TitleAddress,
+    AddressDto? DopaAddress,
+    string? Notes
+) : ICommand<UpdateDraftRequestTitleResult>;

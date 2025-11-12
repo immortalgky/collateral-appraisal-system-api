@@ -9,13 +9,9 @@ public class RequestCommentConfiguration : IEntityTypeConfiguration<RequestComme
         builder.HasKey(r => r.Id);
 
         builder.Property(r => r.Id)
-            .HasColumnType("uniqueidentifier")
-            .ValueGeneratedOnAdd()
-            .HasDefaultValueSql("NEWSEQUENTIALID()");
+            .ValueGeneratedNever();
 
         builder.Property(r => r.RequestId);
-
-        builder.HasIndex(p => p.RequestId);
 
         builder.Property(r => r.Comment);
 
@@ -25,5 +21,11 @@ public class RequestCommentConfiguration : IEntityTypeConfiguration<RequestComme
 
         builder.Property(r => r.CommentedAt);
 
+        builder.HasOne(r => r.Request)
+            .WithMany(r => r.RequestComments)
+            .HasForeignKey(r => r.RequestId)
+            .HasConstraintName("FK_RequestComment_Request");
+
+        builder.HasIndex(p => p.RequestId);
     }
 }

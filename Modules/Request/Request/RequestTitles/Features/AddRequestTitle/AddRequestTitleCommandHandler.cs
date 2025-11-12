@@ -6,6 +6,11 @@ public class AddRequestTitleCommandHandler(IRequestTitleRepository requestTitleR
     public async Task<AddRequestTitleResult> Handle(AddRequestTitleCommand command,
         CancellationToken cancellationToken)
     {
+        
+        var request = await requestTitleRepository.GetByIdAsync(command.RequestId);
+        if (request is null)
+            throw new RequestNotFoundException(command.RequestId);
+
         var requestTitle = RequestTitle.Create(
             command.RequestId,
             command.CollateralType,

@@ -1,0 +1,21 @@
+@baseUrl = https://localhost:7111
+
+@requestId = EB09E7F2-FF78-497F-22A7-08DE20F81BC9
+
+@titleId = 5CF258F9-D81E-45DD-97C3-DB01C1F6048F
+
+PATCH {{baseUrl}}/requests/{{requestId}}/titles/{{titleId}}/draft
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "collateralType": "B",
+    "titleAddress":
+    {
+
+    },
+    "dopaAddress":
+    {
+
+    }
+}
