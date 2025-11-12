@@ -3,7 +3,7 @@ namespace Request.RequestTitles.Models;
 public class RequestTitle : Aggregate<Guid>
 {
     public Guid RequestId { get; private set; }
-    public string? CollateralType { get; private set; } = default!;
+    public string? CollateralType { get; private set; }
     public bool? CollateralStatus { get; private set; }
 
     // == Title Deed Information ==
@@ -35,7 +35,7 @@ public class RequestTitle : Aggregate<Guid>
     public int? NoOfBuilding { get; private set; }
 
     //  == Condo Information ==
-    public Condo Condo { get; private set; }
+    public Condo Condo { get; private set; } = default!;
 
     // Address
     public Address TitleAddress { get; private set; } = default!;
@@ -52,273 +52,23 @@ public class RequestTitle : Aggregate<Guid>
         // For EF Core
     }
 
-    public static RequestTitle CreateLand(string collateralType, bool? collateralStatus, string titleNo, string deedType, string titleDetail, string rawang, string landNo, string surveyNo, LandArea landArea, Address titleAddress, Address dopaAddress, string? notes)
-    {
-        var ruleCheck = RuleCheck.Valid();
-
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleNo), $"{nameof(titleNo)}");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(deedType), $"{nameof(deedType)}");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(rawang), $"{nameof(rawang)}");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(landNo), $"{nameof(landNo)}");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(surveyNo), $"{nameof(surveyNo)}");
-        
-        ruleCheck.AddErrorIf(landArea.AreaNgan < 0, "AreaNgan must be greater than or equal to 0.");
-        ruleCheck.AddErrorIf(landArea.AreaRai < 0, "AreaRai must be greater than or equal to 0.");
-        ruleCheck.AddErrorIf(landArea.AreaSquareWa < 0, "AreaSquareWa must be greater than or equal to 0.");
-        
-        // titleAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Postcode), "Postcode");
-
-        // dopaAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Postcode), "Postcode");
-
-        List<string> deedTypeList = new List<string>() { "Chanote", "NorSor3", "NorSor3Kor" };
-        ruleCheck.AddErrorIf(!deedTypeList.Contains(deedType), "DeedType");
-
-        ruleCheck.ThrowIfInvalid();
-
-        return new RequestTitle()
-        {
-            CollateralType = collateralType,
-            CollateralStatus = collateralStatus,
-            TitleNo = titleNo,
-            DeedType = deedType,
-            TitleDetail = titleDetail,
-            Rawang = rawang,
-            LandNo = landNo,
-            SurveyNo = surveyNo,
-            LandArea = landArea,
-            TitleAddress = titleAddress,
-            DopaAddress = dopaAddress,
-            Notes = notes
-        };
-    }
-
-    public static RequestTitle CreateBuilding(string collateralType, bool? collateralStatus, string buildingType, decimal? usableArea, int? noOfBuilding, Address titleAddress, Address dopaAddress, string? notes)
-    {
-        var ruleCheck = RuleCheck.Valid();
-
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(buildingType), "BuildingType");
-        ruleCheck.AddErrorIf(usableArea < 0, "UsableArea must be greater than or equal to 0.");
-        ruleCheck.AddErrorIf(noOfBuilding < 0, "NoOfBuilding must be greater than or equal to 0.");
-        
-        // titleAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Postcode), "Postcode");
-
-        // dopaAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Postcode), "Postcode");
-
-        ruleCheck.ThrowIfInvalid();
-
-        return new RequestTitle()
-        {
-            CollateralType = collateralType,
-            CollateralStatus = collateralStatus,
-            BuildingType = buildingType,
-            UsableArea = usableArea,
-            NoOfBuilding = noOfBuilding,
-            TitleAddress = titleAddress,
-            DopaAddress = dopaAddress,
-            Notes = notes
-        };
-    }
-
-    public static RequestTitle CreateCondo(string collateralType, bool? collateralStatus, Condo condo, decimal? usableArea, string ownerName, string titleDetail, Address titleAddress, Address dopaAddress, string? notes)
-    {
-        var ruleCheck = RuleCheck.Valid();
-
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(condo.CondoName), "CondoName");
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(condo.BuildingNo), "BuildingNo");
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(condo.RoomNo), "RoomNo");
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(condo.FloorNo), "FloorNo");
-
-        ruleCheck.AddErrorIf(usableArea < 0, "UsableArea must be greater than or equal to 0.");
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(ownerName), "OwnerName");
-        
-        // titleAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Postcode), "Postcode");
-
-        // dopaAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Postcode), "Postcode");
-
-        ruleCheck.ThrowIfInvalid();
-
-        return new RequestTitle()
-        {
-            CollateralType = collateralType,
-            CollateralStatus = collateralStatus,
-            Condo = condo,
-            UsableArea = usableArea,
-            OwnerName = ownerName,
-            TitleDetail = titleDetail,
-            TitleAddress = titleAddress,
-            DopaAddress = dopaAddress,
-            Notes = notes
-        };
-    }
-
-    public static RequestTitle CreateVechicle(string collateralType, bool? collateralStatus, string registrationNo, Vehicle vehicle, Address titleAddress, Address dopaAddress, string? notes)
-    {
-        var ruleCheck = RuleCheck.Valid();
-
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(registrationNo), "RegistrationNo");
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(vehicle.VehicleType), "VehicleType");
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(vehicle.VehicleAppointmentLocation), "VehicleAppointmentLocation");
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(vehicle.ChassisNumber), "ChassisNumber");
-
-        // titleAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Postcode), "Postcode");
-
-        // dopaAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Postcode), "Postcode");
-
-        ruleCheck.ThrowIfInvalid();
-
-        return new RequestTitle()
-        {
-            CollateralType = collateralType,
-            CollateralStatus = collateralStatus,
-            RegistrationNo = registrationNo,
-            Vehicle = vehicle,
-            TitleAddress = titleAddress,
-            DopaAddress = dopaAddress,
-            Notes = notes
-        };
-    }
-
-    public static RequestTitle CreateMachine(string collateralType, bool? collateralStatus, string registrationNo, Machine machine, Address titleAddress, Address dopaAddress, string? notes)
-    {
-        var ruleCheck = RuleCheck.Valid();
-
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(registrationNo), "RegistrationNo");
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(machine.MachineStatus), "MachineStatus");
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(machine.MachineType), "MachineType");
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(machine.InstallationStatus), "InstallationStatus");
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(machine.InvoiceNumber), "InvoiceNumber");
-
-        ruleCheck.AddErrorIf(machine.NumberOfMachinery < 0, "NumberOfMachine");
-
-        // titleAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Postcode), "Postcode");
-
-        // dopaAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Postcode), "Postcode");
-
-        ruleCheck.ThrowIfInvalid();
-
-        return new RequestTitle()
-        {
-            CollateralType = collateralType,
-            CollateralStatus = collateralStatus,
-            RegistrationNo = registrationNo,
-            Machine = machine,
-            TitleAddress = titleAddress,
-            DopaAddress = dopaAddress,
-            Notes = notes
-        };
-    }
-
-    public static RequestTitle CreateLandBuilding(string collateralType, bool? collateralStatus, string titleNo, string deedType, string titleDetail, string rawang, string landNo, string surveyNo, LandArea landArea, string buildingType, decimal? usableArea, int? noOfBuilding, Address titleAddress, Address dopaAddress, string? notes)
-    {
-        var ruleCheck = RuleCheck.Valid();
-        // Rule check for Land
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleNo), $"{nameof(titleNo)}");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(deedType), $"{nameof(deedType)}");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(rawang), $"{nameof(rawang)}");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(landNo), $"{nameof(landNo)}");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(surveyNo), $"{nameof(surveyNo)}");
-
-        ruleCheck.AddErrorIf(landArea.AreaNgan < 0, "AreaNgan must be greater than or equal to 0.");
-        ruleCheck.AddErrorIf(landArea.AreaRai < 0, "AreaRai must be greater than or equal to 0.");
-        ruleCheck.AddErrorIf(landArea.AreaSquareWa < 0, "AreaSquareWa must be greater than or equal to 0.");
-
-        // Rule check for Building
-        ruleCheck.AddErrorIf(string.IsNullOrEmpty(buildingType), "BuildingType");
-        ruleCheck.AddErrorIf(usableArea < 0, "UsableArea must be greater than or equal to 0.");
-        ruleCheck.AddErrorIf(noOfBuilding < 0, "NoOfBuilding must be greater than or equal to 0.");
-        
-        // titleAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Postcode), "Postcode");
-
-        // dopaAddress
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.SubDistrict), "SubDistrict");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.District), "District");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Province), "Province");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Postcode), "Postcode");
-
-        List<string> deedTypeList = new List<string>() { "Chanote", "NorSor3", "NorSor3Kor" };
-        ruleCheck.AddErrorIf(!deedTypeList.Contains(deedType), "DeedType");
-
-        ruleCheck.ThrowIfInvalid();
-
-        return new RequestTitle()
-        {
-            CollateralType = collateralType,
-            CollateralStatus = collateralStatus,
-            TitleNo = titleNo,
-            DeedType = deedType,
-            TitleDetail = titleDetail,
-            Rawang = rawang,
-            LandNo = landNo,
-            SurveyNo = surveyNo,
-            LandArea = landArea,
-            BuildingType = buildingType,
-            UsableArea = usableArea,
-            NoOfBuilding = noOfBuilding,
-            TitleAddress = titleAddress,
-            DopaAddress = dopaAddress,
-            Notes = notes
-        };
-    }
-
     public static RequestTitle Create(Guid requestId, string? collateralType, bool? collateralStatus, string? titleNo, string? deedType, string? titleDetail, string? rawang, string? landNo, string? surveyNo, LandArea landArea, string? ownerName, string? registrationNo, Vehicle vehicle, Machine machine, string? buildingType, decimal? usableArea,  int? noOfBuilding, Condo condo, Address titleAddress, Address dopaAddress, string? notes)
     {
         var requestTitle = collateralType switch
         {
-            "L" => CreateLand(collateralType, collateralStatus, titleNo, deedType, titleDetail, rawang, landNo, surveyNo, landArea, titleAddress, dopaAddress, notes),
-            "B" => CreateBuilding(collateralType, collateralStatus, buildingType, usableArea, noOfBuilding, titleAddress, dopaAddress, notes),
-            "LB" => CreateLandBuilding( collateralType, collateralStatus,  titleNo,  deedType,  titleDetail,  rawang,  landNo,  surveyNo, landArea,  buildingType, usableArea, noOfBuilding, titleAddress, dopaAddress, notes),
-            "C" => CreateCondo(collateralType, collateralStatus, condo, usableArea, ownerName, titleDetail, titleAddress, dopaAddress, notes),
-            "V" => CreateVechicle(collateralType, collateralStatus, registrationNo, vehicle, titleAddress, dopaAddress, notes),
-            "M" => CreateMachine(collateralType, collateralStatus, registrationNo, machine, titleAddress, dopaAddress, notes),
+            "L" => CreateLand(titleNo, deedType, titleDetail, rawang, landNo, surveyNo, landArea, titleAddress, dopaAddress, notes),
+            "B" => CreateBuilding(buildingType, usableArea, noOfBuilding, titleAddress, dopaAddress, notes),
+            "LB" => CreateLandBuilding(  titleNo,  deedType,  titleDetail,  rawang,  landNo,  surveyNo, ownerName,landArea, buildingType, usableArea, noOfBuilding, titleAddress, dopaAddress, notes),
+            "C" => CreateCondo(condo, usableArea, ownerName, titleDetail, titleAddress, dopaAddress, notes),
+            "V" => CreateVechicle(registrationNo, vehicle, titleAddress, dopaAddress, notes),
+            "M" => CreateMachine(registrationNo, machine, titleAddress, dopaAddress, notes),
             _ => throw new NotFoundException("Collateral Type is not valid.")
         };
 
         requestTitle.Id = Guid.NewGuid();
         requestTitle.RequestId = requestId;
+        requestTitle.CollateralType = collateralType;
+        requestTitle.CollateralStatus = collateralStatus;
 
         requestTitle.AddDomainEvent(new RequestTitleAddedEvent(requestId, requestTitle));
 
@@ -360,16 +110,33 @@ public class RequestTitle : Aggregate<Guid>
 
     public void UpdateDetails(string? collateralType, bool? collateralStatus, string? titleNo, string? deedType, string? titleDetail, string? rawang, string? landNo, string? surveyNo, LandArea landArea, string? ownerName, string? registrationNo, Vehicle vehicle, Machine machine, string? buildingType, decimal? usableArea,  int? noOfBuilding, Condo condo, Address titleAddress, Address dopaAddress, string? notes)
     {
-        var requestTitle = collateralType switch
+        switch (collateralType)
         {
-            "L" => CreateLand(collateralType, collateralStatus, titleNo, deedType, titleDetail, rawang, landNo, surveyNo, landArea, titleAddress, dopaAddress, notes),
-            "B" => CreateBuilding(collateralType, collateralStatus, buildingType, usableArea, noOfBuilding, titleAddress, dopaAddress, notes),
-            "LB" => CreateLandBuilding( collateralType, collateralStatus,  titleNo,  deedType,  titleDetail,  rawang,  landNo,  surveyNo, landArea,  buildingType, usableArea, noOfBuilding, titleAddress, dopaAddress, notes),
-            "C" => CreateCondo(collateralType, collateralStatus, condo, usableArea, ownerName, titleDetail, titleAddress, dopaAddress, notes),
-            "V" => CreateVechicle(collateralType, collateralStatus, registrationNo, vehicle, titleAddress, dopaAddress, notes),
-            "M" => CreateMachine(collateralType, collateralStatus, registrationNo, machine, titleAddress, dopaAddress, notes),
-            _ => throw new NotFoundException("Collateral Type is not valid.")
-        };
+            case "L": 
+                ValidateLand(titleNo, deedType, rawang, landNo, surveyNo, "-", landArea);
+                break;
+            case "B":
+                ValidateBuilding(buildingType, usableArea, noOfBuilding);
+                break;
+            case "LB":
+                ValidateLand(titleNo, deedType, rawang, landNo, surveyNo, ownerName, landArea);
+                ValidateBuilding(buildingType, usableArea, noOfBuilding);
+                break;
+            case "C":
+                ValidateCondo(condo, usableArea, ownerName);
+                break;
+            case "M":
+                ValidateMachine(registrationNo, machine);
+                break;
+            case "V":
+                ValidateVehicle(registrationNo, vehicle);
+                break;
+            default:
+                break;
+        }
+
+        ValidateTitleDocAddr(titleAddress);
+        ValidateDopaAddr(dopaAddress);
 
         CollateralType = collateralType;
         CollateralStatus = collateralStatus;
@@ -416,43 +183,183 @@ public class RequestTitle : Aggregate<Guid>
         DopaAddress = dopaAddress;
         Notes = notes;
     }
-    public void SaveDraft()
+    
+    public bool HasSameContentAs(string collateralType, bool? collateralStatus, string? titleNo, string? deedType, string? titleDetail, string? rawang, string? landNo, string? surveyNo, LandArea landArea, string? ownerName, string? registrationNo, Vehicle vehicle, Machine machine, string? buildingType, decimal? usableArea,  int? noOfBuilding, Condo condo, Address titleAddress, Address dopaAddress, string? notes)
     {
-        
-    }
-
-    public bool HasSameContentAs(RequestTitle newRequestTitle)
-    {
-        if (newRequestTitle is null)
-            return false;
-
-        if (CollateralType != newRequestTitle.CollateralType)
-            return false;
-
-        bool checkCollateralType = CollateralType == newRequestTitle.CollateralType;
-        bool checkCollateralStatus = CollateralStatus == newRequestTitle.CollateralStatus;
-        bool checkTitleNo = TitleNo == newRequestTitle.TitleNo;
-        bool checkDeedType = DeedType == newRequestTitle.DeedType;
-        bool checkTitleDetail = TitleDetail == newRequestTitle.TitleDetail;
-        bool checkRawang = Rawang == newRequestTitle.Rawang;
-        bool checkLandNo = LandNo == newRequestTitle.LandNo;
-        bool checkSurveyNo = SurveyNo == newRequestTitle.SurveyNo;
-        bool checkLandArea = LandArea.ToString() == newRequestTitle.LandArea.ToString();
-        bool checkOwnerName = OwnerName == newRequestTitle.OwnerName;
-        bool checkRegistrationNo = RegistrationNo == newRequestTitle.RegistrationNo;
-        bool checkVehicle = Vehicle.ToString() == newRequestTitle.Vehicle.ToString();
-        bool checkMachine = Machine.ToString() == newRequestTitle.Machine.ToString();
-        bool checkBuildingType = BuildingType == newRequestTitle.BuildingType;
-        bool checkUsableArea = UsableArea == newRequestTitle.UsableArea;
-        bool checkNoOfBuilding = NoOfBuilding == newRequestTitle.NoOfBuilding;
-        bool checkCondo = Condo.ToString() == newRequestTitle.Condo.ToString();
-        bool checkTitleAddress = TitleAddress.ToString() == newRequestTitle.TitleAddress.ToString();
-        bool checkDopaAddress = DopaAddress.ToString() == newRequestTitle.DopaAddress.ToString();
-        bool checkNotes = Notes == newRequestTitle.Notes;
+        bool checkCollateralType = CollateralType == collateralType;
+        bool checkCollateralStatus = CollateralStatus == collateralStatus;
+        bool checkTitleNo = TitleNo == titleNo;
+        bool checkDeedType = DeedType == deedType;
+        bool checkTitleDetail = TitleDetail == titleDetail;
+        bool checkRawang = Rawang == rawang;
+        bool checkLandNo = LandNo == landNo;
+        bool checkSurveyNo = SurveyNo == surveyNo;
+        bool checkLandArea = LandArea.ToString() == landArea.ToString();
+        bool checkOwnerName = OwnerName == ownerName;
+        bool checkRegistrationNo = RegistrationNo == registrationNo;
+        bool checkVehicle = Vehicle.ToString() == vehicle.ToString();
+        bool checkMachine = Machine.ToString() == machine.ToString();
+        bool checkBuildingType = BuildingType == buildingType;
+        bool checkUsableArea = UsableArea == usableArea;
+        bool checkNoOfBuilding = NoOfBuilding == noOfBuilding;
+        bool checkCondo = Condo.ToString() == condo.ToString();
+        bool checkTitleAddress = TitleAddress.ToString() == titleAddress.ToString();
+        bool checkDopaAddress = DopaAddress.ToString() == dopaAddress.ToString();
+        bool checkNotes = Notes == notes;
         
         return checkCollateralType && checkCollateralStatus && checkTitleNo && checkDeedType && checkTitleDetail &&
                checkRawang && checkLandNo && checkSurveyNo && checkLandArea && checkOwnerName && checkVehicle &&
                checkRegistrationNo && checkMachine && checkBuildingType && checkUsableArea && checkNoOfBuilding &&
                checkCondo && checkTitleAddress && checkDopaAddress && checkNotes;
+    }
+
+    
+    public static void ValidateTitleDocAddr(Address titleAddress)
+    {
+        var ruleCheck = RuleCheck.Valid();
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.SubDistrict), "SubDistrict is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.District), "District is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Province), "Province is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleAddress.Postcode), "Postcode is null or contains only whitespace.");
+        ruleCheck.ThrowIfInvalid();
+    }
+
+    public static void ValidateDopaAddr(Address dopaAddress)
+    {
+        var ruleCheck = RuleCheck.Valid();
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.SubDistrict), "SubDistrict is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.District), "District is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Province), "Province is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(dopaAddress.Postcode), "Postcode is null or contains only whitespace.");
+        ruleCheck.ThrowIfInvalid();
+    }
+
+    public static void ValidateLand(string titleNo, string deedType, string rawang, string landNo, string surveyNo, string? ownerName, LandArea landArea)
+    {
+        var ruleCheck = RuleCheck.Valid();
+
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleNo), "titleNo");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(deedType), "deedType");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(rawang), "rawang");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(landNo), "landNo");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(surveyNo), "surveyNo");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(ownerName), "ownerName");
+
+        ruleCheck.AddErrorIf(landArea.AreaNgan < 0, "AreaNgan must be greater than or equal to 0.");
+        ruleCheck.AddErrorIf(landArea.AreaRai < 0, "AreaRai must be greater than or equal to 0.");
+        ruleCheck.AddErrorIf(landArea.AreaSquareWa < 0, "AreaSquareWa must be greater than or equal to 0.");
+
+        List<string> deedTypeList = new List<string>() { "Chanote", "NorSor3", "NorSor3Kor" };
+        ruleCheck.AddErrorIf(!deedTypeList.Contains(deedType), "deedType");
+
+        ruleCheck.ThrowIfInvalid();
+    }
+
+    public static void ValidateBuilding(string buildingType, decimal? usableArea, int? noOfBuilding)
+    {
+        var ruleCheck = RuleCheck.Valid();
+
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(buildingType), "buildingType");
+        ruleCheck.AddErrorIf(usableArea < 0, "usableArea must be greater than or equal to 0.");
+        ruleCheck.AddErrorIf(noOfBuilding < 0, "noOfBuilding must be greater than or equal to 0.");
+
+        ruleCheck.ThrowIfInvalid();
+    }
+
+    public static void ValidateMachine(string registrationNo, Machine machine)
+    {
+        var ruleCheck = RuleCheck.Valid();
+
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(registrationNo), "RegistrationNo");
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(machine.MachineStatus), "MachineStatus");
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(machine.MachineType), "MachineType");
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(machine.InstallationStatus), "InstallationStatus");
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(machine.InvoiceNumber), "InvoiceNumber");
+
+        ruleCheck.AddErrorIf(machine.NumberOfMachinery < 0, "NumberOfMachine");
+
+        ruleCheck.ThrowIfInvalid();
+    }
+
+    public static void ValidateVehicle(string registrationNo, Vehicle vehicle)
+    {
+        var ruleCheck = RuleCheck.Valid();
+
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(registrationNo), "registrationNo");
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(vehicle.VehicleType), "vehicleType");
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(vehicle.VehicleAppointmentLocation), "vehicleAppointmentLocation");
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(vehicle.ChassisNumber), "chassisNumber");
+
+        ruleCheck.ThrowIfInvalid();
+    }
+
+    public static void ValidateCondo(Condo condo, decimal? usableArea, string ownerName)
+    {
+        var ruleCheck = RuleCheck.Valid();
+
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(condo.CondoName), "condoName");
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(condo.BuildingNo), "buildingNo");
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(condo.RoomNo), "roomNo");
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(condo.FloorNo), "floorNo");
+        ruleCheck.AddErrorIf(string.IsNullOrEmpty(ownerName), "ownerName");
+
+        ruleCheck.AddErrorIf(usableArea < 0, "usableArea must be greater than or equal to 0.");
+
+        ruleCheck.ThrowIfInvalid();
+    }
+
+    public static RequestTitle CreateLand(string titleNo, string deedType, string titleDetail, string rawang, string landNo, string surveyNo, LandArea landArea, Address titleAddress, Address dopaAddress, string? notes)
+    {
+        ValidateLand(titleNo, deedType, rawang, landNo, surveyNo, "-", landArea);
+        ValidateTitleDocAddr(titleAddress);
+        ValidateDopaAddr(dopaAddress);
+
+        return new RequestTitle() { TitleNo = titleNo, DeedType = deedType, TitleDetail = titleDetail, Rawang = rawang, LandNo = landNo, SurveyNo = surveyNo, LandArea = landArea, TitleAddress = titleAddress, DopaAddress = dopaAddress, Notes = notes };
+    }
+
+    public static RequestTitle CreateBuilding(string buildingType, decimal? usableArea, int? noOfBuilding, Address titleAddress, Address dopaAddress, string? notes)
+    {
+        ValidateBuilding(buildingType, usableArea, noOfBuilding);
+        ValidateTitleDocAddr(titleAddress);
+        ValidateDopaAddr(dopaAddress);
+
+        return new RequestTitle() { BuildingType = buildingType, UsableArea = usableArea, NoOfBuilding = noOfBuilding, TitleAddress = titleAddress, DopaAddress = dopaAddress, Notes = notes };
+    }
+
+    public static RequestTitle CreateCondo(Condo condo, decimal? usableArea, string ownerName, string titleDetail, Address titleAddress, Address dopaAddress, string? notes)
+    { 
+        ValidateCondo(condo, usableArea, ownerName);
+        ValidateTitleDocAddr(titleAddress);
+        ValidateDopaAddr(dopaAddress);
+
+        return new RequestTitle() { Condo = condo, UsableArea = usableArea, OwnerName = ownerName, TitleDetail = titleDetail, TitleAddress = titleAddress, DopaAddress = dopaAddress, Notes = notes };
+    }
+
+    public static RequestTitle CreateVechicle(string registrationNo, Vehicle vehicle, Address titleAddress, Address dopaAddress, string? notes)
+    {
+        ValidateVehicle(registrationNo, vehicle);
+        ValidateTitleDocAddr(titleAddress);
+        ValidateDopaAddr(dopaAddress);
+
+        return new RequestTitle() { RegistrationNo = registrationNo, Vehicle = vehicle, TitleAddress = titleAddress, DopaAddress = dopaAddress, Notes = notes };
+    }
+
+    public static RequestTitle CreateMachine(string registrationNo, Machine machine, Address titleAddress, Address dopaAddress, string? notes)
+    {
+        ValidateMachine(registrationNo, machine);
+        ValidateTitleDocAddr(titleAddress);
+        ValidateDopaAddr(dopaAddress);
+
+        return new RequestTitle() { RegistrationNo = registrationNo, Machine = machine, TitleAddress = titleAddress, DopaAddress = dopaAddress, Notes = notes };
+    }
+
+    public static RequestTitle CreateLandBuilding(string titleNo, string deedType, string titleDetail, string rawang, string landNo, string surveyNo, string ownerName, LandArea landArea, string buildingType, decimal? usableArea, int? noOfBuilding, Address titleAddress, Address dopaAddress, string? notes)
+    {
+        ValidateLand(titleNo, deedType, rawang, landNo, surveyNo, ownerName, landArea);
+        ValidateBuilding(buildingType, usableArea, noOfBuilding);
+        ValidateTitleDocAddr(titleAddress);
+        ValidateDopaAddr(dopaAddress);
+
+        return new RequestTitle() { TitleNo = titleNo, DeedType = deedType, TitleDetail = titleDetail, Rawang = rawang, LandNo = landNo, SurveyNo = surveyNo, LandArea = landArea, BuildingType = buildingType, UsableArea = usableArea, NoOfBuilding = noOfBuilding, TitleAddress = titleAddress, DopaAddress = dopaAddress, Notes = notes };
     }
 }

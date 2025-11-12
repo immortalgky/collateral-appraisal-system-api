@@ -1,3 +1,5 @@
+using Request.Extensions;
+
 namespace Request.RequestTitles.Features.UpdateRequestTitle;
 
 internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestTitleRepository)
@@ -6,11 +8,12 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
     public async Task<UpdateRequestTitleResult> Handle(UpdateRequestTitleCommand command, CancellationToken cancellationToken)
     {
         var requestTitle = await requestTitleRepository.GetByIdAsync(command.Id, cancellationToken);
+
         if (requestTitle is null || requestTitle.RequestId != command.RequestId)
         {
             throw new RequestTitleNotFoundException(command.Id);
         }
-
+        
         requestTitle.UpdateDetails(
             command.CollateralType,
             command.CollateralStatus,
@@ -29,32 +32,8 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
             command.UsableArea,
             command.NoOfBuilding,
             Condo.Create(command.CondoName, command.BuildingNo, command.RoomNo, command.FloorNo),
-            Address.Create(
-                command.TitleAddress.HouseNo,
-                null,
-                null,
-                command.TitleAddress.ProjectName,
-                command.TitleAddress.Moo,
-                command.TitleAddress.Soi,
-                command.TitleAddress.Road,
-                command.TitleAddress.SubDistrict,
-                command.TitleAddress.District,
-                command.TitleAddress.Province,
-                command.TitleAddress.Postcode
-            ),
-            Address.Create(
-                command.DopaAddress.HouseNo,
-                null,
-                null,
-                command.DopaAddress.ProjectName,
-                command.DopaAddress.Moo,
-                command.DopaAddress.Soi,
-                command.DopaAddress.Road,
-                command.DopaAddress.SubDistrict,
-                command.DopaAddress.District,
-                command.DopaAddress.Province,
-                command.DopaAddress.Postcode
-            ),
+            DtoExtensions.ToDomain(command.TitleAddress),
+            DtoExtensions.ToDomain(command.DopaAddress),
             command.Notes
         );
 
