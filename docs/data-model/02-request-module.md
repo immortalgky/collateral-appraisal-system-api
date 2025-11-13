@@ -360,7 +360,7 @@ CREATE TABLE request.RequestTitles
     
     -- Building Information
     BuildingType            NVARCHAR(10) NULL,
-    UsableArea              DECIMAL(19,4) NULL,
+    UsableArea              DECIMAL(19,2) NULL,
     NumberOfBuilding        INT NULL,
     
     -- ID (Vehicle, Machinery)
@@ -372,8 +372,8 @@ CREATE TABLE request.RequestTitles
     VehicleType             NVARCHAR(10) NULL,
     VehicleAppointmentLocation NVARCHAR(300) NULL
     
-    -- Vessel
-    VesselType              NVARCHAR(10) NULL,
+    -- -- Vessel
+    -- VesselType              NVARCHAR(10) NULL,
     
     -- Machinery
     MachineryType           NVARCHAR(10) NULL,

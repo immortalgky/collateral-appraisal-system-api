@@ -1,44 +1,44 @@
 namespace Request.RequestTitles.ValueObjects;
 
-public class Machine : ValueObject
+public class Machinery : ValueObject
 {
-    public string? MachineStatus { get; }
-    public string? MachineType { get; }
+    public string? MachineryStatus { get; }
+    public string? MachineryType { get; }
     public string? InstallationStatus { get; }
     public string? InvoiceNumber { get; }
     public int? NumberOfMachinery { get; }
 
-    private Machine()
+    private Machinery()
     {
         // For EF Core
     }
 
-    private Machine(
-        string? machineStatus, 
-        string? machineType, 
+    private Machinery(
+        string? machineryStatus, 
+        string? machineryType, 
         string? installationStatus, 
         string? invoiceNumber, 
         int? numberOfMachinery
     )
     {
-        MachineStatus = machineStatus;
-        MachineType = machineType;
+        MachineryStatus = machineryStatus;
+        MachineryType = machineryType;
         InstallationStatus = installationStatus;
         InvoiceNumber = invoiceNumber;
         NumberOfMachinery = numberOfMachinery;
     }
 
-    public static Machine Create(
-        string? machineStatus, 
-        string? machineType, 
+    public static Machinery Create(
+        string? machineryStatus, 
+        string? machineryType, 
         string? installationStatus, 
         string? invoiceNumber, 
         int? numberOfMachinery
     )
     {
-        return new Machine(
-            machineStatus, 
-            machineType, 
+        return new Machinery(
+            machineryStatus, 
+            machineryType, 
             installationStatus, 
             invoiceNumber, 
             numberOfMachinery

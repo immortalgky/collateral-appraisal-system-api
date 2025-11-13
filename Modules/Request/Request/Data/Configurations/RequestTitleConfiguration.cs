@@ -24,24 +24,38 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
 
         builder.Property(p => p.CollateralStatus);
 
-        builder.Property(p => p.TitleNo)
-            .HasMaxLength(200);
+        builder.OwnsOne(p => p.TitleDeedInfo, titleDeedInfo =>
+        {
+            titleDeedInfo.Property(p => p.TitleNo)
+                .HasMaxLength(200)
+                .HasColumnName("TitleNo");
 
-        builder.Property(p => p.DeedType)
-            .HasMaxLength(50);
+            titleDeedInfo.Property(p => p.DeedType)
+                .HasMaxLength(50)
+                .HasColumnName("DeedType");
 
-        builder.Property(p => p.TitleDetail)
-            .HasMaxLength(200);
+            titleDeedInfo.Property(p => p.TitleDetail)
+                .HasMaxLength(200)
+                .HasColumnName("TitleDetail");
+            titleDeedInfo.HasIndex(p => p.TitleNo)
+            .HasDatabaseName("IX_TitleDeedInfo_TitleDeedNumber");
+        });
 
-        builder.Property(p => p.Rawang)
-            .HasMaxLength(100);
-        
-        builder.Property(p => p.LandNo)
-            .HasMaxLength(50);
-        
-        builder.Property(p => p.SurveyNo)
-            .HasMaxLength(50);
-        
+        builder.OwnsOne(p => p.SurveyInfo, surveyInfo =>
+        {
+            surveyInfo.Property(p => p.Rawang)
+                .HasMaxLength(100)
+                .HasColumnName("Rawang");
+
+            surveyInfo.Property(p => p.LandNo)
+                .HasMaxLength(50)
+                .HasColumnName("LandNo");
+
+            surveyInfo.Property(p => p.SurveyNo)
+                .HasMaxLength(50)
+                .HasColumnName("SurveyNo");
+        });
+
         builder.OwnsOne(p => p.LandArea, landArea =>
         {
             landArea.Property(p => p.AreaRai)
@@ -58,14 +72,19 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
         builder.Property(p => p.OwnerName)
             .HasMaxLength(500);
 
+        builder.OwnsOne(p => p.BuildingInfo, buildingInfo =>
+        {
+            buildingInfo.Property(p => p.BuildingType)
+                .HasMaxLength(10)
+                .HasColumnName("BuildingType");
 
-        builder.Property(p => p.BuildingType)
-            .HasMaxLength(10);
+            buildingInfo.Property(p => p.UsableArea)
+                .HasPrecision(19, 4)
+                .HasColumnName("UsableArea");
 
-        builder.Property(p => p.UsableArea)
-            .HasPrecision(19, 4);
-
-        builder.Property(p => p.NoOfBuilding);
+            buildingInfo.Property(p => p.NumberOfBuilding)
+                .HasColumnName("NumberOfBuilding");
+        });
 
         builder.Property(p => p.RegistrationNo)
             .HasMaxLength(50);
@@ -79,48 +98,49 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
             vehicle.Property(p => p.VehicleAppointmentLocation)
                 .HasMaxLength(300)
                 .HasColumnName("VehicleAppointmentLocation");
+            
             vehicle.Property(p => p.ChassisNumber)
                 .HasMaxLength(50)
                 .HasColumnName("ChassisNumber");
         });
 
-        builder.OwnsOne(p => p.Machine, machine =>
+        builder.OwnsOne(p => p.Machinery, machinery =>
         {
-            machine.Property(p => p.MachineType)
+            machinery.Property(p => p.MachineryType)
                 .HasMaxLength(10)
                 .HasColumnName("MachineType");
             
-            machine.Property(p => p.MachineStatus)
+            machinery.Property(p => p.MachineryStatus)
                 .HasMaxLength(10)
                 .HasColumnName("MachineStatus");
 
-            machine.Property(p => p.InstallationStatus)
+            machinery.Property(p => p.InstallationStatus)
                 .HasMaxLength(10)
                 .HasColumnName("InstallationStatus");
 
-            machine.Property(p => p.InvoiceNumber)
+            machinery.Property(p => p.InvoiceNumber)
                 .HasMaxLength(20)
                 .HasColumnName("InvoiceNumber");
 
-            machine.Property(p => p.NumberOfMachinery)
+            machinery.Property(p => p.NumberOfMachinery)
                 .HasColumnName("NumberOfMachinery");
         });
 
-        builder.OwnsOne(p => p.Condo, condo =>
+        builder.OwnsOne(p => p.CondoInfo, condoInfo =>
         {
-            condo.Property(p => p.CondoName)
+            condoInfo.Property(p => p.CondoName)
                 .HasMaxLength(100)
                 .HasColumnName("CondoName");
                 
-            condo.Property(p => p.BuildingNo)
+            condoInfo.Property(p => p.BuildingNo)
                 .HasMaxLength(100)
                 .HasColumnName("BuildingNo");
                 
-            condo.Property(p => p.RoomNo)
+            condoInfo.Property(p => p.RoomNo)
                 .HasMaxLength(30)
                 .HasColumnName("RoomNo");
                 
-            condo.Property(p => p.FloorNo)
+            condoInfo.Property(p => p.FloorNo)
                 .HasMaxLength(10)
                 .HasColumnName("FloorNo");
         });
@@ -215,7 +235,5 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
 
         builder.HasIndex(p => p.RequestId)
             .HasDatabaseName("IX_TitleDeedInfo_RequestId");
-        builder.HasIndex(p => p.TitleNo)
-            .HasDatabaseName("IX_TitleDeedInfo_TitleDeedNumber");
     }
 }

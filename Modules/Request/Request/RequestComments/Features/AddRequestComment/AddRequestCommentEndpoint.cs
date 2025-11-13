@@ -4,6 +4,7 @@ public class AddRequestCommentEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
+        // how about when don't have requestId yet?
         app.MapPost("/requests/{requestId:Guid}/comments",
                 async (Guid requestId, AddRequestCommentRequest request, ISender sender,
                     CancellationToken cancellationToken) =>

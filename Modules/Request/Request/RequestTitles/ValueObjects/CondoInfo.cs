@@ -1,12 +1,12 @@
 namespace Request.Requests.ValueObjects;
 
-public class Condo : ValueObject
+public class CondoInfo : ValueObject
 {
     public string? CondoName { get; } = default!;
     public string? BuildingNo { get; } = default!;
     public string? RoomNo { get; } = default!;
     public string? FloorNo { get; } = default!;
-    private Condo(
+    private CondoInfo(
         string? condoName, 
         string? buildingNo, 
         string? roomNo, 
@@ -19,14 +19,14 @@ public class Condo : ValueObject
         FloorNo = floorNo;
     }
 
-    public static Condo Create(
+    public static CondoInfo Create(
         string? condoName, 
         string? buildingNo, 
         string? roomNo, 
         string? floorNo
     )
     {
-        return new Condo(
+        return new CondoInfo(
             condoName, 
             buildingNo, 
             roomNo, 

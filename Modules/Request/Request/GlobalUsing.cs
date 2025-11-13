@@ -64,3 +64,6 @@ global using Request.RequestComments.Exceptions;
 global using Request.RequestComments.Events;
 global using Request.RequestComments.EventHandlers;
 global using Request.RequestComments.Specifications;
+
+// ==== DtoExtension ====
+global using Request.Extensions;

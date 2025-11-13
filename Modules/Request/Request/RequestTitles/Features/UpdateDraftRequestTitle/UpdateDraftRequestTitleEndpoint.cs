@@ -8,11 +8,23 @@ public class UpdateDraftRequestTitleEndpoint : ICarterModule
             async (Guid requestId, Guid titleId, UpdateDraftRequestTitleRequest request, ISender sender, CancellationToken cancellationToken) =>
             {
 
-                var command = request.Adapt<UpdateDraftRequestTitleCommand>() with
-                {
-                    Id = titleId,
-                    RequestId = requestId
-                };
+                var command = new UpdateDraftRequestTitleCommand(
+                    titleId,
+                    requestId,
+                    request.CollateralType,
+                    request.CollateralStatus,
+                    new TitleDeedInfoDto(request.TitleNo, request.DeedType, request.TitleDetail),
+                    new SurveyInfoDto(request.Rawang, request.LandNo, request.SurveyNo),new LandAreaDto(request.AreaRai, request.AreaNgan, request.AreaSquareWa),
+                    request.OwnerName,
+                    request.RegistrationNumber,
+                    new VehicleDto(request.VehicleType, request.VehicleAppointmentLocation, request.ChassisNumber),
+                    new MachineryDto(request.MachineryStatus, request.MachineryType, request.InstallationStatus, request.InvoiceNumber, request.NumberOfMachinery),
+                    new BuildingInfoDto(request.BuildingType, request.UsableArea, request.NumberOfBuilding),
+                    new CondoInfoDto(request.CondoName, request.BuildingNo, request.RoomNo, request.FloorNo),
+                    request.TitleAddress,
+                    request.DopaAddress,
+                    request.Notes
+                );
 
                 var result = await sender.Send(command, cancellationToken);
 

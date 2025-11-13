@@ -1,8 +1,8 @@
-namespace Request.RequestTitles.Features.AddRequestTitle;
+namespace Request.RequestTitles.Features.UpdateDraftRequestTitle;
 
-public class AddRequestTitleCommandValidator : AbstractValidator<AddRequestTitleCommand>
+public class UpdateDraftRequestTitleCommandValidator : AbstractValidator<UpdateDraftRequestTitleCommand>
 {
-    public AddRequestTitleCommandValidator()
+    public UpdateDraftRequestTitleCommandValidator()
     {
         RuleFor(x => x.RequestId)
             .NotEmpty()
@@ -118,107 +118,11 @@ public class AddRequestTitleCommandValidator : AbstractValidator<AddRequestTitle
 
         RuleFor(x => x.DopaAddress)
             .SetValidator(new DopaAddressDtoValidator());
-    }
-}
 
-public class TitleDocDtoValidator : AbstractValidator<AddressDto>
-{
-    public TitleDocDtoValidator()
-    {
-        RuleFor(a => a.HouseNo)
-            .MaximumLength(30)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
+        RuleFor(x => x.TitleAddress)
+            .SetValidator(new TitleDocDtoValidator());
 
-        RuleFor(a => a.RoomNo)
-            .Null()
-            .WithMessage("'{PropertyName}' must be null");
-        
-        RuleFor(a => a.FloorNo)
-            .Null()
-            .WithMessage("'{PropertyName}' must be null");
-        
-        RuleFor(a => a.ProjectName)
-            .MaximumLength(100)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-        
-        RuleFor(a => a.Moo)
-            .MaximumLength(50)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-        
-        RuleFor(a => a.Soi)
-            .MaximumLength(50)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-        
-        RuleFor(a => a.Road)
-            .MaximumLength(50)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(a => a.SubDistrict)
-            .MaximumLength(10)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(a => a.District)
-            .MaximumLength(10)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(a => a.Province)
-            .MaximumLength(10)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(a => a.Postcode)
-            .MaximumLength(10)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-    }
-}
-
-public class DopaAddressDtoValidator : AbstractValidator<AddressDto>
-{
-    public DopaAddressDtoValidator()
-    {
-        RuleFor(a => a.HouseNo)
-            .MaximumLength(30)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(a => a.RoomNo)
-            .Null()
-            .WithMessage("'{PropertyName}' must be null");
-        
-        RuleFor(a => a.FloorNo)
-            .Null()
-            .WithMessage("'{PropertyName}' must be null");
-        
-        RuleFor(a => a.ProjectName)
-            .MaximumLength(100)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-        
-        RuleFor(a => a.Moo)
-            .MaximumLength(50)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-        
-        RuleFor(a => a.Soi)
-            .MaximumLength(50)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-        
-        RuleFor(a => a.Road)
-            .MaximumLength(50)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(a => a.SubDistrict)
-            .MaximumLength(10)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(a => a.District)
-            .MaximumLength(10)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(a => a.Province)
-            .MaximumLength(10)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(a => a.Postcode)
-            .MaximumLength(10)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
+        RuleFor(x => x.DopaAddress)
+            .SetValidator(new DopaAddressDtoValidator());
     }
 }

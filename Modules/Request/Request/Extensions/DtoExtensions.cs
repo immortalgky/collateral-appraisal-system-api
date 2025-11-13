@@ -97,4 +97,39 @@ public static class DtoExtensions
     {
         return RequestComment.Create(dto.Id, dto.Comment, dto.CommentedBy, dto.CommentedByName);
     }
+
+    public static TitleDeedInfo ToDomain(this TitleDeedInfoDto dto)
+    {
+        return TitleDeedInfo.Create(dto.TitleNo, dto.DeedType, dto.TitleDetail);
+    }
+
+    public static SurveyInfo ToDomain(this SurveyInfoDto dto)
+    {
+        return SurveyInfo.Create(dto.Rawang, dto.LandNo, dto.SurveyNo);
+    }
+
+    public static LandArea ToDomain(this LandAreaDto dto)
+    {
+        return LandArea.Of(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa);
+    }
+
+    public static Vehicle ToDomain(this VehicleDto dto)
+    {
+        return Vehicle.Create(dto.VehicleType, dto.VehicleAppointmentLocation, dto.ChassisNumber);
+    }
+
+    public static Machinery ToDomain(this MachineryDto dto)
+    {
+        return Machinery.Create(dto.MachineryStatus, dto.MachineryType, dto.InstallationStatus, dto.InvoiceNumber, dto.NumberOfMachinery);
+    }
+
+    public static BuildingInfo ToDomain(this BuildingInfoDto dto)
+    {
+        return BuildingInfo.Create(dto.BuildingType, dto.UsableArea, dto.NumberOfBuilding);
+    }
+
+    public static CondoInfo ToDomain(this CondoInfoDto dto)
+    {
+        return CondoInfo.Create(dto.CondoName, dto.BuildingNo, dto.RoomNo, dto.FloorNo);
+    }
 }
