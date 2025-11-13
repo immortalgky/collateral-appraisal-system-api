@@ -1,5 +1,5 @@
 @baseUrl = https://localhost:7111
-@requestId = AEB2C52F-CB03-4AA7-868A-08DE1DD6E8B1
+@requestId = 6D884C99-1F73-4F6C-86A4-08DE227BF8AC
 POST {{baseUrl}}/requests/{{requestId}}/titles
 Host: localhost:7111
 Content-Type: application/json
@@ -7,7 +7,7 @@ Content-Type: application/json
 {
 	"collateralType": "V",
 	"collateralStatus": false,
-    "registrationNo": "1212312121",
+    "registrationNumber": "1212312121",
     "vehicleType": "Car",
     "vehicleAppointmentLocation": "Q House",
     "chassisNumber": "55555555",

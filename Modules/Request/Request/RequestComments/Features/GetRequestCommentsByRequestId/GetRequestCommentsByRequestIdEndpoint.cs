@@ -21,6 +21,7 @@ public class GetRequestCommentsByRequestIdEndpoint : ICarterModule
             .WithSummary("Get all comments for a request")
             .WithDescription("Retrieves all comments associated with the specified request. Comments are returned in chronological order (oldest first).")
             .WithTags("Request Comments")
-            .RequireAuthorization("CanReadRequest");
+            .AllowAnonymous();
+            // .RequireAuthorization("CanReadRequest");
     }
 }

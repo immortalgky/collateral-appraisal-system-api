@@ -1,8 +1,8 @@
 @baseUrl = https://localhost:7111
 
-@requestId = EB09E7F2-FF78-497F-22A7-08DE20F81BC9
+@requestId = 6D884C99-1F73-4F6C-86A4-08DE227BF8AC
 
-@titleId = 5CF258F9-D81E-45DD-97C3-DB01C1F6048F
+@titleId = 2D3AF97E-40AF-44EA-BF75-16B7E1FD4024
 
 PATCH {{baseUrl}}/requests/{{requestId}}/titles/{{titleId}}/draft
 Host: localhost:7111

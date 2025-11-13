@@ -1,6 +1,6 @@
 @baseUrl = https://Localhost:7111
-@requestId = AEB2C52F-CB03-4AA7-868A-08DE1DD6E8B1
-@titleId = CAE86C0E-1AD4-4542-9E20-82CE68BDFA95
+@requestId = 6D884C99-1F73-4F6C-86A4-08DE227BF8AC
+@titleId = F9C50A37-345A-4981-96DC-0513A83AB837
 
 DELETE {{baseUrl}}/requests/{{requestId}}/titles/{{titleId}}
 Host: localhost:7111

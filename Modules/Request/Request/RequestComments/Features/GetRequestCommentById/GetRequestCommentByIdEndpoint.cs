@@ -21,6 +21,7 @@ public class GetRequestCommentByIdEndpoint : ICarterModule
             .WithSummary("Get request comment by ID")
             .WithDescription("Retrieves a specific comment for the specified request. Returns detailed information about the comment including creation and modification timestamps.")
             .WithTags("Request Comments")
-            .RequireAuthorization("CanReadRequest");
+            .AllowAnonymous();
+            // .RequireAuthorization("CanReadRequest");
     }
 }

@@ -108,11 +108,11 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
         {
             machinery.Property(p => p.MachineryType)
                 .HasMaxLength(10)
-                .HasColumnName("MachineType");
+                .HasColumnName("MachineryType");
             
             machinery.Property(p => p.MachineryStatus)
                 .HasMaxLength(10)
-                .HasColumnName("MachineStatus");
+                .HasColumnName("MachineryStatus");
 
             machinery.Property(p => p.InstallationStatus)
                 .HasMaxLength(10)

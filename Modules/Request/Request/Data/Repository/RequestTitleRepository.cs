@@ -12,6 +12,11 @@ public class RequestTitleRepository(RequestDbContext dbContext) : IRequestTitleR
         await dbContext.RequestTitles.AddAsync(requestTitle, cancellationToken);
     }
 
+    public async Task AddRangeAsync(IEnumerable<RequestTitle> requestTitles, CancellationToken cancellationToken = default)
+    {
+        await dbContext.RequestTitles.AddRangeAsync(requestTitles, cancellationToken);
+    }
+
     public Task Remove(RequestTitle requestTitle)
     {
         dbContext.Remove(requestTitle);

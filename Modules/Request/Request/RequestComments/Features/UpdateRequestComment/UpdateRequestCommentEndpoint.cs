@@ -26,6 +26,7 @@ public class UpdateRequestCommentEndpoint : ICarterModule
         .WithSummary("Update a request comment")
         .WithDescription("Updates an existing comment on the specified request. Only the comment text can be modified.")
         .WithTags("Request Comments")
-        .RequireAuthorization("CanWriteRequest");
+        .AllowAnonymous();
+        // .RequireAuthorization("CanWriteRequest");
     }
 }

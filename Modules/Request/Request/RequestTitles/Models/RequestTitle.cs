@@ -1,3 +1,5 @@
+using Shared.Messaging.Events;
+
 namespace Request.RequestTitles.Models;
 
 public class RequestTitle : Aggregate<Guid>
@@ -59,6 +61,8 @@ public class RequestTitle : Aggregate<Guid>
 
         requestTitle.AddDomainEvent(new RequestTitleAddedEvent(requestId, requestTitle));
 
+        // requestTitle.AddDomainEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, []));
+        
         return requestTitle;
     }
 
@@ -203,9 +207,9 @@ public class RequestTitle : Aggregate<Guid>
         var ruleCheck = RuleCheck.Valid();
         ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(ownerName), "ownerName");
 
-        ruleCheck.AddErrorIf(landArea.AreaNgan < 0, "AreaNgan must be greater than or equal to 0.");
-        ruleCheck.AddErrorIf(landArea.AreaRai < 0, "AreaRai must be greater than or equal to 0.");
-        ruleCheck.AddErrorIf(landArea.AreaSquareWa < 0, "AreaSquareWa must be greater than or equal to 0.");
+        ruleCheck.AddErrorIf(landArea.AreaNgan is null || landArea.AreaNgan < 0, "areaNgan must be greater than or equal to 0 or not null.");
+        ruleCheck.AddErrorIf(landArea.AreaRai is null || landArea.AreaRai < 0, "areaRai must be greater than or equal to 0 or not null.");
+        ruleCheck.AddErrorIf(landArea.AreaSquareWa is null || landArea.AreaSquareWa < 0, "areaSquareWa must be greater than or equal to 0 or not null.");
 
         ruleCheck.ThrowIfInvalid();
     }
@@ -215,8 +219,9 @@ public class RequestTitle : Aggregate<Guid>
         var ruleCheck = RuleCheck.Valid();
 
         ruleCheck.AddErrorIf(string.IsNullOrEmpty(buildingInfo.BuildingType), "buildingType");
-        ruleCheck.AddErrorIf(buildingInfo.UsableArea < 0, "usableArea must be greater than or equal to 0.");
-        ruleCheck.AddErrorIf(buildingInfo.NumberOfBuilding < 0, "noOfBuilding must be greater than or equal to 0.");
+        
+        ruleCheck.AddErrorIf(buildingInfo.UsableArea is null || buildingInfo.UsableArea < 0, "usableArea must be greater than or equal to 0 or not null.");
+        ruleCheck.AddErrorIf(buildingInfo.NumberOfBuilding is null || buildingInfo.NumberOfBuilding < 0, "NumberOfBuilding must be greater than or equal to 0 or not null.");
 
         ruleCheck.ThrowIfInvalid();
     }
@@ -231,7 +236,7 @@ public class RequestTitle : Aggregate<Guid>
         ruleCheck.AddErrorIf(string.IsNullOrEmpty(machinery.InstallationStatus), "InstallationStatus");
         ruleCheck.AddErrorIf(string.IsNullOrEmpty(machinery.InvoiceNumber), "InvoiceNumber");
 
-        ruleCheck.AddErrorIf(machinery.NumberOfMachinery < 0, "NumberOfMachine");
+        ruleCheck.AddErrorIf(machinery.NumberOfMachinery is null || machinery.NumberOfMachinery < 0, "NumberOfMachine must be greater than or equal to 0 or not null.");
 
         ruleCheck.ThrowIfInvalid();
     }
@@ -258,7 +263,7 @@ public class RequestTitle : Aggregate<Guid>
         ruleCheck.AddErrorIf(string.IsNullOrEmpty(condoInfo.FloorNo), "floorNo");
         ruleCheck.AddErrorIf(string.IsNullOrEmpty(ownerName), "ownerName");
 
-        ruleCheck.AddErrorIf(buildingInfo.UsableArea < 0, "usableArea must be greater than or equal to 0.");
+        ruleCheck.AddErrorIf(buildingInfo.UsableArea is null || buildingInfo.UsableArea < 0, "usableArea must be greater than or equal to 0 or not null.");
 
         ruleCheck.ThrowIfInvalid();
     }

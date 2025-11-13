@@ -54,7 +54,7 @@ global using Request.RequestTitles.Exceptions;
 global using Request.RequestTitles.Events;
 global using Request.RequestTitles.EventHandlers;
 global using Request.RequestTitles.Specifications;
-global using Request.RequestTitles.Features.AddRequestTitle;
+global using Request.RequestTitles.Features.AddRequestTitles;
 global using Request.RequestTitles.Features.RemoveRequestTitle;
 
 // RequestComments (Sub-Aggregate)

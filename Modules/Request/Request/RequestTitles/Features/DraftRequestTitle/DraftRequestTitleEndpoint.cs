@@ -9,7 +9,7 @@ public class DraftRequestTitleEndpoint : ICarterModule
         app.MapPost("/requests/{requestId:Guid}/titles/draft", 
                 async (Guid requestId, DraftRequestTitleRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
-                    var command = new AddRequestTitleCommand(
+                    var command = new DraftRequestTitleCommand(
                         requestId,
                         request.CollateralType,
                         request.CollateralStatus,

@@ -4,7 +4,7 @@ public class DraftRequestTitleCommandHandler(IRequestTitleRepository requestTitl
 {
     public async Task<DraftRequestTitleResult> Handle(DraftRequestTitleCommand command, CancellationToken cancellationToken)
     {
-        var requestTitle = RequestTitle.Create(
+        var requestTitle = RequestTitle.CreateDraft(
             command.RequestId,
             command.CollateralType,
             command.CollateralStatus,

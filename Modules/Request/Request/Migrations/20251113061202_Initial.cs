@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Request.Data.Migrations
+namespace Request.Migrations
 {
     /// <inheritdoc />
     public partial class Initial : Migration
@@ -13,27 +13,6 @@ namespace Request.Data.Migrations
         {
             migrationBuilder.EnsureSchema(
                 name: "request");
-
-            migrationBuilder.CreateTable(
-                name: "RequestComments",
-                schema: "request",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
-                    RequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Comment = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    CommentedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    CommentedByName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    CommentedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CreatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    UpdatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_RequestComments", x => x.Id);
-                });
 
             migrationBuilder.CreateTable(
                 name: "Requests",
@@ -68,58 +47,16 @@ namespace Request.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "RequestTitles",
+                name: "RequestComments",
                 schema: "request",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     RequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CollateralType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    CollateralStatus = table.Column<bool>(type: "bit", nullable: true),
-                    TitleNo = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    DeedType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    TitleDetail = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    Rawang = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    LandNo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    SurveyNo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    AreaRai = table.Column<int>(type: "int", nullable: true),
-                    AreaNgan = table.Column<int>(type: "int", nullable: true),
-                    AreaSquareWa = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: true),
-                    OwnerName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    RegistrationNo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    VehicleType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    VehicleAppointmentLocation = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
-                    ChassisNumber = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    MachineStatus = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    MachineType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    InstallationStatus = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    InvoiceNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
-                    NumberOfMachinery = table.Column<int>(type: "int", nullable: true),
-                    BuildingType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    UsableArea = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
-                    NoOfBuilding = table.Column<int>(type: "int", nullable: true),
-                    CondoName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    BuildingNo = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    RoomNo = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
-                    FloorNo = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    HouseNo = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
-                    ProjectName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    Moo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    Soi = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    Road = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    SubDistrict = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    District = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    Province = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    Postcode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    DopaHouseNo = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
-                    DopaMoo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    DopaSoi = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    DopaRoad = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    DopaSubDistrict = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    DopaDistrict = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    DopaProvince = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    DopaPostcode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    Notes = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Comment = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CommentedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    CommentedByName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    CommentedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     UpdatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -127,7 +64,14 @@ namespace Request.Data.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_RequestTitles", x => x.Id);
+                    table.PrimaryKey("PK_RequestComments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RequestComment_Request",
+                        column: x => x.RequestId,
+                        principalSchema: "request",
+                        principalTable: "Requests",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -223,6 +167,76 @@ namespace Request.Data.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "RequestTitles",
+                schema: "request",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    RequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CollateralType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    CollateralStatus = table.Column<bool>(type: "bit", nullable: true),
+                    TitleNo = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    DeedType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    TitleDetail = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    Rawang = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    LandNo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    SurveyNo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    AreaRai = table.Column<int>(type: "int", nullable: true),
+                    AreaNgan = table.Column<int>(type: "int", nullable: true),
+                    AreaSquareWa = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: true),
+                    OwnerName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    RegistrationNo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    VehicleType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    VehicleAppointmentLocation = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
+                    ChassisNumber = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    MachineryStatus = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    MachineryType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    InstallationStatus = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    InvoiceNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    NumberOfMachinery = table.Column<int>(type: "int", nullable: true),
+                    BuildingType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    UsableArea = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
+                    NumberOfBuilding = table.Column<int>(type: "int", nullable: true),
+                    CondoName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    BuildingNo = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    RoomNo = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
+                    FloorNo = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    HouseNo = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
+                    ProjectName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Moo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Soi = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Road = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    SubDistrict = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    District = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    Province = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    Postcode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    DopaHouseNo = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
+                    DopaMoo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    DopaSoi = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    DopaRoad = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    DopaSubDistrict = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    DopaDistrict = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    DopaProvince = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    DopaPostcode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    Notes = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    UpdatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RequestTitles", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RequestTitles_Request",
+                        column: x => x.RequestId,
+                        principalSchema: "request",
+                        principalTable: "Requests",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_RequestComments_RequestId",
                 schema: "request",
@@ -248,6 +262,18 @@ namespace Request.Data.Migrations
                 column: "RequestNumber",
                 unique: true,
                 filter: "[RequestNumber] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TitleDeedInfo_RequestId",
+                schema: "request",
+                table: "RequestTitles",
+                column: "RequestId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TitleDeedInfo_TitleDeedNumber",
+                schema: "request",
+                table: "RequestTitles",
+                column: "TitleNo");
         }
 
         /// <inheritdoc />

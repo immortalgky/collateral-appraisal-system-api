@@ -1,6 +1,6 @@
-namespace Request.RequestTitles.Features.AddRequestTitle;
+namespace Request.Contracts.Requests.Dtos;
 
-public record AddRequestTitleRequest(
+public record RequestTitleDto(
     string? CollateralType,
     bool? CollateralStatus,
     string? TitleNo,

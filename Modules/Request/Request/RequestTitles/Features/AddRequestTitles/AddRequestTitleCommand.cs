@@ -1,7 +1,11 @@
-namespace Request.RequestTitles.Features.AddRequestTitle;
+namespace Request.RequestTitles.Features.AddRequestTitles;
 
-public record AddRequestTitleCommand(
+public record AddRequestTitlesCommand(
     Guid RequestId,
+    List<AddRequestTitlesCommandDto> AddRequestTitleCommandDtos
+) : ICommand<AddRequestTitlesResult>;
+
+public record AddRequestTitlesCommandDto(
     string? CollateralType,
     bool? CollateralStatus,
     TitleDeedInfoDto TitleDeedInfoDto,
@@ -16,4 +20,4 @@ public record AddRequestTitleCommand(
     AddressDto TitleAddress,
     AddressDto DopaAddress,
     string? Notes
-) : ICommand<AddRequestTitleResult>;
+);

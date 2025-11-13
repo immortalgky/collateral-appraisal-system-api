@@ -1,13 +1,13 @@
 @baseUrl = https://localhost:7111
 
-@requestId = 6A5D06E6-4E76-4C18-48D8-08DE21BB6FAC
+@requestId = 6D884C99-1F73-4F6C-86A4-08DE227BF8AC
 
 POST {{baseUrl}}/requests/{{requestId}}/comments
 Host: localhost:7111
 Content-Type: application/json
 
 {
-    "comment": "Hello World!",
+    "comment": "Hello World! x2",
     "commentedBy": "xxxxx1",
     "commentedByName": "John Doe"
 }

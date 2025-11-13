@@ -19,6 +19,7 @@ public class RemoveRequestCommentEndpoint : ICarterModule
             .WithSummary("Remove a comment from a request")
             .WithDescription("Removes an existing comment from the specified request. This action cannot be undone.")
             .WithTags("Request Comments")
-            .RequireAuthorization("CanWriteRequest");
+            .AllowAnonymous();
+            // .RequireAuthorization("CanWriteRequest");
     }
 }

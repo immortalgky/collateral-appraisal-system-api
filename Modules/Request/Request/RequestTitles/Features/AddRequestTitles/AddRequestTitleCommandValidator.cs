@@ -1,13 +1,22 @@
-namespace Request.RequestTitles.Features.AddRequestTitle;
+namespace Request.RequestTitles.Features.AddRequestTitles;
 
-public class AddRequestTitleCommandValidator : AbstractValidator<AddRequestTitleCommand>
+public class AddRequestTitlesCommandValidator : AbstractValidator<AddRequestTitlesCommand>
 {
-    public AddRequestTitleCommandValidator()
+    public AddRequestTitlesCommandValidator()
     {
         RuleFor(x => x.RequestId)
             .NotEmpty()
-            .WithMessage("ReqeustId is required");
+            .WithMessage("RequestId is required");
+        
+        RuleForEach(x => x.AddRequestTitleCommandDtos)
+            .SetValidator(new AddRequestTitlesCommandDtoValidator());
+    }
+}
 
+public class AddRequestTitlesCommandDtoValidator : AbstractValidator<AddRequestTitlesCommandDto>
+{
+    public AddRequestTitlesCommandDtoValidator()
+    {
         RuleFor(x => x.CollateralType)
             .NotEmpty()
             .WithMessage("CollateralType is required.")
@@ -29,9 +38,6 @@ public class AddRequestTitleCommandValidator : AbstractValidator<AddRequestTitle
         RuleFor(x => x.TitleDeedInfoDto.TitleDetail)
             .MaximumLength(200)
             .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(x => x.TitleDeedInfoDto.TitleDetail)
-            .MaximumLength(200);
 
         // == SurveyInfoDto ==
         RuleFor(x => x.SurveyInfoDto.Rawang)

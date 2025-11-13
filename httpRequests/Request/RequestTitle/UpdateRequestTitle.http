@@ -1,8 +1,8 @@
 @baseUrl = https://localhost:7111
 
-@requestId = EB09E7F2-FF78-497F-22A7-08DE20F81BC9
+@requestId = 6D884C99-1F73-4F6C-86A4-08DE227BF8AC
 
-@titleId = 5CF258F9-D81E-45DD-97C3-DB01C1F6048F
+@titleId = 98CCC8AB-CCE2-45B6-B0E6-5FCA52B8B75D
 
 PATCH {{baseUrl}}/requests/{{requestId}}/titles/{{titleId}}
 Host: localhost:7111
@@ -10,11 +10,15 @@ Content-Type: application/json
 
 {
     "collateralType": "L",
+    "collateralStatus": false,
     "titleNo": "1234",
-    "deedType": "NorSor3Kor",
+    "deedType": "NorSor3",
     "rawang": "01",
     "landNo": "01",
     "surveyNo": "01",
+    "areaRai": 0,
+    "areaNgan": 0,
+    "areaSquareWa": 0,
     "titleAddress":
     {
         "subDistrict": "00",

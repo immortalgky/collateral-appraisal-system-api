@@ -4,7 +4,7 @@ public static class InitialData
 {
     public static IEnumerable<Requests.Models.Request> Requests => new List<Requests.Models.Request>
     {
-        Requests.Models.Request.Create(
+        global::Request.Requests.Models.Request.Create(
             "Appraisal",
             "Normal",
             RequestStatus.Draft,

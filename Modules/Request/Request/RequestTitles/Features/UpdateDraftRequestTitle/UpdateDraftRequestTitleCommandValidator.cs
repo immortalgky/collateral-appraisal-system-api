@@ -8,15 +8,6 @@ public class UpdateDraftRequestTitleCommandValidator : AbstractValidator<UpdateD
             .NotEmpty()
             .WithMessage("ReqeustId is required");
 
-        RuleFor(x => x.CollateralType)
-            .NotEmpty()
-            .WithMessage("CollateralType is required.")
-            .MaximumLength(10)
-            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(x => x.CollateralStatus)
-            .NotEmpty();
-
         // == TitleDeedInfoDto ==
         RuleFor(x => x.TitleDeedInfoDto.TitleNo)
             .MaximumLength(200)
