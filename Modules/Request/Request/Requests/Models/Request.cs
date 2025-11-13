@@ -39,6 +39,7 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     private readonly List<RequestComment> _requestComments = [];
     public IReadOnlyList<RequestComment> RequestComments => _requestComments.AsReadOnly();
 
+
     private Request()
     {
         // For EF Core
