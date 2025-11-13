@@ -12,6 +12,7 @@ public class AddRequestTitlesCommandHandler(IRequestTitleRepository requestTitle
         if (request is null)
             throw new RequestNotFoundException(command.RequestId);
 
+        // throw exception which identify index of item 
         var requestTitles = command.AddRequestTitleCommandDtos.Select(rt =>
             RequestTitle.Create(
                 command.RequestId,
