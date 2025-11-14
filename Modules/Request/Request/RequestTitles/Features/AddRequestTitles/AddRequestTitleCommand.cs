@@ -19,5 +19,6 @@ public record AddRequestTitlesCommandDto(
     CondoInfoDto CondoInfoDto,
     AddressDto TitleAddress,
     AddressDto DopaAddress,
-    string? Notes
+    string? Notes,
+    List<RequestTitleDocumentDto> RequestTitleDocumentDtos
 );

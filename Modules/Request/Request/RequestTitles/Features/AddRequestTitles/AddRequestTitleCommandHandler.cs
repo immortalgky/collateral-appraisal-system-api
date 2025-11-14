@@ -29,7 +29,8 @@ public class AddRequestTitlesCommandHandler(IRequestTitleRepository requestTitle
                 DtoExtensions.ToDomain(rt.CondoInfoDto),
                 DtoExtensions.ToDomain(rt.TitleAddress),
                 DtoExtensions.ToDomain(rt.DopaAddress),
-                rt.Notes
+                rt.Notes,
+                rt.RequestTitleDocumentDtos
             )
         ).ToList();
 

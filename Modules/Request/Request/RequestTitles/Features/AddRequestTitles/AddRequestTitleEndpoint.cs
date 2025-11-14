@@ -23,7 +23,8 @@ public class AddRequestTitlesEndpoint : ICarterModule
                             new CondoInfoDto(rt.CondoName, rt.BuildingNo, rt.RoomNo, rt.FloorNo),
                             rt.TitleAddress,
                             rt.DopaAddress,
-                            rt.Notes
+                            rt.Notes,
+                            rt.RequestTitleDocuments.Select(rtd => new RequestTitleDocumentDto(rtd.DocumentId, rtd.DocumentType, rtd.IsRequired, rtd.DocumentDescription, rtd.UploadedBy, rtd.UploadedByName)).ToList()
                         )).ToList()
                     );
 

@@ -31,5 +31,15 @@ public record RequestTitleDto(
     string? FloorNo,
     AddressDto TitleAddress,
     AddressDto DopaAddress,
-    string? Notes
-);
+    string? Notes,
+    List<RequestTitleDocumentDto> RequestTitleDocuments
+    );
+
+public record RequestTitleDocumentDto(
+    Guid DocumentId,
+    string? DocumentType,
+    bool IsRequired,
+    string? DocumentDescription,
+    string? UploadedBy,
+    string? UploadedByName
+    ); 

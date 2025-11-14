@@ -11,13 +11,9 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
         builder.Property(p => p.Id)
             .ValueGeneratedNever();
 
-        builder.Property(p => p.RequestId);
-
-        builder.HasOne(rt => rt.Request)
-               .WithMany(r => r.RequestTitles)
-               .HasForeignKey(rt => rt.RequestId)
-               .OnDelete(DeleteBehavior.Cascade)
-               .HasConstraintName("FK_RequestTitles_Request");
+        builder.HasMany(r => r.RequestTitleDocuments)
+            .WithOne()
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(p => p.CollateralType)
             .HasMaxLength(10);

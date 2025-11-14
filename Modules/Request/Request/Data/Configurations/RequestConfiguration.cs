@@ -126,5 +126,9 @@ public class RequestConfiguration : IEntityTypeConfiguration<Requests.Models.Req
             property.Property(p => p.BuildingType).UseCodeConfig().HasColumnName("BuildingType");
             property.Property(p => p.SellingPrice).UseMoneyConfig().HasColumnName("SellingPrice");
         });
+        
+        builder.HasMany(p => p.RequestTitles)
+            .WithOne()
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

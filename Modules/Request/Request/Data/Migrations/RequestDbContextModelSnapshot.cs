@@ -8,7 +8,7 @@ using Request.Data;
 
 #nullable disable
 
-namespace Request.Migrations
+namespace Request.Data.Migrations
 {
     [DbContext(typeof(RequestDbContext))]
     partial class RequestDbContextModelSnapshot : ModelSnapshot
@@ -117,6 +117,67 @@ namespace Request.Migrations
                     b.ToTable("RequestTitles", "request");
                 });
 
+            modelBuilder.Entity("Request.RequestTitles.Models.RequestTitleDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DocumentDescription")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("RequestTitleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TitleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UploadedByName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestTitleId");
+
+                    b.ToTable("RequestTitleDocuments", "request");
+                });
+
             modelBuilder.Entity("Request.Requests.Models.Request", b =>
                 {
                     b.Property<Guid>("Id")
@@ -180,12 +241,11 @@ namespace Request.Migrations
 
             modelBuilder.Entity("Request.RequestTitles.Models.RequestTitle", b =>
                 {
-                    b.HasOne("Request.Requests.Models.Request", "Request")
+                    b.HasOne("Request.Requests.Models.Request", null)
                         .WithMany("RequestTitles")
                         .HasForeignKey("RequestId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("FK_RequestTitles_Request");
+                        .IsRequired();
 
                     b.OwnsOne("Request.Requests.ValueObjects.Address", "DopaAddress", b1 =>
                         {
@@ -544,8 +604,6 @@ namespace Request.Migrations
                     b.Navigation("Machinery")
                         .IsRequired();
 
-                    b.Navigation("Request");
-
                     b.Navigation("SurveyInfo")
                         .IsRequired();
 
@@ -557,6 +615,14 @@ namespace Request.Migrations
 
                     b.Navigation("Vehicle")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.RequestTitleDocument", b =>
+                {
+                    b.HasOne("Request.RequestTitles.Models.RequestTitle", null)
+                        .WithMany("RequestTitleDocuments")
+                        .HasForeignKey("RequestTitleId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("Request.Requests.Models.Request", b =>
@@ -974,6 +1040,11 @@ namespace Request.Migrations
 
                     b.Navigation("Status")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.RequestTitle", b =>
+                {
+                    b.Navigation("RequestTitleDocuments");
                 });
 
             modelBuilder.Entity("Request.Requests.Models.Request", b =>

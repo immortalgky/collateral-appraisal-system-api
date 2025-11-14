@@ -34,14 +34,15 @@ public class RequestTitle : Aggregate<Guid>
 
     public string? Notes { get; private set; }
 
-    public Requests.Models.Request Request { get; private set; } = default!;
+    private readonly List<RequestTitleDocument> _requestTitleDocuments = [];
+    public IReadOnlyList<RequestTitleDocument> RequestTitleDocuments => _requestTitleDocuments.AsReadOnly();
 
     private RequestTitle()
     {
         // For EF Core
     }
 
-    public static RequestTitle Create(Guid requestId, string? collateralType, bool? collateralStatus, TitleDeedInfo titleDeedInfo, SurveyInfo surveyInfo, LandArea landArea, string? ownerName, string? registrationNo, Vehicle vehicle, Machinery machinery, BuildingInfo buildingInfo, CondoInfo condoInfo, Address titleAddress, Address dopaAddress, string? notes)
+    public static RequestTitle Create(Guid requestId, string? collateralType, bool? collateralStatus, TitleDeedInfo titleDeedInfo, SurveyInfo surveyInfo, LandArea landArea, string? ownerName, string? registrationNo, Vehicle vehicle, Machinery machinery, BuildingInfo buildingInfo, CondoInfo condoInfo, Address titleAddress, Address dopaAddress, string? notes, List<RequestTitleDocumentDto> requestTitleDocuments)
     {
         var requestTitle = collateralType switch
         {
@@ -61,6 +62,14 @@ public class RequestTitle : Aggregate<Guid>
 
         requestTitle.AddDomainEvent(new RequestTitleAddedEvent(requestId, requestTitle));
 
+        if (requestTitle is not null)
+        {
+            foreach (var requestTitleDocument in requestTitleDocuments)
+            {
+                requestTitle.AddDocument(requestTitle.Id, requestTitleDocument.DocumentId, requestTitleDocument.DocumentType, requestTitleDocument.DocumentDescription, requestTitleDocument.IsRequired, requestTitleDocument.UploadedBy, requestTitleDocument.UploadedByName);
+            }
+        }
+        
         // requestTitle.AddDomainEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, []));
         
         return requestTitle;
@@ -155,6 +164,15 @@ public class RequestTitle : Aggregate<Guid>
         TitleAddress = titleAddress;
         DopaAddress = dopaAddress;
         Notes = notes;
+    }
+
+    public void AddDocument(Guid titleId, Guid documentId, string documentType, string documentDescription,
+        bool isRequired, string uploadedBy, string uploadedByName)
+    {
+        var requestTitleDocument = RequestTitleDocument.Create(titleId, documentId, documentType, documentDescription,
+            isRequired, uploadedBy, uploadedByName);
+        
+        _requestTitleDocuments.Add(requestTitleDocument);
     }
     
     public static void ValidateTitleDocAddr(Address titleAddress)

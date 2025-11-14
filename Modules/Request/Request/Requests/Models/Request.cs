@@ -1,5 +1,3 @@
-using Request.RequestComments.Models;
-
 namespace Request.Requests.Models;
 
 public class Request : Aggregate<Guid> // Change `long` to `Guid`
@@ -9,7 +7,7 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
 
     // Channel, RequestDate, RequestedBy, RequestedByName
     public Source Source { get; private set; } = default!;
-    public string Priority { get; private set; }
+    public string Priority { get; private set; } = default!;
     public RequestStatus Status { get; private set; } = default!;
     public DateTime? SubmittedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
@@ -19,7 +17,7 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     public bool IsPMA { get; private set; }
 
     public DateTime? CreatedAt { get; private set; }
-    public string? CreateBy { get; private set; }
+    public string? CreateBy { get; private set; } = default!;
 
     // Details
     public RequestDetail Detail { get; private set; } = default!;

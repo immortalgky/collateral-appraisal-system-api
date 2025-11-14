@@ -1,5 +1,5 @@
 @baseUrl = https://localhost:7111
-@requestId = 04F9B2A9-CB46-4839-DBC9-08DE2295F35F
+@requestId = 30a955bc-6692-4ff3-a679-08de23341baa
 POST {{baseUrl}}/requests/{{requestId}}/titles
 Host: localhost:7111
 Content-Type: application/json
@@ -19,7 +19,6 @@ Content-Type: application/json
             "areaRai": 0,
             "areaNgan": 0,
             "areaSquareWa": 0,
-            "titleDetail": "",
             "titleAddress":
             {
                 "houseNo": "",
@@ -90,7 +89,6 @@ Content-Type: application/json
             "areaRai": 0,
             "areaNgan": 0,
             "areaSquareWa": 0,
-            "titleDetail": "",
             "titleAddress":
             {
                 "houseNo": "",
