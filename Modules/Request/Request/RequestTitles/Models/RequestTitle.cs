@@ -70,7 +70,7 @@ public class RequestTitle : Aggregate<Guid>
             }
         }
         
-        // requestTitle.AddDomainEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, []));
+        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
         
         return requestTitle;
     }

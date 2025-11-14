@@ -132,4 +132,5 @@ public static class DtoExtensions
     {
         return CondoInfo.Create(dto.CondoName, dto.BuildingNo, dto.RoomNo, dto.FloorNo);
     }
+
 }
