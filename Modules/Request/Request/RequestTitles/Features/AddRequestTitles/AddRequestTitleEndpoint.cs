@@ -18,7 +18,7 @@ public class AddRequestTitlesEndpoint : ICarterModule
                             rt.OwnerName,
                             rt.RegistrationNumber,
                             new VehicleDto(rt.VehicleType, rt.VehicleAppointmentLocation, rt.ChassisNumber),
-                            new MachineryDto(rt.MachineryStatus, rt.MachineryType, rt.InstallationStatus, rt.InvoiceNumber, rt.NumberOfMachinery),
+                            new MachineDto(rt.MachineryStatus, rt.MachineryType, rt.InstallationStatus, rt.InvoiceNumber, rt.NumberOfMachinery),
                             new BuildingInfoDto(rt.BuildingType, rt.UsableArea, rt.NumberOfBuilding),
                             new CondoInfoDto(rt.CondoName, rt.BuildingNo, rt.RoomNo, rt.FloorNo),
                             rt.TitleAddress,

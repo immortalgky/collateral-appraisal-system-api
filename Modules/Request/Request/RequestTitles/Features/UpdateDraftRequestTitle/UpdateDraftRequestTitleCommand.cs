@@ -13,7 +13,7 @@ public record UpdateDraftRequestTitleCommand(
     string? OwnerName,
     string? RegistrationNumber,
     VehicleDto VehicleDto,
-    MachineryDto MachineryDto,
+    MachineDto MachineDto,
     BuildingInfoDto BuildingInfoDto,
     CondoInfoDto CondoInfoDto,
     AddressDto TitleAddress,

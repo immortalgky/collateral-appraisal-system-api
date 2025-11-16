@@ -25,7 +25,7 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
                 command.OwnerName,
                 command.RegistrationNumber,
                 DtoExtensions.ToDomain(command.VehicleDto),
-                DtoExtensions.ToDomain(command.MachineryDto),
+                DtoExtensions.ToDomain(command.MachineDto),
                 DtoExtensions.ToDomain(command.BuildingInfoDto),
                 DtoExtensions.ToDomain(command.CondoInfoDto),
                 DtoExtensions.ToDomain(command.TitleAddress),

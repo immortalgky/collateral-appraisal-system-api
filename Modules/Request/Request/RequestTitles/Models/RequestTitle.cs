@@ -32,9 +32,26 @@ public class RequestTitle : Aggregate<Guid>
     public static RequestTitle Create(RequestTitleData requestTitleData, List<RequestTitleDocumentData> requestTitleDocuments)
     {
         RequestTitleValidator.Validate(requestTitleData);
-        
-        var requestTitle = requestTitleData.Adapt<RequestTitle>();
-        requestTitle.Id = Guid.NewGuid();
+
+        var requestTitle = new RequestTitle()
+        {
+            Id = Guid.NewGuid(),
+            RequestId = requestTitleData.RequestId,
+            CollateralType = requestTitleData.CollateralType,
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            SurveyInfo = requestTitleData.SurveyInfo,
+            LandArea = requestTitleData.LandArea,
+            OwnerName = requestTitleData.OwnerName,
+            RegistrationNo = requestTitleData.RegistrationNo,
+            VehicleInfo = requestTitleData.VehicleInfo,
+            MachineInfo = requestTitleData.MachineInfo,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            CondoInfo = requestTitleData.CondoInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
         
         requestTitle.AddDocumentList(requestTitleDocuments.Select(rtd => RequestTitleDocument.Create(requestTitle.Id, rtd)).ToList());
 
@@ -47,8 +64,25 @@ public class RequestTitle : Aggregate<Guid>
 
     public static RequestTitle CreateDraft(RequestTitleData requestTitleData, List<RequestTitleDocumentData> requestTitleDocuments)
     {
-        var requestTitle = requestTitleData.Adapt<RequestTitle>();
-        requestTitle.Id = Guid.NewGuid();
+        var requestTitle = new RequestTitle()
+        {
+            Id = Guid.NewGuid(),
+            RequestId = requestTitleData.RequestId,
+            CollateralType = requestTitleData.CollateralType,
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            SurveyInfo = requestTitleData.SurveyInfo,
+            LandArea = requestTitleData.LandArea,
+            OwnerName = requestTitleData.OwnerName,
+            RegistrationNo = requestTitleData.RegistrationNo,
+            VehicleInfo = requestTitleData.VehicleInfo,
+            MachineInfo = requestTitleData.MachineInfo,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            CondoInfo = requestTitleData.CondoInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
         
         requestTitle.AddDocumentList(requestTitleDocuments.Select(rtd => RequestTitleDocument.Create(requestTitle.Id, rtd)).ToList());
 
@@ -59,47 +93,70 @@ public class RequestTitle : Aggregate<Guid>
         return requestTitle;
     }
 
-    public void UpdateDetails(RequestTitleData requestTitle)
+    public void UpdateDetails(RequestTitleData requestTitleData, List<RequestTitleDocumentData> requestTitleDocuments)
     {
-        RequestTitleValidator.Validate(requestTitle);
+        RequestTitleValidator.Validate(requestTitleData);
 
-        CollateralType = requestTitle.CollateralType;
-        CollateralStatus = requestTitle.CollateralStatus;
-        TitleDeedInfo = requestTitle.TitleDeedInfo;
-        SurveyInfo = requestTitle.SurveyInfo;
-        LandArea = requestTitle.LandArea;
-        OwnerName = requestTitle.OwnerName;
-        RegistrationNo = requestTitle.RegistrationNo;
-        VehicleInfo = requestTitle.VehicleInfo;
-        MachineInfo = requestTitle.MachineInfo;
-        BuildingInfo = requestTitle.BuildingInfo;
-        CondoInfo = requestTitle.CondoInfo;
-        TitleAddress = requestTitle.TitleAddress;
-        DopaAddress = requestTitle.DopaAddress;
-        Notes = requestTitle.Notes;
+        CollateralType = requestTitleData.CollateralType;
+        CollateralStatus = requestTitleData.CollateralStatus;
+        TitleDeedInfo = requestTitleData.TitleDeedInfo;
+        SurveyInfo = requestTitleData.SurveyInfo;
+        LandArea = requestTitleData.LandArea;
+        OwnerName = requestTitleData.OwnerName;
+        RegistrationNo = requestTitleData.RegistrationNo;
+        VehicleInfo = requestTitleData.VehicleInfo;
+        MachineInfo = requestTitleData.MachineInfo;
+        BuildingInfo = requestTitleData.BuildingInfo;
+        CondoInfo = requestTitleData.CondoInfo;
+        TitleAddress = requestTitleData.TitleAddress;
+        DopaAddress = requestTitleData.DopaAddress;
+        Notes = requestTitleData.Notes;
+
+        UpdateDocumentList(requestTitleDocuments.Select(rtd => RequestTitleDocument.Create(Id, rtd))
+            .ToList());
+        
+        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
     }
 
-    public void UpdateDraftDetails(string? collateralType, bool? collateralStatus, TitleDeedInfo titleDeedInfo, SurveyInfo surveyInfo, LandArea landArea, string? ownerName, string? registrationNo, VehicleInfo vehicleInfo, MachineInfo machineInfo, BuildingInfo buildingInfo, CondoInfo condoInfo, Address titleAddress, Address dopaAddress, string? notes)
+    public void UpdateDraftDetails(RequestTitleData requestTitleData, List<RequestTitleDocumentData> requestTitleDocuments)
     {
-        CollateralType = collateralType;
-        CollateralStatus = collateralStatus;
-        TitleDeedInfo = titleDeedInfo;
-        SurveyInfo = surveyInfo;
-        LandArea = landArea;
-        OwnerName = ownerName;
-        RegistrationNo = registrationNo;
-        VehicleInfo = vehicleInfo;
-        MachineInfo = machineInfo;
-        BuildingInfo = buildingInfo;
-        CondoInfo = condoInfo;
-        TitleAddress = titleAddress;
-        DopaAddress = dopaAddress;
-        Notes = notes;
+        RequestTitleValidator.Validate(requestTitleData);
+
+        CollateralType = requestTitleData.CollateralType;
+        CollateralStatus = requestTitleData.CollateralStatus;
+        TitleDeedInfo = requestTitleData.TitleDeedInfo;
+        SurveyInfo = requestTitleData.SurveyInfo;
+        LandArea = requestTitleData.LandArea;
+        OwnerName = requestTitleData.OwnerName;
+        RegistrationNo = requestTitleData.RegistrationNo;
+        VehicleInfo = requestTitleData.VehicleInfo;
+        MachineInfo = requestTitleData.MachineInfo;
+        BuildingInfo = requestTitleData.BuildingInfo;
+        CondoInfo = requestTitleData.CondoInfo;
+        TitleAddress = requestTitleData.TitleAddress;
+        DopaAddress = requestTitleData.DopaAddress;
+        Notes = requestTitleData.Notes;
+
+        UpdateDocumentList(requestTitleDocuments.Select(rtd => RequestTitleDocument.Create(Id, rtd))
+            .ToList());
+        
+        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
     }
 
-    public void AddDocumentList(List<RequestTitleDocument>  requestTitleDocuments)
+    public void AddDocumentList(IEnumerable<RequestTitleDocument> requestTitleDocuments)
     {
-        requestTitleDocuments.AddRange(requestTitleDocuments);
+        if (requestTitleDocuments is null)
+            return;
+        _requestTitleDocuments.AddRange(requestTitleDocuments);
+    }
+
+    public void UpdateDocumentList(IEnumerable<RequestTitleDocument> requestTitleDocuments)
+    {
+        if (requestTitleDocuments is null)
+            return;
+        
+        _requestTitleDocuments.Clear();
+        _requestTitleDocuments.AddRange(requestTitleDocuments);
     }
 }
 
@@ -218,7 +275,7 @@ public static class TitleDeedInfoValidator
         ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleDeedInfo.TitleNo), "titleNo is null or contains only whitespace.");
 
         var deedTypeChecklist = new List<string>() { "Chanote", "NorSor3", "NorSor3Kor" };
-        ruleCheck.AddErrorIf(deedTypeChecklist.Contains(titleDeedInfo.DeedType), "deedType is invalid.");
+        ruleCheck.AddErrorIf(!deedTypeChecklist.Contains(titleDeedInfo.DeedType), "deedType is invalid.");
     }
 }
 
@@ -229,7 +286,6 @@ public static class TitleLandValidator
         SurveyInfoValidator.Validate(titleData.SurveyInfo, ruleCheck);
         LandAreaValidator.Validate(titleData.LandArea, ruleCheck);
         TitleDeedInfoValidator.Validate(titleData.TitleDeedInfo, ruleCheck);
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(titleData.OwnerName), "ownerName is null or contains only whitespace.");
     }
 }
 

@@ -23,9 +23,9 @@ public class AddRequestTitlesCommandHandler(IRequestTitleRepository requestTitle
                     DtoExtensions.ToDomain(rt.SurveyInfoDto),
                     DtoExtensions.ToDomain(rt.LandAreaDto),
                     rt.OwnerName,
-                    rt.RegistrationNumber,
+                    rt.RegistrationNo,
                     DtoExtensions.ToDomain(rt.VehicleDto),
-                    DtoExtensions.ToDomain(rt.MachineryDto),
+                    DtoExtensions.ToDomain(rt.MachineDto),
                     DtoExtensions.ToDomain(rt.BuildingInfoDto),
                     DtoExtensions.ToDomain(rt.CondoInfoDto),
                     DtoExtensions.ToDomain(rt.TitleAddress),
@@ -39,6 +39,6 @@ public class AddRequestTitlesCommandHandler(IRequestTitleRepository requestTitle
         await requestTitleRepository.AddRangeAsync(requestTitles, cancellationToken);
         await requestRepository.SaveChangesAsync(cancellationToken);
 
-        return new AddRequestTitlesResult(requestTitles.OrderBy(rt => rt.CreatedOn).Select(rt => rt.Id).ToList());
+        return new AddRequestTitlesResult(requestTitles.OrderBy(rt => rt.CreatedOn).Select(rt => new RequestTitleResultDto(rt.Id, rt.RequestTitleDocuments.OrderBy(rtd => rtd.CreatedOn).Select(rtd => rtd.Id).ToList())).ToList());
     }
 }

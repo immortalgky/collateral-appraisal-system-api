@@ -21,7 +21,7 @@ public class UpdateDraftRequestCommandTitleHandler(IRequestTitleRepository reque
             command.OwnerName,
             command.RegistrationNumber,
             DtoExtensions.ToDomain(command.VehicleDto),
-            DtoExtensions.ToDomain(command.MachineryDto),
+            DtoExtensions.ToDomain(command.MachineDto),
             DtoExtensions.ToDomain(command.BuildingInfoDto),
             DtoExtensions.ToDomain(command.CondoInfoDto),
             DtoExtensions.ToDomain(command.TitleAddress),

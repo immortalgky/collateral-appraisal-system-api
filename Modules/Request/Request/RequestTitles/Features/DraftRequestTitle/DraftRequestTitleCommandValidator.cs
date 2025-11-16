@@ -64,20 +64,20 @@ public class DraftRequestTitlesCommandDtoValidator : AbstractValidator<RequestTi
             .MaximumLength(500)
             .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
         
-        RuleFor(x => x.RegistrationNumber)
+        RuleFor(x => x.RegistrationNo)
             .MaximumLength(50)
             .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
         
         // == MachineryDto ==
-        RuleFor(x => x.MachineryDto.MachineryType)
+        RuleFor(x => x.MachineDto.MachineryType)
             .MaximumLength(10)
             .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
         
-        RuleFor(x => x.MachineryDto.InstallationStatus)
+        RuleFor(x => x.MachineDto.InstallationStatus)
             .MaximumLength(10)
             .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
         
-        RuleFor(x => x.MachineryDto.InvoiceNumber)
+        RuleFor(x => x.MachineDto.InvoiceNumber)
             .MaximumLength(10)
             .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");        
         

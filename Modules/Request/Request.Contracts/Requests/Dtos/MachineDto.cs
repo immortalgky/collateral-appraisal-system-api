@@ -1,6 +1,6 @@
 namespace Request.Contracts.Requests.Dtos;
 
-public record MachineryDto(
+public record MachineDto(
     string? MachineryStatus,
     string? MachineryType,
     string? InstallationStatus,

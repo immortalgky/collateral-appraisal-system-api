@@ -34,7 +34,7 @@ public class RequestTitleDocument : Aggregate<Guid>
             UploadedAt = DateTime.UtcNow
         };
     }
-
+    
     public bool Update(string documentType, string documentDescription, bool isRequired, string uploadedBy,
         string uploadedByName)
     {

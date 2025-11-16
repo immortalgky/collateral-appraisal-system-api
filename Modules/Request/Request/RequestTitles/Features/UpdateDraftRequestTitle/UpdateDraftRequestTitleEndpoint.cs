@@ -18,7 +18,7 @@ public class UpdateDraftRequestTitleEndpoint : ICarterModule
                     request.OwnerName,
                     request.RegistrationNumber,
                     new VehicleDto(request.VehicleType, request.VehicleAppointmentLocation, request.ChassisNumber),
-                    new MachineryDto(request.MachineryStatus, request.MachineryType, request.InstallationStatus, request.InvoiceNumber, request.NumberOfMachinery),
+                    new MachineDto(request.MachineryStatus, request.MachineryType, request.InstallationStatus, request.InvoiceNumber, request.NumberOfMachinery),
                     new BuildingInfoDto(request.BuildingType, request.UsableArea, request.NumberOfBuilding),
                     new CondoInfoDto(request.CondoName, request.BuildingNo, request.RoomNo, request.FloorNo),
                     request.TitleAddress,

@@ -118,7 +118,7 @@ public static class DtoExtensions
         return VehicleInfo.Create(dto.VehicleType, dto.VehicleAppointmentLocation, dto.ChassisNumber);
     }
 
-    public static MachineInfo ToDomain(this MachineryDto dto)
+    public static MachineInfo ToDomain(this MachineDto dto)
     {
         return MachineInfo.Create(dto.MachineryStatus, dto.MachineryType, dto.InstallationStatus, dto.InvoiceNumber, dto.NumberOfMachinery);
     }
