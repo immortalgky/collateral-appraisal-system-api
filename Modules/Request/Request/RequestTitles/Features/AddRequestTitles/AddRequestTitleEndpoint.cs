@@ -9,7 +9,7 @@ public class AddRequestTitlesEndpoint : ICarterModule
                 {
                     var command = new AddRequestTitlesCommand(
                         requestId,
-                        request.RequestTitles.Select(rt => new AddRequestTitlesCommandDto(
+                        request.RequestTitles.Select(rt => new RequestTitlesCommandDto(
                             rt.CollateralType,
                             rt.CollateralStatus,
                             new TitleDeedInfoDto(rt.TitleNo, rt.DeedType, rt.TitleDetail),

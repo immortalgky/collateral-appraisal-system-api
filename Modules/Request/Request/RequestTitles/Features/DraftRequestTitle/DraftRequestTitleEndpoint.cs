@@ -9,28 +9,32 @@ public class DraftRequestTitleEndpoint : ICarterModule
         app.MapPost("/requests/{requestId:Guid}/titles/draft", 
                 async (Guid requestId, DraftRequestTitleRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
-                    var command = new DraftRequestTitleCommand(
+                    var command = new AddRequestTitlesCommand(
                         requestId,
-                        request.CollateralType,
-                        request.CollateralStatus,
-                        new TitleDeedInfoDto(request.TitleNo, request.DeedType, request.TitleDetail),
-                        new SurveyInfoDto(request.Rawang, request.LandNo, request.SurveyNo),new LandAreaDto(request.AreaRai, request.AreaNgan, request.AreaSquareWa),
-                        request.OwnerName,
-                        request.RegistrationNumber,
-                        new VehicleDto(request.VehicleType, request.VehicleAppointmentLocation, request.ChassisNumber),
-                        new MachineryDto(request.MachineryStatus, request.MachineryType, request.InstallationStatus, request.InvoiceNumber, request.NumberOfMachinery),
-                        new BuildingInfoDto(request.BuildingType, request.UsableArea, request.NumberOfBuilding),
-                        new CondoInfoDto(request.CondoName, request.BuildingNo, request.RoomNo, request.FloorNo),
-                        request.TitleAddress,
-                        request.DopaAddress,
-                        request.Notes
-                    );
+                        request.RequestTitles.Select(rt => new RequestTitlesCommandDto(
+                            rt.CollateralType,
+                            rt.CollateralStatus,
+                            new TitleDeedInfoDto(rt.TitleNo, rt.DeedType, rt.TitleDetail),
+                            new SurveyInfoDto(rt.Rawang, rt.LandNo, rt.SurveyNo),
+                            new LandAreaDto(rt.AreaRai, rt.AreaNgan, rt.AreaSquareWa),
+                            rt.OwnerName,
+                            rt.RegistrationNumber,
+                            new VehicleDto(rt.VehicleType, rt.VehicleAppointmentLocation, rt.ChassisNumber),
+                            new MachineryDto(rt.MachineryStatus, rt.MachineryType, rt.InstallationStatus, rt.InvoiceNumber, rt.NumberOfMachinery),
+                            new BuildingInfoDto(rt.BuildingType, rt.UsableArea, rt.NumberOfBuilding),
+                            new CondoInfoDto(rt.CondoName, rt.BuildingNo, rt.RoomNo, rt.FloorNo),
+                            rt.TitleAddress,
+                            rt.DopaAddress,
+                            rt.Notes,
+                            rt.RequestTitleDocuments.Select(rtd => new RequestTitleDocumentDto(rtd.DocumentId, rtd.DocumentType, rtd.IsRequired, rtd.DocumentDescription, rtd.UploadedBy, rtd.UploadedByName)).ToList()
+                        )).ToList()
+                    );;
 
                     var result = await sender.Send(command, cancellationToken);
 
                     var response = result.Adapt<DraftRequestTitleResponse>();
 
-                    return Results.Created($"/requests/{requestId}/titles/{response.Id}", response.Id);
+                    return Results.Created($"/requests/{requestId}", response);
                 })
             .WithName("DraftRequestTitle")
             .Produces<DraftRequestTitleResponse>(StatusCodes.Status201Created)

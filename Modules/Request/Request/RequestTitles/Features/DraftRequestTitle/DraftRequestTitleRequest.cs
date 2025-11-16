@@ -1,35 +1,5 @@
 namespace Request.RequestTitles.Features.DraftRequestTitle;
 
 public record DraftRequestTitleRequest(
-    string? CollateralType,
-    bool? CollateralStatus,
-    string? TitleNo,
-    string? DeedType,
-    string? TitleDetail,
-    string? Rawang,
-    string? LandNo,
-    string? SurveyNo,
-    int? AreaRai,
-    int? AreaNgan,
-    decimal? AreaSquareWa,
-    string? OwnerName,
-    string? RegistrationNumber,
-    string? VehicleType,
-    string? VehicleAppointmentLocation,
-    string? ChassisNumber,
-    string? MachineryStatus,
-    string? MachineryType,
-    string? InstallationStatus,
-    string? InvoiceNumber,
-    int? NumberOfMachinery,
-    string? BuildingType,
-    decimal? UsableArea,
-    int? NumberOfBuilding,
-    string? CondoName,
-    string? BuildingNo,
-    string? RoomNo,
-    string? FloorNo,
-    AddressDto TitleAddress,
-    AddressDto DopaAddress,
-    string? Notes
+    List<RequestTitleDto> RequestTitles
 );

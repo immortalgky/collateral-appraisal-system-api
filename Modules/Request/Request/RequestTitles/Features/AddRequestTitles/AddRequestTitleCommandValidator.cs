@@ -13,7 +13,7 @@ public class AddRequestTitlesCommandValidator : AbstractValidator<AddRequestTitl
     }
 }
 
-public class AddRequestTitlesCommandDtoValidator : AbstractValidator<AddRequestTitlesCommandDto>
+public class AddRequestTitlesCommandDtoValidator : AbstractValidator<RequestTitlesCommandDto>
 {
     public AddRequestTitlesCommandDtoValidator()
     {

@@ -1,3 +1,3 @@
 namespace Request.RequestTitles.Features.DraftRequestTitle;
 
-public record DraftRequestTitleResponse(Guid Id);
+public record DraftRequestTitleResponse(List<Guid> IdList);

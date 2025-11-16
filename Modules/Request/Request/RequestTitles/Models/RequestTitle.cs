@@ -45,10 +45,12 @@ public class RequestTitle : Aggregate<Guid>
         return requestTitle;
     }
 
-    public static RequestTitle CreateDraft(RequestTitleData requestTitleData, List<RequestTitleDocument> requestTitleDocuments)
+    public static RequestTitle CreateDraft(RequestTitleData requestTitleData, List<RequestTitleDocumentData> requestTitleDocuments)
     {
         var requestTitle = requestTitleData.Adapt<RequestTitle>();
-        requestTitle.AddDocumentList(requestTitleDocuments);
+        requestTitle.Id = Guid.NewGuid();
+        
+        requestTitle.AddDocumentList(requestTitleDocuments.Select(rtd => RequestTitleDocument.Create(requestTitle.Id, rtd)).ToList());
 
         requestTitle.AddDomainEvent(new RequestTitleAddedEvent(requestTitle.RequestId, requestTitle));
 

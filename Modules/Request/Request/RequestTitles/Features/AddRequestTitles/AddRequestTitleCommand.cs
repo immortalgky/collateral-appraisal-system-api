@@ -2,10 +2,10 @@ namespace Request.RequestTitles.Features.AddRequestTitles;
 
 public record AddRequestTitlesCommand(
     Guid RequestId,
-    List<AddRequestTitlesCommandDto> AddRequestTitleCommandDtos
+    List<RequestTitlesCommandDto> AddRequestTitleCommandDtos
 ) : ICommand<AddRequestTitlesResult>;
 
-public record AddRequestTitlesCommandDto(
+public record RequestTitlesCommandDto(
     string? CollateralType,
     bool? CollateralStatus,
     TitleDeedInfoDto TitleDeedInfoDto,

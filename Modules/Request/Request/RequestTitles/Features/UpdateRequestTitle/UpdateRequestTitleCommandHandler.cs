@@ -15,20 +15,23 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
         }
         
         requestTitle.UpdateDetails(
-            command.CollateralType,
-            command.CollateralStatus,
-            DtoExtensions.ToDomain(command.TitleDeedInfoDto),
-            DtoExtensions.ToDomain(command.SurveyInfoDto),
-            DtoExtensions.ToDomain(command.LandAreaDto),
-            command.OwnerName,
-            command.RegistrationNumber,
-            DtoExtensions.ToDomain(command.VehicleDto),
-            DtoExtensions.ToDomain(command.MachineryDto),
-            DtoExtensions.ToDomain(command.BuildingInfoDto),
-            DtoExtensions.ToDomain(command.CondoInfoDto),
-            DtoExtensions.ToDomain(command.TitleAddress),
-            DtoExtensions.ToDomain(command.DopaAddress),
-            command.Notes
+            new RequestTitleData(
+                requestTitle.RequestId,
+                command.CollateralType,
+                command.CollateralStatus,
+                DtoExtensions.ToDomain(command.TitleDeedInfoDto),
+                DtoExtensions.ToDomain(command.SurveyInfoDto),
+                DtoExtensions.ToDomain(command.LandAreaDto),
+                command.OwnerName,
+                command.RegistrationNumber,
+                DtoExtensions.ToDomain(command.VehicleDto),
+                DtoExtensions.ToDomain(command.MachineryDto),
+                DtoExtensions.ToDomain(command.BuildingInfoDto),
+                DtoExtensions.ToDomain(command.CondoInfoDto),
+                DtoExtensions.ToDomain(command.TitleAddress),
+                DtoExtensions.ToDomain(command.DopaAddress),
+                command.Notes
+            )
         );
 
         await requestTitleRepository.SaveChangesAsync(cancellationToken);

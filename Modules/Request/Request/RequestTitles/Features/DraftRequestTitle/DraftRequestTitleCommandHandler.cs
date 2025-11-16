@@ -1,30 +1,40 @@
 namespace Request.RequestTitles.Features.DraftRequestTitle;
 
-public class DraftRequestTitleCommandHandler(IRequestTitleRepository requestTitleRepository) : ICommandHandler<DraftRequestTitleCommand, DraftRequestTitleResult>
+public class DraftRequestTitleCommandHandler(IRequestTitleRepository requestTitleRepository, IRequestRepository requestRepository) : ICommandHandler<DraftRequestTitleCommand, DraftRequestTitleResult>
 {
     public async Task<DraftRequestTitleResult> Handle(DraftRequestTitleCommand command, CancellationToken cancellationToken)
     {
-        var requestTitle = RequestTitle.CreateDraft(
-            command.RequestId,
-            command.CollateralType,
-            command.CollateralStatus,
-            DtoExtensions.ToDomain(command.TitleDeedInfoDto),
-            DtoExtensions.ToDomain(command.SurveyInfoDto),
-            DtoExtensions.ToDomain(command.LandAreaDto),
-            command.OwnerName,
-            command.RegistrationNumber,
-            DtoExtensions.ToDomain(command.VehicleDto),
-            DtoExtensions.ToDomain(command.MachineryDto),
-            DtoExtensions.ToDomain(command.BuildingInfoDto),
-            DtoExtensions.ToDomain(command.CondoInfoDto),
-            DtoExtensions.ToDomain(command.TitleAddress),
-            DtoExtensions.ToDomain(command.DopaAddress),
-            command.Notes
-        );
+        var request = await requestRepository.GetByIdAsync(command.RequestId);
 
-        await requestTitleRepository.AddAsync(requestTitle, cancellationToken);
+        if (request is null)
+            throw new RequestNotFoundException(command.RequestId);
+        
+        var requestTitles = command.AddRequestTitleCommandDtos.Select(rt =>
+            RequestTitle.CreateDraft(
+                new RequestTitleData(
+                    command.RequestId,
+                    rt.CollateralType,
+                    rt.CollateralStatus,
+                    DtoExtensions.ToDomain(rt.TitleDeedInfoDto),
+                    DtoExtensions.ToDomain(rt.SurveyInfoDto),
+                    DtoExtensions.ToDomain(rt.LandAreaDto),
+                    rt.OwnerName,
+                    rt.RegistrationNumber,
+                    DtoExtensions.ToDomain(rt.VehicleDto),
+                    DtoExtensions.ToDomain(rt.MachineryDto),
+                    DtoExtensions.ToDomain(rt.BuildingInfoDto),
+                    DtoExtensions.ToDomain(rt.CondoInfoDto),
+                    DtoExtensions.ToDomain(rt.TitleAddress),
+                    DtoExtensions.ToDomain(rt.DopaAddress),
+                    rt.Notes
+                ),
+                rt.RequestTitleDocumentDtos.Select(rtd => rtd.Adapt<RequestTitleDocumentData>()).ToList()
+            )
+        ).ToList();
+
+        await requestTitleRepository.AddRangeAsync(requestTitles, cancellationToken);
         await requestTitleRepository.SaveChangesAsync(cancellationToken);
 
-        return new DraftRequestTitleResult(requestTitle.Id);
+        return new DraftRequestTitleResult(requestTitles.OrderBy(rt => rt.CreatedOn).Select(rt => rt.Id).ToList());
     }
 }

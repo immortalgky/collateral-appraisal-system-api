@@ -430,7 +430,7 @@ namespace Request.Data.Migrations
                                 .HasForeignKey("RequestTitleId");
                         });
 
-                    b.OwnsOne("Request.RequestTitles.ValueObjects.Machinery", "Machinery", b1 =>
+                    b.OwnsOne("Request.RequestTitles.ValueObjects.MachineInfo", "MachineInfo", b1 =>
                         {
                             b1.Property<Guid>("RequestTitleId")
                                 .HasColumnType("uniqueidentifier");
@@ -445,15 +445,15 @@ namespace Request.Data.Migrations
                                 .HasColumnType("nvarchar(20)")
                                 .HasColumnName("InvoiceNumber");
 
-                            b1.Property<string>("MachineryStatus")
+                            b1.Property<string>("MachineStatus")
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
-                                .HasColumnName("MachineryStatus");
+                                .HasColumnName("MachineStatus");
 
-                            b1.Property<string>("MachineryType")
+                            b1.Property<string>("MachineType")
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
-                                .HasColumnName("MachineryType");
+                                .HasColumnName("MachineType");
 
                             b1.Property<int?>("NumberOfMachinery")
                                 .HasColumnType("int")
@@ -526,7 +526,7 @@ namespace Request.Data.Migrations
                                 .HasForeignKey("RequestTitleId");
                         });
 
-                    b.OwnsOne("Request.RequestTitles.ValueObjects.Vehicle", "Vehicle", b1 =>
+                    b.OwnsOne("Request.RequestTitles.ValueObjects.VehicleInfo", "VehicleInfo", b1 =>
                         {
                             b1.Property<Guid>("RequestTitleId")
                                 .HasColumnType("uniqueidentifier");
@@ -601,7 +601,7 @@ namespace Request.Data.Migrations
                     b.Navigation("LandArea")
                         .IsRequired();
 
-                    b.Navigation("Machinery")
+                    b.Navigation("MachineInfo")
                         .IsRequired();
 
                     b.Navigation("SurveyInfo")
@@ -613,7 +613,7 @@ namespace Request.Data.Migrations
                     b.Navigation("TitleDeedInfo")
                         .IsRequired();
 
-                    b.Navigation("Vehicle")
+                    b.Navigation("VehicleInfo")
                         .IsRequired();
                 });
 

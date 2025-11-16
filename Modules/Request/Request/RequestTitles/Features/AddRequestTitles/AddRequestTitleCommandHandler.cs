@@ -32,7 +32,7 @@ public class AddRequestTitlesCommandHandler(IRequestTitleRepository requestTitle
                     DtoExtensions.ToDomain(rt.DopaAddress),
                     rt.Notes
                 ),
-                rt.RequestTitleDocumentDtos.Select(rtd => rtd.Adapt<RequestTitleData>())
+                rt.RequestTitleDocumentDtos.Select(rtd => rtd.Adapt<RequestTitleDocumentData>()).ToList()
             )
         ).ToList();
 

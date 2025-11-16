@@ -8,7 +8,25 @@ public class DraftRequestTitleValidator : AbstractValidator<DraftRequestTitleCom
     {
         RuleFor(x => x.RequestId)
             .NotEmpty()
-            .WithMessage("ReqeustId is required");
+            .WithMessage("RequestId is required");
+        
+        RuleForEach(x => x.AddRequestTitleCommandDtos)
+            .SetValidator(new DraftRequestTitlesCommandDtoValidator());;
+    }
+}
+
+public class DraftRequestTitlesCommandDtoValidator : AbstractValidator<RequestTitlesCommandDto>
+{
+    public DraftRequestTitlesCommandDtoValidator()
+    {
+        RuleFor(x => x.CollateralType)
+            .NotEmpty()
+            .WithMessage("CollateralType is required.")
+            .MaximumLength(10)
+            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
+
+        RuleFor(x => x.CollateralStatus)
+            .NotEmpty();
 
         // == TitleDeedInfoDto ==
         RuleFor(x => x.TitleDeedInfoDto.TitleNo)
@@ -22,9 +40,6 @@ public class DraftRequestTitleValidator : AbstractValidator<DraftRequestTitleCom
         RuleFor(x => x.TitleDeedInfoDto.TitleDetail)
             .MaximumLength(200)
             .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
-
-        RuleFor(x => x.TitleDeedInfoDto.TitleDetail)
-            .MaximumLength(200);
 
         // == SurveyInfoDto ==
         RuleFor(x => x.SurveyInfoDto.Rawang)
