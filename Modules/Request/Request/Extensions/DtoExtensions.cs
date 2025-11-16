@@ -113,14 +113,14 @@ public static class DtoExtensions
         return LandArea.Of(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa);
     }
 
-    public static Vehicle ToDomain(this VehicleDto dto)
+    public static VehicleInfo ToDomain(this VehicleDto dto)
     {
-        return Vehicle.Create(dto.VehicleType, dto.VehicleAppointmentLocation, dto.ChassisNumber);
+        return VehicleInfo.Create(dto.VehicleType, dto.VehicleAppointmentLocation, dto.ChassisNumber);
     }
 
-    public static Machinery ToDomain(this MachineryDto dto)
+    public static MachineInfo ToDomain(this MachineryDto dto)
     {
-        return Machinery.Create(dto.MachineryStatus, dto.MachineryType, dto.InstallationStatus, dto.InvoiceNumber, dto.NumberOfMachinery);
+        return MachineInfo.Create(dto.MachineryStatus, dto.MachineryType, dto.InstallationStatus, dto.InvoiceNumber, dto.NumberOfMachinery);
     }
 
     public static BuildingInfo ToDomain(this BuildingInfoDto dto)

@@ -85,7 +85,7 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
         builder.Property(p => p.RegistrationNo)
             .HasMaxLength(50);
         
-        builder.OwnsOne(p => p.Vehicle, vehicle =>
+        builder.OwnsOne(p => p.VehicleInfo, vehicle =>
         {
             vehicle.Property(p => p.VehicleType)
                 .HasMaxLength(10)
@@ -100,13 +100,13 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
                 .HasColumnName("ChassisNumber");
         });
 
-        builder.OwnsOne(p => p.Machinery, machinery =>
+        builder.OwnsOne(p => p.MachineInfo, machinery =>
         {
-            machinery.Property(p => p.MachineryType)
+            machinery.Property(p => p.MachineType)
                 .HasMaxLength(10)
                 .HasColumnName("MachineryType");
             
-            machinery.Property(p => p.MachineryStatus)
+            machinery.Property(p => p.MachineStatus)
                 .HasMaxLength(10)
                 .HasColumnName("MachineryStatus");
 

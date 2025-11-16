@@ -15,22 +15,24 @@ public class AddRequestTitlesCommandHandler(IRequestTitleRepository requestTitle
         // throw exception which identify index of item 
         var requestTitles = command.AddRequestTitleCommandDtos.Select(rt =>
             RequestTitle.Create(
-                command.RequestId,
-                rt.CollateralType,
-                rt.CollateralStatus,
-                DtoExtensions.ToDomain(rt.TitleDeedInfoDto),
-                DtoExtensions.ToDomain(rt.SurveyInfoDto),
-                DtoExtensions.ToDomain(rt.LandAreaDto),
-                rt.OwnerName,
-                rt.RegistrationNumber,
-                DtoExtensions.ToDomain(rt.VehicleDto),
-                DtoExtensions.ToDomain(rt.MachineryDto),
-                DtoExtensions.ToDomain(rt.BuildingInfoDto),
-                DtoExtensions.ToDomain(rt.CondoInfoDto),
-                DtoExtensions.ToDomain(rt.TitleAddress),
-                DtoExtensions.ToDomain(rt.DopaAddress),
-                rt.Notes,
-                rt.RequestTitleDocumentDtos
+                new RequestTitleData(
+                    command.RequestId,
+                    rt.CollateralType,
+                    rt.CollateralStatus,
+                    DtoExtensions.ToDomain(rt.TitleDeedInfoDto),
+                    DtoExtensions.ToDomain(rt.SurveyInfoDto),
+                    DtoExtensions.ToDomain(rt.LandAreaDto),
+                    rt.OwnerName,
+                    rt.RegistrationNumber,
+                    DtoExtensions.ToDomain(rt.VehicleDto),
+                    DtoExtensions.ToDomain(rt.MachineryDto),
+                    DtoExtensions.ToDomain(rt.BuildingInfoDto),
+                    DtoExtensions.ToDomain(rt.CondoInfoDto),
+                    DtoExtensions.ToDomain(rt.TitleAddress),
+                    DtoExtensions.ToDomain(rt.DopaAddress),
+                    rt.Notes
+                ),
+                rt.RequestTitleDocumentDtos.Select(rtd => rtd.Adapt<RequestTitleData>())
             )
         ).ToList();
 

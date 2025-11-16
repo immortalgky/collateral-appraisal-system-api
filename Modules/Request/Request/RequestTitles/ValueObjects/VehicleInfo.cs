@@ -1,12 +1,12 @@
 namespace Request.RequestTitles.ValueObjects;
 
-public class Vehicle : ValueObject
+public class VehicleInfo : ValueObject
 {
     public string? VehicleType { get; }
     public string? VehicleAppointmentLocation { get; }
     public string? ChassisNumber { get; }
     
-    private Vehicle(
+    private VehicleInfo(
         string? vehicleType, 
         string? vehicleAppointmentLocation,
         string? chassisNumber
@@ -18,13 +18,13 @@ public class Vehicle : ValueObject
     }
 
 
-    public static Vehicle Create(
+    public static VehicleInfo Create(
         string? vehicleType, 
         string? vehicleAppointmentLocation, 
         string? chassisNumber
     )
     {
-        return new Vehicle(
+        return new VehicleInfo(
             vehicleType, 
             vehicleAppointmentLocation, 
             chassisNumber

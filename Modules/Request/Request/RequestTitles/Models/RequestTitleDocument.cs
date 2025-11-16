@@ -19,18 +19,18 @@ public class RequestTitleDocument : Aggregate<Guid>
         // EF Core
     }
 
-    public static RequestTitleDocument Create(Guid titleId, Guid documentId, string documentType, string documentDescription, bool isRequired, string uploadedBy, string uploadedByName)
+    public static RequestTitleDocument Create(Guid titleId, RequestTitleDocumentData requestTitleDocument)
     {
         return new RequestTitleDocument()
         {
             Id = Guid.NewGuid(),
             TitleId = titleId,
-            DocumentId = documentId,
-            DocumentType = documentType,
-            IsRequired = isRequired,
-            DocumentDescription = documentDescription,
-            UploadedBy = uploadedBy,
-            UploadedByName = uploadedByName,
+            DocumentId = requestTitleDocument.DocumentId,
+            DocumentType = requestTitleDocument.DocumentType,
+            IsRequired = requestTitleDocument.IsRequired,
+            DocumentDescription = requestTitleDocument.DocumentDescription,
+            UploadedBy = requestTitleDocument.UploadedBy,
+            UploadedByName = requestTitleDocument.UploadedByName,
             UploadedAt = DateTime.UtcNow
         };
     }
@@ -48,3 +48,14 @@ public class RequestTitleDocument : Aggregate<Guid>
         return true;
     }
 }
+
+public record RequestTitleDocumentData(
+    Guid? TitleId,
+    Guid DocumentId,
+    string DocumentType,
+    bool IsRequired,
+    string DocumentDescription,
+    string UploadedBy,
+    string UploadedByName,
+    DateTime UploadedAt
+    );

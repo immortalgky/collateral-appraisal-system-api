@@ -36,6 +36,7 @@ public record RequestTitleDto(
     );
 
 public record RequestTitleDocumentDto(
+    Guid TitleId,
     Guid DocumentId,
     string? DocumentType,
     bool IsRequired,
