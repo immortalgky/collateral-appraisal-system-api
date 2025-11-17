@@ -8,7 +8,10 @@ public static class MappingConfiguration
             .NewConfig()
             .ConstructUsing(src => LoanDetail.Create(
                 src.LoanApplicationNo,
-                src.LimitAmt,
+                src.BankingSegment,
+                src.FacilityLimit,
+                src.AdditionalFacilityLimit,
+                src.PreviousFacilityLimit,
                 src.TotalSellingPrice
             ));
 
@@ -49,7 +52,8 @@ public static class MappingConfiguration
             .NewConfig()
             .ConstructUsing(src => Fee.Create(
                 src.FeeType,
-                src.FeeRemark
+                src.FeeNote,
+                src.BankAbsorbAmt
             ));
 
         TypeAdapterConfig<RequestorDto, Requestor>

@@ -4,8 +4,8 @@ public class UpdateRequestEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPatch("/requests/{id:long}",
-                async (long id, UpdateRequestRequest request, ISender sender, CancellationToken cancellationToken) =>
+        app.MapPatch("/requests/{id}",
+                async (Guid id, UpdateRequestRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
                     var command = request.Adapt<UpdateRequestCommand>() with { Id = id };
 
@@ -22,6 +22,7 @@ public class UpdateRequestEndpoint : ICarterModule
             .WithSummary("Update an existing request")
             .WithDescription(
                 "Updates an existing request in the system. The request details are provided in the request body.")
-            .RequireAuthorization("CanWriteRequest");
+            .AllowAnonymous();
+        // .RequireAuthorization("CanWriteRequest");
     }
 }

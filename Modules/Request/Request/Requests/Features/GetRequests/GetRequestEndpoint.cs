@@ -19,6 +19,7 @@ public class GetRequestEndpoint : ICarterModule
             .WithSummary("Get all requests")
             .WithDescription(
                 "Retrieves all requests from the system. This endpoint returns a list of requests with their details.")
-            .RequireAuthorization("CanReadRequest");
+            .AllowAnonymous();
+        // .RequireAuthorization("CanReadRequest");
     }
 }

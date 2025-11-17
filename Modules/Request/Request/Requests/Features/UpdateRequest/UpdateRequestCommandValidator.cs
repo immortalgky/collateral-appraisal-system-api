@@ -12,25 +12,42 @@ public class UpdateRequestCommandValidator : AbstractValidator<UpdateRequestComm
             .NotEmpty()
             .WithMessage("Priority is required.");
 
-        RuleFor(x => x.Channel)
+        RuleFor(x => x.SourceSystem.Channel)
             .NotEmpty()
             .WithMessage("Channel is required.");
 
-        RuleFor(x => x.Address)
-            .NotNull()
-            .WithMessage("Address is required.");
+        RuleFor(x => x.Detail.LoanDetail.BankingSegment)
+            .NotEmpty()
+            .WithMessage("BankingSegment is required.");
 
-        RuleFor(x => x.Contact)
+        RuleFor(x => x.Detail.Address.SubDistrict)
             .NotNull()
-            .WithMessage("Contact is required.");
+            .WithMessage("SubDistrict is required.");
 
-        RuleFor(x => x.Fee)
+        RuleFor(x => x.Detail.Contact.ContactPersonContactNo)
             .NotNull()
-            .WithMessage("Fee is required.");
+            .WithMessage("ContactPersonContactNo is required.");
 
-        RuleFor(x => x.Requestor)
+        RuleFor(x => x.Detail.Contact.ContactPersonName)
             .NotNull()
-            .WithMessage("Requestor is required.");
+            .WithMessage("ContactPersonName is required.");
+
+        RuleFor(x => x.Detail.Fee.FeeType)
+            .NotNull()
+            .WithMessage("FeeType is required.");
+
+        RuleFor(x => x.Detail.Appointment.AppointmentDateTime)
+            .NotNull()
+            .WithMessage("AppointmentDateTime is required.");
+
+        RuleFor(x => x.Detail.Appointment.AppointmentLocation)
+            .NotNull()
+            .WithMessage("AppointmentLocation is required.");
+
+        RuleFor(x => x.Detail.LoanDetail.FacilityLimit)
+            .Must(FacilityLimit => FacilityLimit is null || FacilityLimit > 0)
+            .WithMessage("FacilityLimit cannot be zero.");
+
 
         RuleFor(x => x.Customers)
             .NotNull()

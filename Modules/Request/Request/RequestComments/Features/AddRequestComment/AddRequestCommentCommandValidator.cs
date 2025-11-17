@@ -6,9 +6,9 @@ public class AddRequestCommentCommandValidator : AbstractValidator<AddRequestCom
     {
         RuleFor(x => x.RequestId)
             .NotNull()
-            .WithMessage("Request ID cannot be null.")
-            .GreaterThan(0)
-            .WithMessage("Request ID must be greater than 0.");
+            .WithMessage("Request ID cannot be null.");
+        // .GreaterThan(0)
+        // .WithMessage("Request ID must be greater than 0.");
 
         RuleFor(x => x.Comment)
             .NotEmpty()

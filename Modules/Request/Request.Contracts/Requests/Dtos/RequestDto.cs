@@ -10,9 +10,13 @@ namespace Request.Contracts.Requests.Dtos;
 
 public class RequestDto
 {
-    public long Id { get; set; }
+    public Guid Id { get; set; }
     public string AppraisalNo { get; set; }
+    public string Purpose { get; set; }
+    public SourceSystemDto SourceSystem { get; set; }
+    public string Priority { get; set; }
     public string Status { get; set; }
+    public bool IsPMA { get; set; }
     public RequestDetailDto Detail { get; set; }
     public List<RequestCustomerDto> Customers { get; set; }
     public List<RequestPropertyDto> Properties { get; set; }

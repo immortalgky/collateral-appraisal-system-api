@@ -18,7 +18,12 @@ The Request Management module handles the complete lifecycle of appraisal reques
 Request Module
 ├── Request (Aggregate Root)
 ├── RequestDetail (Request Details - One-to-One)
+├── RequestDetail (Request Details - One-to-One)
 ├── RequestCustomer (Customer Info - One-to-Many)
+├── RequestProperty (Property Types - One-to-Many)
+├── RequestDocument (Document Links - One-to-Many)
+├── RequestTitle (Legal Documentation - One-to-Many)
+└── RequestComment (User Comments - One-to-Many)
 ├── RequestProperty (Property Types - One-to-Many)
 ├── RequestDocument (Document Links - One-to-Many)
 ├── RequestTitle (Legal Documentation - One-to-Many)
@@ -32,7 +37,11 @@ erDiagram
     Request ||--o{ RequestCustomer : "has many"
     Request ||--|| RequestDetail : "has"
     Request ||--o{ RequestProperty : "has many"
+    Request ||--|| RequestDetail : "has"
+    Request ||--o{ RequestProperty : "has many"
     Request ||--o{ RequestDocument : "has many"
+    Request ||--o{ RequestTitle : "has many"
+    Request ||--o{ RequestComment : "has many"
     Request ||--o{ RequestTitle : "has many"
     Request ||--o{ RequestComment : "has many"
 
@@ -42,6 +51,11 @@ erDiagram
     Request {
         guid Id PK
         string RequestNumber UK
+        string Purpose
+        string Channel
+        string RequestDate
+        string RequestedBy
+        string Priority
         string Purpose
         string Channel
         string RequestDate
@@ -62,11 +76,27 @@ erDiagram
         decimal PreviousFacilityLimit
         decimal AdditionalFacilityLimit
         decimal TotalSellingPrice
+        string SubmittedAt
+        string CompletedAt
+        string IsPMA
+    }
+    
+    RequestDetail {
+        guid RequestId PK
+        string HasOwnAppraisalBook
+        string PreviousAppraisalId
+        decimal LoanAmount
+        decimal FacilityLimit
+        decimal PreviousFacilityLimit
+        decimal AdditionalFacilityLimit
+        decimal TotalSellingPrice
     }
 
     RequestCustomer {
         guid Id PK
         guid RequestId FK
+        string Name
+        string PhoneNumber
         string Name
         string PhoneNumber
     }
@@ -101,6 +131,9 @@ erDiagram
         string Comments
         string CommentedBy
         string CommentedAt
+        string Comments
+        string CommentedBy
+        string CommentedAt
     }
 ```
 
@@ -125,6 +158,7 @@ CREATE TABLE request.Requests
 
     -- Business Key
     RequestNumber           NVARCHAR(50) UNIQUE NOT NULL,           -- Auto-generated: REQ-000001-2025
+    RequestNumber           NVARCHAR(50) UNIQUE NOT NULL,           -- Auto-generated: REQ-000001-2025
 
     -- Purpose
     Purpose                 NVARCHAR(100) NOT NULL,
@@ -134,8 +168,10 @@ CREATE TABLE request.Requests
     RequestDate             DATETIME2 NOT NULL DEFAULT GETDATE(),
     RequestedBy             NVARCHAR(10) NOT NULL,
     RequestedByName         NVARCHAR(100) NOT NULL,
+    CreatedDate             DATETIME2 NULL,
 
     -- Priority & Due Date
+    Priority                NVARCHAR(20) NOT NULL DEFAULT 'Normal', -- Normal, High
     Priority                NVARCHAR(20) NOT NULL DEFAULT 'Normal', -- Normal, High
 
     -- Status
@@ -213,6 +249,60 @@ CREATE TABLE request.RequestDetail
     AbsorbedFee                    DECIMAL(19,4) NULL,
     FeeNotes                       NVARCHAR(MAX) NULL
 )
+    CONSTRAINT CK_Request_Priority CHECK (Priority IN ('Normal', 'High'))
+);
+```
+### 2. RequestDetail (One-to-One)
+
+Stores detailed information about the request.
+
+#### SQL Schema
+
+```sql
+CREATE TABLE request.RequestDetail
+(
+    -- Primary Key
+    RequestId                      UNIQUEIDENTIFIER NOT NULL
+
+    -- Request Information
+    HasOwnAppraisalBook            BIT NOT NULL DEFAULT 0,
+
+    -- Original Appraisal
+    PreviousAppraisalId            UNIQUEIDENTIFIER NULL,
+    
+    -- Loan Information
+    LoanApplicationNo              NVARCHAR(100) NULL,                     -- From LOS system
+    BankingSegment                 NVARCHAR(10) NULL,                      -- LOS, CLS
+    FacilityLimit                  DECIMAL(19,4) NULL,
+    PreviousFacilityLimit          DECIMAL(19,4) NULL,
+    AdditionalFacilityLimit        DECIMAL(19,4) NULL,
+    TotalSellingPrice              DECIMAL(19,4) NULL,
+    
+    -- Location
+    HouseNo                        NVARCHAR(30) NULL,
+    RoomNo                         NVARCHAR(30) NULL,
+    FloorNo                        NVARCHAR(10) NULL,
+    ProjectName                    NVARCHAR(100) NULL,
+    Moo                            NVARCHAR(50) NULL,
+    Soi                            NVARCHAR(100) NULL,
+    Road                           NVARCHAR(100) NULL,
+    SubDistrict                    NVARCHAR(50) NOT NULL
+    District                       NVARCHAR(50) NOT NULL,
+    Province                       NVARCHAR(50) NOT NULL,
+    Postcode                       NVARCHAR(10) NULL
+    ContactPersonName              NVARCHAR(100) NOT NULL,
+    ContactPersonPhone             NVARCHAR(40) NOT NULL
+    ProjectCode                    NVARCHAR(10) NULL,
+    
+    -- Appointment
+    AppointmentDateTime            DATETIME2 NULL,
+    AppointmentLocation            NVARCHAR(200) NULL
+    
+    -- Fee
+    FeePaymentType                 NVARCHAR(10) NOT NULL,
+    AbsorbedFee                    DECIMAL(19,4) NULL,
+    FeeNotes                       NVARCHAR(MAX) NULL
+)
 ```
 
 ### 2. RequestCustomers (One-to-Many)
@@ -226,11 +316,14 @@ CREATE TABLE request.RequestCustomers
 (
     -- Primary Key
     Id                      BIGINT,
+    Id                      BIGINT,
 
     -- Foreign Key
     RequestId               UNIQUEIDENTIFIER NOT NULL,
 
     -- Customer Information (Simplified)
+    Name                    NVARCHAR(260) NOT NULL,
+    PhoneNumber             NVARCHAR(50) NULL,                      -- Phone number
     Name                    NVARCHAR(260) NOT NULL,
     PhoneNumber             NVARCHAR(50) NULL,                      -- Phone number
 
@@ -275,9 +368,12 @@ CREATE TABLE request.RequestPropertyTypes
     PropertyType            NVARCHAR(50) NOT NULL,                  -- Land, Building, LandAndBuilding, Condo, Vehicle, Vessel, Machinery
     PropertySubType         NVARCHAR(100) NULL,                     -- SingleHouse, Townhouse, Commercial, etc.
     SellingPrice            DECIMAL(19,4) NULL
+    SellingPrice            DECIMAL(19,4) NULL
 
     CONSTRAINT FK_RequestProperty_Request FOREIGN KEY (RequestId)
+    CONSTRAINT FK_RequestProperty_Request FOREIGN KEY (RequestId)
         REFERENCES request.Requests(Id) ON DELETE CASCADE,
+    CONSTRAINT CK_RequestProperty_Type CHECK (PropertyType IN ('Land', 'Building', 'LandAndBuilding', 'Condo', 'Vehicle', 'Vessel', 'Machinery'))
     CONSTRAINT CK_RequestProperty_Type CHECK (PropertyType IN ('Land', 'Building', 'LandAndBuilding', 'Condo', 'Vehicle', 'Vessel', 'Machinery'))
 );
 ```
@@ -340,13 +436,46 @@ CREATE TABLE request.RequestTitles
     -- Title Deed Information
     TitleDeedNumber         NVARCHAR(100) NOT NULL,                 -- โฉนดเลขที่
     DeedType                NVARCHAR(50) NOT NULL,                  -- Chanote, NorSor3, NorSor3Kor
+    DeedType                NVARCHAR(50) NOT NULL,                  -- Chanote, NorSor3, NorSor3Kor
 
     -- Survey Information
     Rawang                  NVARCHAR(100) NULL,                     -- ระวาง
     LandNumber              NVARCHAR(50) NULL,                      -- เลขที่ดิน
     SurveyNumber            NVARCHAR(50) NULL,                      -- หน้าสำรวจ
+    Rawang                  NVARCHAR(100) NULL,                     -- ระวาง
+    LandNumber              NVARCHAR(50) NULL,                      -- เลขที่ดิน
+    SurveyNumber            NVARCHAR(50) NULL,                      -- หน้าสำรวจ
 
     -- Area (Thai Land Measurement)
+    AreaRai                 INT NULL,                               -- ไร่
+    AreaNgan                INT NULL,                               -- งาน
+    AreaSquareWa            DECIMAL(5,2) NULL,                      -- ตารางวา
+
+    -- Adress
+    HouseNo                 NVARCHAR(30) NULL,
+    RoomNo                  NVARCHAR(30) NULL,
+    FloorNo                 NVARCHAR(10) NULL,
+    BuildingNo              NVARCHAR(100) NULL,
+    ProjectName             NVARCHAR(100) NULL,
+    Moo                     NVARCHAR(50) NULL,
+    Soi                     NVARCHAR(100) NULL,
+    Road                    NVARCHAR(100) NULL,
+    SubDistrict             NVARCHAR(50) NOT NULL,                  -- ตำบล/แขวง    
+    District                NVARCHAR(50) NOT NULL,                  -- อำเภอ/เขต
+    Province                NVARCHAR(50) NOT NULL,                  -- จังหวัด
+    Postcode                NVARCHAR(10) NULL
+        
+    -- DOPA Address
+    DOPAHouseNo             NVARCHAR(30) NULL,
+    DOPAProjectName         NVARCHAR(100) NULL,
+    DOPAMoo                 NVARCHAR(50) NULL,
+    DOPASoi                 NVARCHAR(100) NULL,
+    DOPARoad                NVARCHAR(100) NULL,
+    DOPASubDistrict         NVARCHAR(50) NOT NULL
+    DOPADistrict            NVARCHAR(50) NOT NULL,
+    DOPAProvince            NVARCHAR(50) NOT NULL,
+    DOPAPostcode            NVARCHAR(10) NULL
+    
     AreaRai                 INT NULL,                               -- ไร่
     AreaNgan                INT NULL,                               -- งาน
     AreaSquareWa            DECIMAL(5,2) NULL,                      -- ตารางวา
@@ -401,6 +530,29 @@ CREATE TABLE request.RequestTitles
     InvoiceNumber           NVARCHAR(20) NULL,
     NumberOfMachinery       INT NULL,
     
+    
+    -- Building Information
+    BuildingType            NVARCHAR(10) NULL,
+    UsableArea              DECIMAL(19,4) NULL,
+    NumberOfBuilding        INT NULL,
+    
+    -- ID (Vehicle, Machinery)
+    RegistrationNumber      NVARCHAR(50) NULL,
+    RegistrationStatus      NVARCHAR(10) NULL,
+    ChassisNumber           NVARCHAR(50) NULL,                      -- For Vehicle
+    
+    -- Vehicle
+    VehicleType             NVARCHAR(10) NULL,
+    
+    -- Vessel
+    VesselType              NVARCHAR(10) NULL,
+    
+    -- Machinery
+    MachineryType           NVARCHAR(10) NULL,
+    InstallationStatus      NVARCHAR(10) NULL,
+    InvoiceNumber           NVARCHAR(20) NULL,
+    NumberOfMachinery       INT NULL,
+    
     -- Notes
     Notes                   NVARCHAR(MAX) NULL,
 
@@ -411,7 +563,10 @@ CREATE TABLE request.RequestTitles
     UpdatedBy               NVARCHAR(10) NOT NULL,
 
     CONSTRAINT FK_RequestTitles_Request FOREIGN KEY (RequestId)
+    CONSTRAINT FK_RequestTitles_Request FOREIGN KEY (RequestId)
         REFERENCES request.Requests(Id) ON DELETE CASCADE,
+    CONSTRAINT CK_RequestTitles_DeedType CHECK (DeedType IN ('Chanote', 'NorSor3', 'NorSor3Kor')),
+    CONSTRAINT CK_RequestTitles_Area CHECK (AreaRai >= 0 AND AreaNgan >= 0 AND AreaSquareWa >= 0)
     CONSTRAINT CK_RequestTitles_DeedType CHECK (DeedType IN ('Chanote', 'NorSor3', 'NorSor3Kor')),
     CONSTRAINT CK_RequestTitles_Area CHECK (AreaRai >= 0 AND AreaNgan >= 0 AND AreaSquareWa >= 0)
 );
@@ -499,6 +654,7 @@ CREATE INDEX IX_RequestCustomer_Name ON request.RequestCustomers(Name);
 CREATE INDEX IX_RequestProperty_RequestId ON request.RequestPropertyTypes(RequestId);
 CREATE INDEX IX_RequestProperty_PropertyType ON request.RequestProperty(PropertyType);
 
+
 -- RequestDocument indexes
 CREATE INDEX IX_RequestDocument_RequestId ON request.RequestDocuments(RequestId);
 CREATE INDEX IX_RequestDocument_DocumentId ON request.RequestDocuments(DocumentId);
@@ -530,6 +686,7 @@ public enum RequestStatus
 public enum Priority
 {
     Normal,
+    High
     High
 }
 

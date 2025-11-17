@@ -1,7 +1,7 @@
 namespace Request.RequestTitles.Features.AddRequestTitle;
 
 public record AddRequestTitleRequest(
-    long RequestId,
+    Guid RequestId,
     string CollateralType,
     string? TitleNo,
     string? TitleDetail,

@@ -10,17 +10,11 @@ internal class CreateRequestCommandHandler(
     {
         // Create a request with validated data (appraisal number will be generated in repository)
         var request = CreateNewRequest(
+            command.Detail,
+            command.IsPMA,
             command.Purpose,
-            command.HasAppraisalBook,
             command.Priority,
-            command.Channel,
-            command.OccurConstInspec,
-            command.Reference.ToDomain(),
-            command.LoanDetail.ToDomain(),
-            command.Address.ToDomain(),
-            command.Contact.ToDomain(),
-            command.Fee.ToDomain(),
-            command.Requestor.ToDomain(),
+            command.SourceSystem,
             command.Customers.Select(customer => customer.ToDomain()).ToList(),
             command.Properties.Select(property => property.ToDomain()).ToList()
         );
@@ -31,33 +25,30 @@ internal class CreateRequestCommandHandler(
     }
 
     private static Models.Request CreateNewRequest(
+        RequestDetailDto requestDetail,
+        bool isPMA,
         string purpose,
-        bool hasAppraisalBook,
         string priority,
-        string channel,
-        int? occurConstInspec,
-        Reference reference,
-        LoanDetail loanDetail,
-        Address address,
-        Contact contact,
-        Fee fee,
-        Requestor requestor,
+        SourceSystemDto sourceSystem,
         List<RequestCustomer> customers,
         List<RequestProperty> properties
     )
     {
+        var detail = RequestDetail.Create(
+            requestDetail.HasAppraisalBook,
+            requestDetail.PrevAppraisalNo,
+            requestDetail.LoanDetail.ToDomain(),
+            requestDetail.Address.ToDomain(),
+            requestDetail.Contact.ToDomain(),
+            requestDetail.Appointment.ToDomain(),
+            requestDetail.Fee.ToDomain()
+        );
+
+        var source = sourceSystem.ToDomain();
+
+
         var request = Models.Request.Create(
-            purpose,
-            hasAppraisalBook,
-            priority,
-            channel,
-            occurConstInspec,
-            reference,
-            loanDetail,
-            address,
-            contact,
-            fee,
-            requestor
+            detail, isPMA, purpose, priority, source
         );
 
         // Add customers

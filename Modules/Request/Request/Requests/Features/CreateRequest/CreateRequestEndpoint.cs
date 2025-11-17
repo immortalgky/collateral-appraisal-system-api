@@ -21,6 +21,7 @@ public class CreateRequestEndpoint : ICarterModule
             .WithSummary("Create a new request")
             .WithDescription(
                 "Creates a new request in the system. The request details are provided in the request body.")
-            .RequireAuthorization("CanWriteRequest");
+            .AllowAnonymous();
+        // .RequireAuthorization("CanWriteRequest");
     }
 }

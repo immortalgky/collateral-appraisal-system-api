@@ -1,17 +1,11 @@
 namespace Request.Requests.Features.CreateRequest;
 
 public record CreateRequestRequest(
+    RequestDetailDto Detail,
+    bool IsPMA,
     string Purpose,
-    bool HasAppraisalBook,
     string Priority,
-    ReferenceDto Reference,
-    string Channel,
-    int? OccurConstInspec,
-    LoanDetailDto LoanDetail,
-    AddressDto Address,
-    ContactDto Contact,
-    FeeDto Fee,
-    RequestorDto Requestor,
+    SourceSystemDto SourceSystem,
     List<RequestCustomerDto> Customers,
     List<RequestPropertyDto> Properties
 );

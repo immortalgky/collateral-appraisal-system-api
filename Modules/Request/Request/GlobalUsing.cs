@@ -1,4 +1,5 @@
 // ===== SYSTEM & FRAMEWORK =====
+
 global using System;
 global using System.Linq.Expressions;
 global using System.Reflection;
@@ -64,3 +65,7 @@ global using Request.RequestComments.Exceptions;
 global using Request.RequestComments.Events;
 global using Request.RequestComments.EventHandlers;
 global using Request.RequestComments.Specifications;
+
+// RequestDocument (Sub-Aggregate)
+global using Request.RequestDocuments.Models;
+global using Request.RequestDocuments.ValueObjects;

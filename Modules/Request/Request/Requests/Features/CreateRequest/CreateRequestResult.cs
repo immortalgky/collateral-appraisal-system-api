@@ -1,3 +1,3 @@
 namespace Request.Requests.Features.CreateRequest;
 
-public record CreateRequestResult(long Id);
+public record CreateRequestResult(Guid Id);

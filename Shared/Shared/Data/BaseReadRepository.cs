@@ -47,7 +47,7 @@ namespace Shared.Data
         }
 
         // Basic read operations
-        public virtual async Task<T?> GetByIdAsync(TId id, CancellationToken cancellationToken = default)
+        public virtual async Task<T?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await GetReadQuery().FirstOrDefaultAsync(e => e.Id.Equals(id), cancellationToken);
         }

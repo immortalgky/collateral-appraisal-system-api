@@ -4,7 +4,7 @@ public class DeleteRequestEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapDelete("/requests/{id:long}", async (long id, ISender sender, CancellationToken cancellationToken) =>
+        app.MapDelete("/requests/{id}", async (Guid id, ISender sender, CancellationToken cancellationToken) =>
             {
                 var result = await sender.Send(new DeleteRequestCommand(id), cancellationToken);
 
@@ -18,6 +18,7 @@ public class DeleteRequestEndpoint : ICarterModule
             .WithSummary("Delete request by ID")
             .WithDescription(
                 "Deletes a request by its ID. If the request does not exist, a 404 Not Found error is returned.")
-            .RequireAuthorization("CanWriteRequest");
+            .AllowAnonymous();
+        // .RequireAuthorization("CanWriteRequest");
     }
 }

@@ -4,7 +4,7 @@ public record GetRequestCommentsByRequestIdResult(List<RequestCommentDto> Commen
 
 public record RequestCommentDto(
     long Id,
-    long RequestId,
+    Guid RequestId,
     string Comment,
     DateTime? CreatedOn,
     string? CreatedBy,
