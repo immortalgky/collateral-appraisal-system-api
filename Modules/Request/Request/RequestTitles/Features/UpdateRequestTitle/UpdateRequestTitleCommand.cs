@@ -1,15 +1,15 @@
 namespace Request.RequestTitles.Features.UpdateRequestTitle;
 
 public record UpdateRequestTitleCommand(
-    Guid Id,
     Guid RequestId,
+    Guid TitleId,
     string? CollateralType,
     bool? CollateralStatus,
     TitleDeedInfoDto TitleDeedInfoDto,
     SurveyInfoDto SurveyInfoDto,
     LandAreaDto LandAreaDto,
     string? OwnerName,
-    string? RegistrationNumber,
+    string? RegistrationNo,
     VehicleDto VehicleDto,
     MachineDto MachineDto,
     BuildingInfoDto BuildingInfoDto,

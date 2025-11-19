@@ -8,7 +8,7 @@ public class RequestTitleDocument : Aggregate<Guid>
     public string DocumentType { get; private set; } = default!;
     public bool IsRequired { get; private set; } = false;
 
-    public string DocumentDescription { get; private set; } = default!;
+    public string? DocumentDescription { get; private set; }
 
     public string UploadedBy { get; private set; } = default!;
     public string UploadedByName { get; private set; } = default!;
@@ -19,12 +19,12 @@ public class RequestTitleDocument : Aggregate<Guid>
         // EF Core
     }
 
-    public static RequestTitleDocument Create(Guid titleId, RequestTitleDocumentData requestTitleDocument)
+    public static RequestTitleDocument Create(RequestTitleDocumentData requestTitleDocument)
     {
         return new RequestTitleDocument()
         {
             Id = Guid.NewGuid(),
-            TitleId = titleId,
+            TitleId = requestTitleDocument.TitleId,
             DocumentId = requestTitleDocument.DocumentId,
             DocumentType = requestTitleDocument.DocumentType,
             IsRequired = requestTitleDocument.IsRequired,
@@ -35,27 +35,47 @@ public class RequestTitleDocument : Aggregate<Guid>
         };
     }
     
-    public bool Update(string documentType, string documentDescription, bool isRequired, string uploadedBy,
-        string uploadedByName)
+    public void Update(RequestTitleDocumentData requestDocumentData)
     {
-        DocumentType = documentType;
-        DocumentDescription = documentDescription;
-        IsRequired = isRequired;
-        UploadedBy = uploadedBy;
-        UploadedByName = uploadedByName;
-        UploadedAt = DateTime.UtcNow;
+        RequestTitleDocumentValidator.Validate(requestDocumentData);
         
-        return true;
+        DocumentType = requestDocumentData.DocumentType;
+        DocumentDescription = requestDocumentData.DocumentDescription;
+        IsRequired = requestDocumentData.IsRequired;
+        UploadedBy = requestDocumentData.UploadedBy;
+        UploadedByName = requestDocumentData.UploadedByName;
+        UploadedAt = DateTime.UtcNow;
+    }
+
+    public void UpdateDraft(RequestTitleDocumentData requestDocumentData)
+    {
+        DocumentType = requestDocumentData.DocumentType;
+        DocumentDescription = requestDocumentData.DocumentDescription;
+        IsRequired = requestDocumentData.IsRequired;
+        UploadedBy = requestDocumentData.UploadedBy;
+        UploadedByName = requestDocumentData.UploadedByName;
+        UploadedAt = DateTime.UtcNow;
     }
 }
 
 public record RequestTitleDocumentData(
-    Guid? TitleId,
+    Guid TitleId,
     Guid DocumentId,
     string DocumentType,
     bool IsRequired,
     string DocumentDescription,
     string UploadedBy,
-    string UploadedByName,
-    DateTime UploadedAt
+    string UploadedByName
     );
+
+public static class RequestTitleDocumentValidator
+{
+    public static void Validate(RequestTitleDocumentData requestTitleDocumentData)
+    {
+        var ruleCheck = RuleCheck.Valid();
+
+        ruleCheck.AddErrorIf(!String.IsNullOrWhiteSpace(requestTitleDocumentData.DocumentType), "documentType is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(!String.IsNullOrWhiteSpace(requestTitleDocumentData.UploadedBy), "uploadBy is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(!String.IsNullOrWhiteSpace(requestTitleDocumentData.UploadedByName), "uploadByName is null or contains only whitespace.");
+    }
+}

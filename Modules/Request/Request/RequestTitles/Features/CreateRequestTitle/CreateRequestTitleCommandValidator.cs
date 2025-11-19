@@ -1,22 +1,13 @@
-namespace Request.RequestTitles.Features.AddRequestTitles;
+namespace Request.RequestTitles.Features.CreateRequestTitle;
 
-public class AddRequestTitlesCommandValidator : AbstractValidator<AddRequestTitlesCommand>
+public class CreateRequestTitleCommandValidator : AbstractValidator<CreateRequestTitleCommand>
 {
-    public AddRequestTitlesCommandValidator()
+    public CreateRequestTitleCommandValidator()
     {
         RuleFor(x => x.RequestId)
             .NotEmpty()
             .WithMessage("RequestId is required");
-        
-        RuleForEach(x => x.AddRequestTitleCommandDtos)
-            .SetValidator(new AddRequestTitlesCommandDtoValidator());
-    }
-}
 
-public class AddRequestTitlesCommandDtoValidator : AbstractValidator<RequestTitlesCommandDto>
-{
-    public AddRequestTitlesCommandDtoValidator()
-    {
         RuleFor(x => x.CollateralType)
             .NotEmpty()
             .WithMessage("CollateralType is required.")
@@ -123,7 +114,7 @@ public class AddRequestTitlesCommandDtoValidator : AbstractValidator<RequestTitl
             .SetValidator(new TitleDocDtoValidator());
 
         RuleFor(x => x.DopaAddress)
-            .SetValidator(new DopaAddressDtoValidator());
+            .SetValidator(new DopaAddressDtoValidator());   
     }
 }
 

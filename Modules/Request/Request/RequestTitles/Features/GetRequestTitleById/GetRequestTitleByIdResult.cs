@@ -28,5 +28,6 @@ public record GetRequestTitleByIdResult(
     decimal? UsableArea,
     int? NoOfBuilding,
     AddressDto TitleAddress,
-    AddressDto DopaAddress
+    AddressDto DopaAddress,
+    List<RequestTitleDocumentDto> RequestTitleDocuments
 );

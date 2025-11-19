@@ -1,5 +1,3 @@
-using Shared.Messaging.Events;
-
 namespace Request.RequestTitles.Models;
 
 public class RequestTitle : Aggregate<Guid>
@@ -20,7 +18,6 @@ public class RequestTitle : Aggregate<Guid>
     public Address DopaAddress { get; private set; } = default!;
     public string? Notes { get; private set; }
     
-
     private readonly List<RequestTitleDocument> _requestTitleDocuments = [];
     public IReadOnlyList<RequestTitleDocument> RequestTitleDocuments => _requestTitleDocuments.AsReadOnly();
 
@@ -29,7 +26,7 @@ public class RequestTitle : Aggregate<Guid>
         // For EF Core
     }
 
-    public static RequestTitle Create(RequestTitleData requestTitleData, List<RequestTitleDocumentData> requestTitleDocuments)
+    public static RequestTitle Create(RequestTitleData requestTitleData)
     {
         RequestTitleValidator.Validate(requestTitleData);
 
@@ -53,8 +50,6 @@ public class RequestTitle : Aggregate<Guid>
             Notes = requestTitleData.Notes
         };
         
-        requestTitle.AddDocumentList(requestTitleDocuments.Select(rtd => RequestTitleDocument.Create(requestTitle.Id, rtd)).ToList());
-
         requestTitle.AddDomainEvent(new RequestTitleAddedEvent(requestTitle.RequestId, requestTitle));
         
         // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
@@ -62,7 +57,7 @@ public class RequestTitle : Aggregate<Guid>
         return requestTitle;
     }
 
-    public static RequestTitle CreateDraft(RequestTitleData requestTitleData, List<RequestTitleDocumentData> requestTitleDocuments)
+    public static RequestTitle CreateDraft(RequestTitleData requestTitleData)
     {
         var requestTitle = new RequestTitle()
         {
@@ -84,8 +79,6 @@ public class RequestTitle : Aggregate<Guid>
             Notes = requestTitleData.Notes
         };
         
-        requestTitle.AddDocumentList(requestTitleDocuments.Select(rtd => RequestTitleDocument.Create(requestTitle.Id, rtd)).ToList());
-
         requestTitle.AddDomainEvent(new RequestTitleAddedEvent(requestTitle.RequestId, requestTitle));
 
         // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
@@ -93,7 +86,7 @@ public class RequestTitle : Aggregate<Guid>
         return requestTitle;
     }
 
-    public void UpdateDetails(RequestTitleData requestTitleData, List<RequestTitleDocumentData> requestTitleDocuments)
+    public void UpdateDetails(RequestTitleData requestTitleData)
     {
         RequestTitleValidator.Validate(requestTitleData);
 
@@ -112,16 +105,11 @@ public class RequestTitle : Aggregate<Guid>
         DopaAddress = requestTitleData.DopaAddress;
         Notes = requestTitleData.Notes;
 
-        UpdateDocumentList(requestTitleDocuments.Select(rtd => RequestTitleDocument.Create(Id, rtd))
-            .ToList());
-        
         // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
     }
 
-    public void UpdateDraftDetails(RequestTitleData requestTitleData, List<RequestTitleDocumentData> requestTitleDocuments)
+    public void UpdateDraftDetails(RequestTitleData requestTitleData)
     {
-        RequestTitleValidator.Validate(requestTitleData);
-
         CollateralType = requestTitleData.CollateralType;
         CollateralStatus = requestTitleData.CollateralStatus;
         TitleDeedInfo = requestTitleData.TitleDeedInfo;
@@ -137,26 +125,13 @@ public class RequestTitle : Aggregate<Guid>
         DopaAddress = requestTitleData.DopaAddress;
         Notes = requestTitleData.Notes;
 
-        UpdateDocumentList(requestTitleDocuments.Select(rtd => RequestTitleDocument.Create(Id, rtd))
-            .ToList());
-        
         // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
     }
 
-    public void AddDocumentList(IEnumerable<RequestTitleDocument> requestTitleDocuments)
+    public void CreateLinkRequestTitleDocument(RequestTitleDocumentData requestTitleDocumentData)
     {
-        if (requestTitleDocuments is null)
-            return;
-        _requestTitleDocuments.AddRange(requestTitleDocuments);
-    }
-
-    public void UpdateDocumentList(IEnumerable<RequestTitleDocument> requestTitleDocuments)
-    {
-        if (requestTitleDocuments is null)
-            return;
-        
-        _requestTitleDocuments.Clear();
-        _requestTitleDocuments.AddRange(requestTitleDocuments);
+        var requestTitleDocs =  RequestTitleDocument.Create(requestTitleDocumentData);
+        _requestTitleDocuments.Add(requestTitleDocs);
     }
 }
 

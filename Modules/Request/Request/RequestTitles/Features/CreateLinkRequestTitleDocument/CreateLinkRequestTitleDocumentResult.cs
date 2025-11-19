@@ -1,0 +1,3 @@
+namespace Request.RequestTitles.Features.CreateLinkRequestTitleDocument;
+
+public record CreateLinkRequestTitleDocumentResult(bool Success);

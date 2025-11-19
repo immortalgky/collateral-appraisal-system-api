@@ -41,9 +41,9 @@ internal class GetRequestTitleByIdQueryHandler(IRequestTitleReadRepository readR
             requestTitle.BuildingInfo.UsableArea,
             requestTitle.BuildingInfo.NumberOfBuilding,
             requestTitle.TitleAddress.Adapt<AddressDto>(),
-            requestTitle.DopaAddress.Adapt<AddressDto>()
+            requestTitle.DopaAddress.Adapt<AddressDto>(),
+            requestTitle.RequestTitleDocuments.Select(rtd => rtd.Adapt<RequestTitleDocumentDto>()).ToList()
         );
-
 
         return result;
     }

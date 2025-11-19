@@ -7,6 +7,11 @@ public class RequestTitleRepository(RequestDbContext dbContext) : IRequestTitleR
         return await dbContext.RequestTitles.FindAsync([id], cancellationToken);
     }
 
+    public async Task<List<RequestTitle>> GetByRequestIdAsync(Guid requestId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.RequestTitles.Where(rt => rt.RequestId == requestId).ToListAsync(cancellationToken);
+    }
+
     public async Task AddAsync(RequestTitle requestTitle, CancellationToken cancellationToken = default)
     {
         await dbContext.RequestTitles.AddAsync(requestTitle, cancellationToken);
@@ -20,7 +25,12 @@ public class RequestTitleRepository(RequestDbContext dbContext) : IRequestTitleR
     public Task Remove(RequestTitle requestTitle)
     {
         dbContext.Remove(requestTitle);
+        return Task.CompletedTask;
+    }
 
+    public Task RemoveRangeAsync(IEnumerable<RequestTitle> requestTitles, CancellationToken cancellationToken = default)
+    {
+        dbContext.RemoveRange(requestTitles);
         return Task.CompletedTask;
     }
 

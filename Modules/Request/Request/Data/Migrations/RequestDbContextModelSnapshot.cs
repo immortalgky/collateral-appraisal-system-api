@@ -130,7 +130,6 @@ namespace Request.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("DocumentDescription")
-                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 

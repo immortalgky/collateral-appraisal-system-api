@@ -1,6 +1,7 @@
 namespace Request.Contracts.Requests.Dtos;
 
 public record RequestTitleDto(
+    Guid? Id,
     string? CollateralType,
     bool? CollateralStatus,
     string? TitleNo,
@@ -34,12 +35,3 @@ public record RequestTitleDto(
     string? Notes,
     List<RequestTitleDocumentDto> RequestTitleDocuments
     );
-
-public record RequestTitleDocumentDto(
-    Guid DocumentId,
-    string? DocumentType,
-    bool IsRequired,
-    string? DocumentDescription,
-    string? UploadedBy,
-    string? UploadedByName
-    ); 

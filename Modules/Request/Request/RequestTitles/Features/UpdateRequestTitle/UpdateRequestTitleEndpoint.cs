@@ -4,30 +4,12 @@ public class UpdateRequestTitleEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPatch("/requests/{requestId:Guid}/titles/{titleId:Guid}",
-            async (Guid requestId, Guid titleId, UpdateRequestTitleRequest request, ISender sender, CancellationToken cancellationToken) =>
+        app.MapPatch("/requests/{requestId:Guid}/titles",
+            async (Guid requestId, UpdateRequestTitleRequest request, IRequestTitleService requestTitleService, ISender sender, CancellationToken cancellationToken) =>
             {
-                var command = new UpdateRequestTitleCommand(
-                    titleId,
-                    requestId,
-                    request.CollateralType,
-                    request.CollateralStatus,
-                    new TitleDeedInfoDto(request.TitleNo, request.DeedType, request.TitleDetail),
-                    new SurveyInfoDto(request.Rawang, request.LandNo, request.SurveyNo),new LandAreaDto(request.AreaRai, request.AreaNgan, request.AreaSquareWa),
-                    request.OwnerName,
-                    request.RegistrationNumber,
-                    new VehicleDto(request.VehicleType, request.VehicleAppointmentLocation, request.ChassisNumber),
-                    new MachineDto(request.MachineryStatus, request.MachineryType, request.InstallationStatus, request.InvoiceNumber, request.NumberOfMachinery),
-                    new BuildingInfoDto(request.BuildingType, request.UsableArea, request.NumberOfBuilding),
-                    new CondoInfoDto(request.CondoName, request.BuildingNo, request.RoomNo, request.FloorNo),
-                    request.TitleAddress,
-                    request.DopaAddress,
-                    request.Notes
-                );
+                await requestTitleService.UpdateRequestTitlesAsync(requestId, request.RequestTitleDtos, cancellationToken);
 
-                var result = await sender.Send(command, cancellationToken);
-
-                var response = result.Adapt<UpdateRequestTitleResponse>();
+                var response = new UpdateRequestTitleResponse(true);
 
                 return Results.Ok(response);
             })

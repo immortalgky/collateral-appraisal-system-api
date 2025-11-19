@@ -1,19 +1,18 @@
-using MassTransit.Initializers;
-using Request.Extensions;
+namespace Request.RequestTitles.Features.CreateRequestTitle;
 
-namespace Request.RequestTitles.Features.UpdateRequestTitle;
-
-internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestTitleRepository)
-    : ICommandHandler<UpdateRequestTitleCommand, UpdateRequestTitleResult>
+public class CreateRequestTitleCommandHandler(IRequestTitleRepository requestTitleRepository, IRequestRepository requestRepository)
+    : ICommandHandler<CreateRequestTitleCommand, CreateRequestTitleResult>
 {
-    public async Task<UpdateRequestTitleResult> Handle(UpdateRequestTitleCommand command, CancellationToken cancellationToken)
+    public async Task<CreateRequestTitleResult> Handle(CreateRequestTitleCommand command,
+        CancellationToken cancellationToken)
     {
-        var requestTitle = await requestTitleRepository.GetByIdAsync(command.TitleId, cancellationToken);
-        
-        if (requestTitle.RequestId != command.RequestId)
-            throw new Exception("New RequestId does not existed");
-        
-        requestTitle.UpdateDetails(new RequestTitleData(
+        var request = await requestRepository.GetByIdAsync(command.RequestId, cancellationToken);
+
+        if (request is null)
+            throw new RequestNotFoundException(command.RequestId);
+
+        var requestTitle = RequestTitle.Create(
+            new RequestTitleData(
                 command.RequestId,
                 command.CollateralType, 
                 command.CollateralStatus, 
@@ -29,11 +28,13 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
                 DtoExtensions.ToDomain(command.TitleAddress), 
                 DtoExtensions.ToDomain(command.DopaAddress), 
                 command.Notes
-            )
-        );
+                )
+            );
+
+        await requestTitleRepository.AddAsync(requestTitle, cancellationToken);
 
         await requestTitleRepository.SaveChangesAsync(cancellationToken);
-        
-        return new UpdateRequestTitleResult(requestTitle.Id);
+
+        return new CreateRequestTitleResult(requestTitle.Id);
     }
 }

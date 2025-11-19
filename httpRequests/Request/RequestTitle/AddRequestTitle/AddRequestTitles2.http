@@ -1,11 +1,11 @@
 @baseUrl = https://localhost:7111
-@requestId = 29e1c5b7-e773-45ee-fe25-08de25346feb
+@requestId = c90a9d2a-c313-43e5-c60c-08de25a554e3
 POST {{baseUrl}}/requests/{{requestId}}/titles
 Host: localhost:7111
 Content-Type: application/json
 
 {
-    "requestTitles":
+    "requestTitleDtos":
     [
         {
             "collateralType": "L",
@@ -47,7 +47,7 @@ Content-Type: application/json
             "requestTitleDocuments": 
             [
                 {
-                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1101",
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
                     "documentType": "AX",
                     "isRequired": false,
                     "documentDescription": "This is document AX",
@@ -55,7 +55,7 @@ Content-Type: application/json
                     "uploadedByName": "Joe"
                 },
                 {
-                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1101",
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1105",
                     "documentType": "B",
                     "isRequired": false,
                     "documentDescription": "This is document B",
@@ -104,7 +104,7 @@ Content-Type: application/json
             "requestTitleDocuments": 
             [
                 {
-                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1101",
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1102",
                     "documentType": "AX",
                     "isRequired": false,
                     "documentDescription": "This is document AX",
@@ -112,7 +112,7 @@ Content-Type: application/json
                     "uploadedByName": "Joe"
                 },
                 {
-                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1101",
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1103",
                     "documentType": "B",
                     "isRequired": false,
                     "documentDescription": "This is document B",

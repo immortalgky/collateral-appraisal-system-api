@@ -1,0 +1,3 @@
+namespace Request.RequestTitles.Features.RemoveLinkRequestTitleDocument;
+
+public record RemoveLinkRequestTitleDocumentResult(bool Success);

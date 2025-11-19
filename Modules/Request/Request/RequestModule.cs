@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Request.Configurations;
+using Request.RequestTitles.Features;
 using Request.Services;
 using Shared.Data.Interceptors;
 
@@ -21,6 +22,10 @@ public static class RequestModule
         services.AddScoped<IRequestCommentReadRepository, RequestCommentReadRepository>();
         services.AddScoped<IRequestTitleRepository, RequestTitleRepository>();
         services.AddScoped<IRequestTitleReadRepository, RequestTitleReadRepository>();
+        services.AddScoped<IRequestTitleDocumentReadRepository, RequestTitleDocumentReadRepository>();
+        services.AddScoped<IRequestTitleDocumentRepository, RequestTitleDocumentRepository>();
+        
+        services.AddScoped<IRequestTitleService, RequestTitleService>(); // orchestral RequestTitle & RequestTitleDocument
 
         services.AddTransient<IAppraisalNumberGenerator, AppraisalNumberGenerator>();
 
