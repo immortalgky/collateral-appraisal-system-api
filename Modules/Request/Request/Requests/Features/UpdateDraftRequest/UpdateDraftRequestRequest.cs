@@ -1,3 +1,5 @@
+using Request.Contracts.RequestDocuments.Dto;
+
 namespace Request.Requests.Features.UpdateDraftRequest;
 
 public record UpdateDraftRequestRequest(
@@ -8,4 +10,6 @@ public record UpdateDraftRequestRequest(
     string Priority,
     SourceSystemDto SourceSystem,
     List<RequestCustomerDto> Customers,
-    List<RequestPropertyDto> Properties);
+    List<RequestPropertyDto> Properties,
+    List<RequestDocumentDto> Documents
+);

@@ -1,15 +1,17 @@
+using Request.Services;
+
 namespace Request.Requests.Features.UpdateRequest;
 
-public class UpdateRequestEndpoint : ICarterModule
+public class UpdateRequestEndpoint(IRequestService requestService) : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPatch("/requests/{id}",
                 async (Guid id, UpdateRequestRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
-                    var command = request.Adapt<UpdateRequestCommand>() with { Id = id };
-
-                    var result = await sender.Send(command, cancellationToken);
+                    var command = request.Adapt<RequestDto>();
+                    command.Id = id;
+                    var result = await requestService.UpdateRequestAsync(command, sender, cancellationToken);
 
                     var response = result.Adapt<UpdateRequestResponse>();
 

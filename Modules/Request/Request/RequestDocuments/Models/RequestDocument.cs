@@ -1,7 +1,3 @@
-using System;
-using System.Reflection.Metadata;
-using Request.RequestDocuments.ValueObjects;
-
 namespace Request.RequestDocuments.Models;
 
 public class RequestDocument : Aggregate<Guid>
@@ -11,7 +7,6 @@ public class RequestDocument : Aggregate<Guid>
     public DocumentClassification DocumentClassification { get; private set; }
     public UploadInfo UploadInfo { get; private set; }
     public string? DocumentDescription { get; private set; }
-
 
     public RequestDocument()
     {

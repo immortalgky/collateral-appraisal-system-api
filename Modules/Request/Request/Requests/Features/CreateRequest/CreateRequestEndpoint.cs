@@ -1,15 +1,17 @@
+using Request.Services;
+
 namespace Request.Requests.Features.CreateRequest;
 
-public class CreateRequestEndpoint : ICarterModule
+public class CreateRequestEndpoint(IRequestService requestService) : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPost("/requests",
                 async (CreateRequestRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
-                    var command = request.Adapt<CreateRequestCommand>();
+                    var command = request.Adapt<RequestDto>();
 
-                    var result = await sender.Send(command, cancellationToken);
+                    var result = await requestService.CreateRequestAsync(command, sender, cancellationToken);
 
                     var response = result.Adapt<CreateRequestResponse>();
 

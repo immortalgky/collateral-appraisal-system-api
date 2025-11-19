@@ -1,8 +1,8 @@
-using System;
+using Request.Services;
 
 namespace Request.Requests.Features.UpdateDraftRequest;
 
-public class UpdateDraftRequestEndpoint : ICarterModule
+public class UpdateDraftRequestEndpoint(IRequestService requestService) : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
@@ -10,9 +10,9 @@ public class UpdateDraftRequestEndpoint : ICarterModule
                 async (Guid id, UpdateDraftRequestRequest request, ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var command = request.Adapt<UpdateDraftRequestCommand>() with { Id = id };
-
-                    var result = await sender.Send(command, cancellationToken);
+                    var command = request.Adapt<RequestDto>();
+                    command.Id = id;
+                    var result = await requestService.UpdateRequestDraftAsync(command, sender, cancellationToken);
 
                     var response = result.Adapt<UpdateDraftRequestResponse>();
 

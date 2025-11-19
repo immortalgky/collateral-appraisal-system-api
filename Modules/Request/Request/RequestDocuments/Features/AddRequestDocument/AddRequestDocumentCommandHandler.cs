@@ -17,13 +17,10 @@ public class AddRequestDocumentCommandHandler(IRequestDocumentRepository request
             return new AddRequestDocumentResult(listDocument);
         }
 
-        var requestId = command.Documents.First().RequestId;
-        await requestDocumentRepository.ClearAsync(requestId, cancellationToken);
-
         command.Documents.ForEach(async dto =>
         {
             var requestDocument = RequestDocument.Create(
-                dto.RequestId,
+                command.RequestId,
                 dto.DocumentId,
                 dto.DocumentClassification.ToDomain(),
                 dto.DocumentDescription,

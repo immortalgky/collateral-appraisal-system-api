@@ -1,15 +1,17 @@
+using Request.Services;
+
 namespace Request.Requests.Features.CreateDraftRequest;
 
-public class CreateDraftRequestEndpoint : ICarterModule
+public class CreateDraftRequestEndpoint(IRequestService requestService) : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPost("/requests/draft",
                 async (CreateDraftRequestRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
-                    var command = request.Adapt<CreateDraftRequestCommand>();
+                    var command = request.Adapt<RequestDto>();
 
-                    var result = await sender.Send(command, cancellationToken);
+                    var result = await requestService.CreateRequestDraftAsync(command, sender, cancellationToken);
 
                     var response = result.Adapt<CreateDraftRequestResponse>();
 

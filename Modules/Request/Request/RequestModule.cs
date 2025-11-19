@@ -23,6 +23,8 @@ public static class RequestModule
         services.AddScoped<IRequestTitleRepository, RequestTitleRepository>();
         services.AddScoped<IRequestTitleReadRepository, RequestTitleReadRepository>();
         services.AddScoped<IRequestDocumentRepository, RequestDocumentRepository>();
+        services.AddTransient<IRequestService, RequestService>();
+
 
         services.AddTransient<IAppraisalNumberGenerator, AppraisalNumberGenerator>();
 

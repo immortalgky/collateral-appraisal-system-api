@@ -1,4 +1,3 @@
-using System;
 using Request.RequestDocuments;
 
 namespace Request.Data.Repository;
@@ -10,15 +9,25 @@ public class RequestDocumentRepository(RequestDbContext dbContext) : IRequestDoc
         await dbContext.RequestDocuments.AddAsync(requestDocument, cancellationToken);
     }
 
-    public Task<RequestDocument> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<List<RequestDocument>> GetByRequestIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        var documents = await dbContext.RequestDocuments
+            .Where(x => x.RequestId == id)
+            .ToListAsync(cancellationToken);
+        return documents;
     }
 
-    public async Task ClearAsync(Guid requestId, CancellationToken cancellationToken)
+    public async Task<RequestDocument> GetDocByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var docs = dbContext.RequestDocuments.Where(x => x.RequestId == requestId);
-        dbContext.RequestDocuments.RemoveRange(docs);
+        var document = await dbContext.RequestDocuments.FindAsync(id, cancellationToken);
+        return document;
+    }
+
+    public async Task RemoveAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var requestDoc = await GetDocByIdAsync(id, cancellationToken);
+        dbContext.RequestDocuments.Remove(requestDoc);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)

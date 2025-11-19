@@ -65,7 +65,6 @@ public class Request : Aggregate<Guid>
             requestDetail.Fee
         );
         var softDelete = SoftDelete.Create(false, null, null);
-
         return new Request(RequestStatus.New, detail, isPMA, purpose, priority, sourceSystem, softDelete);
     }
 

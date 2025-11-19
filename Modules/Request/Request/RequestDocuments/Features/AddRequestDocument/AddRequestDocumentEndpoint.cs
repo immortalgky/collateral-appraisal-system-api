@@ -10,8 +10,8 @@ public class AddRequestDocumentEndpoint : ICarterModule
                 async (Guid requestId, AddRequestDocumentRequest request, ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var command = new AddRequestDocumentCommand(
-                        request.Documents.Select(d => d with { RequestId = requestId }).ToList()
+                    var command = new AddRequestDocumentCommand(RequestId: requestId,
+                        request.Documents
                     );
 
                     var result = await sender.Send(command, cancellationToken);

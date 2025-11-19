@@ -4,8 +4,9 @@ namespace Request.RequestDocuments;
 
 public interface IRequestDocumentRepository
 {
-    Task<RequestDocument> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<List<RequestDocument>> GetByRequestIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<RequestDocument> GetDocByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task AddAsync(RequestDocument requestDocument, CancellationToken cancellationToken = default);
-    Task ClearAsync(Guid requestId, CancellationToken cancellationToken);
+    Task RemoveAsync(Guid id, CancellationToken cancellationToken);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }
