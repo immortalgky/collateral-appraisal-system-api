@@ -6,7 +6,7 @@ public record UpdateDraftRequestTitleCommand(
     Guid RequestId,
     Guid TitleId,
     string? CollateralType,
-    bool? CollateralStatus,
+    bool CollateralStatus,
     TitleDeedInfoDto TitleDeedInfoDto,
     SurveyInfoDto SurveyInfoDto,
     LandAreaDto LandAreaDto,

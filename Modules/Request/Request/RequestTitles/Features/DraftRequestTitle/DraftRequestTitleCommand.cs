@@ -3,7 +3,7 @@ namespace Request.RequestTitles.Features.DraftRequestTitle;
 public record DraftRequestTitleCommand(
     Guid RequestId,
     string? CollateralType,
-    bool? CollateralStatus,
+    bool CollateralStatus,
     TitleDeedInfoDto TitleDeedInfoDto,
     SurveyInfoDto SurveyInfoDto,
     LandAreaDto LandAreaDto,
