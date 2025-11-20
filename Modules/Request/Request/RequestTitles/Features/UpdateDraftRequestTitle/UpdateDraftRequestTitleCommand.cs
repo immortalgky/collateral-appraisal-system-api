@@ -18,6 +18,5 @@ public record UpdateDraftRequestTitleCommand(
     CondoInfoDto CondoInfoDto,
     AddressDto TitleAddress,
     AddressDto DopaAddress,
-    string? Notes,
-    List<RequestTitleDto> RequestTitleDtos
+    string? Notes
 ) : ICommand<UpdateDraftRequestTitleResult>;

@@ -33,5 +33,5 @@ public record RequestTitleDto(
     AddressDto TitleAddress,
     AddressDto DopaAddress,
     string? Notes,
-    List<RequestTitleDocumentDto> RequestTitleDocuments
+    List<RequestTitleDocumentDto> RequestTitleDocumentDtos
     );

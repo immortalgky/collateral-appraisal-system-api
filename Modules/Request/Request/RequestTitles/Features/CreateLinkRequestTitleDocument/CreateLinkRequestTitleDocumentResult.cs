@@ -1,3 +1,3 @@
 namespace Request.RequestTitles.Features.CreateLinkRequestTitleDocument;
 
-public record CreateLinkRequestTitleDocumentResult(bool Success);
+public record CreateLinkRequestTitleDocumentResult(Guid TitleDocId);

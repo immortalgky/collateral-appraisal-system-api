@@ -128,10 +128,12 @@ public class RequestTitle : Aggregate<Guid>
         // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
     }
 
-    public void CreateLinkRequestTitleDocument(RequestTitleDocumentData requestTitleDocumentData)
+    public RequestTitleDocument CreateLinkRequestTitleDocument(RequestTitleDocumentData requestTitleDocumentData)
     {
-        var requestTitleDocs =  RequestTitleDocument.Create(requestTitleDocumentData);
-        _requestTitleDocuments.Add(requestTitleDocs);
+        var requestTitleDoc =  RequestTitleDocument.Create(requestTitleDocumentData);
+        _requestTitleDocuments.Add(requestTitleDoc);
+
+        return requestTitleDoc;
     }
 }
 

@@ -1,3 +1,4 @@
+using MassTransit;
 using Request.RequestTitles.Features.CreateLinkRequestTitleDocument;
 using Request.RequestTitles.Features.DraftRequestTitle;
 using Request.RequestTitles.Features.GetLinkRequestTitleDocumentsByTitleId;
@@ -5,6 +6,7 @@ using Request.RequestTitles.Features.GetRequestTitlesByRequestId;
 using Request.RequestTitles.Features.RemoveLinkRequestTitleDocument;
 using Request.RequestTitles.Features.UpdateDraftRequestTitle;
 using Request.RequestTitles.Features.UpdateRequestTitle;
+using Shared.Messaging.Events;
 using RequestTitleDto = Request.Contracts.Requests.Dtos.RequestTitleDto;
 
 namespace Request.Services;
@@ -12,284 +14,578 @@ namespace Request.Services;
 public class RequestTitleService : IRequestTitleService
 {
     private readonly ISender _sender;
+    private readonly IBus _bus;
 
-    public RequestTitleService(ISender sender)
+    public RequestTitleService(ISender sender, IBus bus)
     {
         _sender = sender;
+        _bus = bus;
     }
 
-    public Task CreateRequestTitleAsync(RequestTitleDto requestTitleDto, CancellationToken cancellation)
+    public Task CreateRequestTitleAsync(Guid sessionId, Guid requestId, RequestTitleDto requestTitleDto, CancellationToken cancellation)
     {
         throw new NotImplementedException();
     }
 
-    public async Task CreateRequestTitlesAsync(Guid requestId, List<RequestTitleDto> requestTitleDtos, CancellationToken cancellationToken)
+    public async Task CreateRequestTitlesAsync(Guid sessionId, Guid requestId, List<RequestTitleDto> requestTitleDtos,
+        CancellationToken cancellationToken)
     {
+        // check RequestId is existed or not
+
+        var documentLinks = new List<DocumentLink>();
+
+        if (requestTitleDtos.Count == 0)
+            throw new NotFoundException("Request titles not found");
+
         foreach (var requestTitleDto in requestTitleDtos)
         {
             // create RequestTitle
-            var createRequestTitleCommand = new CreateRequestTitleCommand(
-                requestId,
-                requestTitleDto.CollateralType,
-                requestTitleDto.CollateralStatus,
-                new TitleDeedInfoDto(requestTitleDto.TitleNo, requestTitleDto.DeedType, requestTitleDto.TitleDetail),
-                new SurveyInfoDto(requestTitleDto.Rawang, requestTitleDto.LandNo, requestTitleDto.SurveyNo),
-                new LandAreaDto(requestTitleDto.AreaRai, requestTitleDto.AreaNgan, requestTitleDto.AreaSquareWa),
-                requestTitleDto.OwnerName,
-                requestTitleDto.RegistrationNumber,
-                new VehicleDto(requestTitleDto.VehicleType, requestTitleDto.VehicleAppointmentLocation, requestTitleDto.ChassisNumber),
-                new MachineDto(requestTitleDto.MachineryStatus, requestTitleDto.MachineryType, requestTitleDto.InstallationStatus, requestTitleDto.InvoiceNumber,
-                    requestTitleDto.NumberOfMachinery),
-                new BuildingInfoDto(requestTitleDto.BuildingType, requestTitleDto.UsableArea, requestTitleDto.NumberOfBuilding),
-                new CondoInfoDto(requestTitleDto.CondoName, requestTitleDto.BuildingNo, requestTitleDto.RoomNo, requestTitleDto.FloorNo),
-                requestTitleDto.TitleAddress,
-                requestTitleDto.DopaAddress,
-                requestTitleDto.Notes
-            );
+            var createRequestTitleCommand = BuildCreateCommand(requestId, requestTitleDto);
+
             var requestTitleResult = await _sender.Send(createRequestTitleCommand, cancellationToken);
-            
-            var titleId = requestTitleResult.TitleId;
-            
+
+            var requestTitleId = requestTitleResult.TitleId;
+
             // Create RequestTitleDocument
-            foreach (var requestTitleDocDto in requestTitleDto.RequestTitleDocuments)
+            foreach (var requestTitleDocDto in requestTitleDto.RequestTitleDocumentDtos)
             {
                 var createLinkRequestTitleDocumentCommand = new CreateLinkRequestTitleDocumentCommand(
-                    titleId,
+                    requestTitleId,
                     requestTitleDocDto
                 );
-            
+
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
-                
-                if (!result.Success)
-                    throw new Exception(
-                        $"Cannot create link to DocumentId : {requestTitleDocDto.DocumentId}");
+
+                if (result is null)
+                    throw new Exception($"Cannot create link to DocumentId: {requestTitleDocDto.DocumentId}");
+
+                documentLinks.Add(new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = requestTitleId,
+                    DocumentId = requestTitleDocDto.DocumentId,
+                    IsUnlinked = false
+                });
             }
         }
+
+        await _bus.Publish(new DocumentLinkedIntegrationEvent
+        {
+            SessionId = sessionId,
+            DocumentLinks = documentLinks
+        }, cancellationToken);
     }
 
-    public async Task DraftRequestTitlesAsync(Guid requestId, List<RequestTitleDto> requestTitleDtos, CancellationToken cancellationToken)
+    public async Task DraftRequestTitlesAsync(Guid sessionId, Guid requestId, List<RequestTitleDto> requestTitleDtos, CancellationToken cancellationToken)
     {
-        foreach (var requestTitleDto in requestTitleDtos)
+        // check RequestId is existed or not
+
+        var documentLinks = new List<DocumentLink>();
+
+        if (requestTitleDtos.Count == 0)
+            throw new NotFoundException("Request titles not found");
+
+        foreach (var draftReqTitleDto in requestTitleDtos)
         {
             // create RequestTitle
-            var draftRequestTitleCommand = new DraftRequestTitleCommand(
-                requestId,
-                requestTitleDto.CollateralType,
-                requestTitleDto.CollateralStatus,
-                new TitleDeedInfoDto(requestTitleDto.TitleNo, requestTitleDto.DeedType, requestTitleDto.TitleDetail),
-                new SurveyInfoDto(requestTitleDto.Rawang, requestTitleDto.LandNo, requestTitleDto.SurveyNo),
-                new LandAreaDto(requestTitleDto.AreaRai, requestTitleDto.AreaNgan, requestTitleDto.AreaSquareWa),
-                requestTitleDto.OwnerName,
-                requestTitleDto.RegistrationNumber,
-                new VehicleDto(requestTitleDto.VehicleType, requestTitleDto.VehicleAppointmentLocation, requestTitleDto.ChassisNumber),
-                new MachineDto(requestTitleDto.MachineryStatus, requestTitleDto.MachineryType, requestTitleDto.InstallationStatus, requestTitleDto.InvoiceNumber,
-                    requestTitleDto.NumberOfMachinery),
-                new BuildingInfoDto(requestTitleDto.BuildingType, requestTitleDto.UsableArea, requestTitleDto.NumberOfBuilding),
-                new CondoInfoDto(requestTitleDto.CondoName, requestTitleDto.BuildingNo, requestTitleDto.RoomNo, requestTitleDto.FloorNo),
-                requestTitleDto.TitleAddress,
-                requestTitleDto.DopaAddress,
-                requestTitleDto.Notes
-            );
-            var requestTitleResult = await _sender.Send(draftRequestTitleCommand, cancellationToken);
-            
-            var titleId = requestTitleResult.TitleId;
-            
+            var draftReqTitleCommand = BuildDraftCreateCommand(requestId, draftReqTitleDto); 
+
+            var draftReqTitleResult = await _sender.Send(draftReqTitleCommand, cancellationToken);
+
+            var draftReqTitleId = draftReqTitleResult.TitleId;
+
             // Create RequestTitleDocument
-            foreach (var requestTitleDocDto in requestTitleDto.RequestTitleDocuments)
+            foreach (var requestTitleDocDto in draftReqTitleDto.RequestTitleDocumentDtos)
             {
                 var createLinkRequestTitleDocumentCommand = new CreateLinkRequestTitleDocumentCommand(
-                    titleId,
+                    draftReqTitleId,
                     requestTitleDocDto
                 );
-            
+
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
-                if (!result.Success)
-                    throw new Exception(
-                        $"Cannot create link where DocumentId is {requestTitleDocDto.DocumentId}");
+
+                if (result is not null)
+                    throw new Exception($"Cannot create link to DocumentId: {requestTitleDocDto.DocumentId}");
+
+                documentLinks.Add(new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = draftReqTitleId,
+                    DocumentId = requestTitleDocDto.DocumentId,
+                    IsUnlinked = false
+                });
             }
         }
+
+        await _bus.Publish(new DocumentLinkedIntegrationEvent
+        {
+            SessionId = sessionId,
+            DocumentLinks = documentLinks
+        }, cancellationToken);
     }
 
-    public Task UpdateRequestTitleAsync(RequestTitleDto requestTitleDto, CancellationToken cancellation)
+    public Task UpdateRequestTitleAsync(Guid sessionId, Guid requestId, RequestTitleDto requestTitleDto, CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
     }
 
-    public async Task UpdateRequestTitlesAsync(Guid requestId, List<RequestTitleDto> requestTitleDtos, CancellationToken cancellationToken)
+    public async Task UpdateRequestTitlesAsync(Guid sessionId, Guid requestId, List<RequestTitleDto> requestTitleDtos, CancellationToken cancellationToken)
     {
+        var documentLinks = new List<DocumentLink>();
+        
         var requestTitlesResult = await _sender.Send(new GetRequestTitlesByRequestIdQuery(requestId), cancellationToken);
         
         if (requestTitlesResult is null)
-            throw new Exception("RequestTitles not found");
+            throw new RequestNotFoundException(requestId);
         
-        var existingRequestTitleIds = requestTitlesResult.RequestTitles.Select(rt => rt.Id).ToList();
+        var existingRequestTitleIds = requestTitlesResult.RequestTitles.Select(rt => rt.Id).ToHashSet();
         
-        var newRequestTitleIds = requestTitleDtos.Where(rtd => rtd.Id is not null).Select(rtd => rtd.Id.Value).ToList();
+        // DTOs with Id => candidates for update/keep
+        var dtosWithId = requestTitleDtos
+            .Where(rtd => rtd.Id.HasValue)
+            .ToList();
         
-        // Case: update title + linkDocs
-        var updateList = newRequestTitleIds.Intersect(existingRequestTitleIds).ToList();
-        var updateRequestTitle = requestTitleDtos.Where(rtd => updateList.Contains(rtd.Id.Value)).ToList();
+        var dtoIds = dtosWithId
+            .Select(rtd => rtd.Id!.Value)
+            .ToHashSet();
         
-        foreach (var requestTitleDto in updateRequestTitle)
+        // For update: intersection of client Ids and existing DB Ids
+        var updatingReqTitleDtos = dtosWithId
+            .Where(rtd => existingRequestTitleIds.Contains(rtd.Id!.Value))
+            .ToList();
+        
+        foreach (var requestTitleDto in updatingReqTitleDtos)
         {
             // update RequestTitle
-            var requestTitleResult = await _sender.Send(new UpdateRequestTitleCommand(
-                requestId,
-                requestTitleDto.Id.Value,
-                requestTitleDto.CollateralType,
-                requestTitleDto.CollateralStatus,
-                new TitleDeedInfoDto(requestTitleDto.TitleNo, requestTitleDto.DeedType, requestTitleDto.TitleDetail),
-                new SurveyInfoDto(requestTitleDto.Rawang, requestTitleDto.LandNo, requestTitleDto.SurveyNo),
-                new LandAreaDto(requestTitleDto.AreaRai, requestTitleDto.AreaNgan, requestTitleDto.AreaSquareWa),
-                requestTitleDto.OwnerName,
-                requestTitleDto.RegistrationNumber,
-                new VehicleDto(requestTitleDto.VehicleType, requestTitleDto.VehicleAppointmentLocation, requestTitleDto.ChassisNumber),
-                new MachineDto(requestTitleDto.MachineryStatus, requestTitleDto.MachineryType, requestTitleDto.InstallationStatus, requestTitleDto.InvoiceNumber,
-                    requestTitleDto.NumberOfMachinery),
-                new BuildingInfoDto(requestTitleDto.BuildingType, requestTitleDto.UsableArea, requestTitleDto.NumberOfBuilding),
-                new CondoInfoDto(requestTitleDto.CondoName, requestTitleDto.BuildingNo, requestTitleDto.RoomNo, requestTitleDto.FloorNo),
-                requestTitleDto.TitleAddress,
-                requestTitleDto.DopaAddress,
-                requestTitleDto.Notes
-            ));
-            var requestTitleId = requestTitleResult.RequestTitleId;
+            var updateRequestTitleCommand = BuildUpdateCommand(requestId, requestTitleDto);
+            var requestTitleResult = await _sender.Send(updateRequestTitleCommand, cancellationToken);
             
-            // Create RequestTitleDocument
-            // 1. find new link
-            var createdLink = requestTitleDto.RequestTitleDocuments.Where(rtd => rtd.Id is null).ToList();
-            // 2. loop create
-            foreach (var link in createdLink)
+            var requestTitleId = requestTitleResult.RequestTitleId;
+
+            // snapshot exiting link
+            var existingReqTitleDocsResult = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(requestTitleId), cancellationToken);
+
+            var existingReqTitleDocsDtos = existingReqTitleDocsResult.RequestTitleDocuments;
+            
+            var existingDocsById = existingReqTitleDocsDtos
+                .Where(d => d.Id.HasValue)
+                .ToDictionary(d => d.Id!.Value);
+            
+            var dtoDocNew = requestTitleDto.RequestTitleDocumentDtos
+                .Where(d => !d.Id.HasValue)
+                .ToList();
+            
+            var dtoDocWithId = requestTitleDto.RequestTitleDocumentDtos
+                .Where(d => d.Id.HasValue)
+                .ToList();
+
+            var dtoDocIds = dtoDocWithId
+                .Select(d => d.Id!.Value)
+                .ToHashSet();
+            
+            foreach (var linkDto in dtoDocNew)
             {
                 var createLinkRequestTitleDocumentCommand = new CreateLinkRequestTitleDocumentCommand(
                     requestTitleId,
-                    link
+                    linkDto
                 );
                 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
-                // 2.1 check is success?
-                if (!result.Success)
+                
+                if (result is not null)
                     throw new Exception(
-                        $"Cannot create link where DocumentId is {link.DocumentId}");
+                        $"Cannot create link where DocumentId is {linkDto.DocumentId}");
+                
+                documentLinks.Add(new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = requestTitleId,
+                    DocumentId = linkDto.DocumentId,
+                    IsUnlinked = false
+                });
             }
             
-            // update Link RequestTitleDocument
-            // 1. get existing RequestTitleDocs from titleId
-            var existingRequestTitleDocs = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(requestTitleId), cancellationToken);
+            var removedLinkIds = existingDocsById.Keys
+                .Except(dtoDocIds)
+                .ToList();
+
+            var removingReqTitleDocDtos = existingReqTitleDocsDtos.Where(dto => removedLinkIds.Contains(dto.Id!.Value)).ToList();
             
-            // 2. find LinkDocId which not contain in existing to remove
-            var removedLinkIds = existingRequestTitleDocs.RequestTitleDocuments.Select(rtd => rtd.Id.Value).ToList().Except(requestTitleDto.RequestTitleDocuments.Where(rtd => rtd.Id != null).Select(rtd => rtd.Id.Value).ToList()).ToList();
-            
-            // 3. loop remove
-            foreach (var linkId in removedLinkIds)
+            foreach (var titleDocDto in removingReqTitleDocDtos)
             {
-                var result = await _sender.Send(new RemoveLinkRequestTitleDocumentCommand(linkId, requestTitleId));
-                // 3.1 check is success?
-                if (!result.Success)
-                    throw new Exception($"RequestTitleDocument Id: {linkId} cannot be removed");
+                var removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentCommand(titleDocDto.Id!.Value, requestTitleId), cancellationToken);
+                
+                if (!removeResult.Success)
+                    throw new Exception($"RequestTitleDocument Id: {titleDocDto.DocumentId} cannot be removed");
+
+                documentLinks.Add(new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = requestTitleId,
+                    DocumentId = titleDocDto.DocumentId,
+                    IsUnlinked = true,
+                });
             }
         }
         
         // Case: new title
-        var newList = requestTitleDtos.Where(rtd => rtd.Id is null).ToList();
-        await CreateRequestTitlesAsync(requestId, newList, cancellationToken);
-        
-        // Case: remove title
-        var removeList = existingRequestTitleIds.Except(newRequestTitleIds).ToList();
-        foreach (var Id in removeList)
+        var newTitlesDtos = requestTitleDtos.Where(rtd => !rtd.Id.HasValue).ToList();
+
+        foreach (var titleDto in newTitlesDtos)
         {
-            var result = await _sender.Send(new RemoveRequestTitleCommand(requestId, Id));
+            // create RequestTitle
+            var createRequestTitleCommand = BuildCreateCommand(requestId, titleDto);
+
+            var requestTitleResult = await _sender.Send(createRequestTitleCommand, cancellationToken);
+
+            var requestTitleId = requestTitleResult.TitleId;
+
+            // Create RequestTitleDocument
+            foreach (var titleDocDto in titleDto.RequestTitleDocumentDtos)
+            {
+                var createLinkRequestTitleDocumentCommand = new CreateLinkRequestTitleDocumentCommand(
+                    requestTitleId,
+                    titleDocDto
+                );
+
+                var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
+
+                if (result is null)
+                    throw new Exception($"Cannot create link to DocumentId: {titleDocDto.DocumentId}");
+
+                documentLinks.Add(new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = requestTitleId,
+                    DocumentId = titleDocDto.DocumentId,
+                    IsUnlinked = false
+                });
+            }
+        }
+
+        // Case: remove title
+        var titlesToRemove = existingRequestTitleIds
+            .Except(dtoIds)
+            .ToList();
+        
+        foreach (var id in titlesToRemove)
+        {
+            var existingReqTitleDocResult = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(id), cancellationToken);
+            
+            var existingReqTitleDocDtos = existingReqTitleDocResult.RequestTitleDocuments;
+            
+            var removingReqTitleDocDtos = existingReqTitleDocDtos.Where(d => !d.Id.HasValue).ToList();
+
+            foreach (var titleDocDto in removingReqTitleDocDtos)
+            {
+                var  removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentCommand(titleDocDto.DocumentId, id));
+                
+                if (!removeResult.Success)
+                    throw new Exception($"RequestTitleDocument Id: {titleDocDto.DocumentId} cannot be removed");
+
+                documentLinks.Add(new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = id,
+                    DocumentId = titleDocDto.DocumentId,
+                    IsUnlinked = true,
+                });
+            }
+
+            var result = await _sender.Send(new RemoveRequestTitleCommand(requestId, id));
             
             if (!result.Success)
-                throw new Exception($"Cannot remove RequestTitle where Id is {Id}");
+                throw new Exception($"RequestTitle Id: {id} cannot be removed");
         }
+
+        await _bus.Publish(new DocumentLinkedIntegrationEvent
+        {
+            SessionId = sessionId,
+            DocumentLinks = documentLinks,
+        }, cancellationToken);
     }
 
-    public async Task UpdateDraftRequestTitlesAsync(Guid requestId, List<RequestTitleDto> requestTitleDtos, CancellationToken cancellationToken)
+    public async Task UpdateDraftRequestTitlesAsync(Guid sessionId, Guid requestId, List<RequestTitleDto> requestTitleDtos, CancellationToken cancellationToken)
     {
+        var documentLinks = new List<DocumentLink>();
+        
         var requestTitlesResult = await _sender.Send(new GetRequestTitlesByRequestIdQuery(requestId), cancellationToken);
         
         if (requestTitlesResult is null)
-            throw new Exception("RequestTitles not found");
+            throw new RequestNotFoundException(requestId);
         
-        var existingRequestTitleIds = requestTitlesResult.RequestTitles.Select(rt => rt.Id).ToList();
-        var newRequestTitleIds = requestTitleDtos.Where(rtd => rtd.Id is not null).Select(rtd => rtd.Id.Value).ToList();
+        var existingRequestTitleIds = requestTitlesResult.RequestTitles.Select(rt => rt.Id).ToHashSet();
         
-        // Case: update title + linkDocs
-        var updateList = newRequestTitleIds.Intersect(existingRequestTitleIds).ToList();
-        var updateRequestTitle = requestTitleDtos.Where(rtd => updateList.Contains(rtd.Id.Value)).ToList();
+        // DTOs with Id => candidates for update/keep
+        var dtosWithId = requestTitleDtos
+            .Where(rtd => rtd.Id.HasValue)
+            .ToList();
         
-        foreach (var requestTitleDto in updateRequestTitle)
+        var dtoIds = dtosWithId
+            .Select(rtd => rtd.Id!.Value)
+            .ToHashSet();
+        
+        // For update: intersection of client Ids and existing DB Ids
+        var updatingReqTitleDtos = dtosWithId
+            .Where(rtd => existingRequestTitleIds.Contains(rtd.Id!.Value))
+            .ToList();
+        
+        foreach (var requestTitleDto in updatingReqTitleDtos)
         {
             // update RequestTitle
-            var requestTitleResult = await _sender.Send(new UpdateDraftRequestTitleCommand(
-                requestId,
-                requestTitleDto.Id.Value,
-                requestTitleDto.CollateralType,
-                requestTitleDto.CollateralStatus,
-                new TitleDeedInfoDto(requestTitleDto.TitleNo, requestTitleDto.DeedType, requestTitleDto.TitleDetail),
-                new SurveyInfoDto(requestTitleDto.Rawang, requestTitleDto.LandNo, requestTitleDto.SurveyNo),
-                new LandAreaDto(requestTitleDto.AreaRai, requestTitleDto.AreaNgan, requestTitleDto.AreaSquareWa),
-                requestTitleDto.OwnerName,
-                requestTitleDto.RegistrationNumber,
-                new VehicleDto(requestTitleDto.VehicleType, requestTitleDto.VehicleAppointmentLocation, requestTitleDto.ChassisNumber),
-                new MachineDto(requestTitleDto.MachineryStatus, requestTitleDto.MachineryType, requestTitleDto.InstallationStatus, requestTitleDto.InvoiceNumber,
-                    requestTitleDto.NumberOfMachinery),
-                new BuildingInfoDto(requestTitleDto.BuildingType, requestTitleDto.UsableArea, requestTitleDto.NumberOfBuilding),
-                new CondoInfoDto(requestTitleDto.CondoName, requestTitleDto.BuildingNo, requestTitleDto.RoomNo, requestTitleDto.FloorNo),
-                requestTitleDto.TitleAddress,
-                requestTitleDto.DopaAddress,
-                requestTitleDto.Notes,
-                requestTitleDtos
-            ));
+            var updateDraftRequestTitleCommand = BuildDraftUpdateCommand(requestId, requestTitleDto);
+            var requestTitleResult = await _sender.Send(updateDraftRequestTitleCommand);
+            
             var requestTitleId = requestTitleResult.RequestTitleId;
             
-            // Create RequestTitleDocument
-            // 1. find new link
-            var createdLink = requestTitleDto.RequestTitleDocuments.Where(rtd => rtd.Id is null).ToList();
-            // 2. loop create
-            foreach (var link in createdLink)
+            // snapshot exiting link
+            var existingReqTitleDocsResult = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(requestTitleId), cancellationToken);
+            
+            var existingReqTitleDocsDtos = existingReqTitleDocsResult.RequestTitleDocuments;
+            
+            var existingDocsById = existingReqTitleDocsDtos
+                .Where(d => d.Id.HasValue)
+                .ToDictionary(d => d.Id!.Value);
+            
+            var dtoDocNew = requestTitleDto.RequestTitleDocumentDtos
+                .Where(d => !d.Id.HasValue)
+                .ToList();
+            
+            var dtoDocWithId = requestTitleDto.RequestTitleDocumentDtos
+                .Where(d => d.Id.HasValue)
+                .ToList();
+
+            var dtoDocIds = dtoDocWithId
+                .Select(d => d.Id!.Value)
+                .ToHashSet();
+            
+            foreach (var linkDto in dtoDocNew)
             {
                 var createLinkRequestTitleDocumentCommand = new CreateLinkRequestTitleDocumentCommand(
                     requestTitleId,
-                    link
+                    linkDto
                 );
                 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
-                // 2.1 check is success?
-                if (!result.Success)
+                
+                if (result is null)
                     throw new Exception(
-                        $"Cannot create link where DocumentId is {link.DocumentId}");
+                        $"Cannot create link where DocumentId is {linkDto.DocumentId}");
+                
+                documentLinks.Add(new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = requestTitleId,
+                    DocumentId = linkDto.DocumentId,
+                    IsUnlinked = false
+                });
             }
             
-            // update Link RequestTitleDocument
-            // 1. get existing RequestTitleDocs from titleId
-            var existingRequestTitleDocs = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(requestTitleId), cancellationToken);
+            var removedLinkIds = existingDocsById.Keys
+                .Except(dtoDocIds)
+                .ToList();
+
+            var removingReqTitleDocDtos = existingReqTitleDocsDtos.Where(dto => removedLinkIds.Contains(dto.Id!.Value)).ToList();
             
-            // 2. find LinkDocId which not contain in existing to remove
-            var removedLinkIds = existingRequestTitleDocs.RequestTitleDocuments.Select(rtd => rtd.Id.Value).ToList().Except(requestTitleDto.RequestTitleDocuments.Where(rtd => rtd.Id != null).Select(rtd => rtd.Id.Value).ToList()).ToList();
-            
-            // 3. loop remove
-            foreach (var linkId in removedLinkIds)
+            foreach (var titleDocDto in removingReqTitleDocDtos)
             {
-                var result = await _sender.Send(new RemoveLinkRequestTitleDocumentCommand(linkId, requestTitleId));
-                // 3.1 check is success?
-                if (!result.Success)
-                    throw new Exception($"RequestTitleDocument Id: {linkId} cannot be removed");
+                var removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentCommand(titleDocDto.Id!.Value, requestTitleId), cancellationToken);
+                
+                if (!removeResult.Success)
+                    throw new Exception($"RequestTitleDocument Id: {titleDocDto.DocumentId} cannot be removed");
+
+                documentLinks.Add(new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = requestTitleId,
+                    DocumentId = titleDocDto.DocumentId,
+                    IsUnlinked = true,
+                });
             }
         }
         
         // Case: new title
-        var newList = requestTitleDtos.Where(rtd => rtd.Id is null).ToList();
-        await CreateRequestTitlesAsync(requestId, newList, cancellationToken);
+        var newTitlesDtos = requestTitleDtos.Where(rtd => !rtd.Id.HasValue).ToList();
+
+        foreach (var titleDto in newTitlesDtos)
+        {
+            // create RequestTitle
+            var draftRequestTitleCommand = BuildDraftCreateCommand(requestId, titleDto);
+            var requestTitleResult = await _sender.Send(draftRequestTitleCommand, cancellationToken);
+
+            var requestTitleId = requestTitleResult.TitleId;
+
+            // Create RequestTitleDocument
+            foreach (var titleDocDto in titleDto.RequestTitleDocumentDtos)
+            {
+                var createLinkRequestTitleDocumentCommand = new CreateLinkRequestTitleDocumentCommand(
+                    requestTitleId,
+                    titleDocDto
+                );
+
+                var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
+
+                if (result is null)
+                    throw new Exception($"Cannot create link to DocumentId: {titleDocDto.DocumentId}");
+
+                documentLinks.Add(new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = requestTitleId,
+                    DocumentId = titleDocDto.DocumentId,
+                    IsUnlinked = false
+                });
+            }
+        }
+            
         
         // Case: remove title
-        var removeList = existingRequestTitleIds.Except(newRequestTitleIds).ToList();
-        foreach (var Id in removeList)
+        var titlesToRemove = existingRequestTitleIds
+            .Except(dtoIds)
+            .ToList();
+        
+        foreach (var id in titlesToRemove)
         {
-            var result = await _sender.Send(new RemoveRequestTitleCommand(requestId, Id));
+            var existingReqTitleDocResult = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(id), cancellationToken);
+            
+            var existingReqTitleDocDtos = existingReqTitleDocResult.RequestTitleDocuments;
+            
+            var removingReqTitleDocDtos = existingReqTitleDocDtos.Where(d => !d.Id.HasValue).ToList();
+
+            foreach (var titleDocDto in removingReqTitleDocDtos)
+            {
+                var  removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentCommand(titleDocDto.DocumentId, id));
+                
+                if (!removeResult.Success)
+                    throw new Exception($"RequestTitleDocument Id: {titleDocDto.DocumentId} cannot be removed");
+
+                documentLinks.Add(new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = id,
+                    DocumentId = titleDocDto.DocumentId,
+                    IsUnlinked = true,
+                });
+            }
+            
+            var result = await _sender.Send(new RemoveRequestTitleCommand(requestId, id));
             
             if (!result.Success)
-                throw new Exception($"Cannot remove RequestTitle where Id is {Id}");
+                throw new Exception($"RequestTitle Id: {id} cannot be removed");
         }
+
+        await _bus.Publish(new DocumentLinkedIntegrationEvent
+        {
+            SessionId = sessionId,
+            DocumentLinks = documentLinks,
+        }, cancellationToken);
     }
+
+    
+    private CreateRequestTitleCommand BuildCreateCommand(Guid requestId, RequestTitleDto dto)
+    {
+        return new CreateRequestTitleCommand(
+            requestId,
+            dto.CollateralType,
+            dto.CollateralStatus,
+            new TitleDeedInfoDto(dto.TitleNo, dto.DeedType, dto.TitleDetail),
+            new SurveyInfoDto(dto.Rawang, dto.LandNo, dto.SurveyNo),
+            new LandAreaDto(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
+            dto.OwnerName,
+            dto.RegistrationNumber,
+            new VehicleDto(dto.VehicleType, dto.VehicleAppointmentLocation,
+                dto.ChassisNumber),
+            new MachineDto(dto.MachineryStatus, dto.MachineryType,
+                dto.InstallationStatus, dto.InvoiceNumber,
+                dto.NumberOfMachinery),
+            new BuildingInfoDto(dto.BuildingType, dto.UsableArea,
+                dto.NumberOfBuilding),
+            new CondoInfoDto(dto.CondoName, dto.BuildingNo, dto.RoomNo,
+                dto.FloorNo),
+            dto.TitleAddress,
+            dto.DopaAddress,
+            dto.Notes
+        );
+    }
+
+    private DraftRequestTitleCommand BuildDraftCreateCommand(Guid requestId, RequestTitleDto dto)
+    {
+        return new DraftRequestTitleCommand(
+            requestId,
+            dto.CollateralType,
+            dto.CollateralStatus,
+            new TitleDeedInfoDto(dto.TitleNo, dto.DeedType, dto.TitleDetail),
+            new SurveyInfoDto(dto.Rawang, dto.LandNo, dto.SurveyNo),
+            new LandAreaDto(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
+            dto.OwnerName,
+            dto.RegistrationNumber,
+            new VehicleDto(dto.VehicleType, dto.VehicleAppointmentLocation,
+                dto.ChassisNumber),
+            new MachineDto(dto.MachineryStatus, dto.MachineryType,
+                dto.InstallationStatus, dto.InvoiceNumber,
+                dto.NumberOfMachinery),
+            new BuildingInfoDto(dto.BuildingType, dto.UsableArea,
+                dto.NumberOfBuilding),
+            new CondoInfoDto(dto.CondoName, dto.BuildingNo, dto.RoomNo,
+                dto.FloorNo),
+            dto.TitleAddress,
+            dto.DopaAddress,
+            dto.Notes
+        );
+    }
+
+    private UpdateRequestTitleCommand BuildUpdateCommand(Guid requestId, RequestTitleDto dto)
+    {
+        return new UpdateRequestTitleCommand(
+            requestId,
+            dto.Id!.Value,
+            dto.CollateralType,
+            dto.CollateralStatus,
+            new TitleDeedInfoDto(dto.TitleNo, dto.DeedType, dto.TitleDetail),
+            new SurveyInfoDto(dto.Rawang, dto.LandNo, dto.SurveyNo),
+            new LandAreaDto(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
+            dto.OwnerName,
+            dto.RegistrationNumber,
+            new VehicleDto(dto.VehicleType, dto.VehicleAppointmentLocation,
+                dto.ChassisNumber),
+            new MachineDto(dto.MachineryStatus, dto.MachineryType,
+                dto.InstallationStatus, dto.InvoiceNumber,
+                dto.NumberOfMachinery),
+            new BuildingInfoDto(dto.BuildingType, dto.UsableArea,
+                dto.NumberOfBuilding),
+            new CondoInfoDto(dto.CondoName, dto.BuildingNo, dto.RoomNo,
+                dto.FloorNo),
+            dto.TitleAddress,
+            dto.DopaAddress,
+            dto.Notes
+        );
+    }
+
+    private UpdateDraftRequestTitleCommand BuildDraftUpdateCommand(Guid requestId, RequestTitleDto dto)
+    {
+        return new UpdateDraftRequestTitleCommand(
+            requestId,
+            dto.Id!.Value,
+            dto.CollateralType,
+            dto.CollateralStatus,
+            new TitleDeedInfoDto(dto.TitleNo, dto.DeedType, dto.TitleDetail),
+            new SurveyInfoDto(dto.Rawang, dto.LandNo, dto.SurveyNo),
+            new LandAreaDto(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
+            dto.OwnerName,
+            dto.RegistrationNumber,
+            new VehicleDto(dto.VehicleType, dto.VehicleAppointmentLocation,
+                dto.ChassisNumber),
+            new MachineDto(dto.MachineryStatus, dto.MachineryType,
+                dto.InstallationStatus, dto.InvoiceNumber,
+                dto.NumberOfMachinery),
+            new BuildingInfoDto(dto.BuildingType, dto.UsableArea,
+                dto.NumberOfBuilding),
+            new CondoInfoDto(dto.CondoName, dto.BuildingNo, dto.RoomNo,
+                dto.FloorNo),
+            dto.TitleAddress,
+            dto.DopaAddress,
+            dto.Notes
+        );
+    }
+
 }

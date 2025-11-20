@@ -11,10 +11,10 @@ public class CreateLinkRequestTitleDocumentCommandHandler(IRequestTitleRepositor
         if (requestTitle == null)
             throw new RequestTitleNotFoundException(command.TitleId);
         
-        requestTitle.CreateLinkRequestTitleDocument(command.RequestTitleDto.Adapt<RequestTitleDocumentData>() with {TitleId = command.TitleId});
+        var requestTitleDocument = requestTitle.CreateLinkRequestTitleDocument(command.RequestTitleDto.Adapt<RequestTitleDocumentData>() with {TitleId = command.TitleId});
         
         await requestTitleRepository.SaveChangesAsync();
         
-        return new CreateLinkRequestTitleDocumentResult(true);
+        return new CreateLinkRequestTitleDocumentResult(requestTitleDocument.Id);
     }
 }

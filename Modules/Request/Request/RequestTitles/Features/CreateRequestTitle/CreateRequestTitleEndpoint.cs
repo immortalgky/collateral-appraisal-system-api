@@ -4,9 +4,9 @@ public class CreateRequestTitlesEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/requests/{requestId:Guid}/titles", async (Guid requestId, CreateRequestTitleRequest request,IRequestTitleService requestTitleService, ISender sender, CancellationToken cancellationToken) =>
+        app.MapPost("/requests/{requestId:Guid}/titles", async (Guid requestId, CreateRequestTitleRequest request,IRequestTitleService requestTitleService,CancellationToken cancellationToken) =>
             {
-                await requestTitleService.CreateRequestTitlesAsync(requestId, request.RequestTitleDtos, cancellationToken);
+                await requestTitleService.CreateRequestTitlesAsync(Guid.NewGuid(),requestId, request.RequestTitleDtos, cancellationToken);
 
                 var response = new CreateRequestTitleResponse(true);
 

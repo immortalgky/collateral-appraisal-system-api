@@ -1,21 +1,45 @@
 @baseUrl = https://localhost:7111
 
-@requestId = 6D884C99-1F73-4F6C-86A4-08DE227BF8AC
+@requestId = c90a9d2a-c313-43e5-c60c-08de25a554e3
 
-@titleId = 2D3AF97E-40AF-44EA-BF75-16B7E1FD4024
-
-PATCH {{baseUrl}}/requests/{{requestId}}/titles/{{titleId}}/draft
+PATCH {{baseUrl}}/requests/{{requestId}}/titles/draft
 Host: localhost:7111
 Content-Type: application/json
 
 {
-    "collateralType": "B",
-    "titleAddress":
-    {
+    "requestTitleDtos":
+    [
+      {
+        "id": "21a4fb3a-5f31-4f55-b6ef-6ffb7c69d663",
+        "collateralType": "B",
+        "titleAddress":
+        {
 
-    },
-    "dopaAddress":
-    {
+        },
+        "dopaAddress":
+        {
 
-    }
+        },
+        "requestTitleDocumentDtos":
+        [
+          
+        ]
+      },
+      {
+        "id": "a5fc3046-6d02-4747-a437-d8dde3b8c144",
+        "collateralType": "L",
+        "titleAddress":
+        {
+
+        },
+        "dopaAddress":
+        {
+
+        },
+        "requestTitleDocumentDtos":
+        [
+          
+        ]
+      }
+    ]
 }

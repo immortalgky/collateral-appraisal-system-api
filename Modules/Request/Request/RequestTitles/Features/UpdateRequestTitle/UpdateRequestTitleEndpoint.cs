@@ -5,9 +5,9 @@ public class UpdateRequestTitleEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPatch("/requests/{requestId:Guid}/titles",
-            async (Guid requestId, UpdateRequestTitleRequest request, IRequestTitleService requestTitleService, ISender sender, CancellationToken cancellationToken) =>
+            async (Guid requestId, UpdateRequestTitleRequest request, IRequestTitleService requestTitleService, CancellationToken cancellationToken) =>
             {
-                await requestTitleService.UpdateRequestTitlesAsync(requestId, request.RequestTitleDtos, cancellationToken);
+                await requestTitleService.UpdateRequestTitlesAsync(Guid.NewGuid(), requestId, request.RequestTitleDtos, cancellationToken);
 
                 var response = new UpdateRequestTitleResponse(true);
 
