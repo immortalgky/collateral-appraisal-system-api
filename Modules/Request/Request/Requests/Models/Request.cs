@@ -5,12 +5,12 @@ namespace Request.Requests.Models;
 public class Request : Aggregate<Guid>
 {
     public AppraisalNumber AppraisalNo { get; private set; }
-    public string Purpose { get; private set; }
+    public string? Purpose { get; private set; }
     public SourceSystem SourceSystem { get; private set; }
     public string Priority { get; private set; } = default!;
     public RequestStatus Status { get; private set; } = default!;
     public SoftDelete SoftDelete { get; private set; }
-    public bool IsPMA { get; private set; }
+    public bool IsPMA { get; private set; } = false;
     public RequestDetail Detail { get; private set; } = default!;
 
 
@@ -80,6 +80,8 @@ public class Request : Aggregate<Guid>
         RuleCheck.Valid()
             .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
                 "Cannot update request when the status is not Draft or New.")
+            .AddErrorIf(SoftDelete.IsDeleted,
+                "Cannot update a deleted request.")
             .ThrowIfInvalid();
         Purpose = purpose;
         SourceSystem = sourceSystem;
@@ -145,6 +147,11 @@ public class Request : Aggregate<Guid>
 
     private void UpdateStatus(RequestStatus status)
     {
+        RuleCheck.Valid()
+            .AddErrorIf(SoftDelete.IsDeleted,
+                "Cannot update a deleted request.")
+            .ThrowIfInvalid();
+
         ArgumentNullException.ThrowIfNull(status);
 
         if (status == RequestStatus.Submitted)
@@ -167,7 +174,7 @@ public class Request : Aggregate<Guid>
     public void UpdateIsDelete()
     {
         var isDeleted = SoftDelete.Create(
-            true, DateTime.Now, "01"
+            true, DateTime.Now, SourceSystem.Creator
         );
 
         SoftDelete = isDeleted;

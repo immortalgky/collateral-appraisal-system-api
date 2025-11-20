@@ -9,7 +9,7 @@ public record UpdateDraftRequestRequest(
     string Purpose,
     string Priority,
     SourceSystemDto SourceSystem,
-    List<RequestCustomerDto> Customers,
-    List<RequestPropertyDto> Properties,
-    List<RequestDocumentDto> Documents
+    List<RequestCustomerDto>? Customers,
+    List<RequestPropertyDto>? Properties,
+    List<RequestDocumentDto>? Documents
 );

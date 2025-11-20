@@ -7,7 +7,6 @@ using Shared.Messaging.Events;
 using Request.Requests.Features.UpdateRequest;
 using Request.Requests.Features.CreateDraftRequest;
 using Request.Requests.Features.UpdateDraftRequest;
-using Request.RequestDocuments;
 using Request.RequestDocuments.Features.GetRequestDocument;
 using Request.RequestDocuments.Features.RemoveRequestDocument;
 
@@ -20,13 +19,15 @@ public class RequestService(IBus bus) : IRequestService
         RequestDto request, ISender sender,
         CancellationToken cancellation)
     {
+        // Create Request
         var requestCommand = request.Adapt<CreateRequestCommand>();
         var requestResult = await sender.Send(requestCommand, cancellation);
 
+        // Add Request Documents
         var requestDoc = new AddRequestDocumentCommand(requestResult.Id, request.Documents);
         await sender.Send(requestDoc, cancellation);
 
-
+        // IntegrationEvent
         var integrationEvent = new DocumentLinkedIntegrationEvent
         {
             SessionId = request.SessionId,
@@ -39,9 +40,7 @@ public class RequestService(IBus bus) : IRequestService
                 })
                 .ToList()
         };
-
         await bus.Publish(integrationEvent, cancellation);
-
 
         return new CreateRequestResult(requestResult.Id);
     }
@@ -49,13 +48,15 @@ public class RequestService(IBus bus) : IRequestService
     public async Task<CreateDraftRequestResult> CreateRequestDraftAsync(RequestDto request, ISender sender,
         CancellationToken cancellation)
     {
+        // Create Request
         var requestCommand = request.Adapt<CreateDraftRequestCommand>();
         var requestResult = await sender.Send(requestCommand, cancellation);
 
+        // Add Request Documents
         var requestDoc = new AddRequestDocumentCommand(requestResult.Id, request.Documents);
         await sender.Send(requestDoc, cancellation);
 
-
+        // IntregationEvent
         var integrationEvent = new DocumentLinkedIntegrationEvent
         {
             SessionId = request.SessionId,
@@ -69,9 +70,7 @@ public class RequestService(IBus bus) : IRequestService
                 })
                 .ToList()
         };
-
         await bus.Publish(integrationEvent, cancellation);
-
 
         return new CreateDraftRequestResult(requestResult.Id);
     }
@@ -79,12 +78,15 @@ public class RequestService(IBus bus) : IRequestService
     public async Task<UpdateRequestResult> UpdateRequestAsync(RequestDto request, ISender sender,
         CancellationToken cancellation)
     {
+        // Update Request
         var requestUpdateCommand = request.Adapt<UpdateRequestCommand>();
         var requestUpdateResult = await sender.Send(requestUpdateCommand, cancellation);
 
-        var requestDoc = new GetRequestDocumentQuery(request.Id);
-        var requestDocResult = await sender.Send(requestDoc);
+        //Query Existing Request Documents
+        var requestDocCommand = new GetRequestDocumentQuery(request.Id);
+        var requestDocResult = await sender.Send(requestDocCommand, cancellation);
 
+        // Documents From Front End
         var documents = request.Documents
             .Select(d => RequestDocument.Create(
                 requestId: request.Id,
@@ -95,26 +97,31 @@ public class RequestService(IBus bus) : IRequestService
             ))
             .ToList();
 
-        var newDoc = documents
+        // Check New Documents
+        var newDocuments = documents
             .Where(i => !requestDocResult.Documents.Any(e => e.DocumentId == i.DocumentId))
             .ToList();
 
-        var removeDoc = requestDocResult.Documents
+        // Documents will be Remove in Table
+        var removeDocuments = requestDocResult.Documents
             .Where(e => !documents.Any(i => i.DocumentId == e.DocumentId))
             .ToList();
 
-        var newDocCommand = new AddRequestDocumentCommand(request.Id, newDoc.Adapt<List<RequestDocumentDto>>());
+        // Add New Documents
+        var newDocCommand = new AddRequestDocumentCommand(request.Id, newDocuments.Adapt<List<RequestDocumentDto>>());
         await sender.Send(newDocCommand, cancellation);
 
-        foreach (var rd in removeDoc)
+        // Remove Documents
+        foreach (var rd in removeDocuments)
         {
             var removeDocCommand = rd.Adapt<RemoveRequestDocumentCommand>();
             await sender.Send(removeDocCommand, cancellation);
         }
 
+        // List Documents for Publish Event
         var eventDocs = new List<DocumentLink>();
         eventDocs.AddRange(
-            newDoc.Select(d => new DocumentLink
+            newDocuments.Select(d => new DocumentLink
             {
                 EntityType = "request",
                 EntityId = request.Id,
@@ -124,7 +131,7 @@ public class RequestService(IBus bus) : IRequestService
         );
 
         eventDocs.AddRange(
-            removeDoc.Select(d => new DocumentLink
+            removeDocuments.Select(d => new DocumentLink
             {
                 EntityType = "request",
                 EntityId = request.Id,
@@ -149,12 +156,15 @@ public class RequestService(IBus bus) : IRequestService
     public async Task<UpdateDraftRequestResult> UpdateRequestDraftAsync(RequestDto request, ISender sender,
         CancellationToken cancellation)
     {
+        // Update Request
         var requestUpdateCommand = request.Adapt<UpdateDraftRequestCommand>();
         var requestUpdateResult = await sender.Send(requestUpdateCommand, cancellation);
 
-        var requestDoc = new GetRequestDocumentQuery(request.Id);
-        var requestDocResult = await sender.Send(requestDoc);
+        //Query Existing Request Documents
+        var requestDocCommand = new GetRequestDocumentQuery(request.Id);
+        var requestDocResult = await sender.Send(requestDocCommand);
 
+        // Documents From Front End
         var documents = request.Documents
             .Select(d => RequestDocument.Create(
                 requestId: request.Id,
@@ -165,26 +175,31 @@ public class RequestService(IBus bus) : IRequestService
             ))
             .ToList();
 
-        var newDoc = documents
+        // Check New Documents
+        var newDocuments = documents
             .Where(i => !requestDocResult.Documents.Any(e => e.DocumentId == i.DocumentId))
             .ToList();
 
-        var removeDoc = requestDocResult.Documents
+        // Documents will be Remove in Table
+        var removeDocuments = requestDocResult.Documents
             .Where(e => !documents.Any(i => i.DocumentId == e.DocumentId))
             .ToList();
 
-        var newDocCommand = new AddRequestDocumentCommand(request.Id, newDoc.Adapt<List<RequestDocumentDto>>());
+        // Add New Documents
+        var newDocCommand = new AddRequestDocumentCommand(request.Id, newDocuments.Adapt<List<RequestDocumentDto>>());
         await sender.Send(newDocCommand, cancellation);
 
-        foreach (var rd in removeDoc)
+        // Remove Documents
+        foreach (var rd in removeDocuments)
         {
             var removeDocCommand = rd.Adapt<RemoveRequestDocumentCommand>();
             await sender.Send(removeDocCommand, cancellation);
         }
 
+        // List Documents for Publish Event
         var eventDocs = new List<DocumentLink>();
         eventDocs.AddRange(
-            newDoc.Select(d => new DocumentLink
+            newDocuments.Select(d => new DocumentLink
             {
                 EntityType = "request",
                 EntityId = request.Id,
@@ -194,7 +209,7 @@ public class RequestService(IBus bus) : IRequestService
         );
 
         eventDocs.AddRange(
-            removeDoc.Select(d => new DocumentLink
+            removeDocuments.Select(d => new DocumentLink
             {
                 EntityType = "request",
                 EntityId = request.Id,
@@ -212,7 +227,6 @@ public class RequestService(IBus bus) : IRequestService
             };
             await bus.Publish(integrationEvent, cancellation);
         }
-
 
         return new UpdateDraftRequestResult(requestUpdateResult.IsSuccess);
     }

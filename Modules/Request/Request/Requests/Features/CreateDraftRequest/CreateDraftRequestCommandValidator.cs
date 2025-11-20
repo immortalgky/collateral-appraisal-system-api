@@ -11,3 +11,4 @@ public class CreateDraftRequestCommandValidator : AbstractValidator<CreateDraftR
             .WithMessage("Empty Information");
     }
 }
+

@@ -10,7 +10,7 @@ public class AddRequestDocumentEndpoint : ICarterModule
                 async (Guid requestId, AddRequestDocumentRequest request, ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var command = new AddRequestDocumentCommand(RequestId: requestId,
+                    var command = new AddRequestDocumentCommand(requestId,
                         request.Documents
                     );
 

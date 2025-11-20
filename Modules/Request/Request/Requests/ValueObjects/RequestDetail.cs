@@ -2,7 +2,7 @@ namespace Request.Requests.ValueObjects;
 
 public class RequestDetail : ValueObject
 {
-    public bool HasAppraisalBook { get; }
+    public bool HasAppraisalBook { get; } = false;
     public LoanDetail LoanDetail { get; } = default!;
 
     public long? PrevAppraisalNo { get; }
