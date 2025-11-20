@@ -6,7 +6,7 @@ public record CreateDraftRequestRequest(
     Guid SessionId,
     RequestDetailDto Detail,
     bool IsPMA,
-    string Purpose,
+    string? Purpose,
     string Priority,
     SourceSystemDto SourceSystem,
     List<RequestCustomerDto>? Customers,

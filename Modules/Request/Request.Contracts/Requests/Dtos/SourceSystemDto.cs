@@ -2,7 +2,7 @@ namespace Request.Contracts.Requests.Dtos;
 
 public record SourceSystemDto(
     string? Channel,
-    DateTime RequestDate,
+    DateTime? RequestDate,
     string? RequestBy,
     string? RequestByName,
     DateTime CreatedDate,
