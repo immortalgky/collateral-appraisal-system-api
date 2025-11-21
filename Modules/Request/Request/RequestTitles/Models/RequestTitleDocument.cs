@@ -18,6 +18,7 @@ public class RequestTitleDocument : Aggregate<Guid>
     {
         // EF Core
     }
+    
 
     public static RequestTitleDocument Create(RequestTitleDocumentData requestTitleDocument)
     {
