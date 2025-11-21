@@ -10,26 +10,24 @@ public class UpdateDraftRequestCommandTitleHandler(IRequestTitleRepository reque
         if (requestTitle.RequestId != command.RequestId)
             throw new Exception("New RequestId does not existed");
         
-        var requestTitleData = new RequestTitleData
-        {
-            RequestId = command.RequestId,
-            CollateralType = command.CollateralType,
-            CollateralStatus = command.CollateralStatus,
-            TitleDeedInfo = DtoExtensions.ToDomain(command.TitleDeedInfoDto),
-            SurveyInfo = DtoExtensions.ToDomain(command.SurveyInfoDto),
-            LandArea = DtoExtensions.ToDomain(command.LandAreaDto),
-            OwnerName = command.OwnerName,
-            RegistrationNo = command.RegistrationNo,
-            VehicleInfo = DtoExtensions.ToDomain(command.VehicleDto),
-            MachineInfo = DtoExtensions.ToDomain(command.MachineDto),
-            BuildingInfo = DtoExtensions.ToDomain(command.BuildingInfoDto),
-            CondoInfo = DtoExtensions.ToDomain(command.CondoInfoDto),
-            TitleAddress = DtoExtensions.ToDomain(command.TitleAddress),
-            DopaAddress = DtoExtensions.ToDomain(command.DopaAddress),
-            Notes = command.Notes
-        };
-
-        var reqTitle = RequestTitleFactory.Update(requestTitle);
+        requestTitle.UpdateDetails(new RequestTitleData(
+                command.RequestId,
+                command.CollateralType, 
+                command.CollateralStatus, 
+                DtoExtensions.ToDomain(command.TitleDeedInfoDto), 
+                DtoExtensions.ToDomain(command.SurveyInfoDto), 
+                DtoExtensions.ToDomain(command.LandAreaDto), 
+                command.OwnerName, 
+                command.RegistrationNo, 
+                DtoExtensions.ToDomain(command.VehicleDto), 
+                DtoExtensions.ToDomain(command.MachineDto), 
+                DtoExtensions.ToDomain(command.BuildingInfoDto), 
+                DtoExtensions.ToDomain(command.CondoInfoDto), 
+                DtoExtensions.ToDomain(command.TitleAddress), 
+                DtoExtensions.ToDomain(command.DopaAddress), 
+                command.Notes
+            )
+        );;
 
         await requestTitleRepository.SaveChangesAsync(cancellationToken);
         

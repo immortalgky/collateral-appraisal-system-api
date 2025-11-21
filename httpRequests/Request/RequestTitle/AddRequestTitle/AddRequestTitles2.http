@@ -44,7 +44,7 @@ Content-Type: application/json
                 "postcode": "50000"
             },
             "notes": "",
-            "requestTitleDocuments": 
+            "requestTitleDocumentDtos": 
             [
                 {
                     "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
@@ -56,63 +56,6 @@ Content-Type: application/json
                 },
                 {
                     "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1105",
-                    "documentType": "B",
-                    "isRequired": false,
-                    "documentDescription": "This is document B",
-                    "uploadedBy": "xxxxx",
-                    "uploadedByName": "Joe"
-                }
-            ]
-        },
-        {
-            "collateralType": "L",
-            "collateralStatus": false,
-            "titleNo": "1212312121",
-            "deedType": "NorSor3",
-            "titleDetail": "",
-            "rawang": "xxxx",
-            "landNo": "xxxx",
-            "surveyNo": "xxxx",
-            "areaRai": 0,
-            "areaNgan": 0,
-            "areaSquareWa": 0,
-            "titleAddress":
-            {
-                "houseNo": "",
-                "projectName": "",
-                "moo": "",
-                "soi": "",
-                "road": "123456789",
-                "subDistrict": "Muang",
-                "district": "Watket",
-                "province": "Chiang Mai",
-                "postcode": "50000"
-            },
-            "dopaAddress":
-            {
-                "houseNo": "",
-                "projectName": "",
-                "moo": "",
-                "soi": "",
-                "road": "",
-                "subDistrict": "Muang",
-                "district": "Watket",
-                "province": "Chiang Mai",
-                "postcode": "50000"
-            },
-            "notes": "",
-            "requestTitleDocuments": 
-            [
-                {
-                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1102",
-                    "documentType": "AX",
-                    "isRequired": false,
-                    "documentDescription": "This is document AX",
-                    "uploadedBy": "xxxxx",
-                    "uploadedByName": "Joe"
-                },
-                {
-                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1103",
                     "documentType": "B",
                     "isRequired": false,
                     "documentDescription": "This is document B",
