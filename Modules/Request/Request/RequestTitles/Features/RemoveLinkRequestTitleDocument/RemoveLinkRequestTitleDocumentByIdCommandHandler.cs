@@ -1,8 +1,8 @@
 namespace Request.RequestTitles.Features.RemoveLinkRequestTitleDocument;
 
-public class RemoveLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentRepository requestTitleDocumentRepository) : ICommandHandler<RemoveLinkRequestTitleDocumentCommand, RemoveLinkRequestTitleDocumentResult>
+public class RemoveLinkRequestTitleDocumentByIdCommandHandler(IRequestTitleDocumentRepository requestTitleDocumentRepository) : ICommandHandler<RemoveLinkRequestTitleDocumentByIdCommand, RemoveLinkRequestTitleDocumentByIdResult>
 {
-    public async Task<RemoveLinkRequestTitleDocumentResult> Handle(RemoveLinkRequestTitleDocumentCommand command, CancellationToken cancellationToken)
+    public async Task<RemoveLinkRequestTitleDocumentByIdResult> Handle(RemoveLinkRequestTitleDocumentByIdCommand command, CancellationToken cancellationToken)
     {
         var requestTitleDocument = await requestTitleDocumentRepository.GetRequestTitleDocumentByIdAsync(command.Id);
         
@@ -16,6 +16,6 @@ public class RemoveLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentR
         
         await requestTitleDocumentRepository.SaveChangeAsync(cancellationToken);
         
-        return new RemoveLinkRequestTitleDocumentResult(true);
+        return new RemoveLinkRequestTitleDocumentByIdResult(requestTitleDocument.DocumentId);
     }
 }

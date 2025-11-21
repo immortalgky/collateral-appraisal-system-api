@@ -1,3 +1,3 @@
 namespace Request.RequestTitles.Features.RemoveLinkRequestTitleDocument;
 
-public record RemoveLinkRequestTitleDocumentResult(bool Success);
+public record RemoveLinkRequestTitleDocumentByIdResponse(bool Success);

@@ -56,9 +56,6 @@ public class RequestTitleService : IRequestTitleService
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
 
-                if (result is null)
-                    throw new Exception($"Cannot create link to DocumentId: {requestTitleDocDto.DocumentId}");
-
                 documentLinks.Add(new DocumentLink
                 {
                     EntityType = "Title",
@@ -103,9 +100,6 @@ public class RequestTitleService : IRequestTitleService
                 );
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
-
-                if (result is not null)
-                    throw new Exception($"Cannot create link to DocumentId: {requestTitleDocDto.DocumentId}");
 
                 documentLinks.Add(new DocumentLink
                 {
@@ -192,10 +186,6 @@ public class RequestTitleService : IRequestTitleService
                 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
                 
-                if (result is not null)
-                    throw new Exception(
-                        $"Cannot create link where DocumentId is {linkDto.DocumentId}");
-                
                 documentLinks.Add(new DocumentLink
                 {
                     EntityType = "Title",
@@ -213,17 +203,14 @@ public class RequestTitleService : IRequestTitleService
             
             foreach (var titleDocDto in removingReqTitleDocDtos)
             {
-                var removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentCommand(titleDocDto.Id!.Value, requestTitleId), cancellationToken);
+                var removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocDto.Id!.Value, requestTitleId), cancellationToken);
                 
-                if (!removeResult.Success)
-                    throw new Exception($"RequestTitleDocument Id: {titleDocDto.DocumentId} cannot be removed");
-
                 documentLinks.Add(new DocumentLink
                 {
                     EntityType = "Title",
                     EntityId = requestTitleId,
-                    DocumentId = titleDocDto.DocumentId,
-                    IsUnlinked = true,
+                    DocumentId = removeResult.TitleDocId,
+                    IsUnlinked = true
                 });
             }
         }
@@ -250,9 +237,6 @@ public class RequestTitleService : IRequestTitleService
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
 
-                if (result is null)
-                    throw new Exception($"Cannot create link to DocumentId: {titleDocDto.DocumentId}");
-
                 documentLinks.Add(new DocumentLink
                 {
                     EntityType = "Title",
@@ -274,21 +258,18 @@ public class RequestTitleService : IRequestTitleService
             
             var existingReqTitleDocDtos = existingReqTitleDocResult.RequestTitleDocuments;
             
-            var removingReqTitleDocDtos = existingReqTitleDocDtos.Where(d => !d.Id.HasValue).ToList();
+            var removingReqTitleDocDtos = existingReqTitleDocDtos.Where(d => d.Id.HasValue).ToList();
 
             foreach (var titleDocDto in removingReqTitleDocDtos)
             {
-                var  removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentCommand(titleDocDto.DocumentId, id));
+                var  removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocDto.Id!.Value, id));
                 
-                if (!removeResult.Success)
-                    throw new Exception($"RequestTitleDocument Id: {titleDocDto.DocumentId} cannot be removed");
-
                 documentLinks.Add(new DocumentLink
                 {
                     EntityType = "Title",
                     EntityId = id,
-                    DocumentId = titleDocDto.DocumentId,
-                    IsUnlinked = true,
+                    DocumentId = removeResult.TitleDocId,
+                    IsUnlinked = true
                 });
             }
 
@@ -368,10 +349,6 @@ public class RequestTitleService : IRequestTitleService
                 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
                 
-                if (result is null)
-                    throw new Exception(
-                        $"Cannot create link where DocumentId is {linkDto.DocumentId}");
-                
                 documentLinks.Add(new DocumentLink
                 {
                     EntityType = "Title",
@@ -389,17 +366,14 @@ public class RequestTitleService : IRequestTitleService
             
             foreach (var titleDocDto in removingReqTitleDocDtos)
             {
-                var removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentCommand(titleDocDto.Id!.Value, requestTitleId), cancellationToken);
+                var removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocDto.Id!.Value, requestTitleId), cancellationToken);
                 
-                if (!removeResult.Success)
-                    throw new Exception($"RequestTitleDocument Id: {titleDocDto.DocumentId} cannot be removed");
-
                 documentLinks.Add(new DocumentLink
                 {
                     EntityType = "Title",
                     EntityId = requestTitleId,
-                    DocumentId = titleDocDto.DocumentId,
-                    IsUnlinked = true,
+                    DocumentId = removeResult.TitleDocId,
+                    IsUnlinked = true
                 });
             }
         }
@@ -424,9 +398,6 @@ public class RequestTitleService : IRequestTitleService
                 );
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
-
-                if (result is null)
-                    throw new Exception($"Cannot create link to DocumentId: {titleDocDto.DocumentId}");
 
                 documentLinks.Add(new DocumentLink
                 {
@@ -454,17 +425,14 @@ public class RequestTitleService : IRequestTitleService
 
             foreach (var titleDocDto in removingReqTitleDocDtos)
             {
-                var  removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentCommand(titleDocDto.DocumentId, id));
+                var  removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocDto.Id!.Value, id));
                 
-                if (!removeResult.Success)
-                    throw new Exception($"RequestTitleDocument Id: {titleDocDto.DocumentId} cannot be removed");
-
                 documentLinks.Add(new DocumentLink
                 {
                     EntityType = "Title",
                     EntityId = id,
-                    DocumentId = titleDocDto.DocumentId,
-                    IsUnlinked = true,
+                    DocumentId = removeResult.TitleDocId,
+                    IsUnlinked = true
                 });
             }
             

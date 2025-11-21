@@ -1,0 +1,111 @@
+@baseUrl = https://localhost:7111
+@requestId = 00d06d51-aa5b-4ff1-5dbb-08de28be5bfc
+PATCH {{baseUrl}}/requests/{{requestId}}/titles
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "requestTitleDtos":
+    [
+        {
+            "id": "f9e4e2f7-b080-411a-9ae0-1e53fbc63c7b",
+            "collateralType": "L",
+            "collateralStatus": false,
+            "titleNo": "1212312121",
+            "deedType": "NorSor3",
+            "titleDetail": "Update Test 8",
+            "rawang": "xxxx",
+            "landNo": "xxxx",
+            "surveyNo": "xxxx",
+            "areaRai": 0,
+            "areaNgan": 0,
+            "areaSquareWa": 0,
+            "titleAddress":
+            {
+                "houseNo": "",
+                "projectName": "",
+                "moo": "",
+                "soi": "",
+                "road": "123456789",
+                "subDistrict": "Muang",
+                "district": "Watket",
+                "province": "Chiang Mai",
+                "postcode": "50000"
+            },
+            "dopaAddress":
+            {
+                "houseNo": "",
+                "projectName": "",
+                "moo": "",
+                "soi": "",
+                "road": "",
+                "subDistrict": "Muang",
+                "district": "Watket",
+                "province": "Chiang Mai",
+                "postcode": "50000"
+            },
+            "notes": "",
+            "requestTitleDocumentDtos": 
+            [
+                {
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
+                    "documentType": "Test Update 8",
+                    "isRequired": false,
+                    "documentDescription": "new document AD1",
+                    "uploadedBy": "xxxxx",
+                    "uploadedByName": "Joe"
+                }
+            ]
+        },
+        {
+            "id": "acaf4a1d-f50d-47ef-b2e7-7ebc72a00f5e",
+            "collateralType": "L",
+            "collateralStatus": false,
+            "titleNo": "1212312121",
+            "deedType": "NorSor3",
+            "titleDetail": "Update Test 8",
+            "rawang": "xxxx",
+            "landNo": "xxxx",
+            "surveyNo": "xxxx",
+            "areaRai": 0,
+            "areaNgan": 0,
+            "areaSquareWa": 0,
+            "titleAddress":
+            {
+                "houseNo": "",
+                "projectName": "",
+                "moo": "",
+                "soi": "",
+                "road": "123456789",
+                "subDistrict": "Muang",
+                "district": "Watket",
+                "province": "Chiang Mai",
+                "postcode": "50000"
+            },
+            "dopaAddress":
+            {
+                "houseNo": "",
+                "projectName": "",
+                "moo": "",
+                "soi": "",
+                "road": "",
+                "subDistrict": "Muang",
+                "district": "Watket",
+                "province": "Chiang Mai",
+                "postcode": "50000"
+            },
+            "notes": "",
+            "requestTitleDocumentDtos":
+            [
+                {
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
+                    "documentType": "Test Update 8",
+                    "isRequired": false,
+                    "documentDescription": "new document AD1",
+                    "uploadedBy": "xxxxx",
+                    "uploadedByName": "Joe"
+                }
+            ]
+        }
+    ]
+}
