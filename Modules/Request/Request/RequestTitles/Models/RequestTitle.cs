@@ -77,7 +77,7 @@ public class RequestTitleFactory
     }
 }
 
-public class TitleLand : RequestTitle
+public sealed class TitleLand : RequestTitle
 {
     public TitleLand(){}
     private TitleLand(RequestTitleData requestTitleData) : base(requestTitleData){}
@@ -188,7 +188,7 @@ public class TitleLand : RequestTitle
     }
 }
 
-public class TitleBuilding : RequestTitle
+public sealed class TitleBuilding : RequestTitle
 {
     public TitleBuilding(){}
     private TitleBuilding(RequestTitleData requestTitleData) : base(requestTitleData){}
@@ -270,7 +270,7 @@ public class TitleBuilding : RequestTitle
     }
 }
 
-public class TitleLandBuilding : RequestTitle
+public sealed class TitleLandBuilding : RequestTitle
 {
     public TitleLandBuilding(){}
     private TitleLandBuilding(RequestTitleData requestTitleData) : base(requestTitleData){}
@@ -389,7 +389,7 @@ public class TitleLandBuilding : RequestTitle
     }
 }
 
-public class TitleCondo : RequestTitle
+public sealed class TitleCondo : RequestTitle
 {
     public TitleCondo(){}
     private TitleCondo(RequestTitleData requestTitleData) : base(requestTitleData){}
@@ -485,7 +485,7 @@ public class TitleCondo : RequestTitle
     }
 }
 
-public class TitleMachine : RequestTitle
+public sealed class TitleMachine : RequestTitle
 {
     public TitleMachine(){}
     private TitleMachine(RequestTitleData requestTitleData) : base(requestTitleData){}
@@ -573,7 +573,7 @@ public class TitleMachine : RequestTitle
     }
 }
 
-public class TitleVehicle : RequestTitle
+public sealed class TitleVehicle : RequestTitle
 {
     public TitleVehicle(){}
     private TitleVehicle(RequestTitleData requestTitleData) : base(requestTitleData){}

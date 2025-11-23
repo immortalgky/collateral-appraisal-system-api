@@ -78,6 +78,7 @@ namespace Request.Data.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("CollateralType")
+                        .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
@@ -115,6 +116,10 @@ namespace Request.Data.Migrations
                         .HasDatabaseName("IX_TitleDeedInfo_RequestId");
 
                     b.ToTable("RequestTitles", "request");
+
+                    b.HasDiscriminator<string>("CollateralType").HasValue("RequestTitle");
+
+                    b.UseTphMappingStrategy();
                 });
 
             modelBuilder.Entity("Request.RequestTitles.Models.RequestTitleDocument", b =>
@@ -224,6 +229,48 @@ namespace Request.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Requests", "request");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.TitleBuilding", b =>
+                {
+                    b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
+
+                    b.HasDiscriminator().HasValue("Building");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.TitleCondo", b =>
+                {
+                    b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
+
+                    b.HasDiscriminator().HasValue("Condo");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.TitleLand", b =>
+                {
+                    b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
+
+                    b.HasDiscriminator().HasValue("Land");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.TitleLandBuilding", b =>
+                {
+                    b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
+
+                    b.HasDiscriminator().HasValue("LandBuilding");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.TitleMachine", b =>
+                {
+                    b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
+
+                    b.HasDiscriminator().HasValue("Machine");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.TitleVehicle", b =>
+                {
+                    b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
+
+                    b.HasDiscriminator().HasValue("Vehicle");
                 });
 
             modelBuilder.Entity("Request.RequestComments.Models.RequestComment", b =>

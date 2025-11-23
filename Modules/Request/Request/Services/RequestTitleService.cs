@@ -76,7 +76,6 @@ public class RequestTitleService : IRequestTitleService
     public async Task DraftRequestTitlesAsync(Guid sessionId, Guid requestId, List<RequestTitleDto> requestTitleDtos, CancellationToken cancellationToken)
     {
         // check RequestId is existed or not
-
         var documentLinks = new List<DocumentLink>();
 
         if (requestTitleDtos.Count == 0)

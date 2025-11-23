@@ -8,7 +8,7 @@ internal class GetRequestTitlesByRequestIdQueryHandler(IRequestTitleReadReposito
     {
         var requestTitleEntities = await readRepository
             .FindAsync(rt => rt.RequestId == query.RequestId, cancellationToken);
-
+        
         var requestTitles = requestTitleEntities
             .OrderBy(rt => rt.CreatedOn)
             .Select(rt => new RequestTitleDto(
