@@ -1,4 +1,5 @@
 using MassTransit;
+using Request.RequestTitles.Features.GetLinkRequestTitleDocumentById;
 using Shared.Messaging.Events;
 
 namespace Request.RequestTitles.Features.RemoveLinkRequestTitleDocument;
@@ -8,27 +9,31 @@ public class RemoveLinkRequestTitleDocumentByIdEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapDelete("/requests/{requestId:Guid}/titles/{titleId:Guid}/titleDocs/{titleDocId:Guid}",
-            async (Guid requestId, Guid titleId, Guid titleDocId, ISender sender, IBus bus, CancellationToken cancellationToken) =>
+            async (Guid titleId, Guid titleDocId, ISender sender, IBus bus, CancellationToken cancellationToken) =>
             {
+                var requestTitle = await sender.Send(new GetLinkRequestTitleDocumentByIdQuery(titleDocId), cancellationToken);
                 var result = await sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocId, titleId), cancellationToken);
 
                 var reponse = new RemoveLinkRequestTitleDocumentByIdResponse(
                     true);
 
-                await bus.Publish(
-                    new DocumentLinkedIntegrationEvent
-                    {
-                        SessionId = Guid.NewGuid(),
-                        DocumentLinks = new List<DocumentLink>() { new DocumentLink
+                if (requestTitle.DocumentId != Guid.Empty)
+                {
+                    await bus.Publish(
+                        new DocumentLinkedIntegrationEvent
                         {
-                            EntityType = "Title",
-                            EntityId = titleId,
-                            DocumentId = result.TitleDocId,
-                            IsUnlinked = true
-                        } }
-                    }, 
-                    cancellationToken
-                    );
+                            SessionId = Guid.NewGuid(),
+                            DocumentLinks = new List<DocumentLink>() { new DocumentLink
+                            {
+                                EntityType = "Title",
+                                EntityId = titleId,
+                                DocumentId = requestTitle.DocumentId!.Value,
+                                IsUnlinked = true
+                            } }
+                        }, 
+                        cancellationToken
+                        );
+                }
                     
                 return Results.Ok(reponse);
             })

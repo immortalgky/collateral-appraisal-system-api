@@ -16,6 +16,6 @@ public class RemoveLinkRequestTitleDocumentByIdCommandHandler(IRequestTitleDocum
         
         await requestTitleDocumentRepository.SaveChangeAsync(cancellationToken);
         
-        return new RemoveLinkRequestTitleDocumentByIdResult(requestTitleDocument.DocumentId);
+        return new RemoveLinkRequestTitleDocumentByIdResult(true);
     }
 }

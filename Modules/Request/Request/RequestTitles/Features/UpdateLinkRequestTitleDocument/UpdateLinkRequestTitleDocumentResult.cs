@@ -1,0 +1,3 @@
+namespace Request.RequestTitles.Features.UpdateLinkRequestTitleDocument;
+
+public record UpdateLinkRequestTitleDocumentResult(bool Success);

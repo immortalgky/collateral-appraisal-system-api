@@ -15,6 +15,6 @@ public class CreateLinkRequestTitleDocumentCommandHandler(IRequestTitleRepositor
         
         await requestTitleRepository.SaveChangesAsync();
         
-        return new CreateLinkRequestTitleDocumentResult(requestTitleDocument.Id);
+        return new CreateLinkRequestTitleDocumentResult(true);
     }
 }

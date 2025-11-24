@@ -3,9 +3,9 @@ namespace Request.RequestTitles.Models;
 public class RequestTitleDocument : Aggregate<Guid>
 {
     public Guid TitleId { get; private set; }
-    public Guid DocumentId { get; private set; }
+    public Guid? DocumentId { get; private set; }
 
-    public string DocumentType { get; private set; } = default!;
+    public string? DocumentType { get; private set; }
     public bool IsRequired { get; private set; } = false;
 
     public string? DocumentDescription { get; private set; }
@@ -20,20 +20,20 @@ public class RequestTitleDocument : Aggregate<Guid>
     }
     
 
-    public static RequestTitleDocument Create(RequestTitleDocumentData requestTitleDocument)
+    public static RequestTitleDocument Create(RequestTitleDocumentData requestTitleDocumentData)
     {
-        RequestTitleDocumentValidator.Validate(requestTitleDocument);
+        RequestTitleDocumentValidator.Validate(requestTitleDocumentData);
         
         return new RequestTitleDocument()
         {
             Id = Guid.NewGuid(),
-            TitleId = requestTitleDocument.TitleId,
-            DocumentId = requestTitleDocument.DocumentId,
-            DocumentType = requestTitleDocument.DocumentType,
-            IsRequired = requestTitleDocument.IsRequired,
-            DocumentDescription = requestTitleDocument.DocumentDescription,
-            UploadedBy = requestTitleDocument.UploadedBy,
-            UploadedByName = requestTitleDocument.UploadedByName,
+            TitleId = requestTitleDocumentData.TitleId,
+            DocumentId = requestTitleDocumentData.DocumentId,
+            DocumentType = requestTitleDocumentData.DocumentType,
+            IsRequired = requestTitleDocumentData.IsRequired,
+            DocumentDescription = requestTitleDocumentData.DocumentDescription,
+            UploadedBy = requestTitleDocumentData.UploadedBy,
+            UploadedByName = requestTitleDocumentData.UploadedByName,
             UploadedAt = DateTime.UtcNow
         };
     }
@@ -42,6 +42,7 @@ public class RequestTitleDocument : Aggregate<Guid>
     {
         RequestTitleDocumentValidator.Validate(requestDocumentData);
         
+        DocumentId = requestDocumentData.DocumentId;
         DocumentType = requestDocumentData.DocumentType;
         DocumentDescription = requestDocumentData.DocumentDescription;
         IsRequired = requestDocumentData.IsRequired;
@@ -61,15 +62,16 @@ public class RequestTitleDocument : Aggregate<Guid>
     }
 }
 
-public record RequestTitleDocumentData(
-    Guid TitleId,
-    Guid DocumentId,
-    string DocumentType,
-    bool IsRequired,
-    string DocumentDescription,
-    string UploadedBy,
-    string UploadedByName
-    );
+public record RequestTitleDocumentData
+{
+    public Guid TitleId { get; init; }
+    public Guid DocumentId { get; init; }
+    public string? DocumentType { get; init; }
+    public bool IsRequired { get; init; }
+    public string? DocumentDescription { get; init; }
+    public string? UploadedBy { get; init; }
+    public string? UploadedByName { get; init; }
+};
 
 public static class RequestTitleDocumentValidator
 {

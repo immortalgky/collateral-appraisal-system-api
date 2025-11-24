@@ -5,6 +5,7 @@ using Request.RequestTitles.Features.GetLinkRequestTitleDocumentsByTitleId;
 using Request.RequestTitles.Features.GetRequestTitlesByRequestId;
 using Request.RequestTitles.Features.RemoveLinkRequestTitleDocument;
 using Request.RequestTitles.Features.UpdateDraftRequestTitle;
+using Request.RequestTitles.Features.UpdateLinkRequestTitleDocument;
 using Request.RequestTitles.Features.UpdateRequestTitle;
 using Shared.Messaging.Events;
 using RequestTitleDto = Request.Contracts.Requests.Dtos.RequestTitleDto;
@@ -54,13 +55,16 @@ public class RequestTitleService : IRequestTitleService
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
 
-                documentLinks.Add(new DocumentLink
+                if (requestTitleDocDto.DocumentId != Guid.Empty)
                 {
-                    EntityType = "Title",
-                    EntityId = requestTitleId,
-                    DocumentId = requestTitleDocDto.DocumentId,
-                    IsUnlinked = false
-                });
+                    documentLinks.Add(new DocumentLink
+                    {
+                        EntityType = "Title",
+                        EntityId = requestTitleId,
+                        DocumentId = requestTitleDocDto.DocumentId,
+                        IsUnlinked = false
+                    });
+                }
             }
         }
 
@@ -96,14 +100,17 @@ public class RequestTitleService : IRequestTitleService
                 );
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
-
-                documentLinks.Add(new DocumentLink
+                
+                if (requestTitleDocDto.DocumentId != Guid.Empty)
                 {
-                    EntityType = "Title",
-                    EntityId = requestTitleId,
-                    DocumentId = requestTitleDocDto.DocumentId,
-                    IsUnlinked = false
-                });
+                    documentLinks.Add(new DocumentLink
+                    {
+                        EntityType = "Title",
+                        EntityId = requestTitleId,
+                        DocumentId = requestTitleDocDto.DocumentId,
+                        IsUnlinked = false
+                    });
+                }
             }
         }
 
@@ -170,7 +177,7 @@ public class RequestTitleService : IRequestTitleService
                 .Where(d => !d.Id.HasValue)
                 .ToList();
             
-            // request title documents which have Id => check with existing to be removed or kept
+            // request title documents which have Id => check with existing to be removed or updated
             var dtoDocWithId = requestTitleDto.RequestTitleDocumentDtos
                 .Where(d => d.Id.HasValue)
                 .ToList();
@@ -180,6 +187,7 @@ public class RequestTitleService : IRequestTitleService
                 .ToHashSet();
             
             // Create new Request Title Documents
+            // we will create every mandatory documents even it doesn't have document id but we won't publish in case case that it doesn't have document Id
             foreach (var dtoDoc in dtoDocNew)
             {
                 var createLinkRequestTitleDocumentCommand = new CreateLinkRequestTitleDocumentCommand(
@@ -189,13 +197,16 @@ public class RequestTitleService : IRequestTitleService
                 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
                 
-                documentLinks.Add(new DocumentLink
+                if (dtoDoc.DocumentId != Guid.Empty)
                 {
-                    EntityType = "Title",
-                    EntityId = requestTitleId,
-                    DocumentId = dtoDoc.DocumentId,
-                    IsUnlinked = false
-                });
+                    documentLinks.Add(new DocumentLink
+                    {
+                        EntityType = "Title",
+                        EntityId = requestTitleId,
+                        DocumentId = dtoDoc.DocumentId,
+                        IsUnlinked = false
+                    });
+                }
             }
             
             // Check which request title documents existed or not; not existed => remove;
@@ -209,14 +220,51 @@ public class RequestTitleService : IRequestTitleService
             foreach (var titleDocDto in removingReqTitleDocDtos)
             {
                 var removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocDto.Id!.Value, requestTitleId), cancellationToken);
-                
-                documentLinks.Add(new DocumentLink
+
+                if (removeResult.Success)
                 {
-                    EntityType = "Title",
-                    EntityId = requestTitleId,
-                    DocumentId = removeResult.TitleDocId,
-                    IsUnlinked = true
-                });
+                    documentLinks.Add(new DocumentLink
+                    {
+                        EntityType = "Title",
+                        EntityId = requestTitleId,
+                        DocumentId = titleDocDto.DocumentId,
+                        IsUnlinked = true
+                    });
+                }
+            }
+            
+            // Check which request title documents existed or not; existed => update;
+            var updatingReqTitleDocIds = existingDocsById.Keys
+                .Intersect(dtoDocIds)
+                .ToList();
+
+            var updatingReqTitleDocDtos = dtoDocWithId.Where(dto => updatingReqTitleDocIds.Contains(dto.Id!.Value)).ToList();
+
+            foreach (var titleDocDto in updatingReqTitleDocDtos)
+            {
+                var updateResult = await _sender.Send(new UpdateLinkRequestTitleDocumentCommand(titleDocDto.Id!.Value,
+                    new RequestTitleDocumentDto(
+                        titleDocDto.Id,
+                        titleDocDto.TitleId,
+                        titleDocDto.DocumentId,
+                        titleDocDto.DocumentType,
+                        titleDocDto.IsRequired,
+                        titleDocDto.DocumentDescription,
+                        titleDocDto.UploadedBy,
+                        titleDocDto.UploadedByName
+                    ))
+                );
+
+                if (updateResult.Success)
+                {
+                    documentLinks.Add(new DocumentLink
+                    {
+                        EntityType = "Title",
+                        EntityId = requestTitleId,
+                        DocumentId = titleDocDto.DocumentId,
+                        IsUnlinked = false
+                    });
+                }
             }
         }
         
@@ -242,13 +290,16 @@ public class RequestTitleService : IRequestTitleService
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
 
-                documentLinks.Add(new DocumentLink
+                if (result.Success)
                 {
-                    EntityType = "Title",
-                    EntityId = requestTitleId,
-                    DocumentId = titleDocDto.DocumentId,
-                    IsUnlinked = false
-                });
+                    documentLinks.Add(new DocumentLink
+                    {
+                        EntityType = "Title",
+                        EntityId = requestTitleId,
+                        DocumentId = titleDocDto.DocumentId,
+                        IsUnlinked = false
+                    });
+                }
             }
         }
 
@@ -294,7 +345,6 @@ public class RequestTitleService : IRequestTitleService
         
         var existingRequestTitleIds = requestTitlesResult.RequestTitles.Select(rt => rt.Id!.Value).ToHashSet();
         
-        // DTOs with Id => candidates for update/keep
         var dtosWithId = requestTitleDtos
             .Where(rtd => rtd.Id.HasValue)
             .ToList();
@@ -303,32 +353,30 @@ public class RequestTitleService : IRequestTitleService
             .Select(rtd => rtd.Id!.Value)
             .ToHashSet();
         
-        // For update: intersection of client Ids and existing DB Ids
         var updatingReqTitleDtos = dtosWithId
             .Where(rtd => existingRequestTitleIds.Contains(rtd.Id!.Value))
             .ToList();
         
         foreach (var requestTitleDto in updatingReqTitleDtos)
         {
-            // update RequestTitle
-            var updateDraftRequestTitleCommand = BuildDraftUpdateCommand(requestId, requestTitleDto);
-            var requestTitleResult = await _sender.Send(updateDraftRequestTitleCommand);
-            
-            var requestTitleId = requestTitleResult.RequestTitleId;
-            
-            // snapshot exiting link
-            var existingReqTitleDocsResult = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(requestTitleId), cancellationToken);
-            
+            // snapshot existing link
+            var existingReqTitleDocsResult = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(requestTitleDto.Id!.Value), cancellationToken);
             var existingReqTitleDocsDtos = existingReqTitleDocsResult.RequestTitleDocuments;
-            
             var existingDocsById = existingReqTitleDocsDtos
                 .Where(d => d.Id.HasValue)
                 .ToDictionary(d => d.Id!.Value);
             
+            // update RequestTitle
+            var draftRequestTitleCommand = BuildDraftCommand(requestId, requestTitleDto);
+            var requestTitleResult = await _sender.Send(draftRequestTitleCommand, cancellationToken);
+            var requestTitleId = requestTitleResult.TitleId;
+
+            // request title documents which don't have any Id => create new request title document
             var dtoDocNew = requestTitleDto.RequestTitleDocumentDtos
                 .Where(d => !d.Id.HasValue)
                 .ToList();
             
+            // request title documents which have Id => check with existing to be removed or updated
             var dtoDocWithId = requestTitleDto.RequestTitleDocumentDtos
                 .Where(d => d.Id.HasValue)
                 .ToList();
@@ -337,41 +385,85 @@ public class RequestTitleService : IRequestTitleService
                 .Select(d => d.Id!.Value)
                 .ToHashSet();
             
-            foreach (var linkDto in dtoDocNew)
+            // Create new Request Title Documents
+            // we will create every mandatory documents even it doesn't have document id but we won't publish in case case that it doesn't have document Id
+            foreach (var dtoDoc in dtoDocNew)
             {
                 var createLinkRequestTitleDocumentCommand = new CreateLinkRequestTitleDocumentCommand(
                     requestTitleId,
-                    linkDto
+                    dtoDoc
                 );
                 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
                 
-                documentLinks.Add(new DocumentLink
+                if (dtoDoc.DocumentId != Guid.Empty)
                 {
-                    EntityType = "Title",
-                    EntityId = requestTitleId,
-                    DocumentId = linkDto.DocumentId,
-                    IsUnlinked = false
-                });
+                    documentLinks.Add(new DocumentLink
+                    {
+                        EntityType = "Title",
+                        EntityId = requestTitleId,
+                        DocumentId = dtoDoc.DocumentId,
+                        IsUnlinked = false
+                    });
+                }
             }
             
-            var removedLinkIds = existingDocsById.Keys
+            // Check which request title documents existed or not; not existed => remove;
+            var removingReqTitleDocIds = existingDocsById.Keys
                 .Except(dtoDocIds)
                 .ToList();
 
-            var removingReqTitleDocDtos = existingReqTitleDocsDtos.Where(dto => removedLinkIds.Contains(dto.Id!.Value)).ToList();
+            var removingReqTitleDocDtos = existingReqTitleDocsDtos.Where(dto => removingReqTitleDocIds.Contains(dto.Id!.Value)).ToList();
             
+            // Remove existing Request Title Documents
             foreach (var titleDocDto in removingReqTitleDocDtos)
             {
                 var removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocDto.Id!.Value, requestTitleId), cancellationToken);
-                
-                documentLinks.Add(new DocumentLink
+
+                if (removeResult.Success)
                 {
-                    EntityType = "Title",
-                    EntityId = requestTitleId,
-                    DocumentId = removeResult.TitleDocId,
-                    IsUnlinked = true
-                });
+                    documentLinks.Add(new DocumentLink
+                    {
+                        EntityType = "Title",
+                        EntityId = requestTitleId,
+                        DocumentId = titleDocDto.DocumentId,
+                        IsUnlinked = true
+                    });
+                }
+            }
+            
+            // Check which request title documents existed or not; existed => update;
+            var updatingReqTitleDocIds = existingDocsById.Keys
+                .Intersect(dtoDocIds)
+                .ToList();
+
+            var updatingReqTitleDocDtos = existingReqTitleDocsDtos.Where(dto => updatingReqTitleDocIds.Contains(dto.Id!.Value)).ToList();
+
+            foreach (var titleDocDto in updatingReqTitleDocDtos)
+            {
+                var updateResult = await _sender.Send(new UpdateLinkRequestTitleDocumentCommand(titleDocDto.Id!.Value,
+                    new RequestTitleDocumentDto(
+                        titleDocDto.Id,
+                        titleDocDto.TitleId,
+                        titleDocDto.DocumentId,
+                        titleDocDto.DocumentType,
+                        titleDocDto.IsRequired,
+                        titleDocDto.DocumentDescription,
+                        titleDocDto.UploadedBy,
+                        titleDocDto.UploadedByName
+                    ))
+                );
+
+                if (updateResult.Success)
+                {
+                    documentLinks.Add(new DocumentLink
+                    {
+                        EntityType = "Title",
+                        EntityId = requestTitleId,
+                        DocumentId = titleDocDto.DocumentId,
+                        IsUnlinked = false
+                    });
+                }
             }
         }
         
@@ -381,8 +473,9 @@ public class RequestTitleService : IRequestTitleService
         foreach (var titleDto in newTitlesDtos)
         {
             // create RequestTitle
-            var draftRequestTitleCommand = BuildDraftCommand(requestId, titleDto);
-            var requestTitleResult = await _sender.Send(draftRequestTitleCommand, cancellationToken);
+            var createRequestTitleCommand = BuildDraftCommand(requestId, titleDto);
+
+            var requestTitleResult = await _sender.Send(createRequestTitleCommand, cancellationToken);
 
             var requestTitleId = requestTitleResult.TitleId;
 
@@ -396,47 +489,41 @@ public class RequestTitleService : IRequestTitleService
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
 
-                documentLinks.Add(new DocumentLink
+                if (result.Success)
                 {
-                    EntityType = "Title",
-                    EntityId = requestTitleId,
-                    DocumentId = titleDocDto.DocumentId,
-                    IsUnlinked = false
-                });
+                    documentLinks.Add(new DocumentLink
+                    {
+                        EntityType = "Title",
+                        EntityId = requestTitleId,
+                        DocumentId = titleDocDto.DocumentId,
+                        IsUnlinked = false
+                    });
+                }
             }
         }
-            
-        
+
         // Case: remove title
-        var titlesToRemove = existingRequestTitleIds
+        var removingRequestTitleIds = existingRequestTitleIds
             .Except(dtoIds)
             .ToList();
         
-        foreach (var id in titlesToRemove)
+        foreach (var requestTitleId in removingRequestTitleIds)
         {
-            var existingReqTitleDocResult = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(id), cancellationToken);
-            
+            var existingReqTitleDocResult = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(requestTitleId), cancellationToken);
             var existingReqTitleDocDtos = existingReqTitleDocResult.RequestTitleDocuments;
-            
-            var removingReqTitleDocDtos = existingReqTitleDocDtos.Where(d => !d.Id.HasValue).ToList();
 
-            foreach (var titleDocDto in removingReqTitleDocDtos)
+            documentLinks.AddRange(existingReqTitleDocDtos.Select(rtd => new DocumentLink
             {
-                var  removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocDto.Id!.Value, id));
-                
-                documentLinks.Add(new DocumentLink
-                {
-                    EntityType = "Title",
-                    EntityId = id,
-                    DocumentId = removeResult.TitleDocId,
-                    IsUnlinked = true
-                });
-            }
-            
-            var result = await _sender.Send(new RemoveRequestTitleCommand(requestId, id));
+                EntityType = "Title",
+                EntityId = requestTitleId,
+                DocumentId = rtd.DocumentId,
+                IsUnlinked = true
+            }).ToList());
+
+            var result = await _sender.Send(new RemoveRequestTitleCommand(requestId, requestTitleId));
             
             if (!result.Success)
-                throw new Exception($"RequestTitle Id: {id} cannot be removed");
+                throw new Exception($"RequestTitle Id: {requestTitleId} cannot be removed");
         }
 
         await _bus.Publish(new DocumentLinkedIntegrationEvent
