@@ -11,36 +11,36 @@ internal class GetRequestTitlesByRequestIdQueryHandler(IRequestTitleReadReposito
         
         var requestTitles = requestTitleEntities
             .OrderBy(rt => rt.CreatedOn)
-            .Select(rt => new RequestTitleDto(
-                rt.Id,
-                rt.RequestId,
-                rt.CollateralType,
-                rt.CollateralStatus,
-                rt.TitleDeedInfo.TitleNo,
-                rt.TitleDeedInfo.DeedType,
-                rt.TitleDeedInfo.TitleDetail,
-                rt.SurveyInfo.Rawang,
-                rt.SurveyInfo.LandNo,
-                rt.SurveyInfo.SurveyNo,
-                rt.LandArea.AreaRai,
-                rt.LandArea.AreaNgan,
-                rt.LandArea.AreaSquareWa,
-                rt.OwnerName,
-                rt.RegistrationNo,
-                rt.VehicleInfo.VehicleType,
-                rt.VehicleInfo.VehicleAppointmentLocation,
-                rt.VehicleInfo.ChassisNumber,
-                rt.MachineInfo.MachineStatus,
-                rt.MachineInfo.MachineType,
-                rt.MachineInfo.InstallationStatus,
-                rt.MachineInfo.InvoiceNumber,
-                rt.MachineInfo.NumberOfMachinery,
-                rt.BuildingInfo.BuildingType,
-                rt.BuildingInfo.UsableArea,
-                rt.BuildingInfo.NumberOfBuilding,
-                rt.TitleAddress.Adapt<AddressDto>(),
-                rt.DopaAddress.Adapt<AddressDto>()
-            ))
+            .Select(rt => new RequestTitleDto{
+                Id = rt.Id,
+                RequestId = rt.RequestId,
+                CollateralType = rt.CollateralType,
+                CollateralStatus = rt.CollateralStatus!.Value,
+                TitleNo = rt.TitleDeedInfo.TitleNo,
+                DeedType = rt.TitleDeedInfo.DeedType,
+                TitleDetail = rt.TitleDeedInfo.TitleDetail,
+                Rawang = rt.SurveyInfo.Rawang,
+                LandNo = rt.SurveyInfo.LandNo,
+                SurveyNo = rt.SurveyInfo.SurveyNo,
+                AreaRai = rt.LandArea.AreaRai,
+                AreaNgan = rt.LandArea.AreaNgan,
+                AreaSquareWa = rt.LandArea.AreaSquareWa,
+                OwnerName = rt.OwnerName,
+                RegistrationNumber = rt.RegistrationNo,
+                VehicleType = rt.VehicleInfo.VehicleType,
+                VehicleAppointmentLocation = rt.VehicleInfo.VehicleAppointmentLocation,
+                ChassisNumber = rt.VehicleInfo.ChassisNumber,
+                MachineStatus = rt.MachineInfo.MachineStatus,
+                MachineType = rt.MachineInfo.MachineType,
+                InstallationStatus = rt.MachineInfo.InstallationStatus,
+                InvoiceNumber = rt.MachineInfo.InvoiceNumber,
+                NumberOfMachine = rt.MachineInfo.NumberOfMachinery,
+                BuildingType = rt.BuildingInfo.BuildingType,
+                UsableArea = rt.BuildingInfo.UsableArea,
+                NumberOfBuilding = rt.BuildingInfo.NumberOfBuilding,
+                TitleAddress = rt.TitleAddress.Adapt<AddressDto>(),
+                DopaAddress = rt.DopaAddress.Adapt<AddressDto>()
+            })
             .ToList();
 
         return new GetRequestTitlesByRequestIdResult(requestTitles);

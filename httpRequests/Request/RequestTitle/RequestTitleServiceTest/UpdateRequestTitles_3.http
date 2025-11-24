@@ -8,12 +8,12 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "id": "7bcf9926-9ef5-4a57-a8a3-9b947b3edbad",
-            "collateralType": "L",
+            "id": "c11b526f-d0d5-4980-b4d8-2354d4f0d4a9",
+            "collateralType": "Land",
             "collateralStatus": false,
             "titleNo": "1212312121",
             "deedType": "NorSor3",
-            "titleDetail": "Update 3",
+            "titleDetail": "Test Update 3",
             "rawang": "xxxx",
             "landNo": "xxxx",
             "surveyNo": "xxxx",
@@ -47,6 +47,14 @@ Content-Type: application/json
             "notes": "",
             "requestTitleDocumentDtos": 
             [
+                {
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
+                    "documentType": "Test Update 3",
+                    "isRequired": false,
+                    "documentDescription": "new document D1",
+                    "uploadedBy": "xxxxx",
+                    "uploadedByName": "Joe"
+                }
             ]
         }
     ]

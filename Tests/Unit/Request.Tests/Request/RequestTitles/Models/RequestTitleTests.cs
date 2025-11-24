@@ -8,7 +8,36 @@ namespace Request.Tests.Request.RequestTitles.Models;
 
 public class RequestTitleTests
 {
-    
+  [Fact]
+  public void TitleLand_Create_MapsExpectedFields()
+  {
+    // Arrange
+    var data = new RequestTitleDataBuilder()
+      .WithCollateralType("Land")
+      .Build();
+
+    var land = new TitleLand();
+
+    // Act
+    var result = land.Create(data);
+
+    // Assert
+    var title = Assert.IsType<TitleLand>(result);
+    Assert.Equal(data.CollateralType, title.CollateralType);
+    Assert.Equal(data.CollateralStatus, title.CollateralStatus);
+    Assert.Equal(data.TitleDeedInfo, title.TitleDeedInfo);
+    Assert.Equal(data.SurveyInfo, title.SurveyInfo);
+    Assert.Equal(data.LandArea, title.LandArea);
+    Assert.Equal(data.TitleAddress, title.TitleAddress);
+    Assert.Equal(data.DopaAddress, title.DopaAddress);
+    Assert.Equal(data.Notes, title.Notes);
+
+    // Also check fields that should NOT be set for Land
+    Assert.Null(title.OwnerName);
+    Assert.Null(title.RegistrationNo);
+    // etc. depending on how you want “irrelevant” fields to look
+  }
+
 }
 
 public class RequestTitleDataBuilder

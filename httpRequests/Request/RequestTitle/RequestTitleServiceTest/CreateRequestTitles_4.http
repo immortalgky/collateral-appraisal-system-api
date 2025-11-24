@@ -1,5 +1,5 @@
 @baseUrl = https://localhost:7111
-@requestId = c90a9d2a-c313-43e5-c60c-08de25a554e3
+@requestId = 00d06d51-aa5b-4ff1-5dbb-08de28be5bfc
 POST {{baseUrl}}/requests/{{requestId}}/titles
 Host: localhost:7111
 Content-Type: application/json
@@ -8,11 +8,11 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "collateralType": "L",
+            "collateralType": "Land",
             "collateralStatus": false,
             "titleNo": "1212312121",
             "deedType": "NorSor3",
-            "titleDetail": "",
+            "titleDetail": "Test 4",
             "rawang": "xxxx",
             "landNo": "xxxx",
             "surveyNo": "xxxx",
@@ -64,10 +64,8 @@ Content-Type: application/json
                 }
             ]
         },
-      "requestTitleDtos":
-      [
         {
-          "collateralType": "L",
+          "collateralType": "Land",
           "collateralStatus": false,
           "titleNo": "1212312121",
           "deedType": "NorSor3",

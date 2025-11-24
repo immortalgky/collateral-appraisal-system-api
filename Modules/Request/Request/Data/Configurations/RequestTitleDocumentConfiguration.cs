@@ -10,13 +10,6 @@ public class RequestTitleDocumentConfiguration : IEntityTypeConfiguration<Reques
 
         builder.Property(x => x.TitleId);
 
-        // builder.Property(x => x.DocumentId);
-        // builder.HasOne(x => x.Document)
-        //     .WithMany(x => x.RequestTitleDocuments)
-        //     .HasForeignKey(x => x.DocumentId)
-        //     .OnDelete(DeleteBehavior.Cascade)
-        //     .HasConstraintName("FK_RequestTitleDocument_Document");
-
         builder.Property(x => x.DocumentType)
             .HasMaxLength(100);
         

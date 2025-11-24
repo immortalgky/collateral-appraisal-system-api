@@ -4,5 +4,21 @@ public class CreateLinkRequestTitleDocumentCommandValidator : AbstractValidator<
 {
     public CreateLinkRequestTitleDocumentCommandValidator()
     {
+        RuleFor(x => x.RequestTitleDto.DocumentType)
+            .MaximumLength(100)
+            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
+        
+        RuleFor(x =>x.RequestTitleDto.DocumentDescription)
+            .MaximumLength(500)
+            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
+
+        
+        RuleFor(x => x.RequestTitleDto.UploadedBy)
+            .MaximumLength(10)
+            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
+        
+        RuleFor(x => x.RequestTitleDto.UploadedByName)
+            .MaximumLength(100)
+            .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
     }   
 }

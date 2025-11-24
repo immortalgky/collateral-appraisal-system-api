@@ -8,12 +8,12 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "id": "7bcf9926-9ef5-4a57-a8a3-9b947b3edbad",
-            "collateralType": "L",
+            "id": "c11b526f-d0d5-4980-b4d8-2354d4f0d4a9",
+            "collateralType": "Land",
             "collateralStatus": false,
             "titleNo": "1212312121",
             "deedType": "NorSor3",
-            "titleDetail": "Update 2",
+            "titleDetail": "Test Update 2",
             "rawang": "xxxx",
             "landNo": "xxxx",
             "surveyNo": "xxxx",

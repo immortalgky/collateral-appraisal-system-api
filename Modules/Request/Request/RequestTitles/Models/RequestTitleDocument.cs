@@ -22,6 +22,8 @@ public class RequestTitleDocument : Aggregate<Guid>
 
     public static RequestTitleDocument Create(RequestTitleDocumentData requestTitleDocument)
     {
+        RequestTitleDocumentValidator.Validate(requestTitleDocument);
+        
         return new RequestTitleDocument()
         {
             Id = Guid.NewGuid(),
@@ -75,8 +77,10 @@ public static class RequestTitleDocumentValidator
     {
         var ruleCheck = RuleCheck.Valid();
 
-        ruleCheck.AddErrorIf(!String.IsNullOrWhiteSpace(requestTitleDocumentData.DocumentType), "documentType is null or contains only whitespace.");
-        ruleCheck.AddErrorIf(!String.IsNullOrWhiteSpace(requestTitleDocumentData.UploadedBy), "uploadBy is null or contains only whitespace.");
-        ruleCheck.AddErrorIf(!String.IsNullOrWhiteSpace(requestTitleDocumentData.UploadedByName), "uploadByName is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(String.IsNullOrWhiteSpace(requestTitleDocumentData.DocumentType), "documentType is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(String.IsNullOrWhiteSpace(requestTitleDocumentData.UploadedBy), "uploadBy is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(String.IsNullOrWhiteSpace(requestTitleDocumentData.UploadedByName), "uploadByName is null or contains only whitespace.");
+        
+        ruleCheck.ThrowIfInvalid();
     }
 }

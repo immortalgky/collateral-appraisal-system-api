@@ -8,11 +8,11 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "collateralType": "L",
+            "collateralType": "Land",
             "collateralStatus": false,
             "titleNo": "1212312121",
             "deedType": "NorSor3",
-            "titleDetail": "",
+            "titleDetail": "Test 1",
             "rawang": "xxxx",
             "landNo": "xxxx",
             "surveyNo": "xxxx",

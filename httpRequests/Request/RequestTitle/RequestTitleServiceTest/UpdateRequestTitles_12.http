@@ -8,8 +8,8 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "id": "545af553-ddf3-4a9e-8bb5-4dd9608a5239",
-            "collateralType": "L",
+            "id": "d0707cd5-3555-478f-9754-afec1fd9123e",
+            "collateralType": "Land",
             "collateralStatus": false,
             "titleNo": "1212312121",
             "deedType": "NorSor3",
@@ -48,8 +48,8 @@ Content-Type: application/json
             "requestTitleDocumentDtos":
             [
                 {
-                    "id": "4aa33589-26a7-4843-9d31-e7f46a68b3a9",
-                    "titleId": "545af553-ddf3-4a9e-8bb5-4dd9608a5239",
+                    "id": "bff40c6d-ec38-42ed-b757-11c444fe9b5c",
+                    "titleId": "d0707cd5-3555-478f-9754-afec1fd9123e",
                     "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
                     "documentType": "Test Update 12",
                     "isRequired": false,
@@ -58,8 +58,8 @@ Content-Type: application/json
                     "uploadedByName": "Joe"
                 },
                 {
-                    "id": "7c813fce-0661-450f-a941-7c8d4a3b18ae",
-                    "titleId": "545af553-ddf3-4a9e-8bb5-4dd9608a5239",
+                    "id": "",
+                    "titileId": "",
                     "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1106",
                     "documentType": "Test Update 12",
                     "isRequired": false,

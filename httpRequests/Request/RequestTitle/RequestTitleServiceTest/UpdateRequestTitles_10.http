@@ -8,8 +8,8 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "id": "acaf4a1d-f50d-47ef-b2e7-7ebc72a00f5e",
-            "collateralType": "L",
+            "id": "d0707cd5-3555-478f-9754-afec1fd9123e",
+            "collateralType": "Land",
             "collateralStatus": false,
             "titleNo": "1212312121",
             "deedType": "NorSor3",
@@ -48,8 +48,8 @@ Content-Type: application/json
             "requestTitleDocumentDtos":
             [
                 {
-                    "id": "d6e17a10-69aa-4ac1-8e42-664cc575721e",
-                    "titleId": "acaf4a1d-f50d-47ef-b2e7-7ebc72a00f5e",
+                    "id": "bff40c6d-ec38-42ed-b757-11c444fe9b5c",
+                    "titleId": "d0707cd5-3555-478f-9754-afec1fd9123e",
                     "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
                     "documentType": "Test Update 10",
                     "isRequired": false,
@@ -68,8 +68,8 @@ Content-Type: application/json
             ]
         },
         {
-            "id": "f9e4e2f7-b080-411a-9ae0-1e53fbc63c7b",
-            "collateralType": "L",
+            "id": "6d1040a6-1c71-44fc-b1ba-f1711ed0afad",
+            "collateralType": "Land",
             "collateralStatus": false,
             "titleNo": "1212312121",
             "deedType": "NorSor3",
@@ -108,12 +108,12 @@ Content-Type: application/json
             "requestTitleDocumentDtos":
             [
                 {
-                    "id": "a4534962-f579-4aed-ac70-e1225a551a5d",
-                    "titleId": "f9e4e2f7-b080-411a-9ae0-1e53fbc63c7b",
+                    "id": "cd428e84-e923-4d9e-8287-5110d9083003",
+                    "titleId": "6d1040a6-1c71-44fc-b1ba-f1711ed0afad",
                     "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
                     "documentType": "Test Update 10",
                     "isRequired": false,
-                    "documentDescription": "new document AD1",
+                    "documentDescription": "new document BD1",
                     "uploadedBy": "xxxxx",
                     "uploadedByName": "Joe"
                 },

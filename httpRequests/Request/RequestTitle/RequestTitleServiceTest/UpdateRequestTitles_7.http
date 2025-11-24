@@ -8,7 +8,7 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "collateralType": "L",
+            "collateralType": "Land",
             "collateralStatus": false,
             "titleNo": "1212312121",
             "deedType": "NorSor3",
@@ -49,7 +49,7 @@ Content-Type: application/json
             ]
         },
         {
-            "collateralType": "L",
+            "collateralType": "Land",
             "collateralStatus": false,
             "titleNo": "1212312121",
             "deedType": "NorSor3",
