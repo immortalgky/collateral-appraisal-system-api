@@ -1,5 +1,6 @@
 using Request.Requests.Features.CreateDraftRequest;
 using Request.Requests.Features.CreateRequest;
+using Request.Requests.Features.DeleteRequest;
 using Request.Requests.Features.UpdateDraftRequest;
 using Request.Requests.Features.UpdateRequest;
 
@@ -18,4 +19,7 @@ public interface IRequestService
 
     Task<UpdateDraftRequestResult> UpdateRequestDraftAsync(RequestDto request, ISender sender,
         CancellationToken cancellation);
+
+    Task<DeleteRequestResult> DeleteRequestAsync(Guid id, Guid sessionId, ISender sender,
+        CancellationToken cancellationToken);
 }

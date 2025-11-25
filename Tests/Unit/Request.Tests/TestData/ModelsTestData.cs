@@ -51,18 +51,5 @@ public static class ModelsTestData
             "01",
             "John"
         )
-
-        // Requestor.Create(
-        //     "EMP-001",
-        //     "Jane Smith",
-        //     "",
-        //     "0987654321",
-        //     "AO-001",
-        //     "01",
-        //     "01",
-        //     "01",
-        //     "01",
-        //     "01"
-        //     )
     );
 }

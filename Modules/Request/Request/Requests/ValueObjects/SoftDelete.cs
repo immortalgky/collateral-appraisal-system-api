@@ -4,7 +4,7 @@ namespace Request.Requests.ValueObjects;
 
 public class SoftDelete
 {
-    public bool IsDeleted { get; } = false;
+    public bool IsDeleted { get; }
     public DateTime? DeletedOn { get; }
     public string? DeletedBy { get; }
 

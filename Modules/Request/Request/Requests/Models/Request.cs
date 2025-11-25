@@ -10,9 +10,8 @@ public class Request : Aggregate<Guid>
     public string Priority { get; private set; } = default!;
     public RequestStatus Status { get; private set; } = default!;
     public SoftDelete SoftDelete { get; private set; }
-    public bool IsPMA { get; private set; } = false;
+    public bool IsPMA { get; private set; }
     public RequestDetail Detail { get; private set; } = default!;
-
 
     // Customers
     private readonly List<RequestCustomer> _customers = [];
@@ -104,6 +103,17 @@ public class Request : Aggregate<Guid>
 
         if (!_customers.SequenceEqual(customers))
         {
+            var duplicateNames = customers
+                .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+
+            RuleCheck.Valid()
+                .AddErrorIf(duplicateNames.Any(),
+                    $"Customer with name '{string.Join(", ", duplicateNames)}' already exists.")
+                .ThrowIfInvalid();
+
             _customers.Clear();
             _customers.AddRange(customers);
         }
@@ -173,6 +183,10 @@ public class Request : Aggregate<Guid>
 
     public void UpdateIsDelete()
     {
+        RuleCheck.Valid()
+            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
+                "Cannot update request when the status is not Draft or New.")
+            .ThrowIfInvalid();
         var isDeleted = SoftDelete.Create(
             true, DateTime.Now, SourceSystem.Creator
         );

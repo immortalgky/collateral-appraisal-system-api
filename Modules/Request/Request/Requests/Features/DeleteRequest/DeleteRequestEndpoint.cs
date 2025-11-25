@@ -1,17 +1,21 @@
+using Request.Services;
+
 namespace Request.Requests.Features.DeleteRequest;
 
-public class DeleteRequestEndpoint : ICarterModule
+public class DeleteRequestEndpoint(IRequestService requestService) : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapDelete("/requests/{id}", async (Guid id, ISender sender, CancellationToken cancellationToken) =>
-            {
-                var result = await sender.Send(new DeleteRequestCommand(id), cancellationToken);
+        app.MapDelete("/requests/{id}",
+                async (Guid id, Guid sessionId, ISender sender, CancellationToken cancellationToken) =>
+                {
+                    var result =
+                        await requestService.DeleteRequestAsync(id, sessionId, sender, cancellationToken);
 
-                var response = result.Adapt<DeleteRequestResponse>();
+                    var response = result.Adapt<DeleteRequestResponse>();
 
-                return Results.Ok(response);
-            })
+                    return Results.Ok(response);
+                })
             .WithName("DeleteRequest")
             .Produces<DeleteRequestResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
