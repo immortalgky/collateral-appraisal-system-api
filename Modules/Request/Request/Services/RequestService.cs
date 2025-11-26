@@ -1,6 +1,4 @@
 using MassTransit;
-using Request.Contracts.RequestDocuments.Dto;
-using Request.Extensions;
 using Request.RequestDocuments.Features.AddRequestDocument;
 using Request.Requests.Features.CreateRequest;
 using Shared.Messaging.Events;
@@ -10,7 +8,7 @@ using Request.Requests.Features.UpdateDraftRequest;
 using Request.RequestDocuments.Features.GetRequestDocument;
 using Request.RequestDocuments.Features.RemoveRequestDocument;
 using Request.Requests.Features.DeleteRequest;
-
+using Request.RequestDocuments.Features.UpdateRequestDocument;
 
 namespace Request.Services;
 
@@ -93,7 +91,6 @@ public class RequestService(IBus bus) : IRequestService
         var requestDocCommand = new GetRequestDocumentQuery(id);
         var requestDocResult = await sender.Send(requestDocCommand, cancellationToken);
 
-
         var eventDocs = new List<DocumentLink>();
 
         eventDocs.AddRange(
@@ -136,31 +133,30 @@ public class RequestService(IBus bus) : IRequestService
         //Query Existing Request Documents
         var requestDocCommand = new GetRequestDocumentQuery(request.Id);
         var requestDocResult = await sender.Send(requestDocCommand, cancellationToken);
-
-        // Documents From Front End
-        var documents = request.Documents
-            .Select(d => RequestDocument.Create(
-                requestId: request.Id,
-                documentId: d.DocumentId,
-                documentClassification: d.DocumentClassification.ToDomain(),
-                documentDescription: d.DocumentDescription,
-                uploadInfo: d.UploadInfo.ToDomain()
-            ))
-            .ToList();
+        var existingRequestDocs = requestDocResult.Documents;
 
         // Check New Documents
-        var newDocuments = documents
-            .Where(i => !requestDocResult.Documents.Any(e => e.DocumentId == i.DocumentId))
+        var newDocuments = request.Documents
+            .Where(i => !existingRequestDocs.Any(e => e.Id == i.Id))
             .ToList();
 
         // Documents will be Remove in Table
-        var removeDocuments = requestDocResult.Documents
-            .Where(e => !documents.Any(i => i.DocumentId == e.DocumentId))
+        var removeDocuments = existingRequestDocs
+            .Where(e => !request.Documents.Any(i => i.Id == e.Id))
+            .ToList();
+
+        // Documents will be Update in Table
+        var updateDocuments = request.Documents
+            .Where(i => existingRequestDocs.Any(e => e.Id == i.Id))
             .ToList();
 
         // Add New Documents
-        var newDocCommand = new AddRequestDocumentCommand(request.Id, newDocuments.Adapt<List<RequestDocumentDto>>());
+        var newDocCommand = new AddRequestDocumentCommand(request.Id, newDocuments);
         await sender.Send(newDocCommand, cancellationToken);
+
+        // Update Documents
+        var updateDocCommand = new UpdateRequestDocumentCommand(request.Id, updateDocuments);
+        await sender.Send(updateDocCommand, cancellationToken);
 
         // Remove Documents
         foreach (var rd in removeDocuments)
@@ -214,31 +210,30 @@ public class RequestService(IBus bus) : IRequestService
         //Query Existing Request Documents
         var requestDocCommand = new GetRequestDocumentQuery(request.Id);
         var requestDocResult = await sender.Send(requestDocCommand);
-
-        // Documents From Front End
-        var documents = request.Documents
-            .Select(d => RequestDocument.Create(
-                requestId: request.Id,
-                documentId: d.DocumentId,
-                documentClassification: d.DocumentClassification.ToDomain(),
-                documentDescription: d.DocumentDescription,
-                uploadInfo: d.UploadInfo.ToDomain()
-            ))
-            .ToList();
+        var existingRequestDocs = requestDocResult.Documents;
 
         // Check New Documents
-        var newDocuments = documents
-            .Where(i => !requestDocResult.Documents.Any(e => e.DocumentId == i.DocumentId))
+        var newDocuments = request.Documents
+            .Where(i => !existingRequestDocs.Any(e => e.Id == i.Id))
             .ToList();
 
         // Documents will be Remove in Table
-        var removeDocuments = requestDocResult.Documents
-            .Where(e => !documents.Any(i => i.DocumentId == e.DocumentId))
+        var removeDocuments = existingRequestDocs
+            .Where(e => !request.Documents.Any(i => i.Id == e.Id))
+            .ToList();
+
+        // Documents will be Update in Table
+        var updateDocuments = request.Documents
+            .Where(i => existingRequestDocs.Any(e => e.Id == i.Id))
             .ToList();
 
         // Add New Documents
-        var newDocCommand = new AddRequestDocumentCommand(request.Id, newDocuments.Adapt<List<RequestDocumentDto>>());
+        var newDocCommand = new AddRequestDocumentCommand(request.Id, newDocuments);
         await sender.Send(newDocCommand, cancellationToken);
+
+        // Update Documents
+        var updateDocCommand = new UpdateRequestDocumentCommand(request.Id, updateDocuments);
+        await sender.Send(updateDocCommand, cancellationToken);
 
         // Remove Documents
         foreach (var rd in removeDocuments)

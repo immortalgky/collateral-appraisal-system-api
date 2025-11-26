@@ -22,11 +22,16 @@ public class AddRequestDocumentCommandHandler(IRequestDocumentRepository request
             var requestDocument = RequestDocument.Create(
                 command.RequestId,
                 dto.DocumentId,
+                dto.FileName,
+                dto.Prefix,
+                dto.Set,
+                dto.FilePath,
+                dto.DocumentFollowUp,
                 dto.DocumentClassification.ToDomain(),
                 dto.DocumentDescription,
                 dto.UploadInfo.ToDomain());
             await requestDocumentRepository.AddAsync(requestDocument, cancellationToken);
-            listDocument.Add(requestDocument.DocumentId);
+            // listDocument.Add(requestDocument.DocumentId);
         });
 
         await requestDocumentRepository.SaveChangesAsync(cancellationToken);

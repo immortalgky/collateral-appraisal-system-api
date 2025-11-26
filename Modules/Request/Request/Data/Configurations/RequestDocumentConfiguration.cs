@@ -9,6 +9,11 @@ public class RequestDocumentConfiguration : IEntityTypeConfiguration<RequestDocu
         builder.HasKey(p => p.Id);
         builder.Property(p => p.RequestId);
         builder.Property(p => p.DocumentId);
+        builder.Property(p => p.FileName).HasMaxLength(255).HasColumnName("FileName");
+        builder.Property(p => p.Prefix).HasMaxLength(50).HasColumnName("Prefix");
+        builder.Property(p => p.Set).HasColumnName("Set");
+        builder.Property(p => p.FilePath).HasMaxLength(500).HasColumnName("FilePath");
+        builder.Property(p => p.DocumentFollowUp).HasColumnName("DocumentFollowUp");
 
         builder.OwnsOne(p => p.DocumentClassification, documentClassification =>
         {

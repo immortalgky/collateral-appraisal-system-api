@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Request.Data;
 
@@ -11,9 +12,11 @@ using Request.Data;
 namespace Request.Data.Migrations
 {
     [DbContext(typeof(RequestDbContext))]
-    partial class RequestDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251125074852_AddRequestDocField")]
+    partial class AddRequestDocField
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -78,7 +81,7 @@ namespace Request.Data.Migrations
                         .HasColumnType("nvarchar(500)")
                         .HasColumnName("DocumentDescription");
 
-                    b.Property<bool>("DocumentFollowUp")
+                    b.Property<bool?>("DocumentFollowUp")
                         .HasColumnType("bit")
                         .HasColumnName("DocumentFollowUp");
 
