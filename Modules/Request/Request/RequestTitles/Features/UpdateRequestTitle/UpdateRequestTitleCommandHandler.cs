@@ -34,7 +34,14 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
         
         requestTitle.Update(requestTitleData);
 
-        await requestTitleRepository.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await requestTitleRepository.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException  e)
+        {
+            Console.WriteLine(e.Message);
+        }
         
         return new UpdateRequestTitleResult(requestTitle.Id);
     }

@@ -55,13 +55,13 @@ public class RequestTitleService : IRequestTitleService
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
 
-                if (requestTitleDocDto.DocumentId != Guid.Empty)
+                if (requestTitleDocDto.DocumentId != Guid.Empty && requestTitleDocDto.DocumentId.HasValue)
                 {
                     documentLinks.Add(new DocumentLink
                     {
                         EntityType = "Title",
                         EntityId = requestTitleId,
-                        DocumentId = requestTitleDocDto.DocumentId,
+                        DocumentId = requestTitleDocDto.DocumentId!.Value,
                         IsUnlinked = false
                     });
                 }
@@ -101,13 +101,13 @@ public class RequestTitleService : IRequestTitleService
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
                 
-                if (requestTitleDocDto.DocumentId != Guid.Empty)
+                if (requestTitleDocDto.DocumentId != Guid.Empty && requestTitleDocDto.DocumentId.HasValue)
                 {
                     documentLinks.Add(new DocumentLink
                     {
                         EntityType = "Title",
                         EntityId = requestTitleId,
-                        DocumentId = requestTitleDocDto.DocumentId,
+                        DocumentId = requestTitleDocDto.DocumentId!.Value,
                         IsUnlinked = false
                     });
                 }
@@ -150,9 +150,12 @@ public class RequestTitleService : IRequestTitleService
             .Where(rtd => rtd.Id.HasValue)
             .ToList();
         
+        
         var dtoIds = dtosWithId
             .Select(rtd => rtd.Id!.Value)
             .ToHashSet();
+        
+        // existingRequestTitleIds.Except(dtoIds) validate when wrongly send Id which not contain in our system.
         
         var updatingReqTitleDtos = dtosWithId
             .Where(rtd => existingRequestTitleIds.Contains(rtd.Id!.Value))
@@ -197,13 +200,13 @@ public class RequestTitleService : IRequestTitleService
                 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
                 
-                if (dtoDoc.DocumentId != Guid.Empty)
+                if (dtoDoc.DocumentId != Guid.Empty && dtoDoc.DocumentId.HasValue)
                 {
                     documentLinks.Add(new DocumentLink
                     {
                         EntityType = "Title",
                         EntityId = requestTitleId,
-                        DocumentId = dtoDoc.DocumentId,
+                        DocumentId = dtoDoc.DocumentId!.Value,
                         IsUnlinked = false
                     });
                 }
@@ -221,13 +224,13 @@ public class RequestTitleService : IRequestTitleService
             {
                 var removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocDto.Id!.Value, requestTitleId), cancellationToken);
 
-                if (removeResult.Success)
+                if (titleDocDto.DocumentId != Guid.Empty && titleDocDto.DocumentId.HasValue)
                 {
                     documentLinks.Add(new DocumentLink
                     {
                         EntityType = "Title",
                         EntityId = requestTitleId,
-                        DocumentId = titleDocDto.DocumentId,
+                        DocumentId = titleDocDto.DocumentId!.Value,
                         IsUnlinked = true
                     });
                 }
@@ -243,16 +246,22 @@ public class RequestTitleService : IRequestTitleService
             foreach (var titleDocDto in updatingReqTitleDocDtos)
             {
                 var updateResult = await _sender.Send(new UpdateLinkRequestTitleDocumentCommand(titleDocDto.Id!.Value,
-                    new RequestTitleDocumentDto(
-                        titleDocDto.Id,
-                        titleDocDto.TitleId,
-                        titleDocDto.DocumentId,
-                        titleDocDto.DocumentType,
-                        titleDocDto.IsRequired,
-                        titleDocDto.DocumentDescription,
-                        titleDocDto.UploadedBy,
-                        titleDocDto.UploadedByName
-                    ))
+                    new RequestTitleDocumentDto
+                    {
+                        Id = titleDocDto.Id,
+                        TitleId = titleDocDto.TitleId,
+                        DocumentId = titleDocDto.DocumentId,
+                        DocumentType = titleDocDto.DocumentType,
+                        Filename = titleDocDto.Filename,
+                        Prefix = titleDocDto.Prefix,
+                        Set = titleDocDto.Set,
+                        DocumentDescription = titleDocDto.DocumentDescription,
+                        FilePath = titleDocDto.FilePath,
+                        CreatedWorkstation = titleDocDto.CreatedWorkstation,
+                        IsRequired = titleDocDto.IsRequired,
+                        UploadedBy = titleDocDto.UploadedBy,
+                        UploadedByName = titleDocDto.UploadedByName
+                    })
                 );
 
                 if (updateResult.Success)
@@ -261,7 +270,7 @@ public class RequestTitleService : IRequestTitleService
                     {
                         EntityType = "Title",
                         EntityId = requestTitleId,
-                        DocumentId = titleDocDto.DocumentId,
+                        DocumentId = titleDocDto.DocumentId!.Value,
                         IsUnlinked = false
                     });
                 }
@@ -290,13 +299,13 @@ public class RequestTitleService : IRequestTitleService
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
 
-                if (result.Success)
+                if (titleDocDto.DocumentId != Guid.Empty && titleDocDto.DocumentId.HasValue)
                 {
                     documentLinks.Add(new DocumentLink
                     {
                         EntityType = "Title",
                         EntityId = requestTitleId,
-                        DocumentId = titleDocDto.DocumentId,
+                        DocumentId = titleDocDto.DocumentId!.Value,
                         IsUnlinked = false
                     });
                 }
@@ -312,14 +321,18 @@ public class RequestTitleService : IRequestTitleService
         {
             var existingReqTitleDocResult = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(requestTitleId), cancellationToken);
             var existingReqTitleDocDtos = existingReqTitleDocResult.RequestTitleDocuments;
-
-            documentLinks.AddRange(existingReqTitleDocDtos.Select(rtd => new DocumentLink
+            
+            var removingLinkReqTitleDocDtos = existingReqTitleDocDtos.Where(rtd => rtd.DocumentId.HasValue).ToList();
+            if (removingLinkReqTitleDocDtos.Count > 0)
             {
-                EntityType = "Title",
-                EntityId = requestTitleId,
-                DocumentId = rtd.DocumentId,
-                IsUnlinked = true
-            }).ToList());
+                documentLinks.AddRange(removingLinkReqTitleDocDtos.Select(rtd => new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = requestTitleId,
+                    DocumentId = rtd.DocumentId!.Value,
+                    IsUnlinked = true
+                }).ToList());
+            }
 
             var result = await _sender.Send(new RemoveRequestTitleCommand(requestId, requestTitleId));
             
@@ -396,13 +409,13 @@ public class RequestTitleService : IRequestTitleService
                 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
                 
-                if (dtoDoc.DocumentId != Guid.Empty)
+                if (dtoDoc.DocumentId != Guid.Empty && dtoDoc.DocumentId.HasValue)
                 {
                     documentLinks.Add(new DocumentLink
                     {
                         EntityType = "Title",
                         EntityId = requestTitleId,
-                        DocumentId = dtoDoc.DocumentId,
+                        DocumentId = dtoDoc.DocumentId!.Value,
                         IsUnlinked = false
                     });
                 }
@@ -420,13 +433,13 @@ public class RequestTitleService : IRequestTitleService
             {
                 var removeResult = await _sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocDto.Id!.Value, requestTitleId), cancellationToken);
 
-                if (removeResult.Success)
+                if (titleDocDto.DocumentId != Guid.Empty && titleDocDto.DocumentId.HasValue)
                 {
                     documentLinks.Add(new DocumentLink
                     {
                         EntityType = "Title",
                         EntityId = requestTitleId,
-                        DocumentId = titleDocDto.DocumentId,
+                        DocumentId = titleDocDto.DocumentId!.Value,
                         IsUnlinked = true
                     });
                 }
@@ -442,25 +455,30 @@ public class RequestTitleService : IRequestTitleService
             foreach (var titleDocDto in updatingReqTitleDocDtos)
             {
                 var updateResult = await _sender.Send(new UpdateLinkRequestTitleDocumentCommand(titleDocDto.Id!.Value,
-                    new RequestTitleDocumentDto(
-                        titleDocDto.Id,
-                        titleDocDto.TitleId,
-                        titleDocDto.DocumentId,
-                        titleDocDto.DocumentType,
-                        titleDocDto.IsRequired,
-                        titleDocDto.DocumentDescription,
-                        titleDocDto.UploadedBy,
-                        titleDocDto.UploadedByName
-                    ))
+                    new RequestTitleDocumentDto{
+                        Id = titleDocDto.Id,
+                        TitleId = titleDocDto.TitleId,
+                        DocumentId = titleDocDto.DocumentId,
+                        DocumentType = titleDocDto.DocumentType,
+                        Filename = titleDocDto.Filename,
+                        Prefix = titleDocDto.Prefix,
+                        Set = titleDocDto.Set,
+                        DocumentDescription = titleDocDto.DocumentDescription,
+                        FilePath = titleDocDto.FilePath,
+                        CreatedWorkstation = titleDocDto.CreatedWorkstation,
+                        IsRequired = titleDocDto.IsRequired,
+                        UploadedBy = titleDocDto.UploadedBy,
+                        UploadedByName = titleDocDto.UploadedByName
+                    })
                 );
 
-                if (updateResult.Success)
+                if (titleDocDto.DocumentId != Guid.Empty && titleDocDto.DocumentId.HasValue)
                 {
                     documentLinks.Add(new DocumentLink
                     {
                         EntityType = "Title",
                         EntityId = requestTitleId,
-                        DocumentId = titleDocDto.DocumentId,
+                        DocumentId = titleDocDto.DocumentId!.Value,
                         IsUnlinked = false
                     });
                 }
@@ -489,13 +507,13 @@ public class RequestTitleService : IRequestTitleService
 
                 var result = await _sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
 
-                if (result.Success)
+                if (titleDocDto.DocumentId != Guid.Empty && titleDocDto.DocumentId.HasValue)
                 {
                     documentLinks.Add(new DocumentLink
                     {
                         EntityType = "Title",
                         EntityId = requestTitleId,
-                        DocumentId = titleDocDto.DocumentId,
+                        DocumentId = titleDocDto.DocumentId!.Value,
                         IsUnlinked = false
                     });
                 }
@@ -512,11 +530,11 @@ public class RequestTitleService : IRequestTitleService
             var existingReqTitleDocResult = await _sender.Send(new GetLinkRequestTitleDocumentsByTitleIdQuery(requestTitleId), cancellationToken);
             var existingReqTitleDocDtos = existingReqTitleDocResult.RequestTitleDocuments;
 
-            documentLinks.AddRange(existingReqTitleDocDtos.Select(rtd => new DocumentLink
+            documentLinks.AddRange(existingReqTitleDocDtos.Where(rtd => rtd.DocumentId != Guid.Empty && rtd.DocumentId.HasValue).Select(rtd => new DocumentLink
             {
                 EntityType = "Title",
                 EntityId = requestTitleId,
-                DocumentId = rtd.DocumentId,
+                DocumentId = rtd.DocumentId!.Value,
                 IsUnlinked = true
             }).ToList());
 
@@ -544,7 +562,7 @@ public class RequestTitleService : IRequestTitleService
             new SurveyInfoDto(dto.Rawang, dto.LandNo, dto.SurveyNo),
             new LandAreaDto(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
             dto.OwnerName,
-            dto.RegistrationNumber,
+            dto.RegistrationNo,
             new VehicleDto(dto.VehicleType, dto.VehicleAppointmentLocation,
                 dto.ChassisNumber),
             new MachineDto(dto.MachineStatus, dto.MachineType,
@@ -570,7 +588,7 @@ public class RequestTitleService : IRequestTitleService
             new SurveyInfoDto(dto.Rawang, dto.LandNo, dto.SurveyNo),
             new LandAreaDto(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
             dto.OwnerName,
-            dto.RegistrationNumber,
+            dto.RegistrationNo,
             new VehicleDto(dto.VehicleType, dto.VehicleAppointmentLocation,
                 dto.ChassisNumber),
             new MachineDto(dto.MachineStatus, dto.MachineType,
@@ -597,7 +615,7 @@ public class RequestTitleService : IRequestTitleService
             new SurveyInfoDto(dto.Rawang, dto.LandNo, dto.SurveyNo),
             new LandAreaDto(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
             dto.OwnerName,
-            dto.RegistrationNumber,
+            dto.RegistrationNo,
             new VehicleDto(dto.VehicleType, dto.VehicleAppointmentLocation,
                 dto.ChassisNumber),
             new MachineDto(dto.MachineStatus, dto.MachineType,
@@ -624,7 +642,7 @@ public class RequestTitleService : IRequestTitleService
             new SurveyInfoDto(dto.Rawang, dto.LandNo, dto.SurveyNo),
             new LandAreaDto(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
             dto.OwnerName,
-            dto.RegistrationNumber,
+            dto.RegistrationNo,
             new VehicleDto(dto.VehicleType, dto.VehicleAppointmentLocation,
                 dto.ChassisNumber),
             new MachineDto(dto.MachineStatus, dto.MachineType,

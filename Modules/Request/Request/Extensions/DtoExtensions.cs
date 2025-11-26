@@ -120,7 +120,7 @@ public static class DtoExtensions
 
     public static MachineInfo ToDomain(this MachineDto dto)
     {
-        return MachineInfo.Create(dto.MachineryStatus, dto.MachineryType, dto.InstallationStatus, dto.InvoiceNumber, dto.NumberOfMachinery);
+        return MachineInfo.Create(dto.MachineStatus, dto.MachineType, dto.InstallationStatus, dto.InvoiceNumber, dto.NumberOfMachine);
     }
 
     public static BuildingInfo ToDomain(this BuildingInfoDto dto)

@@ -1,3 +1,5 @@
+using Microsoft.Identity.Client;
+
 namespace Request.Data.Configurations;
 
 public class RequestTitleDocumentConfiguration : IEntityTypeConfiguration<RequestTitleDocument>
@@ -13,10 +15,24 @@ public class RequestTitleDocumentConfiguration : IEntityTypeConfiguration<Reques
         builder.Property(x => x.DocumentType)
             .HasMaxLength(100);
         
-        builder.Property(x => x.IsRequired);
+        builder.Property(x => x.Filename)
+            .HasMaxLength(255);
+        
+        builder.Property(x => x.Prefix)
+            .HasMaxLength(50);
+
+        builder.Property(x => x.Set);
         
         builder.Property(x => x.DocumentDescription)
             .HasMaxLength(500);
+        
+        builder.Property(x => x.FilePath)
+            .HasMaxLength(255);
+        
+        builder.Property(x => x.CreatedWorkstation)
+            .HasMaxLength(50);
+        
+        builder.Property(x => x.IsRequired);
         
         builder.Property(x => x.UploadedBy)
             .HasMaxLength(10);

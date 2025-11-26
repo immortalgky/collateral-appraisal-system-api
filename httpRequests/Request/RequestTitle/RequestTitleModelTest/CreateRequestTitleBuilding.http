@@ -1,6 +1,6 @@
 @baseUrl = https://localhost:7111
-@requestId = 49257117-2f74-4355-3c6e-08de2bd65d6c
-PATCH {{baseUrl}}/requests/{{requestId}}/titles
+@requestId = e65da0bb-2b24-4479-597e-08de2bf89d72
+POST {{baseUrl}}/requests/{{requestId}}/titles
 Host: localhost:7111
 Content-Type: application/json
 
@@ -8,18 +8,11 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "collateralType": "Land",
+            "collateralType": "Building",
             "collateralStatus": false,
-            "titleNo": "Test",
-            "deedType": "NorSor3",
-            "titleDetail": "Test",
-            "rawang": "Test",
-            "landNo": "Test",
-            "surveyNo": "Test",
-            "areaRai": 0,
-            "areaNgan": 0,
-            "areaSquareWa": 0,
-            "ownerName": "Test",
+            "buildingType": "Test",
+            "usableArea": 0,
+            "numberOfBuilding": 1,
             "titleAddress":
             {
                 "houseNo": "Test",
@@ -45,7 +38,7 @@ Content-Type: application/json
                 "postcode": "00"
             },
             "notes": "Test",
-            "requestTitleDocumentDtos": 
+            "requestTitleDocumentDtos":
             [
             ]
         }

@@ -1,0 +1,72 @@
+@baseUrl = https://localhost:7111
+@requestId = e65da0bb-2b24-4479-597e-08de2bf89d72
+POST {{baseUrl}}/requests/{{requestId}}/titles
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "requestTitleDtos":
+    [
+        {
+            "collateralType": "Land",
+            "collateralStatus": false,
+            "titleNo": "DATA",
+            "deedType": "NorSor3",
+            "titleDetail": "DATA",
+            "rawang": "DATA",
+            "landNo": "DATA",
+            "surveyNo": "DATA",
+            "areaRai": 0,
+            "areaNgan": 0,
+            "areaSquareWa": 0,
+            "ownerName": "DATA",
+            "titleAddress":
+            {
+                "houseNo": "DATA",
+                "projectName": "DATA",
+                "moo": "DATA",
+                "soi": "DATA",
+                "road": "DATA",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "dopaAddress":
+            {
+                "houseNo": "DATA",
+                "projectName": "DATA",
+                "moo": "DATA",
+                "soi": "DATA",
+                "road": "DATA",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "notes": "",
+            "requestTitleDocumentDtos": 
+            [
+                {
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1101",
+                    "documentType": "Test",
+                    "filename": "Test",
+                    "prefix": "Test",
+                    "set": 1,
+                    "documentDescription": "Test",
+                    "filePath": "Test",
+                    "createdWorkstation": "Test",
+                    "isRequired": false,
+                    "uploadedBy": "Test",
+                    "uploadedByName": "Test"
+                },
+                {
+                    "documentType": "Test",
+                    "prefix": "Test",
+                    "set": 1,
+                    "isRequired": false
+                }
+            ]
+        }
+    ]
+}

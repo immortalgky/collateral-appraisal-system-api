@@ -134,6 +134,10 @@ namespace Request.Data.Migrations
                     b.Property<DateTime?>("CreatedOn")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("CreatedWorkstation")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("DocumentDescription")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -145,11 +149,26 @@ namespace Request.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("FilePath")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Filename")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
                     b.Property<bool>("IsRequired")
                         .HasColumnType("bit");
 
+                    b.Property<string>("Prefix")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<Guid?>("RequestTitleId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Set")
+                        .HasColumnType("int");
 
                     b.Property<Guid>("TitleId")
                         .HasColumnType("uniqueidentifier");
@@ -165,12 +184,10 @@ namespace Request.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("UploadedBy")
-                        .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
                     b.Property<string>("UploadedByName")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 

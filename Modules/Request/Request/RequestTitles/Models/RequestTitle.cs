@@ -28,6 +28,8 @@ public abstract class RequestTitle : Aggregate<Guid>
 
     protected RequestTitle(RequestTitleData requestTitleData)
     {
+        Validate(requestTitleData);
+        
         Id = Guid.NewGuid();
         RequestId = requestTitleData.RequestId;
         CollateralType = requestTitleData.CollateralType;
@@ -58,6 +60,13 @@ public abstract class RequestTitle : Aggregate<Guid>
 
         return requestTitleDoc;
     }
+
+    private void Validate(RequestTitleData requestTitleData)
+    {
+        var ruleCheck = new RuleCheck();
+        ruleCheck.AddErrorIf(requestTitleData.RequestId == Guid.Empty, "RequestId is Empty.");
+        ruleCheck.ThrowIfInvalid();
+    }
 }
 
 public class RequestTitleFactory
@@ -74,8 +83,9 @@ public class RequestTitleFactory
             "LeaseLandBuilding" => new TitleLeaseAgreementLandBuilding(),
             "Condo" => new TitleCondo(),
             "LeaseCondo" => new TitleLeaseAgreementCondo(),
-            "Vehicle" => new TitleVehicle(),
             "Machine" => new TitleMachine(),
+            "Vehicle" => new TitleVehicle(),
+            "Vessel" => new TitleVessel(),
             _ => throw new ArgumentOutOfRangeException(nameof(collateralType), collateralType, null)
         };
     }
@@ -96,13 +106,13 @@ public sealed class TitleLand : RequestTitle
             TitleDeedInfo = requestTitleData.TitleDeedInfo,
             SurveyInfo = requestTitleData.SurveyInfo,
             LandArea = requestTitleData.LandArea,
+            OwnerName = requestTitleData.OwnerName,
             TitleAddress = requestTitleData.TitleAddress,
             DopaAddress = requestTitleData.DopaAddress,
             Notes = requestTitleData.Notes
         };
         
         this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
         return new TitleLand(landData);
     }
 
@@ -318,6 +328,7 @@ public sealed class TitleBuilding : RequestTitle
         Validate(requestTitleData);
         var buildingData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             BuildingInfo = requestTitleData.BuildingInfo,
@@ -335,6 +346,7 @@ public sealed class TitleBuilding : RequestTitle
     {
         var buildingData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             BuildingInfo = requestTitleData.BuildingInfo,
@@ -400,6 +412,7 @@ public sealed class TitleLeaseAgreementBuilding : RequestTitle
         Validate(requestTitleData);
         var buildingData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             BuildingInfo = requestTitleData.BuildingInfo,
@@ -417,6 +430,7 @@ public sealed class TitleLeaseAgreementBuilding : RequestTitle
     {
         var buildingData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             BuildingInfo = requestTitleData.BuildingInfo,
@@ -482,6 +496,7 @@ public sealed class TitleLandBuilding : RequestTitle
         Validate(requestTitleData);
         var landBuildingData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             TitleDeedInfo = requestTitleData.TitleDeedInfo,
@@ -503,6 +518,7 @@ public sealed class TitleLandBuilding : RequestTitle
     {
         var landBuildingData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             TitleDeedInfo = requestTitleData.TitleDeedInfo,
@@ -601,6 +617,7 @@ public sealed class TitleLeaseAgreementLandBuilding : RequestTitle
         Validate(requestTitleData);
         var landBuildingData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             TitleDeedInfo = requestTitleData.TitleDeedInfo,
@@ -622,6 +639,7 @@ public sealed class TitleLeaseAgreementLandBuilding : RequestTitle
     {
         var landBuildingData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             TitleDeedInfo = requestTitleData.TitleDeedInfo,
@@ -720,6 +738,7 @@ public sealed class TitleCondo : RequestTitle
         // validate
         var condoData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             TitleDeedInfo = requestTitleData.TitleDeedInfo,
@@ -738,6 +757,7 @@ public sealed class TitleCondo : RequestTitle
     {
         var condoData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             TitleDeedInfo = requestTitleData.TitleDeedInfo,
@@ -816,6 +836,7 @@ public sealed class TitleLeaseAgreementCondo : RequestTitle
         // validate
         var condoData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             TitleDeedInfo = requestTitleData.TitleDeedInfo,
@@ -834,6 +855,7 @@ public sealed class TitleLeaseAgreementCondo : RequestTitle
     {
         var condoData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             TitleDeedInfo = requestTitleData.TitleDeedInfo,
@@ -912,6 +934,7 @@ public sealed class TitleMachine : RequestTitle
         Validate(requestTitleData);
         var machineData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             RegistrationNo = requestTitleData.RegistrationNo,
@@ -928,6 +951,7 @@ public sealed class TitleMachine : RequestTitle
     {
         var machineData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             RegistrationNo = requestTitleData.RegistrationNo,
@@ -1000,6 +1024,7 @@ public sealed class TitleVehicle : RequestTitle
         // validate
         var vehicleData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             RegistrationNo = requestTitleData.RegistrationNo,
@@ -1016,6 +1041,7 @@ public sealed class TitleVehicle : RequestTitle
     {
         var vehicleData = new RequestTitleData
         {
+            RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
             CollateralStatus = requestTitleData.CollateralStatus,
             RegistrationNo = requestTitleData.RegistrationNo,
@@ -1026,6 +1052,92 @@ public sealed class TitleVehicle : RequestTitle
         };
         
         return new TitleVehicle(vehicleData);
+    }
+
+    public override void Update(RequestTitleData requestTitleData)
+    {
+        // validate
+        CollateralType = requestTitleData.CollateralType;
+        CollateralStatus = requestTitleData.CollateralStatus;
+        RegistrationNo = requestTitleData.RegistrationNo;
+        VehicleInfo = requestTitleData.VehicleInfo;
+        TitleAddress = requestTitleData.TitleAddress;
+        DopaAddress = requestTitleData.DopaAddress;
+        Notes = requestTitleData.Notes;
+    }
+
+    public override void UpdateDraft(RequestTitleData requestTitleData)
+    {
+        CollateralType = requestTitleData.CollateralType;
+        CollateralStatus = requestTitleData.CollateralStatus;
+        RegistrationNo = requestTitleData.RegistrationNo;
+        VehicleInfo = requestTitleData.VehicleInfo;
+        TitleAddress = requestTitleData.TitleAddress;
+        DopaAddress = requestTitleData.DopaAddress;
+        Notes = requestTitleData.Notes;
+    }
+
+    public void Validate(RequestTitleData requestTitleData)
+    {
+        var ruleCheck = new RuleCheck();
+        
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.RegistrationNo), "registrationNo is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.VehicleInfo.VehicleType), "vehicleType");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.VehicleInfo.VehicleAppointmentLocation), "vehicleAppointmentLocation");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.VehicleInfo.ChassisNumber), "chassisNumber");
+        
+        // TitleAddress
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.TitleAddress.SubDistrict), "subDistrict is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.TitleAddress.District), "district is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.TitleAddress.Province), "province is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.TitleAddress.Postcode), "postcode is null or contains only whitespace.");
+        // DopaAddress
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.DopaAddress.SubDistrict), "subDistrict is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.DopaAddress.District), "district is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.DopaAddress.Province), "province is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(requestTitleData.DopaAddress.Postcode), "postcode is null or contains only whitespace.");
+        
+        ruleCheck.ThrowIfInvalid(); 
+    }
+}
+
+public sealed class TitleVessel : RequestTitle
+{
+    public TitleVessel(){}
+    private TitleVessel(RequestTitleData requestTitleData) : base(requestTitleData){}
+    public override RequestTitle Create(RequestTitleData requestTitleData)
+    {
+        // validate
+        var vesselData = new RequestTitleData
+        {
+            RequestId = requestTitleData.RequestId,
+            CollateralType = requestTitleData.CollateralType,
+            CollateralStatus = requestTitleData.CollateralStatus,
+            RegistrationNo = requestTitleData.RegistrationNo,
+            VehicleInfo = requestTitleData.VehicleInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        
+        return new TitleVessel(vesselData);
+    }
+
+    public override RequestTitle Draft(RequestTitleData requestTitleData)
+    {
+        var vesselData = new RequestTitleData
+        {
+            RequestId = requestTitleData.RequestId,
+            CollateralType = requestTitleData.CollateralType,
+            CollateralStatus = requestTitleData.CollateralStatus,
+            RegistrationNo = requestTitleData.RegistrationNo,
+            VehicleInfo = requestTitleData.VehicleInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        
+        return new TitleVessel(vesselData);
     }
 
     public override void Update(RequestTitleData requestTitleData)

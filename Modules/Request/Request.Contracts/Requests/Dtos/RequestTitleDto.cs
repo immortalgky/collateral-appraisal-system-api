@@ -16,7 +16,7 @@ public record RequestTitleDto
     public int? AreaNgan { get; init; }
     public decimal? AreaSquareWa { get; init; }
     public string? OwnerName { get; init; }
-    public string? RegistrationNumber { get; init; }
+    public string? RegistrationNo { get; init; }
     public string? VehicleType { get; init; }
     public string? VehicleAppointmentLocation { get; init; }
     public string? ChassisNumber { get; init; }

@@ -26,7 +26,7 @@ internal class GetRequestTitlesByRequestIdQueryHandler(IRequestTitleReadReposito
                 AreaNgan = rt.LandArea.AreaNgan,
                 AreaSquareWa = rt.LandArea.AreaSquareWa,
                 OwnerName = rt.OwnerName,
-                RegistrationNumber = rt.RegistrationNo,
+                RegistrationNo = rt.RegistrationNo,
                 VehicleType = rt.VehicleInfo.VehicleType,
                 VehicleAppointmentLocation = rt.VehicleInfo.VehicleAppointmentLocation,
                 ChassisNumber = rt.VehicleInfo.ChassisNumber,

@@ -16,8 +16,13 @@ public class UpdateLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentR
     {
       DocumentId = command.RequestTitleDocDto.DocumentId,
       DocumentType = command.RequestTitleDocDto.DocumentType,
+      Filename = command.RequestTitleDocDto.Filename,
+      Prefix = command.RequestTitleDocDto.Prefix,
+      Set = command.RequestTitleDocDto.Set,
+      DocumentDescription = command.RequestTitleDocDto.DocumentDescription,
+      FilePath = command.RequestTitleDocDto.FilePath,
+      CreatedWorkstation = command.RequestTitleDocDto.CreatedWorkstation,
       IsRequired = command.RequestTitleDocDto.IsRequired,
-      DocumentDescription = command.RequestTitleDocDto.DocumentType,
       UploadedBy = command.RequestTitleDocDto.UploadedBy,
       UploadedByName = command.RequestTitleDocDto.UploadedByName
     });

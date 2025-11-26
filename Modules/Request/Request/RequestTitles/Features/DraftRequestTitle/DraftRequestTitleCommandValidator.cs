@@ -51,7 +51,7 @@ public class DraftRequestTitleValidator : AbstractValidator<DraftRequestTitleCom
             .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
         
         // == MachineryDto ==
-        RuleFor(x => x.MachineDto.MachineryType)
+        RuleFor(x => x.MachineDto.MachineType)
             .MaximumLength(10)
             .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
         

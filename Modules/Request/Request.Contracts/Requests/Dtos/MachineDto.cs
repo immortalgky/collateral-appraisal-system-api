@@ -1,9 +1,9 @@
 namespace Request.Contracts.Requests.Dtos;
 
 public record MachineDto(
-    string? MachineryStatus,
-    string? MachineryType,
+    string? MachineStatus,
+    string? MachineType,
     string? InstallationStatus,
     string? InvoiceNumber,
-    int? NumberOfMachinery
+    int? NumberOfMachine
 );
