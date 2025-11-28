@@ -19,11 +19,11 @@ global using MassTransit;
 global using MediatR;
 
 // Shared namespaces
-global using Shared.Contracts.CQRS;
 global using Shared.Data.Extensions;
 global using Shared.DDD;
 global using Shared.Exceptions;
 global using Shared.Time;
+global using Shared.CQRS;
 
 // Assignment module namespaces (organized by feature)
 global using Assignment.AssigneeSelection.Core;
