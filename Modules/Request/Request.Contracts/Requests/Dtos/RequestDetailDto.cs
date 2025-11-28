@@ -3,7 +3,7 @@ namespace Request.Contracts.Requests.Dtos;
 public record RequestDetailDto(
     bool HasAppraisalBook,
     LoanDetailDto? LoanDetail,
-    long? PrevAppraisalNo,
+    string? PrevAppraisalNo,
     AddressDto? Address,
     ContactDto? Contact,
     AppointmentDto? Appointment,

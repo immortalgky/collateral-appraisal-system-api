@@ -5,7 +5,7 @@ public class RequestDetail : ValueObject
     public bool HasAppraisalBook { get; }
     public LoanDetail LoanDetail { get; } = default!;
 
-    public long? PrevAppraisalNo { get; }
+    public string? PrevAppraisalNo { get; }
 
     // public Reference Reference { get; } = default!; // keep ony appraisal id to link
     public Address Address { get; } = default!;
@@ -22,7 +22,7 @@ public class RequestDetail : ValueObject
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     private RequestDetail(
         bool hasAppraisalBook,
-        long? prevAppraisalNo,
+        string? prevAppraisalNo,
         LoanDetail loanDetail,
         Address address,
         Contact contact,
@@ -44,7 +44,7 @@ public class RequestDetail : ValueObject
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public static RequestDetail Create(
         bool hasAppraisalBook,
-        long? prevAppraisalNo,
+        string? prevAppraisalNo,
         LoanDetail loanDetail,
         Address address,
         Contact contact,

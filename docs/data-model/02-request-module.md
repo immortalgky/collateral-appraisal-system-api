@@ -53,50 +53,56 @@ erDiagram
         string RequestNumber UK
         string Purpose
         string Channel
-        string RequestDate
+        DateTime RequestDate
         string RequestedBy
-        string Priority
-        string Purpose
-        string Channel
-        string RequestDate
-        string RequestedBy
+        string RequestedByName
+        DateTime CreatedDate
+        string Creator
+        string CreatorName
         string Priority
         string Status
-        string SubmittedAt
-        string CompletedAt
+        DateTime SubmittedAt
+        DateTime CompletedAt
+        bool IsDeleted
+        DateTime DeletedOn
+        string DeletedBy
         string IsPMA
     }
     
     RequestDetail {
         guid RequestId PK
-        string HasOwnAppraisalBook
+        bool HasOwnAppraisalBook
         string PreviousAppraisalId
-        decimal LoanAmount
+        string LoanApplicationNo
+        string BankingSegment
         decimal FacilityLimit
         decimal PreviousFacilityLimit
         decimal AdditionalFacilityLimit
         decimal TotalSellingPrice
-        string SubmittedAt
-        string CompletedAt
-        string IsPMA
-    }
-    
-    RequestDetail {
-        guid RequestId PK
-        string HasOwnAppraisalBook
-        string PreviousAppraisalId
-        decimal LoanAmount
-        decimal FacilityLimit
-        decimal PreviousFacilityLimit
-        decimal AdditionalFacilityLimit
-        decimal TotalSellingPrice
+        string HouseNo
+        string RoomNo
+        string FloorNo
+        string BuildingNo
+        string ProjectName
+        string Moo
+        string Soi
+        string Road
+        string SubDistrict
+        string Province
+        string Postcode
+        string ContactPersonName
+        string ContactPersonPhone
+        string ProjectCode
+        DateTime AppointmentDateTime
+        string AppointmentLocation
+        string FeeType
+        string FeeNotes
+        decimal BankAbsorbAmt
     }
 
     RequestCustomer {
         guid Id PK
         guid RequestId FK
-        string Name
-        string PhoneNumber
         string Name
         string PhoneNumber
     }
@@ -106,14 +112,24 @@ erDiagram
         guid RequestId FK
         string PropertyType
         string PropertySubType
+        decimal SellingPrice
     }
 
     RequestDocument {
         guid Id PK
         guid RequestId FK
         guid DocumentId FK
+        string FileName
+        string Prefix
+        short Set
+        string FilePath
+        bool DocumentFollowUp
         string DocumentType
         bool IsRequired
+        long UploadedBy
+        string UploadedByName
+        DateTime UploadedAt
+        string DocumentDescription
     }
 
     RequestTitle {
@@ -158,7 +174,6 @@ CREATE TABLE request.Requests
 
     -- Business Key
     RequestNumber           NVARCHAR(50) UNIQUE NOT NULL,           -- Auto-generated: REQ-000001-2025
-    RequestNumber           NVARCHAR(50) UNIQUE NOT NULL,           -- Auto-generated: REQ-000001-2025
 
     -- Purpose
     Purpose                 NVARCHAR(100) NOT NULL,
@@ -169,9 +184,10 @@ CREATE TABLE request.Requests
     RequestedBy             NVARCHAR(10) NOT NULL,
     RequestedByName         NVARCHAR(100) NOT NULL,
     CreatedDate             DATETIME2 NULL,
+    Creator                 NVARCHAR(10) NOT NULL,
+    CreatorName             NVARCHAR(100) NOT NULL,
 
     -- Priority & Due Date
-    Priority                NVARCHAR(20) NOT NULL DEFAULT 'Normal', -- Normal, High
     Priority                NVARCHAR(20) NOT NULL DEFAULT 'Normal', -- Normal, High
 
     -- Status
@@ -249,60 +265,7 @@ CREATE TABLE request.RequestDetail
     AbsorbedFee                    DECIMAL(19,4) NULL,
     FeeNotes                       NVARCHAR(MAX) NULL
 )
-    CONSTRAINT CK_Request_Priority CHECK (Priority IN ('Normal', 'High'))
-);
-```
-### 2. RequestDetail (One-to-One)
-
-Stores detailed information about the request.
-
-#### SQL Schema
-
-```sql
-CREATE TABLE request.RequestDetail
-(
-    -- Primary Key
-    RequestId                      UNIQUEIDENTIFIER NOT NULL
-
-    -- Request Information
-    HasOwnAppraisalBook            BIT NOT NULL DEFAULT 0,
-
-    -- Original Appraisal
-    PreviousAppraisalId            UNIQUEIDENTIFIER NULL,
-    
-    -- Loan Information
-    LoanApplicationNo              NVARCHAR(100) NULL,                     -- From LOS system
-    BankingSegment                 NVARCHAR(10) NULL,                      -- LOS, CLS
-    FacilityLimit                  DECIMAL(19,4) NULL,
-    PreviousFacilityLimit          DECIMAL(19,4) NULL,
-    AdditionalFacilityLimit        DECIMAL(19,4) NULL,
-    TotalSellingPrice              DECIMAL(19,4) NULL,
-    
-    -- Location
-    HouseNo                        NVARCHAR(30) NULL,
-    RoomNo                         NVARCHAR(30) NULL,
-    FloorNo                        NVARCHAR(10) NULL,
-    ProjectName                    NVARCHAR(100) NULL,
-    Moo                            NVARCHAR(50) NULL,
-    Soi                            NVARCHAR(100) NULL,
-    Road                           NVARCHAR(100) NULL,
-    SubDistrict                    NVARCHAR(50) NOT NULL
-    District                       NVARCHAR(50) NOT NULL,
-    Province                       NVARCHAR(50) NOT NULL,
-    Postcode                       NVARCHAR(10) NULL
-    ContactPersonName              NVARCHAR(100) NOT NULL,
-    ContactPersonPhone             NVARCHAR(40) NOT NULL
-    ProjectCode                    NVARCHAR(10) NULL,
-    
-    -- Appointment
-    AppointmentDateTime            DATETIME2 NULL,
-    AppointmentLocation            NVARCHAR(200) NULL
-    
-    -- Fee
-    FeePaymentType                 NVARCHAR(10) NOT NULL,
-    AbsorbedFee                    DECIMAL(19,4) NULL,
-    FeeNotes                       NVARCHAR(MAX) NULL
-)
+    CONSTRAINT CK_Request_Priority CHECK (Priority IN ('Normal', 'High'));
 ```
 
 ### 2. RequestCustomers (One-to-Many)
@@ -316,14 +279,11 @@ CREATE TABLE request.RequestCustomers
 (
     -- Primary Key
     Id                      BIGINT,
-    Id                      BIGINT,
 
     -- Foreign Key
     RequestId               UNIQUEIDENTIFIER NOT NULL,
 
     -- Customer Information (Simplified)
-    Name                    NVARCHAR(260) NOT NULL,
-    PhoneNumber             NVARCHAR(50) NULL,                      -- Phone number
     Name                    NVARCHAR(260) NOT NULL,
     PhoneNumber             NVARCHAR(50) NULL,                      -- Phone number
 
@@ -368,7 +328,6 @@ CREATE TABLE request.RequestPropertyTypes
     PropertyType            NVARCHAR(50) NOT NULL,                  -- Land, Building, LandAndBuilding, Condo, Vehicle, Vessel, Machinery
     PropertySubType         NVARCHAR(100) NULL,                     -- SingleHouse, Townhouse, Commercial, etc.
     SellingPrice            DECIMAL(19,4) NULL
-    SellingPrice            DECIMAL(19,4) NULL
 
     CONSTRAINT FK_RequestProperty_Request FOREIGN KEY (RequestId)
     CONSTRAINT FK_RequestProperty_Request FOREIGN KEY (RequestId)
@@ -399,6 +358,11 @@ CREATE TABLE request.RequestDocuments
     IsRequired              BIT NOT NULL DEFAULT 0,
 
     -- Document Information
+    FileName                NVARCHAR(255) NULL,
+    Prefix                  NVARCHAR(50) NULL,
+    Set                     SMALLINT NULL,
+    FilePath                NVARCHAR(500) NULL,
+    DocumentFollowUp        BIT NOT NULL DEFAULT 0,
     DocumentDescription     NVARCHAR(500) NULL,
 
     -- Upload Information
