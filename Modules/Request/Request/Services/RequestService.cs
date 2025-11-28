@@ -9,6 +9,7 @@ using Request.RequestDocuments.Features.GetRequestDocument;
 using Request.RequestDocuments.Features.RemoveRequestDocument;
 using Request.Requests.Features.DeleteRequest;
 using Request.RequestDocuments.Features.UpdateRequestDocument;
+using Request.Extensions;
 
 namespace Request.Services;
 
@@ -27,18 +28,13 @@ public class RequestService(IBus bus) : IRequestService
         await sender.Send(requestDocCommand, cancellationToken);
 
         // Add Request Title
-        /*
-            var requestTitleCommand = request.Title.Adapt<AddRequestTitleCommand>();
-            var requestResult = await sender.Send(requestTitleCommand, cancellationToken);
-
-            var requestTitleDocCommand = new AddRequestTitleDoc();
-        */
 
         // IntegrationEvent
         var integrationEvent = new DocumentLinkedIntegrationEvent
         {
             SessionId = request.SessionId,
             Documents = request.Documents
+                .Where(d => d.DocumentId != null)
                 .Select(d => new DocumentLink
                 {
                     EntityType = "request",
@@ -47,7 +43,11 @@ public class RequestService(IBus bus) : IRequestService
                 })
                 .ToList()
         };
-        await bus.Publish(integrationEvent, cancellationToken);
+
+        if (integrationEvent.Documents.Any())
+        {
+            await bus.Publish(integrationEvent, cancellationToken);
+        }
 
         return new CreateRequestResult(requestResult.Id);
     }
@@ -63,11 +63,13 @@ public class RequestService(IBus bus) : IRequestService
         var requestDocCommand = new AddRequestDocumentCommand(requestResult.Id, request.Documents);
         await sender.Send(requestDocCommand, cancellationToken);
 
+
         // IntregationEvent
         var integrationEvent = new DocumentLinkedIntegrationEvent
         {
             SessionId = request.SessionId,
             Documents = request.Documents
+                .Where(d => d.DocumentId != null)
                 .Select(d => new DocumentLink
                 {
                     EntityType = "request",
@@ -77,7 +79,10 @@ public class RequestService(IBus bus) : IRequestService
                 })
                 .ToList()
         };
-        await bus.Publish(integrationEvent, cancellationToken);
+        if (integrationEvent.Documents.Any())
+        {
+            await bus.Publish(integrationEvent, cancellationToken);
+        }
 
         return new CreateDraftRequestResult(requestResult.Id);
     }
@@ -87,20 +92,21 @@ public class RequestService(IBus bus) : IRequestService
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(new DeleteRequestCommand(id), cancellationToken);
-
         var requestDocCommand = new GetRequestDocumentQuery(id);
         var requestDocResult = await sender.Send(requestDocCommand, cancellationToken);
 
         var eventDocs = new List<DocumentLink>();
 
         eventDocs.AddRange(
-            requestDocResult.Documents.Select(d => new DocumentLink
-            {
-                EntityType = "request",
-                EntityId = id,
-                DocumentId = d.DocumentId,
-                IsUnlink = true
-            })
+            requestDocResult.Documents
+                .Where(d => d.DocumentId != null)
+                .Select(d => new DocumentLink
+                {
+                    EntityType = "request",
+                    EntityId = id,
+                    DocumentId = d.DocumentId,
+                    IsUnlink = true
+                })
         );
 
         if (eventDocs.Any())
@@ -118,7 +124,6 @@ public class RequestService(IBus bus) : IRequestService
             var removeDocCommand = rd.Adapt<RemoveRequestDocumentCommand>();
             await sender.Send(removeDocCommand, cancellationToken);
         }
-
 
         return new DeleteRequestResult(result.IsSuccess);
     }
@@ -147,7 +152,27 @@ public class RequestService(IBus bus) : IRequestService
 
         // Documents will be Update in Table
         var updateDocuments = request.Documents
-            .Where(i => existingRequestDocs.Any(e => e.Id == i.Id))
+            .Where(i => existingRequestDocs.Any(e => e.Id == i.Id && (
+                e.DocumentId != i.DocumentId ||
+                e.FileName != i.FileName ||
+                e.Prefix != i.Prefix ||
+                e.Set != i.Set ||
+                e.FilePath != i.FilePath ||
+                e.DocumentFollowUp != i.DocumentFollowUp ||
+                e.DocumentClassification != i.DocumentClassification.ToDomain() ||
+                e.DocumentDescription != i.DocumentDescription ||
+                !e.UploadInfo.Equals(i.UploadInfo.ToDomain())
+            )))
+            .ToList();
+
+        var updatedNewDocumentId = request.Documents
+            .Where(i => existingRequestDocs.Any(e =>
+                e.Id == i.Id && e.DocumentId != i.DocumentId && i.DocumentId != null))
+            .ToList();
+
+        var updatedOldDocumentId = existingRequestDocs
+            .Where(e => request.Documents.Any(i =>
+                e.Id == i.Id && e.DocumentId != i.DocumentId && e.DocumentId != null))
             .ToList();
 
         // Add New Documents
@@ -168,7 +193,7 @@ public class RequestService(IBus bus) : IRequestService
         // List Documents for Publish Event
         var eventDocs = new List<DocumentLink>();
         eventDocs.AddRange(
-            newDocuments.Select(d => new DocumentLink
+            newDocuments.Where(i => i.DocumentId != null).Select(d => new DocumentLink
             {
                 EntityType = "request",
                 EntityId = request.Id,
@@ -178,7 +203,27 @@ public class RequestService(IBus bus) : IRequestService
         );
 
         eventDocs.AddRange(
-            removeDocuments.Select(d => new DocumentLink
+            updatedNewDocumentId.Where(i => i.DocumentId != null).Select(d => new DocumentLink
+            {
+                EntityType = "request",
+                EntityId = request.Id,
+                DocumentId = d.DocumentId,
+                IsUnlink = false
+            })
+        );
+
+        eventDocs.AddRange(
+            removeDocuments.Where(i => i.DocumentId != null).Select(d => new DocumentLink
+            {
+                EntityType = "request",
+                EntityId = request.Id,
+                DocumentId = d.DocumentId,
+                IsUnlink = true
+            })
+        );
+
+        eventDocs.AddRange(
+            updatedOldDocumentId.Where(i => i.DocumentId != null).Select(d => new DocumentLink
             {
                 EntityType = "request",
                 EntityId = request.Id,
@@ -224,8 +269,29 @@ public class RequestService(IBus bus) : IRequestService
 
         // Documents will be Update in Table
         var updateDocuments = request.Documents
-            .Where(i => existingRequestDocs.Any(e => e.Id == i.Id))
+            .Where(i => existingRequestDocs.Any(e => e.Id == i.Id && (
+                e.DocumentId != i.DocumentId ||
+                e.FileName != i.FileName ||
+                e.Prefix != i.Prefix ||
+                e.Set != i.Set ||
+                e.FilePath != i.FilePath ||
+                e.DocumentFollowUp != i.DocumentFollowUp ||
+                e.DocumentClassification != i.DocumentClassification.ToDomain() ||
+                e.DocumentDescription != i.DocumentDescription ||
+                !e.UploadInfo.Equals(i.UploadInfo.ToDomain())
+            )))
             .ToList();
+
+        var updatedNewDocumentId = request.Documents
+            .Where(i => existingRequestDocs.Any(e =>
+                e.Id == i.Id && e.DocumentId != i.DocumentId && i.DocumentId != null))
+            .ToList();
+
+        var updatedOldDocumentId = existingRequestDocs
+            .Where(e => request.Documents.Any(i =>
+                e.Id == i.Id && e.DocumentId != i.DocumentId && e.DocumentId != null))
+            .ToList();
+
 
         // Add New Documents
         var newDocCommand = new AddRequestDocumentCommand(request.Id, newDocuments);
@@ -245,7 +311,7 @@ public class RequestService(IBus bus) : IRequestService
         // List Documents for Publish Event
         var eventDocs = new List<DocumentLink>();
         eventDocs.AddRange(
-            newDocuments.Select(d => new DocumentLink
+            newDocuments.Where(i => i.DocumentId != null).Select(d => new DocumentLink
             {
                 EntityType = "request",
                 EntityId = request.Id,
@@ -255,7 +321,27 @@ public class RequestService(IBus bus) : IRequestService
         );
 
         eventDocs.AddRange(
-            removeDocuments.Select(d => new DocumentLink
+            updatedNewDocumentId.Where(i => i.DocumentId != null).Select(d => new DocumentLink
+            {
+                EntityType = "request",
+                EntityId = request.Id,
+                DocumentId = d.DocumentId,
+                IsUnlink = false
+            })
+        );
+
+        eventDocs.AddRange(
+            removeDocuments.Where(i => i.DocumentId != null).Select(d => new DocumentLink
+            {
+                EntityType = "request",
+                EntityId = request.Id,
+                DocumentId = d.DocumentId,
+                IsUnlink = true
+            })
+        );
+
+        eventDocs.AddRange(
+            updatedOldDocumentId.Where(i => i.DocumentId != null).Select(d => new DocumentLink
             {
                 EntityType = "request",
                 EntityId = request.Id,

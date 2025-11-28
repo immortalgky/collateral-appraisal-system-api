@@ -8,7 +8,7 @@ public class RequestDocument : Aggregate<Guid>
     public string? Prefix { get; private set; }
     public short? Set { get; private set; }
     public string? FilePath { get; private set; }
-    public bool DocumentFollowUp { get; private set; } = default!;
+    public bool DocumentFollowUp { get; private set; }
     public DocumentClassification DocumentClassification { get; private set; }
     public UploadInfo UploadInfo { get; private set; }
     public string? DocumentDescription { get; private set; }

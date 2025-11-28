@@ -16,6 +16,30 @@ public class CreateRequestCommandValidator : AbstractValidator<CreateRequestComm
             .NotEmpty()
             .WithMessage("Channel is required.");
 
+        RuleFor(x => x.SourceSystem.RequestDate)
+            .NotEmpty()
+            .WithMessage("RequestDate is required.");
+
+        RuleFor(x => x.SourceSystem.RequestBy)
+            .NotEmpty()
+            .WithMessage("RequestBy is required.");
+
+        RuleFor(x => x.SourceSystem.RequestByName)
+            .NotEmpty()
+            .WithMessage("RequestByName is required.");
+
+        RuleFor(x => x.SourceSystem.CreatedDate)
+            .NotEmpty()
+            .WithMessage("CreatedDate is required.");
+
+        RuleFor(x => x.SourceSystem.Creator)
+            .NotEmpty()
+            .WithMessage("Creator is required.");
+
+        RuleFor(x => x.SourceSystem.CreatorName)
+            .NotEmpty()
+            .WithMessage("CreatorName is required.");
+
         RuleFor(x => x.Detail.LoanDetail.BankingSegment)
             .NotEmpty()
             .WithMessage("BankingSegment is required.");
