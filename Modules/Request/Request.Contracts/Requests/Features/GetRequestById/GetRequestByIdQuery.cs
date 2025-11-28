@@ -1,4 +1,4 @@
-using Shared.Contracts.CQRS;
+using Shared.CQRS;
 
 namespace Request.Contracts.Requests.Features.GetRequestById;
 

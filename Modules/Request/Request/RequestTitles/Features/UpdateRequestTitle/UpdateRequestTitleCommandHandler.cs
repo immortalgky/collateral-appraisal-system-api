@@ -8,9 +8,7 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
     {
         var requestTitle = await requestTitleRepository.GetByIdAsync(command.Id, cancellationToken);
         if (requestTitle is null || requestTitle.RequestId != command.RequestId)
-        {
             throw new RequestTitleNotFoundException(command.Id);
-        }
 
         requestTitle.UpdateDetails(
             command.CollateralType,
