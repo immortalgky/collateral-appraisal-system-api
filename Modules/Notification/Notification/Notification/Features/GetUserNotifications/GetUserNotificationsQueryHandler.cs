@@ -1,5 +1,4 @@
 using Notification.Notification.Services;
-using Shared.Contracts.CQRS;
 
 namespace Notification.Notification.Features.GetUserNotifications;
 
@@ -12,7 +11,8 @@ public class GetUserNotificationsHandler : IQueryHandler<GetUserNotificationsQue
         _notificationService = notificationService;
     }
 
-    public async Task<GetUserNotificationsResponse> Handle(GetUserNotificationsQuery request, CancellationToken cancellationToken)
+    public async Task<GetUserNotificationsResponse> Handle(GetUserNotificationsQuery request,
+        CancellationToken cancellationToken)
     {
         var notifications = await _notificationService.GetUserNotificationsAsync(request.UserId, request.UnreadOnly);
 

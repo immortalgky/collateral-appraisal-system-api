@@ -1,5 +1,4 @@
 using Notification.Notification.Dtos;
-using Shared.Contracts.CQRS;
 
 namespace Notification.Notification.Features.GetWorkflowStatus;
 

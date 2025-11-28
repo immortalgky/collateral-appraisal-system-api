@@ -1,5 +1,3 @@
-using Shared.Contracts.CQRS;
-
 namespace Notification.Notification.Features.GetUserNotifications;
 
 public record GetUserNotificationsQuery(
