@@ -31,9 +31,29 @@ public class DraftRequestTitleCommandHandler(IRequestTitleRepository requestTitl
         var requestTitle = RequestTitleFactory.Create(requestTitleData.CollateralType).Draft(requestTitleData);
 
         await requestTitleRepository.AddAsync(requestTitle, cancellationToken);
-        
+
         await requestTitleRepository.SaveChangesAsync(cancellationToken);
-        
-        return new DraftRequestTitleResult(requestTitle.Id);
+
+        var result = new DraftRequestTitleResult
+        {
+            Id = requestTitle.Id,
+            RequestId = requestTitle.RequestId,
+            CollateralType = requestTitle.CollateralType,
+            CollateralStatus = requestTitle.CollateralStatus,
+            TitleDeedInfoDto = requestTitle.TitleDeedInfo.Adapt<TitleDeedInfoDto>(),
+            SurveyInfoDto = requestTitle.SurveyInfo.Adapt<SurveyInfoDto>(),
+            LandAreaDto = requestTitle.LandArea.Adapt<LandAreaDto>(),
+            OwnerName = requestTitle.OwnerName,
+            RegistrationNo = requestTitle.RegistrationNo,
+            VehicleInfoDto = requestTitle.VehicleInfo.Adapt<VehicleDto>(),
+            MachineInfoDto = requestTitle.MachineInfo.Adapt<MachineDto>(),
+            BuildingInfoDto = requestTitle.BuildingInfo.Adapt<BuildingInfoDto>(),
+            CondoInfoDto = requestTitle.CondoInfo.Adapt<CondoInfoDto>(),
+            TitleAddressDto = requestTitle.TitleAddress.Adapt<AddressDto>(),
+            DopaAddressDto = requestTitle.DopaAddress.Adapt<AddressDto>(),
+            Notes = command.Notes
+        };
+
+        return result;
     }
 }

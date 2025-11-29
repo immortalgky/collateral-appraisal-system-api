@@ -1,5 +1,5 @@
 @baseUrl = https://localhost:7111
-@requestId = e65da0bb-2b24-4479-597e-08de2bf89d72
+@requestId = E65DA0BB-2B24-4479-597E-08DE2BF89D72
 PATCH {{baseUrl}}/requests/{{requestId}}/titles
 Host: localhost:7111
 Content-Type: application/json
@@ -8,26 +8,28 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "id": "66878d03-7329-4340-8efa-7769d0f14029",
-            "collateralType": "Land",
+            "collateralType": "LB",
             "collateralStatus": false,
-            "titleNo": "DATA",
+            "titleNo": "Test",
             "deedType": "NorSor3",
-            "titleDetail": "DATA",
-            "rawang": "DATA",
-            "landNo": "DATA",
-            "surveyNo": "DATA",
+            "titleDetail": "Test",
+            "rawang": "Test",
+            "landNo": "Test",
+            "surveyNo": "Test",
             "areaRai": 0,
             "areaNgan": 0,
             "areaSquareWa": 0,
-            "ownerName": "DATA",
+            "ownerName": "Test",
+            "buildingType": "Test",
+            "usableArea": 0,
+            "numberOfBuilding": 1,
             "titleAddress":
             {
-                "houseNo": "DATA",
-                "projectName": "DATA",
-                "moo": "DATA",
-                "soi": "DATA",
-                "road": "DATA",
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
                 "subDistrict": "00",
                 "district": "00",
                 "province": "00",
@@ -35,22 +37,21 @@ Content-Type: application/json
             },
             "dopaAddress":
             {
-                "houseNo": "DATA",
-                "projectName": "DATA",
-                "moo": "DATA",
-                "soi": "DATA",
-                "road": "DATA",
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
                 "subDistrict": "00",
                 "district": "00",
                 "province": "00",
                 "postcode": "00"
             },
-            "notes": "",
+            "notes": "Test",
             "requestTitleDocumentDtos":
             [
                 {
-                    "id": "fe9bd4ac-193d-42a4-b31f-c0616d64e02e",
-                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1101",
+                    "documentId": "C5F2D07A-9A9E-4B13-B9E2-0B8D0F5F1103",
                     "documentType": "Test",
                     "filename": "Test",
                     "prefix": "Test",
@@ -58,13 +59,12 @@ Content-Type: application/json
                     "documentDescription": "Test",
                     "filePath": "Test",
                     "createdWorkstation": "Test",
-                    "isRequired": false,
+                    "isRequired": true,
                     "uploadedBy": "Test",
                     "uploadedByName": "Test"
                 },
                 {
-                    "id": "3fd566e2-1710-48b5-8d08-d1c70c34c799",
-                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1102",
+                    "documentId": "CC0E7CD8-BDE1-4227-A743-3E8746EB8D5F",
                     "documentType": "Test",
                     "filename": "Test",
                     "prefix": "Test",
@@ -72,7 +72,7 @@ Content-Type: application/json
                     "documentDescription": "Test",
                     "filePath": "Test",
                     "createdWorkstation": "Test",
-                    "isRequired": false,
+                    "isRequired": true,
                     "uploadedBy": "Test",
                     "uploadedByName": "Test"
                 }

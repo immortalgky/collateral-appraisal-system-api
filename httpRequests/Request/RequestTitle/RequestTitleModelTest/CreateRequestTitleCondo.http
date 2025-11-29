@@ -8,10 +8,9 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "collateralType": "Condo",
+            "collateralType": "C",
             "collateralStatus": false,
             "titleDetail": "Test",
-            "buildingType": "Test",
             "usableArea": 0,
             "condoName": "Test",
             "buildingNo": "Test",

@@ -25,8 +25,6 @@ public static class RequestModule
         services.AddScoped<IRequestTitleDocumentReadRepository, RequestTitleDocumentReadRepository>();
         services.AddScoped<IRequestTitleDocumentRepository, RequestTitleDocumentRepository>();
         
-        services.AddScoped<IRequestTitleService, RequestTitleService>(); // orchestral RequestTitle & RequestTitleDocument
-
         services.AddTransient<IAppraisalNumberGenerator, AppraisalNumberGenerator>();
 
         // Infrastructure services

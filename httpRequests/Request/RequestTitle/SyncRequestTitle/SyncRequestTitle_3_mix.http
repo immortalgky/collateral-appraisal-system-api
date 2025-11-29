@@ -1,0 +1,167 @@
+@baseUrl = https://localhost:7111
+@requestId = E65DA0BB-2B24-4479-597E-08DE2BF89D72
+PATCH {{baseUrl}}/requests/{{requestId}}/titles
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "requestTitleDtos":
+    [
+        {
+            "id": "63C197ED-63F5-41DD-8227-D167147BAA78",
+            "collateralType": "L",
+            "collateralStatus": false,
+            "titleNo": "Test",
+            "deedType": "NorSor3",
+            "titleDetail": "Test",
+            "rawang": "Test",
+            "landNo": "Test",
+            "surveyNo": "Test",
+            "areaRai": 0,
+            "areaNgan": 0,
+            "areaSquareWa": 0,
+            "ownerName": "Test",
+            "titleAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "dopaAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "notes": "Test",
+            "requestTitleDocumentDtos":
+            [
+            ]
+        },
+        {
+            "collateralType": "C",
+            "collateralStatus": false,
+            "titleDetail": "Test",
+            "usableArea": 0,
+            "condoName": "Test",
+            "buildingNo": "Test",
+            "roomNo": "Test",
+            "floorNo": "Test",
+            "ownerName": "Test",
+            "titleAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "dopaAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "notes": "Test",
+            "requestTitleDocumentDtos":
+            [
+                {
+                    "documentId": "CC0E7CD8-BDE1-4227-A743-3E8746EB8D5F",
+                    "documentType": "Test",
+                    "filename": "Test",
+                    "prefix": "Test",
+                    "set": 1,
+                    "documentDescription": "Test",
+                    "filePath": "Test",
+                    "createdWorkstation": "Test",
+                    "isRequired": true,
+                    "uploadedBy": "Test",
+                    "uploadedByName": "Test"
+                },
+                {
+                    "documentType": "Test",
+                    "prefix": "Test",
+                    "set": 1,
+                    "isRequired": true
+                }
+            ]
+        },
+        {
+            "collateralType": "B",
+            "collateralStatus": false,
+            "buildingType": "Test",
+            "usableArea": 0,
+            "numberOfBuilding": 1,
+            "titleAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "dopaAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "notes": "Test",
+            "requestTitleDocumentDtos":
+            [
+                {
+                    "documentId": "CC0E7CD8-BDE1-4227-A743-3E8746EB8D5F",
+                    "documentType": "Test",
+                    "filename": "Test",
+                    "prefix": "Test",
+                    "set": 1,
+                    "documentDescription": "Test",
+                    "filePath": "Test",
+                    "createdWorkstation": "Test",
+                    "isRequired": true,
+                    "uploadedBy": "Test",
+                    "uploadedByName": "Test"
+                },
+                {
+                    "documentId": "CC0E7CD8-BDE1-4227-A743-3E8746EB8D5F",
+                    "documentType": "Test",
+                    "prefix": "Test",
+                    "set": 1,
+                    "isRequired": true
+                }
+            ]
+        }
+    ]
+}

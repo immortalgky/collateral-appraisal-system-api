@@ -3,7 +3,7 @@ namespace Request.Contracts.Requests.Dtos;
 public record RequestTitleDto
 {
     public Guid? Id { get; init; }
-    public Guid? RequestId { get; init; }
+    public Guid RequestId { get; init; }
     public string? CollateralType { get; init; }
     public bool CollateralStatus { get; init; }
     public string? TitleNo { get; init; }

@@ -1,3 +1,5 @@
+using Request.RequestTitles.Features.SyncRequestTitle;
+
 namespace Request.RequestTitles.Features.UpdateRequestTitle;
 
 public class UpdateRequestTitleEndpoint : ICarterModule
@@ -5,11 +7,11 @@ public class UpdateRequestTitleEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPatch("/requests/{requestId:Guid}/titles",
-            async (Guid requestId, UpdateRequestTitleRequest request, IRequestTitleService requestTitleService, CancellationToken cancellationToken) =>
+            async (Guid requestId, UpdateRequestTitleRequest request, ISender sender, CancellationToken cancellationToken) =>
             {
-                await requestTitleService.UpdateRequestTitlesAsync(Guid.NewGuid(), requestId, request.RequestTitleDtos, cancellationToken);
+                var result = await sender.Send(new SyncRequestTitleCommand(Guid.NewGuid(), requestId, request.RequestTitleDtos), cancellationToken);
 
-                var response = new UpdateRequestTitleResponse(true);
+                var response = new UpdateRequestTitleResponse(result.RequestTitles);
 
                 return Results.Ok(response);
             })

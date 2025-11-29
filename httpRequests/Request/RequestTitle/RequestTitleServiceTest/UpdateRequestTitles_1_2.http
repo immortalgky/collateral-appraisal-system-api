@@ -1,5 +1,5 @@
 @baseUrl = https://localhost:7111
-@requestId = ca3d3643-9e6b-4bd4-bc43-08de2b89b000
+@requestId = E65DA0BB-2B24-4479-597E-08DE2BF89D72
 PATCH {{baseUrl}}/requests/{{requestId}}/titles
 Host: localhost:7111
 Content-Type: application/json
@@ -8,64 +8,49 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "id": "e6bd3c57-c017-42d2-a030-957d70fb4258",
-            "collateralType": "Land",
+            "id": "F5A4FE1E-7787-485B-8F92-5617DE3EC9CC",
+            "collateralType": "LB",
             "collateralStatus": false,
-            "titleNo": "1212312121",
+            "titleNo": "Test",
             "deedType": "NorSor3",
-            "titleDetail": "Update Test 1",
-            "ownerName": "John",
-            "rawang": "xxxx",
-            "landNo": "xxxx",
-            "surveyNo": "xxxx",
+            "titleDetail": "Test 3",
+            "rawang": "Test",
+            "landNo": "Test",
+            "surveyNo": "Test",
             "areaRai": 0,
             "areaNgan": 0,
             "areaSquareWa": 0,
+            "ownerName": "Test",
+            "buildingType": "Test",
+            "usableArea": 0,
+            "numberOfBuilding": 1,
             "titleAddress":
             {
-                "houseNo": "",
-                "projectName": "",
-                "moo": "",
-                "soi": "",
-                "road": "123456789",
-                "subDistrict": "Muang",
-                "district": "Watket",
-                "province": "Chiang Mai",
-                "postcode": "50000"
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
             },
             "dopaAddress":
             {
-                "houseNo": "",
-                "projectName": "",
-                "moo": "",
-                "soi": "",
-                "road": "",
-                "subDistrict": "Muang",
-                "district": "Watket",
-                "province": "Chiang Mai",
-                "postcode": "50000"
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
             },
-            "notes": "",
+            "notes": "Test",
             "requestTitleDocumentDtos": 
             [
-              {
-                "id": "0838c763-5b5b-4ff2-831c-7ba5790bf473",
-                "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
-                "documentType": "Test Update 2",
-                "isRequired": false,
-                "documentDescription": "new document D1",
-                "uploadedBy": "xxxxx",
-                "uploadedByName": "Joe"
-              },
-              {
-                "id": "b9c71b8b-f2c9-47f0-8565-c89096ec70e0",
-                "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1109",
-                "documentType": "Test Update 2",
-                "isRequired": false,
-                "documentDescription": "new document D1",
-                "uploadedBy": "xxxxx",
-                "uploadedByName": "Joe"
-              }
             ]
         }
     ]

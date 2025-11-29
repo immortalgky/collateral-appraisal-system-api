@@ -251,42 +251,77 @@ namespace Request.Data.Migrations
                 {
                     b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
 
-                    b.HasDiscriminator().HasValue("Building");
+                    b.HasDiscriminator().HasValue("B");
                 });
 
             modelBuilder.Entity("Request.RequestTitles.Models.TitleCondo", b =>
                 {
                     b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
 
-                    b.HasDiscriminator().HasValue("Condo");
+                    b.HasDiscriminator().HasValue("C");
                 });
 
             modelBuilder.Entity("Request.RequestTitles.Models.TitleLand", b =>
                 {
                     b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
 
-                    b.HasDiscriminator().HasValue("Land");
+                    b.HasDiscriminator().HasValue("L");
                 });
 
             modelBuilder.Entity("Request.RequestTitles.Models.TitleLandBuilding", b =>
                 {
                     b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
 
-                    b.HasDiscriminator().HasValue("LandBuilding");
+                    b.HasDiscriminator().HasValue("LB");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.TitleLeaseAgreementBuilding", b =>
+                {
+                    b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
+
+                    b.HasDiscriminator().HasValue("LA-B");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.TitleLeaseAgreementCondo", b =>
+                {
+                    b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
+
+                    b.HasDiscriminator().HasValue("LA-C");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.TitleLeaseAgreementLand", b =>
+                {
+                    b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
+
+                    b.HasDiscriminator().HasValue("LA-L");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.TitleLeaseAgreementLandBuilding", b =>
+                {
+                    b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
+
+                    b.HasDiscriminator().HasValue("LA-LB");
                 });
 
             modelBuilder.Entity("Request.RequestTitles.Models.TitleMachine", b =>
                 {
                     b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
 
-                    b.HasDiscriminator().HasValue("Machine");
+                    b.HasDiscriminator().HasValue("M");
                 });
 
             modelBuilder.Entity("Request.RequestTitles.Models.TitleVehicle", b =>
                 {
                     b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
 
-                    b.HasDiscriminator().HasValue("Vehicle");
+                    b.HasDiscriminator().HasValue("V");
+                });
+
+            modelBuilder.Entity("Request.RequestTitles.Models.TitleVessel", b =>
+                {
+                    b.HasBaseType("Request.RequestTitles.Models.RequestTitle");
+
+                    b.HasDiscriminator().HasValue("VES");
                 });
 
             modelBuilder.Entity("Request.RequestComments.Models.RequestComment", b =>

@@ -8,7 +8,7 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "collateralType": "Building",
+            "collateralType": "B",
             "collateralStatus": false,
             "buildingType": "Test",
             "usableArea": 0,

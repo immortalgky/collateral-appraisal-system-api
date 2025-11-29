@@ -16,12 +16,17 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasDiscriminator<string>("CollateralType")
-            .HasValue<TitleLand>("Land")
-            .HasValue<TitleBuilding>("Building")
-            .HasValue<TitleLandBuilding>("LandBuilding")
-            .HasValue<TitleCondo>("Condo")
-            .HasValue<TitleMachine>("Machine")
-            .HasValue<TitleVehicle>("Vehicle");
+            .HasValue<TitleLand>("L")
+            .HasValue<TitleLeaseAgreementLand>("LA-L")
+            .HasValue<TitleBuilding>("B")
+            .HasValue<TitleLeaseAgreementBuilding>("LA-B")
+            .HasValue<TitleLandBuilding>("LB")
+            .HasValue<TitleLeaseAgreementLandBuilding>("LA-LB")
+            .HasValue<TitleCondo>("C")
+            .HasValue<TitleLeaseAgreementCondo>("LA-C")
+            .HasValue<TitleMachine>("M")
+            .HasValue<TitleVehicle>("V")
+            .HasValue<TitleVessel>("VES");
 
         builder.Property(p => p.CollateralType)
             .HasMaxLength(10);

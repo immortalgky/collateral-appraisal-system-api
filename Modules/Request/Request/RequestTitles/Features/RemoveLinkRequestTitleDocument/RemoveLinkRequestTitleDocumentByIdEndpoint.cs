@@ -8,11 +8,11 @@ public class RemoveLinkRequestTitleDocumentByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapDelete("/requests/{requestId:Guid}/titles/{titleId:Guid}/titleDocs/{titleDocId:Guid}",
-            async (Guid titleId, Guid titleDocId, ISender sender, IBus bus, CancellationToken cancellationToken) =>
+        app.MapDelete("/requests/{requestId:Guid}/titles/{titleId:Guid}/titleDocs/{titleDocId:Guid}/{sessionId:Guid}",
+            async (Guid titleId, Guid titleDocId, Guid sessionId, ISender sender, IBus bus, CancellationToken cancellationToken) =>
             {
                 var requestTitle = await sender.Send(new GetLinkRequestTitleDocumentByIdQuery(titleDocId), cancellationToken);
-                var result = await sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocId, titleId), cancellationToken);
+                var result = await sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocId, sessionId, titleId), cancellationToken);
 
                 var reponse = new RemoveLinkRequestTitleDocumentByIdResponse(
                     true);

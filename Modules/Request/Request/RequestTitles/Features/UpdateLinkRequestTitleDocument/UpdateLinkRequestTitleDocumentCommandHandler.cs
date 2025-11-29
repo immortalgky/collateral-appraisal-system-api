@@ -1,34 +1,68 @@
+using MassTransit;
+using Shared.Messaging.Events;
+
 namespace Request.RequestTitles.Features.UpdateLinkRequestTitleDocument;
 
-public class UpdateLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentRepository requestTitleDocumentRepository) : ICommandHandler<UpdateLinkRequestTitleDocumentCommand, UpdateLinkRequestTitleDocumentResult>
+public class UpdateLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentRepository requestTitleDocumentRepository, IBus bus) : ICommandHandler<UpdateLinkRequestTitleDocumentCommand, UpdateLinkRequestTitleDocumentResult>
 {
-  public async Task<UpdateLinkRequestTitleDocumentResult> Handle(UpdateLinkRequestTitleDocumentCommand command, CancellationToken cancellationToken)
-  {
-    if (command.RequestTitleDocDto.Id is null)
-      throw new Exception("no request title document id is given");
-    
-    var requestTitleDoc = await requestTitleDocumentRepository.GetRequestTitleDocumentByIdAsync(command.RequestTitleDocDto.Id!.Value, cancellationToken);
-    
-    if (requestTitleDoc is null)
-      throw new RequestTitleDocumentNotFoundException(command.RequestTitleDocDto.Id!.Value);
-    
-    requestTitleDoc.Update(new RequestTitleDocumentData
+    public async Task<UpdateLinkRequestTitleDocumentResult> Handle(UpdateLinkRequestTitleDocumentCommand command, CancellationToken cancellationToken)
     {
-      DocumentId = command.RequestTitleDocDto.DocumentId,
-      DocumentType = command.RequestTitleDocDto.DocumentType,
-      Filename = command.RequestTitleDocDto.Filename,
-      Prefix = command.RequestTitleDocDto.Prefix,
-      Set = command.RequestTitleDocDto.Set,
-      DocumentDescription = command.RequestTitleDocDto.DocumentDescription,
-      FilePath = command.RequestTitleDocDto.FilePath,
-      CreatedWorkstation = command.RequestTitleDocDto.CreatedWorkstation,
-      IsRequired = command.RequestTitleDocDto.IsRequired,
-      UploadedBy = command.RequestTitleDocDto.UploadedBy,
-      UploadedByName = command.RequestTitleDocDto.UploadedByName
-    });
-    
-    await requestTitleDocumentRepository.SaveChangeAsync(cancellationToken);
-    
-    return new UpdateLinkRequestTitleDocumentResult(true);
-  }
+        var requestTitleDocument = await requestTitleDocumentRepository.GetRequestTitleDocumentByIdAsync(command.Id, cancellationToken);
+        
+        if (requestTitleDocument is null)
+            throw new RequestTitleDocumentNotFoundException(command.Id);
+
+        if (!requestTitleDocument.DocumentId.Equals(command.DocumentId) && (!requestTitleDocument.DocumentId.HasValue || requestTitleDocument.DocumentId == Guid.Empty))
+        {
+            await bus.Publish(new DocumentLinkedIntegrationEvent
+            {
+                SessionId = command.SessionId,
+                DocumentLinks = new List<DocumentLink>()
+                {
+                    new DocumentLink
+                    {
+                        EntityType = "Title",
+                        EntityId = command.TitleId,
+                        DocumentId = command.DocumentId!.Value,
+                        IsUnlinked = false
+                    }
+                }
+            }, cancellationToken);
+        }
+        
+        requestTitleDocument.Update(new RequestTitleDocumentData
+        {
+            DocumentId = command.DocumentId,
+            DocumentType = command.DocumentType,
+            Filename = command.Filename,
+            Prefix = command.Prefix,
+            Set = command.Set,
+            DocumentDescription = command.DocumentDescription,
+            FilePath = command.FilePath,
+            CreatedWorkstation = command.CreatedWorkstation,
+            IsRequired = command.IsRequired,
+            UploadedBy = command.UploadedBy,
+            UploadedByName = command.UploadedByName
+        });
+
+
+        await requestTitleDocumentRepository.SaveChangeAsync(cancellationToken);
+
+        return new UpdateLinkRequestTitleDocumentResult
+        {
+            Id = requestTitleDocument.Id,
+            TitleId = requestTitleDocument.TitleId,
+            DocumentId = requestTitleDocument.DocumentId,
+            DocumentType = requestTitleDocument.DocumentType,
+            Filename = requestTitleDocument.Filename,
+            Prefix = requestTitleDocument.Prefix,
+            Set = requestTitleDocument.Set,
+            DocumentDescription = requestTitleDocument.DocumentDescription,
+            FilePath = requestTitleDocument.FilePath,
+            CreatedWorkstation = requestTitleDocument.CreatedWorkstation,
+            IsRequired = requestTitleDocument.IsRequired,
+            UploadedBy = requestTitleDocument.UploadedBy,
+            UploadedByName = requestTitleDocument.UploadedByName
+        };
+    }
 }

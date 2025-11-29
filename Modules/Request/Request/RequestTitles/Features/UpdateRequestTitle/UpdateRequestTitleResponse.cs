@@ -1,3 +1,5 @@
 namespace Request.RequestTitles.Features.UpdateRequestTitle;
 
-public record UpdateRequestTitleResponse(bool Success);
+public record UpdateRequestTitleResponse(
+    List<RequestTitleDto> RequestTitles
+);

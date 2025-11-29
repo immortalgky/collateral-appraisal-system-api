@@ -1,3 +1,5 @@
+using Request.RequestTitles.Features.SyncDraftRequestTitles;
+
 namespace Request.RequestTitles.Features.UpdateDraftRequestTitle;
 
 public class UpdateDraftRequestTitleEndpoint : ICarterModule
@@ -5,11 +7,13 @@ public class UpdateDraftRequestTitleEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPatch("/requests/{requestId:guid}/titles/draft", 
-            async (Guid requestId, IRequestTitleService requestTitleService, UpdateDraftRequestTitleRequest request, CancellationToken cancellationToken) =>
+            async (Guid requestId, ISender sender, UpdateDraftRequestTitleRequest request, CancellationToken cancellationToken) =>
             {
-                await requestTitleService.UpdateDraftRequestTitlesAsync(Guid.NewGuid(), requestId, request.RequestTitleDtos, cancellationToken);
-                
-                return Results.Ok(true);
+                var result = await sender.Send(new SyncDraftRequestTitleCommand(Guid.NewGuid(), requestId, request.RequestTitleDtos), cancellationToken);
+
+                var response = new UpdateDraftRequestTitleResponse(result.RequestTitles);
+
+                return Results.Ok(response);
             })
             .WithName("UpdateDraftRequestTitle")
             .Produces<UpdateDraftRequestTitleResponse>(StatusCodes.Status200OK)

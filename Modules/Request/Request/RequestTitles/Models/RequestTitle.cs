@@ -1,3 +1,5 @@
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
 namespace Request.RequestTitles.Models;
 
 public abstract class RequestTitle : Aggregate<Guid>
@@ -51,8 +53,25 @@ public abstract class RequestTitle : Aggregate<Guid>
     public abstract RequestTitle Create(RequestTitleData requestTitleData);
     public abstract RequestTitle Draft(RequestTitleData requestTitleData);
     public abstract void Update(RequestTitleData requestTitleData);
-    public abstract void UpdateDraft(RequestTitleData requestTitleData);
+    protected void Sync(RequestTitleData requestTitleData)
+    {
+        CollateralStatus = requestTitleData.CollateralStatus;
+        TitleDeedInfo = requestTitleData.TitleDeedInfo;
+        SurveyInfo = requestTitleData.SurveyInfo;
+        LandArea = requestTitleData.LandArea;
+        OwnerName = requestTitleData.OwnerName;
+        RegistrationNo = requestTitleData.RegistrationNo;
+        VehicleInfo = requestTitleData.VehicleInfo;
+        MachineInfo = requestTitleData.MachineInfo;
+        BuildingInfo = requestTitleData.BuildingInfo;
+        CondoInfo = requestTitleData.CondoInfo;
+        TitleAddress = requestTitleData.TitleAddress;
+        DopaAddress = requestTitleData.DopaAddress;
+        Notes = requestTitleData.Notes;
+    }
 
+    public abstract void UpdateDraft(RequestTitleData requestTitleData);
+    
     public RequestTitleDocument CreateLinkRequestTitleDocument(RequestTitleDocumentData requestTitleDocumentData)
     {
         var requestTitleDoc =  RequestTitleDocument.Create(requestTitleDocumentData);
@@ -69,24 +88,93 @@ public abstract class RequestTitle : Aggregate<Guid>
     }
 }
 
+public enum CollateralType
+{
+    Land,
+    LeaseAgreementLand,
+    Building,
+    LeaseAgreementBuilding,
+    LandAndBuilding,
+    LeaseAgreementLandAndBuilding,
+    Condo,
+    LeaseAgreementCondo,
+    Machine,
+    Vehicle,
+    Vessel
+}
+
+public class CollateralTypeMapping
+{
+    public static string ToCode(CollateralType type)
+    {
+        return type switch
+        {
+            CollateralType.Land => "L",
+            CollateralType.LeaseAgreementLand => "LA-L",
+            CollateralType.Building => "B",
+            CollateralType.LeaseAgreementBuilding => "LA-B",
+            CollateralType.LandAndBuilding => "LB",
+            CollateralType.LeaseAgreementLandAndBuilding => "LA-LB",
+            CollateralType.Condo => "C",
+            CollateralType.LeaseAgreementCondo => "LA-C",
+            CollateralType.Machine => "M",
+            CollateralType.Vehicle => "V",
+            CollateralType.Vessel => "VES",
+            _ => throw new Exception("Collateral Type is out of scope.")
+        };
+    }
+
+    public static CollateralType FromCode(string code) => code switch
+    {
+        "L" => CollateralType.Land,
+        "LA-L" => CollateralType.LeaseAgreementLand,
+        "B" => CollateralType.Building,
+        "LA-B" => CollateralType.LeaseAgreementBuilding,
+        "LB" => CollateralType.LandAndBuilding,
+        "LA-LB" => CollateralType.LeaseAgreementLandAndBuilding,
+        "C" => CollateralType.Condo,
+        "LA-C" => CollateralType.LeaseAgreementCondo,
+        "M" => CollateralType.Machine,
+        "V" => CollateralType.Vehicle,
+        "VES" => CollateralType.Vessel,
+        _ => throw new Exception("CollateralType is out of scope.")
+    };
+
+    public static string DisplayName(string code) => code switch
+    {
+        "L" => "Land",
+        "LA-L" => "Lease Agreement Land",
+        "B" => "Building",
+        "LA-B" => "Lease Agreement Building",
+        "LB" => "Land and Building",
+        "LA-LB" => "Lease Land and Building",
+        "C" => "Condo",
+        "LA-C" => "Lease Agreement Condo",
+        "M" => "Machine",
+        "V" => "Vehicle",
+        "VES" => "Vessel",
+        _ => code
+    };
+} 
+
 public class RequestTitleFactory
 {
-    public static RequestTitle Create(string collateralType)
+    public static RequestTitle Create(string code)
     {
-        return collateralType switch
+        return CollateralTypeMapping.FromCode(code) switch
         {
-            "Land" => new TitleLand(),
-            "LeaseLand" => new TitleLeaseAgreementLand(),
-            "Building" => new TitleBuilding(),
-            "LeaseBuilding" => new TitleLeaseAgreementBuilding(),
-            "LandBuilding" => new TitleLandBuilding(),
-            "LeaseLandBuilding" => new TitleLeaseAgreementLandBuilding(),
-            "Condo" => new TitleCondo(),
-            "LeaseCondo" => new TitleLeaseAgreementCondo(),
-            "Machine" => new TitleMachine(),
-            "Vehicle" => new TitleVehicle(),
-            "Vessel" => new TitleVessel(),
-            _ => throw new ArgumentOutOfRangeException(nameof(collateralType), collateralType, null)
+            CollateralType.Land => new TitleLand(),
+            CollateralType.LeaseAgreementLand => new TitleLeaseAgreementLand(),
+            CollateralType.Building => new TitleBuilding(),
+            CollateralType.LeaseAgreementBuilding => new TitleLeaseAgreementBuilding(),
+            CollateralType.LandAndBuilding => new TitleLandBuilding(),
+            CollateralType.LeaseAgreementLandAndBuilding => new TitleLeaseAgreementLandBuilding(),
+            CollateralType.Condo => new TitleCondo(),
+            CollateralType.LeaseAgreementCondo => new TitleLeaseAgreementCondo(),
+            CollateralType.Machine => new TitleMachine(),
+            CollateralType.Vehicle => new TitleVehicle(),
+            CollateralType.Vessel => new TitleVessel(),
+            _ => throw new ArgumentException($"{code} is out of scope.")
         };
     }
 }
@@ -132,37 +220,41 @@ public sealed class TitleLand : RequestTitle
         };
         
         this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
         return new TitleLand(landData);
     }
 
     public override void Update(RequestTitleData requestTitleData)
     {
         Validate(requestTitleData);
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        SurveyInfo = requestTitleData.SurveyInfo;
-        LandArea = requestTitleData.LandArea;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
 
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
+        var landData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            SurveyInfo = requestTitleData.SurveyInfo,
+            LandArea = requestTitleData.LandArea,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+
+        base.Sync(landData);
     }
     
     public override void UpdateDraft(RequestTitleData requestTitleData)
     {
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        SurveyInfo = requestTitleData.SurveyInfo;
-        LandArea = requestTitleData.LandArea;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+         var landData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            SurveyInfo = requestTitleData.SurveyInfo,
+            LandArea = requestTitleData.LandArea,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
 
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
+        base.Sync(landData);
     }
 
     private void Validate(RequestTitleData requestTitleData)
@@ -212,7 +304,7 @@ public sealed class TitleLeaseAgreementLand : RequestTitle
     public override TitleLeaseAgreementLand Create(RequestTitleData requestTitleData)
     {
         Validate(requestTitleData);
-        var landData = new RequestTitleData
+        var leaseAgreementLandData = new RequestTitleData
         {
             RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
@@ -226,13 +318,12 @@ public sealed class TitleLeaseAgreementLand : RequestTitle
         };
         
         this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
-        return new TitleLeaseAgreementLand(landData);
+        return new TitleLeaseAgreementLand(leaseAgreementLandData);
     }
 
     public override TitleLeaseAgreementLand Draft(RequestTitleData requestTitleData)
     {
-        var landData = new RequestTitleData
+        var leaseAgreementLandData = new RequestTitleData
         {
             RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
@@ -246,37 +337,40 @@ public sealed class TitleLeaseAgreementLand : RequestTitle
         };
         
         this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
-        return new TitleLeaseAgreementLand(landData);
+        return new TitleLeaseAgreementLand(leaseAgreementLandData);
     }
 
     public override void Update(RequestTitleData requestTitleData)
     {
         Validate(requestTitleData);
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        SurveyInfo = requestTitleData.SurveyInfo;
-        LandArea = requestTitleData.LandArea;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var leaseAgreementLandData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            SurveyInfo = requestTitleData.SurveyInfo,
+            LandArea = requestTitleData.LandArea,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
 
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
+        base.Sync(leaseAgreementLandData);
     }
     
     public override void UpdateDraft(RequestTitleData requestTitleData)
     {
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        SurveyInfo = requestTitleData.SurveyInfo;
-        LandArea = requestTitleData.LandArea;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var leaseAgreementLandData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            SurveyInfo = requestTitleData.SurveyInfo,
+            LandArea = requestTitleData.LandArea,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
 
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
+        base.Sync(leaseAgreementLandData);
     }
 
     private void Validate(RequestTitleData requestTitleData)
@@ -338,7 +432,6 @@ public sealed class TitleBuilding : RequestTitle
         };
         
         this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
         return new TitleBuilding(buildingData);
     }
 
@@ -362,22 +455,30 @@ public sealed class TitleBuilding : RequestTitle
     public override void Update(RequestTitleData requestTitleData)
     {
         Validate(requestTitleData);
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var buildingData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+
+        base.Sync(buildingData);
     }
     
     public override void UpdateDraft(RequestTitleData requestTitleData)
     {
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var buildingData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+
+        base.Sync(buildingData);
     }
 
     private void Validate(RequestTitleData requestTitleData)
@@ -410,7 +511,7 @@ public sealed class TitleLeaseAgreementBuilding : RequestTitle
     public override TitleLeaseAgreementBuilding Create(RequestTitleData requestTitleData)
     {
         Validate(requestTitleData);
-        var buildingData = new RequestTitleData
+        var leaseAgreementBuildingData = new RequestTitleData
         {
             RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
@@ -422,13 +523,12 @@ public sealed class TitleLeaseAgreementBuilding : RequestTitle
         };
         
         this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
-        return new TitleLeaseAgreementBuilding(buildingData);
+        return new TitleLeaseAgreementBuilding(leaseAgreementBuildingData);
     }
 
     public override TitleLeaseAgreementBuilding Draft(RequestTitleData requestTitleData)
     {
-        var buildingData = new RequestTitleData
+        var leaseAgreementBuildingData = new RequestTitleData
         {
             RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
@@ -440,28 +540,36 @@ public sealed class TitleLeaseAgreementBuilding : RequestTitle
         };
         
         this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
-        return new TitleLeaseAgreementBuilding(buildingData);
+        return new TitleLeaseAgreementBuilding(leaseAgreementBuildingData);
     }
 
     public override void Update(RequestTitleData requestTitleData)
     {
         Validate(requestTitleData);
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var leaseAgreementBuildingData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+
+        base.Sync(leaseAgreementBuildingData);
     }
     
     public override void UpdateDraft(RequestTitleData requestTitleData)
     {
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var leaseAgreementBuildingData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+
+        base.Sync(leaseAgreementBuildingData);
     }
 
     private void Validate(RequestTitleData requestTitleData)
@@ -510,7 +618,6 @@ public sealed class TitleLandBuilding : RequestTitle
         };
         
         this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
         return new TitleLandBuilding(landBuildingData);
     }
 
@@ -538,30 +645,38 @@ public sealed class TitleLandBuilding : RequestTitle
     public override void Update(RequestTitleData requestTitleData)
     {
         Validate(requestTitleData);
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        SurveyInfo = requestTitleData.SurveyInfo;
-        LandArea = requestTitleData.LandArea;
-        OwnerName = requestTitleData.OwnerName;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var landBuildingData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            SurveyInfo = requestTitleData.SurveyInfo,
+            LandArea = requestTitleData.LandArea,
+            OwnerName = requestTitleData.OwnerName,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+
+        base.Sync(landBuildingData);
     }
 
     public override void UpdateDraft(RequestTitleData requestTitleData)
     {
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        SurveyInfo = requestTitleData.SurveyInfo;
-        LandArea = requestTitleData.LandArea;
-        OwnerName = requestTitleData.OwnerName;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var landBuildingData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            SurveyInfo = requestTitleData.SurveyInfo,
+            LandArea = requestTitleData.LandArea,
+            OwnerName = requestTitleData.OwnerName,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+
+        base.Sync(landBuildingData);
     }
 
     private void Validate(RequestTitleData requestTitleData)
@@ -615,7 +730,7 @@ public sealed class TitleLeaseAgreementLandBuilding : RequestTitle
     public override TitleLeaseAgreementLandBuilding Create(RequestTitleData requestTitleData)
     {
         Validate(requestTitleData);
-        var landBuildingData = new RequestTitleData
+        var leaseAgreementLandBuildingData = new RequestTitleData
         {
             RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
@@ -631,13 +746,12 @@ public sealed class TitleLeaseAgreementLandBuilding : RequestTitle
         };
         
         this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
-        // requestTitle.AddIntegrationEvent(new DocumentLinkedIntegrationEvent("Title", requestTitle.Id, requestTitleDocuments.Select(rtd => rtd.DocumentId).ToList()));
-        return new TitleLeaseAgreementLandBuilding(landBuildingData);
+        return new TitleLeaseAgreementLandBuilding(leaseAgreementLandBuildingData);
     }
 
     public override TitleLeaseAgreementLandBuilding Draft(RequestTitleData requestTitleData)
     {
-        var landBuildingData = new RequestTitleData
+        var leaseAgreementLandBuildingData = new RequestTitleData
         {
             RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
@@ -653,36 +767,42 @@ public sealed class TitleLeaseAgreementLandBuilding : RequestTitle
         };
         
         this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
-        return new TitleLeaseAgreementLandBuilding(landBuildingData);
+        return new TitleLeaseAgreementLandBuilding(leaseAgreementLandBuildingData);
     }
 
     public override void Update(RequestTitleData requestTitleData)
     {
         Validate(requestTitleData);
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        SurveyInfo = requestTitleData.SurveyInfo;
-        LandArea = requestTitleData.LandArea;
-        OwnerName = requestTitleData.OwnerName;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var leaseAgreementLandBuildingData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            SurveyInfo = requestTitleData.SurveyInfo,
+            LandArea = requestTitleData.LandArea,
+            OwnerName = requestTitleData.OwnerName,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(leaseAgreementLandBuildingData);
     }
 
     public override void UpdateDraft(RequestTitleData requestTitleData)
     {
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        SurveyInfo = requestTitleData.SurveyInfo;
-        LandArea = requestTitleData.LandArea;
-        OwnerName = requestTitleData.OwnerName;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var leaseAgreementLandBuildingData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            SurveyInfo = requestTitleData.SurveyInfo,
+            LandArea = requestTitleData.LandArea,
+            OwnerName = requestTitleData.OwnerName,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(leaseAgreementLandBuildingData);
     }
 
     private void Validate(RequestTitleData requestTitleData)
@@ -735,7 +855,7 @@ public sealed class TitleCondo : RequestTitle
     private TitleCondo(RequestTitleData requestTitleData) : base(requestTitleData){}
     public override RequestTitle Create(RequestTitleData requestTitleData)
     {
-        // validate
+        Validate(requestTitleData);
         var condoData = new RequestTitleData
         {
             RequestId = requestTitleData.RequestId,
@@ -774,29 +894,35 @@ public sealed class TitleCondo : RequestTitle
 
     public override void Update(RequestTitleData requestTitleData)
     {
-        // validate
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        OwnerName = requestTitleData.OwnerName;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        CondoInfo = requestTitleData.CondoInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        Validate(requestTitleData);
+        var condoData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            OwnerName = requestTitleData.OwnerName,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            CondoInfo = requestTitleData.CondoInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(condoData);
     }
 
     public override void UpdateDraft(RequestTitleData requestTitleData)
     {
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        OwnerName = requestTitleData.OwnerName;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        CondoInfo = requestTitleData.CondoInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var condoData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            OwnerName = requestTitleData.OwnerName,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            CondoInfo = requestTitleData.CondoInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(condoData);
     }
 
     public void Validate(RequestTitleData requestTitleData)
@@ -833,8 +959,8 @@ public sealed class TitleLeaseAgreementCondo : RequestTitle
     private TitleLeaseAgreementCondo(RequestTitleData requestTitleData) : base(requestTitleData){}
     public override RequestTitle Create(RequestTitleData requestTitleData)
     {
-        // validate
-        var condoData = new RequestTitleData
+        Validate(requestTitleData);
+        var leaseAgreementCondoData = new RequestTitleData
         {
             RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
@@ -848,12 +974,12 @@ public sealed class TitleLeaseAgreementCondo : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        return new TitleLeaseAgreementCondo(condoData);
+        return new TitleLeaseAgreementCondo(leaseAgreementCondoData);
     }
 
     public override RequestTitle Draft(RequestTitleData requestTitleData)
     {
-        var condoData = new RequestTitleData
+        var leaseAgreementCondoData = new RequestTitleData
         {
             RequestId = requestTitleData.RequestId,
             CollateralType = requestTitleData.CollateralType,
@@ -867,34 +993,40 @@ public sealed class TitleLeaseAgreementCondo : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        return new TitleLeaseAgreementCondo(condoData);
+        return new TitleLeaseAgreementCondo(leaseAgreementCondoData);
     }
 
     public override void Update(RequestTitleData requestTitleData)
     {
-        // validate
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        OwnerName = requestTitleData.OwnerName;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        CondoInfo = requestTitleData.CondoInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        Validate(requestTitleData);
+        var leaseAgreementCondoData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            OwnerName = requestTitleData.OwnerName,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            CondoInfo = requestTitleData.CondoInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(leaseAgreementCondoData);
     }
 
     public override void UpdateDraft(RequestTitleData requestTitleData)
     {
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        TitleDeedInfo = requestTitleData.TitleDeedInfo;
-        OwnerName = requestTitleData.OwnerName;
-        BuildingInfo = requestTitleData.BuildingInfo;
-        CondoInfo = requestTitleData.CondoInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var leaseAgreementCondoData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            TitleDeedInfo = requestTitleData.TitleDeedInfo,
+            OwnerName = requestTitleData.OwnerName,
+            BuildingInfo = requestTitleData.BuildingInfo,
+            CondoInfo = requestTitleData.CondoInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(leaseAgreementCondoData);
     }
 
     public void Validate(RequestTitleData requestTitleData)
@@ -967,24 +1099,30 @@ public sealed class TitleMachine : RequestTitle
     public override void Update(RequestTitleData requestTitleData)
     {
         Validate(requestTitleData);
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        RegistrationNo = requestTitleData.RegistrationNo;
-        MachineInfo = requestTitleData.MachineInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var machineData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            RegistrationNo = requestTitleData.RegistrationNo,
+            MachineInfo = requestTitleData.MachineInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(machineData);
     }
 
     public override void UpdateDraft(RequestTitleData requestTitleData)
     {
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        RegistrationNo = requestTitleData.RegistrationNo;
-        MachineInfo = requestTitleData.MachineInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var machineData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            RegistrationNo = requestTitleData.RegistrationNo,
+            MachineInfo = requestTitleData.MachineInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(machineData);
     }
 
     public void Validate(RequestTitleData requestTitleData)
@@ -1021,7 +1159,7 @@ public sealed class TitleVehicle : RequestTitle
     private TitleVehicle(RequestTitleData requestTitleData) : base(requestTitleData){}
     public override RequestTitle Create(RequestTitleData requestTitleData)
     {
-        // validate
+        Validate(requestTitleData);
         var vehicleData = new RequestTitleData
         {
             RequestId = requestTitleData.RequestId,
@@ -1056,25 +1194,31 @@ public sealed class TitleVehicle : RequestTitle
 
     public override void Update(RequestTitleData requestTitleData)
     {
-        // validate
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        RegistrationNo = requestTitleData.RegistrationNo;
-        VehicleInfo = requestTitleData.VehicleInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        Validate(requestTitleData);
+        var vehicleData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            RegistrationNo = requestTitleData.RegistrationNo,
+            VehicleInfo = requestTitleData.VehicleInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(vehicleData);
     }
 
     public override void UpdateDraft(RequestTitleData requestTitleData)
     {
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        RegistrationNo = requestTitleData.RegistrationNo;
-        VehicleInfo = requestTitleData.VehicleInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var vehicleData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            RegistrationNo = requestTitleData.RegistrationNo,
+            VehicleInfo = requestTitleData.VehicleInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(vehicleData);
     }
 
     public void Validate(RequestTitleData requestTitleData)
@@ -1107,7 +1251,7 @@ public sealed class TitleVessel : RequestTitle
     private TitleVessel(RequestTitleData requestTitleData) : base(requestTitleData){}
     public override RequestTitle Create(RequestTitleData requestTitleData)
     {
-        // validate
+        Validate(requestTitleData);
         var vesselData = new RequestTitleData
         {
             RequestId = requestTitleData.RequestId,
@@ -1142,25 +1286,31 @@ public sealed class TitleVessel : RequestTitle
 
     public override void Update(RequestTitleData requestTitleData)
     {
-        // validate
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        RegistrationNo = requestTitleData.RegistrationNo;
-        VehicleInfo = requestTitleData.VehicleInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        Validate(requestTitleData);
+        var vesselData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            RegistrationNo = requestTitleData.RegistrationNo,
+            VehicleInfo = requestTitleData.VehicleInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(vesselData);
     }
 
     public override void UpdateDraft(RequestTitleData requestTitleData)
     {
-        CollateralType = requestTitleData.CollateralType;
-        CollateralStatus = requestTitleData.CollateralStatus;
-        RegistrationNo = requestTitleData.RegistrationNo;
-        VehicleInfo = requestTitleData.VehicleInfo;
-        TitleAddress = requestTitleData.TitleAddress;
-        DopaAddress = requestTitleData.DopaAddress;
-        Notes = requestTitleData.Notes;
+        var vesselData = new RequestTitleData
+        {
+            CollateralStatus = requestTitleData.CollateralStatus,
+            RegistrationNo = requestTitleData.RegistrationNo,
+            VehicleInfo = requestTitleData.VehicleInfo,
+            TitleAddress = requestTitleData.TitleAddress,
+            DopaAddress = requestTitleData.DopaAddress,
+            Notes = requestTitleData.Notes
+        };
+        base.Sync(vesselData);
     }
 
     public void Validate(RequestTitleData requestTitleData)

@@ -8,7 +8,7 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "collateralType": "Land",
+            "collateralType": "L",
             "collateralStatus": false,
             "titleNo": "DATA",
             "deedType": "NorSor3",
@@ -47,25 +47,7 @@ Content-Type: application/json
             "notes": "",
             "requestTitleDocumentDtos": 
             [
-                {
-                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1101",
-                    "documentType": "Test",
-                    "filename": "Test",
-                    "prefix": "Test",
-                    "set": 1,
-                    "documentDescription": "Test",
-                    "filePath": "Test",
-                    "createdWorkstation": "Test",
-                    "isRequired": false,
-                    "uploadedBy": "Test",
-                    "uploadedByName": "Test"
-                },
-                {
-                    "documentType": "Test",
-                    "prefix": "Test",
-                    "set": 1,
-                    "isRequired": false
-                }
+                
             ]
         }
     ]
