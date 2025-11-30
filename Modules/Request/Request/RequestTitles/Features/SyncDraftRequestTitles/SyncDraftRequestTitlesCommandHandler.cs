@@ -7,9 +7,9 @@ using Shared.Messaging.Events;
 
 namespace Request.RequestTitles.Features.SyncDraftRequestTitles;
 
-public class SyncDraftRequestTitleCommandHandler(ISender sender, IBus bus) : ICommandHandler<SyncDraftRequestTitleCommand, SyncDraftRequestTitleResult>
+public class SyncDraftRequestTitlesCommandHandler(ISender sender, IBus bus) : ICommandHandler<SyncDraftRequestTitlesCommand, SyncDraftRequestTitlesResult>
 {
-    public async Task<SyncDraftRequestTitleResult> Handle(SyncDraftRequestTitleCommand command, CancellationToken cancellationToken)
+    public async Task<SyncDraftRequestTitlesResult> Handle(SyncDraftRequestTitlesCommand command, CancellationToken cancellationToken)
     {
         var documentLinks = new List<DocumentLink>();
         var results = new List<RequestTitleDto>();
@@ -109,7 +109,7 @@ public class SyncDraftRequestTitleCommandHandler(ISender sender, IBus bus) : ICo
             }
         }
         
-        var result = new SyncDraftRequestTitleResult(results);
+        var result = new SyncDraftRequestTitlesResult(results);
         return result;
     }
 

@@ -1,5 +1,5 @@
 namespace Request.RequestTitles.Features.SyncDraftRequestTitles;
 
-public record SyncDraftRequestTitleResult(
+public record SyncDraftRequestTitlesResult(
     List<RequestTitleDto> RequestTitles
 );

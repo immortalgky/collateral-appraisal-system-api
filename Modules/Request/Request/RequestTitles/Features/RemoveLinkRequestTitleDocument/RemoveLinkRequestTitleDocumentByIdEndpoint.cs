@@ -15,26 +15,8 @@ public class RemoveLinkRequestTitleDocumentByIdEndpoint : ICarterModule
                 var result = await sender.Send(new RemoveLinkRequestTitleDocumentByIdCommand(titleDocId, sessionId, titleId), cancellationToken);
 
                 var reponse = new RemoveLinkRequestTitleDocumentByIdResponse(
-                    true);
+                    result.Success);
 
-                if (requestTitle.DocumentId != Guid.Empty)
-                {
-                    await bus.Publish(
-                        new DocumentLinkedIntegrationEvent
-                        {
-                            SessionId = Guid.NewGuid(),
-                            DocumentLinks = new List<DocumentLink>() { new DocumentLink
-                            {
-                                EntityType = "Title",
-                                EntityId = titleId,
-                                DocumentId = requestTitle.DocumentId!.Value,
-                                IsUnlinked = true
-                            } }
-                        }, 
-                        cancellationToken
-                        );
-                }
-                    
                 return Results.Ok(reponse);
             })
             .WithName("RemoveLinkRequestTitleDocumentById")

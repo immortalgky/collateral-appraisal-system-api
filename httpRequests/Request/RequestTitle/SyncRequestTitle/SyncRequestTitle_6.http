@@ -1,6 +1,6 @@
 @baseUrl = https://localhost:7111
-@requestId = E65DA0BB-2B24-4479-597E-08DE2BF89D72
-POST {{baseUrl}}/requests/{{requestId}}/titles
+@requestId = 19248d4c-3cf3-4cc3-4773-08de2efe7c24
+PATCH {{baseUrl}}/requests/{{requestId}}/titles
 Host: localhost:7111
 Content-Type: application/json
 
@@ -8,7 +8,7 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
-            "collateralType": "LB",
+            "collateralType": "L",
             "collateralStatus": false,
             "titleNo": "Test",
             "deedType": "NorSor3",
@@ -20,9 +20,6 @@ Content-Type: application/json
             "areaNgan": 0,
             "areaSquareWa": 0,
             "ownerName": "Test",
-            "buildingType": "Test",
-            "usableArea": 0,
-            "numberOfBuilding": 1,
             "titleAddress":
             {
                 "houseNo": "Test",
@@ -50,6 +47,25 @@ Content-Type: application/json
             "notes": "Test",
             "requestTitleDocumentDtos":
             [
+                {
+                    "documentId": "84DCBD01-8544-41D9-8125-874C963C8003",
+                    "documentType": "Test",
+                    "filename": "Test",
+                    "prefix": "Test",
+                    "set": 1,
+                    "documentDescription": "Update Test",
+                    "filePath": "Test",
+                    "createdWorkstation": "Test",
+                    "isRequired": true,
+                    "uploadedBy": "Test",
+                    "uploadedByName": "Test"
+                },
+                {
+                    "documentType": "Test",
+                    "prefix": "Test",
+                    "set": 1,
+                    "isRequired": true
+                }
             ]
         }
     ]

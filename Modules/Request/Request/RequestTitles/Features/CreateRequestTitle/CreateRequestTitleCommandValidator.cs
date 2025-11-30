@@ -6,11 +6,11 @@ public class CreateRequestTitleCommandValidator : AbstractValidator<CreateReques
     {
         RuleFor(x => x.RequestId)
             .NotEmpty()
-            .WithMessage("RequestId is required");
+            .WithMessage("'{PropertyName}' must not be empty.");
 
         RuleFor(x => x.CollateralType)
             .NotEmpty()
-            .WithMessage("CollateralType is required.")
+            .WithMessage("'{PropertyName}' must not be empty.")
             .MaximumLength(10)
             .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
 

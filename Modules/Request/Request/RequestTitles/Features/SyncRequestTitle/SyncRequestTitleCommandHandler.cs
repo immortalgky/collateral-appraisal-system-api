@@ -14,7 +14,6 @@ public class SyncRequestTitleCommandHandler(ISender sender, IBus bus) : ICommand
 {
     public async Task<SyncRequestTitleResult> Handle(SyncRequestTitleCommand command, CancellationToken cancellationToken)
     {
-        var documentLinks = new List<DocumentLink>();
         var results = new List<RequestTitleDto>();
 
         var requestTitlesResult = await sender.Send(new GetRequestTitlesByRequestIdQuery(command.RequestId), cancellationToken);
@@ -22,16 +21,30 @@ public class SyncRequestTitleCommandHandler(ISender sender, IBus bus) : ICommand
         if (requestTitlesResult is null)
             throw new RequestNotFoundException(command.RequestId);
 
-        var existingRequestTitles = requestTitlesResult.RequestTitles;
-        var existingRequestTitleIds = requestTitlesResult.RequestTitles.Select(rt => rt.Id!.Value).ToHashSet();
+        var existingRequestTitles = requestTitlesResult.RequestTitles?.ToList() ?? new List<RequestTitleDto>();
+        var existingById = existingRequestTitles
+            .Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty)
+            .ToDictionary(x => x.Id!.Value);
 
-        var updatingRequestTitles = command.requestTitleDtos.Where(rtd => rtd.Id.HasValue && rtd.Id != Guid.Empty).ToList();
-        var updatingRequestTitleIds = updatingRequestTitles.Select(rtd => rtd.Id!.Value).ToHashSet();
-        
-        var creatingRequestTitles = command.requestTitleDtos.Where(rtd => !rtd.Id.HasValue || rtd.Id == Guid.Empty).ToList();
+        var existingRequestTitleIds = existingById.Keys.ToHashSet();
 
-        var removingRequestTitleIds = existingRequestTitleIds.Except(command.requestTitleDtos.Where(rtd => rtd.Id.HasValue && rtd.Id.Value != Guid.Empty).Select(rtd => rtd.Id!.Value).ToHashSet()).ToHashSet();
-        var removingRequestTitles = existingRequestTitles.Where(rtd => removingRequestTitleIds.Contains(rtd.Id!.Value)).ToList();
+        var requestTitleDtos = command.requestTitleDtos?.ToList() ?? new List<RequestTitleDto>();
+
+        var incomingIds = requestTitleDtos
+            .Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty)
+            .Select(x => x.Id!.Value)
+            .ToHashSet();
+
+        var updatingRequestTitles = requestTitleDtos
+            .Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty)
+            .ToList();
+
+        var creatingRequestTitles = requestTitleDtos
+            .Where(x => !x.Id.HasValue || x.Id.Value == Guid.Empty)
+            .ToList();
+
+        var removingRequestTitleIds = existingRequestTitleIds.Except(incomingIds).ToHashSet();
+        var removingRequestTitles = removingRequestTitleIds.Select(id => existingById[id]).ToList();
 
         foreach (var requestTitle in removingRequestTitles)
         {
@@ -66,7 +79,7 @@ public class SyncRequestTitleCommandHandler(ISender sender, IBus bus) : ICommand
             /*
                 in case that update type of title information, EF core not allow to change it directly. So, we have to remove existing and create the new one.
             */
-            var existing = existingRequestTitles.FirstOrDefault(ert => ert.Id == requestTitle.Id);
+            var existing = existingById.GetValueOrDefault(requestTitle.Id!.Value);
             if (existing is null)
             {
             }

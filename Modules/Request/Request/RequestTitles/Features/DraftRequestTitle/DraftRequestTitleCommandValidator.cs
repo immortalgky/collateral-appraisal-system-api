@@ -7,6 +7,8 @@ public class DraftRequestTitleValidator : AbstractValidator<DraftRequestTitleCom
     public DraftRequestTitleValidator()
     {
         RuleFor(x => x.CollateralType)
+            .NotEmpty()
+            .WithMessage("'{PropertyName}' must not be empty.")
             .MaximumLength(10)
             .WithMessage("'{PropertyName}' must be {MaxLength} characters or fewer. You entered {TotalLength} characters.");
 

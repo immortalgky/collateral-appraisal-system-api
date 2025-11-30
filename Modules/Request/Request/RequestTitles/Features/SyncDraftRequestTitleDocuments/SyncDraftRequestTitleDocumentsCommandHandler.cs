@@ -23,8 +23,7 @@ public class SyncDraftRequestTitleDocumentsHandler(ISender sender, IBus bus) : I
         var existingReqTitleDocs = existingReqTitleDocsResult.RequestTitleDocuments;
         var existingReqTitleDocIds = existingReqTitleDocs.Select(rt => rt.Id!.Value).ToList();
 
-        var dtoIds = requestTitleDocs.Where(dto => dto.Id!.HasValue && dto.Id!.Value != Guid.Empty).Select(dto => dto.Id!.Value).ToList();
-        var removingReqTitleDocIds = existingReqTitleDocIds.Except(dtoIds).ToList();
+        var removingReqTitleDocIds = existingReqTitleDocIds.Except(requestTitleDocs.Where(dto => dto.Id!.HasValue && dto.Id!.Value != Guid.Empty).Select(dto => dto.Id!.Value).ToList()).ToList();
         var removingReqTitleDocs = existingReqTitleDocs.Where(rtd => removingReqTitleDocIds.Contains(rtd.Id!.Value)).ToList();
 
         var creatingReqTitleDocs = requestTitleDocs.Where(rtd => !rtd.Id.HasValue || rtd.Id!.Value == Guid.Empty).ToList();
