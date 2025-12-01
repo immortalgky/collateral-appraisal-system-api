@@ -7,30 +7,59 @@ public class UpdateLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentR
 {
     public async Task<UpdateLinkRequestTitleDocumentResult> Handle(UpdateLinkRequestTitleDocumentCommand command, CancellationToken cancellationToken)
     {
-        var requestTitleDocument = await requestTitleDocumentRepository.GetRequestTitleDocumentByIdAsync(command.Id, cancellationToken);
+        var documentLinks = new List<DocumentLink>();
+
+        var existingRequestTitleDoc = await requestTitleDocumentRepository.GetRequestTitleDocumentByIdAsync(command.Id, cancellationToken);
         
-        if (requestTitleDocument is null)
+        if (existingRequestTitleDoc is null)
             throw new RequestTitleDocumentNotFoundException(command.Id);
 
-        if (!requestTitleDocument.DocumentId.Equals(command.DocumentId) && (!requestTitleDocument.DocumentId.HasValue || requestTitleDocument.DocumentId == Guid.Empty))
+        if ((!existingRequestTitleDoc.DocumentId.HasValue || existingRequestTitleDoc.DocumentId == Guid.Empty) && command.DocumentId.HasValue && command.DocumentId != Guid.Empty)
         {
-            await bus.Publish(new DocumentLinkedIntegrationEvent
-            {
-                SessionId = command.SessionId,
-                DocumentLinks = new List<DocumentLink>()
+            // add new link
+            documentLinks.Add(
+                new DocumentLink
                 {
-                    new DocumentLink
-                    {
-                        EntityType = "Title",
-                        EntityId = command.TitleId,
-                        DocumentId = command.DocumentId!.Value,
-                        IsUnlinked = false
-                    }
+                    EntityType = "Title",
+                    EntityId = command.TitleId,
+                    DocumentId = command.DocumentId!.Value,
+                    IsUnlinked = false
                 }
-            }, cancellationToken);
+                );
         }
-        
-        requestTitleDocument.Update(new RequestTitleDocumentData
+
+        if (existingRequestTitleDoc.DocumentId.HasValue && existingRequestTitleDoc.DocumentId != Guid.Empty && command.DocumentId.HasValue && command.DocumentId != Guid.Empty)
+        {
+            // unlink existing
+            documentLinks.Add(
+                new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = command.TitleId,
+                    DocumentId = existingRequestTitleDoc.DocumentId!.Value,
+                    IsUnlinked = true
+                }
+                );
+            // add new link
+            documentLinks.Add(
+                new DocumentLink
+                {
+                    EntityType = "Title",
+                    EntityId = command.TitleId,
+                    DocumentId = command.DocumentId!.Value,
+                    IsUnlinked = false
+                }
+                );
+
+        }
+
+        await bus.Publish(new DocumentLinkedIntegrationEvent
+        {
+            SessionId = command.SessionId,
+            DocumentLinks = documentLinks
+        }, cancellationToken);
+
+        existingRequestTitleDoc.Update(new RequestTitleDocumentData
         {
             DocumentId = command.DocumentId,
             DocumentType = command.DocumentType,
@@ -50,19 +79,19 @@ public class UpdateLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentR
 
         return new UpdateLinkRequestTitleDocumentResult
         {
-            Id = requestTitleDocument.Id,
-            TitleId = requestTitleDocument.TitleId,
-            DocumentId = requestTitleDocument.DocumentId,
-            DocumentType = requestTitleDocument.DocumentType,
-            Filename = requestTitleDocument.Filename,
-            Prefix = requestTitleDocument.Prefix,
-            Set = requestTitleDocument.Set,
-            DocumentDescription = requestTitleDocument.DocumentDescription,
-            FilePath = requestTitleDocument.FilePath,
-            CreatedWorkstation = requestTitleDocument.CreatedWorkstation,
-            IsRequired = requestTitleDocument.IsRequired,
-            UploadedBy = requestTitleDocument.UploadedBy,
-            UploadedByName = requestTitleDocument.UploadedByName
+            Id = existingRequestTitleDoc.Id,
+            TitleId = existingRequestTitleDoc.TitleId,
+            DocumentId = existingRequestTitleDoc.DocumentId,
+            DocumentType = existingRequestTitleDoc.DocumentType,
+            Filename = existingRequestTitleDoc.Filename,
+            Prefix = existingRequestTitleDoc.Prefix,
+            Set = existingRequestTitleDoc.Set,
+            DocumentDescription = existingRequestTitleDoc.DocumentDescription,
+            FilePath = existingRequestTitleDoc.FilePath,
+            CreatedWorkstation = existingRequestTitleDoc.CreatedWorkstation,
+            IsRequired = existingRequestTitleDoc.IsRequired,
+            UploadedBy = existingRequestTitleDoc.UploadedBy,
+            UploadedByName = existingRequestTitleDoc.UploadedByName
         };
     }
 }

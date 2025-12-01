@@ -1,12 +1,17 @@
 namespace Request.RequestTitles.Features.GetLinkRequestTitleDocumentById;
 
 public record GetLinkRequestTitleDocumentByIdResult(
-  Guid? Id,
-  Guid? TitleId,
-  Guid? DocumentId,
-  string DocumentType,
-  bool IsRequired,
-  string DocumentDescription,
-  string UploadedBy,
-  string UploadedByName
-  );
+    Guid? Id,
+    Guid? TitleId,
+    Guid? DocumentId,
+    string DocumentType,
+    string? Filename,
+    string Prefix,
+    int Set,
+    string? DocumentDescription,
+    string? FilePath,
+    string? CreatedWorkstation,
+    bool IsRequired,
+    string? UploadedBy,
+    string? UploadedByName
+    );

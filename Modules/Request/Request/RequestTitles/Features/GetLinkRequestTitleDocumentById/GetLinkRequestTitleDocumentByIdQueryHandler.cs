@@ -10,14 +10,19 @@ public class GetLinkRequestTitleDocumentByIdQueryHandler(IRequestTitleDocumentRe
       throw new RequestTitleDocumentNotFoundException(request.TitleDocId);
 
     var result = new GetLinkRequestTitleDocumentByIdResult(
-      requestTitleDocument.Id,
-      requestTitleDocument.TitleId,
-      requestTitleDocument.DocumentId,
-      requestTitleDocument.DocumentType,
-      requestTitleDocument.IsRequired,
-      requestTitleDocument.DocumentDescription,
-      requestTitleDocument.UploadedBy,
-      requestTitleDocument.UploadedByName
+        requestTitleDocument.Id,
+        requestTitleDocument.TitleId,
+        requestTitleDocument.DocumentId,
+        requestTitleDocument.DocumentType,
+        requestTitleDocument.Filename,
+        requestTitleDocument.Prefix,
+        requestTitleDocument.Set,
+        requestTitleDocument.DocumentDescription,
+        requestTitleDocument.FilePath,
+        requestTitleDocument.CreatedWorkstation,
+        requestTitleDocument.IsRequired,
+        requestTitleDocument.UploadedBy,
+        requestTitleDocument.UploadedByName
     );
     
     return result;

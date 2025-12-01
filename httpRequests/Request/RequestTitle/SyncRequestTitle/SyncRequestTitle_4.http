@@ -8,6 +8,7 @@ Content-Type: application/json
     "requestTitleDtos":
     [
         {
+            "id": "0BDE0758-5244-48CA-9111-F5907EF99BFA",
             "collateralType": "L",
             "collateralStatus": false,
             "titleNo": "Test",
@@ -48,7 +49,8 @@ Content-Type: application/json
             "requestTitleDocumentDtos":
             [
                 {
-                    "documentId": "84DCBD01-8544-41D9-8125-874C963C8003",
+                    "id": "773241B0-9456-4178-96B4-588C15AF4AEE",
+                    "documentId": "84DCBD01-8544-41D9-8125-874C963C8000",
                     "documentType": "Test",
                     "filename": "Test",
                     "prefix": "Test",
@@ -61,7 +63,8 @@ Content-Type: application/json
                     "uploadedByName": "Test"
                 },
                 {
-                    "documentId": "84DCBD01-8544-41D9-8125-874C963C8002",
+                    "id": "C7B175FA-A2BA-4110-AEEB-70B3256DCA16",
+                    "documentId": "84DCBD01-8544-41D9-8125-874C963C8000",
                     "documentType": "Test",
                     "filename": "Test",
                     "prefix": "Test",

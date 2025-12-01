@@ -57,17 +57,6 @@ public class SyncRequestTitleDocumentsHandler(ISender sender, IBus bus) : IComma
 
             var createLinkRequestTitleDocResult = await sender.Send(createLinkRequestTitleDocumentCommand, cancellationToken);
 
-            if (reqTitleDoc.DocumentId.HasValue && reqTitleDoc.DocumentId != Guid.Empty)
-            {
-                documentLinks.Add(new DocumentLink
-                {
-                    EntityType = "Title",
-                    EntityId = command.TitleId,
-                    DocumentId = reqTitleDoc.DocumentId!.Value,
-                    IsUnlinked = false
-                });
-            }
-
             results.Add(createLinkRequestTitleDocResult.Adapt<RequestTitleDocumentDto>());
         }
 
