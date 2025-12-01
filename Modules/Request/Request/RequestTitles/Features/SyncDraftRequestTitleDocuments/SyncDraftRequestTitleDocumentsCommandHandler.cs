@@ -12,7 +12,7 @@ public class SyncDraftRequestTitleDocumentsHandler(ISender sender, IBus bus) : I
 {
     public async Task<SyncDraftRequestTitleDocumentsResult> Handle(SyncDraftRequestTitleDocumentsCommand command, CancellationToken cancellationToken)
     {
-        // Make sure that LinQ operation can work
+        // Make sure that linQ operations do not fail due to null reference
         var requestTitleDocs = command.RequestTitleDocumentDtos ?? new List<RequestTitleDocumentDto>();
 
         var documentLinks = new List<DocumentLink>();
@@ -23,11 +23,14 @@ public class SyncDraftRequestTitleDocumentsHandler(ISender sender, IBus bus) : I
         var existingReqTitleDocs = existingReqTitleDocsResult.RequestTitleDocuments;
         var existingReqTitleDocIds = existingReqTitleDocs.Select(rt => rt.Id!.Value).ToList();
 
+        // Removing existing Request Title Documents that are not in the incoming list
         var removingReqTitleDocIds = existingReqTitleDocIds.Except(requestTitleDocs.Where(dto => dto.Id!.HasValue && dto.Id!.Value != Guid.Empty).Select(dto => dto.Id!.Value).ToList()).ToList();
         var removingReqTitleDocs = existingReqTitleDocs.Where(rtd => removingReqTitleDocIds.Contains(rtd.Id!.Value)).ToList();
 
+        // Creating Request Title Documents that do not have an Id
         var creatingReqTitleDocs = requestTitleDocs.Where(rtd => !rtd.Id.HasValue || rtd.Id!.Value == Guid.Empty).ToList();
 
+        // Updating Request Title Documents that have an Id
         var updatingReqTitleDocs = requestTitleDocs.Where(rtd => rtd.Id.HasValue && rtd.Id != Guid.Empty).ToList();
         var updatingReqTitleDocIds = updatingReqTitleDocs.Select(rtd => rtd.Id!.Value);
 

@@ -1,5 +1,4 @@
 using MassTransit;
-using Request.RequestTitles.Features;
 using Shared.Messaging.Events;
 
 namespace Request.RequestTitles.Features.CreateLinkRequestTitleDocument;

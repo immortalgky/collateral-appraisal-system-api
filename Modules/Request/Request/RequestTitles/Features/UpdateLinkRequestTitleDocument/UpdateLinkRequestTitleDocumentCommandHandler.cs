@@ -14,6 +14,7 @@ public class UpdateLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentR
         if (existingRequestTitleDoc is null)
             throw new RequestTitleDocumentNotFoundException(command.Id);
 
+        // In case that existing documentId is empty and new documentId is not empty, just add new link
         if ((!existingRequestTitleDoc.DocumentId.HasValue || existingRequestTitleDoc.DocumentId == Guid.Empty) && command.DocumentId.HasValue && command.DocumentId != Guid.Empty)
         {
             // add new link
@@ -28,6 +29,7 @@ public class UpdateLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentR
                 );
         }
 
+        // In case that existing documentId is not empty and new documentId is not empty and they are different, unlink existing and add new link
         if (existingRequestTitleDoc.DocumentId.HasValue && existingRequestTitleDoc.DocumentId != Guid.Empty && command.DocumentId.HasValue && command.DocumentId != Guid.Empty)
         {
             // unlink existing

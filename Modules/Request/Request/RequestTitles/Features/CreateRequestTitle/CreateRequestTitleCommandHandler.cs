@@ -29,7 +29,6 @@ public class CreateRequestTitleCommandHandler(IRequestTitleRepository requestTit
             DopaAddress = DtoExtensions.ToDomain(command.DopaAddress),
             Notes = command.Notes
         };
-
         var requestTitle = RequestTitleFactory.Create(requestTitleData.CollateralType).Create(requestTitleData);
         
         await requestTitleRepository.AddAsync(requestTitle, cancellationToken);
