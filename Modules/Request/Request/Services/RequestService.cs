@@ -120,10 +120,13 @@ public class RequestService(IBus bus) : IRequestService
             await bus.Publish(integrationEvent, cancellationToken);
         }
 
-        foreach (var rd in requestDocResult.Documents)
+        // Remove Documents
+        var removeDocCommand = requestDocResult.Documents
+            .Select(rd => rd.Adapt<RemoveRequestDocumentCommand>());
+
+        foreach (var cmd in removeDocCommand)
         {
-            var removeDocCommand = rd.Adapt<RemoveRequestDocumentCommand>();
-            await sender.Send(removeDocCommand, cancellationToken);
+            await sender.Send(cmd, cancellationToken);
         }
 
         return new DeleteRequestResult(result.IsSuccess);
@@ -185,10 +188,12 @@ public class RequestService(IBus bus) : IRequestService
         await sender.Send(updateDocCommand, cancellationToken);
 
         // Remove Documents
-        foreach (var rd in removeDocuments)
+        var removeDocCommand = removeDocuments
+            .Select(rd => rd.Adapt<RemoveRequestDocumentCommand>());
+
+        foreach (var cmd in removeDocCommand)
         {
-            var removeDocCommand = rd.Adapt<RemoveRequestDocumentCommand>();
-            await sender.Send(removeDocCommand, cancellationToken);
+            await sender.Send(cmd, cancellationToken);
         }
 
         // List Documents for Publish Event
@@ -302,11 +307,14 @@ public class RequestService(IBus bus) : IRequestService
         var updateDocCommand = new UpdateRequestDocumentCommand(request.Id, updateDocuments);
         await sender.Send(updateDocCommand, cancellationToken);
 
+
         // Remove Documents
-        foreach (var rd in removeDocuments)
+        var removeDocCommand = removeDocuments
+            .Select(rd => rd.Adapt<RemoveRequestDocumentCommand>());
+
+        foreach (var cmd in removeDocCommand)
         {
-            var removeDocCommand = rd.Adapt<RemoveRequestDocumentCommand>();
-            await sender.Send(removeDocCommand, cancellationToken);
+            await sender.Send(cmd, cancellationToken);
         }
 
         // List Documents for Publish Event

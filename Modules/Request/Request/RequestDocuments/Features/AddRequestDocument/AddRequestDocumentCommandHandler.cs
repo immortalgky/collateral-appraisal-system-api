@@ -17,7 +17,7 @@ public class AddRequestDocumentCommandHandler(IRequestDocumentRepository request
             return new AddRequestDocumentResult(listDocument);
         }
 
-        command.Documents.ForEach(async dto =>
+        foreach (var dto in command.Documents)
         {
             var requestDocument = RequestDocument.Create(
                 command.RequestId,
@@ -30,9 +30,13 @@ public class AddRequestDocumentCommandHandler(IRequestDocumentRepository request
                 dto.DocumentClassification.ToDomain(),
                 dto.DocumentDescription,
                 dto.UploadInfo.ToDomain());
+
             await requestDocumentRepository.AddAsync(requestDocument, cancellationToken);
-            // listDocument.Add(requestDocument.DocumentId);
-        });
+            if (requestDocument.DocumentId.HasValue)
+            {
+                listDocument.Add(requestDocument.DocumentId.Value);
+            }
+        }
 
         await requestDocumentRepository.SaveChangesAsync(cancellationToken);
 
