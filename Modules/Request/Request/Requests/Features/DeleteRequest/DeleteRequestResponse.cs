@@ -1,3 +1,3 @@
 namespace Request.Requests.Features.DeleteRequest;
 
-public partial record DeleteRequestResponse(bool IsSuccess);
+public record DeleteRequestResponse(bool IsSuccess);

@@ -12,8 +12,8 @@ using Request.Data;
 namespace Request.Data.Migrations
 {
     [DbContext(typeof(RequestDbContext))]
-    [Migration("20250730094937_Initial")]
-    partial class Initial
+    [Migration("20251128071530_DataTypeRequestDetail")]
+    partial class DataTypeRequestDetail
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -46,8 +46,8 @@ namespace Request.Data.Migrations
                     b.Property<DateTime?>("CreatedOn")
                         .HasColumnType("datetime2");
 
-                    b.Property<long>("RequestId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(10)
@@ -61,6 +61,67 @@ namespace Request.Data.Migrations
                     b.HasIndex("RequestId");
 
                     b.ToTable("RequestComments", "request");
+                });
+
+            modelBuilder.Entity("Request.RequestDocuments.Models.RequestDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DocumentDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("DocumentDescription");
+
+                    b.Property<bool>("DocumentFollowUp")
+                        .HasColumnType("bit")
+                        .HasColumnName("DocumentFollowUp");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("FileName");
+
+                    b.Property<string>("FilePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("FilePath");
+
+                    b.Property<string>("Prefix")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("Prefix");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<short?>("Set")
+                        .HasColumnType("smallint")
+                        .HasColumnName("Set");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestId");
+
+                    b.ToTable("RequestDocuments", "request");
                 });
 
             modelBuilder.Entity("Request.RequestTitles.Models.RequestTitle", b =>
@@ -94,8 +155,8 @@ namespace Request.Data.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
 
-                    b.Property<long>("RequestId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("TitleDetail")
                         .HasMaxLength(200)
@@ -123,11 +184,9 @@ namespace Request.Data.Migrations
 
             modelBuilder.Entity("Request.Requests.Models.Request", b =>
                 {
-                    b.Property<long>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(10)
@@ -135,6 +194,20 @@ namespace Request.Data.Migrations
 
                     b.Property<DateTime?>("CreatedOn")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsPMA")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsPMA");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Priority");
+
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("Purpose");
 
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(10)
@@ -146,6 +219,69 @@ namespace Request.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Requests", "request");
+                });
+
+            modelBuilder.Entity("Request.RequestDocuments.Models.RequestDocument", b =>
+                {
+                    b.HasOne("Request.Requests.Models.Request", null)
+                        .WithMany("Documents")
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Request.RequestDocuments.ValueObjects.DocumentClassification", "DocumentClassification", b1 =>
+                        {
+                            b1.Property<Guid>("RequestDocumentId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("DocumentType")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("DocumentType");
+
+                            b1.Property<bool>("IsRequired")
+                                .HasColumnType("bit")
+                                .HasColumnName("IsRequire");
+
+                            b1.HasKey("RequestDocumentId");
+
+                            b1.ToTable("RequestDocuments", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestDocumentId");
+                        });
+
+                    b.OwnsOne("Request.RequestDocuments.ValueObjects.UploadInfo", "UploadInfo", b1 =>
+                        {
+                            b1.Property<Guid>("RequestDocumentId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<DateTime?>("UploadedAt")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("UploadedAt");
+
+                            b1.Property<long?>("UploadedBy")
+                                .HasColumnType("bigint")
+                                .HasColumnName("UploadedBy");
+
+                            b1.Property<string>("UploadedByName")
+                                .HasColumnType("nvarchar(max)")
+                                .HasColumnName("UploadedByName");
+
+                            b1.HasKey("RequestDocumentId");
+
+                            b1.ToTable("RequestDocuments", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestDocumentId");
+                        });
+
+                    b.Navigation("DocumentClassification")
+                        .IsRequired();
+
+                    b.Navigation("UploadInfo")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Request.RequestTitles.Models.RequestTitle", b =>
@@ -398,20 +534,20 @@ namespace Request.Data.Migrations
                 {
                     b.OwnsOne("Request.Requests.ValueObjects.AppraisalNumber", "AppraisalNo", b1 =>
                         {
-                            b1.Property<long>("RequestId")
-                                .HasColumnType("bigint");
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("Value")
                                 .IsRequired()
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
-                                .HasColumnName("AppraisalNo");
+                                .HasColumnName("RequestNumber");
 
                             b1.HasKey("RequestId");
 
                             b1.HasIndex("Value")
                                 .IsUnique()
-                                .HasFilter("[AppraisalNo] IS NOT NULL");
+                                .HasDatabaseName("IX_Request_RequestNumber");
 
                             b1.ToTable("Requests", "request");
 
@@ -428,21 +564,22 @@ namespace Request.Data.Migrations
                             SqlServerPropertyBuilderExtensions.UseIdentityColumn(b1.Property<long>("Id"));
 
                             b1.Property<string>("ContactNumber")
-                                .IsRequired()
                                 .HasMaxLength(20)
                                 .HasColumnType("nvarchar(20)")
                                 .HasColumnName("ContactNumber");
 
                             b1.Property<string>("Name")
-                                .IsRequired()
                                 .HasMaxLength(80)
                                 .HasColumnType("nvarchar(80)")
-                                .HasColumnName("Name");
+                                .HasColumnName("CustomerName");
 
-                            b1.Property<long>("RequestId")
-                                .HasColumnType("bigint");
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
 
                             b1.HasKey("Id");
+
+                            b1.HasIndex("Name")
+                                .HasDatabaseName("IX_RequestCustomer_Name");
 
                             b1.HasIndex("RequestId");
 
@@ -454,34 +591,17 @@ namespace Request.Data.Migrations
 
                     b.OwnsOne("Request.Requests.ValueObjects.RequestDetail", "Detail", b1 =>
                         {
-                            b1.Property<long>("RequestId")
-                                .HasColumnType("bigint");
-
-                            b1.Property<string>("Channel")
-                                .IsRequired()
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
-                                .HasColumnName("Channel");
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
 
                             b1.Property<bool>("HasAppraisalBook")
                                 .HasColumnType("bit")
                                 .HasColumnName("HasAppraisalBook");
 
-                            b1.Property<int?>("OccurConstInspec")
-                                .HasColumnType("int")
-                                .HasColumnName("OccurConstInspec");
-
-                            b1.Property<string>("Priority")
-                                .IsRequired()
+                            b1.Property<string>("PrevAppraisalNo")
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
-                                .HasColumnName("Priority");
-
-                            b1.Property<string>("Purpose")
-                                .IsRequired()
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
-                                .HasColumnName("Purpose");
+                                .HasColumnName("PrevAppraisalNo");
 
                             b1.HasKey("RequestId");
 
@@ -490,22 +610,42 @@ namespace Request.Data.Migrations
                             b1.WithOwner()
                                 .HasForeignKey("RequestId");
 
+                            b1.OwnsOne("Request.Requests.ValueObjects.Appointment", "Appointment", b2 =>
+                                {
+                                    b2.Property<Guid>("RequestDetailRequestId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<DateTime?>("AppointmentDateTime")
+                                        .HasColumnType("datetime2")
+                                        .HasColumnName("AppointmentDateTime");
+
+                                    b2.Property<string>("AppointmentLocation")
+                                        .HasMaxLength(4000)
+                                        .HasColumnType("nvarchar(4000)")
+                                        .HasColumnName("AppointmentLocation");
+
+                                    b2.HasKey("RequestDetailRequestId");
+
+                                    b2.ToTable("RequestDetails", "request");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RequestDetailRequestId");
+                                });
+
                             b1.OwnsOne("Request.Requests.ValueObjects.Contact", "Contact", b2 =>
                                 {
-                                    b2.Property<long>("RequestDetailRequestId")
-                                        .HasColumnType("bigint");
-
-                                    b2.Property<string>("ContactPersonContactNo")
-                                        .IsRequired()
-                                        .HasMaxLength(20)
-                                        .HasColumnType("nvarchar(20)")
-                                        .HasColumnName("ContactPersonContactNo");
+                                    b2.Property<Guid>("RequestDetailRequestId")
+                                        .HasColumnType("uniqueidentifier");
 
                                     b2.Property<string>("ContactPersonName")
-                                        .IsRequired()
-                                        .HasMaxLength(80)
-                                        .HasColumnType("nvarchar(80)")
+                                        .HasMaxLength(100)
+                                        .HasColumnType("nvarchar(100)")
                                         .HasColumnName("ContactPersonName");
+
+                                    b2.Property<string>("ContactPersonPhone")
+                                        .HasMaxLength(20)
+                                        .HasColumnType("nvarchar(20)")
+                                        .HasColumnName("ContactPersonPhone");
 
                                     b2.Property<string>("ProjectCode")
                                         .HasMaxLength(10)
@@ -522,16 +662,20 @@ namespace Request.Data.Migrations
 
                             b1.OwnsOne("Request.Requests.ValueObjects.Fee", "Fee", b2 =>
                                 {
-                                    b2.Property<long>("RequestDetailRequestId")
-                                        .HasColumnType("bigint");
+                                    b2.Property<Guid>("RequestDetailRequestId")
+                                        .HasColumnType("uniqueidentifier");
 
-                                    b2.Property<string>("FeeRemark")
+                                    b2.Property<decimal?>("BankAbsorbAmt")
+                                        .HasPrecision(19, 4)
+                                        .HasColumnType("decimal(19,4)")
+                                        .HasColumnName("BankAbsorbAmount");
+
+                                    b2.Property<string>("FeeNotes")
                                         .HasMaxLength(4000)
                                         .HasColumnType("nvarchar(4000)")
                                         .HasColumnName("FeeRemark");
 
                                     b2.Property<string>("FeeType")
-                                        .IsRequired()
                                         .HasMaxLength(10)
                                         .HasColumnType("nvarchar(10)")
                                         .HasColumnName("FeeType");
@@ -546,18 +690,33 @@ namespace Request.Data.Migrations
 
                             b1.OwnsOne("Request.Requests.ValueObjects.LoanDetail", "LoanDetail", b2 =>
                                 {
-                                    b2.Property<long>("RequestDetailRequestId")
-                                        .HasColumnType("bigint");
+                                    b2.Property<Guid>("RequestDetailRequestId")
+                                        .HasColumnType("uniqueidentifier");
 
-                                    b2.Property<decimal?>("LimitAmt")
+                                    b2.Property<decimal?>("AdditionalFacilityLimit")
                                         .HasPrecision(19, 4)
                                         .HasColumnType("decimal(19,4)")
-                                        .HasColumnName("LimitAmt");
+                                        .HasColumnName("AdditionalFacilityLimit");
+
+                                    b2.Property<string>("BankingSegment")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("BankingSegment");
+
+                                    b2.Property<decimal?>("FacilityLimit")
+                                        .HasPrecision(19, 4)
+                                        .HasColumnType("decimal(19,4)")
+                                        .HasColumnName("FacilityLimit");
 
                                     b2.Property<string>("LoanApplicationNo")
                                         .HasMaxLength(20)
                                         .HasColumnType("nvarchar(20)")
                                         .HasColumnName("LoanApplicationNo");
+
+                                    b2.Property<decimal?>("PreviousFacilityLimit")
+                                        .HasPrecision(19, 4)
+                                        .HasColumnType("decimal(19,4)")
+                                        .HasColumnName("PreviousFacilityLimit");
 
                                     b2.Property<decimal?>("TotalSellingPrice")
                                         .HasPrecision(19, 4)
@@ -566,32 +725,9 @@ namespace Request.Data.Migrations
 
                                     b2.HasKey("RequestDetailRequestId");
 
-                                    b2.ToTable("RequestDetails", "request");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("RequestDetailRequestId");
-                                });
-
-                            b1.OwnsOne("Request.Requests.ValueObjects.Reference", "Reference", b2 =>
-                                {
-                                    b2.Property<long>("RequestDetailRequestId")
-                                        .HasColumnType("bigint");
-
-                                    b2.Property<DateTime?>("PrevAppraisalDate")
-                                        .HasColumnType("datetime2")
-                                        .HasColumnName("PrevAppraisalDate");
-
-                                    b2.Property<string>("PrevAppraisalNo")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("PrevAppraisalNo");
-
-                                    b2.Property<decimal?>("PrevAppraisalValue")
-                                        .HasPrecision(19, 4)
-                                        .HasColumnType("decimal(19,4)")
-                                        .HasColumnName("PrevAppraisalValue");
-
-                                    b2.HasKey("RequestDetailRequestId");
+                                    b2.HasIndex("LoanApplicationNo")
+                                        .HasDatabaseName("IX_Request_LoanApplicationNumber")
+                                        .HasFilter("[LoanApplicationNo] IS NOT NULL");
 
                                     b2.ToTable("RequestDetails", "request");
 
@@ -601,8 +737,8 @@ namespace Request.Data.Migrations
 
                             b1.OwnsOne("Request.Requests.ValueObjects.Address", "Address", b2 =>
                                 {
-                                    b2.Property<long>("RequestDetailRequestId")
-                                        .HasColumnType("bigint");
+                                    b2.Property<Guid>("RequestDetailRequestId")
+                                        .HasColumnType("uniqueidentifier");
 
                                     b2.Property<string>("District")
                                         .HasMaxLength(10)
@@ -630,8 +766,8 @@ namespace Request.Data.Migrations
                                         .HasColumnName("Postcode");
 
                                     b2.Property<string>("ProjectName")
-                                        .HasMaxLength(50)
-                                        .HasColumnType("nvarchar(50)")
+                                        .HasMaxLength(100)
+                                        .HasColumnType("nvarchar(100)")
                                         .HasColumnName("LocationIdentifier");
 
                                     b2.Property<string>("Province")
@@ -667,80 +803,10 @@ namespace Request.Data.Migrations
                                         .HasForeignKey("RequestDetailRequestId");
                                 });
 
-                            b1.OwnsOne("Request.Requests.ValueObjects.Requestor", "Requestor", b2 =>
-                                {
-                                    b2.Property<long>("RequestDetailRequestId")
-                                        .HasColumnType("bigint");
-
-                                    b2.Property<string>("RequestorAo")
-                                        .IsRequired()
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("RequestorAo");
-
-                                    b2.Property<string>("RequestorBranch")
-                                        .IsRequired()
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("RequestorBranch");
-
-                                    b2.Property<string>("RequestorBusinessUnit")
-                                        .IsRequired()
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("RequestorBusinessUnit");
-
-                                    b2.Property<string>("RequestorContactNo")
-                                        .IsRequired()
-                                        .HasMaxLength(20)
-                                        .HasColumnType("nvarchar(20)")
-                                        .HasColumnName("RequestorContactNo");
-
-                                    b2.Property<string>("RequestorCostCenter")
-                                        .IsRequired()
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("RequestorCostCenter");
-
-                                    b2.Property<string>("RequestorDepartment")
-                                        .IsRequired()
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("RequestorDepartment");
-
-                                    b2.Property<string>("RequestorEmail")
-                                        .IsRequired()
-                                        .HasMaxLength(40)
-                                        .HasColumnType("nvarchar(40)")
-                                        .HasColumnName("RequestorEmail");
-
-                                    b2.Property<string>("RequestorEmpId")
-                                        .IsRequired()
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("RequestorEmpId");
-
-                                    b2.Property<string>("RequestorName")
-                                        .IsRequired()
-                                        .HasMaxLength(40)
-                                        .HasColumnType("nvarchar(40)")
-                                        .HasColumnName("RequestorName");
-
-                                    b2.Property<string>("RequestorSection")
-                                        .IsRequired()
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("RequestorSection");
-
-                                    b2.HasKey("RequestDetailRequestId");
-
-                                    b2.ToTable("RequestDetails", "request");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("RequestDetailRequestId");
-                                });
-
                             b1.Navigation("Address")
+                                .IsRequired();
+
+                            b1.Navigation("Appointment")
                                 .IsRequired();
 
                             b1.Navigation("Contact")
@@ -750,12 +816,6 @@ namespace Request.Data.Migrations
                                 .IsRequired();
 
                             b1.Navigation("LoanDetail")
-                                .IsRequired();
-
-                            b1.Navigation("Reference")
-                                .IsRequired();
-
-                            b1.Navigation("Requestor")
                                 .IsRequired();
                         });
 
@@ -768,19 +828,17 @@ namespace Request.Data.Migrations
                             SqlServerPropertyBuilderExtensions.UseIdentityColumn(b1.Property<long>("Id"));
 
                             b1.Property<string>("BuildingType")
-                                .IsRequired()
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
                                 .HasColumnName("BuildingType");
 
                             b1.Property<string>("PropertyType")
-                                .IsRequired()
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
                                 .HasColumnName("PropertyType");
 
-                            b1.Property<long>("RequestId")
-                                .HasColumnType("bigint");
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
 
                             b1.Property<decimal?>("SellingPrice")
                                 .HasPrecision(19, 4)
@@ -788,6 +846,9 @@ namespace Request.Data.Migrations
                                 .HasColumnName("SellingPrice");
 
                             b1.HasKey("Id");
+
+                            b1.HasIndex("PropertyType")
+                                .HasDatabaseName("IX_RequestProperty_PropertyType");
 
                             b1.HasIndex("RequestId");
 
@@ -799,14 +860,51 @@ namespace Request.Data.Migrations
 
                     b.OwnsOne("Request.Requests.ValueObjects.RequestStatus", "Status", b1 =>
                         {
-                            b1.Property<long>("RequestId")
-                                .HasColumnType("bigint");
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("Code")
                                 .IsRequired()
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
                                 .HasColumnName("Status");
+
+                            b1.Property<DateTime?>("CompletedAt")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("CompletedAt");
+
+                            b1.Property<DateTime?>("SubmittedAt")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("SubmittedAt");
+
+                            b1.HasKey("RequestId");
+
+                            b1.HasIndex("Code")
+                                .HasDatabaseName("IX_Request_Status")
+                                .HasFilter("[IsDeleted] = 0");
+
+                            b1.ToTable("Requests", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestId");
+                        });
+
+                    b.OwnsOne("Request.Requests.ValueObjects.SoftDelete", "SoftDelete", b1 =>
+                        {
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("DeletedBy")
+                                .HasColumnType("nvarchar(max)")
+                                .HasColumnName("DeletedBy");
+
+                            b1.Property<DateTime?>("DeletedOn")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("DeletedOn");
+
+                            b1.Property<bool>("IsDeleted")
+                                .HasColumnType("bit")
+                                .HasColumnName("IsDeleted");
 
                             b1.HasKey("RequestId");
 
@@ -816,7 +914,58 @@ namespace Request.Data.Migrations
                                 .HasForeignKey("RequestId");
                         });
 
-                    b.Navigation("AppraisalNo");
+                    b.OwnsOne("Request.Requests.ValueObjects.SourceSystem", "SourceSystem", b1 =>
+                        {
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Channel")
+                                .HasColumnType("nvarchar(max)")
+                                .HasColumnName("Channel");
+
+                            b1.Property<DateTime?>("CreatedDate")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("CreatedDate");
+
+                            b1.Property<string>("Creator")
+                                .HasColumnType("nvarchar(max)")
+                                .HasColumnName("Creator");
+
+                            b1.Property<string>("CreatorName")
+                                .HasColumnType("nvarchar(max)")
+                                .HasColumnName("CreatorName");
+
+                            b1.Property<string>("RequestBy")
+                                .HasColumnType("nvarchar(450)")
+                                .HasColumnName("RequestBy");
+
+                            b1.Property<string>("RequestByName")
+                                .HasColumnType("nvarchar(max)")
+                                .HasColumnName("RequestByName");
+
+                            b1.Property<DateTime?>("RequestDate")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("RequestDate");
+
+                            b1.HasKey("RequestId");
+
+                            b1.HasIndex("RequestBy")
+                                .HasDatabaseName("IX_Request_RequestedBy")
+                                .HasFilter("[IsDeleted] = 0");
+
+                            b1.HasIndex("RequestDate")
+                                .IsDescending()
+                                .HasDatabaseName("IX_Request_RequestDate")
+                                .HasFilter("[IsDeleted] = 0");
+
+                            b1.ToTable("Requests", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestId");
+                        });
+
+                    b.Navigation("AppraisalNo")
+                        .IsRequired();
 
                     b.Navigation("Customers");
 
@@ -825,8 +974,19 @@ namespace Request.Data.Migrations
 
                     b.Navigation("Properties");
 
+                    b.Navigation("SoftDelete")
+                        .IsRequired();
+
+                    b.Navigation("SourceSystem")
+                        .IsRequired();
+
                     b.Navigation("Status")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Request.Requests.Models.Request", b =>
+                {
+                    b.Navigation("Documents");
                 });
 #pragma warning restore 612, 618
         }

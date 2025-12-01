@@ -1,7 +1,7 @@
 namespace Request.RequestTitles.Features.UpdateRequestTitle;
 
 public record UpdateRequestTitleCommand(
-    long RequestId,
+    Guid RequestId,
     long Id,
     string CollateralType,
     string? TitleNo,

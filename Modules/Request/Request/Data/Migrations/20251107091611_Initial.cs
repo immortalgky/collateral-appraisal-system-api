@@ -21,7 +21,7 @@ namespace Request.Data.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    RequestId = table.Column<long>(type: "bigint", nullable: false),
+                    RequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Comment = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: false),
                     CreatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
@@ -38,10 +38,24 @@ namespace Request.Data.Migrations
                 schema: "request",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     AppraisalNo = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    Purpose = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    Channel = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RequestDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RequestBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RequestByName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Creator = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatorName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Priority = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Status = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    SubmittedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: true),
+                    DeletedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DeletedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsPMA = table.Column<bool>(type: "bit", nullable: false),
                     CreatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     UpdatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -59,7 +73,7 @@ namespace Request.Data.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    RequestId = table.Column<long>(type: "bigint", nullable: false),
+                    RequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     CollateralType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
                     TitleNo = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     TitleDetail = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
@@ -117,9 +131,9 @@ namespace Request.Data.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(80)", maxLength: 80, nullable: false),
+                    CustomerName = table.Column<string>(type: "nvarchar(80)", maxLength: 80, nullable: false),
                     ContactNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    RequestId = table.Column<long>(type: "bigint", nullable: false)
+                    RequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -134,26 +148,23 @@ namespace Request.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "RequestDetails",
+                name: "RequestDetauls",
                 schema: "request",
                 columns: table => new
                 {
-                    RequestId = table.Column<long>(type: "bigint", nullable: false),
-                    Purpose = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    RequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     HasAppraisalBook = table.Column<bool>(type: "bit", nullable: false),
-                    Priority = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    Channel = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    OccurConstInspec = table.Column<int>(type: "int", nullable: true),
                     LoanApplicationNo = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
-                    LimitAmt = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
+                    BankingSegment = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    FacilityLimit = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
+                    AdditionalFacilityLimit = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
+                    PreviousFacilityLimit = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
                     TotalSellingPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
-                    PrevAppraisalNo = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    PrevAppraisalValue = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
-                    PrevAppraisalDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    PrevAppraisalNo = table.Column<long>(type: "bigint", maxLength: 10, nullable: true),
                     HouseNo = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
                     RoomNo = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
                     FloorNo = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    LocationIdentifier = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    LocationIdentifier = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     Moo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     Soi = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     Road = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
@@ -161,27 +172,20 @@ namespace Request.Data.Migrations
                     District = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     Province = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     Postcode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    ContactPersonName = table.Column<string>(type: "nvarchar(80)", maxLength: 80, nullable: false),
-                    ContactPersonContactNo = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    ContactPersonName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ContactPersonPhone = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     ProjectCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    FeeType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    AppointmentDateTime = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    AppointmentLocation = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    FeeType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     FeeRemark = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    RequestorEmpId = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    RequestorName = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
-                    RequestorEmail = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
-                    RequestorContactNo = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    RequestorAo = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    RequestorBranch = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    RequestorBusinessUnit = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    RequestorDepartment = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    RequestorSection = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    RequestorCostCenter = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false)
+                    BankAbsorbAmount = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_RequestDetails", x => x.RequestId);
+                    table.PrimaryKey("PK_RequestDetauls", x => x.RequestId);
                     table.ForeignKey(
-                        name: "FK_RequestDetails_Requests_RequestId",
+                        name: "FK_RequestDetauls_Requests_RequestId",
                         column: x => x.RequestId,
                         principalSchema: "request",
                         principalTable: "Requests",
@@ -199,7 +203,7 @@ namespace Request.Data.Migrations
                     PropertyType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
                     BuildingType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
                     SellingPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
-                    RequestId = table.Column<long>(type: "bigint", nullable: false)
+                    RequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -252,7 +256,7 @@ namespace Request.Data.Migrations
                 schema: "request");
 
             migrationBuilder.DropTable(
-                name: "RequestDetails",
+                name: "RequestDetauls",
                 schema: "request");
 
             migrationBuilder.DropTable(

@@ -5,7 +5,11 @@ internal class DeleteRequestCommandHandler(IRequestRepository requestRepository)
 {
     public async Task<DeleteRequestResult> Handle(DeleteRequestCommand command, CancellationToken cancellationToken)
     {
-        await requestRepository.DeleteRequestAsync(command.Id, cancellationToken);
+        var request = await requestRepository.GetByIdAsync(command.Id, cancellationToken);
+
+        request.UpdateIsDelete();
+
+        await requestRepository.SaveChangesAsync(cancellationToken);
 
         return new DeleteRequestResult(true);
     }

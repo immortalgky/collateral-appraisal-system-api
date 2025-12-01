@@ -68,14 +68,14 @@ public partial class AppraisalStateMachine
         context.Saga.AssignType = context.Message.AssignedType;
 
         context.Publish(new TransitionCompleted
-        {
-            CorrelationId = context.Saga.CorrelationId,
-            RequestId = context.Saga.RequestId,
-            TaskName = Enum.Parse<TaskName>(context.Saga.CurrentState),
-            CurrentState = context.Saga.CurrentState,
-            AssignedTo = context.Saga.Assignee,
-            AssignedType = context.Saga.AssignType
-        },
+            {
+                CorrelationId = context.Saga.CorrelationId,
+                RequestId = context.Saga.RequestId,
+                TaskName = Enum.Parse<TaskName>(context.Saga.CurrentState),
+                CurrentState = context.Saga.CurrentState,
+                AssignedTo = context.Saga.Assignee,
+                AssignedType = context.Saga.AssignType
+            },
             context.CancellationToken);
     }
 }

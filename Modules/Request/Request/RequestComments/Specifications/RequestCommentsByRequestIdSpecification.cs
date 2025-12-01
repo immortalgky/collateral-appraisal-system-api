@@ -2,9 +2,9 @@ namespace Request.RequestComments.Specifications;
 
 public class RequestCommentsByRequestIdSpecification : Specification<RequestComment>
 {
-    private readonly long _requestId;
+    private readonly Guid _requestId;
 
-    public RequestCommentsByRequestIdSpecification(long requestId)
+    public RequestCommentsByRequestIdSpecification(Guid requestId)
     {
         _requestId = requestId;
     }

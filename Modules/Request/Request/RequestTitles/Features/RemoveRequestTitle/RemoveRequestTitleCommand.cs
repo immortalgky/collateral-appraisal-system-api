@@ -1,3 +1,3 @@
 namespace Request.RequestTitles.Features.RemoveRequestTitle;
 
-public record RemoveRequestTitleCommand(long RequestId, long Id) : ICommand<RemoveRequestTitleResult>;
+public record RemoveRequestTitleCommand(Guid RequestId, long Id) : ICommand<RemoveRequestTitleResult>;

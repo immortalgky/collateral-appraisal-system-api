@@ -2,7 +2,7 @@ namespace Request.RequestTitles.Features.GetRequestTitleById;
 
 public record GetRequestTitleByIdResponse(
     long Id,
-    long RequestId,
+    Guid RequestId,
     string CollateralType,
     string? TitleNo,
     string? TitleDetail,

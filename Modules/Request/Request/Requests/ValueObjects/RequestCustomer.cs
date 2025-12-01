@@ -2,8 +2,8 @@ namespace Request.Requests.ValueObjects;
 
 public class RequestCustomer : ValueObject
 {
-    public string Name { get; }
-    public string ContactNumber { get; }
+    public string? Name { get; }
+    public string? ContactNumber { get; }
 
 #pragma warning disable CS8618
     public RequestCustomer()
@@ -22,8 +22,8 @@ public class RequestCustomer : ValueObject
     }
 
     public static RequestCustomer Create(
-        string name,
-        string contactNumber
+        string? name,
+        string? contactNumber
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);

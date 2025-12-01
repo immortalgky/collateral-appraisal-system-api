@@ -11,6 +11,6 @@ public class RequestsByPurposeSpecification : Specification<Requests.Models.Requ
 
     public override Expression<Func<Requests.Models.Request, bool>> ToExpression()
     {
-        return request => request.Detail.Purpose.Contains(_purpose);
+        return request => request.Purpose.Contains(_purpose);
     }
 }

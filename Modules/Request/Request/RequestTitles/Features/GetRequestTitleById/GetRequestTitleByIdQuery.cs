@@ -1,3 +1,3 @@
 namespace Request.RequestTitles.Features.GetRequestTitleById;
 
-public record GetRequestTitleByIdQuery(long RequestId, long Id) : IQuery<GetRequestTitleByIdResult>;
+public record GetRequestTitleByIdQuery(Guid RequestId, long Id) : IQuery<GetRequestTitleByIdResult>;
