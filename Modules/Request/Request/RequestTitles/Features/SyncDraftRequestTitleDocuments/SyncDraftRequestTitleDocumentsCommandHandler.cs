@@ -82,27 +82,8 @@ public class SyncDraftRequestTitleDocumentsHandler(ISender sender, IBus bus) : I
             
             var updateLinkRequestTitleDocumentResult = await sender.Send(updateLinkRequestTitleDocumentCommand, cancellationToken);
 
-            var existingDocId = existingReqTitleDocs.Where(etd => etd.Id == reqTitleDoc.Id).Select(ert => ert.DocumentId).First();
-
-            if (!existingDocId.Equals(reqTitleDoc.DocumentId)) // update only upload document
-            {
-                documentLinks.Add(new DocumentLink
-                {
-                    EntityType = "Title",
-                    EntityId = command.TitleId,
-                    DocumentId = reqTitleDoc.DocumentId!.Value,
-                    IsUnlinked = false
-                });
-            }
-
             results.Add(updateLinkRequestTitleDocumentResult.Adapt<RequestTitleDocumentDto>());
         }
-
-        await bus.Publish(new DocumentLinkedIntegrationEvent
-        {
-            SessionId = command.SessionId,
-            DocumentLinks = documentLinks
-        }, cancellationToken);
 
         return new SyncDraftRequestTitleDocumentsResult(results);
     }
