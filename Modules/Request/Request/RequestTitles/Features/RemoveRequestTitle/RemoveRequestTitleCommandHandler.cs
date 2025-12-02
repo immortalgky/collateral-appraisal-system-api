@@ -15,7 +15,7 @@ internal class RemoveRequestTitleCommandHandler(IRequestTitleRepository requestT
             throw new Exception($"RequestId unmatch {requestTitle.RequestId} : {command.RequestId}");
 
         // Publish domain event
-        requestTitle.AddDomainEvent(new RequestTitleRemovedEvent(command.RequestId, command.Id, requestTitle.CollateralType));
+        requestTitle.AddDomainEvent(new RequestTitleRemovedEvent(command.RequestId, command.Id));
         
         await requestTitleRepository.Remove(requestTitle);
         await requestTitleRepository.SaveChangesAsync(cancellationToken);

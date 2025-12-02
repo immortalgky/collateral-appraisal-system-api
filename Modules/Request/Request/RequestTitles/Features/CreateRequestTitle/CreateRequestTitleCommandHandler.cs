@@ -30,6 +30,8 @@ public class CreateRequestTitleCommandHandler(IRequestTitleRepository requestTit
             Notes = command.Notes
         };
         var requestTitle = RequestTitleFactory.Create(requestTitleData.CollateralType).Create(requestTitleData);
+
+        requestTitle.AddDomainEvent(new RequestTitleCreatedEvent(requestTitle.RequestId, requestTitle));
         
         await requestTitleRepository.AddAsync(requestTitle, cancellationToken);
         await requestTitleRepository.SaveChangesAsync(cancellationToken);

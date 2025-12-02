@@ -1,6 +1,3 @@
-using Request.RequestTitles.Features.SyncRequestTitle;
-using Request.Services;
-
 namespace Request.Requests.Features.CreateRequest;
 
 public class CreateRequestEndpoint(IRequestService requestService) : ICarterModule

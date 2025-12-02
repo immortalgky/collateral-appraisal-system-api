@@ -1,32 +1,28 @@
 using MassTransit;
+using Request.RequestTitles.Features.CreateRequestTitle;
 using Request.RequestTitles.Features.GetRequestTitlesByRequestId;
+using Request.RequestTitles.Features.RemoveRequestTitle;
 using Request.RequestTitles.Features.SyncRequestTitleDocuments;
 using Request.RequestTitles.Features.UpdateRequestTitle;
 
-namespace Request.RequestTitles.Features.SyncRequestTitle;
+namespace Request.RequestTitles.Features.SyncRequestTitles;
 
-public class SyncRequestTitleCommandHandler(ISender sender, IBus bus) : ICommandHandler<SyncRequestTitleCommand, SyncRequestTitleResult>
+public class SyncRequestTitlesCommandHandler(ISender sender) : ICommandHandler<SyncRequestTitlesCommand, SyncRequestTitlesResult>
 {
-    public async Task<SyncRequestTitleResult> Handle(SyncRequestTitleCommand command, CancellationToken cancellationToken)
+    public async Task<SyncRequestTitlesResult> Handle(SyncRequestTitlesCommand command, CancellationToken cancellationToken)
     {
         // Make sure that linQ operations do not fail due to null reference
         var requestTitleDtos = command.RequestTitleDtos?.ToList() ?? new List<RequestTitleDto>();
-        // Collecting results which be sent to caller
-        var results = new List<RequestTitleDto>();
 
         var requestTitlesResult = await sender.Send(new GetRequestTitlesByRequestIdQuery(command.RequestId), cancellationToken);
 
-        if (requestTitlesResult is null)
-            throw new RequestNotFoundException(command.RequestId);
-
         var existingRequestTitles = requestTitlesResult.RequestTitles?.ToList() ?? new List<RequestTitleDto>();
-        var existingById = existingRequestTitles
+        var existingRequestTitleWithId = existingRequestTitles
             .Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty)
             .ToDictionary(x => x.Id!.Value);
+        var existingRequestTitleIds = existingRequestTitleWithId.Keys.ToHashSet();
 
-        var existingRequestTitleIds = existingById.Keys.ToHashSet();
-
-        var incomingIds = requestTitleDtos
+        var requestTitleIds = requestTitleDtos
             .Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty)
             .Select(x => x.Id!.Value)
             .ToHashSet();
@@ -43,10 +39,10 @@ public class SyncRequestTitleCommandHandler(ISender sender, IBus bus) : ICommand
 
         // Removing Request Titles that are not in the incoming list
         var removingRequestTitleIds = existingRequestTitleIds
-            .Except(incomingIds)
+            .Except(requestTitleIds)
             .ToHashSet();
         var removingRequestTitles = removingRequestTitleIds
-            .Select(id => existingById[id])
+            .Select(id => existingRequestTitleWithId[id])
             .ToList();
 
         foreach (var requestTitle in removingRequestTitles)
@@ -75,13 +71,11 @@ public class SyncRequestTitleCommandHandler(ISender sender, IBus bus) : ICommand
                 TitleId = requestTitleResult.Id,
                 RequestTitleDocumentDtos = requestTitle.RequestTitleDocumentDtos
             }, cancellationToken);
-            
-            results.Add(requestTitle with { Id = requestTitleResult.Id, RequestId = command.RequestId, RequestTitleDocumentDtos = createdRequestTitleDocumentsResult.RequestTitleDocumentDtos}); 
         }
 
         foreach (var requestTitle in updatingRequestTitles)
         {
-            var existing = existingById.GetValueOrDefault(requestTitle.Id!.Value);
+            var existing = existingRequestTitleWithId.GetValueOrDefault(requestTitle.Id!.Value);
             if (existing is null)
             {
                 throw new RequestTitleNotFoundException(requestTitle.Id!.Value);
@@ -89,7 +83,6 @@ public class SyncRequestTitleCommandHandler(ISender sender, IBus bus) : ICommand
             else if (requestTitle.CollateralType == existing.CollateralType)
             {
                 var updatedRequestTitleResult = await sender.Send(BuildUpdateCommand(command.RequestId, requestTitle), cancellationToken);
-
 
                 var updatedRequestTitleDocumentsResult = await sender.Send(new SyncRequestTitleDocumentsCommand
                 {
@@ -99,7 +92,6 @@ public class SyncRequestTitleCommandHandler(ISender sender, IBus bus) : ICommand
                     RequestTitleDocumentDtos = requestTitle.RequestTitleDocumentDtos
                 }, cancellationToken);
 
-                results.Add(requestTitle with { RequestId = command.RequestId, RequestTitleDocumentDtos = updatedRequestTitleDocumentsResult.RequestTitleDocumentDtos });
             }
             else
             {
@@ -118,7 +110,7 @@ public class SyncRequestTitleCommandHandler(ISender sender, IBus bus) : ICommand
                 // Create new Request Title
                 var newRequestTitle = await sender.Send(BuildCreateCommand(command.RequestId, requestTitle));
 
-
+                // Create new RequestTitleDocuments, with new TitleId
                 var createdRequestTitleDocumentsResult = await sender.Send(new SyncRequestTitleDocumentsCommand
                 {
                     SessionId = command.SessionId,
@@ -127,11 +119,10 @@ public class SyncRequestTitleCommandHandler(ISender sender, IBus bus) : ICommand
                     RequestTitleDocumentDtos = requestTitle.RequestTitleDocumentDtos.Select(rtd => rtd with { Id = null }).ToList()
                 }, cancellationToken);
                 
-                results.Add(requestTitle with { Id = newRequestTitle.Id , RequestId = command.RequestId, RequestTitleDocumentDtos = createdRequestTitleDocumentsResult.RequestTitleDocumentDtos});
             }
         }
         
-        var result = new SyncRequestTitleResult(results);
+        var result = new SyncRequestTitlesResult(true);
         return result;
     }
 

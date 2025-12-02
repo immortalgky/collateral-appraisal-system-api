@@ -1,6 +1,7 @@
 @baseUrl= https://localhost:7111
+@requestId=BB9640C6-3DBB-4161-B0DF-54CD2D4FA4C1
 
-POST {{baseUrl}}/requests
+PATCH {{baseUrl}}/requests/{{requestId}}/draft
 headers: localhost:7111
 Content-Type: application/json
 
@@ -20,7 +21,7 @@ Content-Type: application/json
         "prevAppraisalNo" : null,
         "address": 
         {
-            "houseNo": "5/42",
+            "houseNo": "update 5/42",
             "roomNo": "string",
             "floorNo": "string",
             "buildingNo": "string",
@@ -82,19 +83,22 @@ Content-Type: application/json
     ],
     "documents": [
         {
-            "documentId": "0d6c4968-d855-4bf8-a9c7-3196b14ea769",
-            "documentClassification": {
-            "documentType": "Document",
-            "isRequired": true
+            "id": "830E92CB-77FF-4FCE-A2D8-08DE31708C42",
+            "documentId": "0d6c4968-d855-4bf8-a9c7-3196b14ea700",
+            "documentClassification": 
+            {
+                "documentType": "Document",
+                "isRequired": true
             },
             "fileName":"M-001 Map",
             "filePath":"C:/Users/Desktop/Document/Other",
             "prefix":"M-001",
             "set":1,
-            "uploadInfo": {
-            "uploadedBy": "211",
-            "uploadedByName": "John",
-            "uploadedAt": "2025-06-20T08:39:32.515Z"
+            "uploadInfo": 
+            {
+                "uploadedBy": "211",
+                "uploadedByName": "John",
+                "uploadedAt": "2025-06-20T08:39:32.515Z"
             },
             "documentDescription": "comment"
         }
@@ -115,16 +119,6 @@ Content-Type: application/json
         {
             "collateralType": "L",
             "collateralStatus": false,
-            "titleNo": "Test",
-            "deedType": "NorSor3",
-            "titleDetail": "Test",
-            "rawang": "Test",
-            "landNo": "Test",
-            "surveyNo": "Test",
-            "areaRai": 0,
-            "areaNgan": 0,
-            "areaSquareWa": 0,
-            "ownerName": "Test",
             "titleAddress":
             {
                 "houseNo": "Test",
@@ -154,29 +148,16 @@ Content-Type: application/json
             [
                 {
                     "documentId": "84DCBD01-8544-41D9-8125-874C963C8003",
-                    "documentType": "Test",
-                    "filename": "Test",
-                    "prefix": "Test",
+                    "documentType": "Test Update",
+                    "filename": "Test Update",
+                    "prefix": "Test Update",
                     "set": 1,
-                    "documentDescription": "Update Test",
-                    "filePath": "Test",
-                    "createdWorkstation": "Test",
+                    "documentDescription": "Test Update",
+                    "filePath": "Test Update",
+                    "createdWorkstation": "Test Update",
                     "isRequired": true,
-                    "uploadedBy": "Test",
-                    "uploadedByName": "Test"
-                },
-                {
-                    "documentId": "84DCBD01-8544-41D9-8125-874C963C8005",
-                    "documentType": "Test",
-                    "filename": "Test",
-                    "prefix": "Test",
-                    "set": 1,
-                    "documentDescription": "Update Test",
-                    "filePath": "Test",
-                    "createdWorkstation": "Test",
-                    "isRequired": true,
-                    "uploadedBy": "Test",
-                    "uploadedByName": "Test"
+                    "uploadedBy": "Update",
+                    "uploadedByName": "Test Update"
                 }
             ]
         }

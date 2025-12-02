@@ -1,6 +1,6 @@
-namespace Request.RequestTitles.Features.SyncRequestTitle;
+namespace Request.RequestTitles.Features.SyncRequestTitles;
 
-public record SyncRequestTitleCommand : ICommand<SyncRequestTitleResult>
+public record SyncRequestTitlesCommand : ICommand<SyncRequestTitlesResult>
 {
     public Guid SessionId { get; init; }
     public Guid RequestId { get; init; }

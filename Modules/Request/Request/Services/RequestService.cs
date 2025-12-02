@@ -9,10 +9,8 @@ using Request.RequestDocuments.Features.GetRequestDocument;
 using Request.RequestDocuments.Features.RemoveRequestDocument;
 using Request.Requests.Features.DeleteRequest;
 using Request.RequestDocuments.Features.UpdateRequestDocument;
-using Request.Extensions;
-using System.Text.Json;
-using Request.RequestTitles.Features.SyncRequestTitle;
-using Request.RequestTitles.Features.SyncDraftRequestTitles;
+using Request.RequestTitles.Features.SyncRequestTitles;
+using Request.RequestComments.Features.SyncRequestComments;
 
 namespace Request.Services;
 
@@ -26,19 +24,24 @@ public class RequestService(IBus bus) : IRequestService
         var requestCommand = request.Adapt<CreateRequestCommand>();
         var requestResult = await sender.Send(requestCommand, cancellationToken);
 
-        // Sync Request Titles
-        var requestTitleResult = await sender.Send(new SyncRequestTitleCommand
-        {
-            SessionId = request.SessionId,
-            RequestId = requestResult.Id,
-            RequestTitleDtos = request.Titles
-        }, cancellationToken);
 
         // Add Request Documents
         var requestDocCommand = new AddRequestDocumentCommand(requestResult.Id, request.Documents);
         await sender.Send(requestDocCommand, cancellationToken);
 
         // Add Request Title
+        var requestTitleResult = await sender.Send(new SyncRequestTitlesCommand
+        {
+            SessionId = request.SessionId,
+            RequestId = requestResult.Id,
+            RequestTitleDtos = request.Titles
+        }, cancellationToken);
+
+        // Add Request Comments
+        var requestCustomer = await sender.Send(new SyncRequestCommentsCommand {
+            RequestId = requestResult.Id,
+            RequestCommentDtos = request.Comments
+        }, cancellationToken);
 
         // IntegrationEvent
         var integrationEvent = new DocumentLinkedIntegrationEvent
@@ -71,7 +74,7 @@ public class RequestService(IBus bus) : IRequestService
         var requestResult = await sender.Send(requestCommand, cancellationToken);
 
         // Sync Request Titles
-        var requestTitleResult = await sender.Send(new SyncRequestTitleCommand
+        var requestTitleResult = await sender.Send(new SyncRequestTitlesCommand
         {
             SessionId = request.SessionId,
             RequestId = requestResult.Id,
@@ -82,6 +85,12 @@ public class RequestService(IBus bus) : IRequestService
         var requestDocCommand = new AddRequestDocumentCommand(requestResult.Id, request.Documents);
         await sender.Send(requestDocCommand, cancellationToken);
 
+        // Add Request Comments
+        var requestCustomer = await sender.Send(new SyncRequestCommentsCommand
+        {
+            RequestId = requestResult.Id,
+            RequestCommentDtos = request.Comments
+        }, cancellationToken);
 
         // IntregationEvent
         var integrationEvent = new DocumentLinkedIntegrationEvent
@@ -111,8 +120,14 @@ public class RequestService(IBus bus) : IRequestService
         CancellationToken cancellationToken)
     {
         // Make sure Request Titles Documents are synced and events are published before deleting the Request
-        var syncRequestTitleResult = await sender.Send(new SyncRequestTitleCommand {
+        var syncRequestTitleResult = await sender.Send(new SyncRequestTitlesCommand
+        {
             SessionId = sessionId,
+            RequestId = id
+        }, cancellationToken);
+
+        var syncRequestCommentResult = await sender.Send(new SyncRequestCommentsCommand
+        {
             RequestId = id
         }, cancellationToken);
 
@@ -149,7 +164,6 @@ public class RequestService(IBus bus) : IRequestService
             var removeDocCommand = rd.Adapt<RemoveRequestDocumentCommand>();
             await sender.Send(removeDocCommand, cancellationToken);
         }
-
 
         return new DeleteRequestResult(result.IsSuccess);
     }
@@ -253,7 +267,7 @@ public class RequestService(IBus bus) : IRequestService
             {
                 EntityType = "request",
                 EntityId = request.Id,
-                DocumentId = d.DocumentId!.Value,
+                DocumentId = d.DocumentId!.Value, // Wrong because Tracking entities has updated new DocumentId. This makes new DocumentId always be Unlink
                 IsUnlink = true
             })
         );
@@ -269,11 +283,18 @@ public class RequestService(IBus bus) : IRequestService
         }
 
         // Sync Request Titles
-        var requestTitleResult = await sender.Send(new SyncRequestTitleCommand
+        var requestTitleResult = await sender.Send(new SyncRequestTitlesCommand
         {
             SessionId = request.SessionId,
             RequestId = request.Id,
             RequestTitleDtos = request.Titles
+        }, cancellationToken);
+
+        // Update Request Comments
+        var requestCommentResult = await sender.Send(new SyncRequestCommentsCommand
+        {
+            RequestId = request.Id,
+            RequestCommentDtos = request.Comments
         }, cancellationToken);
 
         return new UpdateRequestResult(requestUpdateResult.IsSuccess);
@@ -394,12 +415,19 @@ public class RequestService(IBus bus) : IRequestService
             await bus.Publish(integrationEvent, cancellationToken);
         }
 
-        // Sync Request Titles
-        var requestTitleResult = await sender.Send(new SyncDraftRequestTitlesCommand
+        // Update Request Titles
+        var requestTitleResult = await sender.Send(new SyncRequestTitlesCommand
         {
             SessionId = request.SessionId,
             RequestId = request.Id,
             RequestTitleDtos = request.Titles
+        }, cancellationToken);
+
+        // Update Request Comments
+        var requestCommentResult = await sender.Send(new SyncRequestCommentsCommand
+        {
+            RequestId =  request.Id,
+            RequestCommentDtos = request.Comments
         }, cancellationToken);
 
         return new UpdateDraftRequestResult(requestUpdateResult.IsSuccess);

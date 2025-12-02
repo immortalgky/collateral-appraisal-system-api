@@ -1,9 +1,9 @@
 namespace Request.RequestTitles.EventHandlers;
 
 public class RequestTitleAddedEventHandler(ILogger<RequestTitleAddedEventHandler> logger)
-    : INotificationHandler<RequestTitleAddedEvent>
+    : INotificationHandler<RequestTitleCreatedEvent>
 {
-    public Task Handle(RequestTitleAddedEvent notification, CancellationToken cancellationToken)
+    public Task Handle(RequestTitleCreatedEvent notification, CancellationToken cancellationToken)
     {
         logger.LogInformation("Domain Event: {EventType} - RequestId: {RequestId}, TitleId: {TitleId}, CollateralType: {CollateralType}",
             notification.GetType().Name,

@@ -31,8 +31,10 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
             DopaAddress = DtoExtensions.ToDomain(command.DopaAddress),
             Notes = command.Notes
         };
-        
+
         requestTitle.Update(requestTitleData);
+
+        requestTitle.AddDomainEvent(new RequestTitleUpdatedEvent(requestTitle.RequestId, requestTitle));
 
         await requestTitleRepository.SaveChangesAsync(cancellationToken);
 

@@ -1,34 +1,28 @@
 using MassTransit;
 using Request.RequestTitles.Features.DraftRequestTitle;
 using Request.RequestTitles.Features.GetRequestTitlesByRequestId;
-using Request.RequestTitles.Features.SyncDraftRequestTitleDocuments;
+using Request.RequestTitles.Features.RemoveRequestTitle;
+using Request.RequestTitles.Features.SyncRequestTitleDocuments;
 using Request.RequestTitles.Features.UpdateDraftRequestTitle;
-using Shared.Messaging.Events;
 
 namespace Request.RequestTitles.Features.SyncDraftRequestTitles;
 
-public class SyncDraftRequestTitlesCommandHandler(ISender sender, IBus bus) : ICommandHandler<SyncDraftRequestTitlesCommand, SyncDraftRequestTitlesResult>
+public class SyncDraftRequestTitlesCommandHandler(ISender sender) : ICommandHandler<SyncDraftRequestTitlesCommand, SyncDraftRequestTitlesResult>
 {
     public async Task<SyncDraftRequestTitlesResult> Handle(SyncDraftRequestTitlesCommand command, CancellationToken cancellationToken)
     {
         // Make sure that linQ operations do not fail due to null reference
         var requestTitleDtos = command.RequestTitleDtos?.ToList() ?? new List<RequestTitleDto>();
-        // Collecting results which be sent to caller
-        var results = new List<RequestTitleDto>();
 
         var requestTitlesResult = await sender.Send(new GetRequestTitlesByRequestIdQuery(command.RequestId), cancellationToken);
 
-        if (requestTitlesResult is null)
-            throw new RequestNotFoundException(command.RequestId);
-
         var existingRequestTitles = requestTitlesResult.RequestTitles?.ToList() ?? new List<RequestTitleDto>();
-        var existingById = existingRequestTitles
+        var existingRequestTitleWithId = existingRequestTitles
             .Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty)
             .ToDictionary(x => x.Id!.Value);
+        var existingRequestTitleIds = existingRequestTitleWithId.Keys.ToHashSet();
 
-        var existingRequestTitleIds = existingById.Keys.ToHashSet();
-
-        var incomingIds = requestTitleDtos
+        var requestTitleIds = requestTitleDtos
             .Where(x => x.Id.HasValue && x.Id.Value != Guid.Empty)
             .Select(x => x.Id!.Value)
             .ToHashSet();
@@ -45,16 +39,16 @@ public class SyncDraftRequestTitlesCommandHandler(ISender sender, IBus bus) : IC
 
         // Removing Request Titles that are not in the incoming list
         var removingRequestTitleIds = existingRequestTitleIds
-            .Except(incomingIds)
+            .Except(requestTitleIds)
             .ToHashSet();
         var removingRequestTitles = removingRequestTitleIds
-            .Select(id => existingById[id])
+            .Select(id => existingRequestTitleWithId[id])
             .ToList();
 
         foreach (var requestTitle in removingRequestTitles)
         {
             // Call 'SyncRequestTitleDocumentsCommand' with empty requestTitleDocumentDtos to remove all documents linked to this title and publish events
-            var removedRequestTitleDocumentsResult = await sender.Send(new SyncDraftRequestTitleDocumentsCommand
+            var removedRequestTitleDocumentsResult = await sender.Send(new SyncRequestTitleDocumentsCommand
             {
                 SessionId = command.SessionId,
                 RequestId = command.RequestId,
@@ -70,46 +64,40 @@ public class SyncDraftRequestTitlesCommandHandler(ISender sender, IBus bus) : IC
             var requestTitleResult = await sender.Send(createRequestTitleCommand, cancellationToken);
 
             
-            var createdRequestTitleDocumentsResult = await sender.Send(new SyncDraftRequestTitleDocumentsCommand
+            var createdRequestTitleDocumentsResult = await sender.Send(new SyncRequestTitleDocumentsCommand
             {
                 SessionId = command.SessionId,
                 RequestId = command.RequestId,
                 TitleId = requestTitleResult.Id,
                 RequestTitleDocumentDtos = requestTitle.RequestTitleDocumentDtos
             }, cancellationToken);
-
-            results.Add(requestTitle with { Id = requestTitleResult.Id, RequestId = command.RequestId, RequestTitleDocumentDtos = createdRequestTitleDocumentsResult.RequestTitleDocumentDtos });
         }
 
         foreach (var requestTitle in updatingRequestTitles)
         {
-            var existing = existingRequestTitles.FirstOrDefault(ert => ert.Id == requestTitle.Id);
+            var existing = existingRequestTitleWithId.GetValueOrDefault(requestTitle.Id!.Value);
             if (existing is null)
             {
                 throw new RequestTitleNotFoundException(requestTitle.Id!.Value);
             }
             else if (requestTitle.CollateralType == existing.CollateralType)
             {
-
                 var updatedRequestTitleResult = await sender.Send(BuildDraftUpdateCommand(command.RequestId, requestTitle), cancellationToken);
 
-
-                var updatedRequestTitleDocumentsResult = await sender.Send(new SyncDraftRequestTitleDocumentsCommand
+                var updatedRequestTitleDocumentsResult = await sender.Send(new SyncRequestTitleDocumentsCommand
                 {
                     SessionId = command.SessionId,
                     RequestId = command.RequestId,
                     TitleId = requestTitle.Id!.Value,
                     RequestTitleDocumentDtos = requestTitle.RequestTitleDocumentDtos
                 }, cancellationToken);
-                
-                results.Add(requestTitle with { RequestId = command.RequestId, RequestTitleDocumentDtos = updatedRequestTitleDocumentsResult.RequestTitleDocumentDtos });
             }
             else
             {
                 // In case that change collateral type of title information, we have to remove existing and create the new one. due to EF core not allow to change it directly.
 
                 // Call 'SyncRequestTitleDocumentsCommand' with empty requestTitleDocumentDtos to remove all documents linked to this title and publish events
-                var removedRequestTitleDocumentsResult = await sender.Send(new SyncDraftRequestTitleDocumentsCommand
+                var removedRequestTitleDocumentsResult = await sender.Send(new SyncRequestTitleDocumentsCommand
                 {
                     SessionId = command.SessionId,
                     RequestId = command.RequestId,
@@ -118,24 +106,21 @@ public class SyncDraftRequestTitlesCommandHandler(ISender sender, IBus bus) : IC
 
                 // Remove existing Request Title, RequestTitleDocuments will be removed by cascade
                 var removeResult = await sender.Send(new RemoveRequestTitleCommand(command.RequestId, requestTitle.Id!.Value));
+
                 // Create new Request Title
                 var newRequestTitle = await sender.Send(BuildDraftCommand(command.RequestId, requestTitle));
 
-                results.Add(requestTitle with { Id = newRequestTitle.Id , RequestId = command.RequestId});
-
-                var createdRequestTitleDocumentsResult = await sender.Send(new SyncDraftRequestTitleDocumentsCommand
+                var createdRequestTitleDocumentsResult = await sender.Send(new SyncRequestTitleDocumentsCommand
                 {
                     SessionId = command.SessionId,
                     RequestId = command.RequestId,
                     TitleId = newRequestTitle.Id,
                     RequestTitleDocumentDtos = requestTitle.RequestTitleDocumentDtos.Select(rtd => rtd with { Id = null }).ToList()
                 }, cancellationToken);
-
-                results.Add(requestTitle with { Id = newRequestTitle.Id, RequestId = command.RequestId, RequestTitleDocumentDtos = createdRequestTitleDocumentsResult.RequestTitleDocumentDtos });
             }
         }
         
-        var result = new SyncDraftRequestTitlesResult(results);
+        var result = new SyncDraftRequestTitlesResult(true);
         return result;
     }
 

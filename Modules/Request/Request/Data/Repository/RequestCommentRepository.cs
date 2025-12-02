@@ -24,4 +24,12 @@ public class RequestCommentRepository(RequestDbContext dbContext) : IRequestComm
     {
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<List<RequestComment>> GetByRequestIdAsync(Guid requestId, CancellationToken cancellationToken = default)
+    {
+        var comments = await dbContext.RequestComments
+           .Where(x => x.RequestId == requestId)
+           .ToListAsync(cancellationToken);
+        return comments;
+    }
 }

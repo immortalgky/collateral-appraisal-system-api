@@ -1,5 +1,3 @@
 namespace Request.RequestTitles.Features.SyncRequestTitleDocuments;
 
-public record SyncRequestTitleDocumentsResult(
-    List<RequestTitleDocumentDto> RequestTitleDocumentDtos
-    );
+public record SyncRequestTitleDocumentsResult(bool IsSuccess);

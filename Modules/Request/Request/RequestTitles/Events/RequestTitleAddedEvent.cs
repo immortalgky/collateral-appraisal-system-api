@@ -1,3 +1,3 @@
 namespace Request.RequestTitles.Events;
 
-public record RequestTitleAddedEvent(Guid RequestId, RequestTitle RequestTitle) : IDomainEvent;
+public record RequestTitleCreatedEvent(Guid RequestId, RequestTitle RequestTitle) : IDomainEvent;

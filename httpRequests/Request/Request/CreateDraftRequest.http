@@ -1,6 +1,6 @@
 @baseUrl= https://localhost:7111
 
-POST {{baseUrl}}/requests
+POST {{baseUrl}}/requests/draft
 headers: localhost:7111
 Content-Type: application/json
 
@@ -11,11 +11,7 @@ Content-Type: application/json
         "loanDetail" : 
         {
             "loanApplicationNo" : "01",
-            "bankingSegment" : "RB",
-            "facilityLimit" : 1700000,
-            "additionalFacilityLimit" : 500000,
-            "previousFacilityLimit" : 1200000,
-            "totalSellingPrice" : 1200000
+            "bankingSegment" : "RB"
         },
         "prevAppraisalNo" : null,
         "address": 
@@ -99,32 +95,10 @@ Content-Type: application/json
             "documentDescription": "comment"
         }
     ],
-    "comments": [
-        {
-            "comment": "This is the first comment.",
-            "commentedBy": "211",
-            "commentedByName": "John"
-        },
-        {
-            "comment": "This is the second comment.",
-            "commentedBy": "212",
-            "commentedByName": "Doe"
-        }
-    ],
     "titles": [
         {
             "collateralType": "L",
             "collateralStatus": false,
-            "titleNo": "Test",
-            "deedType": "NorSor3",
-            "titleDetail": "Test",
-            "rawang": "Test",
-            "landNo": "Test",
-            "surveyNo": "Test",
-            "areaRai": 0,
-            "areaNgan": 0,
-            "areaSquareWa": 0,
-            "ownerName": "Test",
             "titleAddress":
             {
                 "houseNo": "Test",
@@ -132,10 +106,7 @@ Content-Type: application/json
                 "moo": "Test",
                 "soi": "Test",
                 "road": "00",
-                "subDistrict": "00",
-                "district": "00",
-                "province": "00",
-                "postcode": "00"
+                "subDistrict": "00"
             },
             "dopaAddress":
             {
@@ -144,26 +115,16 @@ Content-Type: application/json
                 "moo": "Test",
                 "soi": "Test",
                 "road": "00",
-                "subDistrict": "00",
-                "district": "00",
-                "province": "00",
-                "postcode": "00"
+                "subDistrict": "00"
             },
             "notes": "Test",
             "requestTitleDocumentDtos":
             [
                 {
-                    "documentId": "84DCBD01-8544-41D9-8125-874C963C8003",
                     "documentType": "Test",
-                    "filename": "Test",
                     "prefix": "Test",
                     "set": 1,
-                    "documentDescription": "Update Test",
-                    "filePath": "Test",
-                    "createdWorkstation": "Test",
-                    "isRequired": true,
-                    "uploadedBy": "Test",
-                    "uploadedByName": "Test"
+                    "isRequired": true
                 },
                 {
                     "documentId": "84DCBD01-8544-41D9-8125-874C963C8005",

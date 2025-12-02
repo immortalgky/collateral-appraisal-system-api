@@ -11,6 +11,7 @@ public class UpdateRequestEndpoint(IRequestService requestService) : ICarterModu
                 {
                     var command = request.Adapt<RequestDto>();
                     command.Id = id;
+                    
                     var result = await requestService.UpdateRequestAsync(command, sender, cancellationToken);
 
                     var response = result.Adapt<UpdateRequestResponse>();

@@ -1,3 +1,5 @@
+using Request.RequestTitles.Features.CreateRequestTitle;
+
 namespace Request.RequestTitles.Features.UpdateDraftRequestTitle;
 
 public class UpdateDraftRequestTitleCommandValidator : AbstractValidator<UpdateDraftRequestTitleCommand>

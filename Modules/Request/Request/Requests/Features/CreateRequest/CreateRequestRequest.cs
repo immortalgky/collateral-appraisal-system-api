@@ -12,5 +12,6 @@ public record CreateRequestRequest(
     List<RequestCustomerDto> Customers,
     List<RequestPropertyDto> Properties,
     List<RequestDocumentDto> Documents,
+    List<RequestCommentDto> Comments,
     List<RequestTitleDto> Titles
 );

@@ -24,5 +24,6 @@ public class RequestDto
     public List<RequestCustomerDto> Customers { get; set; }
     public List<RequestPropertyDto> Properties { get; set; }
     public List<RequestDocumentDto> Documents { get; set; }
+    public List<RequestCommentDto> Comments { get; set; }
     public List<RequestTitleDto> Titles { get; set; } = new List<RequestTitleDto>();
 }

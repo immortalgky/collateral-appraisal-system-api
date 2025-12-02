@@ -200,7 +200,6 @@ public sealed class TitleLand : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleLand(landData);
     }
 
@@ -219,7 +218,6 @@ public sealed class TitleLand : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleLand(landData);
     }
 
@@ -317,7 +315,6 @@ public sealed class TitleLeaseAgreementLand : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleLeaseAgreementLand(leaseAgreementLandData);
     }
 
@@ -336,7 +333,6 @@ public sealed class TitleLeaseAgreementLand : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleLeaseAgreementLand(leaseAgreementLandData);
     }
 
@@ -431,7 +427,6 @@ public sealed class TitleBuilding : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleBuilding(buildingData);
     }
 
@@ -448,7 +443,6 @@ public sealed class TitleBuilding : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleBuilding(buildingData);
     }
 
@@ -522,7 +516,6 @@ public sealed class TitleLeaseAgreementBuilding : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleLeaseAgreementBuilding(leaseAgreementBuildingData);
     }
 
@@ -539,7 +532,6 @@ public sealed class TitleLeaseAgreementBuilding : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleLeaseAgreementBuilding(leaseAgreementBuildingData);
     }
 
@@ -617,7 +609,6 @@ public sealed class TitleLandBuilding : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleLandBuilding(landBuildingData);
     }
 
@@ -638,7 +629,6 @@ public sealed class TitleLandBuilding : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleLandBuilding(landBuildingData);
     }
 
@@ -745,7 +735,6 @@ public sealed class TitleLeaseAgreementLandBuilding : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleLeaseAgreementLandBuilding(leaseAgreementLandBuildingData);
     }
 
@@ -766,7 +755,6 @@ public sealed class TitleLeaseAgreementLandBuilding : RequestTitle
             Notes = requestTitleData.Notes
         };
         
-        this.AddDomainEvent(new RequestTitleAddedEvent(this.RequestId, this));
         return new TitleLeaseAgreementLandBuilding(leaseAgreementLandBuildingData);
     }
 

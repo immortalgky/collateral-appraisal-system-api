@@ -4,7 +4,6 @@ namespace Request.Requests.Features.UpdateRequest;
 
 public record UpdateRequestRequest(
     Guid SessionId,
-    Guid Id,
     RequestDetailDto Detail,
     bool IsPMA,
     string Purpose,
@@ -12,5 +11,7 @@ public record UpdateRequestRequest(
     SourceSystemDto SourceSystem,
     List<RequestCustomerDto> Customers,
     List<RequestPropertyDto> Properties,
-    List<RequestDocumentDto> Documents
+    List<RequestDocumentDto> Documents,
+    List<RequestCommentDto> Comments,
+    List<RequestTitleDto> Titles
 );

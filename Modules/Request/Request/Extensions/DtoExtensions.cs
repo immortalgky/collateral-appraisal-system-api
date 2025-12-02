@@ -140,7 +140,7 @@ public static class DtoExtensions
 
     public static RequestComment ToDomain(this RequestCommentDto dto)
     {
-        return RequestComment.Create(dto.Id, dto.Comment, dto.CommentedBy, dto.CommentedByName);
+        return RequestComment.Create(dto.RequestId, dto.Comment, dto.CommentedBy, dto.CommentedByName);
     }
 
     public static DocumentClassification ToDomain(this DocumentClassificationDto dto)

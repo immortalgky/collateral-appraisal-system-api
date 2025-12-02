@@ -5,11 +5,10 @@ public class RequestTitleRemovedEventHandler(ILogger<RequestTitleRemovedEventHan
 {
     public Task Handle(RequestTitleRemovedEvent notification, CancellationToken cancellationToken)
     {
-        logger.LogInformation("Domain Event: {EventType} - RequestId: {RequestId}, TitleId: {TitleId}, CollateralType: {CollateralType}",
+        logger.LogInformation("Domain Event: {EventType} - RequestId: {RequestId}, TitleId: {TitleId}",
             notification.GetType().Name,
             notification.RequestId,
-            notification.TitleId,
-            notification.CollateralType);
+            notification.TitleId);
 
         return Task.CompletedTask;
     }

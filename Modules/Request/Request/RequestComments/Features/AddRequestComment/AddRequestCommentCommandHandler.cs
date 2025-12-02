@@ -21,6 +21,14 @@ public class AddRequestCommentCommandHandler(
 
         await requestCommentRepository.SaveChangesAsync(cancellationToken);
 
-        return new AddRequestCommentResult(true);
+        return new AddRequestCommentResult
+        {
+            Id = comment.Id,
+            RequestId = comment.RequestId,
+            Comment = comment.Comment,
+            CommentedBy = comment.CommentedBy,
+            CommentedByName = comment.CommentedByName,
+            CommentedAt = comment.CommentedAt
+        };
     }
 }

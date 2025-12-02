@@ -11,5 +11,7 @@ public record CreateDraftRequestRequest(
     SourceSystemDto SourceSystem,
     List<RequestCustomerDto>? Customers,
     List<RequestPropertyDto>? Properties,
-    List<RequestDocumentDto>? Documents
+    List<RequestDocumentDto>? Documents,
+    List<RequestCommentDto> Comments,
+    List<RequestTitleDto> Titles
 );
