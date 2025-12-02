@@ -1,7 +1,7 @@
-@baseUrl= https://localhost:7111
-@requestId=BB9640C6-3DBB-4161-B0DF-54CD2D4FA4C1
+@baseUrl=https://localhost:7111
+@requestId=EFBA270A-7B7B-45C5-85F8-D7963846945D
 
-PATCH {{baseUrl}}/requests/{{requestId}}/draft
+PATCH {{baseUrl}}/requests/{{requestId}}
 headers: localhost:7111
 Content-Type: application/json
 
@@ -105,19 +105,19 @@ Content-Type: application/json
     ],
     "comments": [
         {
-            "comment": "This is the first comment.",
+            "comment": "This is the update first comment.",
             "commentedBy": "211",
             "commentedByName": "John"
         },
         {
-            "comment": "This is the second comment.",
+            "comment": "This is the update second comment.",
             "commentedBy": "212",
             "commentedByName": "Doe"
         }
     ],
     "titles": [
         {
-            "id": "7FE5405B-EFFB-4F98-A2F8-6501CB680B5D",
+            "id": "3DDE6564-E697-46E3-9B1D-2CA2BD1B33C3",
             "collateralType": "L",
             "collateralStatus": false,
             "titleNo": "Test",

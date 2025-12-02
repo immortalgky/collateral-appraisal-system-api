@@ -1,5 +1,5 @@
 @baseUrl= https://localhost:7111
-@requestId=BB9640C6-3DBB-4161-B0DF-54CD2D4FA4C1
+@requestId=674E744C-BED8-4527-A97C-08EC63B9435E
 
 PATCH {{baseUrl}}/requests/{{requestId}}/draft
 headers: localhost:7111
@@ -117,6 +117,7 @@ Content-Type: application/json
     ],
     "titles": [
         {
+            "id": "37038FD5-D811-4473-8619-F68DA0018C8C",
             "collateralType": "L",
             "collateralStatus": false,
             "titleAddress":
@@ -147,6 +148,7 @@ Content-Type: application/json
             "requestTitleDocumentDtos":
             [
                 {
+                    "id": "202F4CA8-B490-4586-A133-0F9A64E4ED98",
                     "documentId": "84DCBD01-8544-41D9-8125-874C963C8003",
                     "documentType": "Test Update",
                     "filename": "Test Update",

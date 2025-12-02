@@ -11,6 +11,7 @@ using Request.Requests.Features.DeleteRequest;
 using Request.RequestDocuments.Features.UpdateRequestDocument;
 using Request.RequestTitles.Features.SyncRequestTitles;
 using Request.RequestComments.Features.SyncRequestComments;
+using Request.RequestTitles.Features.SyncDraftRequestTitles;
 
 namespace Request.Services;
 
@@ -23,7 +24,6 @@ public class RequestService(IBus bus) : IRequestService
         // Create Request
         var requestCommand = request.Adapt<CreateRequestCommand>();
         var requestResult = await sender.Send(requestCommand, cancellationToken);
-
 
         // Add Request Documents
         var requestDocCommand = new AddRequestDocumentCommand(requestResult.Id, request.Documents);
@@ -74,7 +74,7 @@ public class RequestService(IBus bus) : IRequestService
         var requestResult = await sender.Send(requestCommand, cancellationToken);
 
         // Sync Request Titles
-        var requestTitleResult = await sender.Send(new SyncRequestTitlesCommand
+        var requestTitleResult = await sender.Send(new SyncDraftRequestTitlesCommand
         {
             SessionId = request.SessionId,
             RequestId = requestResult.Id,
@@ -126,6 +126,7 @@ public class RequestService(IBus bus) : IRequestService
             RequestId = id
         }, cancellationToken);
 
+        // Make sure Request Comments are synced before deleting the Request
         var syncRequestCommentResult = await sender.Send(new SyncRequestCommentsCommand
         {
             RequestId = id
@@ -171,6 +172,21 @@ public class RequestService(IBus bus) : IRequestService
     public async Task<UpdateRequestResult> UpdateRequestAsync(RequestDto request, ISender sender,
         CancellationToken cancellationToken)
     {
+        // Sync Request Titles
+        var requestTitleResult = await sender.Send(new SyncRequestTitlesCommand
+        {
+            SessionId = request.SessionId,
+            RequestId = request.Id,
+            RequestTitleDtos = request.Titles
+        }, cancellationToken);
+
+        // Update Request Comments
+        var requestCommentResult = await sender.Send(new SyncRequestCommentsCommand
+        {
+            RequestId = request.Id,
+            RequestCommentDtos = request.Comments
+        }, cancellationToken);
+
         // Update Request
         var requestUpdateCommand = request.Adapt<UpdateRequestCommand>();
         var requestUpdateResult = await sender.Send(requestUpdateCommand, cancellationToken);
@@ -282,8 +298,14 @@ public class RequestService(IBus bus) : IRequestService
             await bus.Publish(integrationEvent, cancellationToken);
         }
 
-        // Sync Request Titles
-        var requestTitleResult = await sender.Send(new SyncRequestTitlesCommand
+        return new UpdateRequestResult(requestUpdateResult.IsSuccess);
+    }
+
+    public async Task<UpdateDraftRequestResult> UpdateRequestDraftAsync(RequestDto request, ISender sender,
+        CancellationToken cancellationToken)
+    {
+        // Update Request Titles
+        var requestTitleResult = await sender.Send(new SyncDraftRequestTitlesCommand
         {
             SessionId = request.SessionId,
             RequestId = request.Id,
@@ -297,12 +319,6 @@ public class RequestService(IBus bus) : IRequestService
             RequestCommentDtos = request.Comments
         }, cancellationToken);
 
-        return new UpdateRequestResult(requestUpdateResult.IsSuccess);
-    }
-
-    public async Task<UpdateDraftRequestResult> UpdateRequestDraftAsync(RequestDto request, ISender sender,
-        CancellationToken cancellationToken)
-    {
         // Update Request
         var requestUpdateCommand = request.Adapt<UpdateDraftRequestCommand>();
         var requestUpdateResult = await sender.Send(requestUpdateCommand, cancellationToken);
@@ -414,21 +430,6 @@ public class RequestService(IBus bus) : IRequestService
             };
             await bus.Publish(integrationEvent, cancellationToken);
         }
-
-        // Update Request Titles
-        var requestTitleResult = await sender.Send(new SyncRequestTitlesCommand
-        {
-            SessionId = request.SessionId,
-            RequestId = request.Id,
-            RequestTitleDtos = request.Titles
-        }, cancellationToken);
-
-        // Update Request Comments
-        var requestCommentResult = await sender.Send(new SyncRequestCommentsCommand
-        {
-            RequestId =  request.Id,
-            RequestCommentDtos = request.Comments
-        }, cancellationToken);
 
         return new UpdateDraftRequestResult(requestUpdateResult.IsSuccess);
     }
