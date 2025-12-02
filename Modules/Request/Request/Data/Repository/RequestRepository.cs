@@ -14,13 +14,31 @@ public class RequestRepository(RequestDbContext dbContext, IAppraisalNumberGener
         CancellationToken cancellationToken = default)
     {
         // Generate appraisal number if not already set
-        // if (request.AppraisalNo == null)
-        // {
-        //     var appraisalNumber = await generator.GenerateAsync(cancellationToken);
-        //     request.SetAppraisalNumber(appraisalNumber);
-        // }
+        if (request.AppraisalNo == null)
+        {
+            var appraisalNumber = await generator.GenerateAsync(cancellationToken);
+            request.SetAppraisalNumber(appraisalNumber);
+        }
 
         dbContext.Requests.Add(request);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return request;
+    }
+
+    public async Task<Requests.Models.Request> CreateSubmitRequestAsync(Requests.Models.Request request,
+        CancellationToken cancellationToken = default)
+    {
+        // Generate appraisal number if not already set
+        if (request.AppraisalNo == null)
+        {
+            var appraisalNumber = await generator.GenerateAsync(cancellationToken);
+            request.SetAppraisalNumber(appraisalNumber);
+        }
+
+        // Create Request and Stamp DateTime Status Submitted
+        dbContext.Requests.Add(request);
+        request.Submit();
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return request;

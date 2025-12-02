@@ -27,7 +27,7 @@ public class RemoveLinkRequestTitleDocumentByIdCommandHandler(IRequestTitleDocum
                         EntityType = "Title",
                         EntityId = command.TitleId,
                         DocumentId = requestTitleDocument.DocumentId!.Value,
-                        IsUnlinked = true
+                        IsUnlink = true
                     }
                 }
             }, cancellationToken);

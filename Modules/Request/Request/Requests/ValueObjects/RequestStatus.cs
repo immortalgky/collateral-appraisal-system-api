@@ -4,15 +4,32 @@ public class RequestStatus : ValueObject
 {
     public string Code { get; }
     public static RequestStatus Draft => new(nameof(Draft).ToUpper());
+    public static RequestStatus New => new(nameof(New).ToUpper());
     public static RequestStatus Submitted => new(nameof(Submitted).ToUpper());
     public static RequestStatus Assigned => new(nameof(Assigned).ToUpper());
     public static RequestStatus InProgress => new(nameof(InProgress).ToUpper());
     public static RequestStatus Completed => new(nameof(Completed).ToUpper());
     public static RequestStatus Cancelled => new(nameof(Cancelled).ToUpper());
 
+
+    public DateTime? SubmittedAt { get; }
+    public DateTime? CompletedAt { get; }
+
     private RequestStatus(string code)
     {
         Code = code;
+    }
+
+    private RequestStatus(string code, DateTime? submittedAt, DateTime? completedAt)
+    {
+        Code = code;
+        SubmittedAt = submittedAt;
+        CompletedAt = completedAt;
+    }
+
+    public static RequestStatus UpdateDate(string code, DateTime? submittedAt, DateTime? completedAt)
+    {
+        return new RequestStatus(code, submittedAt, completedAt);
     }
 
     public override string ToString() => Code;

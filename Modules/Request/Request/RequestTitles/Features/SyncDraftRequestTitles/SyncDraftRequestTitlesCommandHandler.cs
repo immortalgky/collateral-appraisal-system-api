@@ -12,7 +12,7 @@ public class SyncDraftRequestTitlesCommandHandler(ISender sender, IBus bus) : IC
     public async Task<SyncDraftRequestTitlesResult> Handle(SyncDraftRequestTitlesCommand command, CancellationToken cancellationToken)
     {
         // Make sure that linQ operations do not fail due to null reference
-        var requestTitleDtos = command.requestTitleDtos?.ToList() ?? new List<RequestTitleDto>();
+        var requestTitleDtos = command.RequestTitleDtos?.ToList() ?? new List<RequestTitleDto>();
         // Collecting results which be sent to caller
         var results = new List<RequestTitleDto>();
 

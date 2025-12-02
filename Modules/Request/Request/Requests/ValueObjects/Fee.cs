@@ -2,27 +2,24 @@ namespace Request.Requests.ValueObjects;
 
 public class Fee : ValueObject
 {
-    public string? FeePaymentType { get; }
-    public decimal? AbsorbedFee { get; }
+    public string? FeeType { get; }
     public string? FeeNotes { get; }
+    public decimal? BankAbsorbAmt { get; }
 
-    private Fee(
-        string? feePaymentType, 
-        decimal? absorbedFee,
-        string? feeNotes
-    )
+    private Fee(string feeType, string? feeNote, decimal? bankAbsorbAmt)
     {
-        FeePaymentType = feePaymentType;
-        AbsorbedFee = absorbedFee;
-        FeeNotes = feeNotes;
+        FeeType = feeType;
+        FeeNotes = feeNote;
+        BankAbsorbAmt = bankAbsorbAmt;
     }
 
-    public static Fee Create(
-        string? feePaymentType, 
-        decimal? absorbedFee,
-        string? feeNotes
-    )
+    private Fee()
     {
-        return new Fee(feePaymentType, absorbedFee, feeNotes);
+        //EF Core
+    }
+
+    public static Fee Create(string feeType, string? feeNote, decimal? bankAbsorbAmt)
+    {
+        return new Fee(feeType, feeNote, bankAbsorbAmt);
     }
 }

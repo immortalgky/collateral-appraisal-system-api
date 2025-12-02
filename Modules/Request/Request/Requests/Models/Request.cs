@@ -1,25 +1,14 @@
 namespace Request.Requests.Models;
 
-public class Request : Aggregate<Guid> // Change `long` to `Guid`
+public class Request : Aggregate<Guid>
 {
-    public RequestNumber? RequestNumber { get; private set; }
-    public string? Purpose { get; private set; } = default!;
-
-    // Channel, RequestDate, RequestedBy, RequestedByName
-    public Source Source { get; private set; } = default!;
+    public AppraisalNumber AppraisalNo { get; private set; }
+    public string? Purpose { get; private set; }
+    public SourceSystem SourceSystem { get; private set; }
     public string Priority { get; private set; } = default!;
     public RequestStatus Status { get; private set; } = default!;
-    public DateTime? SubmittedAt { get; private set; }
-    public DateTime? CompletedAt { get; private set; }
-
-    // IsDeleted, DeleltedOn, DeletedBy
-    public Deletion Deletion { get; private set; } = default!;
+    public SoftDelete SoftDelete { get; private set; }
     public bool IsPMA { get; private set; }
-
-    public DateTime? CreatedAt { get; private set; }
-    public string? CreateBy { get; private set; } = default!;
-
-    // Details
     public RequestDetail Detail { get; private set; } = default!;
 
     // Customers
@@ -30,167 +19,108 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
     private readonly List<RequestProperty> _properties = [];
     public IReadOnlyList<RequestProperty> Properties => _properties.AsReadOnly();
 
-    // Titles
-    private readonly List<RequestTitle> _requestTitles = [];
-    public IReadOnlyList<RequestTitle> RequestTitles => _requestTitles.AsReadOnly();
+    // Documents
+    private readonly List<RequestDocument> _documents = [];
+    public IReadOnlyList<RequestDocument> Documents => _documents.AsReadOnly();
 
-    private readonly List<RequestComment> _requestComments = [];
-    public IReadOnlyList<RequestComment> RequestComments => _requestComments.AsReadOnly();
+    private readonly List<RequestTitle> _titles = [];
+    public IReadOnlyList<RequestTitle> Titles => _titles.AsReadOnly();
 
+    private readonly List<RequestComment> _comments = [];
+    public IReadOnlyList<RequestComment> Comments => _comments.AsReadOnly();
 
     private Request()
     {
         // For EF Core
     }
 
-    private Request(
-        RequestNumber? requestNumber, 
-        string? purpose, 
-        string priority, 
-        RequestStatus requestStatus, 
-        Deletion deletion, 
-        bool isPMA, 
-        RequestDetail detail
-    )
+    private Request(RequestStatus status, RequestDetail detail, bool isPMA, string purpose,
+        string priority, SourceSystem sourceSystem, SoftDelete softDelete)
     {
-        RequestNumber = requestNumber;
+        Id = Guid.NewGuid();
+        Status = status;
+        Detail = detail;
+        IsPMA = isPMA;
         Purpose = purpose;
         Priority = priority;
-        Status = requestStatus;
-        Deletion = deletion;
-        IsPMA = isPMA;
-        Detail = detail;
+        SoftDelete = softDelete;
+        SourceSystem = sourceSystem;
 
         AddDomainEvent(new RequestCreatedEvent(this));
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
-    public static Request Create( 
-        string? purpose, 
+    public static Request Create(
+        RequestDetail requestDetail,
+        bool isPMA,
+        string purpose,
         string priority,
-        RequestStatus requestStatus,
-        bool isPMA, 
-        bool hasOwnAppraisalBook,
-        Guid? previousAppraisalId,
-        LoanDetail loanDetail,
-        Address address,
-        Contact contact,
-        Appointment appointment,
-        Fee fee
+        SourceSystem sourceSystem
     )
     {
-        var requestDetail = RequestDetail.Create(
-            hasOwnAppraisalBook,
-            previousAppraisalId,
-            loanDetail,
-            address,
-            contact,
-            appointment,
-            fee
+        var detail = RequestDetail.Create(
+            requestDetail.HasAppraisalBook,
+            requestDetail.PrevAppraisalNo,
+            requestDetail.LoanDetail,
+            requestDetail.Address,
+            requestDetail.Contact,
+            requestDetail.Appointment,
+            requestDetail.Fee
         );
-
-        return new Request(
-            RequestNumber.Create("REQ-000001-2025"),
-            purpose,
-            priority,
-            requestStatus,
-            Deletion.NotDeleted(),
-            isPMA,
-            requestDetail
-        );
+        var softDelete = SoftDelete.Create(false, null, null);
+        return new Request(RequestStatus.New, detail, isPMA, purpose, priority, sourceSystem, softDelete);
     }
 
-    // public void SetAppraisalNumber(AppraisalNumber appraisalNo)
-    // {
-    //     ArgumentException.ThrowIfNullOrWhiteSpace(appraisalNo);
-
-    //     AppraisalNo = appraisalNo;
-    // }
-
-    private void UpdateStatus(RequestStatus status)
-    {
-        ArgumentNullException.ThrowIfNull(status);
-
-        Status = status;
-    }
-
-    public void SaveDraft()
-    {
-        UpdateStatus(RequestStatus.Draft);
-    }
-
-    public void Submit()
-    {
-        UpdateStatus(RequestStatus.Submitted);
-        // update SubmittedAt
-        // update Source
-    }
-
-    public void UpdateSource(string requestedBy, string requestedByName, string? channel)
+    public void UpdateRequest(
+        string purpose,
+        SourceSystem sourceSystem,
+        string priority,
+        bool isPMA,
+        RequestDetail detail,
+        List<RequestCustomer> customers,
+        List<RequestProperty> properties)
     {
         RuleCheck.Valid()
-            .AddErrorIf(Status != RequestStatus.Submitted,
-                "Cannot update request customers when the status is not Draft or New.")
+            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
+                "Cannot update request when the status is not Draft or New.")
+            .AddErrorIf(SoftDelete.IsDeleted,
+                "Cannot update a deleted request.")
             .ThrowIfInvalid();
-        
-        var newSource = Source.Create(requestedBy, requestedByName, channel);
-
-        if (!Source.Equals(newSource))
-            Source = newSource;
-    }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
-    public void UpdateDetail(
-        bool hasAppraisalBook,
-        Guid? previousAppraisaId,
-        LoanDetail loanDetail,
-        Address address,
-        Contact contact,
-        Appointment appointment,
-        Fee fee
-    )
-    {
-        RuleCheck.Valid()
-            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.Submitted,
-                "Cannot update request details when the status is not Draft or New.")
-            .ThrowIfInvalid();
-
+        Purpose = purpose;
+        SourceSystem = sourceSystem;
+        Priority = priority;
+        IsPMA = isPMA;
         var newDetail = RequestDetail.Create(
-            hasAppraisalBook,
-            previousAppraisaId,
-            loanDetail,
-            address,
-            contact,
-            appointment,
-            fee
+            detail.HasAppraisalBook,
+            detail.PrevAppraisalNo,
+            detail.LoanDetail,
+            detail.Address,
+            detail.Contact,
+            detail.Appointment,
+            detail.Fee
         );
 
         if (!Detail.Equals(newDetail))
         {
             Detail = newDetail;
         }
-    }
-
-    public void UpdateCustomers(List<RequestCustomer> customers)
-    {
-        RuleCheck.Valid()
-            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.Submitted,
-                "Cannot update request customers when the status is not Draft or New.")
-            .ThrowIfInvalid();
 
         if (!_customers.SequenceEqual(customers))
         {
+            var duplicateNames = customers
+                .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+
+            RuleCheck.Valid()
+                .AddErrorIf(duplicateNames.Any(),
+                    $"Customer with name '{string.Join(", ", duplicateNames)}' already exists.")
+                .ThrowIfInvalid();
+
             _customers.Clear();
             _customers.AddRange(customers);
         }
-    }
-
-    public void UpdateProperties(List<RequestProperty> properties)
-    {
-        RuleCheck.Valid()
-            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.Submitted,
-                "Cannot update request properties when the status is not Draft or New.")
-            .ThrowIfInvalid();
 
         if (!_properties.SequenceEqual(properties))
         {
@@ -199,10 +129,91 @@ public class Request : Aggregate<Guid> // Change `long` to `Guid`
         }
     }
 
+
+    public static Request CreateDraft(
+        RequestDetail requestDetail,
+        bool isPMA,
+        string purpose,
+        string priority,
+        SourceSystem sourceSystem
+    )
+    {
+        var detail = RequestDetail.Create(
+            requestDetail.HasAppraisalBook,
+            requestDetail.PrevAppraisalNo,
+            requestDetail.LoanDetail,
+            requestDetail.Address,
+            requestDetail.Contact,
+            requestDetail.Appointment,
+            requestDetail.Fee
+        );
+        var softDelete = SoftDelete.Create(false, null, null);
+
+        return new Request(RequestStatus.Draft, detail, isPMA, purpose, priority, sourceSystem, softDelete);
+    }
+
+    public void SetAppraisalNumber(AppraisalNumber appraisalNo)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appraisalNo);
+
+        AppraisalNo = appraisalNo;
+    }
+
+    private void UpdateStatus(RequestStatus status)
+    {
+        RuleCheck.Valid()
+            .AddErrorIf(SoftDelete.IsDeleted,
+                "Cannot update a deleted request.")
+            .ThrowIfInvalid();
+
+        ArgumentNullException.ThrowIfNull(status);
+
+        if (status == RequestStatus.Submitted)
+        {
+            var newStatus = RequestStatus.UpdateDate(status, DateTime.Now, null);
+            Status = newStatus;
+        }
+        else if (status == RequestStatus.Completed)
+        {
+            var existingSubmitted = Status.SubmittedAt;
+            var newStatus = RequestStatus.UpdateDate(status, existingSubmitted, DateTime.Now);
+            Status = newStatus;
+        }
+        else
+        {
+            Status = status;
+        }
+    }
+
+    public void UpdateIsDelete()
+    {
+        RuleCheck.Valid()
+            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
+                "Cannot update request when the status is not Draft or New.")
+            .ThrowIfInvalid();
+        var isDeleted = SoftDelete.Create(
+            true, DateTime.Now, SourceSystem.Creator
+        );
+
+        SoftDelete = isDeleted;
+    }
+
+    public void Submit()
+    {
+        UpdateStatus(RequestStatus.Submitted);
+    }
+
+    public void Completed()
+    {
+        UpdateStatus(RequestStatus.Completed);
+    }
+
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public void AddCustomer(string name, string contactNumber)
     {
         RuleCheck.Valid()
-            .AddErrorIf(_customers.Any(c => c.Name == name), "Customer with name '{name}' already exists.")
+            .AddErrorIf(_customers.Any(c => c.Name == name), $"Customer with name '{name}' already exists.")
             .ThrowIfInvalid();
 
         var customer = RequestCustomer.Create(name, contactNumber);

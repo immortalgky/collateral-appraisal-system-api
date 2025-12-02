@@ -9,17 +9,18 @@ public class GetRequestCommentsByRequestIdEndpoint : ICarterModule
             {
                 var query = new GetRequestCommentsByRequestIdQuery(requestId);
 
-                var result = await sender.Send(query, cancellationToken);
+                    var result = await sender.Send(query, cancellationToken);
 
-                var response = result.Adapt<GetRequestCommentsByRequestIdResponse>();
+                    var response = result.Adapt<GetRequestCommentsByRequestIdResponse>();
 
-                return Results.Ok(response);
-            })
+                    return Results.Ok(response);
+                })
             .WithName("GetRequestCommentsByRequestId")
             .Produces<GetRequestCommentsByRequestIdResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get all comments for a request")
-            .WithDescription("Retrieves all comments associated with the specified request. Comments are returned in chronological order (oldest first).")
+            .WithDescription(
+                "Retrieves all comments associated with the specified request. Comments are returned in chronological order (oldest first).")
             .WithTags("Request Comments")
             .AllowAnonymous();
             // .RequireAuthorization("CanReadRequest");

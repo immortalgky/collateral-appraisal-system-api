@@ -1,5 +1,6 @@
-using MassTransit.SagaStateMachine;
-using Request.RequestComments.Models;
+using Request.RequestDocuments.Features.AddRequestDocument;
+using Request.Contracts.RequestDocuments.Dto;
+
 
 namespace Request.Extensions;
 
@@ -14,14 +15,27 @@ public static class DtoExtensions
         );
     }
 
+    public static RequestDetail ToDomain(this RequestDetailDto? dto)
+    {
+        return RequestDetail.Create(
+            dto.HasAppraisalBook,
+            dto.PrevAppraisalNo,
+            dto.LoanDetail.ToDomain(),
+            dto.Address.ToDomain(),
+            dto.Contact.ToDomain(),
+            dto.Appointment.ToDomain(),
+            dto.Fee.ToDomain()
+        );
+    }
+
     public static LoanDetail ToDomain(this LoanDetailDto? dto)
     {
         return LoanDetail.Create(
             dto?.BankingSegment,
             dto?.LoanApplicationNo,
             dto?.FacilityLimit,
-            dto?.TopUpLimit,
-            dto?.OldFacilityLimit,
+            dto?.AdditionalFacilityLimit,
+            dto?.PreviousFacilityLimit,
             dto?.TotalSellingPrice
         );
     }
@@ -55,10 +69,31 @@ public static class DtoExtensions
     public static Fee ToDomain(this FeeDto dto)
     {
         return Fee.Create(
-            dto.FeePaymentType,
-            dto.AbsorbedFee,
-            dto.FeeNotes
+            dto.FeeType,
+            dto.FeeNote,
+            dto.BankAbsorbAmt
         );
+    }
+
+    public static SoftDelete ToDomain(this SoftDeleteDto dto)
+    {
+        return SoftDelete.Create(
+            dto.IsDeleted,
+            dto.DeletedOn,
+            dto.DeletedBy
+        );
+    }
+
+    public static SourceSystem ToDomain(this SourceSystemDto dto)
+    {
+        return SourceSystem.Create(
+            dto.Channel,
+            dto.RequestDate,
+            dto.RequestBy,
+            dto.RequestByName,
+            dto.CreatedDate,
+            dto.Creator,
+            dto.CreatorName);
     }
 
     public static Requestor ToDomain(this RequestorDto dto)
@@ -74,6 +109,15 @@ public static class DtoExtensions
             dto.RequestorDepartment,
             dto.RequestorSection,
             dto.RequestorCostCenter
+        );
+    }
+
+
+    public static Appointment ToDomain(this AppointmentDto dto)
+    {
+        return Appointment.Create(
+            dto.AppointmentDateTime,
+            dto.AppointmentLocation
         );
     }
 
@@ -97,6 +141,23 @@ public static class DtoExtensions
     public static RequestComment ToDomain(this RequestCommentDto dto)
     {
         return RequestComment.Create(dto.Id, dto.Comment, dto.CommentedBy, dto.CommentedByName);
+    }
+
+    public static DocumentClassification ToDomain(this DocumentClassificationDto dto)
+    {
+        return DocumentClassification.Create(
+            dto.DocumentType,
+            dto.IsRequired
+        );
+    }
+
+    public static UploadInfo ToDomain(this UploadInfoDto dto)
+    {
+        return UploadInfo.Create(
+            dto.UploadedBy,
+            dto.UploadedByName,
+            dto.UploadedAt
+        );
     }
 
     public static TitleDeedInfo ToDomain(this TitleDeedInfoDto dto)

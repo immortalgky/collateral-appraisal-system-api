@@ -12,25 +12,66 @@ public class CreateRequestCommandValidator : AbstractValidator<CreateRequestComm
             .NotEmpty()
             .WithMessage("Priority is required.");
 
-        // RuleFor(x => x.Channel)
-        //     .NotEmpty()
-        //     .WithMessage("Channel is required.");
+        RuleFor(x => x.SourceSystem.Channel)
+            .NotEmpty()
+            .WithMessage("Channel is required.");
 
-        RuleFor(x => x.Address)
+        RuleFor(x => x.SourceSystem.RequestDate)
+            .NotEmpty()
+            .WithMessage("RequestDate is required.");
+
+        RuleFor(x => x.SourceSystem.RequestBy)
+            .NotEmpty()
+            .WithMessage("RequestBy is required.");
+
+        RuleFor(x => x.SourceSystem.RequestByName)
+            .NotEmpty()
+            .WithMessage("RequestByName is required.");
+
+        RuleFor(x => x.SourceSystem.CreatedDate)
+            .NotEmpty()
+            .WithMessage("CreatedDate is required.");
+
+        RuleFor(x => x.SourceSystem.Creator)
+            .NotEmpty()
+            .WithMessage("Creator is required.");
+
+        RuleFor(x => x.SourceSystem.CreatorName)
+            .NotEmpty()
+            .WithMessage("CreatorName is required.");
+
+        RuleFor(x => x.Detail.LoanDetail.BankingSegment)
+            .NotEmpty()
+            .WithMessage("BankingSegment is required.");
+
+        RuleFor(x => x.Detail.Address.SubDistrict)
             .NotNull()
-            .WithMessage("Address is required.");
+            .WithMessage("SubDistrict is required.");
 
-        RuleFor(x => x.Contact)
+        RuleFor(x => x.Detail.Contact.ContactPersonContactNo)
             .NotNull()
-            .WithMessage("Contact is required.");
+            .WithMessage("ContactPersonContactNo is required.");
 
-        RuleFor(x => x.Fee)
+        RuleFor(x => x.Detail.Contact.ContactPersonName)
             .NotNull()
-            .WithMessage("Fee is required.");
+            .WithMessage("ContactPersonName is required.");
 
-        // RuleFor(x => x.Requestor)
-        //     .NotNull()
-        //     .WithMessage("Requestor is required.");
+        RuleFor(x => x.Detail.Fee.FeeType)
+            .NotNull()
+            .WithMessage("FeeType is required.");
+
+        RuleFor(x => x.Detail.Appointment.AppointmentDateTime)
+            .NotNull()
+            .WithMessage("AppointmentDateTime is required.");
+
+        RuleFor(x => x.Detail.Appointment.AppointmentLocation)
+            .NotNull()
+            .WithMessage("AppointmentLocation is required.");
+
+        RuleFor(x => x.Detail.LoanDetail.FacilityLimit)
+            .Must(FacilityLimit => FacilityLimit is null || FacilityLimit > 0)
+            .WithMessage("FacilityLimit cannot be zero.");
+
 
         RuleFor(x => x.Customers)
             .NotNull()

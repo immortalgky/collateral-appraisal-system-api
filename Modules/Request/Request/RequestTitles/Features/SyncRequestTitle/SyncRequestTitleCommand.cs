@@ -1,7 +1,8 @@
 namespace Request.RequestTitles.Features.SyncRequestTitle;
 
-public record SyncRequestTitleCommand(
-    Guid SessionId, 
-    Guid RequestId, 
-    List<RequestTitleDto> requestTitleDtos
-) : ICommand<SyncRequestTitleResult>;
+public record SyncRequestTitleCommand : ICommand<SyncRequestTitleResult>
+{
+    public Guid SessionId { get; init; }
+    public Guid RequestId { get; init; }
+    public List<RequestTitleDto> RequestTitleDtos { get; init; } = new List<RequestTitleDto>();
+};

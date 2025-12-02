@@ -1,4 +1,5 @@
 // ===== SYSTEM & FRAMEWORK =====
+
 global using System;
 global using System.Linq.Expressions;
 global using System.Reflection;
@@ -70,3 +71,7 @@ global using Request.RequestComments.Specifications;
 
 // ==== DtoExtension ====
 global using Request.Extensions;
+
+// RequestDocument (Sub-Aggregate)
+global using Request.RequestDocuments.Models;
+global using Request.RequestDocuments.ValueObjects;

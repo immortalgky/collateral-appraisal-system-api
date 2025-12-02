@@ -10,6 +10,7 @@ public class RequestDbContext : DbContext
     public DbSet<RequestComment> RequestComments => Set<RequestComment>();
     public DbSet<RequestTitle> RequestTitles => Set<RequestTitle>();
     public DbSet<RequestTitleDocument> RequestTitleDocuments => Set<RequestTitleDocument>();
+    public DbSet<RequestDocument> RequestDocuments => Set<RequestDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

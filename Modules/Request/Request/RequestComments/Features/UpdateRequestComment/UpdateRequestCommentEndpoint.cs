@@ -13,9 +13,9 @@ public class UpdateRequestCommentEndpoint : ICarterModule
         {
             var command = new UpdateRequestCommentCommand(commentId, request.Comment);
 
-            var result = await sender.Send(command, cancellationToken);
+                var result = await sender.Send(command, cancellationToken);
 
-            var response = result.Adapt<UpdateRequestCommentResponse>();
+                var response = result.Adapt<UpdateRequestCommentResponse>();
 
             return Results.Ok(response);
         })

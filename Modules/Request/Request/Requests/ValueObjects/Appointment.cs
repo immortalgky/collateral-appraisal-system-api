@@ -1,18 +1,25 @@
+using System;
+
 namespace Request.Requests.ValueObjects;
 
 public class Appointment : ValueObject
 {
-    public DateTime? AppointmentDateTime { get; private set; }
-    public string? AppointmentLocation { get; private set; }
+    public DateTime? AppointmentDateTime { get; }
+    public string? AppointmentLocation { get; }
 
-    public static Appointment Create(DateTime? appointmentDateTime, string? appointmentLocation)
+    private Appointment(DateTime? appointmentDate, string? locationDetail)
     {
-        // validate appointmentLocation not null
-        
-        return new Appointment()
-        {
-            AppointmentDateTime = appointmentDateTime,
-            AppointmentLocation = appointmentLocation
-        };
+        AppointmentDateTime = appointmentDate;
+        AppointmentLocation = locationDetail;
+    }
+
+    private Appointment()
+    {
+        //EF Core
+    }
+
+    public static Appointment Create(DateTime? appointmentDate, string? locationDetail)
+    {
+        return new Appointment(appointmentDate, locationDetail);
     }
 }

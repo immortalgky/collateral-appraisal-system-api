@@ -13,23 +13,15 @@ internal class UpdateRequestCommandHandler(IRequestRepository requestRepository)
             throw new RequestNotFoundException(command.Id);
         }
 
-        // Update request details
-        request.UpdateDetail(
-            command.HasAppraisalBook,
-            command.PreviousAppraisaId,
-            command.LoanDetail.ToDomain(),
-            command.Address.ToDomain(),
-            command.Contact.ToDomain(),
-            Appointment.Create(DateTime.Now, command.Appointment.AppointmentLocation),
-            command.Fee.ToDomain()
+        request.UpdateRequest(
+            command.Purpose,
+            command.SourceSystem.ToDomain(),
+            command.Priority,
+            command.IsPMA,
+            command.Detail.ToDomain(),
+            command.Customers.Select(c => c.ToDomain()).ToList(),
+            command.Properties.Select(p => p.ToDomain()).ToList()
         );
-
-        // Update customers
-        request.UpdateCustomers(command.Customers.Select(c => c.ToDomain()).ToList());
-
-        // Update properties
-        request.UpdateProperties(command.Properties.Select(p => p.ToDomain()).ToList());
-
         await requestRepository.SaveChangesAsync(cancellationToken);
 
         return new UpdateRequestResult(true);

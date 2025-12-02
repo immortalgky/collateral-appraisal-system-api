@@ -11,6 +11,6 @@ public record DocumentLink
     public string EntityType { get; init; } = default!;
     public Guid EntityId { get; init; } 
     public Guid DocumentId { get; init; }
-    public bool IsUnlinked { get; init; } = false;
+    public bool IsUnlink { get; init; } = false;
 
 }

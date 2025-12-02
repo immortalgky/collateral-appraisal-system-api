@@ -1,15 +1,11 @@
 namespace Request.Contracts.Requests.Dtos;
 
 public record RequestDetailDto(
-    string Purpose,
     bool HasAppraisalBook,
-    string Priority,
-    ReferenceDto Reference,
-    string Channel,
-    int? OccurConstInspec,
-    LoanDetailDto LoanDetail,
-    AddressDto Address,
-    ContactDto Contact,
-    FeeDto Fee,
-    RequestorDto Requestor
+    LoanDetailDto? LoanDetail,
+    string? PrevAppraisalNo,
+    AddressDto? Address,
+    ContactDto? Contact,
+    AppointmentDto? Appointment,
+    FeeDto? Fee
 );

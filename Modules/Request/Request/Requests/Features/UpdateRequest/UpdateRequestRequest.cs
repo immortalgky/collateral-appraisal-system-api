@@ -1,17 +1,16 @@
+using Request.Contracts.RequestDocuments.Dto;
+
 namespace Request.Requests.Features.UpdateRequest;
 
 public record UpdateRequestRequest(
+    Guid SessionId,
+    Guid Id,
+    RequestDetailDto Detail,
+    bool IsPMA,
     string Purpose,
-    bool HasAppraisalBook,
     string Priority,
-    ReferenceDto Reference,
-    string Channel,
-    int? OccurConstInspec,
-    LoanDetailDto LoanDetail,
-    AddressDto Address,
-    ContactDto Contact,
-    FeeDto Fee,
-    RequestorDto Requestor,
+    SourceSystemDto SourceSystem,
     List<RequestCustomerDto> Customers,
-    List<RequestPropertyDto> Properties
+    List<RequestPropertyDto> Properties,
+    List<RequestDocumentDto> Documents
 );

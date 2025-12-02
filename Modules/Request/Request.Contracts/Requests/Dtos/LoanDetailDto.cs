@@ -4,7 +4,7 @@ public record LoanDetailDto(
     string? BankingSegment,
     string? LoanApplicationNo,
     decimal? FacilityLimit,
-    decimal? TopUpLimit,
-    decimal? OldFacilityLimit,
+    decimal? AdditionalFacilityLimit,
+    decimal? PreviousFacilityLimit,
     decimal? TotalSellingPrice
 );

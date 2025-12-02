@@ -10,7 +10,7 @@ public class SyncRequestTitleCommandHandler(ISender sender, IBus bus) : ICommand
     public async Task<SyncRequestTitleResult> Handle(SyncRequestTitleCommand command, CancellationToken cancellationToken)
     {
         // Make sure that linQ operations do not fail due to null reference
-        var requestTitleDtos = command.requestTitleDtos?.ToList() ?? new List<RequestTitleDto>();
+        var requestTitleDtos = command.RequestTitleDtos?.ToList() ?? new List<RequestTitleDto>();
         // Collecting results which be sent to caller
         var results = new List<RequestTitleDto>();
 

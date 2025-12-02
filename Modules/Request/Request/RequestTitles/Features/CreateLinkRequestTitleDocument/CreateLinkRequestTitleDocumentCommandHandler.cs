@@ -26,7 +26,7 @@ public class CreateLinkRequestTitleDocumentCommandHandler(IRequestTitleRepositor
                         EntityType = "Title",
                         EntityId = command.TitleId,
                         DocumentId = command.DocumentId!.Value,
-                        IsUnlinked = false
+                        IsUnlink = false
                     }
                 }
             }, cancellationToken);

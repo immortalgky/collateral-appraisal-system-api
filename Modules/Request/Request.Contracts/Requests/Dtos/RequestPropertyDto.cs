@@ -1,7 +1,7 @@
 namespace Request.Contracts.Requests.Dtos;
 
 public record RequestPropertyDto(
-    string PropertyType,
-    string BuildingType,
+    string? PropertyType,
+    string? BuildingType,
     decimal? SellingPrice
 );

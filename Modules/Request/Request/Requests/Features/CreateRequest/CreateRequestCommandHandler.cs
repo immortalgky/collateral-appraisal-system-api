@@ -10,17 +10,11 @@ internal class CreateRequestCommandHandler(
     {
         // Create a request with validated data (appraisal number will be generated in repository)
         var request = CreateNewRequest(
+            command.Detail,
+            command.IsPMA,
             command.Purpose,
             command.Priority,
-            RequestStatus.Draft,
-            command.IsPMA,
-            command.HasOwnAppraisalBook,
-            command.PreviousAppraisalId,
-            command.LoanDetail.ToDomain(),
-            command.Address.ToDomain(),
-            command.Contact.ToDomain(),
-            Appointment.Create(DateTime.Now, command.Appointment.AppointmentLocation),
-            command.Fee.ToDomain(),
+            command.SourceSystem,
             command.Customers.Select(customer => customer.ToDomain()).ToList(),
             command.Properties.Select(property => property.ToDomain()).ToList()
         );
@@ -31,33 +25,30 @@ internal class CreateRequestCommandHandler(
     }
 
     private static Models.Request CreateNewRequest(
+        RequestDetailDto requestDetail,
+        bool isPMA,
         string purpose,
         string priority,
-        RequestStatus requestStatus,
-        bool isPMA,
-        bool hasOwnAppraisalBook,
-        Guid? previousAppraisalId,
-        LoanDetail loanDetail,
-        Address address,
-        Contact contact,
-        Appointment appointment,
-        Fee fee,
+        SourceSystemDto sourceSystem,
         List<RequestCustomer> customers,
         List<RequestProperty> properties
     )
     {
+        var detail = RequestDetail.Create(
+            requestDetail.HasAppraisalBook,
+            requestDetail.PrevAppraisalNo,
+            requestDetail.LoanDetail.ToDomain(),
+            requestDetail.Address.ToDomain(),
+            requestDetail.Contact.ToDomain(),
+            requestDetail.Appointment.ToDomain(),
+            requestDetail.Fee.ToDomain()
+        );
+
+        var source = sourceSystem.ToDomain();
+
+
         var request = Models.Request.Create(
-            purpose,
-            priority,
-            requestStatus,
-            isPMA,
-            hasOwnAppraisalBook,
-            previousAppraisalId,
-            loanDetail,
-            address,
-            contact,
-            appointment,
-            fee
+            detail, isPMA, purpose, priority, source
         );
 
         // Add customers

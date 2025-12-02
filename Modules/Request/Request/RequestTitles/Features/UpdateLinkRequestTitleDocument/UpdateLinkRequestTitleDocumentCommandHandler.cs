@@ -24,7 +24,7 @@ public class UpdateLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentR
                     EntityType = "Title",
                     EntityId = command.TitleId,
                     DocumentId = command.DocumentId!.Value,
-                    IsUnlinked = false
+                    IsUnlink = false
                 }
                 );
         }
@@ -39,7 +39,7 @@ public class UpdateLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentR
                     EntityType = "Title",
                     EntityId = command.TitleId,
                     DocumentId = existingRequestTitleDoc.DocumentId!.Value,
-                    IsUnlinked = true
+                    IsUnlink = true
                 }
                 );
             // add new link
@@ -49,7 +49,7 @@ public class UpdateLinkRequestTitleDocumentCommandHandler(IRequestTitleDocumentR
                     EntityType = "Title",
                     EntityId = command.TitleId,
                     DocumentId = command.DocumentId!.Value,
-                    IsUnlinked = false
+                    IsUnlink = false
                 }
                 );
 

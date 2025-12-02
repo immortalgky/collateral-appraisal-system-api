@@ -9,17 +9,18 @@ public class GetRequestCommentByIdEndpoint : ICarterModule
             {
                 var query = new GetRequestCommentByIdQuery(requestId, commentId);
 
-                var result = await sender.Send(query, cancellationToken);
+                    var result = await sender.Send(query, cancellationToken);
 
-                var response = result.Adapt<GetRequestCommentByIdResponse>();
+                    var response = result.Adapt<GetRequestCommentByIdResponse>();
 
-                return Results.Ok(response);
-            })
+                    return Results.Ok(response);
+                })
             .WithName("GetRequestCommentById")
             .Produces<GetRequestCommentByIdResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get request comment by ID")
-            .WithDescription("Retrieves a specific comment for the specified request. Returns detailed information about the comment including creation and modification timestamps.")
+            .WithDescription(
+                "Retrieves a specific comment for the specified request. Returns detailed information about the comment including creation and modification timestamps.")
             .WithTags("Request Comments")
             .AllowAnonymous();
             // .RequireAuthorization("CanReadRequest");

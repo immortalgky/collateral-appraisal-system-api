@@ -21,11 +21,6 @@ public class RequestCommentConfiguration : IEntityTypeConfiguration<RequestComme
 
         builder.Property(r => r.CommentedAt);
 
-        builder.HasOne(r => r.Request)
-            .WithMany(r => r.RequestComments)
-            .HasForeignKey(r => r.RequestId)
-            .HasConstraintName("FK_RequestComment_Request");
-
         builder.HasIndex(p => p.RequestId);
     }
 }

@@ -2,8 +2,8 @@ namespace Request.Requests.ValueObjects;
 
 public class RequestProperty : ValueObject
 {
-    public string PropertyType { get; }
-    public string BuildingType { get; }
+    public string? PropertyType { get; }
+    public string? BuildingType { get; }
     public decimal? SellingPrice { get; }
 
 #pragma warning disable CS8618
@@ -25,8 +25,8 @@ public class RequestProperty : ValueObject
     }
 
     public static RequestProperty Of(
-        string propertyType,
-        string buildingType,
+        string? propertyType,
+        string? buildingType,
         decimal? sellingPrice
     )
     {

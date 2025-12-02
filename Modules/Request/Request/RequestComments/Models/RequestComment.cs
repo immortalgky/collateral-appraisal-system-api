@@ -8,8 +8,6 @@ public class RequestComment : Aggregate<Guid>
     public string CommentedByName { get; private set; }
     public DateTime CommentedAt { get; private set; }
 
-    public Requests.Models.Request Request { get; private set; }
-
     private RequestComment(Guid requestId, string comment, string commentedBy, string commentedByName)
     {
         Id = Guid.NewGuid();

@@ -2,22 +2,17 @@ namespace Request.Requests.ValueObjects;
 
 public class RequestDetail : ValueObject // [!] FK Request
 {
-    public bool HasOwnAppraisalBook { get; }
-    public Guid? PreviousAppraisalId { get; }
-    
-    // Loan Information
+    public bool HasAppraisalBook { get; }
     public LoanDetail LoanDetail { get; } = default!;
 
-    // Location
+    public string? PrevAppraisalNo { get; }
+
+    // public Reference Reference { get; } = default!; // keep ony appraisal id to link
     public Address Address { get; } = default!;
     public Contact Contact { get; } = default!;
-
-    // Appointment
-    public Appointment Appointment { get; }
-
-    // Fee
+    public Appointment Appointment { get; } = default!;
     public Fee Fee { get; } = default!;
-
+    // public Requestor Requestor { get; } = default!;
 
     private RequestDetail()
     {
@@ -26,33 +21,36 @@ public class RequestDetail : ValueObject // [!] FK Request
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     private RequestDetail(
-        bool hasOwnAppraisalBook,
-        Guid? previousAppraisalId,
+        bool hasAppraisalBook,
+        string? prevAppraisalNo,
         LoanDetail loanDetail,
         Address address,
         Contact contact,
         Appointment appointment,
         Fee fee
+        // Requestor requestor
     )
     {
-        HasOwnAppraisalBook = hasOwnAppraisalBook;
-        PreviousAppraisalId = previousAppraisalId;
+        HasAppraisalBook = hasAppraisalBook;
+        PrevAppraisalNo = prevAppraisalNo;
         LoanDetail = loanDetail;
         Address = address;
         Contact = contact;
         Appointment = appointment;
         Fee = fee;
+        // Requestor = requestor;
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public static RequestDetail Create(
-        bool hasOwnAppraisalBook,
-        Guid? previousAppraisalId,
+        bool hasAppraisalBook,
+        string? prevAppraisalNo,
         LoanDetail loanDetail,
         Address address,
         Contact contact,
         Appointment appointment,
         Fee fee
+        // Requestor requestor
     )
     {
         ArgumentNullException.ThrowIfNull(loanDetail);
@@ -60,15 +58,16 @@ public class RequestDetail : ValueObject // [!] FK Request
         ArgumentNullException.ThrowIfNull(contact);
         ArgumentNullException.ThrowIfNull(appointment);
         ArgumentNullException.ThrowIfNull(fee);
+        // ArgumentNullException.ThrowIfNull(requestor);
 
         return new RequestDetail(
-            hasOwnAppraisalBook,
-            previousAppraisalId,
+            hasAppraisalBook,
+            prevAppraisalNo,
             loanDetail,
             address,
             contact,
             appointment,
-            fee
-        );
+            fee);
+        // requestor);
     }
 }

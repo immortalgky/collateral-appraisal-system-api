@@ -9,7 +9,11 @@ public class UpdateDraftRequestTitleEndpoint : ICarterModule
         app.MapPatch("/requests/{requestId:guid}/titles/draft", 
             async (Guid requestId, ISender sender, UpdateDraftRequestTitleRequest request, CancellationToken cancellationToken) =>
             {
-                var result = await sender.Send(new SyncDraftRequestTitlesCommand(Guid.NewGuid(), requestId, request.RequestTitleDtos), cancellationToken);
+                var result = await sender.Send(new SyncDraftRequestTitlesCommand{
+                    SessionId = Guid.NewGuid(), 
+                    RequestId = requestId, 
+                    RequestTitleDtos = request.RequestTitleDtos
+                    }, cancellationToken);
 
                 var response = new UpdateDraftRequestTitleResponse(result.RequestTitles);
 

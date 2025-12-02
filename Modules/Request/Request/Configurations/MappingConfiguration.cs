@@ -10,8 +10,8 @@ public static class MappingConfiguration
                 src.BankingSegment,
                 src.LoanApplicationNo,
                 src.FacilityLimit,
-                src.TopUpLimit,
-                src.OldFacilityLimit,
+                src.AdditionalFacilityLimit,
+                src.PreviousFacilityLimit,
                 src.TotalSellingPrice
             ));
 
@@ -50,9 +50,9 @@ public static class MappingConfiguration
         TypeAdapterConfig<FeeDto, Fee>
             .NewConfig()
             .ConstructUsing(src => Fee.Create(
-                src.FeePaymentType,
-                src.AbsorbedFee,
-                src.FeeNotes
+                src.FeeType,
+                src.FeeNote,
+                src.BankAbsorbAmt
             ));
 
         TypeAdapterConfig<RequestorDto, Requestor>
