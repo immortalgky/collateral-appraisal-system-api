@@ -1,5 +1,5 @@
 @baseUrl=https://localhost:7111
-@requestId=EFBA270A-7B7B-45C5-85F8-D7963846945D
+@requestId=674E744C-BED8-4527-A97C-08EC63B9435E
 
 PATCH {{baseUrl}}/requests/{{requestId}}
 headers: localhost:7111
@@ -83,8 +83,8 @@ Content-Type: application/json
     ],
     "documents": [
         {
-            "id": "6FAC23EF-C950-4A1C-63CC-08DE31904108",
-            "documentId": "0d6c4968-d855-4bf8-a9c7-3196b14ea715",
+            "id": "12BF176B-0FDB-494B-7075-08DE31E16424",
+            "documentId": "0d6c4968-d855-4bf8-a9c7-3196b14ea700",
             "documentClassification": 
             {
                 "documentType": "Document",
@@ -117,7 +117,6 @@ Content-Type: application/json
     ],
     "titles": [
         {
-            "id": "3DDE6564-E697-46E3-9B1D-2CA2BD1B33C3",
             "collateralType": "L",
             "collateralStatus": false,
             "titleNo": "Test",
@@ -158,7 +157,6 @@ Content-Type: application/json
             "requestTitleDocumentDtos":
             [
                 {
-                    "id": "9EF976E4-CEAC-4C7A-88E5-1F9845C0CAA6",
                     "titleId": "7FE5405B-EFFB-4F98-A2F8-6501CB680B5D",
                     "documentId": "84DCBD01-8544-41D9-8125-874C963C8000",
                     "documentType": "Test Update",

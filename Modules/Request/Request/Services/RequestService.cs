@@ -231,21 +231,6 @@ public class RequestService(IBus bus) : IRequestService
                 e.Id == i.Id && e.DocumentId != i.DocumentId && e.DocumentId != null))
             .ToList();
 
-        // Add New Documents
-        var newDocCommand = new AddRequestDocumentCommand(request.Id, newDocuments);
-        await sender.Send(newDocCommand, cancellationToken);
-
-        // Update Documents
-        var updateDocCommand = new UpdateRequestDocumentCommand(request.Id, updateDocuments);
-        await sender.Send(updateDocCommand, cancellationToken);
-
-        // Remove Documents
-        foreach (var rd in removeDocuments)
-        {
-            var removeDocCommand = rd.Adapt<RemoveRequestDocumentCommand>();
-            await sender.Send(removeDocCommand, cancellationToken);
-        }
-
         // List Documents for Publish Event
         var eventDocs = new List<DocumentLink>();
         eventDocs.AddRange(
@@ -296,6 +281,21 @@ public class RequestService(IBus bus) : IRequestService
                 DocumentLinks = eventDocs
             };
             await bus.Publish(integrationEvent, cancellationToken);
+        }
+
+        // Add New Documents
+        var newDocCommand = new AddRequestDocumentCommand(request.Id, newDocuments);
+        await sender.Send(newDocCommand, cancellationToken);
+
+        // Update Documents
+        var updateDocCommand = new UpdateRequestDocumentCommand(request.Id, updateDocuments);
+        await sender.Send(updateDocCommand, cancellationToken);
+
+        // Remove Documents
+        foreach (var rd in removeDocuments)
+        {
+            var removeDocCommand = rd.Adapt<RemoveRequestDocumentCommand>();
+            await sender.Send(removeDocCommand, cancellationToken);
         }
 
         return new UpdateRequestResult(requestUpdateResult.IsSuccess);
