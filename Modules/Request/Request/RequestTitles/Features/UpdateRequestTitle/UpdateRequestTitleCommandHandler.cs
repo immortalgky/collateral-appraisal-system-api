@@ -10,7 +10,7 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
     {
         var requestTitle = await requestTitleRepository.GetByIdAsync(command.TitleId, cancellationToken);
         
-        if (requestTitle.RequestId != command.RequestId)
+        if (requestTitle is null || requestTitle.RequestId != command.RequestId)
             throw new Exception("New RequestId does not existed");
         
         var requestTitleData = new RequestTitleData
@@ -33,6 +33,7 @@ internal class UpdateRequestTitleCommandHandler(IRequestTitleRepository requestT
         };
 
         requestTitle.Update(requestTitleData);
+
 
         requestTitle.AddDomainEvent(new RequestTitleUpdatedEvent(requestTitle.RequestId, requestTitle));
 

@@ -1,4 +1,4 @@
-namespace Shared.Time;
+namespace Shared.Configurations;
 
 /// <summary>
 /// Configuration for timezone and culture settings

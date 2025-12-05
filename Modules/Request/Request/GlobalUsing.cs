@@ -23,11 +23,11 @@ global using Mapster;
 
 // ===== SHARED INFRASTRUCTURE =====
 global using Shared.DDD;
+global using Shared.CQRS;
 global using Shared.Data;
 global using Shared.Data.Extensions;
 global using Shared.Data.Seed;
 global using Shared.Exceptions;
-global using Shared.Contracts.CQRS;
 
 // ===== REQUEST MODULE - CORE =====
 global using Request.Data;

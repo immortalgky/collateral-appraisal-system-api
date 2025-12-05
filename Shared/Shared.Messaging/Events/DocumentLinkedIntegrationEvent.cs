@@ -9,8 +9,8 @@ public record DocumentLinkedIntegrationEvent : IntegrationEvent
 public record DocumentLink
 {
     public string EntityType { get; init; } = default!;
-    public Guid EntityId { get; init; } 
+
+    public Guid EntityId { get; init; }
     public Guid DocumentId { get; init; }
     public bool IsUnlink { get; init; } = false;
-
 }

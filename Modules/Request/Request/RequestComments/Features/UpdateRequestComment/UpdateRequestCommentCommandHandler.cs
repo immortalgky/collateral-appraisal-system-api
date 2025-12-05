@@ -7,10 +7,7 @@ public class UpdateRequestCommentCommandHandler(IRequestCommentRepository reques
         CancellationToken cancellationToken)
     {
         var comment = await requestCommentRepository.GetByIdAsync(command.CommentId, cancellationToken);
-        if (comment is null)
-        {
-            throw new DomainException($"Comment with ID {command.CommentId} not found.");
-        }
+        if (comment is null) throw new DomainException($"Comment with ID {command.CommentId} not found.");
 
         comment.Update(command.Comment);
 

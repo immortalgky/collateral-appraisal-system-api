@@ -9,11 +9,7 @@ public class AddRequestCommentCommandHandler(
         CancellationToken cancellationToken)
     {
         var request = await requestRepository.GetByIdAsync(command.RequestId, cancellationToken);
-        
-        if (request is null)
-        {
-            throw new RequestNotFoundException(command.RequestId);
-        }
+        if (request is null) throw new RequestNotFoundException(command.RequestId);
 
         var comment = RequestComment.Create(command.RequestId, command.Comment, command.CommentedBy, command.CommentedByName);
 

@@ -8,10 +8,7 @@ internal class UpdateRequestCommandHandler(IRequestRepository requestRepository)
     public async Task<UpdateRequestResult> Handle(UpdateRequestCommand command, CancellationToken cancellationToken)
     {
         var request = await requestRepository.GetByIdAsync(command.Id, cancellationToken);
-        if (request is null)
-        {
-            throw new RequestNotFoundException(command.Id);
-        }
+        if (request is null) throw new RequestNotFoundException(command.Id);
 
         request.UpdateRequest(
             command.Purpose,

@@ -7,8 +7,7 @@ internal class RemoveRequestTitleCommandHandler(IRequestTitleRepository requestT
         CancellationToken cancellationToken)
     {
         var requestTitle = await requestTitleRepository.GetByIdAsync(command.Id, cancellationToken);
-        
-        if (requestTitle is null)
+        if (requestTitle is null || requestTitle.RequestId != command.RequestId)
             throw new RequestTitleNotFoundException(command.Id);
 
         if (requestTitle.RequestId != command.RequestId)
