@@ -16,7 +16,7 @@ namespace Shared.Data
     public interface IReadRepository<T, TId> where T : IEntity<TId>
     {
         // Basic read operations
-        Task<T?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<T?> GetByIdAsync(TId id, CancellationToken cancellationToken = default);
 
         Task<TProjection?> GetByIdAsync<TProjection>(TId id, Expression<Func<T, TProjection>> selector,
             CancellationToken cancellationToken = default);
