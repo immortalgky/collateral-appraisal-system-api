@@ -1,10 +1,13 @@
+using Shared.CQRS;
+
 namespace Document.Documents.Features.GetDocumentById;
 
-internal class GetDocumentByIdHandler(IDocumentRepository documentRepository) : IQueryHandler<GetDocumentByIdQuery, GetDocumentByIdResult>
+internal class GetDocumentByIdHandler(IDocumentRepository documentRepository)
+    : IQueryHandler<GetDocumentByIdQuery, GetDocumentByIdResult>
 {
     public async Task<GetDocumentByIdResult> Handle(GetDocumentByIdQuery query, CancellationToken cancellationToken)
     {
-        var document = await documentRepository.GetDocumentById(query.Id, false, cancellationToken);
+        var document = await documentRepository.GetByIdAsync(query.Id, cancellationToken);
 
         var result = document.Adapt<DocumentDto>();
 

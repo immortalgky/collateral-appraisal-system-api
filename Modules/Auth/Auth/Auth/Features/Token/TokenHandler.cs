@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Shared.Contracts.CQRS;
 
 namespace Auth.Auth.Features.Token;
 

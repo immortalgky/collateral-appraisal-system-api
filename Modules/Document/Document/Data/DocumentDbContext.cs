@@ -1,3 +1,5 @@
+using Document.UploadSessions.Model;
+
 namespace Document.Data;
 
 public class DocumentDbContext : DbContext
@@ -7,6 +9,7 @@ public class DocumentDbContext : DbContext
     }
 
     public DbSet<Documents.Models.Document> Documents => Set<Documents.Models.Document>();
+    public DbSet<UploadSession> UploadSessions => Set<UploadSession>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -15,7 +18,12 @@ public class DocumentDbContext : DbContext
         modelBuilder.ApplyGlobalConventions();
 
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
-        
+
+        // Add MassTransit Outbox entities
+        modelBuilder.AddInboxStateEntity();
+        modelBuilder.AddOutboxStateEntity();
+        modelBuilder.AddOutboxMessageEntity();
+
         base.OnModelCreating(modelBuilder);
     }
 }

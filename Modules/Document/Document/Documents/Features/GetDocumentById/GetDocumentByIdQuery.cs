@@ -1,3 +1,5 @@
+using Shared.CQRS;
+
 namespace Document.Documents.Features.GetDocumentById;
 
-public record GetDocumentByIdQuery(long Id) : IQuery<GetDocumentByIdResult>;
+public record GetDocumentByIdQuery(Guid Id) : IQuery<GetDocumentByIdResult>;

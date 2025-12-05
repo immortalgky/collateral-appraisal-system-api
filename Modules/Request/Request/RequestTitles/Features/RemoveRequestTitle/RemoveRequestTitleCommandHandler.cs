@@ -8,9 +8,7 @@ internal class RemoveRequestTitleCommandHandler(IRequestTitleRepository requestT
     {
         var requestTitle = await requestTitleRepository.GetByIdAsync(command.Id, cancellationToken);
         if (requestTitle is null || requestTitle.RequestId != command.RequestId)
-        {
             throw new RequestTitleNotFoundException(command.Id);
-        }
 
         // Publish domain event
         requestTitle.AddDomainEvent(new RequestTitleRemovedEvent(command.RequestId, command.Id,

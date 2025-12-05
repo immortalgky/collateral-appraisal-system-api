@@ -1,5 +1,4 @@
 using Auth.Services;
-using OAuth2OpenId.Identity.Dtos;
 
 namespace Auth.Auth.Features.RegisterClient;
 
