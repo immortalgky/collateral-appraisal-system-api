@@ -1,5 +1,8 @@
 namespace Document.Documents.Features.UploadDocument;
 
 public record UploadDocumentResult(
-    List<UploadResultDto> Result
+    bool IsSuccess,
+    Guid DocumentId,
+    string FileName,
+    long FileSize
 );

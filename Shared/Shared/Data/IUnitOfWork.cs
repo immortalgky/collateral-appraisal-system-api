@@ -50,10 +50,4 @@ public interface IUnitOfWork : IDisposable
     /// <typeparam name="TId">The entity ID type.</typeparam>
     /// <returns>A read-only repository for the entity type.</returns>
     IReadRepository<T, TId> ReadRepository<T, TId>() where T : class, IEntity<TId>;
-
-    /// <summary>
-    /// Creates an execution strategy for handling transient failures.
-    /// </summary>
-    /// <returns></returns>
-    IExecutionStrategy CreateExecutionStrategy();
 }

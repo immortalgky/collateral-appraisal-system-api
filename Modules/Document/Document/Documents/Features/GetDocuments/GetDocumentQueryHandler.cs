@@ -1,3 +1,5 @@
+using Shared.CQRS;
+
 namespace Document.Documents.Features.GetDocuments;
 
 internal class GetDocumentHandler(IDocumentRepository documentRepository)
@@ -5,7 +7,7 @@ internal class GetDocumentHandler(IDocumentRepository documentRepository)
 {
     public async Task<GetDocumentResult> Handle(GetDocumentQuery query, CancellationToken cancellationToken)
     {
-        var documents = await documentRepository.GetDocuments(cancellationToken);
+        var documents = await documentRepository.GetAllAsync(cancellationToken);
 
         var result = documents.Adapt<List<DocumentDto>>();
 

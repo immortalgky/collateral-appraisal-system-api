@@ -122,15 +122,6 @@ public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     }
 
     /// <summary>
-    /// Creates an execution strategy for the database context.
-    /// </summary>
-    /// <returns></returns>
-    public IExecutionStrategy CreateExecutionStrategy()
-    {
-        return _context.Database.CreateExecutionStrategy();
-    }
-
-    /// <summary>
     /// Disposes the transaction and context.
     /// </summary>
     public void Dispose()

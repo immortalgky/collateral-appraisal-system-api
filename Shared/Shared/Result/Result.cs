@@ -12,7 +12,7 @@ public class Result
         if (isSuccess && !string.IsNullOrEmpty(error))
             throw new InvalidOperationException("A successful result cannot have an error message");
 
-        if (IsFailure && string.IsNullOrEmpty(error))
+        if (!isSuccess && string.IsNullOrEmpty(error))
             throw new InvalidOperationException("A failed result must have an error message");
 
         IsSuccess = isSuccess;
@@ -43,9 +43,8 @@ public class Result
     // Combine multiple results
     public static Result Combine(params Result[] results)
     {
-        foreach (var result in results)
-            if (result.IsFailure)
-                return result;
+        foreach (var result in results.Where(r => r.IsFailure))
+            return result;
 
         return Success();
     }

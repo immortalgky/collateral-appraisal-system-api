@@ -1,3 +1,4 @@
+using Document.Data;
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(conte
 
 // Add shared services (time abstraction, security, etc.)
 builder.Services.AddSharedServices(builder.Configuration);
+builder.Services.AddHangfire(builder.Configuration);
 
 // Common services: carter, mediatR, fluentvalidators, etc.
 var requestAssembly = typeof(RequestModule).Assembly;
@@ -21,8 +23,10 @@ var notificationAssembly = typeof(NotificationModule).Assembly;
 var documentAssembly = typeof(DocumentModule).Assembly;
 var assignmentAssembly = typeof(AssignmentModule).Assembly;
 
-builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssembly);
-builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssembly);
+builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly,
+    assignmentAssembly);
+builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly,
+    assignmentAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -57,10 +61,18 @@ builder.Services.AddMassTransit(config =>
             r.LockStatementProvider = new SqlServerLockStatementProvider();
         });
 
-    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
-    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly);
+    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly);
+    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly,
+        documentAssembly);
+    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly);
+    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly);
+
+    config.AddEntityFrameworkOutbox<DocumentDbContext>(o =>
+    {
+        o.QueryDelay = TimeSpan.FromSeconds(1);
+        o.UseSqlServer();
+        o.UseBusOutbox();
+    });
 
     config.UsingRabbitMq((context, configurator) =>
     {
@@ -70,15 +82,14 @@ builder.Services.AddMassTransit(config =>
             host.Password(builder.Configuration["RabbitMQ:Password"]!);
         });
 
-        configurator.ConfigureEndpoints(context);
-
         configurator.PrefetchCount = 16;
+        configurator.ConfigureEndpoints(context);
         configurator.UseMessageRetry(r => r.Exponential(5,
             TimeSpan.FromSeconds(1),
             TimeSpan.FromSeconds(30),
             TimeSpan.FromSeconds(5)));
 
-        configurator.UseInMemoryOutbox(context);
+        //configurator.UseInMemoryOutbox(context);
     });
 });
 
@@ -142,6 +153,8 @@ app.MapRazorPages();
 app.MapControllers();
 app.MapCarter();
 
+app.UseHangfire();
+
 app
     .UseRequestModule()
     .UseAuthModule()
@@ -152,4 +165,6 @@ app
 
 await app.RunAsync();
 
-public partial class Program { }
+public partial class Program
+{
+}

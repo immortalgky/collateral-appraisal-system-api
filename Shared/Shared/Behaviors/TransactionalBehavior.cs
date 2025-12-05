@@ -65,7 +65,17 @@ public class TransactionalBehavior<TRequest, TResponse>(
             logger.LogError(
                 "[TRANSACTION] Rolling back transaction for command {Command} due to error: {Error}",
                 typeof(TRequest).Name, e.Message);
-            await unitOfWork.RollbackTransactionAsync(cancellationToken);
+            try
+            {
+                await unitOfWork.RollbackTransactionAsync(cancellationToken);
+            }
+            catch (Exception rollbackException)
+            {
+                logger.LogError(
+                    "[TRANSACTION] Failed to rollback transaction for command {Command}: {Error}",
+                    typeof(TRequest).Name, rollbackException.Message);
+            }
+
             throw;
         }
 

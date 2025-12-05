@@ -5,8 +5,6 @@ public class GetDocumentByIdQueryValidator : AbstractValidator<GetDocumentByIdQu
     public GetDocumentByIdQueryValidator()
     {
         RuleFor(x => x.Id)
-            .GreaterThan(0)
-            .WithMessage("Id must be greater than 0.")
             .NotNull()
             .WithMessage("Id is required.");
     }

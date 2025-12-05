@@ -23,7 +23,7 @@ public class FileStorageConfiguration
     public string DocumentsPath { get; set; } = "documents";
 
     /// <summary>
-    /// Path for storing document files
+    /// Path for storing archived files
     /// </summary>
     public string ArchivePath { get; set; } = "archive";
 
@@ -53,7 +53,7 @@ public class FileStorageConfiguration
     ];
 
     /// <summary>
-    /// Number of days after which temporary files are cleaned up
+    /// Configuration settings for file cleanup operations
     /// </summary>
     public CleanupConfiguration Cleanup { get; set; } = default!;
 }
