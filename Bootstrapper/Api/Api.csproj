@@ -38,6 +38,33 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="wwwroot\" />
+        <Folder Include="wwwroot\"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\06cd8422-6cc4-47eb-8ca8-f58f0be7c17f.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\09e0d9ff-061f-462f-b711-f2cb5a5ec335.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\16a97543-29ac-43e5-808e-d1d171beabd0.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\23f5306c-dbf9-4982-9ace-85a7f0ef833d.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\3044977d-c59a-408f-91aa-c3381086e49d.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\48dae943-f204-4314-a92f-e3ddd84c9409.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\4b3d8697-fdb2-4427-8028-3c99b57af711.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\5b0922a4-6785-4f78-84dd-22a9d1612734.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\6002fdd1-8f8e-4c0a-b944-c2f657ce1197.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\8472b197-a966-4502-a416-8cf9990dbb70.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\872413e3-7085-411d-9c82-1d290fd0dad9.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\91c73c2f-99f9-4690-8b41-8ff88dafb403.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\94cc4295-33b8-4854-9da2-c21336542f5b.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\990836ad-bdd2-41a1-9a75-2249c9c2094f.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\9a661767-83de-467e-be18-cedc04aeb238.pdf" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\a22e42bc-3fa8-41c0-9277-32085e1cd23f.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\a5fad263-eb00-4f7e-8606-e56d1c2fa938.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\d4f6659c-1906-4f3c-8101-455448096789.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\d825ceba-d75e-4cac-bf97-534f8b277c00.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\df11c0c4-cd02-4498-9de2-4b2a9cc6932a.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\e0083f59-0d2f-4d44-a506-cd94912968c0.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\e899cfcc-3fb2-4d1c-ad4e-4a8a04f15995.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\fab83314-1aba-442b-9045-9501e3b75656.png" />
+      <_ContentIncludedByDefault Remove="wwwroot\uploads\documents\ff6611a5-80a6-4a5d-a084-775aa0e94172.png" />
     </ItemGroup>
 </Project>

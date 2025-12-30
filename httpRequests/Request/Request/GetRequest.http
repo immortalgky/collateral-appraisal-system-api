@@ -1,9 +1,0 @@
-@baseUrl=https://localhost:7111
-@requestId=BB9640C6-3DBB-4161-B0DF-54CD2D4FA4C1
-
-Get {{baseUrl}}/requests/{{requestId}}
-headers: localhost:7111
-Content-Type: application/json
-
-{
-}

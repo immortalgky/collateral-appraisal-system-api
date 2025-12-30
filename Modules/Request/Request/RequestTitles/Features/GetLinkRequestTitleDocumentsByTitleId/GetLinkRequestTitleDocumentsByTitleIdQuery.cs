@@ -1,3 +1,0 @@
-namespace Request.RequestTitles.Features.GetLinkRequestTitleDocumentsByTitleId;
-
-public record GetLinkRequestTitleDocumentsByTitleIdQuery(Guid TitleId) : IQuery<GetLinkRequestTitleDocumentsByTitleIdResult>;

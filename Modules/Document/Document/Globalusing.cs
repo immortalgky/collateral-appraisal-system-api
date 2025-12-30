@@ -14,7 +14,7 @@ global using Microsoft.AspNetCore.Builder;
 global using Microsoft.AspNetCore.Http;
 global using Microsoft.AspNetCore.Routing;
 global using System.Security.Cryptography;
-global using Document.Documents.Exceptions;
+global using Document.Domain.Documents.Exceptions;
 global using Shared.Exceptions;
 global using FluentValidation;
 global using Document.Data;

@@ -1,0 +1,19 @@
+namespace Document.Domain.Documents.Features.GetDocuments;
+
+public class GstDocumentEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
+    {
+        app.MapGet("/documents", async (ISender sender) =>
+        {
+            var query = new GetDocumentQuery();
+
+            var result = await sender.Send(query);
+
+            var response = result.Adapt<GetDocumentResponse>();
+
+            return Results.Ok(response.Documents);
+        })
+        .RequireAuthorization("CanReadDocument");
+    }
+}

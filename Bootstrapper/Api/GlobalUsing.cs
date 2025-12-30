@@ -10,5 +10,5 @@ global using Notification;
 global using Document;
 global using Assignment;
 global using Assignment.Data;
-global using Assignment.Sagas.AppraisalSaga;
-global using Assignment.Sagas.Models;
+global using Assignment.Domain.Sagas.AppraisalSaga;
+global using Assignment.Domain.Sagas.Models;

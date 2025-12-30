@@ -1,6 +1,6 @@
 using NSubstitute;
 using OAuth2OpenId.Data.Repository;
-using OAuth2OpenId.Identity.Models;
+using OAuth2OpenId.Domain.Identity.Models;
 using OAuth2OpenId.Services;
 
 namespace Auth.Tests.OAuth2OpenId.Services;

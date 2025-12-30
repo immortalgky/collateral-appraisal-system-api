@@ -2,7 +2,7 @@ using System.Text.Json;
 using Integration.Fixtures;
 using Integration.Helpers;
 using Integration.Request.Integration.Tests.Helpers;
-using Request.Requests.Features.DeleteRequest;
+using Request.Application.Features.Requests.DeleteRequest;
 
 namespace Integration.Request.Integration.Tests;
 

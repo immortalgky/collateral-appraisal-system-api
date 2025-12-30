@@ -1,4 +1,4 @@
-using Auth.Permissions;
+using Auth.Domain.Permissions;
 using Auth.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
@@ -22,7 +22,7 @@ public static class AuthModule
                 OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
         });
 
-        services.AddAuthorizationBuilder().AddPolicies();
+        //services.AddAuthorizationBuilder().AddPolicies();
 
         services.AddScoped<IRegistrationService, RegistrationService>();
         services.AddScoped<IPermissionService, PermissionService>();

@@ -1,7 +1,8 @@
 namespace Request.Contracts.Requests.Dtos;
 
 public record MachineDto(
-    string? MachineStatus,
+    bool registrationStatus,
+    string? registrationNo,
     string? MachineType,
     string? InstallationStatus,
     string? InvoiceNumber,

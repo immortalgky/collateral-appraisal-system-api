@@ -1,3 +1,0 @@
-namespace Request.RequestTitles.Features.SyncRequestTitleDocuments;
-
-public record SyncRequestTitleDocumentsResult(bool IsSuccess);

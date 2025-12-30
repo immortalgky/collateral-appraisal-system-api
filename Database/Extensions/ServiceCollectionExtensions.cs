@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
-using Request.Data;
+using Request.Infrastructure;
 using Assignment.Data;
 using Document.Data;
 using Notification.Data;
@@ -10,7 +10,7 @@ using OAuth2OpenId.Data;
 using Shared.Data;
 using Microsoft.AspNetCore.Identity;
 using OAuth2OpenId;
-using OAuth2OpenId.Identity.Models;
+using OAuth2OpenId.Domain.Identity.Models;
 
 namespace Database.Extensions;
 

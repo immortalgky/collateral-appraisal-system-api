@@ -43,11 +43,4 @@ public interface IUnitOfWork : IDisposable
     /// <returns>A repository for the entity type.</returns>
     IRepository<T, TId> Repository<T, TId>() where T : class, IEntity<TId>;
 
-    /// <summary>
-    /// Gets a read-only repository for the specified entity type.
-    /// </summary>
-    /// <typeparam name="T">The entity type.</typeparam>
-    /// <typeparam name="TId">The entity ID type.</typeparam>
-    /// <returns>A read-only repository for the entity type.</returns>
-    IReadRepository<T, TId> ReadRepository<T, TId>() where T : class, IEntity<TId>;
 }

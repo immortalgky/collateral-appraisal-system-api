@@ -2,6 +2,7 @@ using Document.Data;
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.EntityFrameworkCore;
+using Request.Infrastructure;
 using Shared.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,15 +18,18 @@ builder.Services.AddSharedServices(builder.Configuration);
 builder.Services.AddHangfire(builder.Configuration);
 
 // Common services: carter, mediatR, fluentvalidators, etc.
+var apiAssembly = typeof(Program).Assembly;
 var requestAssembly = typeof(RequestModule).Assembly;
 var authAssembly = typeof(AuthModule).Assembly;
 var notificationAssembly = typeof(NotificationModule).Assembly;
 var documentAssembly = typeof(DocumentModule).Assembly;
 var assignmentAssembly = typeof(AssignmentModule).Assembly;
 
-builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly,
+builder.Services.AddCarterWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
+    documentAssembly,
     assignmentAssembly);
-builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly,
+builder.Services.AddMediatRWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
+    documentAssembly,
     assignmentAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
@@ -67,12 +71,20 @@ builder.Services.AddMassTransit(config =>
     config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly);
     config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly);
 
-    config.AddEntityFrameworkOutbox<DocumentDbContext>(o =>
-    {
-        o.QueryDelay = TimeSpan.FromSeconds(1);
-        o.UseSqlServer();
-        o.UseBusOutbox();
-    });
+    // TODO: later implement customer delivery service
+    // config.AddEntityFrameworkOutbox<RequestDbContext>(o =>
+    // {
+    //     o.QueryDelay = TimeSpan.FromSeconds(1);
+    //     o.UseSqlServer();
+    //     o.UseBusOutbox();
+    // });
+    //
+    // config.AddEntityFrameworkOutbox<DocumentDbContext>(o =>
+    // {
+    //     o.QueryDelay = TimeSpan.FromSeconds(1);
+    //     o.UseSqlServer();
+    //     o.UseBusOutbox();
+    // });
 
     config.UsingRabbitMq((context, configurator) =>
     {
@@ -89,7 +101,8 @@ builder.Services.AddMassTransit(config =>
             TimeSpan.FromSeconds(30),
             TimeSpan.FromSeconds(5)));
 
-        //configurator.UseInMemoryOutbox(context);
+        // TODO: later implement customer delivery service and disable in-memory outbox
+        configurator.UseInMemoryOutbox(context);
     });
 });
 

@@ -181,9 +181,9 @@ CREATE TABLE request.Requests
     -- Source System
     Channel                 NVARCHAR(10) NOT NULL DEFAULT 'Manual', -- Manual, LOS, CLS
     RequestDate             DATETIME2 NOT NULL DEFAULT GETDATE(),
-    RequestedBy             NVARCHAR(10) NOT NULL,
-    RequestedByName         NVARCHAR(100) NOT NULL,
-    CreatedDate             DATETIME2 NULL,
+    Requestor               NVARCHAR(10) NOT NULL,
+    RequestorName           NVARCHAR(100) NOT NULL,
+    CreateDate              DATETIME2 NULL,
     Creator                 NVARCHAR(10) NOT NULL,
     CreatorName             NVARCHAR(100) NOT NULL,
 

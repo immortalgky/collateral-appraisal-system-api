@@ -2,8 +2,8 @@ using System.Text;
 using System.Text.Json;
 using Integration.Fixtures;
 using Integration.Helpers;
-using Request.Contracts.Requests.Features.GetRequestById;
-using Request.Requests.Features.CreateRequest;
+using Request.Application.Features.Requests.CreateRequest;
+using Request.Application.Features.Requests.GetRequestById;
 
 namespace Integration.Request.Integration.Tests;
 

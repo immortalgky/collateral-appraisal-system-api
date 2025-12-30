@@ -3,6 +3,6 @@ using System;
 namespace Request.Contracts.Requests.Dtos;
 
 public record AppointmentDto(
-    DateTime? AppointmentDateTime,
+    DateTime? AppointmentDate,
     string? AppointmentLocation
 );

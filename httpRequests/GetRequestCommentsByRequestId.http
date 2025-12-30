@@ -1,0 +1,11 @@
+@requestId = 2EF682E6-2DA9-4EAE-B398-F68BC16DE48E
+
+@commentId = F80AC754-18C6-45CF-BABA-B396E116B69D
+
+GET {{baseUrl}}/requests/{{requestId}}/comments
+Host: localhost:7111
+Content-Type: application/json
+
+{
+
+}

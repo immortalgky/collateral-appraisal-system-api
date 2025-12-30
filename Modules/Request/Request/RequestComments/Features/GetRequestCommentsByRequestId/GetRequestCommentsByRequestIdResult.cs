@@ -1,3 +1,0 @@
-namespace Request.RequestComments.Features.GetRequestCommentsByRequestId;
-
-public record GetRequestCommentsByRequestIdResult(List<RequestCommentDto> Comments);

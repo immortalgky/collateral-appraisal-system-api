@@ -15,4 +15,5 @@ public record RequestTitleDocumentDto
     public bool IsRequired { get; init; }
     public string? UploadedBy { get; init; }
     public string? UploadedByName { get; init; }
+    public DateTime UploadedAt { get; init; }
 };

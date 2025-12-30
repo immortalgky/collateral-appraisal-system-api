@@ -26,18 +26,18 @@ global using Shared.Time;
 global using Shared.CQRS;
 
 // Assignment module namespaces (organized by feature)
-global using Assignment.AssigneeSelection.Core;
-global using Assignment.AssigneeSelection.Factories;
-global using Assignment.AssigneeSelection.Strategies;
+global using Assignment.Domain.AssigneeSelection.Core;
+global using Assignment.Domain.AssigneeSelection.Factories;
+global using Assignment.Domain.AssigneeSelection.Strategies;
 global using Assignment.Data;
 global using Assignment.Data.Repository;
-global using Assignment.Events;
-global using Assignment.Sagas.AppraisalSaga;
-global using Assignment.Sagas.Models;
+global using Assignment.Domain.Events;
+global using Assignment.Domain.Sagas.AppraisalSaga;
+global using Assignment.Domain.Sagas.Models;
 global using Assignment.Services;
 global using Assignment.Services.Groups;
 global using Assignment.Services.Hashing;
-global using Assignment.Tasks.Models;
+global using Assignment.Domain.Tasks.Models;
 
 // Type aliases (should be at the end)
-global using TaskStatus = Assignment.Tasks.ValueObjects.TaskStatus;
+global using TaskStatus = Assignment.Domain.Tasks.Models.TaskStatus;
