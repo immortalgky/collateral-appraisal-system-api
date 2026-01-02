@@ -62,11 +62,8 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
 
     private void RegisterActivities()
     {
-        // Human task activities
-        _activityTypes[ActivityTypes.HumanTask] = typeof(HumanTaskActivity);
-        _activityTypes[ActivityTypes.TaskActivity] = typeof(HumanTaskActivity); // Backward compatibility
-        
-        // Control flow activities
+        // Core activities
+        _activityTypes[ActivityTypes.TaskActivity] = typeof(TaskActivity);
         _activityTypes[ActivityTypes.IfElseActivity] = typeof(IfElseActivity);
         _activityTypes[ActivityTypes.SwitchActivity] = typeof(SwitchActivity);
         _activityTypes[ActivityTypes.StartActivity] = typeof(StartActivity);
@@ -165,80 +162,6 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
             }
         };
 
-        // Human Task Activity Definition (new preferred type)
-        _activityDefinitions[ActivityTypes.HumanTask] = new ActivityTypeDefinition
-        {
-            Type = ActivityTypes.HumanTask,
-            Name = "Human Task",
-            Description = "Assigns a task to a user or role for completion using configurable assignment strategies",
-            Category = "Human Tasks",
-            Icon = "user-circle",
-            Color = "#10b981",
-            Properties = new List<ActivityPropertyDefinition>
-            {
-                new()
-                {
-                    Name = "assigneeRole", DisplayName = "Assignee Role", Type = "string", Required = false,
-                    Description = "Role or user to assign the task to"
-                },
-                new()
-                {
-                    Name = "assignee", DisplayName = "Direct Assignee", Type = "string", Required = false,
-                    Description = "Specific user to assign the task to (overrides strategies)"
-                },
-                new()
-                {
-                    Name = "assigneeGroup", DisplayName = "Assignee Group", Type = "string", Required = false,
-                    Description = "Group to assign the task to"
-                },
-                new()
-                {
-                    Name = "initialAssignmentStrategies", DisplayName = "Initial Assignment Strategies", Type = "array", Required = false,
-                    DefaultValue = "[\"RoundRobin\"]", Description = "Strategies for initial assignment",
-                    Options = new List<string> { "RoundRobin", "Random", "WorkloadBased", "PreviousOwner", "Manual" }
-                },
-                new()
-                {
-                    Name = "revisitAssignmentStrategies", DisplayName = "Revisit Assignment Strategies", Type = "array", Required = false,
-                    DefaultValue = "[\"RoundRobin\"]", Description = "Strategies when task is revisited"
-                },
-                new()
-                {
-                    Name = "customAssignmentService", DisplayName = "Custom Assignment Service", Type = "string", Required = false,
-                    Description = "Name of custom assignment service to use"
-                },
-                new()
-                {
-                    Name = "activityName", DisplayName = "Activity Name", Type = "string", Required = false,
-                    Description = "Name of the activity for assignment tracking"
-                },
-                new()
-                {
-                    Name = "formFields", DisplayName = "Form Fields", Type = "array", Required = false,
-                    Description = "List of form fields to display"
-                },
-                new()
-                {
-                    Name = "inputMappings", DisplayName = "Input Variable Mappings", Type = "object", Required = false,
-                    Description = "Map input field names to workflow variable names"
-                },
-                new()
-                {
-                    Name = "outputMappings", DisplayName = "Output Variable Mappings", Type = "object", Required = false,
-                    Description = "Map activity outputs to workflow variables"
-                },
-                new()
-                {
-                    Name = "requiresApproval", DisplayName = "Requires Approval", Type = "boolean",
-                    DefaultValue = "false", Description = "Whether the task requires approval"
-                },
-                new()
-                {
-                    Name = "timeoutDuration", DisplayName = "Timeout (hours)", Type = "number", Required = false,
-                    Description = "Task timeout in hours"
-                }
-            }
-        };
 
         // IfElse Activity Definition
         _activityDefinitions[ActivityTypes.IfElseActivity] = new ActivityTypeDefinition

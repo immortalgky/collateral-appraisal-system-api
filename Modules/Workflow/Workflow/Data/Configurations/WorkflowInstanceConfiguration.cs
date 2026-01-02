@@ -54,10 +54,6 @@ public class WorkflowInstanceConfiguration : IEntityTypeConfiguration<WorkflowIn
         builder.Property(x => x.ErrorMessage)
             .HasMaxLength(2000);
             
-        builder.Property(x => x.ConcurrencyToken)
-            .IsRequired()
-            .IsRowVersion();
-            
         builder.HasOne(x => x.WorkflowDefinition)
             .WithMany()
             .HasForeignKey(x => x.WorkflowDefinitionId)

@@ -10,7 +10,7 @@ public class JoinActivity : WorkflowActivityBase
     public override string Name => "Join Activity";
     public override string Description => "Synchronizes and merges multiple parallel workflow branches";
 
-    protected override async Task<ActivityResult> OnExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    protected override async Task<ActivityResult> ExecuteActivityAsync(ActivityContext context, CancellationToken cancellationToken = default)
     {
         var forkId = GetProperty<string>(context, "forkId");
         var joinType = GetProperty<string>(context, "joinType", "all");

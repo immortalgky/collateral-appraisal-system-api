@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Identity;
 using Request.Infrastructure;
-using Assignment.Data;
+using Workflow.Data;
 using Document.Data;
 using Notification.Data;
 using OAuth2OpenId.Data;
@@ -71,7 +71,7 @@ public class EfCoreMigrationService : IEfCoreMigrationService
         return new[]
         {
             typeof(RequestDbContext),
-            typeof(AssignmentDbContext),
+            typeof(WorkflowDbContext),
             typeof(AppraisalSagaDbContext),
             typeof(DocumentDbContext),
             typeof(NotificationDbContext),
@@ -84,7 +84,7 @@ public class EfCoreMigrationService : IEfCoreMigrationService
         return contextType.Name switch
         {
             nameof(RequestDbContext) => CreateRequestDbContext(connectionString),
-            nameof(AssignmentDbContext) => CreateAssignmentDbContext(connectionString),
+            nameof(WorkflowDbContext) => CreateWorkflowDbContext(connectionString),
             nameof(AppraisalSagaDbContext) => CreateAppraisalSagaDbContext(connectionString),
             nameof(DocumentDbContext) => CreateDocumentDbContext(connectionString),
             nameof(NotificationDbContext) => CreateNotificationDbContext(connectionString),
@@ -105,16 +105,16 @@ public class EfCoreMigrationService : IEfCoreMigrationService
         return new RequestDbContext(optionsBuilder.Options);
     }
 
-    private AssignmentDbContext CreateAssignmentDbContext(string connectionString)
+    private WorkflowDbContext CreateWorkflowDbContext(string connectionString)
     {
-        var optionsBuilder = new DbContextOptionsBuilder<AssignmentDbContext>();
+        var optionsBuilder = new DbContextOptionsBuilder<WorkflowDbContext>();
         //optionsBuilder.UseSqlServer(connectionString);
         optionsBuilder.UseSqlServer(connectionString, sqlOptions =>
         {
-            sqlOptions.MigrationsAssembly(typeof(AssignmentDbContext).Assembly.GetName().Name);
-            sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "assignment");
+            sqlOptions.MigrationsAssembly(typeof(WorkflowDbContext).Assembly.GetName().Name);
+            sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "workflow");
         });
-        return new AssignmentDbContext(optionsBuilder.Options);
+        return new WorkflowDbContext(optionsBuilder.Options);
     }
 
     private AppraisalSagaDbContext CreateAppraisalSagaDbContext(string connectionString)

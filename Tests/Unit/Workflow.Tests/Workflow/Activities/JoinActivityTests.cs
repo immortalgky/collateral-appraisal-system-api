@@ -303,8 +303,7 @@ public class JoinActivityTests
         // Assert
         result.Should().NotBeNull();
         result.Status.Should().Be(ActivityResultStatus.Failed);
-        // The actual error message may be different, so we just verify it's a failure for now
-        result.ErrorMessage.Should().NotBeNullOrEmpty();
+        result.ErrorMessage.Should().Contain($"Fork context not found for forkId: {forkId}");
     }
 
     [Fact]

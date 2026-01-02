@@ -10,7 +10,7 @@ public class ForkActivity : WorkflowActivityBase
     public override string Name => "Fork Activity";
     public override string Description => "Splits workflow execution into multiple parallel branches";
 
-    protected override async Task<ActivityResult> OnExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    protected override async Task<ActivityResult> ExecuteActivityAsync(ActivityContext context, CancellationToken cancellationToken = default)
     {
         var branches = GetProperty<List<ForkBranch>>(context, "branches", new List<ForkBranch>());
         var forkType = GetProperty<string>(context, "forkType", "all");

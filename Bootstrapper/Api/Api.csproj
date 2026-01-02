@@ -13,7 +13,10 @@
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.13.0" />
         <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.13.0" />
         <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.13.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.5" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.5">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
     </ItemGroup>
 
@@ -30,7 +33,7 @@
         <ProjectReference Include="..\..\Modules\Auth\OAuth2OpenId\OAuth2OpenId.csproj"/>
         <ProjectReference Include="..\..\Modules\Parameter\Parameter\Parameter.csproj"/>
         <ProjectReference Include="../../Modules/Document/Document/Document.csproj"/>
-        <ProjectReference Include="..\..\Modules\Assignment\Assignment\Assignment.csproj"/>
+        <ProjectReference Include="..\..\Modules\Workflow\Workflow\Workflow.csproj"/>
         <ProjectReference Include="..\..\Modules\Collateral\Collateral\Collateral.csproj"/>
         <ProjectReference Include="..\..\Modules\Appraisal\Appraisal\Appraisal.csproj"/>
     </ItemGroup>

@@ -21,21 +21,22 @@ public interface IWorkflowInstanceRepository
 
     Task AddAsync(WorkflowInstance instance, CancellationToken cancellationToken = default);
     Task UpdateAsync(WorkflowInstance instance, CancellationToken cancellationToken = default);
-    Task<bool> TryUpdateWithConcurrencyAsync(WorkflowInstance instance, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
-    
-    Task<WorkflowInstance?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<IEnumerable<WorkflowInstance>> GetRunningInstances(CancellationToken cancellationToken = default);
-    
-    Task<List<WorkflowInstance>> GetLongRunningWorkflowsAsync(
-        TimeSpan threshold,
-        int maxCount = 100,
-        CancellationToken cancellationToken = default);
 
     Task LoggerAsync(CancellationToken cancellationToken = default);
 
-    // Additional methods for diagnostics and monitoring
-    Task<List<WorkflowInstance>> GetActiveWorkflowsAsync(CancellationToken cancellationToken = default);
-    Task<List<WorkflowInstance>> GetWorkflowsOlderThanAsync(DateTime cutoffTime, CancellationToken cancellationToken = default);
-    Task<List<WorkflowInstance>> GetWorkflowsSinceAsync(DateTime since, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Gets a workflow instance with optimistic locking for update operations
+    /// </summary>
+    Task<WorkflowInstance?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tries to update a workflow instance with concurrency handling
+    /// </summary>
+    Task<bool> TryUpdateWithConcurrencyAsync(WorkflowInstance instance, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets workflows that have been running longer than the specified duration
+    /// </summary>
+    Task<IEnumerable<WorkflowInstance>> GetLongRunningWorkflowsAsync(TimeSpan timeout, int maxResults, CancellationToken cancellationToken = default);
 }

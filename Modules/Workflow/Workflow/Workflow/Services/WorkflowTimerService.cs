@@ -222,7 +222,7 @@ public class WorkflowTimerService : BackgroundService
             return;
         }
 
-        _logger.LogInformation("Processing {Count} potentially timed-out workflows", longRunningWorkflows.Count);
+        _logger.LogInformation("Processing {Count} potentially timed-out workflows", longRunningWorkflows.Count());
 
         foreach (var workflow in longRunningWorkflows)
         {

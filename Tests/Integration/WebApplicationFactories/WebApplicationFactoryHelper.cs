@@ -1,5 +1,5 @@
 using System.Reflection;
-using Assignment;
+using Workflow;
 using Auth;
 using Document;
 using Microsoft.AspNetCore.Hosting;
@@ -91,14 +91,14 @@ public static class WebApplicationFactoryHelper
         var authAssembly = typeof(AuthModule).Assembly;
         var notificationAssembly = typeof(NotificationModule).Assembly;
         var documentAssembly = typeof(DocumentModule).Assembly;
-        var assignmentAssembly = typeof(AssignmentModule).Assembly;
+        var workflowAssembly = typeof(WorkflowModule).Assembly;
 
         var dbContexts = GetDbContextsFromAssemblies(
             requestAssembly,
             authAssembly,
             notificationAssembly,
             documentAssembly,
-            assignmentAssembly
+            workflowAssembly
         );
         return dbContexts;
     }

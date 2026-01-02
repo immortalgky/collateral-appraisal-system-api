@@ -13,13 +13,14 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
     public DbSet<WorkflowDefinition> WorkflowDefinitions => Set<WorkflowDefinition>();
     public DbSet<WorkflowInstance> WorkflowInstances => Set<WorkflowInstance>();
     public DbSet<WorkflowActivityExecution> WorkflowActivityExecutions => Set<WorkflowActivityExecution>();
-    public DbSet<WorkflowBookmark> WorkflowBookmarks => Set<WorkflowBookmark>();
-    public DbSet<WorkflowExecutionLog> WorkflowExecutionLogs => Set<WorkflowExecutionLog>();
-    public DbSet<WorkflowOutbox> WorkflowOutboxes => Set<WorkflowOutbox>();
-    public DbSet<WorkflowExternalCall> WorkflowExternalCalls => Set<WorkflowExternalCall>();
     
     // Task assignment configuration
     public DbSet<TaskAssignmentConfiguration> TaskAssignmentConfigurations => Set<TaskAssignmentConfiguration>();
+
+    // Workflow support entities
+    public DbSet<WorkflowOutbox> WorkflowOutboxes => Set<WorkflowOutbox>();
+    public DbSet<WorkflowBookmark> WorkflowBookmarks => Set<WorkflowBookmark>();
+    public DbSet<WorkflowExecutionLog> WorkflowExecutionLogs => Set<WorkflowExecutionLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

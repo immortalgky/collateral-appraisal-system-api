@@ -31,7 +31,7 @@ public class TimerActivity : WorkflowActivityBase
         _logger = logger;
     }
 
-    protected override async Task<ActivityResult> OnExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    protected override async Task<ActivityResult> ExecuteActivityAsync(ActivityContext context, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Executing timer activity {ActivityId} for instance {InstanceId}",
             context.ActivityId, context.WorkflowInstanceId);

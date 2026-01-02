@@ -7,33 +7,24 @@ using Workflow.Workflow.Engine.Core;
 namespace Workflow.Workflow.Services;
 
 /// <summary>
-/// Workflow service - handles orchestration, validation, persistence, and events with resilience
+/// Workflow service - handles orchestration, validation, persistence, and events
 /// </summary>
 public class WorkflowService : IWorkflowService
 {
     private readonly IWorkflowEngine _workflowEngine;
-    private readonly IWorkflowOrchestrator _orchestrator; // ENHANCED: Step-by-step orchestration
     private readonly IWorkflowPersistenceService _persistenceService;
     private readonly IWorkflowEventPublisher _eventPublisher;
-    private readonly IWorkflowResilienceService _resilienceService;
-    private readonly IWorkflowFaultHandler _faultHandler;
     private readonly ILogger<WorkflowService> _logger;
 
     public WorkflowService(
         IWorkflowEngine workflowEngine,
-        IWorkflowOrchestrator orchestrator,
         IWorkflowPersistenceService persistenceService,
         IWorkflowEventPublisher eventPublisher,
-        IWorkflowResilienceService resilienceService,
-        IWorkflowFaultHandler faultHandler,
         ILogger<WorkflowService> logger)
     {
         _workflowEngine = workflowEngine;
-        _orchestrator = orchestrator;
         _persistenceService = persistenceService;
         _eventPublisher = eventPublisher;
-        _resilienceService = resilienceService;
-        _faultHandler = faultHandler;
         _logger = logger;
     }
 
@@ -46,89 +37,43 @@ public class WorkflowService : IWorkflowService
         Dictionary<string, RuntimeOverride>? assignmentOverrides = null,
         CancellationToken cancellationToken = default)
     {
-        int attemptNumber = 1;
-        const int maxAttempts = 3;
-
-        while (attemptNumber <= maxAttempts)
+        try
         {
-            try
-            {
-                _logger.LogInformation("SERVICE: Starting workflow for definition {WorkflowDefinitionId} (attempt {AttemptNumber})",
-                    workflowDefinitionId, attemptNumber);
+            _logger.LogInformation("SERVICE: Starting workflow for definition {WorkflowDefinitionId}",
+                workflowDefinitionId);
 
-                // Execute with resilience patterns
-                return await _resilienceService.ExecuteDatabaseOperationAsync(async ct =>
-                {
-                    // 1. ENHANCED: DELEGATE to WorkflowEngine for single-step startup, then orchestrator for remaining steps
-                    var startupResult = await _workflowEngine.StartWorkflowAsync(
-                        workflowDefinitionId, instanceName, startedBy, initialVariables, correlationId, assignmentOverrides, ct);
+            // 1. DELEGATE ORCHESTRATION to WorkflowEngine
+            var executionResult = await _workflowEngine.StartWorkflowAsync(
+                workflowDefinitionId, instanceName, startedBy, initialVariables, correlationId, assignmentOverrides,
+                cancellationToken);
 
-                    // 2. ENHANCED: If workflow needs more steps, use orchestrator for step-by-step execution
-                    var executionResult = startupResult.Status == WorkflowExecutionStatus.StepCompleted
-                        ? await _orchestrator.ExecuteCompleteWorkflowAsync(startupResult.WorkflowInstance!.Id, 100, ct)
-                        : startupResult;
+            if (executionResult.Status == WorkflowExecutionStatus.Failed)
+                throw new InvalidOperationException(executionResult.ErrorMessage ?? "Workflow startup failed");
 
-                    if (executionResult.Status == WorkflowExecutionStatus.Failed)
-                        throw new InvalidOperationException(executionResult.ErrorMessage ?? "Workflow startup failed");
+            if (executionResult.WorkflowInstance == null)
+                throw new InvalidOperationException("WorkflowEngine returned null instance");
 
-                    if (executionResult.WorkflowInstance == null)
-                        throw new InvalidOperationException("WorkflowEngine returned null instance");
+            // 2. PUBLISH EVENTS via EventPublisher
+            await _eventPublisher.PublishWorkflowStartedAsync(
+                executionResult.WorkflowInstance.Id,
+                workflowDefinitionId,
+                instanceName,
+                startedBy,
+                executionResult.WorkflowInstance.StartedOn,
+                correlationId,
+                cancellationToken);
 
-                    // 2. PUBLISH EVENTS via EventPublisher (with resilience)
-                    await _resilienceService.ExecuteWithRetryAsync(async ct2 =>
-                    {
-                        await _eventPublisher.PublishWorkflowStartedAsync(
-                            executionResult.WorkflowInstance.Id,
-                            workflowDefinitionId,
-                            instanceName,
-                            startedBy,
-                            executionResult.WorkflowInstance.StartedOn,
-                            correlationId,
-                            ct2);
-                        return true; // Return type required for ExecuteWithRetryAsync
-                    }, $"publish-workflow-started-{executionResult.WorkflowInstance.Id}", ct);
+            _logger.LogInformation("SERVICE: Successfully started workflow instance {WorkflowInstanceId}",
+                executionResult.WorkflowInstance.Id);
 
-                    _logger.LogInformation("SERVICE: Successfully started workflow instance {WorkflowInstanceId}",
-                        executionResult.WorkflowInstance.Id);
-
-                    return executionResult.WorkflowInstance;
-                }, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "SERVICE: Workflow startup attempt {AttemptNumber} failed for definition {WorkflowDefinitionId}",
-                    attemptNumber, workflowDefinitionId);
-
-                // Create fault context
-                var faultContext = new StartWorkflowFaultContext(
-                    workflowDefinitionId,
-                    instanceName,
-                    startedBy,
-                    ex,
-                    attemptNumber);
-
-                // Handle the fault
-                var faultResult = await _faultHandler.HandleWorkflowStartupFaultAsync(faultContext, cancellationToken);
-
-                if (!faultResult.ShouldRetry || attemptNumber >= maxAttempts)
-                {
-                    _logger.LogError(ex, "SERVICE: Workflow startup failed permanently after {AttemptNumber} attempts. Reason: {FailureReason}",
-                        attemptNumber, faultResult.RecommendedAction);
-                    throw;
-                }
-
-                if (faultResult.RetryDelay.HasValue)
-                {
-                    _logger.LogInformation("SERVICE: Retrying workflow startup in {RetryDelay}ms", 
-                        faultResult.RetryDelay.Value.TotalMilliseconds);
-                    await Task.Delay(faultResult.RetryDelay.Value, cancellationToken);
-                }
-
-                attemptNumber++;
-            }
+            return executionResult.WorkflowInstance;
         }
-
-        throw new InvalidOperationException($"Workflow startup failed after {maxAttempts} attempts");
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SERVICE: Failed to start workflow for definition {WorkflowDefinitionId}",
+                workflowDefinitionId);
+            throw;
+        }
     }
 
     public async Task<WorkflowInstance> ResumeWorkflowAsync(
@@ -144,9 +89,9 @@ public class WorkflowService : IWorkflowService
             _logger.LogInformation("SERVICE: Resuming workflow {WorkflowInstanceId} at activity {ActivityId}",
                 workflowInstanceId, activityId);
 
-            // 1. ENHANCED: Use orchestrator for step-by-step resume execution
-            var executionResult = await _orchestrator.ContinueWorkflowExecutionAsync(
-                workflowInstanceId, activityId, input, 100, cancellationToken);
+            // 1. DELEGATE ORCHESTRATION to WorkflowEngine
+            var executionResult = await _workflowEngine.ResumeWorkflowAsync(
+                workflowInstanceId, activityId, completedBy, input, nextAssignmentOverrides, cancellationToken);
 
             if (executionResult.Status == WorkflowExecutionStatus.Failed)
                 throw new InvalidOperationException(executionResult.ErrorMessage ?? "Workflow resume failed");

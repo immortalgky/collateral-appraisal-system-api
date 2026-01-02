@@ -24,7 +24,7 @@ public class IfElseActivity : WorkflowActivityBase
     public override string Name => "If-Else Decision";
     public override string Description => "Binary conditional routing based on boolean expression evaluation";
 
-    protected override Task<ActivityResult> OnExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    protected override Task<ActivityResult> ExecuteActivityAsync(ActivityContext context, CancellationToken cancellationToken = default)
     {
         var condition = GetProperty<string>(context, "condition");
         
@@ -67,7 +67,7 @@ public class IfElseActivity : WorkflowActivityBase
         }
     }
 
-    protected override Task<ActivityResult> OnResumeAsync(ActivityContext context, Dictionary<string, object> resumeInput, CancellationToken cancellationToken = default)
+    protected override Task<ActivityResult> ResumeActivityAsync(ActivityContext context, Dictionary<string, object> resumeInput, CancellationToken cancellationToken = default)
     {
         // IfElseActivity doesn't support resume - it completes immediately
         _logger.LogWarning("IfElseActivity {ActivityId} received unexpected resume call. IfElseActivity should complete immediately and not require resume.", 

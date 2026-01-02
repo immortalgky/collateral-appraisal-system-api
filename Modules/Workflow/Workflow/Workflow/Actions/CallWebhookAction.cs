@@ -1,6 +1,6 @@
 using Workflow.Workflow.Actions.Core;
 using Workflow.Workflow.Activities.Core;
-using Workflow.Workflow.Services;
+using Workflow.Workflow.Resilience;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -98,11 +98,29 @@ public class CallWebhookAction : WorkflowActionBase
             await AddAuthenticationAsync(request, authMethod, secretName, cancellationToken);
 
             // Execute webhook with resilience patterns (circuit breaker, retry, timeout)
-            var serviceKey = $"webhook-{new Uri(resolvedUrl).Host}";
-            var (response, statusCode, responseContent) = await _resilienceService.ExecuteExternalCallAsync(
+            var webhookPolicy = new ResiliencePolicy
+            {
+                RetryPolicy = new RetryPolicy
+                {
+                    MaxRetryAttempts = retryCount,
+                    BaseDelay = TimeSpan.FromSeconds(1),
+                    BackoffStrategy = BackoffStrategy.ExponentialWithJitter
+                },
+                TimeoutPolicy = new TimeoutPolicy
+                {
+                    OperationTimeout = TimeSpan.FromSeconds(timeoutSeconds),
+                    TimeoutStrategy = TimeoutStrategy.Pessimistic
+                },
+                CircuitBreakerPolicy = CircuitBreakerPolicy.Sensitive
+            };
+
+            var operationName = $"Webhook.{new Uri(resolvedUrl).Host}";
+            var (response, statusCode, responseContent) = await _resilienceService.ExecuteExternalServiceCallAsync(
+                operationName,
                 async ct => await ExecuteWebhookCallAsync(request, expectedStatusCodes, ct),
-                serviceKey,
-                cancellationToken);
+                fallbackProvider: ex => (null, System.Net.HttpStatusCode.ServiceUnavailable, $"Webhook call failed: {ex.Message}"),
+                policy: webhookPolicy,
+                cancellationToken: cancellationToken);
 
             var isSuccess = response != null && expectedStatusCodes.Contains((int)statusCode);
 

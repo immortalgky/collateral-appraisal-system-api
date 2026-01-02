@@ -556,7 +556,7 @@ public class ExpressionEvaluatorTests
         };
 
         // Act & Assert - Should safely handle special characters in variable values
-        _evaluator.EvaluateExpression("description contains 'User'", variables).Should().BeTrue();
+        _evaluator.EvaluateExpression("description contains 'User input'", variables).Should().BeTrue();
         _evaluator.EvaluateExpression("filename contains 'passwd'", variables).Should().BeTrue();
         _evaluator.EvaluateExpression("query contains 'DROP'", variables).Should().BeTrue();
         
@@ -623,7 +623,7 @@ public class ExpressionEvaluatorTests
             "eval('malicious')",
             "__proto__.constructor",
             "require('fs')",
-            "1" + string.Join("", Enumerable.Range(0, 60).Select(_ => " + 1")), // Deep nesting beyond limit
+            new string('(', 100) + "true" + new string(')', 100), // Deep nesting
             new string('a', 3000) // Too long
         };
 

@@ -69,6 +69,7 @@ public class IfElseActivityTests
         // Assert
         result.Should().NotBeNull();
         result.Status.Should().Be(ActivityResultStatus.Completed);
+        result.Status.Should().Be(ActivityResultStatus.Completed);
         result.OutputData!["result"].Should().Be(false);
     }
 
@@ -372,27 +373,12 @@ public class IfElseActivityTests
 
     private ActivityContext CreateTestContext(Dictionary<string, object> properties)
     {
-        var variables = new Dictionary<string, object>();
-        var activityProperties = new Dictionary<string, object>();
-
-        foreach (var kvp in properties)
-        {
-            if (kvp.Key == "condition")
-            {
-                activityProperties[kvp.Key] = kvp.Value;
-            }
-            else
-            {
-                variables[kvp.Key] = kvp.Value;
-            }
-        }
-
         return new ActivityContext
         {
             ActivityId = "test-ifelse-activity",
             WorkflowInstance = null!,
-            Variables = variables,
-            Properties = activityProperties
+            Variables = new Dictionary<string, object>(properties.Where(p => p.Key != "condition")),
+            Properties = properties
         };
     }
 }

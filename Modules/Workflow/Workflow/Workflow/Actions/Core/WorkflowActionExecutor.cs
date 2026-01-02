@@ -1,6 +1,7 @@
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Engine.Expression;
 using Workflow.Workflow.Services;
+using Workflow.Workflow.Resilience;
 
 namespace Workflow.Workflow.Actions.Core;
 
@@ -13,7 +14,7 @@ public class WorkflowActionExecutor : IWorkflowActionExecutor
     private readonly IServiceProvider _serviceProvider;
     private readonly IWorkflowExpressionEvaluator _expressionEvaluator;
     private readonly IWorkflowAuditService _auditService;
-    private readonly IWorkflowResilienceService _resilienceService;
+    private readonly Resilience.IWorkflowResilienceService _resilienceService;
     private readonly ILogger<WorkflowActionExecutor> _logger;
     private readonly Dictionary<string, Type> _registeredActions = new();
 
@@ -21,7 +22,7 @@ public class WorkflowActionExecutor : IWorkflowActionExecutor
         IServiceProvider serviceProvider,
         IWorkflowExpressionEvaluator expressionEvaluator,
         IWorkflowAuditService auditService,
-        IWorkflowResilienceService resilienceService,
+        Resilience.IWorkflowResilienceService resilienceService,
         ILogger<WorkflowActionExecutor> logger)
     {
         _serviceProvider = serviceProvider;
@@ -88,10 +89,11 @@ public class WorkflowActionExecutor : IWorkflowActionExecutor
                 var actionStopwatch = System.Diagnostics.Stopwatch.StartNew();
                 
                 // Execute action with resilience patterns
-                var operationKey = GetResilienceKeyForAction(actionConfig);
-                var result = await _resilienceService.ExecuteWithRetryAsync(
+                var operationName = $"Action.{actionConfig.ActionType}";
+                var result = await _resilienceService.ExecuteWithResilienceAsync(
+                    operationName,
                     async ct => await ExecuteActionAsync(context, actionConfig, ct),
-                    operationKey,
+                    GetResiliencePolicyForAction(actionConfig),
                     cancellationToken);
                     
                 actionStopwatch.Stop();
@@ -418,10 +420,21 @@ public class WorkflowActionExecutor : IWorkflowActionExecutor
     }
 
     /// <summary>
-    /// Gets the resilience operation key for an action type
+    /// Determines the appropriate resilience policy for an action based on its type and configuration
     /// </summary>
-    private string GetResilienceKeyForAction(WorkflowActionConfiguration actionConfig)
+    private ResiliencePolicy GetResiliencePolicyForAction(WorkflowActionConfiguration actionConfig)
     {
-        return $"workflow-action-{actionConfig.ActionType.ToLowerInvariant()}";
+        // Different action types get different resilience policies
+        return actionConfig.ActionType switch
+        {
+            "CallWebhook" => ResiliencePolicy.Aggressive, // External HTTP calls need aggressive resilience
+            "PublishEvent" => ResiliencePolicy.Default, // Event publishing needs standard resilience
+            "SendNotification" => ResiliencePolicy.Default, // Notifications need standard resilience
+            "CreateAuditEntry" => ResiliencePolicy.Lenient, // Audit entries are less critical
+            "UpdateEntityStatus" => ResiliencePolicy.Default, // Entity updates need standard resilience
+            "SetWorkflowVariable" => ResiliencePolicy.Lenient, // Variable updates are fast operations
+            "ConditionalAction" => ResiliencePolicy.Default, // Conditional logic needs standard resilience
+            _ => ResiliencePolicy.Default // Default for unknown action types
+        };
     }
 }

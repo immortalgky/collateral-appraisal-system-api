@@ -10,7 +10,7 @@ public class StartActivity : WorkflowActivityBase
     public override string Name => "Start Activity";
     public override string Description => "Initializes the workflow and sets up initial context";
 
-    protected override async Task<ActivityResult> OnExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    protected override async Task<ActivityResult> ExecuteActivityAsync(ActivityContext context, CancellationToken cancellationToken = default)
     {
         // Initialize the workflow context
 

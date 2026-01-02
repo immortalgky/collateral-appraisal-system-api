@@ -10,7 +10,7 @@ public class RequestSubmissionActivity : WorkflowActivityBase
     public override string Name => "Request Submission";
     public override string Description => "Handles the initial appraisal request submission";
 
-    protected override async Task<ActivityResult> OnExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    protected override async Task<ActivityResult> ExecuteActivityAsync(ActivityContext context, CancellationToken cancellationToken = default)
     {
         var propertyType = GetProperty<string>(context, "propertyType");
         var propertyAddress = GetProperty<string>(context, "propertyAddress");

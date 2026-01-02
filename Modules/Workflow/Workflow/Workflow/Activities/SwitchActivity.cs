@@ -25,7 +25,7 @@ public class SwitchActivity : WorkflowActivityBase
     public override string Name => "Switch Decision";
     public override string Description => "Multi-branch conditional routing with support for comparisons and value matching";
 
-    protected override Task<ActivityResult> OnExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    protected override Task<ActivityResult> ExecuteActivityAsync(ActivityContext context, CancellationToken cancellationToken = default)
     {
         var expression = GetProperty<string>(context, "expression");
         
@@ -97,7 +97,7 @@ public class SwitchActivity : WorkflowActivityBase
         }
     }
 
-    protected override Task<ActivityResult> OnResumeAsync(ActivityContext context, Dictionary<string, object> resumeInput, CancellationToken cancellationToken = default)
+    protected override Task<ActivityResult> ResumeActivityAsync(ActivityContext context, Dictionary<string, object> resumeInput, CancellationToken cancellationToken = default)
     {
         // SwitchActivity doesn't support resume - it completes immediately
         _logger.LogWarning("SwitchActivity {ActivityId} received unexpected resume call. SwitchActivity should complete immediately and not require resume.", 

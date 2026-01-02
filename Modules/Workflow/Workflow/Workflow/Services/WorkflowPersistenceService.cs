@@ -251,193 +251,169 @@ public class WorkflowPersistenceService : IWorkflowPersistenceService
 
     public async Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken = default)
     {
-        // ENHANCED: Use EF Core's execution strategy for automatic retry on transient failures
-        var strategy = _dbContext.Database.CreateExecutionStrategy();
-        
-        await strategy.ExecuteAsync(async () =>
-        {
-            // Centralized transaction boundary for workflow persistence operations.
-            // Uses the scoped WorkflowDbContext so all repositories participate in the same transaction.
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        // Centralized transaction boundary for workflow persistence operations.
+        // Uses the scoped WorkflowDbContext so all repositories participate in the same transaction.
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
+        try
+        {
+            await operation();
+
+            // Do not force SaveChanges here; allow the operation to control SaveChanges timing.
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Ensure rollback on cancellation and rethrow to propagate cancellation upstream.
             try
             {
-                await operation();
-
-                // Do not force SaveChanges here; allow the operation to control SaveChanges timing.
-                await transaction.CommitAsync(cancellationToken);
+                await transaction.RollbackAsync(CancellationToken.None);
             }
-            catch (OperationCanceledException)
+            catch
             {
-                // Ensure rollback on cancellation and rethrow to propagate cancellation upstream.
-                try
-                {
-                    await transaction.RollbackAsync(CancellationToken.None);
-                }
-                catch
-                {
-                    /* ignore rollback failures */
-                }
-
-                throw;
+                /* ignore rollback failures */
             }
-            catch (Exception ex)
+
+            throw;
+        }
+        catch (Exception ex)
+        {
+            try
             {
-                try
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                }
-                catch
-                {
-                    /* ignore rollback failures */
-                }
-
-                _logger.LogError(ex, "Workflow persistence transaction failed and was rolled back");
-                throw;
+                await transaction.RollbackAsync(cancellationToken);
             }
-        });
+            catch
+            {
+                /* ignore rollback failures */
+            }
+
+            _logger.LogError(ex, "Workflow persistence transaction failed and was rolled back");
+            throw;
+        }
     }
 
     public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation,
         CancellationToken cancellationToken = default)
     {
-        // ENHANCED: Use EF Core's execution strategy for automatic retry on transient failures
-        var strategy = _dbContext.Database.CreateExecutionStrategy();
-        
-        return await strategy.ExecuteAsync(async () =>
-        {
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
+        try
+        {
+            var result = await operation();
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
             try
             {
-                var result = await operation();
-                await transaction.CommitAsync(cancellationToken);
-                return result;
+                await transaction.RollbackAsync(CancellationToken.None);
             }
-            catch (OperationCanceledException)
+            catch
             {
-                try
-                {
-                    await transaction.RollbackAsync(CancellationToken.None);
-                }
-                catch
-                {
-                    // ignored - transaction may already be disposed
-                }
-
-                throw;
+                // ignored
             }
-            catch (Exception ex)
+
+            throw;
+        }
+        catch (Exception ex)
+        {
+            try
             {
-                try
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                }
-                catch
-                {
-                    // ignored - transaction may already be disposed
-                }
-
-                _logger.LogError(ex, "Workflow persistence transaction (with result) failed and was rolled back");
-                throw;
+                await transaction.RollbackAsync(cancellationToken);
             }
-        });
+            catch
+            {
+                // ignored
+            }
+
+            _logger.LogError(ex, "Workflow persistence transaction (with result) failed and was rolled back");
+            throw;
+        }
     }
 
     public async Task ExecuteInTransactionAsync(Func<Task> operation, IsolationLevel isolationLevel,
         CancellationToken cancellationToken = default)
     {
-        // ENHANCED: Use EF Core's execution strategy for automatic retry on transient failures
-        var strategy = _dbContext.Database.CreateExecutionStrategy();
-        
-        await strategy.ExecuteAsync(async () =>
-        {
-            await using var transaction =
-                await _dbContext.Database.BeginTransactionAsync(isolationLevel, cancellationToken);
+        await using var transaction =
+            await _dbContext.Database.BeginTransactionAsync(isolationLevel, cancellationToken);
 
+        try
+        {
+            await operation();
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
             try
             {
-                await operation();
-                await transaction.CommitAsync(cancellationToken);
+                await transaction.RollbackAsync(CancellationToken.None);
             }
-            catch (OperationCanceledException)
+            catch
             {
-                try
-                {
-                    await transaction.RollbackAsync(CancellationToken.None);
-                }
-                catch
-                {
-                    // ignored - transaction may already be disposed
-                }
-
-                throw;
+                // ignored
             }
-            catch (Exception ex)
+
+            throw;
+        }
+        catch (Exception ex)
+        {
+            try
             {
-                try
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                }
-                catch
-                {
-                    // ignored - transaction may already be disposed
-                }
-
-                _logger.LogError(ex, "Workflow persistence transaction (iso={Isolation}) failed and was rolled back",
-                    isolationLevel);
-                throw;
+                await transaction.RollbackAsync(cancellationToken);
             }
-        });
+            catch
+            {
+                // ignored
+            }
+
+            _logger.LogError(ex, "Workflow persistence transaction (iso={Isolation}) failed and was rolled back",
+                isolationLevel);
+            throw;
+        }
     }
 
     public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation, IsolationLevel isolationLevel,
         CancellationToken cancellationToken = default)
     {
-        // ENHANCED: Use EF Core's execution strategy for automatic retry on transient failures
-        var strategy = _dbContext.Database.CreateExecutionStrategy();
-        
-        return await strategy.ExecuteAsync(async () =>
-        {
-            await using var transaction =
-                await _dbContext.Database.BeginTransactionAsync(isolationLevel, cancellationToken);
+        await using var transaction =
+            await _dbContext.Database.BeginTransactionAsync(isolationLevel, cancellationToken);
 
+        try
+        {
+            var result = await operation();
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
             try
             {
-                var result = await operation();
-                await transaction.CommitAsync(cancellationToken);
-                return result;
+                await transaction.RollbackAsync(CancellationToken.None);
             }
-            catch (OperationCanceledException)
+            catch
             {
-                try
-                {
-                    await transaction.RollbackAsync(CancellationToken.None);
-                }
-                catch
-                {
-                    // ignored - transaction may already be disposed
-                }
-
-                throw;
+                // ignored
             }
-            catch (Exception ex)
+
+            throw;
+        }
+        catch (Exception ex)
+        {
+            try
             {
-                try
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                }
-                catch
-                {
-                    // ignored - transaction may already be disposed
-                }
-
-                _logger.LogError(ex,
-                    "Workflow persistence transaction (with result, iso={Isolation}) failed and was rolled back",
-                    isolationLevel);
-                throw;
+                await transaction.RollbackAsync(cancellationToken);
             }
-        });
+            catch
+            {
+                // ignored
+            }
+
+            _logger.LogError(ex,
+                "Workflow persistence transaction (with result, iso={Isolation}) failed and was rolled back",
+                isolationLevel);
+            throw;
+        }
     }
 
     public async Task<T> ExecuteInTransactionWithStrategyAsync<T>(Func<Task<T>> operation,

@@ -13,7 +13,7 @@ namespace Notification.Domain.Notifications.Features.GetWorkflowStatus;
 //
 //     public async Task<GetWorkflowStatusResponse> Handle(GetWorkflowStatusQuery request, CancellationToken cancellationToken)
 //     {
-//         var sagaState = await _sagaDbContext.Set<Assignment.Sagas.Models.AppraisalSagaState>()
+//         var sagaState = await _sagaDbContext.Set<Workflow.Sagas.Models.AppraisalSagaState>()
 //             .FirstOrDefaultAsync(s => s.RequestId == request.RequestId, cancellationToken);
 //
 //         if (sagaState == null)

@@ -83,32 +83,6 @@ public class WorkflowInstanceRepository(WorkflowDbContext dbContext) : IWorkflow
         await Task.CompletedTask;
     }
 
-    public async Task<bool> TryUpdateWithConcurrencyAsync(WorkflowInstance instance, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            dbContext.WorkflowInstances.Update(instance);
-            await dbContext.SaveChangesAsync(cancellationToken);
-            return true;
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // Refresh the entity to get the latest values and reset change tracking
-            await dbContext.Entry(instance).ReloadAsync(cancellationToken);
-            return false;
-        }
-    }
-
-    public async Task<WorkflowInstance?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        // Load the entity without change tracking for read-only scenarios
-        // When we need to update, we'll load it again with tracking
-        return await dbContext.WorkflowInstances
-            .Include(x => x.WorkflowDefinition)
-            .Include(x => x.ActivityExecutions)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-    }
-
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         await LoggerAsync(cancellationToken);
@@ -140,44 +114,40 @@ public class WorkflowInstanceRepository(WorkflowDbContext dbContext) : IWorkflow
         await Task.CompletedTask;
     }
 
-    public async Task<List<WorkflowInstance>> GetLongRunningWorkflowsAsync(
-        TimeSpan threshold,
-        int maxCount = 100,
+    public async Task<WorkflowInstance?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        // Get instance for update with full includes for optimistic locking
+        return await dbContext.WorkflowInstances
+            .Include(x => x.WorkflowDefinition)
+            .Include(x => x.ActivityExecutions)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
+    public async Task<bool> TryUpdateWithConcurrencyAsync(WorkflowInstance instance, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            dbContext.WorkflowInstances.Update(instance);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<IEnumerable<WorkflowInstance>> GetLongRunningWorkflowsAsync(
+        TimeSpan timeout,
+        int maxResults,
         CancellationToken cancellationToken = default)
     {
-        var cutoffTime = DateTime.UtcNow.Subtract(threshold);
-        
+        var cutoffTime = DateTime.UtcNow.Subtract(timeout);
         return await dbContext.WorkflowInstances
-            .Where(w => w.Status == WorkflowStatus.Running && w.CreatedOn <= cutoffTime)
-            .OrderBy(w => w.CreatedOn)
-            .Take(maxCount)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<List<WorkflowInstance>> GetActiveWorkflowsAsync(CancellationToken cancellationToken = default)
-    {
-        return await dbContext.WorkflowInstances
-            .Where(w => w.Status == WorkflowStatus.Running || w.Status == WorkflowStatus.Suspended)
-            .Include(w => w.WorkflowDefinition)
-            .OrderByDescending(w => w.StartedOn)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<List<WorkflowInstance>> GetWorkflowsOlderThanAsync(DateTime cutoffTime, CancellationToken cancellationToken = default)
-    {
-        return await dbContext.WorkflowInstances
-            .Where(w => w.Status == WorkflowStatus.Running && w.StartedOn <= cutoffTime)
-            .Include(w => w.WorkflowDefinition)
-            .OrderBy(w => w.StartedOn)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<List<WorkflowInstance>> GetWorkflowsSinceAsync(DateTime since, CancellationToken cancellationToken = default)
-    {
-        return await dbContext.WorkflowInstances
-            .Where(w => w.StartedOn >= since)
-            .Include(w => w.WorkflowDefinition)
-            .OrderByDescending(w => w.StartedOn)
+            .Where(x => x.Status == WorkflowStatus.Running && x.StartedOn < cutoffTime)
+            .OrderBy(x => x.StartedOn)
+            .Take(maxResults)
+            .Include(x => x.WorkflowDefinition)
             .ToListAsync(cancellationToken);
     }
 }

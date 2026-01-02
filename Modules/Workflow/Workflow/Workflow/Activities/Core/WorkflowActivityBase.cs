@@ -30,7 +30,7 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
             execution.Start();
 
             // Call the derived class implementation
-            var result = await OnExecuteAsync(context, cancellationToken);
+            var result = await ExecuteActivityAsync(context, cancellationToken);
 
             // Update execution based on a result
             if (result.Status == ActivityResultStatus.Completed)
@@ -48,7 +48,7 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
         }
     }
 
-    protected abstract Task<ActivityResult> OnExecuteAsync(ActivityContext context,
+    protected abstract Task<ActivityResult> ExecuteActivityAsync(ActivityContext context,
         CancellationToken cancellationToken = default);
 
     public virtual async Task<ActivityResult> ResumeAsync(ActivityContext context,
@@ -63,7 +63,7 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
         try
         {
             // Call the derived class implementation or use the default behavior
-            var result = await OnResumeAsync(context, resumeInput, cancellationToken);
+            var result = await ResumeActivityAsync(context, resumeInput, cancellationToken);
 
             // Update execution based on a result
             if (result.Status == ActivityResultStatus.Completed)
@@ -80,7 +80,7 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
         }
     }
 
-    protected virtual Task<ActivityResult> OnResumeAsync(ActivityContext context,
+    protected virtual Task<ActivityResult> ResumeActivityAsync(ActivityContext context,
         Dictionary<string, object> resumeInput,
         CancellationToken cancellationToken = default)
     {

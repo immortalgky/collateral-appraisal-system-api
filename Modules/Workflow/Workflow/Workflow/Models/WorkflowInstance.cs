@@ -18,7 +18,6 @@ public class WorkflowInstance : Entity<Guid>
     public Dictionary<string, RuntimeOverride> RuntimeOverrides { get; private set; } = new();
     public string? ErrorMessage { get; private set; }
     public int RetryCount { get; private set; }
-    public byte[] ConcurrencyToken { get; private set; } = default!;
 
     public WorkflowDefinition WorkflowDefinition { get; private set; } = default!;
     public List<WorkflowActivityExecution> ActivityExecutions { get; private set; } = new();

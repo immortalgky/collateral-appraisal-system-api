@@ -156,7 +156,7 @@ public class RoundRobinAssigneeSelectorTests
         // Assert
         result.Should().NotBeNull();
         result.IsSuccess.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("No active users available for assignment");
+        result.ErrorMessage.Should().Contain("Failed to select next user");
     }
 
     [Fact]

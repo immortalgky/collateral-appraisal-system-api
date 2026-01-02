@@ -119,7 +119,7 @@ public class PreviousOwnerAssigneeSelectorTests
     }
 
     [Fact]
-    public async Task SelectAssigneeAsync_WithCancellationToken_ShouldCompleteGracefully()
+    public async Task SelectAssigneeAsync_WithCancellationToken_ShouldRespectCancellation()
     {
         // Arrange
         var context = new AssignmentContext
@@ -135,12 +135,8 @@ public class PreviousOwnerAssigneeSelectorTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        // Act - Since the implementation doesn't perform cancellable operations, it should complete
-        var result = await _selector.SelectAssigneeAsync(context, cts.Token);
-
-        // Assert - Should return failure since no previous owner found
-        result.Should().NotBeNull();
-        result.IsSuccess.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("No previous owner found");
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => _selector.SelectAssigneeAsync(context, cts.Token));
     }
 }

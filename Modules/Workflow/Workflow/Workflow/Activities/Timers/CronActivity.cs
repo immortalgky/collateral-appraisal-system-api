@@ -34,7 +34,7 @@ public class CronActivity : WorkflowActivityBase
         _logger = logger;
     }
 
-    protected override async Task<ActivityResult> OnExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    protected override async Task<ActivityResult> ExecuteActivityAsync(ActivityContext context, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Executing cron activity {ActivityId} for instance {InstanceId} with expression: {CronExpression}",
             context.ActivityId, context.WorkflowInstanceId, CronExpression);

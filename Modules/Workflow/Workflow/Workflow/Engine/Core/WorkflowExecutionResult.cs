@@ -51,19 +51,4 @@ public class WorkflowExecutionResult
             WorkflowInstance = workflowInstance, Variables = workflowInstance.Variables
         };
     }
-
-    /// <summary>
-    /// ENHANCED: Indicates a single step completed, more steps remain
-    /// Used for step-by-step execution following "one step = one transaction" rule
-    /// </summary>
-    public static WorkflowExecutionResult StepCompleted(WorkflowInstance workflowInstance, string nextActivityId)
-    {
-        return new WorkflowExecutionResult
-        {
-            Status = WorkflowExecutionStatus.StepCompleted, 
-            NextActivityId = nextActivityId,
-            WorkflowInstance = workflowInstance, 
-            Variables = workflowInstance.Variables
-        };
-    }
 }

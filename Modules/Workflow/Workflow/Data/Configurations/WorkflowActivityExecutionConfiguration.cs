@@ -54,10 +54,6 @@ public class WorkflowActivityExecutionConfiguration : IEntityTypeConfiguration<W
         builder.Property(x => x.Comments)
             .HasMaxLength(1000);
 
-        builder.Property(x => x.ConcurrencyToken)
-            .IsRequired()
-            .IsRowVersion();
-
         builder.HasOne(x => x.WorkflowInstance)
             .WithMany(x => x.ActivityExecutions)
             .HasForeignKey(x => x.WorkflowInstanceId)

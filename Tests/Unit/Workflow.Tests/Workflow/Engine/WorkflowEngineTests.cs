@@ -2,7 +2,6 @@ using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Activities.Factories;
 using Workflow.Workflow.Engine;
 using Workflow.Workflow.Models;
-using Workflow.Workflow.Repositories;
 using Workflow.Workflow.Schema;
 using Workflow.Workflow.Services;
 using FluentAssertions;
@@ -25,13 +24,7 @@ public class WorkflowEngineTests
     private readonly IWorkflowLifecycleManager _lifecycleManager;
     private readonly IWorkflowPersistenceService _persistenceService;
     private readonly IWorkflowStateManager _stateManager;
-    private readonly IWorkflowResilienceService _resilienceService;
-    private readonly IWorkflowFaultHandler _faultHandler;
-    private readonly IWorkflowBookmarkService _bookmarkService;
-    private readonly IWorkflowOutboxRepository _outboxRepository;
-    private readonly IWorkflowInstanceRepository _workflowInstanceRepository;
     private readonly ILogger<WorkflowEngine> _logger;
-    private readonly IWorkflowLogger _workflowLogger;
     private readonly WorkflowEngine _workflowEngine;
     private readonly IWorkflowActivity _mockActivity;
 
@@ -42,13 +35,7 @@ public class WorkflowEngineTests
         _lifecycleManager = Substitute.For<IWorkflowLifecycleManager>();
         _persistenceService = Substitute.For<IWorkflowPersistenceService>();
         _stateManager = Substitute.For<IWorkflowStateManager>();
-        _resilienceService = Substitute.For<IWorkflowResilienceService>();
-        _faultHandler = Substitute.For<IWorkflowFaultHandler>();
-        _bookmarkService = Substitute.For<IWorkflowBookmarkService>();
-        _outboxRepository = Substitute.For<IWorkflowOutboxRepository>();
-        _workflowInstanceRepository = Substitute.For<IWorkflowInstanceRepository>();
         _logger = Substitute.For<ILogger<WorkflowEngine>>();
-        _workflowLogger = Substitute.For<IWorkflowLogger>();
 
         _mockActivity = Substitute.For<IWorkflowActivity>();
 
@@ -58,13 +45,7 @@ public class WorkflowEngineTests
             _lifecycleManager,
             _persistenceService,
             _stateManager,
-            _resilienceService,
-            _faultHandler,
-            _bookmarkService,
-            _outboxRepository,
-            _workflowInstanceRepository,
-            _logger,
-            _workflowLogger);
+            _logger);
     }
 
     [Fact]
@@ -1004,7 +985,7 @@ public class WorkflowEngineTests
 
         // Act
         var result = await _workflowEngine.ResumeWorkflowAsync(
-            workflowInstanceId, activityId, "test@company.com", null, null, CancellationToken.None);
+            workflowInstanceId, activityId, "test@company.com");
 
         // Assert
         result.Status.Should().Be(WorkflowExecutionStatus.Completed);

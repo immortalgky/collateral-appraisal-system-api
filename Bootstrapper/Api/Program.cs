@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Request.Infrastructure;
 using Shared.Data;
-// using Workflow.Telemetry; // Workflow module not yet integrated
+using Workflow.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,14 +27,14 @@ var authAssembly = typeof(AuthModule).Assembly;
 var notificationAssembly = typeof(NotificationModule).Assembly;
 var parameterAssembly = typeof(ParameterModule).Assembly;
 var documentAssembly = typeof(DocumentModule).Assembly;
-var assignmentAssembly = typeof(AssignmentModule).Assembly;
+var workflowAssembly = typeof(WorkflowModule).Assembly;
 var collateralAssembly = typeof(CollateralModule).Assembly;
 var appraisalAssembly = typeof(AppraisalModule).Assembly;
 
 builder.Services.AddCarterWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
-    parameterAssembly, documentAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
+    parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly);
 builder.Services.AddMediatRWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
-    parameterAssembly, documentAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
+    parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -69,10 +69,10 @@ builder.Services.AddMassTransit(config =>
             r.LockStatementProvider = new SqlServerLockStatementProvider();
         });
 
-    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
-    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
-    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
-    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
 
     // TODO: later implement customer delivery service
     // config.AddEntityFrameworkOutbox<RequestDbContext>(o =>
@@ -119,7 +119,7 @@ builder.Services
     .AddNotificationModule(builder.Configuration)
     .AddParameterModule(builder.Configuration)
     .AddDocumentModule(builder.Configuration)
-    .AddAssignmentModule(builder.Configuration)
+    .AddWorkflowModule(builder.Configuration)
     .AddCollateralModule(builder.Configuration)
     .AddAppraisalModule(builder.Configuration);
 
@@ -129,14 +129,16 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.DefaultIgnoreCondition =
         System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
     options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
 });
 
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 
-// Add health checks
+// Add health checks with workflow telemetry
 builder.Services.AddHealthChecks();
+    // TODO: .AddWorkflowTelemetry() - to be implemented
 
-// TODO: Configure workflow telemetry after Workflow module is integrated
+// TODO: Configure workflow telemetry (extension method to be implemented)
 // builder.Services.ConfigureWorkflowTelemetry(builder.Configuration, builder.Environment);
 
 builder.Services.AddCors(options =>
@@ -209,7 +211,7 @@ app
     .UseNotificationModule()
     .UseParameterModule()
     .UseDocumentModule()
-    .UseAssignmentModule()
+    .UseWorkflowModule()
     .UseOpenIddictModule()
     .UseCollateralModule()
     .UseAppraisalModule();

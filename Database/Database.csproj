@@ -29,17 +29,28 @@
 
 
     <ItemGroup>
+        <Folder Include="Scripts\Views\Document\"/>
+        <Folder Include="Scripts\Views\Workflow\"/>
+        <Folder Include="Scripts\Views\Auth\"/>
+        <Folder Include="Scripts\Views\Notification\"/>
+        <Folder Include="Scripts\Views\Shared\"/>
         <Folder Include="Scripts\StoredProcedures\Document\"/>
-        <Folder Include="Scripts\StoredProcedures\Assignment\"/>
+        <Folder Include="Scripts\StoredProcedures\Workflow\"/>
         <Folder Include="Scripts\StoredProcedures\Auth\"/>
         <Folder Include="Scripts\StoredProcedures\Notification\"/>
         <Folder Include="Scripts\StoredProcedures\Shared\"/>
+        <Folder Include="Scripts\Functions\Request\"/>
+        <Folder Include="Scripts\Functions\Document\"/>
+        <Folder Include="Scripts\Functions\Workflow\"/>
+        <Folder Include="Scripts\Functions\Auth\"/>
+        <Folder Include="Scripts\Functions\Notification\"/>
+        <Folder Include="Scripts\Functions\Shared\"/>
     </ItemGroup>
 
 
     <ItemGroup>
         <ProjectReference Include="..\Modules\Request\Request\Request.csproj"/>
-        <ProjectReference Include="..\Modules\Assignment\Assignment\Assignment.csproj"/>
+        <ProjectReference Include="..\Modules\Workflow\Workflow\Workflow.csproj"/>
         <ProjectReference Include="..\Modules\Document\Document\Document.csproj"/>
         <ProjectReference Include="..\Modules\Notification\Notification\Notification.csproj"/>
         <ProjectReference Include="..\Modules\Auth\OAuth2OpenId\OAuth2OpenId.csproj"/>

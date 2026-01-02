@@ -1,0 +1,10 @@
+### Create request
+POST {{baseUrl}}/requests
+
+Content-Type: application/json
+
+{
+    
+}
+
+###

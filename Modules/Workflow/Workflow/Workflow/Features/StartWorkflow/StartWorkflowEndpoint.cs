@@ -1,8 +1,5 @@
 using Workflow.Workflow.Services;
 using Workflow.Workflow.Activities.Core;
-using Workflow.Workflow.Engine;
-using Workflow.Workflow.Engine.Core;
-using Workflow.Workflow.Models;
 
 namespace Workflow.Workflow.Features.StartWorkflow;
 
@@ -102,154 +99,53 @@ public record StartWorkflowResponse
 
 public class StartWorkflowCommandHandler : ICommandHandler<StartWorkflowCommand, StartWorkflowResponse>
 {
-    private readonly IWorkflowEngine _workflowEngine;
-    private readonly IWorkflowOrchestrator _orchestrator;
-    private readonly IWorkflowPersistenceService _persistenceService;
-    private readonly IWorkflowEventPublisher _eventPublisher;
-    private readonly IWorkflowFaultHandler _faultHandler;
-    private readonly ILogger<StartWorkflowCommandHandler> _logger;
+    private readonly IWorkflowService _workflowService;
 
-    public StartWorkflowCommandHandler(
-        IWorkflowEngine workflowEngine,
-        IWorkflowOrchestrator orchestrator,
-        IWorkflowPersistenceService persistenceService,
-        IWorkflowEventPublisher eventPublisher,
-        IWorkflowFaultHandler faultHandler,
-        ILogger<StartWorkflowCommandHandler> logger)
+    public StartWorkflowCommandHandler(IWorkflowService workflowService)
     {
-        _workflowEngine = workflowEngine;
-        _orchestrator = orchestrator;
-        _persistenceService = persistenceService;
-        _eventPublisher = eventPublisher;
-        _faultHandler = faultHandler;
-        _logger = logger;
+        _workflowService = workflowService;
     }
 
     public async Task<StartWorkflowResponse> Handle(StartWorkflowCommand request, CancellationToken cancellationToken)
     {
-        int attemptNumber = 1;
-        const int maxAttempts = 3;
-
-        while (attemptNumber <= maxAttempts)
+        // Convert assignment override requests to runtime override objects
+        Dictionary<string, RuntimeOverride>? runtimeOverrides = null;
+        if (request.AssignmentOverrides != null)
         {
-            try
+            runtimeOverrides = new Dictionary<string, RuntimeOverride>();
+            foreach (var kvp in request.AssignmentOverrides)
             {
-                _logger.LogInformation("HANDLER: Starting workflow for definition {WorkflowDefinitionId} (attempt {AttemptNumber})",
-                    request.WorkflowDefinitionId, attemptNumber);
+                var activityId = kvp.Key;
+                var overrideRequest = kvp.Value;
 
-                // Convert assignment override requests to runtime override objects
-                Dictionary<string, RuntimeOverride>? runtimeOverrides = null;
-                if (request.AssignmentOverrides != null)
+                runtimeOverrides[activityId] = new RuntimeOverride
                 {
-                    runtimeOverrides = new Dictionary<string, RuntimeOverride>();
-                    foreach (var kvp in request.AssignmentOverrides)
-                    {
-                        var activityId = kvp.Key;
-                        var overrideRequest = kvp.Value;
-
-                        runtimeOverrides[activityId] = new RuntimeOverride
-                        {
-                            RuntimeAssignee = overrideRequest.RuntimeAssignee,
-                            RuntimeAssigneeGroup = overrideRequest.RuntimeAssigneeGroup,
-                            RuntimeAssignmentStrategies = overrideRequest.RuntimeAssignmentStrategies,
-                            OverrideReason = overrideRequest.OverrideReason,
-                            OverrideProperties = overrideRequest.OverrideProperties,
-                            OverrideBy = request.StartedBy,
-                            CreatedAt = DateTime.UtcNow
-                        };
-                    }
-                }
-
-                // ENHANCED: Execute startup with atomic transaction boundaries
-                var workflowInstance = await _persistenceService.ExecuteInTransactionAsync(async () =>
-                {
-                    // 1. Start workflow with single-step execution (atomic)
-                    var startupResult = await _workflowEngine.StartWorkflowAsync(
-                        request.WorkflowDefinitionId, 
-                        request.InstanceName, 
-                        request.StartedBy, 
-                        request.InitialVariables, 
-                        request.CorrelationId, 
-                        runtimeOverrides, 
-                        cancellationToken);
-
-                    if (startupResult.Status == WorkflowExecutionStatus.Failed)
-                        throw new InvalidOperationException(startupResult.ErrorMessage ?? "Workflow startup failed");
-
-                    if (startupResult.WorkflowInstance == null)
-                        throw new InvalidOperationException("WorkflowEngine returned null instance");
-
-                    return startupResult.WorkflowInstance;
-                }, cancellationToken);
-
-                // OUTSIDE TRANSACTION: Continue workflow execution if needed
-                if (workflowInstance.Status == WorkflowStatus.Running)
-                {
-                    var executionResult = await _orchestrator.ExecuteCompleteWorkflowAsync(
-                        workflowInstance.Id, 100, cancellationToken);
-                    
-                    // Update instance with final execution result
-                    if (executionResult.WorkflowInstance != null)
-                        workflowInstance = executionResult.WorkflowInstance;
-                }
-
-                // OUTSIDE TRANSACTION: Publish events after successful commit
-                await _eventPublisher.PublishWorkflowStartedAsync(
-                    workflowInstance.Id,
-                    request.WorkflowDefinitionId,
-                    request.InstanceName,
-                    request.StartedBy,
-                    workflowInstance.StartedOn,
-                    request.CorrelationId,
-                    cancellationToken);
-
-                _logger.LogInformation("HANDLER: Successfully started workflow instance {WorkflowInstanceId}",
-                    workflowInstance.Id);
-
-                return new StartWorkflowResponse
-                {
-                    WorkflowInstanceId = workflowInstance.Id,
-                    InstanceName = workflowInstance.Name,
-                    Status = workflowInstance.Status.ToString(),
-                    NextActivityId = workflowInstance.CurrentActivityId,
-                    NextAssignee = workflowInstance.CurrentAssignee,
-                    StartedOn = workflowInstance.StartedOn
+                    RuntimeAssignee = overrideRequest.RuntimeAssignee,
+                    RuntimeAssigneeGroup = overrideRequest.RuntimeAssigneeGroup,
+                    RuntimeAssignmentStrategies = overrideRequest.RuntimeAssignmentStrategies,
+                    OverrideReason = overrideRequest.OverrideReason,
+                    OverrideProperties = overrideRequest.OverrideProperties,
+                    OverrideBy = request.StartedBy,
+                    CreatedAt = DateTime.UtcNow
                 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "HANDLER: Workflow startup attempt {AttemptNumber} failed for definition {WorkflowDefinitionId}",
-                    attemptNumber, request.WorkflowDefinitionId);
-
-                // Create fault context
-                var faultContext = new StartWorkflowFaultContext(
-                    request.WorkflowDefinitionId,
-                    request.InstanceName,
-                    request.StartedBy,
-                    ex,
-                    attemptNumber);
-
-                // Handle the fault
-                var faultResult = await _faultHandler.HandleWorkflowStartupFaultAsync(faultContext, cancellationToken);
-
-                if (!faultResult.ShouldRetry || attemptNumber >= maxAttempts)
-                {
-                    _logger.LogError(ex, "HANDLER: Workflow startup failed permanently after {AttemptNumber} attempts. Reason: {FailureReason}",
-                        attemptNumber, faultResult.RecommendedAction);
-                    throw;
-                }
-
-                if (faultResult.RetryDelay.HasValue)
-                {
-                    _logger.LogInformation("HANDLER: Retrying workflow startup in {RetryDelay}ms", 
-                        faultResult.RetryDelay.Value.TotalMilliseconds);
-                    await Task.Delay(faultResult.RetryDelay.Value, cancellationToken);
-                }
-
-                attemptNumber++;
             }
         }
 
-        throw new InvalidOperationException($"Workflow startup failed after {maxAttempts} attempts");
+        var workflowInstance = await _workflowService.StartWorkflowAsync(
+            request.WorkflowDefinitionId,
+            request.InstanceName, request.StartedBy, request.InitialVariables,
+            request.CorrelationId,
+            runtimeOverrides,
+            cancellationToken);
+
+        return new StartWorkflowResponse
+        {
+            WorkflowInstanceId = workflowInstance.Id,
+            InstanceName = workflowInstance.Name,
+            Status = workflowInstance.Status.ToString(),
+            NextActivityId = workflowInstance.CurrentActivityId,
+            NextAssignee = workflowInstance.CurrentAssignee,
+            StartedOn = workflowInstance.StartedOn
+        };
     }
 }

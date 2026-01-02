@@ -17,7 +17,6 @@ public class WorkflowActivityExecution : Entity<Guid>
     public Dictionary<string, object> OutputData { get; private set; } = new();
     public string? ErrorMessage { get; private set; }
     public string? Comments { get; private set; }
-    public byte[] ConcurrencyToken { get; private set; } = default!;
 
     public WorkflowInstance WorkflowInstance { get; private set; } = default!;
 
