@@ -1,0 +1,430 @@
+using Workflow.Workflow.Activities;
+using Workflow.Workflow.Activities.Core;
+using Workflow.Workflow.Models;
+using Workflow.Workflow.Services;
+using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using Xunit;
+
+namespace Workflow.Tests.Workflow.Activities;
+
+/// <summary>
+/// Comprehensive unit tests for HumanTaskActivity covering bookmark management and user interaction
+/// Tests bookmark creation, lifecycle management, assignment handling, and resume operations
+/// </summary>
+public class HumanTaskActivityTests
+{
+    private readonly IWorkflowBookmarkService _bookmarkService;
+    private readonly IWorkflowAuditService _auditService;
+    private readonly ILogger<HumanTaskActivity> _logger;
+    private readonly HumanTaskActivity _activity;
+
+    public HumanTaskActivityTests()
+    {
+        _bookmarkService = Substitute.For<IWorkflowBookmarkService>();
+        _auditService = Substitute.For<IWorkflowAuditService>();
+        _logger = Substitute.For<ILogger<HumanTaskActivity>>();
+
+        _activity = new HumanTaskActivity(_bookmarkService, _auditService, _logger);
+    }
+
+    [Fact]
+    public void Constructor_WithValidDependencies_ShouldCreateInstance()
+    {
+        // Act & Assert
+        _activity.Should().NotBeNull();
+        _activity.ActivityType.Should().Be(ActivityTypes.HumanTask);
+        _activity.Name.Should().Be("Human Task");
+        _activity.Description.Should().Be("Assigns a task to a user or role for completion using various assignment strategies");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithBasicAssignment_ShouldCreateBookmarkAndReturnPending()
+    {
+        // Arrange
+        var context = CreateTestActivityContext(new Dictionary<string, object>
+        {
+            ["assigneeRole"] = "Appraiser",
+            ["activityName"] = "Property Valuation",
+            ["assignee"] = "appraiser@company.com"
+        });
+
+        var expectedBookmark = CreateTestBookmark(context.WorkflowInstanceId, context.ActivityId);
+        _bookmarkService.CreateUserActionBookmarkAsync(
+                context.WorkflowInstanceId,
+                context.ActivityId,
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(expectedBookmark);
+
+        // Act
+        var result = await _activity.ExecuteAsync(context);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(ActivityResultStatus.Pending);
+        result.OutputData.Should().ContainKey("assignedTo");
+        result.OutputData["assignedTo"].Should().Be("appraiser@company.com");
+        result.OutputData.Should().ContainKey("bookmarkId");
+        result.OutputData["bookmarkId"].Should().Be(expectedBookmark.Id);
+        result.OutputData.Should().ContainKey("taskName");
+        result.OutputData["taskName"].Should().Be("Property Valuation");
+
+        // Verify bookmark was created
+        await _bookmarkService.Received(1).CreateUserActionBookmarkAsync(
+            context.WorkflowInstanceId,
+            context.ActivityId,
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithMissingAssigneeRole_ShouldReturnFailedResult()
+    {
+        // Arrange
+        var context = CreateTestActivityContext(new Dictionary<string, object>
+        {
+            ["activityName"] = "Property Valuation"
+            // Missing assigneeRole
+        });
+
+        // Act
+        var result = await _activity.ExecuteAsync(context);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(ActivityResultStatus.Failed);
+        result.ErrorMessage.Should().Contain("AssigneeRole is required");
+
+        // Verify no bookmark was created
+        await _bookmarkService.DidNotReceive().CreateUserActionBookmarkAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithAssignmentTimeout_ShouldCreateTimerBookmark()
+    {
+        // Arrange
+        var context = CreateTestActivityContext(new Dictionary<string, object>
+        {
+            ["assigneeRole"] = "Appraiser",
+            ["assignee"] = "appraiser@company.com",
+            ["timeoutMinutes"] = 120
+        });
+
+        var userActionBookmark = CreateTestBookmark(context.WorkflowInstanceId, context.ActivityId);
+        var timerBookmark = CreateTestTimerBookmark(context.WorkflowInstanceId, context.ActivityId);
+
+        _bookmarkService.CreateUserActionBookmarkAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(userActionBookmark);
+
+        _bookmarkService.CreateTimerBookmarkAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(timerBookmark);
+
+        // Act
+        var result = await _activity.ExecuteAsync(context);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(ActivityResultStatus.Pending);
+        result.OutputData.Should().ContainKey("timeoutAt");
+        result.OutputData.Should().ContainKey("timerBookmarkId");
+
+        // Verify both bookmarks were created
+        await _bookmarkService.Received(1).CreateUserActionBookmarkAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _bookmarkService.Received(1).CreateTimerBookmarkAsync(
+            context.WorkflowInstanceId,
+            context.ActivityId,
+            Arg.Is<string>(k => k.Contains("timeout")),
+            Arg.Any<DateTime>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithBookmarkCreationFailure_ShouldReturnFailedResult()
+    {
+        // Arrange
+        var context = CreateTestActivityContext(new Dictionary<string, object>
+        {
+            ["assigneeRole"] = "Appraiser",
+            ["assignee"] = "appraiser@company.com"
+        });
+
+        _bookmarkService.CreateUserActionBookmarkAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Throws(new InvalidOperationException("Bookmark already exists"));
+
+        // Act
+        var result = await _activity.ExecuteAsync(context);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(ActivityResultStatus.Failed);
+        result.ErrorMessage.Should().Contain("Failed to create bookmark");
+    }
+
+    [Fact]
+    public async Task ResumeAsync_WithValidUserInput_ShouldConsumeBookmarkAndComplete()
+    {
+        // Arrange
+        var context = CreateTestActivityContext();
+        var resumeInput = new Dictionary<string, object>
+        {
+            ["decisionTaken"] = "approved",
+            ["approvalAmount"] = 350000,
+            ["notes"] = "Property valuation approved",
+            ["completedBy"] = "appraiser@company.com"
+        };
+
+        var bookmark = CreateTestBookmark(context.WorkflowInstanceId, context.ActivityId);
+        bookmark.Consume("appraiser@company.com", "{\"decision\": \"approved\"}", DateTime.UtcNow);
+
+        _bookmarkService.ConsumeBookmarkAsync(
+                Arg.Any<Guid>(),
+                "appraiser@company.com",
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(bookmark);
+
+        // Act
+        var result = await _activity.ResumeAsync(context, resumeInput);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(ActivityResultStatus.Completed);
+        result.OutputData.Should().ContainKey("decisionTaken");
+        result.OutputData["decisionTaken"].Should().Be("approved");
+        result.OutputData.Should().ContainKey("approvalAmount");
+        result.OutputData["approvalAmount"].Should().Be(350000);
+        result.OutputData.Should().ContainKey("completedBy");
+        result.OutputData["completedBy"].Should().Be("appraiser@company.com");
+        result.OutputData.Should().ContainKey("completedAt");
+
+        // Verify bookmark was consumed
+        await _bookmarkService.Received(1).ConsumeBookmarkAsync(
+            Arg.Any<Guid>(),
+            "appraiser@company.com",
+            Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ResumeAsync_WithTimeoutTrigger_ShouldHandleTimeoutScenario()
+    {
+        // Arrange
+        var context = CreateTestActivityContext(new Dictionary<string, object>
+        {
+            ["timeoutAction"] = "escalate"
+        });
+
+        var resumeInput = new Dictionary<string, object>
+        {
+            ["_triggerType"] = "timeout",
+            ["timeoutReason"] = "No response within 120 minutes"
+        };
+
+        // Act
+        var result = await _activity.ResumeAsync(context, resumeInput);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(ActivityResultStatus.Completed);
+        result.OutputData.Should().ContainKey("timeoutOccurred");
+        result.OutputData["timeoutOccurred"].Should().Be(true);
+        result.OutputData.Should().ContainKey("timeoutAction");
+        result.OutputData["timeoutAction"].Should().Be("escalate");
+        result.OutputData.Should().ContainKey("decisionTaken");
+        result.OutputData["decisionTaken"].Should().Be("timeout");
+    }
+
+    [Fact]
+    public async Task ResumeAsync_WithInvalidDecision_ShouldReturnFailedResult()
+    {
+        // Arrange
+        var context = CreateTestActivityContext(new Dictionary<string, object>
+        {
+            ["validDecisions"] = new[] { "approved", "rejected", "pending" }
+        });
+
+        var resumeInput = new Dictionary<string, object>
+        {
+            ["decisionTaken"] = "invalid_decision",
+            ["completedBy"] = "user@company.com"
+        };
+
+        // Act
+        var result = await _activity.ResumeAsync(context, resumeInput);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(ActivityResultStatus.Failed);
+        result.ErrorMessage.Should().Contain("Invalid decision");
+    }
+
+    [Fact]
+    public async Task ResumeAsync_WithMissingCompletedBy_ShouldReturnFailedResult()
+    {
+        // Arrange
+        var context = CreateTestActivityContext();
+        var resumeInput = new Dictionary<string, object>
+        {
+            ["decisionTaken"] = "approved"
+            // Missing completedBy
+        };
+
+        // Act
+        var result = await _activity.ResumeAsync(context, resumeInput);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(ActivityResultStatus.Failed);
+        result.ErrorMessage.Should().Contain("completedBy is required");
+    }
+
+    [Fact]
+    public async Task ResumeAsync_WithBookmarkConsumptionFailure_ShouldReturnFailedResult()
+    {
+        // Arrange
+        var context = CreateTestActivityContext();
+        var resumeInput = new Dictionary<string, object>
+        {
+            ["decisionTaken"] = "approved",
+            ["completedBy"] = "user@company.com"
+        };
+
+        _bookmarkService.ConsumeBookmarkAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Throws(new ArgumentException("Bookmark not found"));
+
+        // Act
+        var result = await _activity.ResumeAsync(context, resumeInput);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(ActivityResultStatus.Failed);
+        result.ErrorMessage.Should().Contain("Bookmark not found");
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WithValidConfiguration_ShouldReturnSuccess()
+    {
+        // Arrange
+        var context = CreateTestActivityContext(new Dictionary<string, object>
+        {
+            ["assigneeRole"] = "Appraiser",
+            ["activityName"] = "Property Valuation",
+            ["assignee"] = "appraiser@company.com"
+        });
+
+        // Act
+        var result = await _activity.ValidateAsync(context);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.IsValid.Should().BeTrue();
+        result.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WithMissingAssigneeRole_ShouldReturnValidationError()
+    {
+        // Arrange
+        var context = CreateTestActivityContext(new Dictionary<string, object>
+        {
+            ["activityName"] = "Property Valuation"
+            // Missing assigneeRole
+        });
+
+        // Act
+        var result = await _activity.ValidateAsync(context);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain("AssigneeRole is required for HumanTaskActivity");
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WithInvalidTimeoutMinutes_ShouldReturnValidationError()
+    {
+        // Arrange
+        var context = CreateTestActivityContext(new Dictionary<string, object>
+        {
+            ["assigneeRole"] = "Appraiser",
+            ["timeoutMinutes"] = -10 // Invalid negative timeout
+        });
+
+        // Act
+        var result = await _activity.ValidateAsync(context);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(error => error.Contains("TimeoutMinutes must be positive"));
+    }
+
+    private ActivityContext CreateTestActivityContext(Dictionary<string, object>? additionalProperties = null)
+    {
+        var workflowInstance = WorkflowInstance.Create(
+            Guid.NewGuid(),
+            "Test Workflow",
+            null,
+            "test@company.com",
+            new Dictionary<string, object>
+            {
+                ["property_value"] = 450000,
+                ["loan_amount"] = 360000
+            });
+
+        var properties = new Dictionary<string, object>
+        {
+            ["assigneeRole"] = "Appraiser",
+            ["activityName"] = "Property Evaluation Task",
+            ["workflowDefinitionId"] = workflowInstance.WorkflowDefinitionId.ToString()
+        };
+
+        if (additionalProperties != null)
+        {
+            foreach (var kvp in additionalProperties)
+            {
+                properties[kvp.Key] = kvp.Value;
+            }
+        }
+
+        return new ActivityContext
+        {
+            ActivityId = "human-task-activity",
+            WorkflowInstanceId = workflowInstance.Id,
+            WorkflowInstance = workflowInstance,
+            Variables = new Dictionary<string, object>(workflowInstance.Variables),
+            Properties = properties,
+            CurrentAssignee = "current@company.com"
+        };
+    }
+
+    private WorkflowBookmark CreateTestBookmark(Guid workflowInstanceId, string activityId)
+    {
+        return WorkflowBookmark.Create(
+            workflowInstanceId,
+            activityId,
+            BookmarkType.UserAction,
+            "user-action",
+            "test-correlation",
+            "{\"message\": \"Task assigned\"}");
+    }
+
+    private WorkflowBookmark CreateTestTimerBookmark(Guid workflowInstanceId, string activityId)
+    {
+        return WorkflowBookmark.Create(
+            workflowInstanceId,
+            activityId,
+            BookmarkType.Timer,
+            "timeout",
+            null,
+            null,
+            DateTime.UtcNow.AddHours(2));
+    }
+}

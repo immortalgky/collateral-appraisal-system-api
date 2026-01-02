@@ -1,0 +1,74 @@
+@baseUrl = https://localhost:7111
+@requestId = E65DA0BB-2B24-4479-597E-08DE2BF89D72
+PATCH {{baseUrl}}/requests/{{requestId}}/titles/draft
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "requestTitleDtos":
+    [
+        {
+            "id": "D7B15409-BB2A-4103-BC83-E398F874AF96",
+            "collateralType": "L",
+            "collateralStatus": false,
+            "landNo": "Test",
+            "ownerName": "Test",
+            "titleAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "dopaAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "notes": "Test",
+            "requestTitleDocumentDtos":
+            [
+                {
+                    "id": "9397C3D4-B200-44E0-B842-514F4865A0ED",
+                    "documentId": "84DCBD01-8544-41D9-8125-874C963C8003",
+                    "documentType": "Test",
+                    "filename": "Test",
+                    "prefix": "Test",
+                    "set": 1,
+                    "documentDescription": "Update Test",
+                    "filePath": "Test",
+                    "createdWorkstation": "Test",
+                    "isRequired": true,
+                    "uploadedBy": "Test",
+                    "uploadedByName": "Test"
+                },
+                {
+                    "id": "32EB19FF-3DBA-4023-BB97-25DF27C8A8A7",
+                    "documentId": "84DCBD01-8544-41D9-8125-874C963C8002",
+                    "documentType": "Test",
+                    "filename": "Test",
+                    "prefix": "Test",
+                    "set": 1,
+                    "documentDescription": "Update Test",
+                    "filePath": "Test",
+                    "createdWorkstation": "Test",
+                    "isRequired": true,
+                    "uploadedBy": "Test",
+                    "uploadedByName": "Test"
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,3 @@
+namespace Request.Application.Features.RequestComments.GetRequestCommentsByRequestId;
+
+public record GetRequestCommentsByRequestIdQuery(Guid RequestId) : IQuery<GetRequestCommentsByRequestIdResult>;

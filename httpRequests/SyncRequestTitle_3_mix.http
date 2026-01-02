@@ -1,0 +1,453 @@
+@baseUrl = https://localhost:7111
+@requestId = 19248d4c-3cf3-4cc3-4773-08de2efe7c24
+PATCH {{baseUrl}}/requests/{{requestId}}/titles
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "requestTitleDtos":
+    [
+        {
+            "collateralType": "L",
+            "collateralStatus": false,
+            "titleNo": "Test",
+            "deedType": "NorSor3",
+            "titleDetail": "Test",
+            "rawang": "Test",
+            "landNo": "Test",
+            "surveyNo": "Test",
+            "areaRai": 0,
+            "areaNgan": 0,
+            "areaSquareWa": 0,
+            "ownerName": "Test",
+            "titleAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+                "dopaAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "notes": "Test",
+            "requestTitleDocumentDtos":
+            [
+            ]
+        },
+		{
+			"collateralType": "LA-L",
+			"collateralStatus": false,
+			"titleNo": "Test",
+			"deedType": "NorSor3",
+			"titleDetail": "Test",
+			"rawang": "Test",
+			"landNo": "Test",
+			"surveyNo": "Test",
+			"areaRai": 0,
+			"areaNgan": 0,
+			"areaSquareWa": 0,
+			"ownerName": "Test",
+			"titleAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"dopaAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"notes": "Test",
+			"requestTitleDocumentDtos":
+			[
+			]
+        },
+        {
+			"collateralType": "B",
+			"collateralStatus": false,
+			"buildingType": "Test",
+			"usableArea": 0,
+			"numberOfBuilding": 1,
+			"titleAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"dopaAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"notes": "Test",
+            "requestTitleDocumentDtos":
+            [
+            ]
+        },
+		{
+			"collateralType": "LA-B",
+			"collateralStatus": false,
+			"titleNo": "Test",
+			"deedType": "NorSor3",
+			"titleDetail": "Test",
+			"rawang": "Test",
+			"landNo": "Test",
+			"surveyNo": "Test",
+			"areaRai": 0,
+			"areaNgan": 0,
+			"areaSquareWa": 0,
+			"ownerName": "Test",
+			"buildingType": "Test",
+			"usableArea": 0,
+			"numberOfBuilding": 1,
+			"titleAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"dopaAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"notes": "Test",
+			"requestTitleDocumentDtos":
+			[
+			]
+        },
+        {
+			"collateralType": "LB",
+			"collateralStatus": false,
+			"titleNo": "Test",
+			"deedType": "NorSor3",
+			"titleDetail": "Test",
+			"rawang": "Test",
+			"landNo": "Test",
+			"surveyNo": "Test",
+			"areaRai": 0,
+			"areaNgan": 0,
+			"areaSquareWa": 0,
+			"ownerName": "Test",
+			"buildingType": "Test",
+			"usableArea": 0,
+			"numberOfBuilding": 1,
+			"titleAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"dopaAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"notes": "Test",
+            "requestTitleDocumentDtos":
+            [
+            ]
+        },
+		{
+			"collateralType": "LA-LB",
+			"collateralStatus": false,
+			"titleNo": "Test",
+			"deedType": "NorSor3",
+			"titleDetail": "Test",
+			"rawang": "Test",
+			"landNo": "Test",
+			"surveyNo": "Test",
+			"areaRai": 0,
+			"areaNgan": 0,
+			"areaSquareWa": 0,
+			"ownerName": "Test",
+			"buildingType": "Test",
+			"usableArea": 0,
+			"numberOfBuilding": 1,
+			"titleAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"dopaAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"notes": "Test",
+			"requestTitleDocumentDtos":
+			[
+			]
+        },
+		{
+			"collateralType": "C",
+			"collateralStatus": false,
+			"titleDetail": "Test",
+			"usableArea": 0,
+			"condoName": "Test",
+			"buildingNo": "Test",
+			"roomNo": "Test",
+			"floorNo": "Test",
+			"ownerName": "Test",
+			"titleAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"dopaAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"notes": "Test",
+			"requestTitleDocumentDtos":
+			[
+			]
+        },
+		{
+			"collateralType": "LA-C",
+			"collateralStatus": false,
+			"titleDetail": "Test",
+			"usableArea": 0,
+			"condoName": "Test",
+			"buildingNo": "Test",
+			"roomNo": "Test",
+			"floorNo": "Test",
+			"ownerName": "Test",
+			"titleAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"dopaAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"notes": "Test",
+			"requestTitleDocumentDtos":
+			[
+			]
+        },
+		{
+			"collateralType": "M",
+			"collateralStatus": false,
+			"registrationNo": "Test",
+			"machineStatus": "Test",
+			"machineType": "Test",
+			"installationStatus": "Test",
+			"invoiceNumber": "Test",
+			"numberOfMachine": 10,
+			"titleAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"dopaAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"notes": "Test",
+			"requestTitleDocumentDtos":
+			[
+			]
+        },
+		{
+			"collateralType": "V",
+			"collateralStatus": false,
+			"registrationNo": "Test",
+			"vehicleType": "Test",
+			"chassisNumber": "Test",
+			"vehicleAppointmentLocation": "Test",
+			"titleAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"dopaAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"notes": "Test",
+			"requestTitleDocumentDtos":
+			[
+			]
+        },
+		{
+			"collateralType": "VES",
+			"collateralStatus": false,
+			"registrationNo": "Test",
+			"vehicleType": "Test",
+			"chassisNumber": "Test",
+			"vehicleAppointmentLocation": "Test",
+			"titleAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"dopaAddress":
+			{
+				"houseNo": "Test",
+				"projectName": "Test",
+				"moo": "Test",
+				"soi": "Test",
+				"road": "00",
+				"subDistrict": "00",
+				"district": "00",
+				"province": "00",
+				"postcode": "00"
+			},
+			"notes": "Test",
+			"requestTitleDocumentDtos":
+			[
+			]
+        }
+    ]
+}

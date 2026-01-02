@@ -14,7 +14,7 @@ public class WorkflowActionExecutor : IWorkflowActionExecutor
     private readonly IServiceProvider _serviceProvider;
     private readonly IWorkflowExpressionEvaluator _expressionEvaluator;
     private readonly IWorkflowAuditService _auditService;
-    private readonly IWorkflowResilienceService _resilienceService;
+    private readonly Resilience.IWorkflowResilienceService _resilienceService;
     private readonly ILogger<WorkflowActionExecutor> _logger;
     private readonly Dictionary<string, Type> _registeredActions = new();
 
@@ -22,7 +22,7 @@ public class WorkflowActionExecutor : IWorkflowActionExecutor
         IServiceProvider serviceProvider,
         IWorkflowExpressionEvaluator expressionEvaluator,
         IWorkflowAuditService auditService,
-        IWorkflowResilienceService resilienceService,
+        Resilience.IWorkflowResilienceService resilienceService,
         ILogger<WorkflowActionExecutor> logger)
     {
         _serviceProvider = serviceProvider;

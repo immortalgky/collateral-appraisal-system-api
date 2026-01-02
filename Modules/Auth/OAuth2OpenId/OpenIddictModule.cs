@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OAuth2OpenId.Data.Repository;
+using OAuth2OpenId.Services;
 using Shared.Security;
 
 namespace OAuth2OpenId;
@@ -62,15 +64,13 @@ public static class OpenIddictModule
 
                 options.AllowAuthorizationCodeFlow().RequireProofKeyForCodeExchange();
                 options.AllowClientCredentialsFlow();
+                options.AllowPasswordFlow();
                 options.AllowRefreshTokenFlow();
 
                 // Security: Only accept clients that are explicitly registered
                 // Remove AcceptAnonymousClients() for production security
                 var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-                if (environment == "Development")
-                {
-                    options.AcceptAnonymousClients();
-                }
+                if (environment == "Development") options.AcceptAnonymousClients();
 
                 options.RegisterScopes(
                     OpenIddictConstants.Scopes.OpenId, OpenIddictConstants.Scopes.Profile,
@@ -91,29 +91,22 @@ public static class OpenIddictModule
                     var encryptionCertConfig = configuration.GetSection("OAuth2:EncryptionCertificate");
 
                     if (signingCertConfig.Exists())
-                    {
                         // Use certificate provider when available
                         // For now, throw exception to enforce proper configuration
                         throw new InvalidOperationException(
                             "Production signing certificate configuration required but not implemented. Please configure OAuth2:SigningCertificate section.");
-                    }
 
                     if (encryptionCertConfig.Exists())
-                    {
                         throw new InvalidOperationException(
                             "Production encryption certificate configuration required but not implemented. Please configure OAuth2:EncryptionCertificate section.");
-                    }
 
-                    // Fallback to development certificates with warning
+                    // Fallback to development certificates with a warning
                     options.AddDevelopmentEncryptionCertificate();
                     options.AddDevelopmentSigningCertificate();
                 }
 
                 // Enable access token encryption in production
-                if (environment == "Development")
-                {
-                    options.DisableAccessTokenEncryption();
-                }
+                if (environment == "Development") options.DisableAccessTokenEncryption();
 
                 options.UseAspNetCore()
                     .EnableTokenEndpointPassthrough()
@@ -126,6 +119,10 @@ public static class OpenIddictModule
             });
 
         services.AddScoped<IDataSeeder<OpenIddictDbContext>, AuthDataSeed>();
+        services.AddScoped<ITokenService, TokenService>();
+
+        services.AddScoped<IPermissionRepository, PermissionRepository>();
+        services.AddScoped<IRoleRepository, RoleRepository>();
 
         return services;
     }

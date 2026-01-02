@@ -3,8 +3,8 @@ using System.Text.Json;
 using Integration.Fixtures;
 using Integration.Helpers;
 using Integration.Request.Integration.Tests.Helpers;
-using Request.RequestComments.Features.AddRequestComment;
-using Request.RequestComments.Features.GetRequestCommentsByRequestId;
+using Request.Application.Features.RequestComments.AddRequestComment;
+using Request.Application.Features.RequestComments.GetRequestCommentsByRequestId;
 
 namespace Integration.Request.Integration.Tests;
 

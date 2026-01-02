@@ -1,0 +1,3 @@
+namespace Request.Application.Features.RequestTitles.GetTitleDocumentsByTitleId;
+
+public record GetLinkRequestTitleDocumentsByTitleIdResult(List<RequestTitleDocumentDto> RequestTitleDocuments);

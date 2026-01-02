@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using System.Globalization;
+using Shared.Configurations;
 
 namespace Shared.Time;
 
@@ -15,7 +16,7 @@ public class DateTimeProvider : IDateTimeProvider
     public DateTimeProvider(IOptions<TimeZoneConfiguration> config)
     {
         _config = config.Value;
-        
+
         // Set up timezone - default to UTC if configuration fails
         try
         {
@@ -54,7 +55,7 @@ public class DateTimeProvider : IDateTimeProvider
 
     public TimeOnly TimeOfDay => TimeOnly.FromDateTime(DateTime.Now);
 
-    public DateTime ApplicationNow 
+    public DateTime ApplicationNow
     {
         get
         {

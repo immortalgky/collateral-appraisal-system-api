@@ -1,19 +1,21 @@
-namespace Request.Contracts.Requests.Dtos;
+using Request.Contracts.RequestDocuments.Dto;
 
-// public record RequestDto(
-//     long Id,
-//     string AppraisalNo,
-//     string Status /*,
-//     RequestDetailDto Detail*/
-//     , List<RequestCustomerDto> Customers
-// );
+namespace Request.Contracts.Requests.Dtos;
 
 public class RequestDto
 {
-    public long Id { get; set; }
-    public string AppraisalNo { get; set; }
+    public Guid Id { get; set; }
+    public string RequestNumber { get; set; }
     public string Status { get; set; }
+    public string Purpose { get; set; }
+    public string Channel { get; set; }
+    public UserInfoDto Requestor { get; set; }
+    public UserInfoDto Creator { get; set; }
+    public string Priority { get; set; }
+    public bool IsPma { get; set; }
     public RequestDetailDto Detail { get; set; }
     public List<RequestCustomerDto> Customers { get; set; }
     public List<RequestPropertyDto> Properties { get; set; }
+    public List<RequestDocumentDto> Documents { get; set; }
+    public List<RequestTitleDto> Titles { get; set; } = [];
 }

@@ -1,0 +1,8 @@
+@requestId=f18efbfe-0347-42b3-a96a-3d5a3ef6fb4f
+
+GET {{baseUrl}}/requests/{{requestId}}
+headers: localhost:7111
+Content-Type: application/json
+
+{
+}

@@ -62,6 +62,7 @@ public enum TransitionType
 public static class ActivityTypes
 {
     public const string TaskActivity = "TaskActivity";
+    public const string HumanTask = "HumanTask";
     public const string IfElseActivity = "IfElseActivity";
     public const string SwitchActivity = "SwitchActivity";
     public const string ServiceActivity = "ServiceActivity";

@@ -28,6 +28,15 @@ public class WorkflowDefinitionRepository : BaseRepository<WorkflowDefinition, G
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IEnumerable<WorkflowDefinition>> GetAllAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await DbSet
+            .OrderBy(x => x.Name)
+            .ThenByDescending(x => x.Version)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<WorkflowDefinition?> GetByNameAndVersion(string name, int version,
         CancellationToken cancellationToken = default)
     {

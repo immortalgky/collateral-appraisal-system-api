@@ -1,0 +1,340 @@
+using Workflow.Data;
+using Workflow.Workflow.Models;
+using Workflow.Workflow.Repositories;
+using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Shared.Data;
+using NSubstitute;
+using Xunit;
+
+namespace Workflow.Tests.Workflow.Repositories;
+
+/// <summary>
+/// Comprehensive unit tests for WorkflowBookmarkRepository covering CRUD operations
+/// Tests bookmark persistence, querying, and data access layer operations
+/// </summary>
+public class WorkflowBookmarkRepositoryTests
+{
+    private readonly WorkflowDbContext _dbContext;
+    private readonly ISqlConnectionFactory _sqlConnectionFactory;
+    private readonly WorkflowBookmarkRepository _repository;
+    private readonly DbSet<WorkflowBookmark> _bookmarkSet;
+
+    public WorkflowBookmarkRepositoryTests()
+    {
+        _dbContext = Substitute.For<WorkflowDbContext>();
+        _sqlConnectionFactory = Substitute.For<ISqlConnectionFactory>();
+        _bookmarkSet = Substitute.For<DbSet<WorkflowBookmark>>();
+
+        _dbContext.WorkflowBookmarks.Returns(_bookmarkSet);
+
+        _repository = new WorkflowBookmarkRepository(_dbContext, _sqlConnectionFactory);
+    }
+
+    [Fact]
+    public void Constructor_WithValidDependencies_ShouldCreateInstance()
+    {
+        // Act & Assert
+        _repository.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task AddAsync_WithValidBookmark_ShouldAddToContext()
+    {
+        // Arrange
+        var bookmark = CreateTestBookmark();
+
+        // Act
+        await _repository.AddAsync(bookmark);
+
+        // Assert
+        _bookmarkSet.Received(1).Add(bookmark);
+        await _dbContext.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WithExistingId_ShouldReturnBookmark()
+    {
+        // Arrange
+        var bookmark = CreateTestBookmark();
+        var bookmarkId = bookmark.Id; // Use the ID generated during creation
+
+        _bookmarkSet.FindAsync(bookmarkId, Arg.Any<CancellationToken>())
+            .Returns(bookmark);
+
+        // Act
+        var result = await _repository.GetByIdAsync(bookmarkId);
+
+        // Assert
+        result.Should().Be(bookmark);
+        await _bookmarkSet.Received(1).FindAsync(bookmarkId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WithNonExistentId_ShouldReturnNull()
+    {
+        // Arrange
+        var bookmarkId = Guid.NewGuid();
+
+        _bookmarkSet.FindAsync(bookmarkId, Arg.Any<CancellationToken>())
+            .Returns((WorkflowBookmark?)null);
+
+        // Act
+        var result = await _repository.GetByIdAsync(bookmarkId);
+
+        // Assert
+        result.Should().BeNull();
+        await _bookmarkSet.Received(1).FindAsync(bookmarkId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithValidBookmark_ShouldUpdateInContext()
+    {
+        // Arrange
+        var bookmark = CreateTestBookmark();
+
+        // Act
+        await _repository.UpdateAsync(bookmark);
+
+        // Assert
+        _bookmarkSet.Received(1).Update(bookmark);
+        await _dbContext.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WithValidBookmark_ShouldRemoveFromContext()
+    {
+        // Arrange
+        var bookmark = CreateTestBookmark();
+
+        // Act
+        await _repository.DeleteAsync(bookmark);
+
+        // Assert
+        _bookmarkSet.Received(1).Remove(bookmark);
+        await _dbContext.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task FindUnconsumedBookmarkAsync_WithExistingBookmark_ShouldReturnBookmark()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var activityId = "test-activity";
+        var key = "test-key";
+        var type = BookmarkType.UserAction;
+
+        var bookmarks = new List<WorkflowBookmark>
+        {
+            CreateTestBookmark(workflowInstanceId, activityId, key, type)
+        }.AsQueryable();
+
+        _bookmarkSet.AsQueryable().Returns(bookmarks);
+
+        // Act
+        var result = await _repository.FindUnconsumedBookmarkAsync(workflowInstanceId, activityId, key, type);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.WorkflowInstanceId.Should().Be(workflowInstanceId);
+        result.ActivityId.Should().Be(activityId);
+        result.Key.Should().Be(key);
+        result.Type.Should().Be(type);
+        result.IsConsumed.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task FindUnconsumedBookmarkAsync_WithNoMatchingBookmark_ShouldReturnNull()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var activityId = "test-activity";
+        var key = "test-key";
+        var type = BookmarkType.UserAction;
+
+        var bookmarks = new List<WorkflowBookmark>().AsQueryable();
+        _bookmarkSet.AsQueryable().Returns(bookmarks);
+
+        // Act
+        var result = await _repository.FindUnconsumedBookmarkAsync(workflowInstanceId, activityId, key, type);
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FindActiveBookmarksByWorkflowAsync_WithActiveBookmarks_ShouldReturnBookmarks()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var activeBookmark1 = CreateTestBookmark(workflowInstanceId, "activity1", "key1");
+        var activeBookmark2 = CreateTestBookmark(workflowInstanceId, "activity2", "key2");
+        var consumedBookmark = CreateTestBookmark(workflowInstanceId, "activity3", "key3");
+        consumedBookmark.Consume("user@company.com");
+
+        var bookmarks = new List<WorkflowBookmark> { activeBookmark1, activeBookmark2, consumedBookmark }.AsQueryable();
+        _bookmarkSet.AsQueryable().Returns(bookmarks);
+
+        // Act
+        var result = await _repository.FindActiveBookmarksByWorkflowAsync(workflowInstanceId);
+
+        // Assert
+        result.Should().HaveCount(2);
+        result.Should().Contain(activeBookmark1);
+        result.Should().Contain(activeBookmark2);
+        result.Should().NotContain(consumedBookmark);
+    }
+
+    [Fact]
+    public async Task FindByCorrelationIdAsync_WithExistingCorrelation_ShouldReturnBookmark()
+    {
+        // Arrange
+        var correlationId = "TEST-12345";
+        var bookmark = CreateTestBookmark();
+        // Correlation is set during creation
+
+        var bookmarks = new List<WorkflowBookmark> { bookmark }.AsQueryable();
+        _bookmarkSet.AsQueryable().Returns(bookmarks);
+
+        // Act
+        var result = await _repository.FindByCorrelationIdAsync(correlationId);
+
+        // Assert
+        result.Should().Be(bookmark);
+        result.CorrelationId.Should().Be(correlationId);
+    }
+
+    [Fact]
+    public async Task FindByCorrelationIdAsync_WithNonExistentCorrelation_ShouldReturnNull()
+    {
+        // Arrange
+        var correlationId = "NON-EXISTENT";
+        var bookmarks = new List<WorkflowBookmark>().AsQueryable();
+        _bookmarkSet.AsQueryable().Returns(bookmarks);
+
+        // Act
+        var result = await _repository.FindByCorrelationIdAsync(correlationId);
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FindExpiredBookmarksAsync_WithExpiredBookmarks_ShouldReturnExpiredBookmarks()
+    {
+        // Arrange
+        var cutoffTime = DateTime.UtcNow;
+        var expiredBookmark = CreateTestBookmark(dueAt: cutoffTime.AddHours(-1)); // Expired 1 hour ago
+        var activeBookmark = CreateTestBookmark(dueAt: cutoffTime.AddHours(1)); // Future trigger
+        var noTriggerBookmark = CreateTestBookmark(); // No trigger time set
+
+        var bookmarks = new List<WorkflowBookmark> { expiredBookmark, activeBookmark, noTriggerBookmark }.AsQueryable();
+        _bookmarkSet.AsQueryable().Returns(bookmarks);
+
+        // Act
+        var result = await _repository.FindExpiredBookmarksAsync(cutoffTime);
+
+        // Assert
+        result.Should().HaveCount(1);
+        result.Should().Contain(expiredBookmark);
+        result.Should().NotContain(activeBookmark);
+        result.Should().NotContain(noTriggerBookmark);
+    }
+
+    [Fact]
+    public async Task GetStatisticsAsync_WithBookmarks_ShouldReturnCorrectStatistics()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        
+        var userActionBookmark1 = CreateTestBookmark(workflowInstanceId, "activity1", "key1", BookmarkType.UserAction);
+        var userActionBookmark2 = CreateTestBookmark(workflowInstanceId, "activity2", "key2", BookmarkType.UserAction);
+        var timerBookmark = CreateTestBookmark(workflowInstanceId, "activity3", "key3", BookmarkType.Timer);
+        
+        var consumedBookmark = CreateTestBookmark(workflowInstanceId, "activity4", "key4", BookmarkType.UserAction);
+        consumedBookmark.Consume("user@company.com");
+
+        var expiredBookmark = CreateTestBookmark(workflowInstanceId, "activity5", "key5", BookmarkType.Timer, DateTime.UtcNow.AddHours(-1)); // Expired
+
+        var bookmarks = new List<WorkflowBookmark> 
+        { 
+            userActionBookmark1, userActionBookmark2, timerBookmark, consumedBookmark, expiredBookmark 
+        }.AsQueryable();
+        
+        _bookmarkSet.AsQueryable().Returns(bookmarks);
+
+        // Act
+        var result = await _repository.GetStatisticsAsync(workflowInstanceId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.TotalBookmarks.Should().Be(5);
+        result.ActiveBookmarks.Should().Be(3); // Excluding consumed and expired
+        result.ConsumedBookmarks.Should().Be(1);
+        result.ExpiredBookmarks.Should().Be(1);
+        result.UserActionBookmarks.Should().Be(3); // Including consumed
+        result.TimerBookmarks.Should().Be(2); // Including expired
+    }
+
+    [Fact]
+    public async Task GetStatisticsAsync_WithNoBookmarks_ShouldReturnZeroStatistics()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var bookmarks = new List<WorkflowBookmark>().AsQueryable();
+        _bookmarkSet.AsQueryable().Returns(bookmarks);
+
+        // Act
+        var result = await _repository.GetStatisticsAsync(workflowInstanceId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.TotalBookmarks.Should().Be(0);
+        result.ActiveBookmarks.Should().Be(0);
+        result.ConsumedBookmarks.Should().Be(0);
+        result.ExpiredBookmarks.Should().Be(0);
+        result.UserActionBookmarks.Should().Be(0);
+        result.TimerBookmarks.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetActiveBookmarksByActivityAsync_WithActivityBookmarks_ShouldReturnActivityBookmarks()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var activityId = "target-activity";
+        
+        var targetBookmark1 = CreateTestBookmark(workflowInstanceId, activityId, "key1");
+        var targetBookmark2 = CreateTestBookmark(workflowInstanceId, activityId, "key2");
+        var otherActivityBookmark = CreateTestBookmark(workflowInstanceId, "other-activity", "key3");
+
+        var bookmarks = new List<WorkflowBookmark> { targetBookmark1, targetBookmark2, otherActivityBookmark }.AsQueryable();
+        _bookmarkSet.AsQueryable().Returns(bookmarks);
+
+        // Act
+        var result = await _repository.GetActiveBookmarksByActivityAsync(workflowInstanceId, activityId);
+
+        // Assert
+        result.Should().HaveCount(2);
+        result.Should().Contain(targetBookmark1);
+        result.Should().Contain(targetBookmark2);
+        result.Should().NotContain(otherActivityBookmark);
+    }
+
+    private WorkflowBookmark CreateTestBookmark(
+        Guid? workflowInstanceId = null,
+        string activityId = "test-activity",
+        string key = "test-key",
+        BookmarkType type = BookmarkType.UserAction,
+        DateTime? dueAt = null)
+    {
+        return WorkflowBookmark.Create(
+            workflowInstanceId ?? Guid.NewGuid(),
+            activityId,
+            type,
+            key,
+            "test-correlation",
+            "{\"test\": \"payload\"}",
+            dueAt);
+    }
+}

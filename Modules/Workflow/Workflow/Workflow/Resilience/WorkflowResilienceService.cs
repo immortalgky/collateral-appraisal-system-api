@@ -490,6 +490,60 @@ public class WorkflowResilienceService : IWorkflowResilienceService
 
     #endregion
 
+    #region Legacy Methods for Backward Compatibility
+
+    public async Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken = default)
+    {
+        return await ExecuteWithResilienceAsync("LegacyRetry", async ct => await operation(), ResiliencePolicy.Default, cancellationToken);
+    }
+
+    public async Task ExecuteWithRetryAsync(Func<Task> operation, CancellationToken cancellationToken = default)
+    {
+        await ExecuteWithResilienceAsync("LegacyRetry", async ct => await operation(), ResiliencePolicy.Default, cancellationToken);
+    }
+
+    public async Task<T> ExecuteWithRetryAsync<T>(Func<CancellationToken, Task<T>> operation, string policyName, CancellationToken cancellationToken = default)
+    {
+        return await ExecuteWithResilienceAsync($"LegacyRetry.{policyName}", operation, ResiliencePolicy.Default, cancellationToken);
+    }
+
+    public async Task ExecuteWithRetryAsync(Func<CancellationToken, Task> operation, string policyName, CancellationToken cancellationToken = default)
+    {
+        await ExecuteWithResilienceAsync($"LegacyRetry.{policyName}", operation, ResiliencePolicy.Default, cancellationToken);
+    }
+
+    public async Task<T> ExecuteDatabaseOperationAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken = default)
+    {
+        return await ExecuteWithResilienceAsync("DatabaseOperation", operation, ResiliencePolicy.Default, cancellationToken);
+    }
+
+    public async Task ExecuteDatabaseOperationAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken = default)
+    {
+        await ExecuteWithResilienceAsync("DatabaseOperation", operation, ResiliencePolicy.Default, cancellationToken);
+    }
+
+    public async Task<T> ExecuteExternalCallAsync<T>(Func<CancellationToken, Task<T>> operation, string serviceKey, CancellationToken cancellationToken = default)
+    {
+        return await ExecuteExternalServiceCallAsync(serviceKey, operation, null, ResiliencePolicy.Default, cancellationToken);
+    }
+
+    public async Task ExecuteExternalCallAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken = default)
+    {
+        await ExecuteWithResilienceAsync("ExternalCall", operation, ResiliencePolicy.Default, cancellationToken);
+    }
+
+    public async Task<T> ExecuteWorkflowActivityAsync<T>(Func<CancellationToken, Task<T>> operation, string activityType, CancellationToken cancellationToken = default)
+    {
+        return await ExecuteWithResilienceAsync($"Activity.{activityType}", operation, ResiliencePolicy.Default, cancellationToken);
+    }
+
+    public async Task ExecuteWorkflowActivityAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken = default)
+    {
+        await ExecuteWithResilienceAsync("Activity", operation, ResiliencePolicy.Default, cancellationToken);
+    }
+
+    #endregion
+
     #region Helper Classes
 
     private class NullDisposable : IDisposable

@@ -1,0 +1,109 @@
+{
+  "ConnectionStrings": {
+    "Database": "#{DATABASE_CONNECTION_STRING}#",
+    "Redis": "#{REDIS_CONNECTION_STRING}#"
+  },
+  "RabbitMQ": {
+    "Host": "#{RABBITMQ_HOST}#",
+    "Username": "#{RABBITMQ_USERNAME}#",
+    "Password": "#{RABBITMQ_PASSWORD}#"
+  },
+  "Serilog": {
+    "Using": [
+      "Serilog.Sinks.Console",
+      "Serilog.Sinks.File",
+      "Serilog.Sinks.Seq"
+    ],
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft": "Warning",
+        "System": "Warning",
+        "Workflow": "Information",
+        "MassTransit": "Information"
+      }
+    },
+    "WriteTo": [
+      {
+        "Name": "Console",
+        "Args": {
+          "formatter": "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact"
+        }
+      },
+      {
+        "Name": "File",
+        "Args": {
+          "path": "/var/log/collateral-appraisal/log-.txt",
+          "rollingInterval": "Day",
+          "retainedFileCountLimit": 30,
+          "formatter": "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact"
+        }
+      },
+      {
+        "Name": "Seq",
+        "Args": {
+          "serverUrl": "#{SEQ_SERVER_URL}#",
+          "apiKey": "#{SEQ_API_KEY}#"
+        }
+      }
+    ],
+    "Enrich": [
+      "FromLogContext",
+      "WithMachineName",
+      "WithProcessId",
+      "WithThreadId",
+      "WithEnvironmentName"
+    ],
+    "Properties": {
+      "Application": "Collateral Appraisal System",
+      "Environment": "Production"
+    }
+  },
+  "AllowedHosts": "#{ALLOWED_HOSTS}#",
+  "TimeZone": {
+    "DefaultTimeZone": "UTC",
+    "ForceUtc": true,
+    "Culture": "en-US",
+    "DateFormat": "yyyy-MM-dd",
+    "TimeFormat": "HH:mm:ss",
+    "DateTimeFormat": "yyyy-MM-dd HH:mm:ss"
+  },
+  "WorkflowTelemetry": {
+    "Enabled": true,
+    "EnableTracing": true,
+    "EnableMetrics": true,
+    "EnableConsoleExporter": false,
+    "EnableOtlpExporter": true,
+    "OtlpEndpoint": "#{OTLP_ENDPOINT}#",
+    "ServiceName": "CollateralAppraisal.WorkflowService",
+    "ServiceVersion": "#{SERVICE_VERSION}#",
+    "ResourceAttributes": {
+      "deployment.environment": "production",
+      "service.namespace": "CollateralAppraisal",
+      "workflow.module.version": "#{WORKFLOW_MODULE_VERSION}#",
+      "service.instance.id": "#{HOSTNAME}#",
+      "cloud.provider": "#{CLOUD_PROVIDER}#",
+      "cloud.region": "#{CLOUD_REGION}#"
+    }
+  },
+  "WorkflowResilience": {
+    "Retry": {
+      "MaxRetryAttempts": 5,
+      "BaseDelay": "00:00:02",
+      "MaxDelay": "00:01:00"
+    },
+    "Timeout": {
+      "DatabaseOperation": "00:01:00",
+      "ExternalHttpCall": "00:00:30",
+      "ActivityExecution": "00:10:00"
+    },
+    "CircuitBreaker": {
+      "MinimumThroughput": 50,
+      "BreakDuration": "00:01:00"
+    }
+  },
+  "HealthChecks": {
+    "AllowCachingResponses": false,
+    "CacheDuration": "00:00:30"
+  }
+}

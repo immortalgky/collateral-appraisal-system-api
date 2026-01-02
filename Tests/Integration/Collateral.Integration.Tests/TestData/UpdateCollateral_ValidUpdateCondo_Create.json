@@ -1,0 +1,25 @@
+{
+  "collatType": "Condo",
+  "collateralCondo": {
+    "condoName": "The Skyline Residences",
+    "buildingNo": "B1",
+    "modelName": "A-Unit",
+    "builtOnTitleNo": "12345",
+    "condoRegisNo": "00123",
+    "roomNo": "102",
+    "floorNo": 1,
+    "usableArea": 51,
+    "collateralLocation": {
+      "subDistrict": "Makkasan",
+      "district": "Ratchathewi",
+      "province": "Bangkok",
+      "landOffice": "TT"
+    },
+    "coordinate": {
+      "latitude": 13.764722,
+      "longitude": 100.538611
+    },
+    "owner": "Somchai Niyom"
+  },
+  "reqId": 1
+}

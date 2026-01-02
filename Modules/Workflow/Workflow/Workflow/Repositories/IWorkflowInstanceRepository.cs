@@ -24,4 +24,19 @@ public interface IWorkflowInstanceRepository
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 
     Task LoggerAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a workflow instance with optimistic locking for update operations
+    /// </summary>
+    Task<WorkflowInstance?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tries to update a workflow instance with concurrency handling
+    /// </summary>
+    Task<bool> TryUpdateWithConcurrencyAsync(WorkflowInstance instance, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets workflows that have been running longer than the specified duration
+    /// </summary>
+    Task<IEnumerable<WorkflowInstance>> GetLongRunningWorkflowsAsync(TimeSpan timeout, int maxResults, CancellationToken cancellationToken = default);
 }

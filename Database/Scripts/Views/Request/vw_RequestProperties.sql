@@ -1,8 +1,7 @@
 CREATE
 OR ALTER
 VIEW request.vw_RequestProperties AS
-SELECT Id,
-       RequestId,
+SELECT RequestId,
        PropertyType,
        BuildingType,
        SellingPrice

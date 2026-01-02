@@ -17,6 +17,11 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
     // Task assignment configuration
     public DbSet<TaskAssignmentConfiguration> TaskAssignmentConfigurations => Set<TaskAssignmentConfiguration>();
 
+    // Workflow support entities
+    public DbSet<WorkflowOutbox> WorkflowOutboxes => Set<WorkflowOutbox>();
+    public DbSet<WorkflowBookmark> WorkflowBookmarks => Set<WorkflowBookmark>();
+    public DbSet<WorkflowExecutionLog> WorkflowExecutionLogs => Set<WorkflowExecutionLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("workflow");

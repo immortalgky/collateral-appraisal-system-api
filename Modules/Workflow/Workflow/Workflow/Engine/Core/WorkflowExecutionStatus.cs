@@ -4,6 +4,7 @@ public enum WorkflowExecutionStatus
 {
     Running,
     Completed,
+    StepCompleted,
     Failed,
     Pending
 }

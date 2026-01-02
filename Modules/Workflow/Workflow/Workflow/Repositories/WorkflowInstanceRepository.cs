@@ -113,4 +113,41 @@ public class WorkflowInstanceRepository(WorkflowDbContext dbContext) : IWorkflow
 
         await Task.CompletedTask;
     }
+
+    public async Task<WorkflowInstance?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        // Get instance for update with full includes for optimistic locking
+        return await dbContext.WorkflowInstances
+            .Include(x => x.WorkflowDefinition)
+            .Include(x => x.ActivityExecutions)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
+    public async Task<bool> TryUpdateWithConcurrencyAsync(WorkflowInstance instance, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            dbContext.WorkflowInstances.Update(instance);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<IEnumerable<WorkflowInstance>> GetLongRunningWorkflowsAsync(
+        TimeSpan timeout,
+        int maxResults,
+        CancellationToken cancellationToken = default)
+    {
+        var cutoffTime = DateTime.UtcNow.Subtract(timeout);
+        return await dbContext.WorkflowInstances
+            .Where(x => x.Status == WorkflowStatus.Running && x.StartedOn < cutoffTime)
+            .OrderBy(x => x.StartedOn)
+            .Take(maxResults)
+            .Include(x => x.WorkflowDefinition)
+            .ToListAsync(cancellationToken);
+    }
 }

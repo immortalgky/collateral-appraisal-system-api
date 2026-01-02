@@ -1,0 +1,25 @@
+{
+  "collatType": "Vessel",
+  "collateralVessel": {
+    "CollateralVesselProperty": {
+      "Name": "MV Coastal Runner2",
+      "Brand": "Honda",
+      "Model": "VX-500",
+      "EnergyUse": "Petrol"
+    },
+    "CollateralVesselDetail": {
+      "EngineNo": "EN-H-001",
+      "RegistrationNo": "REG-789456",
+      "YearOfManufacture": 2019,
+      "CountryOfManufacture": "Thailand",
+      "PurchaseDate": "2021-11-20",
+      "PurchasePrice": 120000.0
+    },
+    "CollateralVesselSize": {
+      "Capacity": "Fuel Capacity: 100 liters",
+      "Width": 3.5,
+      "Length": 9.0,
+      "Height": 1.8
+    }
+  }
+}

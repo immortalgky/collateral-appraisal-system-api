@@ -1,10 +1,7 @@
 namespace Request.Contracts.Requests.Dtos;
 
 public record AddressDto(
-    string? HouseNo,
-    string? RoomNo,
-    string? FloorNo,
-    string? BuildingNo,
+    string? HouseNumber,
     string? ProjectName,
     string? Moo,
     string? Soi,
