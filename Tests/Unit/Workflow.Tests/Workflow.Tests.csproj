@@ -36,6 +36,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.5" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.5" />
     <PackageReference Include="NSubstitute.Analyzers.CSharp" Version="1.0.17" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.5" />
   </ItemGroup>
 
   <ItemGroup>

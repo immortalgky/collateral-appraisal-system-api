@@ -1,9 +1,0 @@
-# Load Appraisal Workflow into Backend
-# Use this HTTP request to create the workflow definition
-
-### Create Workflow Definition
-
-POST {{baseUrl}}/api/workflows/definitions
-Content-Type: application/json
-
-< ../../Modules/Workflow/Workflow/Workflow/Config/appraisal-workflow.json
