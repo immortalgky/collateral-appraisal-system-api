@@ -1,0 +1,302 @@
+### OAuth2 Flow Testing for Collateral Appraisal System
+### Use with REST Client extension in VS Code or similar HTTP client
+
+@baseUrl = https://localhost:7111
+@clientId = spa
+@backgroundServiceClientId = background-service
+@backgroundServiceSecret = BackgroundService-P@ssw0rd-2024!
+@redirectUri = https://localhost:3000/callback
+
+### ============================================
+### 1. DISCOVERY - Get OpenIddict Configuration
+### ============================================
+
+GET {{baseUrl}}/.well-known/openid_configuration
+Accept: application/json
+
+### Response should include:
+### - authorization_endpoint
+### - token_endpoint  
+### - end_session_endpoint
+### - supported grant types, scopes, etc.
+
+### ============================================
+### 2. AUTHORIZATION CODE FLOW - Step 1: Get Authorization Code
+### ============================================
+
+### NOTE: This will redirect to login page if not authenticated
+### Copy the redirect URL and login with admin/P@ssw0rd!
+### Then copy the authorization code from the callback URL
+
+### https://localhost:7111/connect/authorize?response_type=code&client_id=spa&redirect_uri=https://localhost:3000/callback&scope=openid%20profile%20email%20offline_access&code_challenge=Ngi8oeROpsTSaOttsCJgJpiSwLQrhrvx53pvoWw8koI&code_challenge_method=S256
+
+GET {{baseUrl}}/connect/authorize?response_type=code&client_id={{clientId}}&redirect_uri={{redirectUri}}&scope=openid%20profile%20email&code_challenge=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&code_challenge_method=S256&state=12345
+
+### ============================================
+### 3. AUTHORIZATION CODE FLOW - Step 2: Exchange Code for Tokens
+### ============================================
+
+### Replace YOUR_AUTHORIZATION_CODE with actual code from step 2
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code
+&code=ZejeT9VSgu4F85b76TsbWtMn6IIvGmwmB9A9jv_qFA4
+&client_id={{clientId}}
+&redirect_uri={{redirectUri}}
+&code_verifier=xyz
+
+### Expected Response:
+### {
+###   "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+###   "token_type": "Bearer",
+###   "expires_in": 3600,
+###   "refresh_token": "def50200...",
+###   "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+### }
+
+### ============================================
+### 4. CLIENT CREDENTIALS FLOW - Service-to-Service Authentication
+### ============================================
+
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials
+&client_id={{backgroundServiceClientId}}
+&client_secret={{backgroundServiceSecret}}
+&scope=api:process
+
+### Expected Response:
+### {
+###   "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+###   "token_type": "Bearer", 
+###   "expires_in": 3600,
+###   "scope": "api:process"
+### }
+
+### ============================================
+### 5. REFRESH TOKEN FLOW - Renew Access Token
+### ============================================
+
+### Replace YOUR_REFRESH_TOKEN with refresh token from step 3
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token
+&refresh_token=YOUR_REFRESH_TOKEN
+&client_id={{clientId}}
+
+### Expected Response:
+### {
+###   "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+###   "token_type": "Bearer",
+###   "expires_in": 3600,
+###   "refresh_token": "new_refresh_token..." (if rotation enabled)
+### }
+
+### ============================================
+### 6. TEST PROTECTED API ENDPOINTS
+### ============================================
+
+### Test with SPA access token (replace YOUR_SPA_ACCESS_TOKEN)
+GET {{baseUrl}}/requests
+Authorization: Bearer YOUR_SPA_ACCESS_TOKEN
+Accept: application/json
+
+### Test with background service token (replace YOUR_SERVICE_ACCESS_TOKEN)
+GET {{baseUrl}}/api/processing/status
+Authorization: Bearer YOUR_SERVICE_ACCESS_TOKEN
+Accept: application/json
+
+### Test unauthorized access (should return 401)
+GET {{baseUrl}}/requests
+Accept: application/json
+
+### ============================================
+### 7. ERROR SCENARIOS - Testing Edge Cases
+### ============================================
+
+### Invalid client credentials
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials
+&client_id=invalid-client
+&client_secret=wrong-secret
+&scope=api:process
+
+### Expected: 400 Bad Request with invalid_client error
+
+### ---
+
+### Expired/invalid authorization code
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code
+&code=invalid-or-expired-code
+&client_id={{clientId}}
+&redirect_uri={{redirectUri}}
+&code_verifier=xyz
+
+### Expected: 400 Bad Request with invalid_grant error
+
+### ---
+
+### Invalid refresh token
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token
+&refresh_token=invalid-refresh-token
+&client_id={{clientId}}
+
+### Expected: 400 Bad Request with invalid_grant error
+
+### ---
+
+### Unsupported grant type
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password
+&username=admin
+&password=P@ssw0rd!
+&client_id={{clientId}}
+
+### Expected: 400 Bad Request with unsupported_grant_type error
+
+### ---
+
+### Missing PKCE (should fail for public client)
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code
+&code=VALID_CODE_WITHOUT_PKCE
+&client_id={{clientId}}
+&redirect_uri={{redirectUri}}
+
+### Expected: 400 Bad Request (PKCE required)
+
+### ============================================
+### 8. PKCE FLOW TESTING - Complete Flow with Proper PKCE
+### ============================================
+
+### Step 1: Generate PKCE parameters (you'll need to do this programmatically)
+### code_verifier = base64url(random_bytes(32))
+### code_challenge = base64url(sha256(code_verifier))
+
+### Step 2: Authorization request with PKCE
+GET {{baseUrl}}/connect/authorize?response_type=code&client_id={{clientId}}&redirect_uri={{redirectUri}}&scope=openid%20profile&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256
+
+### Step 3: Token exchange with code_verifier
+POST {{baseUrl}}/connect/token  
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code
+&code=YOUR_AUTHORIZATION_CODE_FROM_STEP2
+&client_id={{clientId}}
+&redirect_uri={{redirectUri}}
+&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+
+### ============================================
+### 9. TOKEN INTROSPECTION & VALIDATION TESTING
+### ============================================
+
+### Test token with wrong audience (should fail API validation)
+### You'll need to create a token with different audience for this test
+GET {{baseUrl}}/requests
+Authorization: Bearer TOKEN_WITH_WRONG_AUDIENCE
+Accept: application/json
+
+### Test expired token (should return 401)
+GET {{baseUrl}}/requests  
+Authorization: Bearer EXPIRED_ACCESS_TOKEN
+Accept: application/json
+
+### Test malformed token (should return 401)
+GET {{baseUrl}}/requests
+Authorization: Bearer not.a.valid.jwt
+Accept: application/json
+
+### ============================================
+### 10. SCOPE TESTING - Different Permission Levels
+### ============================================
+
+### Access with insufficient scope (use SPA token on processing endpoint)
+GET {{baseUrl}}/api/processing/status
+Authorization: Bearer SPA_TOKEN_WITHOUT_API_PROCESS_SCOPE
+Accept: application/json
+
+### Expected: 403 Forbidden (insufficient scope)
+
+### Access with correct scope (use background service token)
+GET {{baseUrl}}/api/processing/status
+Authorization: Bearer BACKGROUND_SERVICE_TOKEN_WITH_API_PROCESS_SCOPE
+Accept: application/json
+
+### Expected: 200 OK with processing status
+
+### ============================================
+### 11. LOGOUT FLOW TESTING
+### ============================================
+
+### End session (logout)
+POST {{baseUrl}}/connect/logout
+Content-Type: application/x-www-form-urlencoded
+
+id_token_hint=YOUR_ID_TOKEN
+&post_logout_redirect_uri={{baseUrl}}
+
+### ============================================
+### TESTING CHECKLIST
+### ============================================
+
+### ✅ Authorization Code Flow
+### - [ ] Authorization request redirects to login when not authenticated  
+### - [ ] Login with valid credentials works
+### - [ ] Authorization code is returned in callback
+### - [ ] Code can be exchanged for tokens
+### - [ ] Access token allows API access
+### - [ ] ID token contains user information
+
+### ✅ Client Credentials Flow  
+### - [ ] Valid client credentials return access token
+### - [ ] Invalid credentials return error
+### - [ ] Access token allows API access
+### - [ ] Token contains correct scopes
+
+### ✅ Refresh Token Flow
+### - [ ] Valid refresh token returns new access token
+### - [ ] Invalid refresh token returns error
+### - [ ] Token rotation works (if enabled)
+
+### ✅ PKCE Security
+### - [ ] Authorization requests without PKCE fail (for public clients)
+### - [ ] Code challenge/verifier validation works
+### - [ ] Invalid code_verifier fails
+
+### ✅ API Protection
+### - [ ] Unauthenticated requests return 401
+### - [ ] Invalid tokens return 401  
+### - [ ] Expired tokens return 401
+### - [ ] Insufficient scopes return 403
+### - [ ] Valid tokens with correct scopes return 200
+
+### ✅ Error Handling
+### - [ ] All error responses include proper OAuth2 error codes
+### - [ ] Error messages are helpful but not too revealing
+### - [ ] Rate limiting works (if implemented)
+
+### ============================================
+### DEBUGGING TIPS
+### ============================================
+
+### 1. Use browser dev tools Network tab to trace authorization flow
+### 2. Decode JWT tokens at https://jwt.io to inspect claims
+### 3. Check application logs for detailed error messages
+### 4. Verify database state for clients, tokens, and authorizations
+### 5. Use Postman or REST Client for easier token management
+### 6. Test in incognito/private mode to avoid cached authentication state

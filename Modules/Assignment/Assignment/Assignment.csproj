@@ -7,13 +7,31 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj"/>
-        <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
+        <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj" />
+        <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Data\Migrations\Assignment\"/>
-        <Folder Include="Data\Migrations\Saga\"/>
+        <Folder Include="Data\Migrations\Assignment\" />
+        <Folder Include="Data\Migrations\Saga\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.11.0" />
+      <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
+      <PackageReference Include="Microsoft.Extensions.Resilience" Version="9.8.0" />
+      <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.8.0" />
+      <PackageReference Include="Polly" Version="8.0.0" />
+      <PackageReference Include="YamlDotNet" Version="16.1.3" />
+      
+      <!-- OpenTelemetry packages -->
+      <PackageReference Include="OpenTelemetry" Version="1.9.0" />
+      <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
+      <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.9.0" />
+      <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.9.0" />
+      <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.0.0-beta.12" />
+      <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.9.0" />
+      <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.9.0" />
     </ItemGroup>
 
 </Project>

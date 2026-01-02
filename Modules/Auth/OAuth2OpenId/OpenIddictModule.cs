@@ -100,7 +100,7 @@ public static class OpenIddictModule
                         throw new InvalidOperationException(
                             "Production encryption certificate configuration required but not implemented. Please configure OAuth2:EncryptionCertificate section.");
 
-                    // Fallback to development certificates with warning
+                    // Fallback to development certificates with a warning
                     options.AddDevelopmentEncryptionCertificate();
                     options.AddDevelopmentSigningCertificate();
                 }

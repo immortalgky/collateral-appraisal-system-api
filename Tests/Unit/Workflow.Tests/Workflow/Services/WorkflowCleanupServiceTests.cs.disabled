@@ -1,0 +1,448 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Moq;
+using Workflow.Workflow.Configuration;
+using Workflow.Workflow.Models;
+using Workflow.Workflow.Repositories;
+using Workflow.Workflow.Services;
+using Xunit;
+
+namespace Workflow.Tests.Workflow.Services;
+
+public class WorkflowCleanupServiceTests : IDisposable
+{
+    private readonly Mock<IServiceScopeFactory> _mockScopeFactory;
+    private readonly Mock<IServiceScope> _mockScope;
+    private readonly Mock<IServiceProvider> _mockServiceProvider;
+    private readonly Mock<IWorkflowInstanceRepository> _mockWorkflowRepository;
+    private readonly Mock<IWorkflowExecutionLogRepository> _mockExecutionLogRepository;
+    private readonly Mock<IWorkflowOutboxRepository> _mockOutboxRepository;
+    private readonly Mock<IWorkflowResilienceService> _mockResilienceService;
+    private readonly Mock<ILogger<WorkflowCleanupService>> _mockLogger;
+    private readonly WorkflowOptions _workflowOptions;
+    private readonly WorkflowCleanupService _cleanupService;
+    private readonly CancellationTokenSource _cancellationTokenSource;
+
+    public WorkflowCleanupServiceTests()
+    {
+        _mockScopeFactory = new Mock<IServiceScopeFactory>();
+        _mockScope = new Mock<IServiceScope>();
+        _mockServiceProvider = new Mock<IServiceProvider>();
+        _mockWorkflowRepository = new Mock<IWorkflowInstanceRepository>();
+        _mockExecutionLogRepository = new Mock<IWorkflowExecutionLogRepository>();
+        _mockOutboxRepository = new Mock<IWorkflowOutboxRepository>();
+        _mockResilienceService = new Mock<IWorkflowResilienceService>();
+        _mockLogger = new Mock<ILogger<WorkflowCleanupService>>();
+        _cancellationTokenSource = new CancellationTokenSource();
+
+        _workflowOptions = new WorkflowOptions
+        {
+            Cleanup = new CleanupOptions
+            {
+                RunInterval = TimeSpan.FromHours(1),
+                CompletedWorkflowRetention = TimeSpan.FromDays(30),
+                ExecutionLogRetention = TimeSpan.FromDays(90),
+                ProcessedOutboxRetention = TimeSpan.FromDays(7),
+                BatchSize = 100
+            }
+        };
+
+        var options = Options.Create(_workflowOptions);
+
+        // Setup service scope chain
+        _mockScopeFactory.Setup(x => x.CreateScope()).Returns(_mockScope.Object);
+        _mockScope.Setup(x => x.ServiceProvider).Returns(_mockServiceProvider.Object);
+        _mockServiceProvider.Setup(x => x.GetService(typeof(IWorkflowInstanceRepository)))
+            .Returns(_mockWorkflowRepository.Object);
+        _mockServiceProvider.Setup(x => x.GetService(typeof(IWorkflowExecutionLogRepository)))
+            .Returns(_mockExecutionLogRepository.Object);
+        _mockServiceProvider.Setup(x => x.GetService(typeof(IWorkflowOutboxRepository)))
+            .Returns(_mockOutboxRepository.Object);
+        _mockServiceProvider.Setup(x => x.GetService(typeof(IWorkflowResilienceService)))
+            .Returns(_mockResilienceService.Object);
+
+        _cleanupService = new WorkflowCleanupService(
+            _mockScopeFactory.Object,
+            options,
+            _mockLogger.Object);
+    }
+
+    [Fact]
+    public async Task PerformCleanup_NoExpiredRecords_CompletesSuccessfully()
+    {
+        // Arrange
+        _mockWorkflowRepository
+            .Setup(x => x.GetCompletedWorkflowsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowInstance>());
+
+        _mockExecutionLogRepository
+            .Setup(x => x.GetLogsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowExecutionLog>());
+
+        _mockOutboxRepository
+            .Setup(x => x.GetProcessedEventsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowOutbox>());
+
+        _mockResilienceService
+            .Setup(x => x.ExecuteWithRetryAsync(
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task>, string, CancellationToken>(
+                async (operation, key, ct) => await operation(ct));
+
+        // Act & Assert - Should not throw
+        await _cleanupService.StartAsync(_cancellationTokenSource.Token);
+        await Task.Delay(100); // Allow some processing time
+        await _cleanupService.StopAsync(_cancellationTokenSource.Token);
+    }
+
+    [Fact]
+    public async Task PerformCleanup_ExpiredWorkflows_CleansUpCorrectly()
+    {
+        // Arrange
+        var expiredWorkflow = new WorkflowInstance
+        {
+            Id = Guid.NewGuid(),
+            Status = WorkflowStatus.Completed,
+            CompletedOn = DateTime.UtcNow.AddDays(-35) // Older than retention
+        };
+
+        _mockWorkflowRepository
+            .Setup(x => x.GetCompletedWorkflowsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowInstance> { expiredWorkflow });
+
+        _mockExecutionLogRepository
+            .Setup(x => x.GetLogsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowExecutionLog>());
+
+        _mockOutboxRepository
+            .Setup(x => x.GetProcessedEventsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowOutbox>());
+
+        _mockResilienceService
+            .Setup(x => x.ExecuteWithRetryAsync(
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task>, string, CancellationToken>(
+                async (operation, key, ct) => await operation(ct));
+
+        // Act
+        await _cleanupService.StartAsync(_cancellationTokenSource.Token);
+        await Task.Delay(100); // Allow processing time
+        await _cleanupService.StopAsync(_cancellationTokenSource.Token);
+
+        // Assert
+        var expectedCutoffDate = DateTime.UtcNow.Subtract(_workflowOptions.Cleanup.CompletedWorkflowRetention);
+        _mockWorkflowRepository.Verify(
+            x => x.GetCompletedWorkflowsOlderThanAsync(
+                It.Is<DateTime>(d => Math.Abs((d - expectedCutoffDate).TotalMinutes) < 1),
+                _workflowOptions.Cleanup.BatchSize,
+                It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task PerformCleanup_ExpiredExecutionLogs_CleansUpCorrectly()
+    {
+        // Arrange
+        var expiredLog = WorkflowExecutionLog.WorkflowStarted(
+            Guid.NewGuid(), 
+            "test-workflow", 
+            "test-user");
+
+        _mockWorkflowRepository
+            .Setup(x => x.GetCompletedWorkflowsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowInstance>());
+
+        _mockExecutionLogRepository
+            .Setup(x => x.GetLogsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowExecutionLog> { expiredLog });
+
+        _mockOutboxRepository
+            .Setup(x => x.GetProcessedEventsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowOutbox>());
+
+        _mockResilienceService
+            .Setup(x => x.ExecuteWithRetryAsync(
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task>, string, CancellationToken>(
+                async (operation, key, ct) => await operation(ct));
+
+        // Act
+        await _cleanupService.StartAsync(_cancellationTokenSource.Token);
+        await Task.Delay(100); // Allow processing time
+        await _cleanupService.StopAsync(_cancellationTokenSource.Token);
+
+        // Assert
+        var expectedCutoffDate = DateTime.UtcNow.Subtract(_workflowOptions.Cleanup.ExecutionLogRetention);
+        _mockExecutionLogRepository.Verify(
+            x => x.GetLogsOlderThanAsync(
+                It.Is<DateTime>(d => Math.Abs((d - expectedCutoffDate).TotalMinutes) < 1),
+                _workflowOptions.Cleanup.BatchSize,
+                It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task PerformCleanup_ProcessedOutboxEvents_CleansUpCorrectly()
+    {
+        // Arrange
+        var processedEvent = WorkflowOutbox.Create(
+            "WorkflowCompleted",
+            "{}",
+            correlationId: "test-correlation");
+        processedEvent.MarkAsProcessed();
+
+        _mockWorkflowRepository
+            .Setup(x => x.GetCompletedWorkflowsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowInstance>());
+
+        _mockExecutionLogRepository
+            .Setup(x => x.GetLogsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowExecutionLog>());
+
+        _mockOutboxRepository
+            .Setup(x => x.GetProcessedEventsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowOutbox> { processedEvent });
+
+        _mockResilienceService
+            .Setup(x => x.ExecuteWithRetryAsync(
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task>, string, CancellationToken>(
+                async (operation, key, ct) => await operation(ct));
+
+        // Act
+        await _cleanupService.StartAsync(_cancellationTokenSource.Token);
+        await Task.Delay(100); // Allow processing time
+        await _cleanupService.StopAsync(_cancellationTokenSource.Token);
+
+        // Assert
+        var expectedCutoffDate = DateTime.UtcNow.Subtract(_workflowOptions.Cleanup.ProcessedOutboxRetention);
+        _mockOutboxRepository.Verify(
+            x => x.GetProcessedEventsOlderThanAsync(
+                It.Is<DateTime>(d => Math.Abs((d - expectedCutoffDate).TotalMinutes) < 1),
+                _workflowOptions.Cleanup.BatchSize,
+                It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task PerformCleanup_ResilienceServiceFailure_HandlesGracefully()
+    {
+        // Arrange
+        var expiredWorkflow = new WorkflowInstance
+        {
+            Status = WorkflowStatus.Completed,
+            CompletedOn = DateTime.UtcNow.AddDays(-35)
+        };
+
+        _mockWorkflowRepository
+            .Setup(x => x.GetCompletedWorkflowsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowInstance> { expiredWorkflow });
+
+        _mockExecutionLogRepository
+            .Setup(x => x.GetLogsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowExecutionLog>());
+
+        _mockOutboxRepository
+            .Setup(x => x.GetProcessedEventsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowOutbox>());
+
+        _mockResilienceService
+            .Setup(x => x.ExecuteWithRetryAsync(
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Cleanup failed"));
+
+        // Act & Assert - Should handle exception gracefully
+        await _cleanupService.StartAsync(_cancellationTokenSource.Token);
+        await Task.Delay(100); // Allow processing time
+        await _cleanupService.StopAsync(_cancellationTokenSource.Token);
+
+        // Verify it at least attempted to process
+        _mockResilienceService.Verify(
+            x => x.ExecuteWithRetryAsync(
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce);
+    }
+
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(1, 0, 0)]
+    [InlineData(0, 1, 0)]
+    [InlineData(0, 0, 1)]
+    [InlineData(5, 3, 2)]
+    [InlineData(100, 50, 25)]
+    public async Task PerformCleanup_VariableRecordCounts_HandlesCorrectly(
+        int workflowCount, 
+        int logCount, 
+        int outboxCount)
+    {
+        // Arrange
+        var workflows = Enumerable.Range(0, workflowCount)
+            .Select(i => new WorkflowInstance 
+            { 
+                Status = WorkflowStatus.Completed, 
+                CompletedOn = DateTime.UtcNow.AddDays(-35) 
+            })
+            .ToList();
+
+        var logs = Enumerable.Range(0, logCount)
+            .Select(i => WorkflowExecutionLog.WorkflowStarted(Guid.NewGuid(), $"workflow-{i}", "test-user"))
+            .ToList();
+
+        var outboxEvents = Enumerable.Range(0, outboxCount)
+            .Select(i => 
+            {
+                var evt = WorkflowOutbox.Create($"Event{i}", "{}", correlationId: $"corr-{i}");
+                evt.MarkAsProcessed();
+                return evt;
+            })
+            .ToList();
+
+        _mockWorkflowRepository
+            .Setup(x => x.GetCompletedWorkflowsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workflows);
+
+        _mockExecutionLogRepository
+            .Setup(x => x.GetLogsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(logs);
+
+        _mockOutboxRepository
+            .Setup(x => x.GetProcessedEventsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(outboxEvents);
+
+        _mockResilienceService
+            .Setup(x => x.ExecuteWithRetryAsync(
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<Func<CancellationToken, Task>, string, CancellationToken>(
+                async (operation, key, ct) => await operation(ct));
+
+        // Act
+        await _cleanupService.StartAsync(_cancellationTokenSource.Token);
+        await Task.Delay(150); // Allow processing time
+        await _cleanupService.StopAsync(_cancellationTokenSource.Token);
+
+        // Assert
+        _mockWorkflowRepository.Verify(
+            x => x.GetCompletedWorkflowsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task StartAsync_CancellationRequested_StopsGracefully()
+    {
+        // Arrange
+        _mockWorkflowRepository
+            .Setup(x => x.GetCompletedWorkflowsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowInstance>());
+
+        _mockExecutionLogRepository
+            .Setup(x => x.GetLogsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowExecutionLog>());
+
+        _mockOutboxRepository
+            .Setup(x => x.GetProcessedEventsOlderThanAsync(
+                It.IsAny<DateTime>(), 
+                It.IsAny<int>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkflowOutbox>());
+
+        // Act
+        await _cleanupService.StartAsync(_cancellationTokenSource.Token);
+        _cancellationTokenSource.Cancel();
+        await _cleanupService.StopAsync(CancellationToken.None);
+
+        // Assert - Should complete without throwing
+        Assert.True(_cancellationTokenSource.Token.IsCancellationRequested);
+    }
+
+    [Fact]
+    public void Service_ImplementsBackgroundService()
+    {
+        // Assert
+        Assert.IsAssignableFrom<BackgroundService>(_cleanupService);
+    }
+
+    public void Dispose()
+    {
+        _cancellationTokenSource?.Dispose();
+        _cleanupService?.Dispose();
+    }
+}

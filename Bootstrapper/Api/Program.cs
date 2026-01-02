@@ -2,9 +2,11 @@ using Appraisal;
 using Document.Data;
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Request.Infrastructure;
 using Shared.Data;
+// using Workflow.Telemetry; // Workflow module not yet integrated
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -131,6 +133,12 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 
+// Add health checks
+builder.Services.AddHealthChecks();
+
+// TODO: Configure workflow telemetry after Workflow module is integrated
+// builder.Services.ConfigureWorkflowTelemetry(builder.Configuration, builder.Environment);
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("SPAPolicy",
@@ -162,6 +170,29 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseCors("SPAPolicy");
 app.UseSerilogRequestLogging();
 app.UseExceptionHandler(options => { });
+
+// Add health check endpoints
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var response = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(x => new
+            {
+                name = x.Key,
+                status = x.Value.Status.ToString(),
+                exception = x.Value.Exception?.Message,
+                duration = x.Value.Duration.ToString(),
+                data = x.Value.Data
+            }),
+            totalDuration = report.TotalDuration.ToString()
+        };
+        await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response));
+    }
+});
 
 app.UseRouting();
 app.UseAuthentication();

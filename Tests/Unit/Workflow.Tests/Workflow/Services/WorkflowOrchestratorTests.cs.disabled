@@ -1,0 +1,383 @@
+using Workflow.Workflow.Engine;
+using Workflow.Workflow.Engine.Core;
+using Workflow.Workflow.Models;
+using Workflow.Workflow.Schema;
+using Workflow.Workflow.Services;
+using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using Xunit;
+
+namespace Workflow.Tests.Workflow.Services;
+
+/// <summary>
+/// Comprehensive unit tests for WorkflowOrchestrator covering workflow execution coordination
+/// Tests step-by-step execution, transaction boundaries, and orchestration flow
+/// </summary>
+public class WorkflowOrchestratorTests
+{
+    private readonly IWorkflowEngine _workflowEngine;
+    private readonly IWorkflowPersistenceService _persistenceService;
+    private readonly IWorkflowSchemaValidator _schemaValidator;
+    private readonly ILogger<WorkflowOrchestrator> _logger;
+    private readonly WorkflowOrchestrator _orchestrator;
+
+    public WorkflowOrchestratorTests()
+    {
+        _workflowEngine = Substitute.For<IWorkflowEngine>();
+        _persistenceService = Substitute.For<IWorkflowPersistenceService>();
+        _schemaValidator = Substitute.For<IWorkflowSchemaValidator>();
+        _logger = Substitute.For<ILogger<WorkflowOrchestrator>>();
+
+        _orchestrator = new WorkflowOrchestrator(
+            _workflowEngine,
+            _persistenceService,
+            _schemaValidator,
+            _logger);
+    }
+
+    [Fact]
+    public void Constructor_WithValidDependencies_ShouldCreateInstance()
+    {
+        // Act & Assert
+        _orchestrator.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task ExecuteCompleteWorkflowAsync_WithMissingWorkflow_ShouldReturnFailedResult()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+
+        _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns((WorkflowInstance?)null);
+
+        // Act
+        var result = await _orchestrator.ExecuteCompleteWorkflowAsync(workflowInstanceId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(WorkflowExecutionStatus.Failed);
+        result.ErrorMessage.Should().Contain($"Workflow instance {workflowInstanceId} not found");
+    }
+
+    [Fact]
+    public async Task ExecuteCompleteWorkflowAsync_WithSingleStepWorkflow_ShouldComplete()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var workflowInstance = CreateTestWorkflowInstance(workflowInstanceId);
+        var currentActivityId = "start-activity";
+        workflowInstance.SetCurrentActivity(currentActivityId);
+
+        _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(workflowInstance);
+
+        // Mock engine to return completed result
+        _workflowEngine.ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>())
+            .Returns(WorkflowExecutionResult.Completed(workflowInstance));
+
+        // Act
+        var result = await _orchestrator.ExecuteCompleteWorkflowAsync(workflowInstanceId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(WorkflowExecutionStatus.Completed);
+        result.WorkflowInstance.Should().Be(workflowInstance);
+
+        // Verify engine was called once
+        await _workflowEngine.Received(1).ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteCompleteWorkflowAsync_WithMultipleSteps_ShouldExecuteSequentially()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var workflowInstance = CreateTestWorkflowInstance(workflowInstanceId);
+        var maxSteps = 5;
+
+        _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(workflowInstance);
+
+        // Setup engine to return step completion for first few calls, then final completion
+        _workflowEngine.ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>())
+            .Returns(
+                WorkflowExecutionResult.StepCompleted(workflowInstance, "step1"),
+                WorkflowExecutionResult.StepCompleted(workflowInstance, "step2"),
+                WorkflowExecutionResult.StepCompleted(workflowInstance, "step3"),
+                WorkflowExecutionResult.Completed(workflowInstance));
+
+        // Act
+        var result = await _orchestrator.ExecuteCompleteWorkflowAsync(workflowInstanceId, maxSteps);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(WorkflowExecutionStatus.Completed);
+
+        // Verify engine was called 4 times (3 steps + completion)
+        await _workflowEngine.Received(4).ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteCompleteWorkflowAsync_WithMaxStepsReached_ShouldReturnRunning()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var workflowInstance = CreateTestWorkflowInstance(workflowInstanceId);
+        var maxSteps = 3;
+
+        _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(workflowInstance);
+
+        // Setup engine to always return step completion (never finish)
+        _workflowEngine.ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>())
+            .Returns(WorkflowExecutionResult.StepCompleted(workflowInstance, "next-step"));
+
+        // Act
+        var result = await _orchestrator.ExecuteCompleteWorkflowAsync(workflowInstanceId, maxSteps);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(WorkflowExecutionStatus.Running);
+        result.WorkflowInstance.Should().Be(workflowInstance);
+
+        // Verify engine was called exactly maxSteps times
+        await _workflowEngine.Received(maxSteps).ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteCompleteWorkflowAsync_WithPendingStep_ShouldReturnPending()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var workflowInstance = CreateTestWorkflowInstance(workflowInstanceId);
+
+        _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(workflowInstance);
+
+        // Mock engine to return pending result (waiting for user input)
+        _workflowEngine.ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>())
+            .Returns(WorkflowExecutionResult.Pending(workflowInstance, "human-task-activity"));
+
+        // Act
+        var result = await _orchestrator.ExecuteCompleteWorkflowAsync(workflowInstanceId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(WorkflowExecutionStatus.Pending);
+        result.NextActivityId.Should().Be("human-task-activity");
+        result.RequiresExternalCompletion.Should().BeTrue();
+
+        // Verify execution stopped after finding pending step
+        await _workflowEngine.Received(1).ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteCompleteWorkflowAsync_WithFailedStep_ShouldReturnFailed()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var workflowInstance = CreateTestWorkflowInstance(workflowInstanceId);
+
+        _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(workflowInstance);
+
+        // Mock engine to return failed result
+        _workflowEngine.ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>())
+            .Returns(WorkflowExecutionResult.Failed(workflowInstance, "Activity validation failed"));
+
+        // Act
+        var result = await _orchestrator.ExecuteCompleteWorkflowAsync(workflowInstanceId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(WorkflowExecutionStatus.Failed);
+        result.ErrorMessage.Should().Be("Activity validation failed");
+
+        // Verify execution stopped after failure
+        await _workflowEngine.Received(1).ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteCompleteWorkflowAsync_WithEngineException_ShouldReturnFailed()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var workflowInstance = CreateTestWorkflowInstance(workflowInstanceId);
+
+        _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(workflowInstance);
+
+        // Mock engine to throw exception
+        _workflowEngine.ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>())
+            .Throws(new InvalidOperationException("Database connection failed"));
+
+        // Act
+        var result = await _orchestrator.ExecuteCompleteWorkflowAsync(workflowInstanceId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(WorkflowExecutionStatus.Failed);
+        result.ErrorMessage.Should().Contain("Database connection failed");
+    }
+
+    [Fact]
+    public async Task ExecuteWorkflowStepAsync_WithValidStep_ShouldExecuteSingleStep()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var workflowInstance = CreateTestWorkflowInstance(workflowInstanceId);
+
+        _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(workflowInstance);
+
+        _workflowEngine.ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>())
+            .Returns(WorkflowExecutionResult.StepCompleted(workflowInstance, "next-activity"));
+
+        // Act
+        var result = await _orchestrator.ExecuteWorkflowStepAsync(workflowInstanceId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be(WorkflowExecutionStatus.StepCompleted);
+        result.NextActivityId.Should().Be("next-activity");
+
+        // Verify only one step was executed
+        await _workflowEngine.Received(1).ExecuteNextStepAsync(workflowInstance, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ValidateWorkflowDefinitionAsync_WithValidDefinition_ShouldReturnTrue()
+    {
+        // Arrange
+        var workflowSchema = CreateTestWorkflowSchema();
+
+        _schemaValidator.ValidateSchemaAsync(workflowSchema, Arg.Any<CancellationToken>())
+            .Returns(new SchemaValidationResult { IsValid = true });
+
+        _workflowEngine.ValidateWorkflowDefinitionAsync(workflowSchema, Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        // Act
+        var result = await _orchestrator.ValidateWorkflowDefinitionAsync(workflowSchema);
+
+        // Assert
+        result.Should().BeTrue();
+
+        // Verify both validators were called
+        await _schemaValidator.Received(1).ValidateSchemaAsync(workflowSchema, Arg.Any<CancellationToken>());
+        await _workflowEngine.Received(1).ValidateWorkflowDefinitionAsync(workflowSchema, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ValidateWorkflowDefinitionAsync_WithInvalidSchema_ShouldReturnFalse()
+    {
+        // Arrange
+        var workflowSchema = CreateTestWorkflowSchema();
+
+        _schemaValidator.ValidateSchemaAsync(workflowSchema, Arg.Any<CancellationToken>())
+            .Returns(new SchemaValidationResult 
+            { 
+                IsValid = false, 
+                Errors = new List<string> { "Missing start activity" } 
+            });
+
+        // Act
+        var result = await _orchestrator.ValidateWorkflowDefinitionAsync(workflowSchema);
+
+        // Assert
+        result.Should().BeFalse();
+
+        // Verify schema validation was called but engine validation was not
+        await _schemaValidator.Received(1).ValidateSchemaAsync(workflowSchema, Arg.Any<CancellationToken>());
+        await _workflowEngine.DidNotReceive().ValidateWorkflowDefinitionAsync(Arg.Any<WorkflowSchema>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ValidateWorkflowDefinitionAsync_WithEngineValidationFailure_ShouldReturnFalse()
+    {
+        // Arrange
+        var workflowSchema = CreateTestWorkflowSchema();
+
+        _schemaValidator.ValidateSchemaAsync(workflowSchema, Arg.Any<CancellationToken>())
+            .Returns(new SchemaValidationResult { IsValid = true });
+
+        _workflowEngine.ValidateWorkflowDefinitionAsync(workflowSchema, Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        // Act
+        var result = await _orchestrator.ValidateWorkflowDefinitionAsync(workflowSchema);
+
+        // Assert
+        result.Should().BeFalse();
+
+        // Verify both validators were called
+        await _schemaValidator.Received(1).ValidateSchemaAsync(workflowSchema, Arg.Any<CancellationToken>());
+        await _workflowEngine.Received(1).ValidateWorkflowDefinitionAsync(workflowSchema, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ValidateWorkflowDefinitionAsync_WithException_ShouldReturnFalse()
+    {
+        // Arrange
+        var workflowSchema = CreateTestWorkflowSchema();
+
+        _schemaValidator.ValidateSchemaAsync(workflowSchema, Arg.Any<CancellationToken>())
+            .Throws(new ArgumentException("Invalid schema format"));
+
+        // Act
+        var result = await _orchestrator.ValidateWorkflowDefinitionAsync(workflowSchema);
+
+        // Assert
+        result.Should().BeFalse();
+    }
+
+    private WorkflowInstance CreateTestWorkflowInstance(Guid workflowInstanceId)
+    {
+        return WorkflowInstance.Create(
+            Guid.NewGuid(),
+            "Test Workflow Instance",
+            null,
+            "test@company.com",
+            new Dictionary<string, object> { ["test"] = "value" });
+    }
+
+    private WorkflowSchema CreateTestWorkflowSchema()
+    {
+        return new WorkflowSchema
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Test Workflow Schema",
+            Description = "Test workflow for orchestrator testing",
+            Activities = new List<ActivityDefinition>
+            {
+                new()
+                {
+                    Id = "start",
+                    Type = "StartActivity",
+                    Name = "Start",
+                    Properties = new Dictionary<string, object>()
+                },
+                new()
+                {
+                    Id = "end",
+                    Type = "EndActivity",
+                    Name = "End",
+                    Properties = new Dictionary<string, object>()
+                }
+            },
+            Transitions = new List<TransitionDefinition>
+            {
+                new() { Id = "start-to-end", From = "start", To = "end" }
+            },
+            Variables = new Dictionary<string, object>(),
+            Metadata = new WorkflowMetadata
+            {
+                Version = "1.0.0",
+                Author = "Unit Test",
+                CreatedDate = DateTime.UtcNow
+            }
+        };
+    }
+}
