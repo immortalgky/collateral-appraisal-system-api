@@ -23,6 +23,7 @@
         </div>
         <div class="form-container">
             <form method="post">
+                @Html.AntiForgeryToken()
                 <input type="hidden" asp-for="ReturnUrl" value="@Model.ReturnUrl"/>
                 <img class="logo-icon" alt="LH Bank logo" src="@Url.Content("/Assets/logo-lh-bank.svg")">
                 <div class="collateral-appraisal-system-container">

@@ -25,4 +25,4 @@ global using Shared.Exceptions;
 global using Shared.Extensions;
 global using Shared.Data.Extensions;
 global using Shared.Data.Seed;
-global using Shared.Contracts.CQRS;
+global using Shared.CQRS;

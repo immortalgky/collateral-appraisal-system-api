@@ -7,7 +7,7 @@ global using Microsoft.AspNetCore.Identity;
 global using Microsoft.Extensions.Logging;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Metadata.Builders;
-global using OAuth2OpenId.Identity.Models;
+global using OAuth2OpenId.Domain.Identity.Models;
 global using OAuth2OpenId.Data;
 global using OAuth2OpenId.Data.Seed;
 global using OAuth2OpenId.Pages.Account;

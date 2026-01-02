@@ -1,5 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
+
 namespace OAuth2OpenId.Pages.Account;
 
+[AllowAnonymous]
 public class Login(
     SignInManager<ApplicationUser> signInManager,
     ILogger<Login> logger)
@@ -18,6 +21,7 @@ public class Login(
         ReturnUrl = returnUrl ?? "/";
     }
 
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> OnPostAsync()
     {
         logger.LogInformation("Login attempt for user: {Username}", Username);

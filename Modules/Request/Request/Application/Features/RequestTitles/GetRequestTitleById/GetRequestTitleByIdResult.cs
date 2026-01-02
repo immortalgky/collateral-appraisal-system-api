@@ -1,0 +1,32 @@
+namespace Request.Application.Features.RequestTitles.GetRequestTitleById;
+
+public record GetRequestTitleByIdResult(
+    Guid Id,
+    Guid RequestId,
+    string CollateralType,
+    bool? CollateralStatus,
+    string? TitleNo,
+    string? DeedType,
+    string? TitleDetail,
+    string? Rawang,
+    string? LandNo,
+    string? SurveyNo,
+    int? AreaRai,
+    int? AreaNgan,
+    decimal? AreaSquareWa,
+    string? OwnerName,
+    string? RegistrationNo,
+    string? VehicleType,
+    string? VehicleAppointmentLocation,
+    string? ChassisNumber,
+    string? MachineStatus,
+    string? MachineType,
+    string? InstallationStatus,
+    string? InvoiceNumber,
+    int? NumberOfMachinery,
+    string? BuildingType,
+    decimal? UsableArea,
+    int? NoOfBuilding,
+    AddressDto TitleAddress,
+    AddressDto DopaAddress
+);

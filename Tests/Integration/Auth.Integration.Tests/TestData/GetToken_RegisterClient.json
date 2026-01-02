@@ -1,0 +1,26 @@
+{
+  "displayName": "abcd",
+  "clientType": "confidential",
+  "postLogoutRedirectUris": ["https://localhost:3000/"],
+  "redirectUris": ["https://localhost:3000/callback"],
+  "permissions": [
+    "ept:token",
+    "gt:client_credentials",
+    "scp:api",
+    "ept:authorization",
+    "gt:refresh_token",
+    "rst:code",
+    "scp:email",
+    "scp:profile",
+    "scp:roles",
+    "auth:read",
+    "auth:write",
+    "document:read",
+    "document:write",
+    "notification:read",
+    "notification:write",
+    "request:read",
+    "request:write"
+  ],
+  "requirements": ["ft:pkce"]
+}

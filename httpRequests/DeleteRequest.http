@@ -1,0 +1,9 @@
+@baseUrl= https://localhost:7111
+@requestId=EFBA270A-7B7B-45C5-85F8-D7963846945D?sessionId=8DAE3CDB-9DA2-430E-9024-B58DF78F0000
+
+DELETE {{baseUrl}}/requests/{{requestId}}
+headers: localhost:7111
+Content-Type: application/json
+
+{
+}

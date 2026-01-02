@@ -13,12 +13,15 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Data\Migrations\"/>
-        <Folder Include="Requests\Dtos\"/>
+        <Folder Include="Infrastructure\Migrations\"/>
     </ItemGroup>
 
     <ItemGroup>
         <EditorConfigFiles Remove=".editorconfig"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Request.Tests"/>
     </ItemGroup>
 
 </Project>

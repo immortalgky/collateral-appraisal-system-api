@@ -1,0 +1,53 @@
+@baseUrl = https://localhost:7111
+@requestId = 49257117-2f74-4355-3c6e-08de2bd65d6c
+PATCH {{baseUrl}}/requests/{{requestId}}/titles
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "requestTitleDtos":
+    [
+        {
+            "collateralType": "Land",
+            "collateralStatus": false,
+            "titleNo": "Test",
+            "deedType": "NorSor3",
+            "titleDetail": "Test",
+            "rawang": "Test",
+            "landNo": "Test",
+            "surveyNo": "Test",
+            "areaRai": 0,
+            "areaNgan": 0,
+            "areaSquareWa": 0,
+            "ownerName": "Test",
+            "titleAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "dopaAddress":
+            {
+                "houseNo": "Test",
+                "projectName": "Test",
+                "moo": "Test",
+                "soi": "Test",
+                "road": "00",
+                "subDistrict": "00",
+                "district": "00",
+                "province": "00",
+                "postcode": "00"
+            },
+            "notes": "Test",
+            "requestTitleDocumentDtos": 
+            [
+            ]
+        }
+    ]
+}

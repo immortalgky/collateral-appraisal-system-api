@@ -1,0 +1,39 @@
+{
+  "requestId": 0,
+  "collateralType": "land",
+  "collateralStatus": "",
+  "titleNo": "",
+  "owner": "",
+  "noOfBuilding": 1,
+  "titleDetail": "",
+  "rai": 1,
+  "ngan": 1,
+  "wa": 1,
+  "usageArea": 1,
+  "titleAddress": {
+    "houseNo": "",
+    "roomNo": "",
+    "floorNo": "",
+    "buildingNo": "",
+    "moo": "",
+    "soi": "",
+    "road": "",
+    "subDistrict": "",
+    "district": "",
+    "province": "",
+    "postcode": ""
+  },
+  "dopaAddress": {
+    "houseNo": "",
+    "roomNo": "",
+    "floorNo": "",
+    "buildingNo": "",
+    "moo": "",
+    "soi": "",
+    "road": "",
+    "subDistrict": "",
+    "district": "",
+    "province": "",
+    "postcode": ""
+  }
+}

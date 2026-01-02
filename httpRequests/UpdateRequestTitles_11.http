@@ -1,0 +1,135 @@
+@baseUrl = https://localhost:7111
+@requestId = 00d06d51-aa5b-4ff1-5dbb-08de28be5bfc
+PATCH {{baseUrl}}/requests/{{requestId}}/titles
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "requestTitleDtos":
+    [
+        {
+            "id": "d0707cd5-3555-478f-9754-afec1fd9123e",
+            "collateralType": "Land",
+            "collateralStatus": false,
+            "titleNo": "1212312121",
+            "deedType": "NorSor3",
+            "titleDetail": "Update Test 11",
+            "rawang": "xxxx",
+            "landNo": "xxxx",
+            "surveyNo": "xxxx",
+            "areaRai": 0,
+            "areaNgan": 0,
+            "areaSquareWa": 0,
+            "titleAddress":
+            {
+                "houseNo": "",
+                "projectName": "",
+                "moo": "",
+                "soi": "",
+                "road": "123456789",
+                "subDistrict": "Muang",
+                "district": "Watket",
+                "province": "Chiang Mai",
+                "postcode": "50000"
+            },
+            "dopaAddress":
+            {
+                "houseNo": "",
+                "projectName": "",
+                "moo": "",
+                "soi": "",
+                "road": "",
+                "subDistrict": "Muang",
+                "district": "Watket",
+                "province": "Chiang Mai",
+                "postcode": "50000"
+            },
+            "notes": "",
+            "requestTitleDocumentDtos":
+            [
+                {
+                    "id": "bff40c6d-ec38-42ed-b757-11c444fe9b5c",
+                    "titleId": "acaf4a1d-f50d-47ef-b2e7-7ebc72a00f5e",
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
+                    "documentType": "Test Update 11",
+                    "isRequired": false,
+                    "documentDescription": "new document AD1",
+                    "uploadedBy": "xxxxx",
+                    "uploadedByName": "Joe"
+                },
+                {
+                    "id": "96dcaf34-46f9-45c8-81bf-7b90e457b5a1",
+                    "titleId": "acaf4a1d-f50d-47ef-b2e7-7ebc72a00f5e",
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1106",
+                    "documentType": "Test Update 11",
+                    "isRequired": false,
+                    "documentDescription": "new document AD2",
+                    "uploadedBy": "xxxxx",
+                    "uploadedByName": "Joe"
+                }
+            ]
+        },
+        {
+            "id": "6d1040a6-1c71-44fc-b1ba-f1711ed0afad",
+            "collateralType": "Land",
+            "collateralStatus": false,
+            "titleNo": "1212312121",
+            "deedType": "NorSor3",
+            "titleDetail": "Update Test 11",
+            "rawang": "xxxx",
+            "landNo": "xxxx",
+            "surveyNo": "xxxx",
+            "areaRai": 0,
+            "areaNgan": 0,
+            "areaSquareWa": 0,
+            "titleAddress":
+            {
+                "houseNo": "",
+                "projectName": "",
+                "moo": "",
+                "soi": "",
+                "road": "123456789",
+                "subDistrict": "Muang",
+                "district": "Watket",
+                "province": "Chiang Mai",
+                "postcode": "50000"
+            },
+            "dopaAddress":
+            {
+                "houseNo": "",
+                "projectName": "",
+                "moo": "",
+                "soi": "",
+                "road": "",
+                "subDistrict": "Muang",
+                "district": "Watket",
+                "province": "Chiang Mai",
+                "postcode": "50000"
+            },
+            "notes": "",
+            "requestTitleDocumentDtos":
+            [
+                {
+                    "id": "cd428e84-e923-4d9e-8287-5110d9083003",
+                    "titleId": "6d1040a6-1c71-44fc-b1ba-f1711ed0afad",
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
+                    "documentType": "Test Update 11",
+                    "isRequired": false,
+                    "documentDescription": "new document BD1",
+                    "uploadedBy": "xxxxx",
+                    "uploadedByName": "Joe"
+                },
+                {
+                    "id": "bb885a16-1eee-4e7e-8884-93f6d7bbb4d3",
+                    "titleId": "6d1040a6-1c71-44fc-b1ba-f1711ed0afad",
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1106",
+                    "documentType": "Test Update 11",
+                    "isRequired": false,
+                    "documentDescription": "new document AD2",
+                    "uploadedBy": "xxxxx",
+                    "uploadedByName": "Joe"
+                }
+            ]
+        }
+    ]
+}

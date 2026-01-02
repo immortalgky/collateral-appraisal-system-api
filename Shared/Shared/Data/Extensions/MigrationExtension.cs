@@ -19,6 +19,7 @@ public static class MigrationExtension
     {
         using var scope = serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TContext>();
+
         await dbContext.Database.MigrateAsync();
     }
 
