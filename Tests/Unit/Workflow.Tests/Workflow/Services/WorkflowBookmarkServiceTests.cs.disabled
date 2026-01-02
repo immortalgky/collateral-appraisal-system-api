@@ -1,0 +1,366 @@
+using Workflow.Data;
+using Workflow.Workflow.Models;
+using Workflow.Workflow.Repositories;
+using Workflow.Workflow.Services;
+using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using Xunit;
+
+namespace Workflow.Tests.Workflow.Services;
+
+/// <summary>
+/// Comprehensive unit tests for WorkflowBookmarkService covering bookmark lifecycle management
+/// Tests bookmark creation, consumption, correlation, and cleanup operations
+/// </summary>
+public class WorkflowBookmarkServiceTests
+{
+    private readonly WorkflowDbContext _dbContext;
+    private readonly IWorkflowBookmarkRepository _bookmarkRepository;
+    private readonly IWorkflowInstanceRepository _workflowRepository;
+    private readonly IWorkflowExecutionLogRepository _executionLogRepository;
+    private readonly ILogger<WorkflowBookmarkService> _logger;
+    private readonly WorkflowBookmarkService _service;
+
+    public WorkflowBookmarkServiceTests()
+    {
+        _dbContext = Substitute.For<WorkflowDbContext>();
+        _bookmarkRepository = Substitute.For<IWorkflowBookmarkRepository>();
+        _workflowRepository = Substitute.For<IWorkflowInstanceRepository>();
+        _executionLogRepository = Substitute.For<IWorkflowExecutionLogRepository>();
+        _logger = Substitute.For<ILogger<WorkflowBookmarkService>>();
+
+        _service = new WorkflowBookmarkService(
+            _dbContext,
+            _bookmarkRepository,
+            _workflowRepository,
+            _executionLogRepository,
+            _logger);
+    }
+
+    [Fact]
+    public void Constructor_WithValidDependencies_ShouldCreateInstance()
+    {
+        // Act & Assert
+        _service.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task CreateUserActionBookmarkAsync_WithValidParameters_ShouldCreateBookmark()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var activityId = "human-task-activity";
+        var key = "approval-decision";
+        var correlationId = "REQ-12345";
+        var payload = "{\"message\": \"Approval required\"}";
+
+        var transaction = Substitute.For<IDbContextTransaction>();
+        _dbContext.Database.BeginTransactionAsync(Arg.Any<CancellationToken>())
+            .Returns(transaction);
+
+        _bookmarkRepository.FindUnconsumedBookmarkAsync(
+                workflowInstanceId, activityId, key, BookmarkType.UserAction, Arg.Any<CancellationToken>())
+            .Returns((WorkflowBookmark?)null);
+
+        var createdBookmark = CreateTestBookmark(workflowInstanceId, activityId, key, BookmarkType.UserAction);
+        _bookmarkRepository.AddAsync(Arg.Any<WorkflowBookmark>(), Arg.Any<CancellationToken>())
+            .Returns(createdBookmark);
+
+        // Act
+        var result = await _service.CreateUserActionBookmarkAsync(
+            workflowInstanceId, activityId, key, correlationId, payload);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.WorkflowInstanceId.Should().Be(workflowInstanceId);
+        result.ActivityId.Should().Be(activityId);
+        result.Key.Should().Be(key);
+        result.Type.Should().Be(BookmarkType.UserAction);
+        result.CorrelationId.Should().Be(correlationId);
+        result.Payload.Should().Be(payload);
+
+        // Verify transaction and repository calls
+        await _dbContext.Database.Received(1).BeginTransactionAsync(Arg.Any<CancellationToken>());
+        await _bookmarkRepository.Received(1).AddAsync(Arg.Any<WorkflowBookmark>(), Arg.Any<CancellationToken>());
+        await transaction.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateUserActionBookmarkAsync_WithExistingBookmark_ShouldThrowInvalidOperationException()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var activityId = "human-task-activity";
+        var key = "approval-decision";
+
+        var transaction = Substitute.For<IDbContextTransaction>();
+        _dbContext.Database.BeginTransactionAsync(Arg.Any<CancellationToken>())
+            .Returns(transaction);
+
+        var existingBookmark = CreateTestBookmark(workflowInstanceId, activityId, key, BookmarkType.UserAction);
+        _bookmarkRepository.FindUnconsumedBookmarkAsync(
+                workflowInstanceId, activityId, key, BookmarkType.UserAction, Arg.Any<CancellationToken>())
+            .Returns(existingBookmark);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.CreateUserActionBookmarkAsync(workflowInstanceId, activityId, key));
+
+        // Verify transaction was rolled back
+        await transaction.Received(1).RollbackAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateTimerBookmarkAsync_WithValidParameters_ShouldCreateTimerBookmark()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var activityId = "timer-activity";
+        var key = "timeout-5min";
+        var triggerAt = DateTime.UtcNow.AddMinutes(5);
+
+        var transaction = Substitute.For<IDbContextTransaction>();
+        _dbContext.Database.BeginTransactionAsync(Arg.Any<CancellationToken>())
+            .Returns(transaction);
+
+        _bookmarkRepository.FindUnconsumedBookmarkAsync(
+                workflowInstanceId, activityId, key, BookmarkType.Timer, Arg.Any<CancellationToken>())
+            .Returns((WorkflowBookmark?)null);
+
+        var createdBookmark = CreateTestBookmark(workflowInstanceId, activityId, key, BookmarkType.Timer);
+        _bookmarkRepository.AddAsync(Arg.Any<WorkflowBookmark>(), Arg.Any<CancellationToken>())
+            .Returns(createdBookmark);
+
+        // Act
+        var result = await _service.CreateTimerBookmarkAsync(
+            workflowInstanceId, activityId, key, triggerAt);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Type.Should().Be(BookmarkType.Timer);
+        result.TriggerAt.Should().BeCloseTo(triggerAt, TimeSpan.FromSeconds(1));
+
+        // Verify repository call
+        await _bookmarkRepository.Received(1).AddAsync(
+            Arg.Is<WorkflowBookmark>(b => 
+                b.Type == BookmarkType.Timer && 
+                b.TriggerAt.HasValue &&
+                b.TriggerAt.Value.IsCloseTo(triggerAt, TimeSpan.FromSeconds(1))),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ConsumeBookmarkAsync_WithValidBookmark_ShouldMarkAsConsumed()
+    {
+        // Arrange
+        var bookmarkId = Guid.NewGuid();
+        var consumedBy = "user@company.com";
+        var payload = "{\"decision\": \"approved\"}";
+
+        var transaction = Substitute.For<IDbContextTransaction>();
+        _dbContext.Database.BeginTransactionAsync(Arg.Any<CancellationToken>())
+            .Returns(transaction);
+
+        var bookmark = CreateTestBookmark(Guid.NewGuid(), "activity", "key", BookmarkType.UserAction);
+        // ID is set during creation
+
+        _bookmarkRepository.GetByIdAsync(bookmarkId, Arg.Any<CancellationToken>())
+            .Returns(bookmark);
+
+        _bookmarkRepository.UpdateAsync(bookmark, Arg.Any<CancellationToken>())
+            .Returns(bookmark);
+
+        // Act
+        var result = await _service.ConsumeBookmarkAsync(bookmarkId, consumedBy, payload);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Id.Should().Be(bookmarkId);
+        result.IsConsumed.Should().BeTrue();
+        result.ConsumedBy.Should().Be(consumedBy);
+        result.ConsumedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+        result.ResponsePayload.Should().Be(payload);
+
+        // Verify transaction and repository calls
+        await _bookmarkRepository.Received(1).UpdateAsync(bookmark, Arg.Any<CancellationToken>());
+        await transaction.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ConsumeBookmarkAsync_WithMissingBookmark_ShouldThrowArgumentException()
+    {
+        // Arrange
+        var bookmarkId = Guid.NewGuid();
+
+        var transaction = Substitute.For<IDbContextTransaction>();
+        _dbContext.Database.BeginTransactionAsync(Arg.Any<CancellationToken>())
+            .Returns(transaction);
+
+        _bookmarkRepository.GetByIdAsync(bookmarkId, Arg.Any<CancellationToken>())
+            .Returns((WorkflowBookmark?)null);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.ConsumeBookmarkAsync(bookmarkId, "user@company.com"));
+
+        // Verify transaction was rolled back
+        await transaction.Received(1).RollbackAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ConsumeBookmarkAsync_WithAlreadyConsumedBookmark_ShouldThrowInvalidOperationException()
+    {
+        // Arrange
+        var bookmarkId = Guid.NewGuid();
+
+        var transaction = Substitute.For<IDbContextTransaction>();
+        _dbContext.Database.BeginTransactionAsync(Arg.Any<CancellationToken>())
+            .Returns(transaction);
+
+        var bookmark = CreateTestBookmark(Guid.NewGuid(), "activity", "key", BookmarkType.UserAction);
+        // ID is set during creation
+        bookmark.Consume("previous-user@company.com", "{\"previous\": \"data\"}", DateTime.UtcNow.AddHours(-1));
+
+        _bookmarkRepository.GetByIdAsync(bookmarkId, Arg.Any<CancellationToken>())
+            .Returns(bookmark);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.ConsumeBookmarkAsync(bookmarkId, "user@company.com"));
+
+        // Verify transaction was rolled back
+        await transaction.Received(1).RollbackAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task FindActiveBookmarksAsync_WithValidWorkflowInstance_ShouldReturnBookmarks()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var expectedBookmarks = new List<WorkflowBookmark>
+        {
+            CreateTestBookmark(workflowInstanceId, "activity1", "key1", BookmarkType.UserAction),
+            CreateTestBookmark(workflowInstanceId, "activity2", "key2", BookmarkType.Timer)
+        };
+
+        _bookmarkRepository.FindActiveBookmarksByWorkflowAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(expectedBookmarks);
+
+        // Act
+        var result = await _service.FindActiveBookmarksAsync(workflowInstanceId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().HaveCount(2);
+        result.Should().Contain(b => b.Type == BookmarkType.UserAction);
+        result.Should().Contain(b => b.Type == BookmarkType.Timer);
+
+        // Verify repository call
+        await _bookmarkRepository.Received(1).FindActiveBookmarksByWorkflowAsync(workflowInstanceId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task FindBookmarkByCorrelationAsync_WithValidCorrelation_ShouldReturnBookmark()
+    {
+        // Arrange
+        var correlationId = "REQ-12345";
+        var expectedBookmark = CreateTestBookmark(Guid.NewGuid(), "activity", "key", BookmarkType.UserAction);
+        // Created with correlationId already set
+
+        _bookmarkRepository.FindByCorrelationIdAsync(correlationId, Arg.Any<CancellationToken>())
+            .Returns(expectedBookmark);
+
+        // Act
+        var result = await _service.FindBookmarkByCorrelationAsync(correlationId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().Be(expectedBookmark);
+        result.CorrelationId.Should().Be(correlationId);
+
+        // Verify repository call
+        await _bookmarkRepository.Received(1).FindByCorrelationIdAsync(correlationId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CleanupExpiredBookmarksAsync_WithExpiredBookmarks_ShouldCleanupBookmarks()
+    {
+        // Arrange
+        var expiredBookmarks = new List<WorkflowBookmark>
+        {
+            CreateExpiredBookmark(Guid.NewGuid(), "expired1"),
+            CreateExpiredBookmark(Guid.NewGuid(), "expired2")
+        };
+
+        _bookmarkRepository.FindExpiredBookmarksAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(expiredBookmarks);
+
+        // Act
+        var result = await _service.CleanupExpiredBookmarksAsync();
+
+        // Assert
+        result.Should().Be(2);
+
+        // Verify repository calls
+        await _bookmarkRepository.Received(1).FindExpiredBookmarksAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        await _bookmarkRepository.Received(expiredBookmarks.Count).DeleteAsync(Arg.Any<WorkflowBookmark>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetBookmarkStatisticsAsync_WithBookmarks_ShouldReturnStatistics()
+    {
+        // Arrange
+        var workflowInstanceId = Guid.NewGuid();
+        var statistics = new BookmarkStatistics
+        {
+            TotalBookmarks = 10,
+            ActiveBookmarks = 7,
+            ConsumedBookmarks = 3,
+            ExpiredBookmarks = 0,
+            UserActionBookmarks = 5,
+            TimerBookmarks = 2
+        };
+
+        _bookmarkRepository.GetStatisticsAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(statistics);
+
+        // Act
+        var result = await _service.GetBookmarkStatisticsAsync(workflowInstanceId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.TotalBookmarks.Should().Be(10);
+        result.ActiveBookmarks.Should().Be(7);
+        result.ConsumedBookmarks.Should().Be(3);
+        result.UserActionBookmarks.Should().Be(5);
+        result.TimerBookmarks.Should().Be(2);
+
+        // Verify repository call
+        await _bookmarkRepository.Received(1).GetStatisticsAsync(workflowInstanceId, Arg.Any<CancellationToken>());
+    }
+
+    private WorkflowBookmark CreateTestBookmark(Guid workflowInstanceId, string activityId, string key, BookmarkType type)
+    {
+        return WorkflowBookmark.Create(
+            workflowInstanceId,
+            activityId,
+            type,
+            key,
+            "test-correlation",
+            "{\"test\": \"payload\"}");
+    }
+
+    private WorkflowBookmark CreateExpiredBookmark(Guid workflowInstanceId, string key)
+    {
+        return WorkflowBookmark.Create(
+            workflowInstanceId,
+            "activity",
+            BookmarkType.Timer,
+            key,
+            null,
+            null,
+            DateTime.UtcNow.AddHours(-1)); // Expired 1 hour ago
+    }
+}
