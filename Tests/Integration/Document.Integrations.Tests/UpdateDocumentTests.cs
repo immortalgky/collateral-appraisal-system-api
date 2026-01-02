@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Document.Contracts.Documents.Dtos;
-using Document.Documents.Features.DeleteDocument;
+using Document.Domain.Documents.Features.DeleteDocument;
 // using Document.Documents.Features.UpdateDocument; // Feature removed
 using Integration.Document.Integrations.Tests;
 using Integration.Fixtures;

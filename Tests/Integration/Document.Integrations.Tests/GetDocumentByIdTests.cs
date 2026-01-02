@@ -1,13 +1,12 @@
 using System.Net;
 using System.Text.Json;
 using Document.Contracts.Documents.Dtos;
-using Document.Documents.Features.DeleteDocument;
+using Document.Domain.Documents.Features.DeleteDocument;
 using Integration.Document.Integrations.Tests;
 using Integration.Fixtures;
 using Integration.Helpers;
 
 namespace Integration.Document.Integrations.Tests;
-
 
 public class GetDocumentByIdTests(IntegrationTestFixture fixture) : IntegrationTestBase(fixture)
 {

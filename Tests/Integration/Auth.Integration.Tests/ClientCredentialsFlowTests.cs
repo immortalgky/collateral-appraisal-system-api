@@ -1,6 +1,6 @@
 using System.Text;
 using System.Text.Json;
-using Auth.Auth.Features.RegisterClient;
+using Auth.Domain.Auth.Features.RegisterClient;
 using Integration.Fixtures;
 using Integration.Helpers;
 

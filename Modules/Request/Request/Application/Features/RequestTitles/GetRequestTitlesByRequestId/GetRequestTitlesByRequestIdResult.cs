@@ -1,0 +1,3 @@
+namespace Request.Application.Features.RequestTitles.GetRequestTitlesByRequestId;
+
+public record GetRequestTitlesByRequestIdResult(List<RequestTitleDto> RequestTitles);

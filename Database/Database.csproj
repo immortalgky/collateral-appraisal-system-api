@@ -29,22 +29,11 @@
 
 
     <ItemGroup>
-        <Folder Include="Scripts\Views\Document\"/>
-        <Folder Include="Scripts\Views\Assignment\"/>
-        <Folder Include="Scripts\Views\Auth\"/>
-        <Folder Include="Scripts\Views\Notification\"/>
-        <Folder Include="Scripts\Views\Shared\"/>
         <Folder Include="Scripts\StoredProcedures\Document\"/>
         <Folder Include="Scripts\StoredProcedures\Assignment\"/>
         <Folder Include="Scripts\StoredProcedures\Auth\"/>
         <Folder Include="Scripts\StoredProcedures\Notification\"/>
         <Folder Include="Scripts\StoredProcedures\Shared\"/>
-        <Folder Include="Scripts\Functions\Request\"/>
-        <Folder Include="Scripts\Functions\Document\"/>
-        <Folder Include="Scripts\Functions\Assignment\"/>
-        <Folder Include="Scripts\Functions\Auth\"/>
-        <Folder Include="Scripts\Functions\Notification\"/>
-        <Folder Include="Scripts\Functions\Shared\"/>
     </ItemGroup>
 
 

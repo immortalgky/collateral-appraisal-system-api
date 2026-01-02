@@ -14,8 +14,12 @@ public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     private IDbContextTransaction? _transaction;
     private readonly IServiceProvider _serviceProvider;
     private readonly Dictionary<Type, object> _repositories = new();
-    private readonly Dictionary<Type, object> _readRepositories = new();
     public bool HasActiveTransaction => _transaction != null;
+
+    /// <summary>
+    /// Provides access to the DbContext for derived classes.
+    /// </summary>
+    protected TContext Context => _context;
 
     /// <summary>
     /// Creates a new instance of UnitOfWork.
@@ -33,7 +37,7 @@ public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     /// </summary>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>The number of state entries written to the database.</returns>
-    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public virtual async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return await _context.SaveChangesAsync(cancellationToken);
     }
@@ -103,22 +107,6 @@ public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
             _repositories[type] = _serviceProvider.GetRequiredService<IRepository<T, TId>>();
 
         return (IRepository<T, TId>)_repositories[type];
-    }
-
-    /// <summary>
-    /// Gets a read-only repository for the specified entity type.
-    /// </summary>
-    /// <typeparam name="T">The entity type.</typeparam>
-    /// <typeparam name="TId">The entity ID type.</typeparam>
-    /// <returns>A read-only repository for the entity type.</returns>
-    public IReadRepository<T, TId> ReadRepository<T, TId>() where T : class, IEntity<TId>
-    {
-        var type = typeof(IReadRepository<T, TId>);
-
-        if (!_readRepositories.ContainsKey(type))
-            _readRepositories[type] = _serviceProvider.GetRequiredService<IReadRepository<T, TId>>();
-
-        return (IReadRepository<T, TId>)_readRepositories[type];
     }
 
     /// <summary>

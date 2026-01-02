@@ -1,4 +1,4 @@
-using Request.Configurations;
+using Request.Application.Configurations;
 using Request.Tests.Fixtures;
 
 [assembly: AssemblyFixture(typeof(MappingFixture))]

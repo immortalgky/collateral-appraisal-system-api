@@ -1,8 +1,13 @@
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Request.Configurations;
-using Request.Services;
+using Request.Application.Configurations;
+using Request.Application.Services;
+using Request.Domain.RequestComments;
+using Request.Domain.RequestTitles;
+using Request.Infrastructure;
+using Request.Infrastructure.Repositories;
+using Request.Infrastructure.Seed;
 using Shared.Data.Interceptors;
 
 namespace Request;
@@ -14,15 +19,19 @@ public static class RequestModule
         // Configure Mapster mappings
         MappingConfiguration.ConfigureMappings();
 
-        // Application User Case services
+        // Aggregate repositories (DDD structure)
+        // Request aggregate manages RequestDocument as child entity
         services.AddScoped<IRequestRepository, RequestRepository>();
-        services.AddScoped<IRequestReadRepository, RequestReadRepository>();
-        services.AddScoped<IRequestCommentRepository, RequestCommentRepository>();
-        services.AddScoped<IRequestCommentReadRepository, RequestCommentReadRepository>();
-        services.AddScoped<IRequestTitleRepository, RequestTitleRepository>();
-        services.AddScoped<IRequestTitleReadRepository, RequestTitleReadRepository>();
 
-        services.AddTransient<IAppraisalNumberGenerator, AppraisalNumberGenerator>();
+        // RequestTitle is now a separate aggregate
+        services.AddScoped<IRequestTitleRepository, RequestTitleRepository>();
+        services.AddScoped<IRepository<RequestTitle, Guid>, RequestTitleRepository>();
+
+        services.AddScoped<IRequestCommentRepository, RequestCommentRepository>();
+        services.AddScoped<IRepository<RequestComment, Guid>, RequestCommentRepository>();
+
+        services.AddScoped<IAppraisalNumberGenerator, AppraisalNumberGenerator>();
+        services.AddScoped<IRequestSyncService, RequestSyncService>();
 
         // Infrastructure services
         services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
@@ -37,6 +46,9 @@ public static class RequestModule
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "request");
             });
         });
+
+        services.AddScoped<IRequestUnitOfWork>(sp =>
+            new RequestUnitOfWork(sp.GetRequiredService<RequestDbContext>(), sp));
 
         services.AddScoped<IDataSeeder<RequestDbContext>, RequestDataSeed>();
 

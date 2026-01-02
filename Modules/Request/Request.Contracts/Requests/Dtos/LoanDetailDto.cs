@@ -1,7 +1,10 @@
 namespace Request.Contracts.Requests.Dtos;
 
 public record LoanDetailDto(
-    string? LoanApplicationNo,
-    decimal? LimitAmt,
+    string? BankingSegment,
+    string? LoanApplicationNumber,
+    decimal? FacilityLimit,
+    decimal? AdditionalFacilityLimit,
+    decimal? PreviousFacilityLimit,
     decimal? TotalSellingPrice
 );

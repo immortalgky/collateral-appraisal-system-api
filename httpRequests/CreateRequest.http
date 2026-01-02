@@ -1,0 +1,171 @@
+POST {{baseUrl}}/requests
+headers: localhost:7111
+Content-Type: application/json
+
+{
+  "sessionId": "991495AE-F065-4B2C-8249-B6BEF197CA13",
+  "purpose": "01",
+  "channel": "LOS",
+  "requestor": {
+    "userId": "P1234",
+    "username": "John"
+  },
+  "creator": {
+    "userId": "P1234",
+    "username": "John"
+  },
+  "priority": "HIGH",
+  "isPma": false,
+  "detail": {
+    "hasAppraisalBook": false,
+    "loanDetail": {
+      "bankingSegment": "RETAIL",
+      "loanApplicationNumber": "601-000001-2568",
+      "facilityLimit": 1700000,
+      "additionalFacilityLimit": null,
+      "previousFacilityLimit": null,
+      "totalSellingPrice": 2500000
+    },
+    "prevAppraisalId": null,
+    "address": {
+      "houseNumber": "5/42",
+      "roomNumber": "",
+      "floorNumber": "",
+      "buildingNumber": "",
+      "projectName": "",
+      "moo": "",
+      "soi": "",
+      "road": "",
+      "subDistrict": "100101",
+      "district": "1001",
+      "province": "10",
+      "postcode": "10250"
+    },
+    "contact": {
+      "contactPersonName": "Jane",
+      "contactPersonPhone": "089xxxxxxx",
+      "dealerCode": "D0001"
+    },
+    "appointment": {
+      "appointmentDateTime": "2025-06-20T08:39:00",
+      "appointmentLocation": "Q House Lumpini"
+    },
+    "fee": {
+      "feePaymentType": "01",
+      "feeNotes": "No additional fees",
+      "AbsorbedAmount": null
+    }
+  },
+  "customers": [
+    {
+      "name": "John Doe",
+      "contactNumber": "089xxxxxxx"
+    },
+    {
+      "name": "Jane Doe",
+      "contactNumber": "089xxxxxxx"
+    }
+  ],
+  "properties": [
+    {
+      "propertyType": "LB",
+      "buildingType": "01",
+      "sellingPrice": 2500000
+    }
+  ],
+  "documents": [
+    {
+      "documentId": "72F23CE3-5176-4D72-B066-4AD9749FE84A",
+      "documentType": "Map",
+      "fileName": "M-001 Map",
+      "prefix": "M-001",
+      "set": 1,
+      "notes": "comment",
+      "filePath": "C:/Users/Desktop/Document/Other",
+      "source": "Request",
+      "isRequired": true,
+      "uploadedBy": "211",
+      "uploadedByName": "John",
+      "uploadedAt": "2025-06-20T08:39:32.515"
+    }
+  ],
+  "comments": [
+    {
+      "comment": "This is the first comment.",
+      "commentedBy": "211",
+      "commentedByName": "John"
+    },
+    {
+      "comment": "This is the second comment.",
+      "commentedBy": "212",
+      "commentedByName": "Jane"
+    }
+  ],
+  "titles": [
+    {
+      "collateralType": "L",
+      "collateralStatus": false,
+      "titleNo": "titleNo",
+      "deedType": "DEED",
+      "titleDetail": "This is title detail",
+      "rawang": "rawang",
+      "landNo": "landNo",
+      "surveyNo": "surveyNo",
+      "areaRai": 10,
+      "areaNgan": 20,
+      "areaSquareWa": 100,
+      "ownerName": "ownerName",
+      "titleAddress": {
+        "houseNumber": "houseNumber",
+        "projectName": "projectName",
+        "moo": "moo",
+        "soi": "soi",
+        "road": "road",
+        "subDistrict": "100101",
+        "district": "1001",
+        "province": "10",
+        "postcode": "10250"
+      },
+      "dopaAddress": {
+        "houseNumber": "houseNo",
+        "projectName": "projectName",
+        "moo": "moo",
+        "soi": "soi",
+        "road": "road",
+        "subDistrict": "100101",
+        "district": "1001",
+        "province": "10",
+        "postcode": "10250"
+      },
+      "notes": "Test",
+      "documents": [
+        {
+          "documentId": "72F23CE3-5176-4D72-B066-4AD9749FE84A",
+          "documentType": "Test",
+          "filename": "Test",
+          "prefix": "Test",
+          "set": 1,
+          "documentDescription": "Update Test",
+          "filePath": "Test",
+          "createdWorkstation": "Test",
+          "isRequired": true,
+          "uploadedBy": "Test",
+          "uploadedByName": "Test"
+        },
+        {
+          "documentId": "193f5b7a-f9f4-4563-af2c-a32d7cc6e45d",
+          "documentType": "Test",
+          "filename": "Test",
+          "prefix": "Test",
+          "set": 1,
+          "documentDescription": "Update Test",
+          "filePath": "Test",
+          "createdWorkstation": "Test",
+          "isRequired": true,
+          "uploadedBy": "Test",
+          "uploadedByName": "Test"
+        }
+      ]
+    }
+  ]
+}

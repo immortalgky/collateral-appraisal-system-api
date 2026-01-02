@@ -2,8 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Notification.Data;
 using Notification.Data.Repository;
 using Notification.Data.Seed;
-using Notification.Notification.Hubs;
-using Notification.Notification.Services;
+using Notification.Domain.Notifications.Hubs;
+using Notification.Domain.Notifications.Services;
 using Shared.Data.Extensions;
 using Shared.Data.Seed;
 

@@ -28,40 +28,46 @@ global using Shared.Data;
 global using Shared.Data.Extensions;
 global using Shared.Data.Seed;
 global using Shared.Exceptions;
+global using Shared.Models;
+global using Shared.Time;
 
-// ===== REQUEST MODULE - CORE =====
-global using Request.Data;
-global using Request.Data.Repository;
-global using Request.Data.Seed;
+// ===== REQUEST MODULE - INFRASTRUCTURE =====
+global using Request.Infrastructure;
+global using Request.Infrastructure.Configurations;
+global using Request.Infrastructure.Repositories;
+global using Request.Infrastructure.Seed;
 
 // ===== REQUEST MODULE - CONTRACTS =====
 global using Request.Contracts.Requests.Dtos;
-global using Request.Contracts.Requests.Features.GetRequestById;
+global using Request.Contracts.RequestDocuments.Dto;
 
-// ===== REQUEST MODULE - AGGREGATES =====
-// Requests (Main Aggregate)
-global using Request.Requests;
-global using Request.Requests.Models;
-global using Request.Requests.Events;
-global using Request.Requests.ValueObjects;
-global using Request.Requests.Exceptions;
-global using Request.Requests.Specifications;
+// ===== REQUEST MODULE - DOMAIN (Organized by Aggregate) =====
+// Requests Aggregate (includes RequestDocument as child entity)
+global using Request.Domain.Requests;
+global using Request.Domain.Requests.Events;
+global using Request.Domain.Requests.Exceptions;
 
-// RequestTitles (Sub-Aggregate)
-global using Request.RequestTitles;
-global using Request.RequestTitles.Models;
-global using Request.RequestTitles.ValueObjects;
-global using Request.RequestTitles.Exceptions;
-global using Request.RequestTitles.Events;
-global using Request.RequestTitles.EventHandlers;
-global using Request.RequestTitles.Specifications;
-global using Request.RequestTitles.Features.AddRequestTitle;
-global using Request.RequestTitles.Features.RemoveRequestTitle;
+// RequestTitles Aggregate (includes TitleDocument as child entity)
+global using Request.Domain.RequestTitles;
+global using Request.Domain.RequestTitles.TitleTypes;
+global using Request.Domain.RequestTitles.Events;
+global using Request.Domain.RequestTitles.Exceptions;
 
-// RequestComments (Sub-Aggregate)
-global using Request.RequestComments;
-global using Request.RequestComments.Models;
-global using Request.RequestComments.Exceptions;
-global using Request.RequestComments.Events;
-global using Request.RequestComments.EventHandlers;
-global using Request.RequestComments.Specifications;
+// RequestComments Aggregate
+global using Request.Domain.RequestComments;
+global using Request.Domain.RequestComments.Events;
+global using Request.Domain.RequestComments.Exceptions;
+
+// ===== REQUEST MODULE - APPLICATION LAYER =====
+// Event Handlers
+global using Request.Application.EventHandlers.Request;
+global using Request.Application.EventHandlers.RequestComment;
+
+// Services
+global using Request.Application.Services;
+
+// Configurations
+global using Request.Application.Configurations;
+
+// ===== REQUEST MODULE - EXTENSIONS =====
+global using Request.Extensions;

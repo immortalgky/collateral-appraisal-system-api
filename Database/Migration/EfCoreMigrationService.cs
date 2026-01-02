@@ -2,13 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Identity;
-using Request.Data;
+using Request.Infrastructure;
 using Assignment.Data;
 using Document.Data;
 using Notification.Data;
 using OAuth2OpenId.Data;
 using OAuth2OpenId;
-using OAuth2OpenId.Identity.Models;
+using OAuth2OpenId.Domain.Identity.Models;
 
 namespace Database.Migration;
 

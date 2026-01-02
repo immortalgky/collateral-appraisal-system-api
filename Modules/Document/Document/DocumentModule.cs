@@ -2,9 +2,10 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Document.Services;
-using Document.Documents;
-using Document.UploadSessions;
-using Document.UploadSessions.Model;
+using Document.Domain.Documents;
+using Document.Domain.Documents.Models;
+using Document.Domain.UploadSessions;
+using Document.Domain.UploadSessions.Model;
 using Shared.Data;
 
 namespace Document;
@@ -30,7 +31,7 @@ public static class DocumentModule
 
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<IUploadSessionRepository, UploadSessionRepository>();
-        services.AddScoped<IRepository<Documents.Models.Document, Guid>, DocumentRepository>();
+        services.AddScoped<IRepository<Domain.Documents.Models.Document, Guid>, DocumentRepository>();
         services.AddScoped<IRepository<UploadSession, Guid>, UploadSessionRepository>();
 
         services.AddScoped<IDocumentService, DocumentService>();

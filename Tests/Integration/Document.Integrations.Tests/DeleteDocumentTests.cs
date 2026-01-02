@@ -1,16 +1,16 @@
 using System.Text.Json;
 using Document.Contracts.Documents.Dtos;
-using Document.Documents.Features.DeleteDocument;
+using Document.Domain.Documents.Features.DeleteDocument;
 using Integration.Fixtures;
 using Integration.Helpers;
 using Xunit.Sdk;
 
 namespace Integration.Document.Integrations.Tests;
 
-
 public class DeleteDocumentTests(IntegrationTestFixture fixture) : IntegrationTestBase(fixture)
 {
     private readonly string relateRequest = "Request";
+
     private readonly short n = 5;
     //[Fact]
     // public async Task DeleteDocuments_WhenDocumentsExist_ReturnsList()

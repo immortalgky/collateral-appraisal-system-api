@@ -1,0 +1,69 @@
+@baseUrl = https://localhost:7111
+@requestId = ca3d3643-9e6b-4bd4-bc43-08de2b89b000
+POST {{baseUrl}}/requests/{{requestId}}/titles
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "requestTitleDtos":
+    [
+        {
+            "collateralType": "Land",
+            "collateralStatus": false,
+            "titleNo": "1212312121",
+            "deedType": "NorSor3",
+            "titleDetail": "Test 3",
+            "ownerName": "John",
+            "rawang": "xxxx",
+            "landNo": "xxxx",
+            "surveyNo": "xxxx",
+            "areaRai": 0,
+            "areaNgan": 0,
+            "areaSquareWa": 0,
+            "titleAddress":
+            {
+                "houseNo": "",
+                "projectName": "",
+                "moo": "",
+                "soi": "",
+                "road": "123456789",
+                "subDistrict": "Muang",
+                "district": "Watket",
+                "province": "Chiang Mai",
+                "postcode": "50000"
+            },
+            "dopaAddress":
+            {
+                "houseNo": "",
+                "projectName": "",
+                "moo": "",
+                "soi": "",
+                "road": "",
+                "subDistrict": "Muang",
+                "district": "Watket",
+                "province": "Chiang Mai",
+                "postcode": "50000"
+            },
+            "notes": "",
+            "requestTitleDocumentDtos": 
+            [
+                {
+                    "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
+                    "documentType": "Test 3",
+                    "isRequired": false,
+                    "documentDescription": "new document D1",
+                    "uploadedBy": "xxxxx",
+                    "uploadedByName": "Joe"
+                },
+                {
+                  "documentId": "c5f2d07a-9a9e-4b13-b9e2-0b8d0f5f1104",
+                  "documentType": "Test 3",
+                  "isRequired": false,
+                  "documentDescription": "new document D2",
+                  "uploadedBy": "xxxxx",
+                  "uploadedByName": "Joe"
+                }
+            ]
+        }
+    ]
+}

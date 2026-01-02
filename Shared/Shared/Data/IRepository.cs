@@ -4,26 +4,15 @@ using Shared.DDD;
 namespace Shared.Data;
 
 /// <summary>
-/// Interface for repository operations.
+/// Interface for write repository operations.
+/// For reads, use Dapper with ISqlConnectionFactory directly in query handlers.
 /// </summary>
 /// <typeparam name="T">The entity type.</typeparam>
 /// <typeparam name="TId">The entity ID type.</typeparam>
-public interface IRepository<T, TId> : IReadRepository<T, TId> where T : IEntity<TId>
+public interface IRepository<T, TId> where T : IEntity<TId>
 {
-    // Read for updates
-    Task<T?> GetByIdForUpdateAsync(TId id, CancellationToken cancellationToken = default);
-
-    Task<IEnumerable<T>> FindForUpdateAsync(Expression<Func<T, bool>> predicate,
-        CancellationToken cancellationToken = default);
-
-    Task<IEnumerable<T>> FindForUpdateAsync(ISpecification<T> specification,
-        CancellationToken cancellationToken = default);
-
-    Task<T?> FirstOrDefaultForUpdateAsync(Expression<Func<T, bool>> predicate,
-        CancellationToken cancellationToken = default);
-
-    Task<T?> FirstOrDefaultForUpdateAsync(ISpecification<T> specification,
-        CancellationToken cancellationToken = default);
+    // Read for updates (with tracking)
+    Task<T?> GetByIdAsync(TId id, CancellationToken cancellationToken = default);
 
     // Write operations
     Task AddAsync(T entity, CancellationToken cancellationToken = default);
@@ -33,4 +22,7 @@ public interface IRepository<T, TId> : IReadRepository<T, TId> where T : IEntity
     Task DeleteAsync(T entity, CancellationToken cancellationToken = default);
     Task DeleteAsync(TId id, CancellationToken cancellationToken = default);
     Task DeleteRangeAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default);
+
+    // Unit of Work
+    Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

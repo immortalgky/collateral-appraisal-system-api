@@ -1,25 +1,30 @@
 CREATE
 OR ALTER
-VIEW [request].[vw_Requests]
-AS
+VIEW request.vw_Requests AS
 SELECT Id,
-       AppraisalNo,
+       RequestNumber,
        Status,
        Purpose,
-       HasAppraisalBook,
-       Priority,
        Channel,
-       OccurConstInspec,
-       LoanApplicationNo,
-       LimitAmt,
+       Requestor,
+       RequestorName,
+       RequestedAt,
+       Creator,
+       CreatorName,
+       CreatedAt,
+       CompletedAt,
+       Priority,
+       IsPma,
+       HasAppraisalBook,
+       BankingSegment,
+       LoanApplicationNumber,
+       FacilityLimit,
+       AdditionalFacilityLimit,
+       PreviousFacilityLimit,
        TotalSellingPrice,
-       PrevAppraisalNo,
-       PrevAppraisalValue,
-       PrevAppraisalDate,
-       HouseNo,
-       RoomNo,
-       FloorNo,
-       LocationIdentifier,
+       PrevAppraisalId,
+       HouseNumber,
+       ProjectName,
        Moo,
        Soi,
        Road,
@@ -28,20 +33,15 @@ SELECT Id,
        Province,
        Postcode,
        ContactPersonName,
-       ContactPersonContactNo,
-       ProjectCode,
-       FeeType,
-       FeeRemark,
-       RequestorEmpId,
-       RequestorName,
-       RequestorEmail,
-       RequestorContactNo,
-       RequestorAo,
-       RequestorBranch,
-       RequestorBusinessUnit,
-       RequestorDepartment,
-       RequestorSection,
-       RequestorCostCenter
-FROM request.Requests [Requests]
-JOIN request.RequestDetails [RequestDetails]
-ON RequestDetails.RequestId = Requests.Id
+       ContactPersonPhone,
+       DealerCode,
+       AppointmentDate,
+       AppointmentLocation,
+       FeePaymentType,
+       AbsorbedFee,
+       FeeNotes
+FROM request.Requests r
+         JOIN request.RequestDetails d ON d.RequestId = r.Id
+WHERE IsDeleted = 0
+
+

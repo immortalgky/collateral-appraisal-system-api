@@ -1,51 +1,27 @@
-using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Shared.DDD;
 
 namespace Shared.Data;
 
 /// <summary>
-/// Base implementation of a repository.
+/// Base implementation of a writing repository.
+/// For reads, use Dapper with ISqlConnectionFactory directly in query handlers.
 /// </summary>
 /// <typeparam name="T">The entity type.</typeparam>
 /// <typeparam name="TId">The entity ID type.</typeparam>
-public abstract class BaseRepository<T, TId> : BaseReadRepository<T, TId>, IRepository<T, TId>
+public abstract class BaseRepository<T, TId>(DbContext context) : IRepository<T, TId>
     where T : class, IEntity<TId>
 {
-    protected BaseRepository(DbContext context) : base(context)
-    {
-    }
+    protected readonly DbContext Context = context;
+    protected readonly DbSet<T> DbSet = context.Set<T>();
 
-    // Write operations
-    public virtual async Task<T?> GetByIdForUpdateAsync(TId id, CancellationToken cancellationToken = default)
+    // Read for updates (with tracking)
+    public virtual async Task<T?> GetByIdAsync(TId id, CancellationToken cancellationToken = default)
     {
         return await DbSet.FindAsync([id], cancellationToken);
     }
 
-    public virtual async Task<IEnumerable<T>> FindForUpdateAsync(Expression<Func<T, bool>> predicate,
-        CancellationToken cancellationToken = default)
-    {
-        return await DbSet.Where(predicate).ToListAsync(cancellationToken);
-    }
-
-    public virtual async Task<IEnumerable<T>> FindForUpdateAsync(ISpecification<T> specification,
-        CancellationToken cancellationToken = default)
-    {
-        return await DbSet.Where(specification.ToExpression()).ToListAsync(cancellationToken);
-    }
-
-    public virtual async Task<T?> FirstOrDefaultForUpdateAsync(Expression<Func<T, bool>> predicate,
-        CancellationToken cancellationToken = default)
-    {
-        return await DbSet.FirstOrDefaultAsync(predicate, cancellationToken);
-    }
-
-    public virtual async Task<T?> FirstOrDefaultForUpdateAsync(ISpecification<T> specification,
-        CancellationToken cancellationToken = default)
-    {
-        return await DbSet.FirstOrDefaultAsync(specification.ToExpression(), cancellationToken);
-    }
-
+    // Write operations
     public virtual async Task AddAsync(T entity, CancellationToken cancellationToken = default)
     {
         await DbSet.AddAsync(entity, cancellationToken);
@@ -84,5 +60,11 @@ public abstract class BaseRepository<T, TId> : BaseReadRepository<T, TId>, IRepo
     {
         DbSet.RemoveRange(entities);
         return Task.CompletedTask;
+    }
+
+    // Unit of Work
+    public virtual async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        await Context.SaveChangesAsync(cancellationToken);
     }
 }

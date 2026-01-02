@@ -5,6 +5,6 @@ global using Carter;
 global using Mapster;
 global using MediatR;
 global using Shared.Pagination;
-global using OAuth2OpenId.Identity.Dtos;
+global using OAuth2OpenId.Domain.Identity.Dtos;
 global using Auth.Extensions;
 global using Shared.CQRS;
