@@ -22,13 +22,16 @@ var apiAssembly = typeof(Program).Assembly;
 var requestAssembly = typeof(RequestModule).Assembly;
 var authAssembly = typeof(AuthModule).Assembly;
 var notificationAssembly = typeof(NotificationModule).Assembly;
+var parameterAssembly = typeof(ParameterModule).Assembly;
 var documentAssembly = typeof(DocumentModule).Assembly;
 var assignmentAssembly = typeof(AssignmentModule).Assembly;
 
 builder.Services.AddCarterWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
+    parameterAssembly,
     documentAssembly,
     assignmentAssembly);
 builder.Services.AddMediatRWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
+    parameterAssembly,
     documentAssembly,
     assignmentAssembly);
 
@@ -114,6 +117,7 @@ builder.Services
     .AddOpenIddictModule(builder.Configuration)
     .AddAuthModule(builder.Configuration)
     .AddNotificationModule(builder.Configuration)
+    .AddParameterModule(builder.Configuration)
     .AddDocumentModule(builder.Configuration)
     .AddAssignmentModule(builder.Configuration);
 
@@ -172,6 +176,7 @@ app
     .UseRequestModule()
     .UseAuthModule()
     .UseNotificationModule()
+    .UseParameterModule()
     .UseDocumentModule()
     .UseAssignmentModule()
     .UseOpenIddictModule();

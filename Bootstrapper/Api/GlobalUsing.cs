@@ -7,6 +7,7 @@ global using Auth;
 global using Microsoft.Extensions.FileProviders;
 global using OAuth2OpenId;
 global using Notification;
+global using Parameter;
 global using Document;
 global using Assignment;
 global using Assignment.Data;
