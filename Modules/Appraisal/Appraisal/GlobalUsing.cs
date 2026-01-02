@@ -17,7 +17,7 @@ global using Carter;
 global using Shared.Data;
 global using Shared.Data.Extensions;
 global using Shared.DDD;
-global using Shared.Contracts.CQRS;
+global using Shared.CQRS;
 global using Shared.Exceptions;
 global using Shared.Pagination;
 

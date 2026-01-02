@@ -1,4 +1,4 @@
-using Shared.Dtos;
+using Request.Contracts.Requests.Dtos;
 
 namespace Shared.Messaging.Events;
 

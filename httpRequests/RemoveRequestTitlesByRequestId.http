@@ -1,0 +1,12 @@
+@baseUrl = https://localhost:7111
+@requestId = 19248d4c-3cf3-4cc3-4773-08de2efe7c24
+@titleId = 05621759-43ea-4c65-8533-14719d8c0606
+@titleDocId = 1c93f853-b63f-43f9-ae36-fafbfd409501
+@sessionId = 72654951-0fca-4e74-8276-054df91d0001
+
+DELETE {{baseUrl}}/requests/{{requestId}}/titles/{{titleId}}/titleDocs/{{titleDocId}}/{{sessionId}}
+Host: localhost:7111
+Content-Type: application/json
+
+{
+}

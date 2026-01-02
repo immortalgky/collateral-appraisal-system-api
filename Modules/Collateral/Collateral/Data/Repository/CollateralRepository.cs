@@ -1,4 +1,6 @@
+using System.Linq.Expressions;
 using Shared.Data;
+using Shared.Pagination;
 
 namespace Collateral.Data.Repository;
 
@@ -6,14 +8,14 @@ public class CollateralRepository(CollateralDbContext context)
     : BaseRepository<CollateralMaster, long>(context),
         ICollateralRepository
 {
-    protected override IQueryable<CollateralMaster> GetReadQuery()
+    protected IQueryable<CollateralMaster> GetReadQuery()
     {
-        return IncludeQuery(base.GetReadQuery());
+        return IncludeQuery(Context.Set<CollateralMaster>().AsNoTracking());
     }
 
-    protected override IQueryable<CollateralMaster> GetTrackedQuery()
+    protected IQueryable<CollateralMaster> GetTrackedQuery()
     {
-        return IncludeQuery(base.GetTrackedQuery());
+        return IncludeQuery(Context.Set<CollateralMaster>());
     }
 
     private static IQueryable<CollateralMaster> IncludeQuery(IQueryable<CollateralMaster> query)
@@ -40,5 +42,29 @@ public class CollateralRepository(CollateralDbContext context)
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<PaginatedResult<CollateralMaster>> GetPaginatedAsync(PaginationRequest pagination, CancellationToken cancellationToken = default)
+    {
+        var query = GetReadQuery();
+        var totalCount = await query.LongCountAsync(cancellationToken);
+        var items = await query
+            .Skip((pagination.PageNumber - 1) * pagination.PageSize)
+            .Take(pagination.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PaginatedResult<CollateralMaster>(items, totalCount, pagination.PageNumber, pagination.PageSize);
+    }
+
+    public async Task<PaginatedResult<CollateralMaster>> GetPaginatedAsync(PaginationRequest pagination, Expression<Func<CollateralMaster, bool>> predicate, CancellationToken cancellationToken = default)
+    {
+        var query = GetReadQuery().Where(predicate);
+        var totalCount = await query.LongCountAsync(cancellationToken);
+        var items = await query
+            .Skip((pagination.PageNumber - 1) * pagination.PageSize)
+            .Take(pagination.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PaginatedResult<CollateralMaster>(items, totalCount, pagination.PageNumber, pagination.PageSize);
     }
 }

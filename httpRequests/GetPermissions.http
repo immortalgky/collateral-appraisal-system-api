@@ -1,0 +1,6 @@
+# Get Permission Instances
+# Get Permission Instances.
+
+### Get Permission Instances
+GET {{baseUrl}}/auth/permissions/ HTTP/1.1
+Host: localhost:7111

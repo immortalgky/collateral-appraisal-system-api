@@ -1,0 +1,20 @@
+# Register User Instances
+# Register user Instances.
+
+### Register User Instances
+POST {{baseUrl}}/auth/register HTTP/1.1
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "username": "username",
+    "password": "P@ssw0rd!",
+    "email": "example@email.com",
+    "permissions": [
+        {
+            "permissionId": "218e4b42-6293-4f57-eb47-08ddfa581b2e",
+            "isGranted": true
+        }
+    ],
+    "roles": ["192edca0-ca9d-4702-af09-08ddfb1d7442"]
+}

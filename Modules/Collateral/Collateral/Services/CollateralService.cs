@@ -17,8 +17,7 @@ public class CollateralService(ICollateralRepository collateralRepository) : ICo
         {
             var collateralMaster = CollateralMaster.Create(
                 CollateralType.Land,
-                null,
-                requestTitleDto.RequestId
+                null
             );
             await collateralRepository.AddAsync(collateralMaster, cancellationToken);
             var collateralLand = CollateralLand.FromRequestTitleDto(

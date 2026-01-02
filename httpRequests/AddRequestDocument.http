@@ -1,0 +1,114 @@
+@baseUrl = https://localhost:7111
+
+### Add Request Document - Single Document
+@requestId = 19248d4c-3cf3-4cc3-4773-08de2efe7c24
+
+POST {{baseUrl}}/requests/{{requestId}}/document
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "documents": [
+        {
+            "documentId": "0d6c4968-d855-4bf8-a9c7-3196b14ea769",
+            "documentClassification": {
+                "documentType": "ID Card",
+                "isRequired": true
+            },
+            "fileName": "ID-001 National ID Card",
+            "filePath": "/documents/id-cards",
+            "prefix": "ID-001",
+            "set": 1,
+            "uploadInfo": {
+                "uploadedBy": "211",
+                "uploadedByName": "John",
+                "uploadedAt": "2025-12-08T08:39:32.515Z"
+            },
+            "documentDescription": "Customer national ID card copy",
+            "documentFollowUp": false
+        }
+    ]
+}
+
+### Add Request Document - Multiple Documents
+POST {{baseUrl}}/requests/{{requestId}}/document
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "documents": [
+        {
+            "documentId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "documentClassification": {
+                "documentType": "House Registration",
+                "isRequired": true
+            },
+            "fileName": "HR-001 House Registration",
+            "filePath": "/documents/house-registration",
+            "prefix": "HR-001",
+            "set": 1,
+            "uploadInfo": {
+                "uploadedBy": "211",
+                "uploadedByName": "John",
+                "uploadedAt": "2025-12-08T08:39:32.515Z"
+            },
+            "documentDescription": "Customer house registration document",
+            "documentFollowUp": false
+        },
+        {
+            "documentId": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+            "documentClassification": {
+                "documentType": "Income Statement",
+                "isRequired": false
+            },
+            "fileName": "IS-001 Income Statement",
+            "filePath": "/documents/income",
+            "prefix": "IS-001",
+            "set": 2,
+            "uploadInfo": {
+                "uploadedBy": "211",
+                "uploadedByName": "John",
+                "uploadedAt": "2025-12-08T08:39:32.515Z"
+            },
+            "documentDescription": "Customer income statement for past 6 months",
+            "documentFollowUp": false
+        }
+    ]
+}
+
+### Add Request Document - Document with Follow-Up flag
+POST {{baseUrl}}/requests/{{requestId}}/document
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "documents": [
+        {
+            "documentId": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+            "documentClassification": {
+                "documentType": "Title Deed",
+                "isRequired": true
+            },
+            "fileName": "TD-001 Title Deed",
+            "filePath": "/documents/title-deeds",
+            "prefix": "TD-001",
+            "set": 1,
+            "uploadInfo": {
+                "uploadedBy": "212",
+                "uploadedByName": "Jane",
+                "uploadedAt": "2025-12-08T10:30:00.000Z"
+            },
+            "documentDescription": "Property title deed - needs additional verification",
+            "documentFollowUp": true
+        }
+    ]
+}
+
+### Add Request Document - Empty Documents (should return empty result)
+POST {{baseUrl}}/requests/{{requestId}}/document
+Host: localhost:7111
+Content-Type: application/json
+
+{
+    "documents": []
+}

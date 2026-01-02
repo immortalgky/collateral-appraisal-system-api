@@ -1,7 +1,9 @@
 using Appraisal;
+using Document.Data;
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.EntityFrameworkCore;
+using Request.Infrastructure;
 using Shared.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,18 +16,23 @@ builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(conte
 
 // Add shared services (time abstraction, security, etc.)
 builder.Services.AddSharedServices(builder.Configuration);
+builder.Services.AddHangfire(builder.Configuration);
 
 // Common services: carter, mediatR, fluentvalidators, etc.
+var apiAssembly = typeof(Program).Assembly;
 var requestAssembly = typeof(RequestModule).Assembly;
 var authAssembly = typeof(AuthModule).Assembly;
 var notificationAssembly = typeof(NotificationModule).Assembly;
+var parameterAssembly = typeof(ParameterModule).Assembly;
 var documentAssembly = typeof(DocumentModule).Assembly;
 var assignmentAssembly = typeof(AssignmentModule).Assembly;
 var collateralAssembly = typeof(CollateralModule).Assembly;
 var appraisalAssembly = typeof(AppraisalModule).Assembly;
 
-builder.Services.AddCarterWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
-builder.Services.AddMediatRWithAssemblies(requestAssembly, authAssembly, notificationAssembly, documentAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
+builder.Services.AddCarterWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
+    parameterAssembly, documentAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
+builder.Services.AddMediatRWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
+    parameterAssembly, documentAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -60,10 +67,25 @@ builder.Services.AddMassTransit(config =>
             r.LockStatementProvider = new SqlServerLockStatementProvider();
         });
 
-    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
-    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
-    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
-    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
+
+    // TODO: later implement customer delivery service
+    // config.AddEntityFrameworkOutbox<RequestDbContext>(o =>
+    // {
+    //     o.QueryDelay = TimeSpan.FromSeconds(1);
+    //     o.UseSqlServer();
+    //     o.UseBusOutbox();
+    // });
+    //
+    // config.AddEntityFrameworkOutbox<DocumentDbContext>(o =>
+    // {
+    //     o.QueryDelay = TimeSpan.FromSeconds(1);
+    //     o.UseSqlServer();
+    //     o.UseBusOutbox();
+    // });
 
     config.UsingRabbitMq((context, configurator) =>
     {
@@ -73,30 +95,29 @@ builder.Services.AddMassTransit(config =>
             host.Password(builder.Configuration["RabbitMQ:Password"]!);
         });
 
-        configurator.ConfigureEndpoints(context);
-
         configurator.PrefetchCount = 16;
+        configurator.ConfigureEndpoints(context);
         configurator.UseMessageRetry(r => r.Exponential(5,
             TimeSpan.FromSeconds(1),
             TimeSpan.FromSeconds(30),
             TimeSpan.FromSeconds(5)));
 
+        // TODO: later implement customer delivery service and disable in-memory outbox
         configurator.UseInMemoryOutbox(context);
     });
 });
 
 builder.Services.AddHttpClient("CAS", client => { client.BaseAddress = new Uri("https://localhost:7111"); });
 
-builder.Services.AddAuthorization();
-
 // Module services: request, etc.
 builder.Services
     .AddRequestModule(builder.Configuration)
+    .AddOpenIddictModule(builder.Configuration)
     .AddAuthModule(builder.Configuration)
     .AddNotificationModule(builder.Configuration)
+    .AddParameterModule(builder.Configuration)
     .AddDocumentModule(builder.Configuration)
     .AddAssignmentModule(builder.Configuration)
-    .AddOpenIddictModule(builder.Configuration)
     .AddCollateralModule(builder.Configuration)
     .AddAppraisalModule(builder.Configuration);
 
@@ -149,10 +170,13 @@ app.MapRazorPages();
 app.MapControllers();
 app.MapCarter();
 
+app.UseHangfire();
+
 app
     .UseRequestModule()
     .UseAuthModule()
     .UseNotificationModule()
+    .UseParameterModule()
     .UseDocumentModule()
     .UseAssignmentModule()
     .UseOpenIddictModule()
@@ -161,4 +185,6 @@ app
 
 await app.RunAsync();
 
-public partial class Program { }
+public partial class Program
+{
+}

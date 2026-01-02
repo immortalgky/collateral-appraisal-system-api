@@ -14,9 +14,10 @@ global using Mapster;
 global using Shared.DDD;
 global using Shared.Dtos;
 global using Shared.Data.Extensions;
-global using Shared.Contracts.CQRS;
+global using Shared.CQRS;
 global using Shared.Enums;
 global using Shared.Exceptions;
+global using Request.Contracts.Requests.Dtos;
 
 global using System.Reflection;
 

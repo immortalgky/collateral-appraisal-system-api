@@ -6,7 +6,7 @@ public class AppraisalRepository : BaseRepository<RequestAppraisal, long>, IAppr
     {
     }
 
-    public override async Task<IEnumerable<RequestAppraisal>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<RequestAppraisal>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await Context.Set<RequestAppraisal>()
             .AsNoTracking()
@@ -20,9 +20,10 @@ public class AppraisalRepository : BaseRepository<RequestAppraisal, long>, IAppr
             .ToListAsync(cancellationToken);
     }
 
-    protected override IQueryable<RequestAppraisal> GetReadQuery()
+    protected IQueryable<RequestAppraisal> GetReadQuery()
     {
-        return base.GetReadQuery().Include(a => a.LandAppraisalDetail)
+        return Context.Set<RequestAppraisal>()
+            .Include(a => a.LandAppraisalDetail)
             .Include(a => a.BuildingAppraisalDetail)
             .Include(a => a.CondoAppraisalDetail)
             .Include(a => a.MachineAppraisalDetail)
@@ -42,5 +43,17 @@ public class AppraisalRepository : BaseRepository<RequestAppraisal, long>, IAppr
             .AsNoTracking()
             .Where(a => a.CollateralId == collatId)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<PaginatedResult<RequestAppraisal>> GetPaginatedAsync(PaginationRequest pagination, CancellationToken cancellationToken = default)
+    {
+        var query = GetReadQuery().AsNoTracking();
+        var totalCount = await query.LongCountAsync(cancellationToken);
+        var items = await query
+            .Skip((pagination.PageNumber - 1) * pagination.PageSize)
+            .Take(pagination.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PaginatedResult<RequestAppraisal>(items, totalCount, pagination.PageNumber, pagination.PageSize);
     }
 }

@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Integration.Helpers;
-using Request.Requests.Features.CreateRequest;
+using Request.Application.Features.Requests.CreateRequest;
 
 namespace Integration.Request.Integration.Tests.Helpers;
 

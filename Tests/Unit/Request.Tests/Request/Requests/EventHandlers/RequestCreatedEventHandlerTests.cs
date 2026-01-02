@@ -1,8 +1,8 @@
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Request.Requests.EventHandlers;
-using Request.Requests.Events;
+using Request.Application.EventHandlers.Request;
+using Request.Domain.Requests.Events;
 using Request.Tests.TestData;
 using Shared.Messaging.Events;
 
