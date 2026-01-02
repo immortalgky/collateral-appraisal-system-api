@@ -1,3 +1,4 @@
+using Appraisal;
 using Document.Data;
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
@@ -25,15 +26,13 @@ var notificationAssembly = typeof(NotificationModule).Assembly;
 var parameterAssembly = typeof(ParameterModule).Assembly;
 var documentAssembly = typeof(DocumentModule).Assembly;
 var assignmentAssembly = typeof(AssignmentModule).Assembly;
+var collateralAssembly = typeof(CollateralModule).Assembly;
+var appraisalAssembly = typeof(AppraisalModule).Assembly;
 
 builder.Services.AddCarterWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
-    parameterAssembly,
-    documentAssembly,
-    assignmentAssembly);
+    parameterAssembly, documentAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
 builder.Services.AddMediatRWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
-    parameterAssembly,
-    documentAssembly,
-    assignmentAssembly);
+    parameterAssembly, documentAssembly, assignmentAssembly, collateralAssembly, appraisalAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -68,11 +67,10 @@ builder.Services.AddMassTransit(config =>
             r.LockStatementProvider = new SqlServerLockStatementProvider();
         });
 
-    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly);
-    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly,
-        documentAssembly);
-    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly);
-    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly);
+    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
+    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, assignmentAssembly, documentAssembly, collateralAssembly, appraisalAssembly);
 
     // TODO: later implement customer delivery service
     // config.AddEntityFrameworkOutbox<RequestDbContext>(o =>
@@ -119,7 +117,9 @@ builder.Services
     .AddNotificationModule(builder.Configuration)
     .AddParameterModule(builder.Configuration)
     .AddDocumentModule(builder.Configuration)
-    .AddAssignmentModule(builder.Configuration);
+    .AddAssignmentModule(builder.Configuration)
+    .AddCollateralModule(builder.Configuration)
+    .AddAppraisalModule(builder.Configuration);
 
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -179,7 +179,9 @@ app
     .UseParameterModule()
     .UseDocumentModule()
     .UseAssignmentModule()
-    .UseOpenIddictModule();
+    .UseOpenIddictModule()
+    .UseCollateralModule()
+    .UseAppraisalModule();
 
 await app.RunAsync();
 

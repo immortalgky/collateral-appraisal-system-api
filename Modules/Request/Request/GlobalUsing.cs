@@ -20,6 +20,7 @@ global using Carter;
 global using FluentValidation;
 global using MediatR;
 global using Mapster;
+global using MassTransit;
 
 // ===== SHARED INFRASTRUCTURE =====
 global using Shared.DDD;
@@ -30,6 +31,7 @@ global using Shared.Data.Seed;
 global using Shared.Exceptions;
 global using Shared.Models;
 global using Shared.Time;
+global using Shared.Messaging.Events;
 
 // ===== REQUEST MODULE - INFRASTRUCTURE =====
 global using Request.Infrastructure;

@@ -8,18 +8,18 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.13.0"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.13.0"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.13.0"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.13.0"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.5"/>
-        <PackageReference Include="Serilog.AspNetCore" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.13.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.13.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.13.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.13.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.5" />
+        <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
     </ItemGroup>
 
     <ItemGroup>
         <!-- Hide the content files that come from the Microsoft.CodeAnalysis.Workspaces.Common package. -->
-        <Content Update="$(NuGetPackageRoot)\microsoft.codeanalysis.workspaces.msbuild\**\**" Visible="false"/>
+        <Content Update="$(NuGetPackageRoot)\microsoft.codeanalysis.workspaces.msbuild\**\**" Visible="false" />
     </ItemGroup>
 
     <ItemGroup>
@@ -31,11 +31,13 @@
         <ProjectReference Include="..\..\Modules\Parameter\Parameter\Parameter.csproj"/>
         <ProjectReference Include="../../Modules/Document/Document/Document.csproj"/>
         <ProjectReference Include="..\..\Modules\Assignment\Assignment\Assignment.csproj"/>
+        <ProjectReference Include="..\..\Modules\Collateral\Collateral\Collateral.csproj"/>
+        <ProjectReference Include="..\..\Modules\Appraisal\Appraisal\Appraisal.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Content Remove="wwwroot\*"/>
-        <None Include="wwwroot\*" CopyToOutputDirectory="Always" CopyToPublishDirectory="PreserveNewest"/>
+        <Content Remove="wwwroot\*" />
+        <None Include="wwwroot\*" CopyToOutputDirectory="Always" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>

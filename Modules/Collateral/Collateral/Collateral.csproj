@@ -6,4 +6,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+      <ProjectReference Include="../../../Shared/Shared/Shared.csproj"/>
+      <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj"/>
+      <ProjectReference Include="../Collateral.Contracts/Collateral.Contracts.csproj"/>
+      <ProjectReference Include="..\..\Request\Request.Contracts\Request.Contracts.csproj"/>
+  </ItemGroup>
+
 </Project>
