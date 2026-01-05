@@ -53,6 +53,15 @@ public static class WorkflowModule
         services.AddScoped<IWorkflowActivityExecutionRepository, WorkflowActivityExecutionRepository>();
         services.AddScoped<IWorkflowActivityFactory, WorkflowActivityFactory>();
 
+        // Additional repositories
+        services.AddScoped<IWorkflowOutboxRepository, WorkflowOutboxRepository>();
+        services.AddScoped<IWorkflowBookmarkRepository, WorkflowBookmarkRepository>();
+        services.AddScoped<IWorkflowExecutionLogRepository, WorkflowExecutionLogRepository>();
+
+        // Bookmark and fault handling services
+        services.AddScoped<IWorkflowBookmarkService, WorkflowBookmarkService>();
+        services.AddScoped<IWorkflowFaultHandler, WorkflowFaultHandler>();
+
         // NEW ARCHITECTURE: Specialized service components
         services.AddScoped<IFlowControlManager, FlowControlManager>();
         services.AddScoped<IWorkflowLifecycleManager, WorkflowLifecycleManager>();

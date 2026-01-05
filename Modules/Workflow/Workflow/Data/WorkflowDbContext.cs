@@ -21,6 +21,8 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
     public DbSet<WorkflowOutbox> WorkflowOutboxes => Set<WorkflowOutbox>();
     public DbSet<WorkflowBookmark> WorkflowBookmarks => Set<WorkflowBookmark>();
     public DbSet<WorkflowExecutionLog> WorkflowExecutionLogs => Set<WorkflowExecutionLog>();
+    public DbSet<WorkflowDefinitionVersion> WorkflowDefinitionVersions => Set<WorkflowDefinitionVersion>();
+    public DbSet<WorkflowExternalCall> WorkflowExternalCalls => Set<WorkflowExternalCall>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
