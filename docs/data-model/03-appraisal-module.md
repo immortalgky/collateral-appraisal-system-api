@@ -84,12 +84,12 @@ Objects with identity that belong to an aggregate root.
 
 | Entity | Parent Aggregate | Description |
 |--------|-----------------|-------------|
-| `AppraisalCollateral` | Appraisal | Registry of collaterals under appraisal |
-| `CollateralGroup` | Appraisal | Groups collaterals for combined valuation |
-| `CollateralGroupItem` | Appraisal | Junction linking collaterals to groups |
+| `AppraisalProperty` | Appraisal | Registry of properties under appraisal |
+| `PropertyGroup` | Appraisal | Groups properties for combined valuation |
+| `PropertyGroupItem` | Appraisal | Junction linking properties to groups |
 | `AppraisalAssignment` | Appraisal | Tracks assignment history |
 | `ValuationAnalysis` | Appraisal | 1:1 valuation calculations |
-| `GroupValuation` | Appraisal | Values per collateral group |
+| `GroupValuation` | Appraisal | Values per property group |
 | `Appointment` | Appraisal | Appointment scheduling |
 | `AppointmentHistory` | Appraisal | Reschedule history |
 | `AppraisalReview` | Appraisal | Review history |
@@ -97,7 +97,7 @@ Objects with identity that belong to an aggregate root.
 | `AppraisalFeeItem` | Appraisal | Fee line items |
 | `AppraisalFeePaymentHistory` | Appraisal | Payment tracking |
 | `AppraisalGallery` | Appraisal | Photo management |
-| `PropertyPhotoMapping` | Appraisal | Links photos to collaterals |
+| `PropertyPhotoMapping` | Appraisal | Links photos to properties |
 | `AppraisalComparable` | Appraisal | Links to market comparables used |
 | `ComparableAdjustment` | Appraisal | Adjustment line items |
 | `LandTitle` | Appraisal | Multiple title deeds per land |
@@ -142,28 +142,28 @@ Immutable objects without identity, defined by their attributes.
 ```mermaid
 erDiagram
     %% =====================================================
-    %% CORE: Request → Appraisal → Collaterals & Groups (with junction)
+    %% CORE: Request → Appraisal → Properties & Groups (with junction)
     %% =====================================================
     Request ||--|| Appraisal : "creates one"
 
-    %% Appraisal → Collaterals (direct link for easy query)
-    Appraisal ||--o{ AppraisalCollaterals : "has collaterals"
+    %% Appraisal → Properties (direct link for easy query)
+    Appraisal ||--o{ AppraisalProperties : "has properties"
 
     %% Appraisal → Groups (for valuation grouping)
-    Appraisal ||--o{ CollateralGroups : "has groups"
+    Appraisal ||--o{ PropertyGroups : "has groups"
 
-    %% Junction: Collaterals ↔ Groups (many-to-one: collateral belongs to one group)
-    CollateralGroups ||--o{ CollateralGroupItems : "contains items"
-    CollateralGroupItems }o--|| AppraisalCollaterals : "references collateral"
+    %% Junction: Properties ↔ Groups (many-to-one: property belongs to one group)
+    PropertyGroups ||--o{ PropertyGroupItems : "contains items"
+    PropertyGroupItems }o--|| AppraisalProperties : "references property"
 
-    %% Collaterals → Property Details (1:1 based on CollateralType)
-    AppraisalCollaterals ||--o| LandAppraisalDetail : "type=Land"
-    AppraisalCollaterals ||--o| BuildingAppraisalDetail : "type=Building"
-    AppraisalCollaterals ||--o| LandAndBuildingAppraisalDetail : "type=LandAndBuilding"
-    AppraisalCollaterals ||--o| CondoAppraisalDetail : "type=Condo"
-    AppraisalCollaterals ||--o| VehicleAppraisalDetail : "type=Vehicle"
-    AppraisalCollaterals ||--o| VesselAppraisalDetail : "type=Vessel"
-    AppraisalCollaterals ||--o| MachineryAppraisalDetail : "type=Machinery"
+    %% Properties → Property Details (1:1 based on PropertyType)
+    AppraisalProperties ||--o| LandAppraisalDetail : "type=Land"
+    AppraisalProperties ||--o| BuildingAppraisalDetail : "type=Building"
+    AppraisalProperties ||--o| LandAndBuildingAppraisalDetail : "type=LandAndBuilding"
+    AppraisalProperties ||--o| CondoAppraisalDetail : "type=Condo"
+    AppraisalProperties ||--o| VehicleAppraisalDetail : "type=Vehicle"
+    AppraisalProperties ||--o| VesselAppraisalDetail : "type=Vessel"
+    AppraisalProperties ||--o| MachineryAppraisalDetail : "type=Machinery"
 
     %% Core Appraisal Relationships
     Appraisal ||--o{ AppraisalAssignment : "has assignments"
@@ -180,7 +180,7 @@ erDiagram
 
     %% Fee Structure (3-table)
     AppraisalFees ||--o{ AppraisalFeeItems : "has items"
-    AppraisalFeeItems ||--o{ AppraisalFeePaymentHistory : "has payments"
+    AppraisalFees ||--o{ AppraisalFeePaymentHistory : "has payments"
 
     %% Property Detail Extensions
     LandAppraisalDetail ||--o{ LandTitles : "has titles"
@@ -197,7 +197,7 @@ erDiagram
 
     %% Valuation & Comparables
     ValuationAnalysis ||--o{ GroupValuations : "has group values"
-    GroupValuations }o--|| CollateralGroups : "values group"
+    GroupValuations }o--|| PropertyGroups : "values group"
     ValuationAnalysis ||--o{ AppraisalComparables : "uses comparables"
     AppraisalComparables }o--|| MarketComparables : "references"
     AppraisalComparables ||--o{ ComparableAdjustments : "has adjustments"
@@ -268,15 +268,15 @@ erDiagram
         string SLAStatus "OnTrack, AtRisk, Breached"
     }
 
-    AppraisalCollaterals["[E] AppraisalCollaterals"] {
+    AppraisalProperties["[E] AppraisalProperties"] {
         guid Id PK
         guid AppraisalId FK "Direct link for easy query"
         int SequenceNumber "1, 2, 3..."
-        string CollateralType "Land, Building, Condo, Vehicle..."
+        string PropertyType "Land, Building, Condo, Vehicle..."
         string Description "Quick reference"
     }
 
-    CollateralGroups["[E] CollateralGroups"] {
+    PropertyGroups["[E] PropertyGroups"] {
         guid Id PK
         guid AppraisalId FK
         int GroupNumber "1, 2, 3..."
@@ -284,20 +284,20 @@ erDiagram
         string Description
     }
 
-    CollateralGroupItems["[E] CollateralGroupItems"] {
+    PropertyGroupItems["[E] PropertyGroupItems"] {
         guid Id PK
-        guid CollateralGroupId FK
-        guid AppraisalCollateralId FK "UNIQUE - one group per collateral"
+        guid PropertyGroupId FK
+        guid AppraisalPropertyId FK "UNIQUE - one group per property"
         int SequenceInGroup "Order within group"
     }
 
     %% =====================================================
-    %% PROPERTY DETAIL TABLES [E] (1:1 with AppraisalCollaterals)
+    %% PROPERTY DETAIL TABLES [E] (1:1 with AppraisalProperties)
     %% =====================================================
 
     LandAppraisalDetail["[E] LandAppraisalDetail"] {
         guid Id PK
-        guid AppraisalCollateralId FK "1:1"
+        guid AppraisalPropertyId FK "1:1"
         string PropertyName
         decimal Latitude
         decimal Longitude
@@ -309,7 +309,7 @@ erDiagram
 
     BuildingAppraisalDetail["[E] BuildingAppraisalDetail"] {
         guid Id PK
-        guid AppraisalCollateralId FK "1:1"
+        guid AppraisalPropertyId FK "1:1"
         string PropertyName
         string BuildingNo
         string ModelName
@@ -321,7 +321,7 @@ erDiagram
 
     LandAndBuildingAppraisalDetail["[E] LandAndBuildingAppraisalDetail"] {
         guid Id PK
-        guid AppraisalCollateralId FK "1:1"
+        guid AppraisalPropertyId FK "1:1"
         string PropertyName
         decimal Latitude
         decimal Longitude
@@ -333,7 +333,7 @@ erDiagram
 
     CondoAppraisalDetail["[E] CondoAppraisalDetail"] {
         guid Id PK
-        guid AppraisalCollateralId FK "1:1"
+        guid AppraisalPropertyId FK "1:1"
         string PropertyName
         string CondoName
         string RoomNo
@@ -346,7 +346,7 @@ erDiagram
 
     VehicleAppraisalDetail["[E] VehicleAppraisalDetail"] {
         guid Id PK
-        guid AppraisalCollateralId FK "1:1"
+        guid AppraisalPropertyId FK "1:1"
         string PropertyName
         string RegistrationNo
         string Brand
@@ -358,7 +358,7 @@ erDiagram
 
     VesselAppraisalDetail["[E] VesselAppraisalDetail"] {
         guid Id PK
-        guid AppraisalCollateralId FK "1:1"
+        guid AppraisalPropertyId FK "1:1"
         string PropertyName
         string RegistrationNo
         string Brand
@@ -370,7 +370,7 @@ erDiagram
 
     MachineryAppraisalDetail["[E] MachineryAppraisalDetail"] {
         guid Id PK
-        guid AppraisalCollateralId FK "1:1"
+        guid AppraisalPropertyId FK "1:1"
         string PropertyName
         string RegistrationNo
         string Brand
@@ -429,7 +429,7 @@ erDiagram
     GroupValuations["[E] GroupValuations"] {
         guid Id PK
         guid ValuationAnalysisId FK
-        guid CollateralGroupId FK
+        guid PropertyGroupId FK
         decimal MarketValue
         decimal AppraisedValue
         decimal ForcedSaleValue
@@ -556,7 +556,7 @@ erDiagram
     PropertyPhotoMapping["[E] PropertyPhotoMapping"] {
         guid Id PK
         guid GalleryPhotoId FK
-        guid AppraisalCollateralId FK
+        guid AppraisalPropertyId FK
         string PhotoPurpose "Evidence, Condition, Boundary"
         string SectionReference
         int SequenceNumber
@@ -846,10 +846,10 @@ erDiagram
 
 **Key Design Notes:**
 1. **1 Request = 1 Appraisal**: Application-level tracking with SLA for the whole application
-2. **Collaterals direct link**: `AppraisalCollaterals.AppraisalId` for easy query without knowing groups
-3. **Groups via junction**: `CollateralGroupItems` links collaterals to groups for valuation
-4. **GroupValuations**: Valuation per group, not per individual collateral
-5. **PropertyPhotoMapping**: Links photos to specific collaterals
+2. **Properties direct link**: `AppraisalProperties.AppraisalId` for easy query without knowing groups
+3. **Groups via junction**: `PropertyGroupItems` links properties to groups for valuation
+4. **GroupValuations**: Valuation per group, not per individual property
+5. **PropertyPhotoMapping**: Links photos to specific properties
 6. **Quotation Workflow**: Optional RFQ process for external assignments
 7. **Review Workflow**: Sequential reviews (Checker → Verifier → Committee)
 8. **Market Comparables**: Centralized bank-wide database of verified market transactions
@@ -916,19 +916,19 @@ CREATE TABLE appraisal.Appraisals
 );
 ```
 
-### 2. AppraisalCollaterals
+### 2. AppraisalProperties
 
 Registry of all collateral items under an appraisal. Direct link to Appraisal for easy querying.
 
 **Key Relationship:**
-- 1 Appraisal → N AppraisalCollaterals (direct link)
-- 1 AppraisalCollateral → 1 Property Detail (based on CollateralType)
-- Grouping is via CollateralGroupItems junction table
+- 1 Appraisal → N AppraisalProperties (direct link)
+- 1 AppraisalProperty → 1 Property Detail (based on PropertyType)
+- Grouping is via PropertyGroupItems junction table
 
 #### SQL Schema
 
 ```sql
-CREATE TABLE appraisal.AppraisalCollaterals
+CREATE TABLE appraisal.AppraisalProperties
 (
     -- Primary Key
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
@@ -937,11 +937,11 @@ CREATE TABLE appraisal.AppraisalCollaterals
     AppraisalId             UNIQUEIDENTIFIER NOT NULL,
 
     -- Sequence & Type
-    SequenceNumber          INT NOT NULL,                            -- 1, 2, 3...
-    CollateralType          NVARCHAR(50) NOT NULL,                   -- Land, Building, LandAndBuilding, Condo, Vehicle, Vessel, Machinery
+    --SequenceNumber          INT NOT NULL,                          -- 1, 2, 3...
+    PropertyType          NVARCHAR(50) NOT NULL,                   -- Land, Building, LandAndBuilding, Condo, Vehicle, Vessel, Machinery
 
     -- Quick Reference (for display without joining detail table)
-    Description             NVARCHAR(500) NULL,                      -- "Land 10 Rai in Pathum Thani"
+    --Description             NVARCHAR(500) NULL,                    -- "Land 10 Rai in Pathum Thani"
 
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
@@ -949,18 +949,18 @@ CREATE TABLE appraisal.AppraisalCollaterals
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_Collateral_Appraisal FOREIGN KEY (AppraisalId)
+    CONSTRAINT FK_Property_Appraisal FOREIGN KEY (AppraisalId)
         REFERENCES appraisal.Appraisals(Id) ON DELETE CASCADE,
-    CONSTRAINT UQ_Collateral_Sequence UNIQUE (AppraisalId, SequenceNumber),
-    CONSTRAINT CK_Collateral_Type CHECK (CollateralType IN ('Land', 'Building', 'LandAndBuilding', 'Condo', 'Vehicle', 'Vessel', 'Machinery'))
+    CONSTRAINT UQ_Property_Sequence UNIQUE (AppraisalId, SequenceNumber),
+    CONSTRAINT CK_Property_Type CHECK (PropertyType IN ('Land', 'Building', 'LandAndBuilding', 'Condo', 'Vehicle', 'Vessel', 'Machinery'))
 );
 ```
 
 **Usage:**
 ```sql
 -- Easy query: Get all collaterals for an appraisal (no need to know groups)
-SELECT SequenceNumber, CollateralType, Description
-FROM appraisal.AppraisalCollaterals
+SELECT SequenceNumber, PropertyType, Description
+FROM appraisal.AppraisalProperties
 WHERE AppraisalId = @AppraisalId
 ORDER BY SequenceNumber;
 
@@ -972,19 +972,19 @@ ORDER BY SequenceNumber;
 -- 5 | Building | "Warehouse 500 sqm"
 ```
 
-### 3. CollateralGroups
+### 3. PropertyGroups
 
 Groups of collaterals for combined valuation. Each appraisal has one or more groups.
 
 **Key Relationship:**
-- 1 Appraisal → N CollateralGroups
-- 1 CollateralGroup → N CollateralGroupItems → N AppraisalCollaterals
+- 1 Appraisal → N PropertyGroups
+- 1 PropertyGroup → N PropertyGroupItems → N AppraisalProperties
 - Valuation is per group (not per individual collateral)
 
 #### SQL Schema
 
 ```sql
-CREATE TABLE appraisal.CollateralGroups
+CREATE TABLE appraisal.PropertyGroups
 (
     -- Primary Key
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
@@ -994,36 +994,38 @@ CREATE TABLE appraisal.CollateralGroups
 
     -- Group Info
     GroupNumber             INT NOT NULL,                            -- 1, 2, 3...
-    GroupName               NVARCHAR(200) NULL,                      -- "Main Factory", "Warehouse Complex"
-    Description             NVARCHAR(500) NULL,
+    --GroupName               NVARCHAR(200) NULL,                    -- "Main Factory", "Warehouse Complex"
+    --Description             NVARCHAR(500) NULL,
 
+    UseSystemCalculatedValue BIT NOT NULL DEFAULT 0,
+    
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     CreatedBy               UNIQUEIDENTIFIER NOT NULL,
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_CollateralGroup_Appraisal FOREIGN KEY (AppraisalId)
+    CONSTRAINT FK_PropertyGroup_Appraisal FOREIGN KEY (AppraisalId)
         REFERENCES appraisal.Appraisals(Id) ON DELETE CASCADE,
-    CONSTRAINT UQ_CollateralGroup_Number UNIQUE (AppraisalId, GroupNumber)
+    CONSTRAINT UQ_PropertyGroup_Number UNIQUE (AppraisalId, GroupNumber)
 );
 ```
 
-### 4. CollateralGroupItems
+### 4. PropertyGroupItems
 
 Junction table linking collaterals to groups. Each collateral belongs to exactly one group.
 
 #### SQL Schema
 
 ```sql
-CREATE TABLE appraisal.CollateralGroupItems
+CREATE TABLE appraisal.PropertyGroupItems
 (
     -- Primary Key
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
 
     -- Foreign Keys
-    CollateralGroupId       UNIQUEIDENTIFIER NOT NULL,
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL,
+    PropertyGroupId       UNIQUEIDENTIFIER NOT NULL,
+    AppraisalPropertyId   UNIQUEIDENTIFIER NOT NULL,
 
     -- Sequence within group
     SequenceInGroup         INT NOT NULL,                            -- 1, 2, 3 within group
@@ -1031,13 +1033,15 @@ CREATE TABLE appraisal.CollateralGroupItems
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     CreatedBy               UNIQUEIDENTIFIER NOT NULL,
+    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_GroupItem_Group FOREIGN KEY (CollateralGroupId)
-        REFERENCES appraisal.CollateralGroups(Id) ON DELETE CASCADE,
-    CONSTRAINT FK_GroupItem_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id),
-    CONSTRAINT UQ_GroupItem_Collateral UNIQUE (AppraisalCollateralId),  -- One group per collateral
-    CONSTRAINT UQ_GroupItem_Sequence UNIQUE (CollateralGroupId, SequenceInGroup)
+    CONSTRAINT FK_GroupItem_Group FOREIGN KEY (PropertyGroupId)
+        REFERENCES appraisal.PropertyGroups(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_GroupItem_Property FOREIGN KEY (AppraisalPropertyId)
+        REFERENCES appraisal.AppraisalProperties(Id),
+    CONSTRAINT UQ_GroupItem_Property UNIQUE (AppraisalPropertyId),  -- One group per collateral
+    CONSTRAINT UQ_GroupItem_Sequence UNIQUE (PropertyGroupId, SequenceInGroup)
 );
 ```
 
@@ -1046,10 +1050,10 @@ CREATE TABLE appraisal.CollateralGroupItems
 -- Get collaterals grouped for valuation
 SELECT
     g.GroupNumber, g.GroupName,
-    gi.SequenceInGroup, c.CollateralType, c.Description
-FROM appraisal.CollateralGroups g
-JOIN appraisal.CollateralGroupItems gi ON gi.CollateralGroupId = g.Id
-JOIN appraisal.AppraisalCollaterals c ON c.Id = gi.AppraisalCollateralId
+    gi.SequenceInGroup, c.PropertyType, c.Description
+FROM appraisal.PropertyGroups g
+JOIN appraisal.PropertyGroupItems gi ON gi.PropertyGroupId = g.Id
+JOIN appraisal.AppraisalProperties c ON c.Id = gi.AppraisalPropertyId
 WHERE g.AppraisalId = @AppraisalId
 ORDER BY g.GroupNumber, gi.SequenceInGroup;
 
@@ -1113,17 +1117,17 @@ CREATE TABLE appraisal.AppraisalAssignments
     ExternalCompanyName     NVARCHAR(200) NULL,
 
     -- External Appraiser Details (specific person from company)
-    ExternalAppraiserId     UNIQUEIDENTIFIER NULL,
-    ExternalAppraiserName   NVARCHAR(200) NULL,
-    ExternalAppraiserLicense NVARCHAR(50) NULL,                   -- License number for compliance
+    --ExternalAppraiserId     UNIQUEIDENTIFIER NULL,
+    --ExternalAppraiserName   NVARCHAR(200) NULL,
+    --ExternalAppraiserLicense NVARCHAR(50) NULL,                 -- License number for compliance
 
     -- Progress Tracking
     ProgressPercent         INT NOT NULL DEFAULT 0,               -- 0-100
     LastProgressUpdate      DATETIME2 NULL,
 
     -- Agreement Terms (from selected quotation item)
-    AgreedPrice             DECIMAL(18,2) NULL,
-    AgreedCurrency          NVARCHAR(3) DEFAULT 'THB',
+    --AgreedPrice             DECIMAL(18,2) NULL,
+    --AgreedCurrency          NVARCHAR(3) DEFAULT 'THB',
     AgreedTimeline          INT NULL,                             -- Days
     AgreedDueDate           DATE NULL,
 
@@ -1140,7 +1144,7 @@ CREATE TABLE appraisal.AppraisalAssignments
 
     -- Notes
     Notes                   NVARCHAR(MAX) NULL,
-    SpecialInstructions     NVARCHAR(MAX) NULL,
+    --SpecialInstructions     NVARCHAR(MAX) NULL,
 
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
@@ -1271,7 +1275,7 @@ CREATE TABLE appraisal.QuotationRequests
     -- Request Summary
     TotalAppraisals         INT NOT NULL DEFAULT 0,               -- Number of appraisals in this RFQ
     RequestDescription      NVARCHAR(500) NULL,                   -- General description
-    SpecialRequirements     NVARCHAR(MAX) NULL,
+    --SpecialRequirements     NVARCHAR(MAX) NULL,
 
     -- Status
     Status                  NVARCHAR(50) NOT NULL DEFAULT 'Draft', -- Draft, Sent, Closed, Cancelled
@@ -1321,7 +1325,9 @@ CREATE TABLE appraisal.QuotationRequestItems
     AppraisalNumber         NVARCHAR(50) NOT NULL,
     PropertyType            NVARCHAR(50) NOT NULL,
     PropertyLocation        NVARCHAR(500) NULL,
-    EstimatedValue          DECIMAL(18,2) NULL,
+    --EstimatedValue          DECIMAL(18,2) NULL,
+    
+    MaxDays                 INT NOT NULL DEFAULT 0,               -- Max days for inspection
 
     -- Item-Specific Requirements
     ItemNotes               NVARCHAR(MAX) NULL,
@@ -1330,6 +1336,8 @@ CREATE TABLE appraisal.QuotationRequestItems
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     CreatedBy               UNIQUEIDENTIFIER NOT NULL,
+    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
     CONSTRAINT FK_QuotationRequestItem_Request FOREIGN KEY (QuotationRequestId)
         REFERENCES appraisal.QuotationRequests(Id) ON DELETE CASCADE,
@@ -1366,6 +1374,8 @@ CREATE TABLE appraisal.QuotationInvitations
     -- Audit Fields
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     CreatedBy               UNIQUEIDENTIFIER NOT NULL,
+    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
     CONSTRAINT FK_QuotationInvitation_Request FOREIGN KEY (QuotationRequestId)
         REFERENCES appraisal.QuotationRequests(Id) ON DELETE CASCADE,
@@ -1670,7 +1680,7 @@ CREATE TABLE appraisal.ValuationAnalysis
 
 ### 13. GroupValuations
 
-Links ValuationAnalysis to CollateralGroups with values per group (not per individual collateral).
+Links ValuationAnalysis to PropertyGroups with values per group (not per individual property).
 
 #### SQL Schema
 
@@ -1681,7 +1691,7 @@ CREATE TABLE appraisal.GroupValuations
     ValuationAnalysisId     UNIQUEIDENTIFIER NOT NULL,
 
     -- Link to Group (valuation is per group)
-    CollateralGroupId       UNIQUEIDENTIFIER NOT NULL,
+    PropertyGroupId       UNIQUEIDENTIFIER NOT NULL,
 
     -- Group Values
     MarketValue             DECIMAL(18,2) NOT NULL,
@@ -1704,9 +1714,9 @@ CREATE TABLE appraisal.GroupValuations
 
     CONSTRAINT FK_GroupValuation_Analysis FOREIGN KEY (ValuationAnalysisId)
         REFERENCES appraisal.ValuationAnalysis(Id) ON DELETE CASCADE,
-    CONSTRAINT FK_GroupValuation_Group FOREIGN KEY (CollateralGroupId)
-        REFERENCES appraisal.CollateralGroups(Id),
-    CONSTRAINT UQ_GroupValuation_Group UNIQUE (ValuationAnalysisId, CollateralGroupId)
+    CONSTRAINT FK_GroupValuation_Group FOREIGN KEY (PropertyGroupId)
+        REFERENCES appraisal.PropertyGroups(Id),
+    CONSTRAINT UQ_GroupValuation_Group UNIQUE (ValuationAnalysisId, PropertyGroupId)
 );
 ```
 
@@ -1717,7 +1727,7 @@ SELECT
     g.GroupNumber, g.GroupName,
     v.MarketValue, v.AppraisedValue, v.ForcedSaleValue
 FROM appraisal.GroupValuations v
-JOIN appraisal.CollateralGroups g ON g.Id = v.CollateralGroupId
+JOIN appraisal.PropertyGroups g ON g.Id = v.PropertyGroupId
 WHERE v.ValuationAnalysisId = @ValuationId
 ORDER BY g.GroupNumber;
 
@@ -1920,7 +1930,7 @@ CREATE TABLE appraisal.MarketComparableTemplates
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
     TemplateCode            NVARCHAR(50) NOT NULL UNIQUE,
     TemplateName            NVARCHAR(200) NOT NULL,
-    CollateralType          NVARCHAR(50) NOT NULL,                   -- Land, Building, Condo, etc.
+    PropertyType          NVARCHAR(50) NOT NULL,                   -- Land, Building, Condo, etc.
     Description             NVARCHAR(500) NULL,
     IsActive                BIT NOT NULL DEFAULT 1,
 
@@ -2505,6 +2515,9 @@ CREATE TABLE appraisal.AppraisalFees
     OutstandingAmount       DECIMAL(18,2) NOT NULL DEFAULT 0,        -- Remaining to pay
     PaymentStatus           NVARCHAR(50) NOT NULL DEFAULT 'Pending', -- Pending, PartialPaid, FullyPaid
 
+    -- InspectionFee
+    InspectionFeeAmount     DECIMAL(18,2) NULL,
+    
     -- Audit
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     CreatedBy               UNIQUEIDENTIFIER NOT NULL,
@@ -2576,6 +2589,8 @@ CREATE TABLE appraisal.AppraisalFeePaymentHistory
     -- Audit
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     CreatedBy               UNIQUEIDENTIFIER NOT NULL,
+    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
     CONSTRAINT FK_PaymentHistory_AppraisalFee FOREIGN KEY (AppraisalFeeId)
         REFERENCES appraisal.AppraisalFees(Id) ON DELETE CASCADE
@@ -2649,7 +2664,7 @@ CREATE TABLE appraisal.PropertyPhotoMappings
 
     -- Foreign Keys
     GalleryPhotoId          UNIQUEIDENTIFIER NOT NULL,               -- FK to AppraisalGallery
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL,               -- FK to AppraisalCollaterals (knows the type)
+    AppraisalPropertyId   UNIQUEIDENTIFIER NOT NULL,               -- FK to AppraisalProperties (knows the type)
 
     -- Mapping Details
     PhotoPurpose            NVARCHAR(100) NOT NULL,                  -- Evidence, Condition, Boundary, Overview
@@ -2662,11 +2677,11 @@ CREATE TABLE appraisal.PropertyPhotoMappings
 
     CONSTRAINT FK_PhotoMapping_Gallery FOREIGN KEY (GalleryPhotoId)
         REFERENCES appraisal.AppraisalGallery(Id) ON DELETE CASCADE,
-    CONSTRAINT FK_PhotoMapping_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id)
+    CONSTRAINT FK_PhotoMapping_Property FOREIGN KEY (AppraisalPropertyId)
+        REFERENCES appraisal.AppraisalProperties(Id)
 );
 
-CREATE INDEX IX_PhotoMapping_Collateral ON appraisal.PropertyPhotoMappings(AppraisalCollateralId);
+CREATE INDEX IX_PhotoMapping_Property ON appraisal.PropertyPhotoMappings(AppraisalPropertyId);
 ```
 
 **Workflow:**
@@ -2676,7 +2691,7 @@ CREATE INDEX IX_PhotoMapping_Collateral ON appraisal.PropertyPhotoMappings(Appra
 
 ## Property Detail Tables
 
-> **Important:** All property detail tables link to `AppraisalCollaterals` via `AppraisalCollateralId` (not directly to Appraisals).
+> **Important:** All property detail tables link to `AppraisalProperties` via `AppraisalPropertyId` (not directly to Appraisals).
 
 ### 25. LandAppraisalDetails
 
@@ -2688,11 +2703,11 @@ Land property appraisal details including location, access, utilities, legal res
 CREATE TABLE appraisal.LandAppraisalDetails
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalCollaterals
+    AppraisalPropertyId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalProperties
 
     -- Property Identification (from CollateralLand)
     PropertyName            NVARCHAR(200) NULL,                      -- Property name for identification
-    LandDesc                NVARCHAR(500) NULL,                      -- Land description
+    LandDescription         NVARCHAR(500) NULL,                      -- Land description
 
     -- GPS Coordinates (from CollateralLand)
     Latitude                DECIMAL(10,7) NULL,
@@ -2705,89 +2720,89 @@ CREATE TABLE appraisal.LandAppraisalDetails
     LandOffice              NVARCHAR(200) NULL,                      -- สำนักงานที่ดิน
 
     -- Owner
-    Owner                   NVARCHAR(200) NOT NULL,
-    VerifiableOwner         BIT NOT NULL DEFAULT 0,
-    IsObligation            BIT NOT NULL DEFAULT 0,
-    Obligation              NVARCHAR(500) NULL,
+    OwnerName               NVARCHAR(200) NOT NULL,
+    IsOwnerVerified         BIT NOT NULL DEFAULT 0,
+    HasObligation           BIT NOT NULL DEFAULT 0,
+    ObligationDetails       NVARCHAR(500) NULL,
 
     -- Document Verification
-    LandLocationVerification NVARCHAR(100) NULL,
-    LandCheckMethod         NVARCHAR(100) NULL,
-    LandCheckOther          NVARCHAR(200) NULL,
+    IsLandLocationVerified  BIT NOT NULL DEFAULT 0,
+    LandCheckMethodType     NVARCHAR(100) NULL,
+    LandCheckMethodTypeOther NVARCHAR(200) NULL,
 
     -- Location Details
     Street                  NVARCHAR(200) NULL,
     Soi                     NVARCHAR(100) NULL,
-    Distance                NVARCHAR(100) NULL,
+    DistanceFromMainRoad    DECIMAL(10,2) NULL,
     Village                 NVARCHAR(200) NULL,
     AddressLocation         NVARCHAR(500) NULL,
 
     -- Land Characteristics
-    LandShape               NVARCHAR(50) NULL,                       -- Regular, Irregular, LShape, Triangle
+    LandShapeType           NVARCHAR(50) NULL,                       -- Regular, Irregular, LShape, Triangle
     UrbanPlanningType       NVARCHAR(100) NULL,
-    Location                NVARCHAR(200) NULL,
-    PlotLocation            NVARCHAR(100) NULL,
-    PlotLocationOther       NVARCHAR(200) NULL,
-    LandFill                NVARCHAR(100) NULL,
-    LandFillOther           NVARCHAR(200) NULL,
-    LandFillPct             DECIMAL(5,2) NULL,
+    LandZoneType            NVARCHAR(200) NULL,
+    PlotLocationType        NVARCHAR(100) NULL,
+    PlotLocationTypeOther   NVARCHAR(200) NULL,
+    LandFillStatusType      NVARCHAR(100) NULL,
+    LandFillStatusTypeOther NVARCHAR(200) NULL,
+    LandFillPercent         DECIMAL(5,2) NULL,
     SoilLevel               NVARCHAR(100) NULL,
 
     -- Road Access
-    RoadWidth               DECIMAL(10,2) NULL,
-    RightOfWay              NVARCHAR(100) NULL,
-    WideFrontageOfLand      DECIMAL(10,2) NULL,
-    NoOfSideFacingRoad      INT NULL,
+    AccessRoadWidth         DECIMAL(10,2) NULL,
+    RightOfWay              DECIMAL(10,2) NULL,                      -- Width or right of way
+    RoadFrontage            DECIMAL(10,2) NULL,
+    NumberOfSidesFacingRoad INT NULL,
     RoadPassInFrontOfLand   NVARCHAR(200) NULL,
-    LandAccessibility       NVARCHAR(100) NULL,
-    LandAccessibilityDesc   NVARCHAR(500) NULL,
-    RoadSurface             NVARCHAR(100) NULL,
-    RoadSurfaceOther        NVARCHAR(200) NULL,
+    LandAccessibilityType   NVARCHAR(100) NULL,
+    LandAccessibilityRemark NVARCHAR(500) NULL,
+    RoadSurfaceType         NVARCHAR(100) NULL,
+    RoadSurfaceTypeOther    NVARCHAR(200) NULL,
 
     -- Utilities & Infrastructure
-    PublicUtility           NVARCHAR(200) NULL,
-    PublicUtilityOther      NVARCHAR(200) NULL,
-    LandUse                 NVARCHAR(100) NULL,
-    LandUseOther            NVARCHAR(200) NULL,
-    LandEntranceExit        NVARCHAR(100) NULL,
-    LandEntranceExitOther   NVARCHAR(200) NULL,
-    Transportation          NVARCHAR(200) NULL,
-    TransportationOther     NVARCHAR(200) NULL,
-    AnticipationOfProp      NVARCHAR(500) NULL,
+    PublicUtilityType       NVARCHAR(200) NULL,
+    PublicUtilityTypeOther  NVARCHAR(200) NULL,
+    LandUseType             NVARCHAR(100) NULL,
+    LandUseTypeOther        NVARCHAR(200) NULL,
+    LandEntranceExitType    NVARCHAR(100) NULL,
+    LandEntranceExitTypeOther NVARCHAR(200) NULL,
+    TransportationAccessType NVARCHAR(200) NULL,
+    TransportationAccessTypeOther NVARCHAR(200) NULL,
+    PropertyAnticipationType NVARCHAR(500) NULL,
 
     -- Legal Restrictions
-    IsExpropriate           BIT NOT NULL DEFAULT 0,
-    IsExpropriateRemark     NVARCHAR(500) NULL,
-    InLineExpropriate       BIT NOT NULL DEFAULT 0,
-    InLineExpropriateRemark NVARCHAR(500) NULL,
+    IsExpropriated          BIT NOT NULL DEFAULT 0,
+    ExpropriationRemark     NVARCHAR(500) NULL,
+    IsInExpropriationLine   BIT NOT NULL DEFAULT 0,
+    ExpropriationLineRemark NVARCHAR(500) NULL,
     RoyalDecree             NVARCHAR(200) NULL,
     IsEncroached            BIT NOT NULL DEFAULT 0,
-    IsEncroachedRemark      NVARCHAR(500) NULL,
-    EncroachArea            DECIMAL(18,4) NULL,
-    Electricity             NVARCHAR(100) NULL,
+    EncroachmentRemark      NVARCHAR(500) NULL,
+    EncroachmentArea        DECIMAL(18,4) NULL,
+    HasElectricity          BIT NOT NULL DEFAULT 0,
     ElectricityDistance     DECIMAL(10,2) NULL,
     IsLandlocked            BIT NOT NULL DEFAULT 0,
-    IsLandlockedRemark      NVARCHAR(500) NULL,
+    LandlockedRemark        NVARCHAR(500) NULL,
     IsForestBoundary        BIT NOT NULL DEFAULT 0,
-    IsForestBoundaryRemark  NVARCHAR(500) NULL,
-    LimitationOther         NVARCHAR(500) NULL,
-    Eviction                NVARCHAR(100) NULL,
-    EvictionOther           NVARCHAR(200) NULL,
-    Allocation              NVARCHAR(200) NULL,
+    ForestBoundaryRemark    NVARCHAR(500) NULL,
+    OtherLegalLimitations   NVARCHAR(500) NULL,
+    EvictionStatusType      NVARCHAR(100) NULL,
+    EvictionStatusTypeOther NVARCHAR(200) NULL,
+    AllocationStatusType    NVARCHAR(100) NULL,
 
     -- Adjacent Boundaries (N/S/E/W)
-    N_ConsecutiveArea       NVARCHAR(200) NULL,
-    N_EstimateLength        DECIMAL(10,2) NULL,
-    S_ConsecutiveArea       NVARCHAR(200) NULL,
-    S_EstimateLength        DECIMAL(10,2) NULL,
-    E_ConsecutiveArea       NVARCHAR(200) NULL,
-    E_EstimateLength        DECIMAL(10,2) NULL,
-    W_ConsecutiveArea       NVARCHAR(200) NULL,
-    W_EstimateLength        DECIMAL(10,2) NULL,
+    NorthAdjacentArea       NVARCHAR(200) NULL,
+    NorthBoundaryLength     DECIMAL(10,2) NULL,
+    SouthAdjacentArea       NVARCHAR(200) NULL,
+    SouthBoundaryLength     DECIMAL(10,2) NULL,
+    EastAdjacentArea        NVARCHAR(200) NULL,
+    EastBoundaryLength      DECIMAL(10,2) NULL,
+    WestAdjacentArea        NVARCHAR(200) NULL,
+    WestBoundaryLength      DECIMAL(10,2) NULL,
 
     -- Other Features
     PondArea                DECIMAL(18,4) NULL,
-    DepthPit                DECIMAL(10,2) NULL,
+    PondDepth               DECIMAL(10,2) NULL,
     HasBuilding             BIT NOT NULL DEFAULT 0,
     HasBuildingOther        NVARCHAR(200) NULL,
     Remark                  NVARCHAR(MAX) NULL,
@@ -2798,8 +2813,8 @@ CREATE TABLE appraisal.LandAppraisalDetails
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_LandDetail_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id) ON DELETE CASCADE
+    CONSTRAINT FK_LandDetail_Property FOREIGN KEY (AppraisalPropertyId)
+        REFERENCES appraisal.AppraisalProperties(Id) ON DELETE CASCADE
 );
 ```
 
@@ -2813,7 +2828,7 @@ Building property appraisal details including construction, condition, structure
 CREATE TABLE appraisal.BuildingAppraisalDetails
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalCollaterals
+    AppraisalPropertyId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalProperties
 
     -- Property Identification (from CollateralBuilding)
     PropertyName            NVARCHAR(200) NULL,                      -- Property name for identification
@@ -2838,7 +2853,7 @@ CREATE TABLE appraisal.BuildingAppraisalDetails
     -- Building Info
     BuildingType            NVARCHAR(100) NULL,                      -- House, Commercial, Factory, Others
     BuildingTypeOther       NVARCHAR(200) NULL,
-    TotalFloor              INT NULL,
+    NumberOfFloors          INT NULL,                                -- Number of floors in building
     Decoration              NVARCHAR(100) NULL,
     DecorationOther         NVARCHAR(200) NULL,
     IsEncroached            BIT NOT NULL DEFAULT 0,
@@ -2850,7 +2865,7 @@ CREATE TABLE appraisal.BuildingAppraisalDetails
     BuildingStyle           NVARCHAR(100) NULL,
     IsResidential           BIT NOT NULL DEFAULT 0,
     BuildingYear            INT NULL,
-    DueTo                   NVARCHAR(200) NULL,
+    IsResidentialRemark     NVARCHAR(200) NULL,                      -- Source for age estimation/residential status remark
     ConstStyle              NVARCHAR(100) NULL,
     ConstStyleRemark        NVARCHAR(500) NULL,
 
@@ -2874,7 +2889,7 @@ CREATE TABLE appraisal.BuildingAppraisalDetails
 
     -- Utilization
     Utilization             NVARCHAR(200) NULL,
-    UseForOtherPurpose      NVARCHAR(200) NULL,
+    UtilizationOther        NVARCHAR(200) NULL,
 
     -- Area & Pricing
     BuildingArea            DECIMAL(18,4) NULL,
@@ -2891,8 +2906,8 @@ CREATE TABLE appraisal.BuildingAppraisalDetails
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_BuildingDetail_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id) ON DELETE CASCADE
+    CONSTRAINT FK_BuildingDetail_Property FOREIGN KEY (AppraisalPropertyId)
+        REFERENCES appraisal.AppraisalProperties(Id) ON DELETE CASCADE
 );
 ```
 
@@ -2906,7 +2921,7 @@ Condominium property appraisal details including location, materials, and facili
 CREATE TABLE appraisal.CondoAppraisalDetails
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalCollaterals
+    AppraisalPropertyId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalProperties
 
     -- Property Identification (from CollateralCondo)
     PropertyName            NVARCHAR(200) NULL,                      -- Property name for identification
@@ -2952,7 +2967,7 @@ CREATE TABLE appraisal.CondoAppraisalDetails
     Decoration              NVARCHAR(100) NULL,
     DecorationOther         NVARCHAR(200) NULL,
     BuildingYear            INT NULL,
-    CondoHeight             INT NULL,                                -- Number of floors
+    NumberOfFloors          INT NULL,                                -- Number of floors in condo building
     BuildingForm            NVARCHAR(100) NULL,
     ConstMaterial           NVARCHAR(100) NULL,
 
@@ -3000,8 +3015,8 @@ CREATE TABLE appraisal.CondoAppraisalDetails
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_CondoDetail_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id) ON DELETE CASCADE
+    CONSTRAINT FK_CondoDetail_Property FOREIGN KEY (AppraisalPropertyId)
+        REFERENCES appraisal.AppraisalProperties(Id) ON DELETE CASCADE
 );
 ```
 
@@ -3015,7 +3030,7 @@ Vehicle property appraisal details including condition and appraiser assessment.
 CREATE TABLE appraisal.VehicleAppraisalDetails
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalCollaterals
+    AppraisalPropertyId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalProperties
 
     -- Vehicle Identification (from CollateralVehicle)
     PropertyName            NVARCHAR(200) NULL,                      -- Property name for identification
@@ -3070,8 +3085,8 @@ CREATE TABLE appraisal.VehicleAppraisalDetails
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_VehicleDetail_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id) ON DELETE CASCADE
+    CONSTRAINT FK_VehicleDetail_Property FOREIGN KEY (AppraisalPropertyId)
+        REFERENCES appraisal.AppraisalProperties(Id) ON DELETE CASCADE
 );
 ```
 
@@ -3085,7 +3100,7 @@ Vessel property appraisal details including condition and appraiser assessment.
 CREATE TABLE appraisal.VesselAppraisalDetails
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalCollaterals
+    AppraisalPropertyId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalProperties
 
     -- Vessel Identification (from CollateralVessel)
     PropertyName            NVARCHAR(200) NULL,                      -- Property name for identification
@@ -3148,8 +3163,8 @@ CREATE TABLE appraisal.VesselAppraisalDetails
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_VesselDetail_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id) ON DELETE CASCADE
+    CONSTRAINT FK_VesselDetail_Property FOREIGN KEY (AppraisalPropertyId)
+        REFERENCES appraisal.AppraisalProperties(Id) ON DELETE CASCADE
 );
 ```
 
@@ -3163,7 +3178,7 @@ Machinery property appraisal details including condition and appraiser assessmen
 CREATE TABLE appraisal.MachineryAppraisalDetails
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalCollaterals
+    AppraisalPropertyId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalProperties
 
     -- Machine Identification (from CollateralMachine)
     PropertyName            NVARCHAR(200) NULL,                      -- Property name for identification
@@ -3218,8 +3233,8 @@ CREATE TABLE appraisal.MachineryAppraisalDetails
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_MachineryDetail_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id) ON DELETE CASCADE
+    CONSTRAINT FK_MachineryDetail_Property FOREIGN KEY (AppraisalPropertyId)
+        REFERENCES appraisal.AppraisalProperties(Id) ON DELETE CASCADE
 );
 ```
 
@@ -3228,8 +3243,8 @@ CREATE TABLE appraisal.MachineryAppraisalDetails
 Combined table for land+building properties. Contains all fields from both Land and Building, with shared fields (like owner) appearing only once.
 
 **Usage:**
-- When CollateralType = 'LandAndBuilding' in AppraisalCollaterals, use this table
-- Each record links to one AppraisalCollaterals record via AppraisalCollateralId
+- When PropertyType = 'LandAndBuilding' in AppraisalProperties, use this table
+- Each record links to one AppraisalProperties record via AppraisalPropertyId
 
 #### SQL Schema
 
@@ -3237,7 +3252,7 @@ Combined table for land+building properties. Contains all fields from both Land 
 CREATE TABLE appraisal.LandAndBuildingAppraisalDetails
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalCollaterals
+    AppraisalPropertyId   UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalProperties
 
     -- === PROPERTY IDENTIFICATION (from CollateralLand + CollateralBuilding) ===
     PropertyName            NVARCHAR(200) NULL,                      -- Property name for identification
@@ -3300,6 +3315,7 @@ CREATE TABLE appraisal.LandAndBuildingAppraisalDetails
     NumberOfBuildings       INT NULL DEFAULT 1,
     BuildingAge             INT NULL,                                -- Years
     ConstructionYear        INT NULL,
+    IsResidentialRemark     NVARCHAR(200) NULL,                      -- Source for age estimation/residential status remark
 
     -- Building Area
     TotalBuildingArea       DECIMAL(18,2) NULL,
@@ -3336,13 +3352,13 @@ CREATE TABLE appraisal.LandAndBuildingAppraisalDetails
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_LandAndBuilding_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_LandAndBuilding_Property FOREIGN KEY (AppraisalPropertyId)
+        REFERENCES appraisal.AppraisalProperties(Id) ON DELETE CASCADE,
     CONSTRAINT CK_LandAndBuilding_OwnershipType CHECK (OwnershipType IN ('Individual', 'Company', 'JointOwner')),
     CONSTRAINT CK_LandAndBuilding_Condition CHECK (BuildingCondition IS NULL OR BuildingCondition IN ('Excellent', 'Good', 'Fair', 'Poor'))
 );
 
--- Index not needed: AppraisalCollateralId has UNIQUE constraint
+-- Index not needed: AppraisalPropertyId has UNIQUE constraint
 ```
 
 ### 32. LandTitles
@@ -3360,7 +3376,7 @@ Multiple title deeds per land collateral (adjacent plots grouped under one land)
 CREATE TABLE appraisal.LandTitles
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL,               -- FK to AppraisalCollaterals (Land type)
+    LandAppraisalDetailId   UNIQUEIDENTIFIER NOT NULL,               -- FK to LandAppraisalDetails
 
     -- Sequence
     SequenceNumber          INT NOT NULL,                            -- 1, 2, 3... within same collateral
@@ -3392,11 +3408,11 @@ CREATE TABLE appraisal.LandTitles
     IsMissedOutSurvey       BIT NOT NULL DEFAULT 0,                  -- ตกสำรวจ
 
     -- Pricing
-    PricePerSquareWa        DECIMAL(18,2) NULL,                      -- Market price per sq.wa
+    GovernmentPricePerSquareWa DECIMAL(18,2) NULL,                   -- Market price per sq.wa
     GovernmentPrice         DECIMAL(18,2) NULL,                      -- ราคาประเมินกรมที่ดิน
 
     -- Remarks
-    Remarks                 NVARCHAR(MAX) NULL,
+    --Remarks                 NVARCHAR(MAX) NULL,
 
     -- Audit
     CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
@@ -3404,9 +3420,9 @@ CREATE TABLE appraisal.LandTitles
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_LandTitle_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id) ON DELETE CASCADE,
-    CONSTRAINT UQ_LandTitle_Sequence UNIQUE (AppraisalCollateralId, SequenceNumber)
+    CONSTRAINT FK_LandTitle_LandDetail FOREIGN KEY (LandAppraisalDetailId)
+        REFERENCES appraisal.LandAppraisalDetails(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_LandTitle_Sequence UNIQUE (LandAppraisalDetailId, SequenceNumber)
 );
 ```
 
@@ -3420,7 +3436,7 @@ Detailed depreciation calculation for building appraisals.
 CREATE TABLE appraisal.BuildingDepreciationDetails
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL,               -- FK to AppraisalCollaterals (Building type)
+    BuildingAppraisalDetailId UNIQUEIDENTIFIER NOT NULL,           -- FK to BuildingAppraisalDetails
 
     -- Depreciation Method
     DepreciationMethod      NVARCHAR(50) NOT NULL,                   -- StraightLine, DecliningBalance, AgeLife
@@ -3452,8 +3468,8 @@ CREATE TABLE appraisal.BuildingDepreciationDetails
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_BuildingDepreciation_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_BuildingDepreciation_Detail FOREIGN KEY (BuildingAppraisalDetailId)
+        REFERENCES appraisal.BuildingAppraisalDetails(Id) ON DELETE CASCADE,
     CONSTRAINT CK_Depreciation_Method CHECK (DepreciationMethod IN ('StraightLine', 'DecliningBalance', 'AgeLife'))
 );
 ```
@@ -3468,7 +3484,7 @@ Floor-by-floor surface details for building appraisals.
 CREATE TABLE appraisal.BuildingAppraisalSurfaces
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL,               -- FK to AppraisalCollaterals (Building type)
+    BuildingAppraisalDetailId UNIQUEIDENTIFIER NOT NULL,           -- FK to BuildingAppraisalDetails
 
     -- Floor Range
     FromFloorNo             INT NOT NULL,                            -- Start floor
@@ -3487,8 +3503,8 @@ CREATE TABLE appraisal.BuildingAppraisalSurfaces
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_BuildingSurface_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id) ON DELETE CASCADE
+    CONSTRAINT FK_BuildingSurface_Detail FOREIGN KEY (BuildingAppraisalDetailId)
+        REFERENCES appraisal.BuildingAppraisalDetails(Id) ON DELETE CASCADE
 );
 ```
 
@@ -3502,7 +3518,7 @@ Area breakdown per room type for condo appraisals.
 CREATE TABLE appraisal.CondoAppraisalAreaDetails
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalCollateralId   UNIQUEIDENTIFIER NOT NULL,               -- FK to AppraisalCollaterals (Condo type)
+    CondoAppraisalDetailId  UNIQUEIDENTIFIER NOT NULL,               -- FK to CondoAppraisalDetails
 
     -- Area Details
     AreaDescription         NVARCHAR(200) NOT NULL,                  -- Balcony, AirCondLedge, LivingRoom, Bedroom, etc.
@@ -3514,8 +3530,8 @@ CREATE TABLE appraisal.CondoAppraisalAreaDetails
     UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_CondoArea_Collateral FOREIGN KEY (AppraisalCollateralId)
-        REFERENCES appraisal.AppraisalCollaterals(Id) ON DELETE CASCADE
+    CONSTRAINT FK_CondoArea_Detail FOREIGN KEY (CondoAppraisalDetailId)
+        REFERENCES appraisal.CondoAppraisalDetails(Id) ON DELETE CASCADE
 );
 ```
 
@@ -3596,7 +3612,7 @@ CREATE INDEX IX_ValuationAnalysis_AppraisalId ON appraisal.ValuationAnalysis(App
 
 -- GroupValuation indexes
 CREATE INDEX IX_GroupValuation_AnalysisId ON appraisal.GroupValuations(ValuationAnalysisId);
-CREATE INDEX IX_GroupValuation_GroupId ON appraisal.GroupValuations(CollateralGroupId);
+CREATE INDEX IX_GroupValuation_PropertyGroupId ON appraisal.GroupValuations(PropertyGroupId);
 
 -- AppraisalReview indexes
 CREATE INDEX IX_AppraisalReview_AppraisalId ON appraisal.AppraisalReviews(AppraisalId);
@@ -3613,7 +3629,7 @@ CREATE INDEX IX_AppraisalGallery_IsUsedInReport ON appraisal.AppraisalGallery(Is
 
 -- PropertyPhotoMapping indexes
 CREATE INDEX IX_PropertyPhotoMapping_GalleryPhotoId ON appraisal.PropertyPhotoMappings(GalleryPhotoId);
-CREATE INDEX IX_PropertyPhotoMapping_CollateralId ON appraisal.PropertyPhotoMappings(AppraisalCollateralId);
+CREATE INDEX IX_PropertyPhotoMapping_PropertyId ON appraisal.PropertyPhotoMappings(AppraisalPropertyId);
 CREATE INDEX IX_PropertyPhotoMapping_SectionReference ON appraisal.PropertyPhotoMappings(SectionReference);
 
 -- MarketComparable indexes (defined inline with table)
@@ -3641,19 +3657,19 @@ CREATE INDEX IX_AppraisalFee_AssignmentId ON appraisal.AppraisalFees(AssignmentI
 CREATE INDEX IX_AppraisalFee_FeeType ON appraisal.AppraisalFees(FeeType, FeeCategory);
 CREATE INDEX IX_AppraisalFee_PaymentStatus ON appraisal.AppraisalFees(PaymentStatus) WHERE PaymentStatus IS NOT NULL;
 
--- AppraisalCollaterals indexes (direct link to Appraisal)
-CREATE INDEX IX_AppraisalCollateral_AppraisalId ON appraisal.AppraisalCollaterals(AppraisalId);
-CREATE INDEX IX_AppraisalCollateral_Type ON appraisal.AppraisalCollaterals(AppraisalId, CollateralType);
+-- AppraisalProperties indexes (direct link to Appraisal)
+CREATE INDEX IX_AppraisalProperty_AppraisalId ON appraisal.AppraisalProperties(AppraisalId);
+CREATE INDEX IX_AppraisalProperty_Type ON appraisal.AppraisalProperties(AppraisalId, PropertyType);
 
--- CollateralGroups indexes
-CREATE INDEX IX_CollateralGroup_AppraisalId ON appraisal.CollateralGroups(AppraisalId);
+-- PropertyGroups indexes
+CREATE INDEX IX_PropertyGroup_AppraisalId ON appraisal.PropertyGroups(AppraisalId);
 
--- CollateralGroupItems indexes (junction table)
-CREATE INDEX IX_CollateralGroupItem_GroupId ON appraisal.CollateralGroupItems(CollateralGroupId);
--- AppraisalCollateralId has UNIQUE constraint, so index is automatic
+-- PropertyGroupItems indexes (junction table)
+CREATE INDEX IX_PropertyGroupItem_GroupId ON appraisal.PropertyGroupItems(PropertyGroupId);
+-- AppraisalPropertyId has UNIQUE constraint, so index is automatic
 
--- Property Detail indexes (1:1 with AppraisalCollaterals via UNIQUE constraint - no additional index needed)
--- AppraisalCollateralId is UNIQUE in each property detail table, so index is automatic
+-- Property Detail indexes (1:1 with AppraisalProperties via UNIQUE constraint - no additional index needed)
+-- AppraisalPropertyId is UNIQUE in each property detail table, so index is automatic
 
 -- AutoAssignmentRule indexes (defined inline with table)
 -- IX_AutoRule_Priority

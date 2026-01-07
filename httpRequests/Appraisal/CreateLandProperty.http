@@ -1,0 +1,168 @@
+@appraisalId = 52567F75-5C68-44F7-8D62-9D4D2E5F00C4
+
+### ===========================================
+### Create Land Property - Minimal (Required Only)
+### ===========================================
+### Creates a land property with only required field
+POST {{baseUrl}}/appraisals/{{appraisalId}}/land-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe"
+}
+
+### ===========================================
+### Create Land Property - Basic Info
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/land-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe",
+  "description": "Vacant land for residential development",
+  "propertyName": "Lot 42 Green Valley",
+  "landDescription": "Rectangular plot in residential zone",
+  "latitude": 13.7563,
+  "longitude": 100.5018,
+  "subDistrict": "100101",
+  "district": "1001",
+  "province": "10",
+  "landOffice": "Bangkok Land Office"
+}
+
+### ===========================================
+### Create Land Property - Full Details
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/land-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe",
+  "description": "Prime land in residential zone",
+  "propertyName": "Green Valley Estate Lot 42",
+  "landDescription": "Rectangular plot suitable for housing development",
+
+  "latitude": 13.7563,
+  "longitude": 100.5018,
+
+  "subDistrict": "100101",
+  "district": "1001",
+  "province": "10",
+  "landOffice": "Bangkok Land Office",
+
+  "isOwnerVerified": true,
+  "hasObligation": false,
+  "obligationDetails": null,
+
+  "isLandLocationVerified": true,
+  "landCheckMethodType": ["GPS", "Survey"],
+  "landCheckMethodTypeOther": null,
+
+  "street": "Sukhumvit Road",
+  "soi": "Soi 55",
+  "distanceFromMainRoad": 50.5,
+  "village": "Green Valley",
+  "addressLocation": "Near main intersection",
+
+  "landShapeType": ["Rectangular"],
+  "urbanPlanningType": ["Residential"],
+  "plotLocationType": ["Corner"],
+  "plotLocationTypeOther": null,
+  "landFillStatusType": ["Filled"],
+  "landFillStatusTypeOther": null,
+  "landFillPercent": 100,
+  "soilLevel": 1.5,
+
+  "accessRoadWidth": 6.0,
+  "rightOfWay": 4.0,
+  "roadFrontage": 20.0,
+  "numberOfSidesFacingRoad": 2,
+  "roadPassInFrontOfLand": "Public road",
+  "landAccessibilityType": ["PublicRoad", "Alley"],
+  "landAccessibilityRemark": "Easy access from main road",
+  "roadSurfaceType": ["Asphalt", "Concrete"],
+  "roadSurfaceTypeOther": null,
+
+  "hasElectricity": true,
+  "electricityDistance": 0,
+  "publicUtilityType": ["Water", "Electricity", "Internet"],
+  "publicUtilityTypeOther": null,
+  "landUseType": ["Residential"],
+  "landUseTypeOther": null,
+  "landEntranceExitType": ["Main"],
+  "landEntranceExitTypeOther": null,
+  "transportationAccessType": ["Car", "Motorcycle"],
+  "transportationAccessTypeOther": null,
+  "propertyAnticipationType": ["Residential"],
+
+  "isExpropriated": false,
+  "expropriationRemark": null,
+  "isInExpropriationLine": false,
+  "expropriationLineRemark": null,
+  "royalDecree": null,
+  "isEncroached": false,
+  "encroachmentRemark": null,
+  "encroachmentArea": null,
+  "isLandlocked": false,
+  "landlockedRemark": null,
+  "isForestBoundary": false,
+  "forestBoundaryRemark": null,
+  "otherLegalLimitations": null,
+  "evictionStatusType": null,
+  "evictionStatusTypeOther": null,
+  "allocationStatusType": null,
+
+  "northAdjacentArea": "Residential land - Lot 41",
+  "northBoundaryLength": 40.0,
+  "southAdjacentArea": "Public road",
+  "southBoundaryLength": 40.0,
+  "eastAdjacentArea": "Residential land - Lot 43",
+  "eastBoundaryLength": 20.0,
+  "westAdjacentArea": "Green Valley Park",
+  "westBoundaryLength": 20.0,
+
+  "pondArea": null,
+  "pondDepth": null,
+  "hasBuilding": false,
+  "hasBuildingOther": null,
+  "remark": "Ideal location for single-family residence"
+}
+
+### ===========================================
+### Create Land Property - With Legal Issues
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/land-properties
+Content-Type: application/json
+
+{
+  "ownerName": "Jane Smith",
+  "propertyName": "Rural Plot 15",
+  "landDescription": "Agricultural land with partial encroachment",
+
+  "latitude": 14.0208,
+  "longitude": 99.9780,
+
+  "subDistrict": "100201",
+  "district": "1002",
+  "province": "10",
+
+  "isOwnerVerified": true,
+  "hasObligation": true,
+  "obligationDetails": "Mortgage registered with ABC Bank",
+
+  "isExpropriated": false,
+  "isInExpropriationLine": true,
+  "expropriationLineRemark": "Potential road expansion in 5 years",
+  "isEncroached": true,
+  "encroachmentRemark": "Neighbor fence extends 2 meters into property",
+  "encroachmentArea": 8.0,
+  "isLandlocked": false,
+  "isForestBoundary": true,
+  "forestBoundaryRemark": "Adjacent to protected forest reserve",
+  "otherLegalLimitations": "Building height restriction applies",
+
+  "evictionStatusType": ["None"],
+  "allocationStatusType": ["Private"],
+
+  "remark": "Requires resolution of encroachment before sale"
+}

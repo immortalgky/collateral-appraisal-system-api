@@ -1,13 +1,13 @@
+using Appraisal.Infrastructure.Seed;
+using Shared.Data.Seed;
+
 namespace Appraisal;
 
 public static class AppraisalModule
 {
     public static IServiceCollection AddAppraisalModule(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddScoped<IAppraisalRepository, AppraisalRepository>();
-
-        services.AddScoped<IAppraisalService, AppraisalService>();
-
+        // Register DbContext
         services.AddDbContext<AppraisalDbContext>((sp, options) =>
         {
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
@@ -17,6 +17,25 @@ public static class AppraisalModule
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "appraisal");
             });
         });
+
+        // Register Unit of Work
+        services.AddScoped<IAppraisalUnitOfWork, AppraisalUnitOfWork>();
+
+        // Register Aggregate Repositories (only aggregates have repositories)
+        services.AddScoped<IAppraisalRepository, AppraisalRepository>();
+        services.AddScoped<ICommitteeRepository, CommitteeRepository>();
+        services.AddScoped<IMarketComparableRepository, MarketComparableRepository>();
+        services.AddScoped<IAppraisalSettingsRepository, AppraisalSettingsRepository>();
+        services.AddScoped<IAutoAssignmentRuleRepository, AutoAssignmentRuleRepository>();
+
+        // Register additional aggregate repositories
+        services.AddScoped<IQuotationRepository, QuotationRepository>();
+
+        // Register Document Requirement repository
+        services.AddScoped<IDocumentRequirementRepository, DocumentRequirementRepository>();
+
+        // Register Data Seeder
+        services.AddScoped<IDataSeeder<AppraisalDbContext>, DocumentRequirementDataSeed>();
 
         return services;
     }
