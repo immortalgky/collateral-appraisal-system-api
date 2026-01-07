@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    [Migration("20260107072016_Initial")]
+    [Migration("20260107102655_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -2333,8 +2333,9 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("AllocationStatusType")
-                        .HasColumnType("nvarchar(500)");
+                    b.Property<string>("AllocationType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<Guid>("AppraisalPropertyId")
                         .HasColumnType("uniqueidentifier");
@@ -2370,10 +2371,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("EvictionStatusType")
+                    b.Property<string>("EvictionType")
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("EvictionStatusTypeOther")
+                    b.Property<string>("EvictionTypeOther")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -2428,10 +2429,12 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("LandAccessibilityType")
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("LandCheckMethodType")
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("LandCheckMethodTypeOther")
                         .HasMaxLength(200)
@@ -2452,15 +2455,17 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
-                    b.Property<string>("LandFillStatusType")
-                        .HasColumnType("nvarchar(500)");
+                    b.Property<string>("LandFillType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("LandFillStatusTypeOther")
+                    b.Property<string>("LandFillTypeOther")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("LandShapeType")
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("LandUseType")
                         .HasColumnType("nvarchar(500)");
@@ -2516,7 +2521,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("decimal(10,2)");
 
                     b.Property<string>("PropertyAnticipationType")
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("PropertyName")
                         .HasMaxLength(200)
@@ -2546,7 +2552,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("RoadSurfaceType")
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("RoadSurfaceTypeOther")
                         .HasMaxLength(200)
@@ -2591,7 +2598,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("UrbanPlanningType")
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Village")
                         .HasMaxLength(200)

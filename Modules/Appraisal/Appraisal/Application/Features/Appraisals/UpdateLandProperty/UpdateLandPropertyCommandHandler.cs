@@ -1,7 +1,3 @@
-using Appraisal.Domain.Appraisals;
-using Appraisal.Domain.Appraisals.Exceptions;
-using Shared.CQRS;
-
 namespace Appraisal.Application.Features.Appraisals.UpdateLandProperty;
 
 /// <summary>
@@ -11,124 +7,112 @@ public class UpdateLandPropertyCommandHandler(
     IAppraisalRepository appraisalRepository
 ) : ICommandHandler<UpdateLandPropertyCommand>
 {
-    public async Task<MediatR.Unit> Handle(
+    public async Task<Unit> Handle(
         UpdateLandPropertyCommand command,
         CancellationToken cancellationToken)
     {
-        // 1. Load aggregate root with properties
         var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(
-            command.AppraisalId, cancellationToken)
-            ?? throw new AppraisalNotFoundException(command.AppraisalId);
+                            command.AppraisalId, cancellationToken)
+                        ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
-        // 2. Find the property
         var property = appraisal.GetProperty(command.PropertyId)
-            ?? throw new PropertyNotFoundException(command.PropertyId);
+                       ?? throw new PropertyNotFoundException(command.PropertyId);
 
-        // 3. Validate property type
         if (property.PropertyType != PropertyType.Land)
             throw new InvalidOperationException($"Property {command.PropertyId} is not a land property");
 
-        // 4. Get the land detail
         var landDetail = property.LandDetail
-            ?? throw new InvalidOperationException($"Land detail not found for property {command.PropertyId}");
+                         ?? throw new InvalidOperationException(
+                             $"Land detail not found for property {command.PropertyId}");
 
-        // 5. Create value objects if coordinates or address provided
         GpsCoordinate? coordinates = null;
         if (command.Latitude.HasValue && command.Longitude.HasValue)
-        {
             coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
-        }
 
         AdministrativeAddress? address = null;
         if (command.SubDistrict is not null || command.District is not null ||
             command.Province is not null || command.LandOffice is not null)
-        {
             address = AdministrativeAddress.Create(
                 command.SubDistrict,
                 command.District,
                 command.Province,
                 command.LandOffice);
-        }
 
-        // 6. Update via domain method
         landDetail.Update(
-            propertyName: command.PropertyName,
-            landDescription: command.LandDescription,
-            coordinates: coordinates,
-            address: address,
-            ownerName: command.OwnerName,
-            isOwnerVerified: command.IsOwnerVerified,
-            hasObligation: command.HasObligation,
-            obligationDetails: command.ObligationDetails,
-            isLandLocationVerified: command.IsLandLocationVerified,
-            landCheckMethodType: command.LandCheckMethodType,
-            landCheckMethodTypeOther: command.LandCheckMethodTypeOther,
-            street: command.Street,
-            soi: command.Soi,
-            distanceFromMainRoad: command.DistanceFromMainRoad,
-            village: command.Village,
-            addressLocation: command.AddressLocation,
-            landShapeType: command.LandShapeType,
-            urbanPlanningType: command.UrbanPlanningType,
-            plotLocationType: command.PlotLocationType,
-            plotLocationTypeOther: command.PlotLocationTypeOther,
-            landFillStatusType: command.LandFillStatusType,
-            landFillStatusTypeOther: command.LandFillStatusTypeOther,
-            landFillPercent: command.LandFillPercent,
-            soilLevel: command.SoilLevel,
-            accessRoadWidth: command.AccessRoadWidth,
-            rightOfWay: command.RightOfWay,
-            roadFrontage: command.RoadFrontage,
-            numberOfSidesFacingRoad: command.NumberOfSidesFacingRoad,
-            roadPassInFrontOfLand: command.RoadPassInFrontOfLand,
-            landAccessibilityType: command.LandAccessibilityType,
-            landAccessibilityRemark: command.LandAccessibilityRemark,
-            roadSurfaceType: command.RoadSurfaceType,
-            roadSurfaceTypeOther: command.RoadSurfaceTypeOther,
-            hasElectricity: command.HasElectricity,
-            electricityDistance: command.ElectricityDistance,
-            publicUtilityType: command.PublicUtilityType,
-            publicUtilityTypeOther: command.PublicUtilityTypeOther,
-            landUseType: command.LandUseType,
-            landUseTypeOther: command.LandUseTypeOther,
-            landEntranceExitType: command.LandEntranceExitType,
-            landEntranceExitTypeOther: command.LandEntranceExitTypeOther,
-            transportationAccessType: command.TransportationAccessType,
-            transportationAccessTypeOther: command.TransportationAccessTypeOther,
-            propertyAnticipationType: command.PropertyAnticipationType,
-            isExpropriated: command.IsExpropriated,
-            expropriationRemark: command.ExpropriationRemark,
-            isInExpropriationLine: command.IsInExpropriationLine,
-            expropriationLineRemark: command.ExpropriationLineRemark,
-            royalDecree: command.RoyalDecree,
-            isEncroached: command.IsEncroached,
-            encroachmentRemark: command.EncroachmentRemark,
-            encroachmentArea: command.EncroachmentArea,
-            isLandlocked: command.IsLandlocked,
-            landlockedRemark: command.LandlockedRemark,
-            isForestBoundary: command.IsForestBoundary,
-            forestBoundaryRemark: command.ForestBoundaryRemark,
-            otherLegalLimitations: command.OtherLegalLimitations,
-            evictionStatusType: command.EvictionStatusType,
-            evictionStatusTypeOther: command.EvictionStatusTypeOther,
-            allocationStatusType: command.AllocationStatusType,
-            northAdjacentArea: command.NorthAdjacentArea,
-            northBoundaryLength: command.NorthBoundaryLength,
-            southAdjacentArea: command.SouthAdjacentArea,
-            southBoundaryLength: command.SouthBoundaryLength,
-            eastAdjacentArea: command.EastAdjacentArea,
-            eastBoundaryLength: command.EastBoundaryLength,
-            westAdjacentArea: command.WestAdjacentArea,
-            westBoundaryLength: command.WestBoundaryLength,
-            pondArea: command.PondArea,
-            pondDepth: command.PondDepth,
-            hasBuilding: command.HasBuilding,
-            hasBuildingOther: command.HasBuildingOther,
-            remark: command.Remark);
+            command.PropertyName,
+            command.LandDescription,
+            coordinates,
+            address,
+            command.OwnerName,
+            command.IsOwnerVerified,
+            command.HasObligation,
+            command.ObligationDetails,
+            command.IsLandLocationVerified,
+            command.LandCheckMethodType,
+            command.LandCheckMethodTypeOther,
+            command.Street,
+            command.Soi,
+            command.DistanceFromMainRoad,
+            command.Village,
+            command.AddressLocation,
+            command.LandShapeType,
+            command.UrbanPlanningType,
+            command.PlotLocationType,
+            command.PlotLocationTypeOther,
+            command.LandFillType,
+            command.LandFillTypeOther,
+            command.LandFillPercent,
+            command.SoilLevel,
+            command.AccessRoadWidth,
+            command.RightOfWay,
+            command.RoadFrontage,
+            command.NumberOfSidesFacingRoad,
+            command.RoadPassInFrontOfLand,
+            command.LandAccessibilityType,
+            command.LandAccessibilityRemark,
+            command.RoadSurfaceType,
+            command.RoadSurfaceTypeOther,
+            command.HasElectricity,
+            command.ElectricityDistance,
+            command.PublicUtilityType,
+            command.PublicUtilityTypeOther,
+            command.LandUseType,
+            command.LandUseTypeOther,
+            command.LandEntranceExitType,
+            command.LandEntranceExitTypeOther,
+            command.TransportationAccessType,
+            command.TransportationAccessTypeOther,
+            command.PropertyAnticipationType,
+            command.IsExpropriated,
+            command.ExpropriationRemark,
+            command.IsInExpropriationLine,
+            command.ExpropriationLineRemark,
+            command.RoyalDecree,
+            command.IsEncroached,
+            command.EncroachmentRemark,
+            command.EncroachmentArea,
+            command.IsLandlocked,
+            command.LandlockedRemark,
+            command.IsForestBoundary,
+            command.ForestBoundaryRemark,
+            command.OtherLegalLimitations,
+            command.EvictionType,
+            command.EvictionTypeOther,
+            command.AllocationType,
+            command.NorthAdjacentArea,
+            command.NorthBoundaryLength,
+            command.SouthAdjacentArea,
+            command.SouthBoundaryLength,
+            command.EastAdjacentArea,
+            command.EastBoundaryLength,
+            command.WestAdjacentArea,
+            command.WestBoundaryLength,
+            command.PondArea,
+            command.PondDepth,
+            command.HasBuilding,
+            command.HasBuildingOther,
+            command.Remark);
 
-        // 7. Save aggregate
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
-
-        return MediatR.Unit.Value;
+        return Unit.Value;
     }
 }

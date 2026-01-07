@@ -11,40 +11,32 @@ public class CreateLandPropertyCommandHandler(
         CreateLandPropertyCommand command,
         CancellationToken cancellationToken)
     {
-        // 1. Load aggregate root with properties
         var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(
-            command.AppraisalId, cancellationToken)
-            ?? throw new AppraisalNotFoundException(command.AppraisalId);
+                            command.AppraisalId, cancellationToken)
+                        ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
-        // 2. Execute domain operation via aggregate (creates BOTH property + detail)
         var property = appraisal.AddLandProperty(
             command.OwnerName,
             command.Description);
 
-        // 3. Create value objects if provided
         GpsCoordinate? coordinates = null;
         if (command.Latitude.HasValue && command.Longitude.HasValue)
-        {
             coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
-        }
 
         AdministrativeAddress? address = null;
         if (command.SubDistrict is not null || command.District is not null ||
             command.Province is not null || command.LandOffice is not null)
-        {
             address = AdministrativeAddress.Create(
                 command.SubDistrict,
                 command.District,
                 command.Province,
                 command.LandOffice);
-        }
 
-        // 4. Update detail with additional fields
         property.LandDetail!.Update(
-            propertyName: command.PropertyName,
-            landDescription: command.LandDescription,
-            coordinates: coordinates,
-            address: address,
+            command.PropertyName,
+            command.LandDescription,
+            coordinates,
+            address,
             isOwnerVerified: command.IsOwnerVerified,
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,
@@ -60,8 +52,8 @@ public class CreateLandPropertyCommandHandler(
             urbanPlanningType: command.UrbanPlanningType,
             plotLocationType: command.PlotLocationType,
             plotLocationTypeOther: command.PlotLocationTypeOther,
-            landFillStatusType: command.LandFillStatusType,
-            landFillStatusTypeOther: command.LandFillStatusTypeOther,
+            landFillType: command.LandFillType,
+            landFillTypeOther: command.LandFillTypeOther,
             landFillPercent: command.LandFillPercent,
             soilLevel: command.SoilLevel,
             accessRoadWidth: command.AccessRoadWidth,
@@ -97,9 +89,9 @@ public class CreateLandPropertyCommandHandler(
             isForestBoundary: command.IsForestBoundary,
             forestBoundaryRemark: command.ForestBoundaryRemark,
             otherLegalLimitations: command.OtherLegalLimitations,
-            evictionStatusType: command.EvictionStatusType,
-            evictionStatusTypeOther: command.EvictionStatusTypeOther,
-            allocationStatusType: command.AllocationStatusType,
+            evictionType: command.EvictionType,
+            evictionTypeOther: command.EvictionTypeOther,
+            allocationType: command.AllocationType,
             northAdjacentArea: command.NorthAdjacentArea,
             northBoundaryLength: command.NorthBoundaryLength,
             southAdjacentArea: command.SouthAdjacentArea,
@@ -114,10 +106,6 @@ public class CreateLandPropertyCommandHandler(
             hasBuildingOther: command.HasBuildingOther,
             remark: command.Remark);
 
-        // 5. Save aggregate (UoW pattern)
-        //await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
-
-        // 6. Return property ID and detail ID
         return new CreateLandPropertyResult(property.Id, property.LandDetail.Id);
     }
 }

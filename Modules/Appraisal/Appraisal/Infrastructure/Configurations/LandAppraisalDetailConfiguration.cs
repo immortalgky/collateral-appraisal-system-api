@@ -37,12 +37,8 @@ public class LandAppraisalDetailConfiguration : IEntityTypeConfiguration<LandApp
         builder.Property(e => e.OwnerName).HasMaxLength(200);
         builder.Property(e => e.ObligationDetails).HasMaxLength(500);
 
-        // Document Verification - LandCheckMethodType is List<string>?
-        builder.Property(e => e.LandCheckMethodType)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(500)");
+        // Document Verification
+        builder.Property(e => e.LandCheckMethodType).HasMaxLength(100);
         builder.Property(e => e.LandCheckMethodTypeOther).HasMaxLength(200);
 
         // Location Details
@@ -52,19 +48,9 @@ public class LandAppraisalDetailConfiguration : IEntityTypeConfiguration<LandApp
         builder.Property(e => e.Village).HasMaxLength(200);
         builder.Property(e => e.AddressLocation).HasMaxLength(500);
 
-        // Land Characteristics - Multi-select fields with JSON conversion
-        builder.Property(e => e.LandShapeType)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(500)");
-
-        builder.Property(e => e.UrbanPlanningType)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(500)");
-
+        // Land Characteristics
+        builder.Property(e => e.LandShapeType).HasMaxLength(100);
+        builder.Property(e => e.UrbanPlanningType).HasMaxLength(100);
         builder.Property(e => e.LandZoneType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
@@ -78,12 +64,8 @@ public class LandAppraisalDetailConfiguration : IEntityTypeConfiguration<LandApp
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.PlotLocationTypeOther).HasMaxLength(200);
 
-        builder.Property(e => e.LandFillStatusType)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.LandFillStatusTypeOther).HasMaxLength(200);
+        builder.Property(e => e.LandFillType).HasMaxLength(100);
+        builder.Property(e => e.LandFillTypeOther).HasMaxLength(200);
 
         builder.Property(e => e.LandFillPercent).HasPrecision(5, 2);
         builder.Property(e => e.SoilLevel).HasPrecision(10, 2);
@@ -94,18 +76,10 @@ public class LandAppraisalDetailConfiguration : IEntityTypeConfiguration<LandApp
         builder.Property(e => e.RoadFrontage).HasPrecision(10, 2);
         builder.Property(e => e.RoadPassInFrontOfLand).HasMaxLength(200);
 
-        builder.Property(e => e.LandAccessibilityType)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.LandAccessibilityType).HasMaxLength(100);
         builder.Property(e => e.LandAccessibilityRemark).HasMaxLength(500);
 
-        builder.Property(e => e.RoadSurfaceType)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.RoadSurfaceType).HasMaxLength(100);
         builder.Property(e => e.RoadSurfaceTypeOther).HasMaxLength(200);
 
         // Utilities - Multi-select fields with JSON conversion
@@ -136,12 +110,7 @@ public class LandAppraisalDetailConfiguration : IEntityTypeConfiguration<LandApp
                 v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.TransportationAccessTypeOther).HasMaxLength(200);
-
-        builder.Property(e => e.PropertyAnticipationType)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.PropertyAnticipationType).HasMaxLength(100);
 
         // Legal Restrictions
         builder.Property(e => e.ExpropriationRemark).HasMaxLength(500);
@@ -154,18 +123,13 @@ public class LandAppraisalDetailConfiguration : IEntityTypeConfiguration<LandApp
         builder.Property(e => e.ForestBoundaryRemark).HasMaxLength(500);
         builder.Property(e => e.OtherLegalLimitations).HasMaxLength(500);
 
-        builder.Property(e => e.EvictionStatusType)
+        builder.Property(e => e.EvictionType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.EvictionStatusTypeOther).HasMaxLength(200);
-
-        builder.Property(e => e.AllocationStatusType)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.EvictionTypeOther).HasMaxLength(200);
+        builder.Property(e => e.AllocationType).HasMaxLength(100);
 
         // Adjacent Boundaries
         builder.Property(e => e.NorthAdjacentArea).HasMaxLength(200);

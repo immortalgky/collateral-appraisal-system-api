@@ -1,5 +1,3 @@
-using Microsoft.CodeAnalysis.Diagnostics;
-
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
@@ -30,7 +28,7 @@ public class LandAppraisalDetail : Entity<Guid>
 
     // Document Verification
     public bool? IsLandLocationVerified { get; private set; }
-    public List<string>? LandCheckMethodType { get; private set; }
+    public string? LandCheckMethodType { get; private set; }
     public string? LandCheckMethodTypeOther { get; private set; }
 
     // Location Details
@@ -41,13 +39,13 @@ public class LandAppraisalDetail : Entity<Guid>
     public string? AddressLocation { get; private set; }
 
     // Land Characteristics
-    public List<string>? LandShapeType { get; private set; }
-    public List<string>? UrbanPlanningType { get; private set; }
+    public string? LandShapeType { get; private set; }
+    public string? UrbanPlanningType { get; private set; }
     public List<string>? LandZoneType { get; private set; }
     public List<string>? PlotLocationType { get; private set; }
     public string? PlotLocationTypeOther { get; private set; }
-    public List<string>? LandFillStatusType { get; private set; }
-    public string? LandFillStatusTypeOther { get; private set; }
+    public string? LandFillType { get; private set; }
+    public string? LandFillTypeOther { get; private set; }
     public decimal? LandFillPercent { get; private set; }
     public decimal? SoilLevel { get; private set; }
 
@@ -57,9 +55,9 @@ public class LandAppraisalDetail : Entity<Guid>
     public decimal? RoadFrontage { get; private set; }
     public int? NumberOfSidesFacingRoad { get; private set; }
     public string? RoadPassInFrontOfLand { get; private set; }
-    public List<string>? LandAccessibilityType { get; private set; }
+    public string? LandAccessibilityType { get; private set; }
     public string? LandAccessibilityRemark { get; private set; }
-    public List<string>? RoadSurfaceType { get; private set; }
+    public string? RoadSurfaceType { get; private set; }
     public string? RoadSurfaceTypeOther { get; private set; }
 
     // Utilities & Infrastructure
@@ -73,7 +71,7 @@ public class LandAppraisalDetail : Entity<Guid>
     public string? LandEntranceExitTypeOther { get; private set; }
     public List<string>? TransportationAccessType { get; private set; }
     public string? TransportationAccessTypeOther { get; private set; }
-    public List<string>? PropertyAnticipationType { get; private set; }
+    public string? PropertyAnticipationType { get; private set; }
 
     // Legal Restrictions
     public bool IsExpropriated { get; private set; }
@@ -89,9 +87,9 @@ public class LandAppraisalDetail : Entity<Guid>
     public bool IsForestBoundary { get; private set; }
     public string? ForestBoundaryRemark { get; private set; }
     public string? OtherLegalLimitations { get; private set; }
-    public List<string>? EvictionStatusType { get; private set; }
-    public string? EvictionStatusTypeOther { get; private set; }
-    public List<string>? AllocationStatusType { get; private set; }
+    public List<string>? EvictionType { get; private set; }
+    public string? EvictionTypeOther { get; private set; }
+    public string? AllocationType { get; private set; }
 
     // Adjacent Boundaries (North/South/East/West)
     public string? NorthAdjacentArea { get; private set; }
@@ -145,7 +143,7 @@ public class LandAppraisalDetail : Entity<Guid>
         string? obligationDetails = null,
         // Document Verification
         bool? isLandLocationVerified = null,
-        List<string>? landCheckMethodType = null,
+        string? landCheckMethodType = null,
         string? landCheckMethodTypeOther = null,
         // Location Details
         string? street = null,
@@ -154,12 +152,12 @@ public class LandAppraisalDetail : Entity<Guid>
         string? village = null,
         string? addressLocation = null,
         // Land Characteristics
-        List<string>? landShapeType = null,
-        List<string>? urbanPlanningType = null,
+        string? landShapeType = null,
+        string? urbanPlanningType = null,
         List<string>? plotLocationType = null,
         string? plotLocationTypeOther = null,
-        List<string>? landFillStatusType = null,
-        string? landFillStatusTypeOther = null,
+        string? landFillType = null,
+        string? landFillTypeOther = null,
         decimal? landFillPercent = null,
         decimal? soilLevel = null,
         // Road Access
@@ -168,9 +166,9 @@ public class LandAppraisalDetail : Entity<Guid>
         decimal? roadFrontage = null,
         int? numberOfSidesFacingRoad = null,
         string? roadPassInFrontOfLand = null,
-        List<string>? landAccessibilityType = null,
+        string? landAccessibilityType = null,
         string? landAccessibilityRemark = null,
-        List<string>? roadSurfaceType = null,
+        string? roadSurfaceType = null,
         string? roadSurfaceTypeOther = null,
         // Utilities & Infrastructure
         bool? hasElectricity = null,
@@ -183,7 +181,7 @@ public class LandAppraisalDetail : Entity<Guid>
         string? landEntranceExitTypeOther = null,
         List<string>? transportationAccessType = null,
         string? transportationAccessTypeOther = null,
-        List<string>? propertyAnticipationType = null,
+        string? propertyAnticipationType = null,
         // Legal Restrictions
         bool? isExpropriated = null,
         string? expropriationRemark = null,
@@ -198,9 +196,9 @@ public class LandAppraisalDetail : Entity<Guid>
         bool? isForestBoundary = null,
         string? forestBoundaryRemark = null,
         string? otherLegalLimitations = null,
-        List<string>? evictionStatusType = null,
-        string? evictionStatusTypeOther = null,
-        List<string>? allocationStatusType = null,
+        List<string>? evictionType = null,
+        string? evictionTypeOther = null,
+        string? allocationType = null,
         // Adjacent Boundaries
         string? northAdjacentArea = null,
         decimal? northBoundaryLength = null,
@@ -246,8 +244,8 @@ public class LandAppraisalDetail : Entity<Guid>
         UrbanPlanningType = urbanPlanningType;
         PlotLocationType = plotLocationType;
         PlotLocationTypeOther = plotLocationTypeOther;
-        LandFillStatusType = landFillStatusType;
-        LandFillStatusTypeOther = landFillStatusTypeOther;
+        LandFillType = landFillType;
+        LandFillTypeOther = landFillTypeOther;
         LandFillPercent = landFillPercent;
         SoilLevel = soilLevel;
 
@@ -289,9 +287,9 @@ public class LandAppraisalDetail : Entity<Guid>
         if (isForestBoundary.HasValue) IsForestBoundary = isForestBoundary.Value;
         ForestBoundaryRemark = forestBoundaryRemark;
         OtherLegalLimitations = otherLegalLimitations;
-        EvictionStatusType = evictionStatusType;
-        EvictionStatusTypeOther = evictionStatusTypeOther;
-        AllocationStatusType = allocationStatusType;
+        EvictionType = evictionType;
+        EvictionTypeOther = evictionTypeOther;
+        AllocationType = allocationType;
 
         // Adjacent Boundaries
         NorthAdjacentArea = northAdjacentArea;
