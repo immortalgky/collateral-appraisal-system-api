@@ -154,6 +154,7 @@ public class LandAppraisalDetail : Entity<Guid>
         // Land Characteristics
         string? landShapeType = null,
         string? urbanPlanningType = null,
+        List<string>? landZoneType = null,
         List<string>? plotLocationType = null,
         string? plotLocationTypeOther = null,
         string? landFillType = null,
@@ -242,6 +243,7 @@ public class LandAppraisalDetail : Entity<Guid>
         // Land Characteristics
         LandShapeType = landShapeType;
         UrbanPlanningType = urbanPlanningType;
+        LandZoneType = landZoneType;
         PlotLocationType = plotLocationType;
         PlotLocationTypeOther = plotLocationTypeOther;
         LandFillType = landFillType;

@@ -50,6 +50,7 @@ public class CreateLandPropertyCommandHandler(
             addressLocation: command.AddressLocation,
             landShapeType: command.LandShapeType,
             urbanPlanningType: command.UrbanPlanningType,
+            landZoneType: command.LandZoneType,
             plotLocationType: command.PlotLocationType,
             plotLocationTypeOther: command.PlotLocationTypeOther,
             landFillType: command.LandFillType,
