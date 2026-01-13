@@ -35,6 +35,7 @@ public record UpdateLandPropertyCommand(
     // Land Characteristics
     string? LandShapeType = null,
     string? UrbanPlanningType = null,
+    List<string>? LandZoneType = null,
     List<string>? PlotLocationType = null,
     string? PlotLocationTypeOther = null,
     string? LandFillType = null,

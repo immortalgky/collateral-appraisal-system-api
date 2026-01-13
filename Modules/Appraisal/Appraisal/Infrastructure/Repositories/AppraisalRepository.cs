@@ -14,6 +14,19 @@ public class AppraisalRepository(AppraisalDbContext dbContext)
     {
         return await _dbContext.Appraisals
             .Include(a => a.Properties)
+                .ThenInclude(p => p.LandDetail)
+            .Include(a => a.Properties)
+                .ThenInclude(p => p.BuildingDetail)
+            .Include(p => p.Properties)
+                .ThenInclude(p => p.CondoDetail)
+            .Include(p => p.Properties)
+                .ThenInclude(p => p.LandAndBuildingDetail)
+            .Include(p => p.Properties)
+                .ThenInclude(p => p.VehicleDetail)
+            .Include(p => p.Properties)
+                .ThenInclude(p => p.VesselDetail)
+            .Include(p => p.Properties)
+                .ThenInclude(p => p.MachineryDetail)
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
     }
 
