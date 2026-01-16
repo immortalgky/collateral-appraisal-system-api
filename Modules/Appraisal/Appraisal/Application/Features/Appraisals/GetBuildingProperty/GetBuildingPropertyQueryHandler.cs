@@ -1,7 +1,3 @@
-using Appraisal.Domain.Appraisals;
-using Appraisal.Domain.Appraisals.Exceptions;
-using Shared.CQRS;
-
 namespace Appraisal.Application.Features.Appraisals.GetBuildingProperty;
 
 /// <summary>
@@ -15,24 +11,20 @@ public class GetBuildingPropertyQueryHandler(
         GetBuildingPropertyQuery query,
         CancellationToken cancellationToken)
     {
-        // 1. Load aggregate root with properties
         var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(
-            query.AppraisalId, cancellationToken)
-            ?? throw new AppraisalNotFoundException(query.AppraisalId);
-
-        // 2. Find the property
+                            query.AppraisalId, cancellationToken)
+                        ?? throw new AppraisalNotFoundException(query.AppraisalId);
+        
         var property = appraisal.GetProperty(query.PropertyId)
-            ?? throw new PropertyNotFoundException(query.PropertyId);
+                       ?? throw new PropertyNotFoundException(query.PropertyId);
 
-        // 3. Validate property type
         if (property.PropertyType != PropertyType.Building)
             throw new InvalidOperationException($"Property {query.PropertyId} is not a building property");
-
-        // 4. Get the building detail
+        
         var detail = property.BuildingDetail
-            ?? throw new InvalidOperationException($"Building detail not found for property {query.PropertyId}");
-
-        // 5. Map to result
+                     ?? throw new InvalidOperationException(
+                         $"Building detail not found for property {query.PropertyId}");
+        
         return new GetBuildingPropertyResult(
             PropertyId: property.Id,
             AppraisalId: property.AppraisalId,
@@ -49,7 +41,7 @@ public class GetBuildingPropertyQueryHandler(
             IsOwnerVerified: detail.IsOwnerVerified,
             HasObligation: detail.HasObligation,
             ObligationDetails: detail.ObligationDetails,
-            BuildingCondition: detail.BuildingCondition,
+            BuildingCondition: detail.BuildingConditionType,
             IsUnderConstruction: detail.IsUnderConstruction,
             ConstructionCompletionPercent: detail.ConstructionCompletionPercent,
             ConstructionLicenseExpirationDate: detail.ConstructionLicenseExpirationDate,
@@ -62,12 +54,12 @@ public class GetBuildingPropertyQueryHandler(
             IsEncroached: detail.IsEncroached,
             EncroachmentRemark: detail.EncroachmentRemark,
             EncroachmentArea: detail.EncroachmentArea,
-            BuildingMaterial: detail.BuildingMaterial,
-            BuildingStyle: detail.BuildingStyle,
+            BuildingMaterial: detail.BuildingMaterialType,
+            BuildingStyle: detail.BuildingStyleType,
             IsResidential: detail.IsResidential ?? false,
             BuildingAge: detail.BuildingAge,
             ConstructionYear: detail.ConstructionYear,
-            IsResidentialRemark: detail.IsResidentialRemark,
+            IsResidentialRemark: detail.ResidentialRemark,
             ConstructionStyleType: detail.ConstructionStyleType,
             ConstructionStyleRemark: detail.ConstructionStyleRemark,
             StructureType: detail.StructureType,
@@ -87,7 +79,7 @@ public class GetBuildingPropertyQueryHandler(
             ConstructionType: detail.ConstructionType,
             ConstructionTypeOther: detail.ConstructionTypeOther,
             UtilizationType: detail.UtilizationType,
-            OtherPurposeUsage: detail.OtherPurposeUsage,
+            OtherPurposeUsage: detail.UtilizationTypeOther,
             TotalBuildingArea: detail.TotalBuildingArea,
             BuildingInsurancePrice: detail.BuildingInsurancePrice,
             SellingPrice: detail.SellingPrice,

@@ -4,6 +4,7 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260108094955_AdjustField")]
+    partial class AdjustField
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -934,7 +937,7 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<int?>("BuildingAge")
                         .HasColumnType("int");
 
-                    b.Property<string>("BuildingConditionType")
+                    b.Property<string>("BuildingCondition")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
@@ -1423,19 +1426,19 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("AppraisalPropertyId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("BathroomFloorMaterialType")
+                    b.Property<string>("BathroomFloorMaterial")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("BathroomFloorMaterialTypeOther")
+                    b.Property<string>("BathroomFloorMaterialOther")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("BuildingConditionType")
+                    b.Property<string>("BuildingCondition")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<string>("BuildingFormType")
+                    b.Property<string>("BuildingForm")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
@@ -1447,24 +1450,36 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<string>("BuiltOnTitleNumber")
+                    b.Property<int?>("BuildingYear")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BuiltOnTitleNo")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CondoFacility")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("CondoFacilityOther")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CondoLocation")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("CondoName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("CondoRegistrationNumber")
+                    b.Property<string>("CondoRegisNo")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("ConstructionMaterialType")
+                    b.Property<string>("ConstMaterial")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<int?>("ConstructionYear")
-                        .HasColumnType("int");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(10)
@@ -1473,11 +1488,11 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<DateTime?>("CreatedOn")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DecorationType")
+                    b.Property<string>("Decoration")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("DecorationTypeOther")
+                    b.Property<string>("DecorationOther")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -1485,7 +1500,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
 
-                    b.Property<string>("EnvironmentType")
+                    b.Property<bool>("DocValidate")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Environment")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
@@ -1497,15 +1515,7 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("FacilityType")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("FacilityTypeOther")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int?>("FloorNumber")
+                    b.Property<int?>("FloorNo")
                         .HasColumnType("int");
 
                     b.Property<decimal?>("ForcedSalePrice")
@@ -1516,18 +1526,15 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("GroundFloorMaterialType")
+                    b.Property<string>("GroundFloorMaterial")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("GroundFloorMaterialTypeOther")
+                    b.Property<string>("GroundFloorMaterialOther")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
                     b.Property<bool>("HasObligation")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDocumentValidated")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsExpropriated")
@@ -1542,11 +1549,7 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<bool>("IsOwnerVerified")
                         .HasColumnType("bit");
 
-                    b.Property<string>("LocationType")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("LocationViewType")
+                    b.Property<string>("LocationView")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -1570,11 +1573,11 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("PublicUtilityType")
+                    b.Property<string>("PublicUtility")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("PublicUtilityTypeOther")
+                    b.Property<string>("PublicUtilityOther")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -1590,23 +1593,23 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("RoofType")
+                    b.Property<string>("Roof")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("RoofTypeOther")
+                    b.Property<string>("RoofOther")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("RoomLayoutType")
+                    b.Property<string>("RoomLayout")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("RoomLayoutTypeOther")
+                    b.Property<string>("RoomLayoutOther")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("RoomNumber")
+                    b.Property<string>("RoomNo")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
@@ -1637,11 +1640,11 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<DateTime?>("UpdatedOn")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("UpperFloorMaterialType")
+                    b.Property<string>("UpperFloorMaterial")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("UpperFloorMaterialTypeOther")
+                    b.Property<string>("UpperFloorMaterialOther")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 

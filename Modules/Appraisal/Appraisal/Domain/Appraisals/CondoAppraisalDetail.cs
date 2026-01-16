@@ -14,10 +14,10 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? CondoName { get; private set; }
     public string? BuildingNumber { get; private set; }
     public string? ModelName { get; private set; }
-    public string? BuiltOnTitleNo { get; private set; }
-    public string? CondoRegisNo { get; private set; }
-    public string? RoomNo { get; private set; }
-    public int? FloorNo { get; private set; }
+    public string? BuiltOnTitleNumber { get; private set; }
+    public string? CondoRegistrationNumber { get; private set; }
+    public string? RoomNumber { get; private set; }
+    public int? FloorNumber { get; private set; }
     public decimal? UsableArea { get; private set; }
 
     // GPS Coordinates (Value Object)
@@ -29,42 +29,42 @@ public class CondoAppraisalDetail : Entity<Guid>
     // Owner
     public string OwnerName { get; private set; } = null!;
     public bool IsOwnerVerified { get; private set; }
-    public string? BuildingCondition { get; private set; }
+    public string? BuildingConditionType { get; private set; }
     public bool HasObligation { get; private set; }
     public string? ObligationDetails { get; private set; }
-    public bool DocValidate { get; private set; }
+    public bool IsDocumentValidated { get; private set; }
 
     // Location Details
-    public string? CondoLocation { get; private set; }
+    public string? LocationType { get; private set; }
     public string? Street { get; private set; }
     public string? Soi { get; private set; }
     public decimal? DistanceFromMainRoad { get; private set; }
     public decimal? AccessRoadWidth { get; private set; }
     public string? RightOfWay { get; private set; }
     public string? RoadSurfaceType { get; private set; }
-    public string? PublicUtility { get; private set; }
-    public string? PublicUtilityOther { get; private set; }
+    public List<string>? PublicUtilityType { get; private set; }
+    public string? PublicUtilityTypeOther { get; private set; }
 
     // Building Info
-    public string? Decoration { get; private set; }
-    public string? DecorationOther { get; private set; }
-    public int? BuildingYear { get; private set; }
+    public string? DecorationType { get; private set; }
+    public string? DecorationTypeOther { get; private set; }
+    public int? ConstructionYear { get; private set; }
     public int? NumberOfFloors { get; private set; }
-    public string? BuildingForm { get; private set; }
-    public string? ConstMaterial { get; private set; }
+    public string? BuildingFormType { get; private set; }
+    public string? ConstructionMaterialType { get; private set; }
 
     // Layout & Materials
-    public string? RoomLayout { get; private set; }
-    public string? RoomLayoutOther { get; private set; }
-    public string? LocationView { get; private set; }
-    public string? GroundFloorMaterial { get; private set; }
-    public string? GroundFloorMaterialOther { get; private set; }
-    public string? UpperFloorMaterial { get; private set; }
-    public string? UpperFloorMaterialOther { get; private set; }
-    public string? BathroomFloorMaterial { get; private set; }
-    public string? BathroomFloorMaterialOther { get; private set; }
-    public string? Roof { get; private set; }
-    public string? RoofOther { get; private set; }
+    public string? RoomLayoutType { get; private set; }
+    public string? RoomLayoutTypeOther { get; private set; }
+    public List<string>? LocationViewType { get; private set; }
+    public string? GroundFloorMaterialType { get; private set; }
+    public string? GroundFloorMaterialTypeOther { get; private set; }
+    public string? UpperFloorMaterialType { get; private set; }
+    public string? UpperFloorMaterialTypeOther { get; private set; }
+    public string? BathroomFloorMaterialType { get; private set; }
+    public string? BathroomFloorMaterialTypeOther { get; private set; }
+    public string? RoofType { get; private set; }
+    public string? RoofTypeOther { get; private set; }
 
     // Area
     public decimal? TotalBuildingArea { get; private set; }
@@ -79,9 +79,9 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? ForestBoundaryRemark { get; private set; }
 
     // Facilities & Environment
-    public string? CondoFacility { get; private set; }
-    public string? CondoFacilityOther { get; private set; }
-    public string? Environment { get; private set; }
+    public List<string>? FacilityType { get; private set; }
+    public string? FacilityTypeOther { get; private set; }
+    public List<string>? EnvironmentType { get; private set; }
 
     // Pricing
     public decimal? BuildingInsurancePrice { get; private set; }
@@ -115,7 +115,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? buildingNumber = null,
         string? modelName = null,
         string? builtOnTitleNo = null,
-        string? condoRegisNo = null,
+        string? condoRegistrationNo = null,
         string? roomNo = null,
         int? floorNo = null,
         decimal? usableArea = null,
@@ -125,39 +125,39 @@ public class CondoAppraisalDetail : Entity<Guid>
         // Owner
         string? ownerName = null,
         bool? isOwnerVerified = null,
-        string? buildingCondition = null,
+        string? buildingConditionType = null,
         bool? hasObligation = null,
         string? obligationDetails = null,
-        bool? docValidate = null,
+        bool? isDocumentValidated = null,
         // Location Details
-        string? condoLocation = null,
+        string? locationType = null,
         string? street = null,
         string? soi = null,
         decimal? distanceFromMainRoad = null,
         decimal? accessRoadWidth = null,
         string? rightOfWay = null,
         string? roadSurfaceType = null,
-        string? publicUtility = null,
+        List<string>? publicUtility = null,
         string? publicUtilityOther = null,
         // Building Info
-        string? decoration = null,
-        string? decorationOther = null,
-        int? buildingYear = null,
+        string? decorationType = null,
+        string? decorationTypeOther = null,
+        int? constructionYear = null,
         int? numberOfFloors = null,
         string? buildingForm = null,
-        string? constMaterial = null,
+        string? constructionMaterialType = null,
         // Layout & Materials
-        string? roomLayout = null,
-        string? roomLayoutOther = null,
-        string? locationView = null,
+        string? roomLayoutType = null,
+        string? roomLayoutTypeOther = null,
+        List<string>? locationView = null,
         string? groundFloorMaterial = null,
         string? groundFloorMaterialOther = null,
         string? upperFloorMaterial = null,
         string? upperFloorMaterialOther = null,
         string? bathroomFloorMaterial = null,
         string? bathroomFloorMaterialOther = null,
-        string? roof = null,
-        string? roofOther = null,
+        string? roofType = null,
+        string? roofTypeOther = null,
         // Area
         decimal? totalBuildingArea = null,
         // Legal Restrictions
@@ -169,9 +169,9 @@ public class CondoAppraisalDetail : Entity<Guid>
         bool? isForestBoundary = null,
         string? forestBoundaryRemark = null,
         // Facilities & Environment
-        string? condoFacility = null,
-        string? condoFacilityOther = null,
-        string? environment = null,
+        List<string>? facilityType = null,
+        string? facilityTypeOther = null,
+        List<string>? environmentType = null,
         // Pricing
         decimal? buildingInsurancePrice = null,
         decimal? sellingPrice = null,
@@ -184,10 +184,10 @@ public class CondoAppraisalDetail : Entity<Guid>
         if (condoName is not null) CondoName = condoName;
         if (buildingNumber is not null) BuildingNumber = buildingNumber;
         if (modelName is not null) ModelName = modelName;
-        if (builtOnTitleNo is not null) BuiltOnTitleNo = builtOnTitleNo;
-        if (condoRegisNo is not null) CondoRegisNo = condoRegisNo;
-        if (roomNo is not null) RoomNo = roomNo;
-        if (floorNo.HasValue) FloorNo = floorNo.Value;
+        if (builtOnTitleNo is not null) BuiltOnTitleNumber = builtOnTitleNo;
+        if (condoRegistrationNo is not null) CondoRegistrationNumber = condoRegistrationNo;
+        if (roomNo is not null) RoomNumber = roomNo;
+        if (floorNo.HasValue) FloorNumber = floorNo.Value;
         if (usableArea.HasValue) UsableArea = usableArea.Value;
 
         // Value Objects
@@ -197,42 +197,42 @@ public class CondoAppraisalDetail : Entity<Guid>
         // Owner
         if (ownerName is not null) OwnerName = ownerName;
         if (isOwnerVerified.HasValue) IsOwnerVerified = isOwnerVerified.Value;
-        if (buildingCondition is not null) BuildingCondition = buildingCondition;
+        if (buildingConditionType is not null) BuildingConditionType = buildingConditionType;
         if (hasObligation.HasValue) HasObligation = hasObligation.Value;
         if (obligationDetails is not null) ObligationDetails = obligationDetails;
-        if (docValidate.HasValue) DocValidate = docValidate.Value;
+        if (isDocumentValidated.HasValue) IsDocumentValidated = isDocumentValidated.Value;
 
         // Location Details
-        if (condoLocation is not null) CondoLocation = condoLocation;
+        if (locationType is not null) LocationType = locationType;
         if (street is not null) Street = street;
         if (soi is not null) Soi = soi;
         if (distanceFromMainRoad.HasValue) DistanceFromMainRoad = distanceFromMainRoad.Value;
         if (accessRoadWidth.HasValue) AccessRoadWidth = accessRoadWidth.Value;
         if (rightOfWay is not null) RightOfWay = rightOfWay;
         if (roadSurfaceType is not null) RoadSurfaceType = roadSurfaceType;
-        if (publicUtility is not null) PublicUtility = publicUtility;
-        if (publicUtilityOther is not null) PublicUtilityOther = publicUtilityOther;
+        if (publicUtility is not null) PublicUtilityType = publicUtility;
+        if (publicUtilityOther is not null) PublicUtilityTypeOther = publicUtilityOther;
 
         // Building Info
-        if (decoration is not null) Decoration = decoration;
-        if (decorationOther is not null) DecorationOther = decorationOther;
-        if (buildingYear.HasValue) BuildingYear = buildingYear.Value;
+        if (decorationType is not null) DecorationType = decorationType;
+        if (decorationTypeOther is not null) DecorationTypeOther = decorationTypeOther;
+        if (constructionYear.HasValue) ConstructionYear = constructionYear.Value;
         if (numberOfFloors.HasValue) NumberOfFloors = numberOfFloors.Value;
-        if (buildingForm is not null) BuildingForm = buildingForm;
-        if (constMaterial is not null) ConstMaterial = constMaterial;
+        if (buildingForm is not null) BuildingFormType = buildingForm;
+        if (constructionMaterialType is not null) ConstructionMaterialType = constructionMaterialType;
 
         // Layout & Materials
-        if (roomLayout is not null) RoomLayout = roomLayout;
-        if (roomLayoutOther is not null) RoomLayoutOther = roomLayoutOther;
-        if (locationView is not null) LocationView = locationView;
-        if (groundFloorMaterial is not null) GroundFloorMaterial = groundFloorMaterial;
-        if (groundFloorMaterialOther is not null) GroundFloorMaterialOther = groundFloorMaterialOther;
-        if (upperFloorMaterial is not null) UpperFloorMaterial = upperFloorMaterial;
-        if (upperFloorMaterialOther is not null) UpperFloorMaterialOther = upperFloorMaterialOther;
-        if (bathroomFloorMaterial is not null) BathroomFloorMaterial = bathroomFloorMaterial;
-        if (bathroomFloorMaterialOther is not null) BathroomFloorMaterialOther = bathroomFloorMaterialOther;
-        if (roof is not null) Roof = roof;
-        if (roofOther is not null) RoofOther = roofOther;
+        if (roomLayoutType is not null) RoomLayoutType = roomLayoutType;
+        if (roomLayoutTypeOther is not null) RoomLayoutTypeOther = roomLayoutTypeOther;
+        if (locationView is not null) LocationViewType = locationView;
+        if (groundFloorMaterial is not null) GroundFloorMaterialType = groundFloorMaterial;
+        if (groundFloorMaterialOther is not null) GroundFloorMaterialTypeOther = groundFloorMaterialOther;
+        if (upperFloorMaterial is not null) UpperFloorMaterialType = upperFloorMaterial;
+        if (upperFloorMaterialOther is not null) UpperFloorMaterialTypeOther = upperFloorMaterialOther;
+        if (bathroomFloorMaterial is not null) BathroomFloorMaterialType = bathroomFloorMaterial;
+        if (bathroomFloorMaterialOther is not null) BathroomFloorMaterialTypeOther = bathroomFloorMaterialOther;
+        if (roofType is not null) RoofType = roofType;
+        if (roofTypeOther is not null) RoofTypeOther = roofTypeOther;
 
         // Area
         if (totalBuildingArea.HasValue) TotalBuildingArea = totalBuildingArea.Value;
@@ -247,9 +247,9 @@ public class CondoAppraisalDetail : Entity<Guid>
         if (forestBoundaryRemark is not null) ForestBoundaryRemark = forestBoundaryRemark;
 
         // Facilities & Environment
-        if (condoFacility is not null) CondoFacility = condoFacility;
-        if (condoFacilityOther is not null) CondoFacilityOther = condoFacilityOther;
-        if (environment is not null) Environment = environment;
+        if (facilityType is not null) FacilityType = facilityType;
+        if (facilityTypeOther is not null) FacilityTypeOther = facilityTypeOther;
+        if (environmentType is not null) EnvironmentType = environmentType;
 
         // Pricing
         if (buildingInsurancePrice.HasValue) BuildingInsurancePrice = buildingInsurancePrice.Value;

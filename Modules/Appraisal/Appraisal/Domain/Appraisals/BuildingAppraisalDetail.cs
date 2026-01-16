@@ -24,7 +24,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
     public string? ObligationDetails { get; private set; }
 
     // Building Status
-    public string? BuildingCondition { get; private set; }
+    public string? BuildingConditionType { get; private set; }
     public bool IsUnderConstruction { get; private set; }
     public decimal? ConstructionCompletionPercent { get; private set; }
     public DateTime? ConstructionLicenseExpirationDate { get; private set; }
@@ -41,36 +41,36 @@ public class BuildingAppraisalDetail : Entity<Guid>
     public decimal? EncroachmentArea { get; private set; }
 
     // Construction Details
-    public string? BuildingMaterial { get; private set; }
-    public string? BuildingStyle { get; private set; }
+    public string? BuildingMaterialType { get; private set; }
+    public string? BuildingStyleType { get; private set; }
     public bool? IsResidential { get; private set; }
     public int? BuildingAge { get; private set; }
     public int? ConstructionYear { get; private set; }
-    public string? IsResidentialRemark { get; private set; }
+    public string? ResidentialRemark { get; private set; }
     public string? ConstructionStyleType { get; private set; }
     public string? ConstructionStyleRemark { get; private set; }
 
     // Structure Components
-    public string? StructureType { get; private set; }
+    public List<string>? StructureType { get; private set; }
     public string? StructureTypeOther { get; private set; }
-    public string? RoofFrameType { get; private set; }
+    public List<string>? RoofFrameType { get; private set; }
     public string? RoofFrameTypeOther { get; private set; }
-    public string? RoofType { get; private set; }
+    public List<string>? RoofType { get; private set; }
     public string? RoofTypeOther { get; private set; }
-    public string? CeilingType { get; private set; }
+    public List<string>? CeilingType { get; private set; }
     public string? CeilingTypeOther { get; private set; }
-    public string? InteriorWallType { get; private set; }
+    public List<string>? InteriorWallType { get; private set; }
     public string? InteriorWallTypeOther { get; private set; }
-    public string? ExteriorWallType { get; private set; }
+    public List<string>? ExteriorWallType { get; private set; }
     public string? ExteriorWallTypeOther { get; private set; }
-    public string? FenceType { get; private set; }
+    public List<string>? FenceType { get; private set; }
     public string? FenceTypeOther { get; private set; }
     public string? ConstructionType { get; private set; }
     public string? ConstructionTypeOther { get; private set; }
 
     // Utilization
     public string? UtilizationType { get; private set; }
-    public string? OtherPurposeUsage { get; private set; }
+    public string? UtilizationTypeOther { get; private set; }
 
     // Area & Pricing
     public decimal? TotalBuildingArea { get; private set; }
@@ -99,6 +99,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
         };
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public void Update(
         // Property Identification
         string? propertyName = null,
@@ -136,19 +137,19 @@ public class BuildingAppraisalDetail : Entity<Guid>
         string? constructionStyleType = null,
         string? constructionStyleRemark = null,
         // Structure Components
-        string? structureType = null,
+        List<string>? structureType = null,
         string? structureTypeOther = null,
-        string? roofFrameType = null,
+        List<string>? roofFrameType = null,
         string? roofFrameTypeOther = null,
-        string? roofType = null,
+        List<string>? roofType = null,
         string? roofTypeOther = null,
-        string? ceilingType = null,
+        List<string>? ceilingType = null,
         string? ceilingTypeOther = null,
-        string? interiorWallType = null,
+        List<string>? interiorWallType = null,
         string? interiorWallTypeOther = null,
-        string? exteriorWallType = null,
+        List<string>? exteriorWallType = null,
         string? exteriorWallTypeOther = null,
-        string? fenceType = null,
+        List<string>? fenceType = null,
         string? fenceTypeOther = null,
         string? constructionType = null,
         string? constructionTypeOther = null,
@@ -164,66 +165,67 @@ public class BuildingAppraisalDetail : Entity<Guid>
         string? remark = null)
     {
         // Property Identification
-        if (propertyName is not null) PropertyName = propertyName;
-        if (buildingNumber is not null) BuildingNumber = buildingNumber;
-        if (modelName is not null) ModelName = modelName;
-        if (builtOnTitleNumber is not null) BuiltOnTitleNumber = builtOnTitleNumber;
-        if (houseNumber is not null) HouseNumber = houseNumber;
+        PropertyName = propertyName;
+        BuildingNumber = buildingNumber;
+        ModelName = modelName;
+        BuiltOnTitleNumber = builtOnTitleNumber;
+        HouseNumber = houseNumber;
 
         // Owner
-        if (ownerName is not null) OwnerName = ownerName;
+        OwnerName = ownerName;
         if (isOwnerVerified.HasValue) IsOwnerVerified = isOwnerVerified.Value;
         if (hasObligation.HasValue) HasObligation = hasObligation.Value;
-        if (obligationDetails is not null) ObligationDetails = obligationDetails;
+        ObligationDetails = obligationDetails;
 
         // Building Status
-        if (buildingCondition is not null) BuildingCondition = buildingCondition;
+        BuildingConditionType = buildingCondition;
         if (isUnderConstruction.HasValue) IsUnderConstruction = isUnderConstruction.Value;
         if (constructionCompletionPercent.HasValue) ConstructionCompletionPercent = constructionCompletionPercent.Value;
-        if (constructionLicenseExpirationDate.HasValue) ConstructionLicenseExpirationDate = constructionLicenseExpirationDate.Value;
+        if (constructionLicenseExpirationDate.HasValue)
+            ConstructionLicenseExpirationDate = constructionLicenseExpirationDate.Value;
         if (isAppraisable.HasValue) IsAppraisable = isAppraisable.Value;
 
         // Building Info
-        if (buildingType is not null) BuildingType = buildingType;
-        if (buildingTypeOther is not null) BuildingTypeOther = buildingTypeOther;
+        BuildingType = buildingType;
+        BuildingTypeOther = buildingTypeOther;
         if (numberOfFloors.HasValue) NumberOfFloors = numberOfFloors.Value;
-        if (decorationType is not null) DecorationType = decorationType;
-        if (decorationTypeOther is not null) DecorationTypeOther = decorationTypeOther;
+        DecorationType = decorationType;
+        DecorationTypeOther = decorationTypeOther;
         if (isEncroached.HasValue) IsEncroached = isEncroached.Value;
-        if (encroachmentRemark is not null) EncroachmentRemark = encroachmentRemark;
+        EncroachmentRemark = encroachmentRemark;
         if (encroachmentArea.HasValue) EncroachmentArea = encroachmentArea.Value;
 
         // Construction Details
-        if (buildingMaterial is not null) BuildingMaterial = buildingMaterial;
-        if (buildingStyle is not null) BuildingStyle = buildingStyle;
+        BuildingMaterialType = buildingMaterial;
+        BuildingStyleType = buildingStyle;
         if (isResidential.HasValue) IsResidential = isResidential.Value;
         if (buildingAge.HasValue) BuildingAge = buildingAge.Value;
         if (constructionYear.HasValue) ConstructionYear = constructionYear.Value;
-        if (isResidentialRemark is not null) IsResidentialRemark = isResidentialRemark;
-        if (constructionStyleType is not null) ConstructionStyleType = constructionStyleType;
-        if (constructionStyleRemark is not null) ConstructionStyleRemark = constructionStyleRemark;
+        ResidentialRemark = isResidentialRemark;
+        ConstructionStyleType = constructionStyleType;
+        ConstructionStyleRemark = constructionStyleRemark;
 
         // Structure Components
-        if (structureType is not null) StructureType = structureType;
-        if (structureTypeOther is not null) StructureTypeOther = structureTypeOther;
-        if (roofFrameType is not null) RoofFrameType = roofFrameType;
-        if (roofFrameTypeOther is not null) RoofFrameTypeOther = roofFrameTypeOther;
-        if (roofType is not null) RoofType = roofType;
-        if (roofTypeOther is not null) RoofTypeOther = roofTypeOther;
-        if (ceilingType is not null) CeilingType = ceilingType;
-        if (ceilingTypeOther is not null) CeilingTypeOther = ceilingTypeOther;
-        if (interiorWallType is not null) InteriorWallType = interiorWallType;
-        if (interiorWallTypeOther is not null) InteriorWallTypeOther = interiorWallTypeOther;
-        if (exteriorWallType is not null) ExteriorWallType = exteriorWallType;
-        if (exteriorWallTypeOther is not null) ExteriorWallTypeOther = exteriorWallTypeOther;
-        if (fenceType is not null) FenceType = fenceType;
-        if (fenceTypeOther is not null) FenceTypeOther = fenceTypeOther;
-        if (constructionType is not null) ConstructionType = constructionType;
-        if (constructionTypeOther is not null) ConstructionTypeOther = constructionTypeOther;
+        StructureType = structureType;
+        StructureTypeOther = structureTypeOther;
+        RoofFrameType = roofFrameType;
+        RoofFrameTypeOther = roofFrameTypeOther;
+        RoofType = roofType;
+        RoofTypeOther = roofTypeOther;
+        CeilingType = ceilingType;
+        CeilingTypeOther = ceilingTypeOther;
+        InteriorWallType = interiorWallType;
+        InteriorWallTypeOther = interiorWallTypeOther;
+        ExteriorWallType = exteriorWallType;
+        ExteriorWallTypeOther = exteriorWallTypeOther;
+        FenceType = fenceType;
+        FenceTypeOther = fenceTypeOther;
+        ConstructionType = constructionType;
+        ConstructionTypeOther = constructionTypeOther;
 
         // Utilization
-        if (utilizationType is not null) UtilizationType = utilizationType;
-        if (otherPurposeUsage is not null) OtherPurposeUsage = otherPurposeUsage;
+        UtilizationType = utilizationType;
+        UtilizationTypeOther = otherPurposeUsage;
 
         // Area & Pricing
         if (totalBuildingArea.HasValue) TotalBuildingArea = totalBuildingArea.Value;
@@ -232,6 +234,6 @@ public class BuildingAppraisalDetail : Entity<Guid>
         if (forcedSalePrice.HasValue) ForcedSalePrice = forcedSalePrice.Value;
 
         // Other
-        if (remark is not null) Remark = remark;
+        Remark = remark;
     }
 }

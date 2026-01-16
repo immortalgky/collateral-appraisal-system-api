@@ -57,6 +57,7 @@ public class UpdateLandPropertyCommandHandler(
             command.AddressLocation,
             command.LandShapeType,
             command.UrbanPlanningType,
+            command.LandZoneType,
             command.PlotLocationType,
             command.PlotLocationTypeOther,
             command.LandFillType,

@@ -3,7 +3,7 @@ namespace Appraisal.Contracts.Appraisals.Dto;
 public record CondoAppraisalDetailDto(
     long ApprId,
     ObligationDetailDto ObligationDetail,
-    string? DocValidate,
+    string? IsDocumentValidated,
     CondominiumLocationDto CondominiumLocation,
     CondoAttributeDto CondoAttribute,
     ExpropriationDto Expropriation,

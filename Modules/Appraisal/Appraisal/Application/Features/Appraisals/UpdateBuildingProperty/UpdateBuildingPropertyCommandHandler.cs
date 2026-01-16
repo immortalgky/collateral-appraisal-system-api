@@ -1,7 +1,3 @@
-using Appraisal.Domain.Appraisals;
-using Appraisal.Domain.Appraisals.Exceptions;
-using Shared.CQRS;
-
 namespace Appraisal.Application.Features.Appraisals.UpdateBuildingProperty;
 
 /// <summary>
@@ -15,24 +11,19 @@ public class UpdateBuildingPropertyCommandHandler(
         UpdateBuildingPropertyCommand command,
         CancellationToken cancellationToken)
     {
-        // 1. Load aggregate root with properties
         var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(
             command.AppraisalId, cancellationToken)
             ?? throw new AppraisalNotFoundException(command.AppraisalId);
-
-        // 2. Find the property
+        
         var property = appraisal.GetProperty(command.PropertyId)
             ?? throw new PropertyNotFoundException(command.PropertyId);
-
-        // 3. Validate property type
+        
         if (property.PropertyType != PropertyType.Building)
             throw new InvalidOperationException($"Property {command.PropertyId} is not a building property");
-
-        // 4. Get the building detail
+        
         var detail = property.BuildingDetail
             ?? throw new InvalidOperationException($"Building detail not found for property {command.PropertyId}");
 
-        // 5. Update via domain method
         detail.Update(
             propertyName: command.PropertyName,
             buildingNumber: command.BuildingNumber,
@@ -87,9 +78,6 @@ public class UpdateBuildingPropertyCommandHandler(
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark);
-
-        // 6. Save aggregate
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 
         return MediatR.Unit.Value;
     }
