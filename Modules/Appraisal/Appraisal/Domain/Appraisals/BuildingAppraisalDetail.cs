@@ -92,7 +92,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
     {
         return new BuildingAppraisalDetail
         {
-            Id = Guid.NewGuid(),
+            // Id = Guid.NewGuid(),
             AppraisalPropertyId = appraisalPropertyId,
             OwnerName = ownerName,
             IsAppraisable = true

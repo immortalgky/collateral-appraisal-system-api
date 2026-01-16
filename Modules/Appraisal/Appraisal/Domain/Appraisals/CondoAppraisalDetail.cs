@@ -103,7 +103,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     {
         return new CondoAppraisalDetail
         {
-            Id = Guid.NewGuid(),
+            // Id = Guid.NewGuid(),
             AppraisalPropertyId = appraisalPropertyId,
             OwnerName = ownerName
         };

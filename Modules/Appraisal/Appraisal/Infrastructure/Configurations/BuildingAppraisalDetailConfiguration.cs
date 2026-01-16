@@ -88,7 +88,7 @@ public class BuildingAppraisalDetailConfiguration : IEntityTypeConfiguration<Bui
         builder.Property(e => e.FenceTypeOther).HasMaxLength(200);
         builder.Property(e => e.ConstructionType).HasMaxLength(100);
         builder.Property(e => e.ConstructionTypeOther).HasMaxLength(200);
-
+    
         // Utilization
         builder.Property(e => e.UtilizationType).HasMaxLength(100);
         builder.Property(e => e.UtilizationTypeOther).HasMaxLength(200);
