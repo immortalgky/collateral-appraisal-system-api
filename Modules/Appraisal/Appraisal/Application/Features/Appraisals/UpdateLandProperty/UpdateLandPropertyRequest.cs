@@ -22,7 +22,7 @@ public record UpdateLandPropertyRequest(
     string? ObligationDetails = null,
     // Document Verification
     bool? IsLandLocationVerified = null,
-    List<string>? LandCheckMethodType = null,
+    string? LandCheckMethodType = null,
     string? LandCheckMethodTypeOther = null,
     // Location Details
     string? Street = null,
@@ -31,12 +31,13 @@ public record UpdateLandPropertyRequest(
     string? Village = null,
     string? AddressLocation = null,
     // Land Characteristics
-    List<string>? LandShapeType = null,
-    List<string>? UrbanPlanningType = null,
+    string? LandShapeType = null,
+    string? UrbanPlanningType = null,
+    List<string>? LandZoneType = null,
     List<string>? PlotLocationType = null,
     string? PlotLocationTypeOther = null,
-    List<string>? LandFillStatusType = null,
-    string? LandFillStatusTypeOther = null,
+    string? LandFillType = null,
+    string? LandFillTypeOther = null,
     decimal? LandFillPercent = null,
     decimal? SoilLevel = null,
     // Road Access
@@ -45,9 +46,9 @@ public record UpdateLandPropertyRequest(
     decimal? RoadFrontage = null,
     int? NumberOfSidesFacingRoad = null,
     string? RoadPassInFrontOfLand = null,
-    List<string>? LandAccessibilityType = null,
+    string? LandAccessibilityType = null,
     string? LandAccessibilityRemark = null,
-    List<string>? RoadSurfaceType = null,
+    string? RoadSurfaceType = null,
     string? RoadSurfaceTypeOther = null,
     // Utilities & Infrastructure
     bool? HasElectricity = null,
@@ -60,7 +61,7 @@ public record UpdateLandPropertyRequest(
     string? LandEntranceExitTypeOther = null,
     List<string>? TransportationAccessType = null,
     string? TransportationAccessTypeOther = null,
-    List<string>? PropertyAnticipationType = null,
+    string? PropertyAnticipationType = null,
     // Legal Restrictions
     bool? IsExpropriated = null,
     string? ExpropriationRemark = null,
@@ -75,9 +76,9 @@ public record UpdateLandPropertyRequest(
     bool? IsForestBoundary = null,
     string? ForestBoundaryRemark = null,
     string? OtherLegalLimitations = null,
-    List<string>? EvictionStatusType = null,
-    string? EvictionStatusTypeOther = null,
-    List<string>? AllocationStatusType = null,
+    List<string>? EvictionType = null,
+    string? EvictionTypeOther = null,
+    string? AllocationType = null,
     // Adjacent Boundaries
     string? NorthAdjacentArea = null,
     decimal? NorthBoundaryLength = null,
