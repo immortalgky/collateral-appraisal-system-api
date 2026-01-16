@@ -48,6 +48,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     // Building Info
     public string? DecorationType { get; private set; }
     public string? DecorationTypeOther { get; private set; }
+    public int? BuildingAge { get; private set; }
     public int? ConstructionYear { get; private set; }
     public int? NumberOfFloors { get; private set; }
     public string? BuildingFormType { get; private set; }
@@ -142,6 +143,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         // Building Info
         string? decorationType = null,
         string? decorationTypeOther = null,
+        int? buildingAge = null,
         int? constructionYear = null,
         int? numberOfFloors = null,
         string? buildingForm = null,
@@ -216,6 +218,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         // Building Info
         if (decorationType is not null) DecorationType = decorationType;
         if (decorationTypeOther is not null) DecorationTypeOther = decorationTypeOther;
+        if (buildingAge.HasValue) BuildingAge = buildingAge.Value;
         if (constructionYear.HasValue) ConstructionYear = constructionYear.Value;
         if (numberOfFloors.HasValue) NumberOfFloors = numberOfFloors.Value;
         if (buildingForm is not null) BuildingFormType = buildingForm;

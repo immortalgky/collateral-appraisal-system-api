@@ -48,6 +48,7 @@ public record CreateCondoPropertyCommand(
     // Building Info
     string? DecorationType = null,
     string? DecorationTypeOther = null,
+    int? BuildingAge = null,
     int? ConstructionYear = null,
     int? NumberOfFloors = null,
     string? BuildingForm = null,

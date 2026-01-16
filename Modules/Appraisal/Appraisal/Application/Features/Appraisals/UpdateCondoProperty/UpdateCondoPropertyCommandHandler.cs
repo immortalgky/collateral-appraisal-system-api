@@ -20,7 +20,7 @@ public class UpdateCondoPropertyCommandHandler(
         var property = appraisal.GetProperty(command.PropertyId)
             ?? throw new PropertyNotFoundException(command.PropertyId);
 
-        // 3. Validate property type
+        // 3. Validate a property type
         if (property.PropertyType != PropertyType.Condo)
             throw new InvalidOperationException($"Property {command.PropertyId} is not a condo property");
 
@@ -76,6 +76,7 @@ public class UpdateCondoPropertyCommandHandler(
             publicUtilityOther: command.PublicUtilityOther,
             decorationType: command.DecorationType,
             decorationTypeOther: command.DecorationTypeOther,
+            buildingAge: command.BuildingAge,
             constructionYear: command.ConstructionYear,
             numberOfFloors: command.NumberOfFloors,
             buildingForm: command.BuildingForm,
