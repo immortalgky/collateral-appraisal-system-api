@@ -56,9 +56,9 @@ Content-Type: application/json
   "numberOfFloors": 2,
   "decorationType": "Modern",
   "decorationTypeOther": null,
-  "isEncroached": false,
-  "encroachmentRemark": null,
-  "encroachmentArea": null,
+  "isEncroachingOthers": false,
+  "encroachingOthersRemark": null,
+  "encroachingOthersArea": null,
 
   "buildingMaterial": "Concrete",
   "buildingStyle": "Contemporary",

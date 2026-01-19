@@ -121,9 +121,9 @@ public class BuildingAppraisalDetail : Entity<Guid>
         decimal? numberOfFloors = null,
         string? decorationType = null,
         string? decorationTypeOther = null,
-        bool? isEncroached = null,
-        string? encroachmentRemark = null,
-        decimal? encroachmentArea = null,
+        bool? isEncroachingOthers = null,
+        string? encroachingOthersRemark = null,
+        decimal? encroachingOthersArea = null,
         // Construction Details
         string? buildingMaterial = null,
         string? buildingStyle = null,
@@ -188,9 +188,9 @@ public class BuildingAppraisalDetail : Entity<Guid>
         NumberOfFloors = numberOfFloors;
         DecorationType = decorationType;
         DecorationTypeOther = decorationTypeOther;
-        IsEncroachingOthers = isEncroached;
-        EncroachingOthersRemark = encroachmentRemark;
-        EncroachingOthersArea = encroachmentArea;
+        IsEncroachingOthers = isEncroachingOthers;
+        EncroachingOthersRemark = encroachingOthersRemark;
+        EncroachingOthersArea = encroachingOthersArea;
 
         // Construction Details
         BuildingMaterialType = buildingMaterial;

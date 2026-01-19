@@ -27,9 +27,9 @@ public record UpdateBuildingPropertyRequest(
     int? NumberOfFloors = null,
     string? DecorationType = null,
     string? DecorationTypeOther = null,
-    bool? IsEncroached = null,
-    string? EncroachmentRemark = null,
-    decimal? EncroachmentArea = null,
+    bool? IsEncroachingOthers = null,
+    string? EncroachingOthersRemark = null,
+    decimal? EncroachingOthersArea = null,
     // Construction Details
     string? BuildingMaterial = null,
     string? BuildingStyle = null,
