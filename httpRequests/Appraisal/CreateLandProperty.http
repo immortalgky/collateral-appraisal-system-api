@@ -1,4 +1,4 @@
-@appraisalId = 52567F75-5C68-44F7-8D62-9D4D2E5F00C4
+@appraisalId = 3E4F242D-6A81-4C57-A720-D8F0423CB509
 
 ### ===========================================
 ### Create Land Property - Minimal (Required Only)
@@ -55,7 +55,7 @@ Content-Type: application/json
   "obligationDetails": null,
 
   "isLandLocationVerified": true,
-  "landCheckMethodType": ["GPS", "Survey"],
+  "landCheckMethodType": "Rawang",
   "landCheckMethodTypeOther": null,
 
   "street": "Sukhumvit Road",
@@ -64,36 +64,37 @@ Content-Type: application/json
   "village": "Green Valley",
   "addressLocation": "Near main intersection",
 
-  "landShapeType": ["Rectangular"],
-  "urbanPlanningType": ["Residential"],
-  "plotLocationType": ["Corner"],
+  "landShapeType": "Rectangular",
+  "urbanPlanningType": "Residential",
+  "landZoneType": ["Yellow", "Orange"],
+  "plotLocationType": ["Corner", "FrontRoad"],
   "plotLocationTypeOther": null,
-  "landFillStatusType": ["Filled"],
-  "landFillStatusTypeOther": null,
+  "landFillType": "Filled",
+  "landFillTypeOther": null,
   "landFillPercent": 100,
   "soilLevel": 1.5,
 
   "accessRoadWidth": 6.0,
-  "rightOfWay": 4.0,
+  "rightOfWay": 4,
   "roadFrontage": 20.0,
   "numberOfSidesFacingRoad": 2,
   "roadPassInFrontOfLand": "Public road",
-  "landAccessibilityType": ["PublicRoad", "Alley"],
+  "landAccessibilityType": "PublicRoad",
   "landAccessibilityRemark": "Easy access from main road",
-  "roadSurfaceType": ["Asphalt", "Concrete"],
+  "roadSurfaceType": "Asphalt",
   "roadSurfaceTypeOther": null,
 
   "hasElectricity": true,
   "electricityDistance": 0,
   "publicUtilityType": ["Water", "Electricity", "Internet"],
   "publicUtilityTypeOther": null,
-  "landUseType": ["Residential"],
+  "landUseType": ["Residential", "Commercial"],
   "landUseTypeOther": null,
-  "landEntranceExitType": ["Main"],
+  "landEntranceExitType": ["MainGate", "SideGate"],
   "landEntranceExitTypeOther": null,
   "transportationAccessType": ["Car", "Motorcycle"],
   "transportationAccessTypeOther": null,
-  "propertyAnticipationType": ["Residential"],
+  "propertyAnticipationType": "Residential",
 
   "isExpropriated": false,
   "expropriationRemark": null,
@@ -108,9 +109,9 @@ Content-Type: application/json
   "isForestBoundary": false,
   "forestBoundaryRemark": null,
   "otherLegalLimitations": null,
-  "evictionStatusType": null,
-  "evictionStatusTypeOther": null,
-  "allocationStatusType": null,
+  "evictionType": ["None"],
+  "evictionTypeOther": null,
+  "allocationType": "Private",
 
   "northAdjacentArea": "Residential land - Lot 41",
   "northBoundaryLength": 40.0,
@@ -161,8 +162,8 @@ Content-Type: application/json
   "forestBoundaryRemark": "Adjacent to protected forest reserve",
   "otherLegalLimitations": "Building height restriction applies",
 
-  "evictionStatusType": ["None"],
-  "allocationStatusType": ["Private"],
+  "evictionType": ["None"],
+  "allocationType": "Private",
 
   "remark": "Requires resolution of encroachment before sale"
 }

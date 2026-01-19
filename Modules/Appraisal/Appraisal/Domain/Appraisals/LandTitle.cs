@@ -5,109 +5,89 @@ namespace Appraisal.Domain.Appraisals;
 /// </summary>
 public class LandTitle : Entity<Guid>
 {
-    public Guid AppraisalPropertyId { get; private set; }
-
-    // Sequence
-    public int SequenceNumber { get; private set; }
+    public Guid LandAppraisalDetailId { get; private set; }
 
     // Title Deed Info
-    public string TitleDeedNumber { get; private set; } = null!; // โฉนดเลขที่
-    public string? BookNumber { get; private set; } // เล่ม
-    public string? PageNumber { get; private set; } // หน้า
-    public string? LandNumber { get; private set; } // เลขที่ดิน
-    public string? SurveyNumber { get; private set; } // หน้าสำรวจ
-    public string? SheetNumber { get; private set; } // ระวาง
-
-    // Document Type
-    public string DocumentType { get; private set; } = null!; // Chanote, NorSor3Gor, NorSor3
-    public string? Rawang { get; private set; } // ระวาง
-    public string? AerialPhotoNumber { get; private set; }
-    public string? AerialPhotoName { get; private set; }
+    public string TitleDeedNumber { get; private set; } = default!;
+    public string TitleDeedType { get; private set; } = default!;
+    public string? BookNumber { get; private set; }
+    public string? PageNumber { get; private set; }
+    public string? LandParcelNumber { get; private set; }
+    public string? SurveyNumber { get; private set; }
+    public string? MapSheetNumber { get; private set; }
+    public string? Rawang { get; private set; }
+    public string? AerialMapName { get; private set; }
+    public string? AerialMapNumber { get; private set; }
 
     // Area (Thai units)
-    public int? AreaRai { get; private set; } // ไร่
-    public int? AreaNgan { get; private set; } // งาน
-    public decimal? AreaSquareWa { get; private set; } // ตารางวา
-    public decimal? TotalAreaInSquareWa { get; private set; } // Total in sq.wa (calculated)
+    public LandArea? Area { get; private set; }
 
     // Boundary & Validation
-    public string? BoundaryMarker { get; private set; } // หลักเขต
-    public string? BoundaryMarkerOther { get; private set; }
-    public string? DocumentValidation { get; private set; } // Valid, Invalid, Pending
-    public bool IsMissedOutSurvey { get; private set; } // ตกสำรวจ
+    public bool? HasBoundaryMarker { get; private set; }
+    public string? BoundaryMarkerRemark { get; private set; }
+    public bool? IsDocumentValidated { get; private set; }
+    public bool? IsMissingFromSurvey { get; private set; }
 
     // Pricing
-    public decimal? PricePerSquareWa { get; private set; } // Market price per sq.wa
-    public decimal? GovernmentPrice { get; private set; } // ราคาประเมินกรมที่ดิน
+    public decimal? GovernmentPricePerSqWa { get; private set; }
+    public decimal? GovernmentPrice { get; private set; }
 
     // Remarks
-    public string? Remarks { get; private set; }
+    public string? Remark { get; private set; }
 
     private LandTitle()
     {
+        // For EF Core
     }
 
     public static LandTitle Create(
-        Guid appraisalPropertyId,
-        int sequenceNumber,
+        Guid landAppraisalDetailId,
         string titleDeedNumber,
-        string documentType)
+        string titleDeedType)
     {
         return new LandTitle
         {
-            Id = Guid.NewGuid(),
-            AppraisalPropertyId = appraisalPropertyId,
-            SequenceNumber = sequenceNumber,
+            LandAppraisalDetailId = landAppraisalDetailId,
             TitleDeedNumber = titleDeedNumber,
-            DocumentType = documentType,
-            IsMissedOutSurvey = false
+            TitleDeedType = titleDeedType
         };
     }
 
-    public void SetDocumentInfo(
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    public void Update(
         string? bookNumber,
         string? pageNumber,
-        string? landNumber,
+        string? landParcelNumber,
         string? surveyNumber,
-        string? sheetNumber)
+        string? mapSheetNumber,
+        string? rawang,
+        string? aerialMapName,
+        string? aerialMapNumber,
+        LandArea? area,
+        bool? hasBoundaryMarker,
+        string? boundaryMarkerRemark,
+        bool? isDocumentValidated,
+        bool? isMissingFromSurvey,
+        decimal? governmentPricePerSqWa,
+        decimal? governmentPrice,
+        string? remark
+    )
     {
         BookNumber = bookNumber;
         PageNumber = pageNumber;
-        LandNumber = landNumber;
+        LandParcelNumber = landParcelNumber;
         SurveyNumber = surveyNumber;
-        SheetNumber = sheetNumber;
-    }
-
-    public void SetArea(int? rai, int? ngan, decimal? squareWa)
-    {
-        AreaRai = rai;
-        AreaNgan = ngan;
-        AreaSquareWa = squareWa;
-
-        // Calculate total in square wa: 1 rai = 400 sq.wa, 1 ngan = 100 sq.wa
-        TotalAreaInSquareWa = (rai ?? 0) * 400 + (ngan ?? 0) * 100 + (squareWa ?? 0);
-    }
-
-    public void SetBoundary(string? marker, string? markerOther)
-    {
-        BoundaryMarker = marker;
-        BoundaryMarkerOther = markerOther;
-    }
-
-    public void SetValidation(string? validation, bool isMissedOutSurvey = false)
-    {
-        DocumentValidation = validation;
-        IsMissedOutSurvey = isMissedOutSurvey;
-    }
-
-    public void SetPricing(decimal? pricePerSquareWa, decimal? governmentPrice)
-    {
-        PricePerSquareWa = pricePerSquareWa;
+        MapSheetNumber = mapSheetNumber;
+        Rawang = rawang;
+        AerialMapName = aerialMapName;
+        AerialMapNumber = aerialMapNumber;
+        Area = area;
+        HasBoundaryMarker = hasBoundaryMarker;
+        BoundaryMarkerRemark = boundaryMarkerRemark;
+        IsDocumentValidated = isDocumentValidated;
+        IsMissingFromSurvey = isMissingFromSurvey;
+        GovernmentPricePerSqWa = governmentPricePerSqWa;
         GovernmentPrice = governmentPrice;
-    }
-
-    public void SetRemarks(string? remarks)
-    {
-        Remarks = remarks;
+        Remark = remark;
     }
 }

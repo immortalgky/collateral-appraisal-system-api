@@ -44,7 +44,7 @@ public record CreateLandPropertyRequest(
     decimal? SoilLevel = null,
     // Road Access
     decimal? AccessRoadWidth = null,
-    decimal? RightOfWay = null,
+    short? RightOfWay = null,
     decimal? RoadFrontage = null,
     int? NumberOfSidesFacingRoad = null,
     string? RoadPassInFrontOfLand = null,

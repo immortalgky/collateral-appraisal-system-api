@@ -112,7 +112,7 @@ public class Appraisal : Aggregate<Guid>
         var sequenceNumber = _properties.Count + 1;
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Land, description);
 
-        var landDetail = LandAppraisalDetail.Create(property.Id, owner, Guid.Empty);
+        var landDetail = LandAppraisalDetail.Create(property.Id);
         property.SetLandDetail(landDetail);
 
         _properties.Add(property);
@@ -130,7 +130,7 @@ public class Appraisal : Aggregate<Guid>
         var sequenceNumber = _properties.Count + 1;
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Building, description);
 
-        var buildingDetail = BuildingAppraisalDetail.Create(property.Id, owner, Guid.Empty);
+        var buildingDetail = BuildingAppraisalDetail.Create(property.Id);
         property.SetBuildingDetail(buildingDetail);
 
         _properties.Add(property);
@@ -148,7 +148,7 @@ public class Appraisal : Aggregate<Guid>
         var sequenceNumber = _properties.Count + 1;
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Condo, description);
 
-        var condoDetail = CondoAppraisalDetail.Create(property.Id, owner, Guid.Empty);
+        var condoDetail = CondoAppraisalDetail.Create(property.Id);
         property.SetCondoDetail(condoDetail);
 
         _properties.Add(property);
@@ -157,9 +157,11 @@ public class Appraisal : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Add a land and building property with detail to this appraisal
+    /// Add a land and building property with details to this appraisal.
+    /// Creates both LandAppraisalDetail and BuildingAppraisalDetail linked to the same AppraisalProperty.
     /// </summary>
-    public AppraisalProperty AddLandAndBuildingProperty(string ownerName, string ownershipType, string? description = null)
+    public AppraisalProperty AddLandAndBuildingProperty(string ownerName, string ownershipType,
+        string? description = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerName);
         ArgumentException.ThrowIfNullOrWhiteSpace(ownershipType);
@@ -167,8 +169,10 @@ public class Appraisal : Aggregate<Guid>
         var sequenceNumber = _properties.Count + 1;
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LandAndBuilding, description);
 
-        var landAndBuildingDetail = LandAndBuildingAppraisalDetail.Create(property.Id, ownerName, ownershipType, Guid.Empty);
-        property.SetLandAndBuildingDetail(landAndBuildingDetail);
+        // Create both detail records linked to the same property
+        var landDetail = LandAppraisalDetail.Create(property.Id);
+        var buildingDetail = BuildingAppraisalDetail.Create(property.Id);
+        property.SetLandAndBuildingDetails(landDetail, buildingDetail);
 
         _properties.Add(property);
 

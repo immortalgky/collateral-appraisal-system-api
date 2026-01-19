@@ -12,11 +12,11 @@ public class AppraisalProperty : Entity<Guid>
     public PropertyType PropertyType { get; private set; } = null!;
     public string? Description { get; private set; }
 
-    // Navigation Properties - 1:1 with detail tables (only one will be populated based on PropertyType)
+    // Navigation Properties - 1:1 with detail tables (based on PropertyType)
+    // For LandAndBuilding type, BOTH LandDetail AND BuildingDetail are populated
     public LandAppraisalDetail? LandDetail { get; private set; }
     public BuildingAppraisalDetail? BuildingDetail { get; private set; }
     public CondoAppraisalDetail? CondoDetail { get; private set; }
-    public LandAndBuildingAppraisalDetail? LandAndBuildingDetail { get; private set; }
     public VehicleAppraisalDetail? VehicleDetail { get; private set; }
     public VesselAppraisalDetail? VesselDetail { get; private set; }
     public MachineryAppraisalDetail? MachineryDetail { get; private set; }
@@ -72,22 +72,22 @@ public class AppraisalProperty : Entity<Guid>
     #region Set Detail Methods
 
     /// <summary>
-    /// Set the land detail for this property
+    /// Set the land detail for this property (Land or LandAndBuilding)
     /// </summary>
     public void SetLandDetail(LandAppraisalDetail detail)
     {
-        if (PropertyType != PropertyType.Land)
+        if (PropertyType != PropertyType.Land && PropertyType != PropertyType.LandAndBuilding)
             throw new InvalidOperationException($"Cannot set land detail for property type '{PropertyType}'");
 
         LandDetail = detail;
     }
 
     /// <summary>
-    /// Set the building detail for this property
+    /// Set the building detail for this property (Building or LandAndBuilding)
     /// </summary>
     public void SetBuildingDetail(BuildingAppraisalDetail detail)
     {
-        if (PropertyType != PropertyType.Building)
+        if (PropertyType != PropertyType.Building && PropertyType != PropertyType.LandAndBuilding)
             throw new InvalidOperationException($"Cannot set building detail for property type '{PropertyType}'");
 
         BuildingDetail = detail;
@@ -105,14 +105,15 @@ public class AppraisalProperty : Entity<Guid>
     }
 
     /// <summary>
-    /// Set the land and building detail for this property
+    /// Set both land and building details for LandAndBuilding property type
     /// </summary>
-    public void SetLandAndBuildingDetail(LandAndBuildingAppraisalDetail detail)
+    public void SetLandAndBuildingDetails(LandAppraisalDetail landDetail, BuildingAppraisalDetail buildingDetail)
     {
         if (PropertyType != PropertyType.LandAndBuilding)
-            throw new InvalidOperationException($"Cannot set land and building detail for property type '{PropertyType}'");
+            throw new InvalidOperationException($"Cannot set land and building details for property type '{PropertyType}'");
 
-        LandAndBuildingDetail = detail;
+        LandDetail = landDetail;
+        BuildingDetail = buildingDetail;
     }
 
     /// <summary>

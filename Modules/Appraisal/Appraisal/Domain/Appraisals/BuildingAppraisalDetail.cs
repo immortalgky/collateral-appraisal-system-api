@@ -18,27 +18,27 @@ public class BuildingAppraisalDetail : Entity<Guid>
     public string? HouseNumber { get; private set; }
 
     // Owner
-    public string OwnerName { get; private set; } = null!;
-    public bool IsOwnerVerified { get; private set; }
-    public bool HasObligation { get; private set; }
+    public string? OwnerName { get; private set; }
+    public bool? IsOwnerVerified { get; private set; }
+    public bool? HasObligation { get; private set; }
     public string? ObligationDetails { get; private set; }
 
     // Building Status
     public string? BuildingConditionType { get; private set; }
-    public bool IsUnderConstruction { get; private set; }
+    public bool? IsUnderConstruction { get; private set; }
     public decimal? ConstructionCompletionPercent { get; private set; }
     public DateTime? ConstructionLicenseExpirationDate { get; private set; }
-    public bool IsAppraisable { get; private set; } = true;
+    public bool? IsAppraisable { get; private set; } = true;
 
     // Building Info
     public string? BuildingType { get; private set; }
     public string? BuildingTypeOther { get; private set; }
-    public int? NumberOfFloors { get; private set; }
+    public decimal? NumberOfFloors { get; private set; }
     public string? DecorationType { get; private set; }
     public string? DecorationTypeOther { get; private set; }
-    public bool IsEncroached { get; private set; }
-    public string? EncroachmentRemark { get; private set; }
-    public decimal? EncroachmentArea { get; private set; }
+    public bool? IsEncroachingOthers { get; private set; }
+    public string? EncroachingOthersRemark { get; private set; }
+    public decimal? EncroachingOthersArea { get; private set; }
 
     // Construction Details
     public string? BuildingMaterialType { get; private set; }
@@ -72,8 +72,10 @@ public class BuildingAppraisalDetail : Entity<Guid>
     public string? UtilizationType { get; private set; }
     public string? UtilizationTypeOther { get; private set; }
 
-    // Area & Pricing
+    // Area
     public decimal? TotalBuildingArea { get; private set; }
+
+    // Pricing
     public decimal? BuildingInsurancePrice { get; private set; }
     public decimal? SellingPrice { get; private set; }
     public decimal? ForcedSalePrice { get; private set; }
@@ -83,19 +85,14 @@ public class BuildingAppraisalDetail : Entity<Guid>
 
     private BuildingAppraisalDetail()
     {
+        // For EF Core
     }
 
-    public static BuildingAppraisalDetail Create(
-        Guid appraisalPropertyId,
-        string ownerName,
-        Guid createdBy)
+    public static BuildingAppraisalDetail Create(Guid appraisalPropertyId)
     {
         return new BuildingAppraisalDetail
         {
-            Id = Guid.NewGuid(),
-            AppraisalPropertyId = appraisalPropertyId,
-            OwnerName = ownerName,
-            IsAppraisable = true
+            AppraisalPropertyId = appraisalPropertyId
         };
     }
 
@@ -121,7 +118,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
         // Building Info
         string? buildingType = null,
         string? buildingTypeOther = null,
-        int? numberOfFloors = null,
+        decimal? numberOfFloors = null,
         string? decorationType = null,
         string? decorationTypeOther = null,
         bool? isEncroached = null,
@@ -173,34 +170,34 @@ public class BuildingAppraisalDetail : Entity<Guid>
 
         // Owner
         OwnerName = ownerName;
-        if (isOwnerVerified.HasValue) IsOwnerVerified = isOwnerVerified.Value;
-        if (hasObligation.HasValue) HasObligation = hasObligation.Value;
+        IsOwnerVerified = isOwnerVerified;
+        HasObligation = hasObligation;
         ObligationDetails = obligationDetails;
 
         // Building Status
         BuildingConditionType = buildingCondition;
-        if (isUnderConstruction.HasValue) IsUnderConstruction = isUnderConstruction.Value;
-        if (constructionCompletionPercent.HasValue) ConstructionCompletionPercent = constructionCompletionPercent.Value;
-        if (constructionLicenseExpirationDate.HasValue)
-            ConstructionLicenseExpirationDate = constructionLicenseExpirationDate.Value;
-        if (isAppraisable.HasValue) IsAppraisable = isAppraisable.Value;
+        IsUnderConstruction = isUnderConstruction;
+        ConstructionCompletionPercent = constructionCompletionPercent;
+
+        ConstructionLicenseExpirationDate = constructionLicenseExpirationDate;
+        IsAppraisable = isAppraisable;
 
         // Building Info
         BuildingType = buildingType;
         BuildingTypeOther = buildingTypeOther;
-        if (numberOfFloors.HasValue) NumberOfFloors = numberOfFloors.Value;
+        NumberOfFloors = numberOfFloors;
         DecorationType = decorationType;
         DecorationTypeOther = decorationTypeOther;
-        if (isEncroached.HasValue) IsEncroached = isEncroached.Value;
-        EncroachmentRemark = encroachmentRemark;
-        if (encroachmentArea.HasValue) EncroachmentArea = encroachmentArea.Value;
+        IsEncroachingOthers = isEncroached;
+        EncroachingOthersRemark = encroachmentRemark;
+        EncroachingOthersArea = encroachmentArea;
 
         // Construction Details
         BuildingMaterialType = buildingMaterial;
         BuildingStyleType = buildingStyle;
-        if (isResidential.HasValue) IsResidential = isResidential.Value;
-        if (buildingAge.HasValue) BuildingAge = buildingAge.Value;
-        if (constructionYear.HasValue) ConstructionYear = constructionYear.Value;
+        IsResidential = isResidential;
+        BuildingAge = buildingAge;
+        ConstructionYear = constructionYear;
         ResidentialRemark = isResidentialRemark;
         ConstructionStyleType = constructionStyleType;
         ConstructionStyleRemark = constructionStyleRemark;
@@ -228,10 +225,10 @@ public class BuildingAppraisalDetail : Entity<Guid>
         UtilizationTypeOther = otherPurposeUsage;
 
         // Area & Pricing
-        if (totalBuildingArea.HasValue) TotalBuildingArea = totalBuildingArea.Value;
-        if (buildingInsurancePrice.HasValue) BuildingInsurancePrice = buildingInsurancePrice.Value;
-        if (sellingPrice.HasValue) SellingPrice = sellingPrice.Value;
-        if (forcedSalePrice.HasValue) ForcedSalePrice = forcedSalePrice.Value;
+        TotalBuildingArea = totalBuildingArea;
+        BuildingInsurancePrice = buildingInsurancePrice;
+        SellingPrice = sellingPrice;
+        ForcedSalePrice = forcedSalePrice;
 
         // Other
         Remark = remark;

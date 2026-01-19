@@ -1,0 +1,235 @@
+@appraisalId = 3E4F242D-6A81-4C57-A720-D8F0423CB509
+
+### ===========================================
+### Create Condo Property - Minimal (Required Only)
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/condo-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe"
+}
+
+### ===========================================
+### Create Condo Property - Basic Info
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/condo-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe",
+  "description": "High-rise condominium unit with city view",
+  "propertyName": "The Parkview Residence Unit A1205",
+  "condoName": "The Parkview Residence",
+  "buildingNumber": "A",
+  "roomNo": "1205",
+  "floorNo": 12,
+  "usableArea": 45.5,
+  "latitude": 13.7563,
+  "longitude": 100.5018,
+  "subDistrict": "100101",
+  "district": "1001",
+  "province": "10",
+  "landOffice": "Bangkok Land Office"
+}
+
+### ===========================================
+### Create Condo Property - Full Details
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/condo-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe",
+  "description": "Luxury high-rise condominium with premium facilities",
+  "propertyName": "The Parkview Residence Unit A1205",
+  "condoName": "The Parkview Residence",
+  "buildingNumber": "A",
+  "modelName": "Type B - 1 Bedroom Plus",
+  "builtOnTitleNo": "NS-3 No.12345",
+  "condoRegistrationNo": "CONDO-2020-12345",
+  "roomNo": "1205",
+  "floorNo": 12,
+  "usableArea": 45.5,
+
+  "latitude": 13.7563,
+  "longitude": 100.5018,
+
+  "subDistrict": "100101",
+  "district": "1001",
+  "province": "10",
+  "landOffice": "Bangkok Land Office",
+
+  "isOwnerVerified": true,
+  "buildingConditionType": "Good",
+  "hasObligation": false,
+  "obligationDetails": null,
+  "isDocumentValidated": true,
+
+  "locationType": "HighRise",
+  "street": "Sukhumvit Road",
+  "soi": "Soi 24",
+  "distanceFromMainRoad": 100.0,
+  "accessRoadWidth": 12.0,
+  "rightOfWay": 4,
+  "roadSurfaceType": "Asphalt",
+  "publicUtility": ["Water", "Electricity", "Internet", "Gas"],
+  "publicUtilityOther": null,
+
+  "decorationType": "Modern",
+  "decorationTypeOther": null,
+  "buildingAge": 3,
+  "constructionYear": 2022,
+  "numberOfFloors": 35,
+  "buildingForm": "HighRise",
+  "constructionMaterialType": "ReinforcedConcrete",
+
+  "roomLayoutType": "1BedroomPlus",
+  "roomLayoutTypeOther": null,
+  "locationView": ["CityView", "ParkView"],
+  "groundFloorMaterial": "Tile",
+  "groundFloorMaterialOther": null,
+  "upperFloorMaterial": "Tile",
+  "upperFloorMaterialOther": null,
+  "bathroomFloorMaterial": "Tile",
+  "bathroomFloorMaterialOther": null,
+  "roofType": "Concrete",
+  "roofTypeOther": null,
+
+  "totalBuildingArea": 45.5,
+
+  "isExpropriated": false,
+  "expropriationRemark": null,
+  "isInExpropriationLine": false,
+  "expropriationLineRemark": null,
+  "royalDecree": null,
+  "isForestBoundary": false,
+  "forestBoundaryRemark": null,
+
+  "facilityType": ["SwimmingPool", "Gym", "Garden", "Parking", "Security"],
+  "facilityTypeOther": null,
+  "environmentType": ["Park", "ShoppingMall", "Hospital", "School"],
+
+  "buildingInsurancePrice": 2000000.00,
+  "sellingPrice": 5500000.00,
+  "forcedSalePrice": 4500000.00,
+
+  "remark": "Premium corner unit with unobstructed view"
+}
+
+### ===========================================
+### Create Condo Property - Studio
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/condo-properties
+Content-Type: application/json
+
+{
+  "ownerName": "Jane Smith",
+  "condoName": "Metro Living",
+  "buildingNumber": "B",
+  "roomNo": "512",
+  "floorNo": 5,
+  "usableArea": 28.0,
+
+  "latitude": 13.7480,
+  "longitude": 100.5420,
+
+  "subDistrict": "100102",
+  "district": "1001",
+  "province": "10",
+
+  "isOwnerVerified": true,
+  "buildingConditionType": "Good",
+  "isDocumentValidated": true,
+
+  "locationType": "MidRise",
+  "decorationType": "Standard",
+  "buildingAge": 8,
+  "constructionYear": 2017,
+  "numberOfFloors": 15,
+
+  "roomLayoutType": "Studio",
+  "locationView": ["CityView"],
+  "groundFloorMaterial": "Laminate",
+  "bathroomFloorMaterial": "Tile",
+
+  "totalBuildingArea": 28.0,
+
+  "facilityType": ["SwimmingPool", "Gym", "Parking"],
+
+  "buildingInsurancePrice": 800000.00,
+  "sellingPrice": 1800000.00,
+  "forcedSalePrice": 1400000.00,
+
+  "remark": "Cozy studio near BTS station"
+}
+
+### ===========================================
+### Create Condo Property - Penthouse
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/condo-properties
+Content-Type: application/json
+
+{
+  "ownerName": "Premium Holdings Co., Ltd.",
+  "condoName": "The Ritz-Carlton Residences",
+  "buildingNumber": "Tower 1",
+  "modelName": "Penthouse Type P1",
+  "condoRegistrationNo": "RITZ-PH-001",
+  "roomNo": "PH-01",
+  "floorNo": 50,
+  "usableArea": 450.0,
+
+  "latitude": 13.7230,
+  "longitude": 100.5390,
+
+  "subDistrict": "100103",
+  "district": "1001",
+  "province": "10",
+  "landOffice": "Bangkok Central Land Office",
+
+  "isOwnerVerified": true,
+  "buildingConditionType": "Excellent",
+  "hasObligation": true,
+  "obligationDetails": "Mortgage with Premium Bank",
+  "isDocumentValidated": true,
+
+  "locationType": "SuperHighRise",
+  "street": "Sathorn Road",
+  "accessRoadWidth": 20.0,
+  "rightOfWay": 6,
+  "roadSurfaceType": "Asphalt",
+  "publicUtility": ["Water", "Electricity", "Internet", "Gas", "CentralAir"],
+  "publicUtilityOther": "Private elevator",
+
+  "decorationType": "Luxury",
+  "buildingAge": 2,
+  "constructionYear": 2023,
+  "numberOfFloors": 52,
+  "buildingForm": "SuperHighRise",
+  "constructionMaterialType": "ReinforcedConcrete",
+
+  "roomLayoutType": "Penthouse",
+  "roomLayoutTypeOther": "Duplex with private pool",
+  "locationView": ["360DegreeView", "RiverView", "CityView"],
+  "groundFloorMaterial": "Marble",
+  "upperFloorMaterial": "Marble",
+  "bathroomFloorMaterial": "Marble",
+  "roofType": "Concrete",
+
+  "totalBuildingArea": 450.0,
+
+  "isExpropriated": false,
+  "isInExpropriationLine": false,
+  "isForestBoundary": false,
+
+  "facilityType": ["PrivatePool", "PrivateGym", "PrivateElevator", "Concierge", "Helipad"],
+  "facilityTypeOther": "Wine cellar, Private cinema",
+  "environmentType": ["RiverView", "CBD", "Embassy"],
+
+  "buildingInsurancePrice": 100000000.00,
+  "sellingPrice": 350000000.00,
+  "forcedSalePrice": 280000000.00,
+
+  "remark": "Ultra-luxury penthouse with world-class amenities"
+}

@@ -29,12 +29,13 @@ public class BuildingAppraisalDetailConfiguration : IEntityTypeConfiguration<Bui
         builder.Property(e => e.ConstructionCompletionPercent).HasPrecision(5, 2);
 
         // Building Info
+        builder.Property(e => e.NumberOfFloors).HasPrecision(5, 2);
         builder.Property(e => e.BuildingType).HasMaxLength(100);
         builder.Property(e => e.BuildingTypeOther).HasMaxLength(200);
         builder.Property(e => e.DecorationType).HasMaxLength(100);
         builder.Property(e => e.DecorationTypeOther).HasMaxLength(200);
-        builder.Property(e => e.EncroachmentRemark).HasMaxLength(500);
-        builder.Property(e => e.EncroachmentArea).HasPrecision(18, 4);
+        builder.Property(e => e.EncroachingOthersRemark).HasMaxLength(500);
+        builder.Property(e => e.EncroachingOthersArea).HasPrecision(18, 4);
 
         // Construction Details
         builder.Property(e => e.BuildingMaterialType).HasMaxLength(100);

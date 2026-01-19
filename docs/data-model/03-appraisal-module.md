@@ -2832,70 +2832,70 @@ CREATE TABLE appraisal.BuildingAppraisalDetails
 
     -- Property Identification (from CollateralBuilding)
     PropertyName            NVARCHAR(200) NULL,                      -- Property name for identification
-    BuildingNo              NVARCHAR(50) NULL,                       -- Building number in project
+    BuildingNumber          NVARCHAR(50) NULL,                       -- Building number in project
     ModelName               NVARCHAR(100) NULL,                      -- Model/design name
-    BuiltOnTitleNo          NVARCHAR(100) NULL,                      -- Land title number it's built on
-
-    -- Owner
-    Owner                   NVARCHAR(200) NOT NULL,
-    VerifiableOwner         BIT NOT NULL DEFAULT 0,
+    BuiltOnTitleNumber      NVARCHAR(100) NULL,                      -- Land title number it's built on
     HouseNumber             NVARCHAR(50) NULL,
-
+    
+    -- Owner
+    OwnerName               NVARCHAR(200) NOT NULL,
+    IsOwnerVerified         BIT NOT NULL DEFAULT 0,
+    HasObligation           BIT NOT NULL DEFAULT 0,
+    ObligationDetails       NVARCHAR(500) NULL,
+    
     -- Building Status
-    BuildingCondition       NVARCHAR(50) NULL,                       -- Excellent, Good, Fair, Poor
-    UnderConstruction       BIT NOT NULL DEFAULT 0,
-    ConstCompletionPct      DECIMAL(5,2) NULL,
-    LicenseExpirationDate   DATE NULL,
-    IsAppraise              BIT NOT NULL DEFAULT 1,
-    IsObligation            BIT NOT NULL DEFAULT 0,
-    Obligation              NVARCHAR(500) NULL,
-
+    BuildingConditionType   NVARCHAR(50) NULL,                       -- Excellent, Good, Fair, Poor
+    IsUnderConstruction     BIT NOT NULL DEFAULT 0,
+    ConstructionCompletionPercent DECIMAL(5,2) NULL,
+    ConstructionLicenseExpirationDate DATE NULL,
+    IsAppraisable           BIT NOT NULL DEFAULT 1,
+    
     -- Building Info
     BuildingType            NVARCHAR(100) NULL,                      -- House, Commercial, Factory, Others
     BuildingTypeOther       NVARCHAR(200) NULL,
     NumberOfFloors          INT NULL,                                -- Number of floors in building
-    Decoration              NVARCHAR(100) NULL,
-    DecorationOther         NVARCHAR(200) NULL,
+    DecorationType          NVARCHAR(100) NULL,
+    DecorationTypeOther     NVARCHAR(200) NULL,
     IsEncroached            BIT NOT NULL DEFAULT 0,
-    IsEncroachedRemark      NVARCHAR(500) NULL,
-    EncroachArea            DECIMAL(18,4) NULL,
+    EncroachmentRemark      NVARCHAR(500) NULL,
+    EncroachmentArea        DECIMAL(18,4) NULL,
 
     -- Construction Details
-    BuildingMaterial        NVARCHAR(100) NULL,
-    BuildingStyle           NVARCHAR(100) NULL,
+    BuildingMaterialType    NVARCHAR(100) NULL,
+    BuildingStyleType       NVARCHAR(100) NULL,
     IsResidential           BIT NOT NULL DEFAULT 0,
-    BuildingYear            INT NULL,
-    IsResidentialRemark     NVARCHAR(200) NULL,                      -- Source for age estimation/residential status remark
-    ConstStyle              NVARCHAR(100) NULL,
-    ConstStyleRemark        NVARCHAR(500) NULL,
+    BuildingAge             INT NULL,
+    ResidentialRemark       NVARCHAR(200) NULL,                      -- Source for age estimation/residential status remark
+    ConstructionStyleType   NVARCHAR(100) NULL,
+    ConstructionStyleRemark NVARCHAR(500) NULL,
 
     -- Structure Components
-    GeneralStructure        NVARCHAR(100) NULL,
-    GeneralStructureOther   NVARCHAR(200) NULL,
-    RoofFrame               NVARCHAR(100) NULL,
-    RoofFrameOther          NVARCHAR(200) NULL,
-    Roof                    NVARCHAR(100) NULL,
-    RoofOther               NVARCHAR(200) NULL,
-    Ceiling                 NVARCHAR(100) NULL,
-    CeilingOther            NVARCHAR(200) NULL,
-    InteriorWall            NVARCHAR(100) NULL,
-    InteriorWallOther       NVARCHAR(200) NULL,
-    ExteriorWall            NVARCHAR(100) NULL,
-    ExteriorWallOther       NVARCHAR(200) NULL,
-    Fence                   NVARCHAR(100) NULL,
-    FenceOther              NVARCHAR(200) NULL,
-    ConstType               NVARCHAR(100) NULL,
-    ConstTypeOther          NVARCHAR(200) NULL,
+    StructureType           NVARCHAR(100) NULL,
+    StructureTypeOther      NVARCHAR(200) NULL,
+    RoofFrameType           NVARCHAR(100) NULL,
+    RoofFrameTypeOther      NVARCHAR(200) NULL,
+    RoofType                NVARCHAR(100) NULL,
+    RoofTypeOther           NVARCHAR(200) NULL,
+    CeilingType             NVARCHAR(100) NULL,
+    CeilingTypeOther        NVARCHAR(200) NULL,
+    InteriorWallType        NVARCHAR(100) NULL,
+    InteriorWallTypeOther   NVARCHAR(200) NULL,
+    ExteriorWallType        NVARCHAR(100) NULL,
+    ExteriorWallTypeOther   NVARCHAR(200) NULL,
+    FenceType               NVARCHAR(100) NULL,
+    FenceTypeOther          NVARCHAR(200) NULL,
+    ConstructionType        NVARCHAR(100) NULL,
+    ConstructionTypeOther   NVARCHAR(200) NULL,
 
     -- Utilization
-    Utilization             NVARCHAR(200) NULL,
-    UtilizationOther        NVARCHAR(200) NULL,
+    UtilizationType         NVARCHAR(200) NULL,
+    UtilizationTypeOther    NVARCHAR(200) NULL,
 
     -- Area & Pricing
-    BuildingArea            DECIMAL(18,4) NULL,
+    TotalBuildingArea       DECIMAL(18,4) NULL,
     BuildingInsurancePrice  DECIMAL(18,2) NULL,
     SellingPrice            DECIMAL(18,2) NULL,
-    ForceSellingPrice       DECIMAL(18,2) NULL,
+    ForcedSalePrice         DECIMAL(18,2) NULL,
 
     -- Other
     Remark                  NVARCHAR(MAX) NULL,
@@ -2926,12 +2926,12 @@ CREATE TABLE appraisal.CondoAppraisalDetails
     -- Property Identification (from CollateralCondo)
     PropertyName            NVARCHAR(200) NULL,                      -- Property name for identification
     CondoName               NVARCHAR(200) NULL,                      -- Condominium project name
-    BuildingNo              NVARCHAR(50) NULL,                       -- Building number in project
+    BuildingNumber          NVARCHAR(50) NULL,                       -- Building number in project
     ModelName               NVARCHAR(100) NULL,                      -- Unit model/type
-    BuiltOnTitleNo          NVARCHAR(100) NULL,                      -- Land title reference
-    CondoRegisNo            NVARCHAR(100) NULL,                      -- Condo registration number
-    RoomNo                  NVARCHAR(50) NULL,                       -- Room/unit number
-    FloorNo                 INT NULL,                                -- Floor number
+    BuiltOnTitleNumber      NVARCHAR(100) NULL,                      -- Land title reference
+    CondoRegistrationNumber NVARCHAR(100) NULL,                      -- Condo registration number
+    RoomNumber              NVARCHAR(50) NULL,                       -- Room/unit number
+    FloorNumber             INT NULL,                                -- Floor number
     UsableArea              DECIMAL(18,4) NULL,                      -- Usable area (sq.m)
 
     -- GPS Coordinates (from CollateralCondo)
@@ -2945,66 +2945,67 @@ CREATE TABLE appraisal.CondoAppraisalDetails
     LandOffice              NVARCHAR(200) NULL,                      -- สำนักงานที่ดิน
 
     -- Owner
-    Owner                   NVARCHAR(200) NOT NULL,
-    VerifiableOwner         BIT NOT NULL DEFAULT 0,
-    CondoCondition          NVARCHAR(50) NULL,                       -- Excellent, Good, Fair, Poor
-    IsObligation            BIT NOT NULL DEFAULT 0,
-    Obligation              NVARCHAR(500) NULL,
-    DocValidate             BIT NOT NULL DEFAULT 0,
+    OwnerName               NVARCHAR(200) NOT NULL,
+    IsOwnerVerified         BIT NOT NULL DEFAULT 0,
+    BuildingConditionType   NVARCHAR(50) NULL,                       -- Excellent, Good, Fair, Poor
+    HasObligation           BIT NOT NULL DEFAULT 0,
+    ObligationDetails       NVARCHAR(500) NULL,
+    IsDocumentValidated     BIT NOT NULL DEFAULT 0,
 
     -- Location Details
-    CondoLocation           NVARCHAR(200) NULL,
+    LocationType            NVARCHAR(200) NULL,
     Street                  NVARCHAR(200) NULL,
     Soi                     NVARCHAR(100) NULL,
-    Distance                DECIMAL(10,2) NULL,
-    RoadWidth               DECIMAL(10,2) NULL,
+    DistanceFromMainRoad    DECIMAL(10,2) NULL,
+    AccessRoadWidth         DECIMAL(10,2) NULL,
     RightOfWay              NVARCHAR(100) NULL,
-    RoadSurface             NVARCHAR(100) NULL,
-    PublicUtility           NVARCHAR(200) NULL,
-    PublicUtilityOther      NVARCHAR(200) NULL,
+    RoadSurfaceType         NVARCHAR(100) NULL,
+    PublicUtilityType       NVARCHAR(200) NULL,
+    PublicUtilityTypeOther  NVARCHAR(200) NULL,
 
     -- Building Info
-    Decoration              NVARCHAR(100) NULL,
-    DecorationOther         NVARCHAR(200) NULL,
-    BuildingYear            INT NULL,
+    DecorationType          NVARCHAR(100) NULL,
+    DecorationTypeOther     NVARCHAR(200) NULL,
+    BuildingAge             INT NULL,
+    ConstructionYear        INT NULL,
     NumberOfFloors          INT NULL,                                -- Number of floors in condo building
-    BuildingForm            NVARCHAR(100) NULL,
-    ConstMaterial           NVARCHAR(100) NULL,
+    BuildingFormType        NVARCHAR(100) NULL,
+    ConstructionMaterialType NVARCHAR(100) NULL,
 
     -- Layout & Materials
-    RoomLayout              NVARCHAR(100) NULL,
-    RoomLayoutOther         NVARCHAR(200) NULL,
-    LocationView            NVARCHAR(200) NULL,
-    GroundFloorMaterial     NVARCHAR(100) NULL,
-    GroundFloorMaterialOther NVARCHAR(200) NULL,
-    UpperFloorMaterial      NVARCHAR(100) NULL,
-    UpperFloorMaterialOther NVARCHAR(200) NULL,
-    BathroomFloorMaterial   NVARCHAR(100) NULL,
-    BathroomFloorMaterialOther NVARCHAR(200) NULL,
-    Roof                    NVARCHAR(100) NULL,
-    RoofOther               NVARCHAR(200) NULL,
+    RoomLayoutType          NVARCHAR(100) NULL,
+    RoomLayoutTypeOther     NVARCHAR(200) NULL,
+    LocationViewType        NVARCHAR(200) NULL,
+    GroundFloorMaterialType NVARCHAR(100) NULL,
+    GroundFloorMaterialTypeOther NVARCHAR(200) NULL,
+    UpperFloorMaterialType  NVARCHAR(100) NULL,
+    UpperFloorMaterialTypeOther NVARCHAR(200) NULL,
+    BathroomFloorMaterialType NVARCHAR(100) NULL,
+    BathroomFloorMaterialTypeOther NVARCHAR(200) NULL,
+    RoofType                NVARCHAR(100) NULL,
+    RoofTypeOther           NVARCHAR(200) NULL,
 
     -- Area
-    TotalAreaInSqM          DECIMAL(18,4) NULL,
+    TotalBuildingArea       DECIMAL(18,4) NULL,
 
     -- Legal Restrictions
-    IsExpropriate           BIT NOT NULL DEFAULT 0,
-    IsExpropriateRemark     NVARCHAR(500) NULL,
-    InLineExpropriate       BIT NOT NULL DEFAULT 0,
-    InLineExpropriateRemark NVARCHAR(500) NULL,
+    IsExpropriated          BIT NOT NULL DEFAULT 0,
+    ExpropriationRemark     NVARCHAR(500) NULL,
+    IsInExpropriationLine   BIT NOT NULL DEFAULT 0,
+    ExpropriationLineRemark NVARCHAR(500) NULL,
     RoyalDecree             NVARCHAR(200) NULL,
     IsForestBoundary        BIT NOT NULL DEFAULT 0,
-    IsForestBoundaryRemark  NVARCHAR(500) NULL,
+    ForestBoundaryRemark    NVARCHAR(500) NULL,
 
     -- Facilities & Environment
-    CondoFacility           NVARCHAR(500) NULL,
-    CondoFacilityOther      NVARCHAR(200) NULL,
-    Environment             NVARCHAR(500) NULL,
+    FacilityType            NVARCHAR(500) NULL,
+    FacilityTypeOther       NVARCHAR(200) NULL,
+    EnvironmentType         NVARCHAR(500) NULL,
 
     -- Pricing
     BuildingInsurancePrice  DECIMAL(18,2) NULL,
     SellingPrice            DECIMAL(18,2) NULL,
-    ForceSellingPrice       DECIMAL(18,2) NULL,
+    ForcedSalePrice         DECIMAL(18,2) NULL,
 
     -- Other
     Remark                  NVARCHAR(MAX) NULL,
@@ -3382,7 +3383,7 @@ CREATE TABLE appraisal.LandTitles
     SequenceNumber          INT NOT NULL,                            -- 1, 2, 3... within same collateral
 
     -- Title Deed Info
-    TitleDeedNumber         NVARCHAR(100) NOT NULL,                  -- โฉนดเลขที่
+    TitleNumber             NVARCHAR(100) NOT NULL,                  -- โฉนดเลขที่
     BookNumber              NVARCHAR(50) NULL,                       -- เล่ม
     PageNumber              NVARCHAR(50) NULL,                       -- หน้า
     LandNumber              NVARCHAR(50) NULL,                       -- เลขที่ดิน

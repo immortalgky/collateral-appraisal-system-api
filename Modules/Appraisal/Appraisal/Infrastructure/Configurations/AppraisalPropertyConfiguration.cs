@@ -45,5 +45,37 @@ public class AppraisalPropertyConfiguration : IEntityTypeConfiguration<Appraisal
         builder.HasIndex(c => c.AppraisalId);
         builder.HasIndex(c => new { c.AppraisalId, c.SequenceNumber })
             .IsUnique();
+
+        // Relationships with Detail entities (1:1)
+        // For LandAndBuilding type, both LandDetail AND BuildingDetail are populated
+        builder.HasOne(p => p.LandDetail)
+            .WithOne()
+            .HasForeignKey<LandAppraisalDetail>(d => d.AppraisalPropertyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(p => p.BuildingDetail)
+            .WithOne()
+            .HasForeignKey<BuildingAppraisalDetail>(d => d.AppraisalPropertyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(p => p.CondoDetail)
+            .WithOne()
+            .HasForeignKey<CondoAppraisalDetail>(d => d.AppraisalPropertyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(p => p.VehicleDetail)
+            .WithOne()
+            .HasForeignKey<VehicleAppraisalDetail>(d => d.AppraisalPropertyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(p => p.VesselDetail)
+            .WithOne()
+            .HasForeignKey<VesselAppraisalDetail>(d => d.AppraisalPropertyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(p => p.MachineryDetail)
+            .WithOne()
+            .HasForeignKey<MachineryAppraisalDetail>(d => d.AppraisalPropertyId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

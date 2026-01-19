@@ -1,6 +1,3 @@
-using Appraisal.Application.Configurations;
-using Shared.CQRS;
-
 namespace Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 
 /// <summary>
@@ -37,7 +34,7 @@ public record UpdateLandAndBuildingPropertyCommand(
     decimal? Ngan = null,
     decimal? SquareWa = null,
     // Land - Document Verification
-    string? LandLocationVerification = null,
+    bool? IsLandLocationVerified = null,
     string? LandCheckMethod = null,
     string? LandCheckMethodOther = null,
     // Land - Location Details
@@ -49,21 +46,21 @@ public record UpdateLandAndBuildingPropertyCommand(
     // Land - Characteristics
     string? LandShape = null,
     string? UrbanPlanningType = null,
-    string? PlotLocation = null,
-    string? PlotLocationOther = null,
+    List<string>? PlotLocationType = null,
+    string? PlotLocationTypeOther = null,
     string? LandFillStatus = null,
     string? LandFillStatusOther = null,
     decimal? LandFillPercent = null,
     string? TerrainType = null,
     string? SoilCondition = null,
-    string? SoilLevel = null,
+    decimal? SoilLevel = null,
     string? FloodRisk = null,
     string? LandUseZoning = null,
     string? LandUseZoningOther = null,
     // Land - Road Access
     string? AccessRoadType = null,
     decimal? AccessRoadWidth = null,
-    string? RightOfWay = null,
+    short? RightOfWay = null,
     decimal? RoadFrontage = null,
     int? NumberOfSidesFacingRoad = null,
     string? RoadPassInFrontOfLand = null,
@@ -76,12 +73,12 @@ public record UpdateLandAndBuildingPropertyCommand(
     decimal? ElectricityDistance = null,
     bool? WaterSupplyAvailable = null,
     bool? SewerageAvailable = null,
-    string? PublicUtilities = null,
-    string? PublicUtilitiesOther = null,
-    string? LandEntranceExit = null,
-    string? LandEntranceExitOther = null,
-    string? TransportationAccess = null,
-    string? TransportationAccessOther = null,
+    List<string>? PublicUtility = null,
+    string? PublicUtilityOther = null,
+    List<string>? LandEntranceExitType = null,
+    string? LandEntranceExitTypeOther = null,
+    List<string>? TransportationAccessType = null,
+    string? TransportationAccessTypeOther = null,
     string? PropertyAnticipation = null,
     // Land - Legal
     bool? IsExpropriated = null,
@@ -97,8 +94,8 @@ public record UpdateLandAndBuildingPropertyCommand(
     bool? IsForestBoundary = null,
     string? ForestBoundaryRemark = null,
     string? OtherLegalLimitations = null,
-    string? EvictionStatus = null,
-    string? EvictionStatusOther = null,
+    List<string>? EvictionType = null,
+    string? EvictionTypeOther = null,
     string? AllocationStatus = null,
     // Land - Boundaries
     string? NorthAdjacentArea = null,
@@ -150,23 +147,23 @@ public record UpdateLandAndBuildingPropertyCommand(
     string? ConstructionType = null,
     string? ConstructionTypeOther = null,
     // Building - Components
-    string? StructureType = null,
+    List<string>? StructureType = null,
     string? StructureTypeOther = null,
     string? FoundationType = null,
-    string? RoofFrameType = null,
+    List<string>? RoofFrameType = null,
     string? RoofFrameTypeOther = null,
-    string? RoofType = null,
+    List<string>? RoofType = null,
     string? RoofTypeOther = null,
     string? RoofMaterial = null,
-    string? CeilingType = null,
+    List<string>? CeilingType = null,
     string? CeilingTypeOther = null,
-    string? InteriorWallType = null,
+    List<string>? InteriorWallType = null,
     string? InteriorWallTypeOther = null,
-    string? ExteriorWallType = null,
+    List<string>? ExteriorWallType = null,
     string? ExteriorWallTypeOther = null,
     string? WallMaterial = null,
     string? FloorMaterial = null,
-    string? FenceType = null,
+    List<string>? FenceType = null,
     string? FenceTypeOther = null,
     // Building - Decoration
     string? DecorationType = null,

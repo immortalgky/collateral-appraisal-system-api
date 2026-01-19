@@ -1,43 +1,6 @@
 namespace Appraisal.Infrastructure.Configurations;
 
-public class LandTitleConfiguration : IEntityTypeConfiguration<LandTitle>
-{
-    public void Configure(EntityTypeBuilder<LandTitle> builder)
-    {
-        builder.ToTable("LandTitles");
-
-        builder.HasKey(t => t.Id);
-        builder.Property(t => t.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
-
-        builder.Property(t => t.AppraisalPropertyId).IsRequired();
-        builder.Property(t => t.SequenceNumber).IsRequired();
-
-        builder.Property(t => t.TitleDeedNumber).IsRequired().HasMaxLength(100);
-        builder.Property(t => t.BookNumber).HasMaxLength(50);
-        builder.Property(t => t.PageNumber).HasMaxLength(50);
-        builder.Property(t => t.LandNumber).HasMaxLength(50);
-        builder.Property(t => t.SurveyNumber).HasMaxLength(50);
-        builder.Property(t => t.SheetNumber).HasMaxLength(50);
-
-        builder.Property(t => t.DocumentType).IsRequired().HasMaxLength(50);
-        builder.Property(t => t.Rawang).HasMaxLength(100);
-        builder.Property(t => t.AerialPhotoNumber).HasMaxLength(100);
-        builder.Property(t => t.AerialPhotoName).HasMaxLength(200);
-
-        builder.Property(t => t.AreaSquareWa).HasPrecision(10, 2);
-        builder.Property(t => t.TotalAreaInSquareWa).HasPrecision(18, 2);
-
-        builder.Property(t => t.BoundaryMarker).HasMaxLength(50);
-        builder.Property(t => t.BoundaryMarkerOther).HasMaxLength(200);
-        builder.Property(t => t.DocumentValidation).HasMaxLength(50);
-
-        builder.Property(t => t.PricePerSquareWa).HasPrecision(18, 2);
-        builder.Property(t => t.GovernmentPrice).HasPrecision(18, 2);
-
-        builder.HasIndex(t => t.AppraisalPropertyId);
-        builder.HasIndex(t => new { t.AppraisalPropertyId, t.SequenceNumber }).IsUnique();
-    }
-}
+// LandTitleConfiguration removed - now configured via OwnsMany in LandAppraisalDetailConfiguration
 
 public class BuildingDepreciationDetailConfiguration : IEntityTypeConfiguration<BuildingDepreciationDetail>
 {

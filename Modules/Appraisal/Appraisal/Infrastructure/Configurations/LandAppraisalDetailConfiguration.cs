@@ -34,7 +34,7 @@ public class LandAppraisalDetailConfiguration : IEntityTypeConfiguration<LandApp
         });
 
         // Owner
-        builder.Property(e => e.OwnerName).HasMaxLength(200);
+        builder.Property(e => e.OwnerName).IsRequired().HasMaxLength(200);
         builder.Property(e => e.ObligationDetails).HasMaxLength(500);
 
         // Document Verification
@@ -72,7 +72,7 @@ public class LandAppraisalDetailConfiguration : IEntityTypeConfiguration<LandApp
 
         // Road Access
         builder.Property(e => e.AccessRoadWidth).HasPrecision(10, 2);
-        builder.Property(e => e.RightOfWay).HasPrecision(10, 2);
+        // RightOfWay is short (smallint) - no precision needed
         builder.Property(e => e.RoadFrontage).HasPrecision(10, 2);
         builder.Property(e => e.RoadPassInFrontOfLand).HasMaxLength(200);
 
@@ -115,13 +115,13 @@ public class LandAppraisalDetailConfiguration : IEntityTypeConfiguration<LandApp
         // Legal Restrictions
         builder.Property(e => e.ExpropriationRemark).HasMaxLength(500);
         builder.Property(e => e.ExpropriationLineRemark).HasMaxLength(500);
-        builder.Property(e => e.RoyalDecree).HasMaxLength(200);
+        builder.Property(e => e.RoyalDecree).HasMaxLength(500);
         builder.Property(e => e.EncroachmentRemark).HasMaxLength(500);
         builder.Property(e => e.EncroachmentArea).HasPrecision(18, 4);
         builder.Property(e => e.ElectricityDistance).HasPrecision(10, 2);
         builder.Property(e => e.LandlockedRemark).HasMaxLength(500);
         builder.Property(e => e.ForestBoundaryRemark).HasMaxLength(500);
-        builder.Property(e => e.OtherLegalLimitations).HasMaxLength(500);
+        builder.Property(e => e.OtherLegalLimitations).HasMaxLength(1000);
 
         builder.Property(e => e.EvictionType)
             .HasConversion(
@@ -149,5 +149,44 @@ public class LandAppraisalDetailConfiguration : IEntityTypeConfiguration<LandApp
 
         // Relationship - FK to AppraisalProperty (1:1)
         builder.Property(e => e.AppraisalPropertyId).IsRequired();
+
+        // LandTitles - Owned collection (multiple title deeds per land)
+        builder.OwnsMany(e => e.Titles, title =>
+        {
+            title.ToTable("LandTitles", "appraisal");
+            title.WithOwner().HasForeignKey(t => t.LandAppraisalDetailId);
+            title.HasKey(t => t.Id);
+            title.Property(t => t.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+            // Title Deed Info
+            title.Property(t => t.TitleDeedNumber).IsRequired().HasMaxLength(100);
+            title.Property(t => t.TitleDeedType).IsRequired().HasMaxLength(50);
+            title.Property(t => t.BookNumber).HasMaxLength(50);
+            title.Property(t => t.PageNumber).HasMaxLength(50);
+            title.Property(t => t.LandParcelNumber).HasMaxLength(50);
+            title.Property(t => t.SurveyNumber).HasMaxLength(50);
+            title.Property(t => t.MapSheetNumber).HasMaxLength(50);
+            title.Property(t => t.Rawang).HasMaxLength(100);
+            title.Property(t => t.AerialMapName).HasMaxLength(200);
+            title.Property(t => t.AerialMapNumber).HasMaxLength(100);
+
+            // Area (Value Object)
+            title.OwnsOne(t => t.Area, area =>
+            {
+                area.Property(a => a.Rai).HasColumnName("AreaRai").HasPrecision(10, 2);
+                area.Property(a => a.Ngan).HasColumnName("AreaNgan").HasPrecision(10, 2);
+                area.Property(a => a.SquareWa).HasColumnName("AreaSquareWa").HasPrecision(10, 2);
+            });
+
+            // Boundary & Validation
+            title.Property(t => t.BoundaryMarkerRemark).HasMaxLength(500);
+            title.Property(t => t.Remark).HasMaxLength(1000);
+
+            // Pricing
+            title.Property(t => t.GovernmentPricePerSqWa).HasPrecision(18, 2);
+            title.Property(t => t.GovernmentPrice).HasPrecision(18, 2);
+
+            title.HasIndex(t => t.LandAppraisalDetailId);
+        });
     }
 }

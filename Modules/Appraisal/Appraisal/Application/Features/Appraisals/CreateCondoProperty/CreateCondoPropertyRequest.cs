@@ -37,13 +37,15 @@ public record CreateCondoPropertyRequest(
     string? Soi = null,
     decimal? DistanceFromMainRoad = null,
     decimal? AccessRoadWidth = null,
-    string? RightOfWay = null,
+    short? RightOfWay = null,
     string? RoadSurfaceType = null,
-    string? PublicUtility = null,
+    string? RoadSurfaceTypeOther = null,
+    List<string>? PublicUtility = null,
     string? PublicUtilityOther = null,
     // Building Info
     string? DecorationType = null,
     string? DecorationTypeOther = null,
+    int? BuildingAge = null,
     int? ConstructionYear = null,
     int? NumberOfFloors = null,
     string? BuildingForm = null,
@@ -51,7 +53,7 @@ public record CreateCondoPropertyRequest(
     // Layout & Materials
     string? RoomLayoutType = null,
     string? RoomLayoutTypeOther = null,
-    string? LocationView = null,
+    List<string>? LocationView = null,
     string? GroundFloorMaterial = null,
     string? GroundFloorMaterialOther = null,
     string? UpperFloorMaterial = null,
@@ -71,9 +73,9 @@ public record CreateCondoPropertyRequest(
     bool? IsForestBoundary = null,
     string? ForestBoundaryRemark = null,
     // Facilities & Environment
-    string? FacilityType = null,
+    List<string>? FacilityType = null,
     string? FacilityTypeOther = null,
-    string? EnvironmentType = null,
+    List<string>? EnvironmentType = null,
     // Pricing
     decimal? BuildingInsurancePrice = null,
     decimal? SellingPrice = null,

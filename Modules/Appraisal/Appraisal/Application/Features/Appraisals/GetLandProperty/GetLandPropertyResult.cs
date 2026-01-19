@@ -57,7 +57,7 @@ public record GetLandPropertyResult
     
     // Road Access
     public decimal? AccessRoadWidth { get; init; }
-    public decimal? RightOfWay { get; init; }
+    public short? RightOfWay { get; init; }
     public decimal? RoadFrontage { get; init; }
     public int? NumberOfSidesFacingRoad { get; init; }
     public string? RoadPassInFrontOfLand { get; init; }

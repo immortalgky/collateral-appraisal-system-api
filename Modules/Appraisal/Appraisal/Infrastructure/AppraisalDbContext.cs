@@ -23,10 +23,6 @@ public class AppraisalDbContext : DbContext
     public DbSet<LandAppraisalDetail> LandAppraisalDetails => Set<LandAppraisalDetail>();
     public DbSet<BuildingAppraisalDetail> BuildingAppraisalDetails => Set<BuildingAppraisalDetail>();
     public DbSet<CondoAppraisalDetail> CondoAppraisalDetails => Set<CondoAppraisalDetail>();
-
-    public DbSet<LandAndBuildingAppraisalDetail> LandAndBuildingAppraisalDetails =>
-        Set<LandAndBuildingAppraisalDetail>();
-
     public DbSet<VehicleAppraisalDetail> VehicleAppraisalDetails => Set<VehicleAppraisalDetail>();
     public DbSet<VesselAppraisalDetail> VesselAppraisalDetails => Set<VesselAppraisalDetail>();
     public DbSet<MachineryAppraisalDetail> MachineryAppraisalDetails => Set<MachineryAppraisalDetail>();

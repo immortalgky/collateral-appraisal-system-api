@@ -14,28 +14,28 @@ public class GetBuildingPropertyQueryHandler(
         var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(
                             query.AppraisalId, cancellationToken)
                         ?? throw new AppraisalNotFoundException(query.AppraisalId);
-        
+
         var property = appraisal.GetProperty(query.PropertyId)
                        ?? throw new PropertyNotFoundException(query.PropertyId);
 
         if (property.PropertyType != PropertyType.Building)
             throw new InvalidOperationException($"Property {query.PropertyId} is not a building property");
-        
+
         var detail = property.BuildingDetail
                      ?? throw new InvalidOperationException(
                          $"Building detail not found for property {query.PropertyId}");
-        
+
         return new GetBuildingPropertyResult(
-            PropertyId: property.Id,
-            AppraisalId: property.AppraisalId,
-            SequenceNumber: property.SequenceNumber,
-            PropertyType: property.PropertyType.ToString(),
-            Description: property.Description,
-            DetailId: detail.Id,
-            PropertyName: detail.PropertyName,
-            BuildingNumber: detail.BuildingNumber,
-            ModelName: detail.ModelName,
-            BuiltOnTitleNumber: detail.BuiltOnTitleNumber,
+            property.Id,
+            property.AppraisalId,
+            property.SequenceNumber,
+            property.PropertyType.ToString(),
+            property.Description,
+            detail.Id,
+            detail.PropertyName,
+            detail.BuildingNumber,
+            detail.ModelName,
+            detail.BuiltOnTitleNumber,
             HouseNumber: detail.HouseNumber,
             OwnerName: detail.OwnerName,
             IsOwnerVerified: detail.IsOwnerVerified,
@@ -51,9 +51,9 @@ public class GetBuildingPropertyQueryHandler(
             NumberOfFloors: detail.NumberOfFloors,
             DecorationType: detail.DecorationType,
             DecorationTypeOther: detail.DecorationTypeOther,
-            IsEncroached: detail.IsEncroached,
-            EncroachmentRemark: detail.EncroachmentRemark,
-            EncroachmentArea: detail.EncroachmentArea,
+            IsEncroached: detail.IsEncroachingOthers,
+            EncroachmentRemark: detail.EncroachingOthersRemark,
+            EncroachmentArea: detail.EncroachingOthersArea,
             BuildingMaterial: detail.BuildingMaterialType,
             BuildingStyle: detail.BuildingStyleType,
             IsResidential: detail.IsResidential ?? false,

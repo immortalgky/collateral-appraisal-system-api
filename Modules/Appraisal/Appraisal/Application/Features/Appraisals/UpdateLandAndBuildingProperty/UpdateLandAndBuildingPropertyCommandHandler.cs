@@ -1,7 +1,3 @@
-using Appraisal.Domain.Appraisals;
-using Appraisal.Domain.Appraisals.Exceptions;
-using Shared.CQRS;
-
 namespace Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 
 /// <summary>
@@ -11,26 +7,30 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
     IAppraisalRepository appraisalRepository
 ) : ICommandHandler<UpdateLandAndBuildingPropertyCommand>
 {
-    public async Task<MediatR.Unit> Handle(
+    public async Task<Unit> Handle(
         UpdateLandAndBuildingPropertyCommand command,
         CancellationToken cancellationToken)
     {
         // 1. Load aggregate root with properties
         var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(
-            command.AppraisalId, cancellationToken)
-            ?? throw new AppraisalNotFoundException(command.AppraisalId);
+                            command.AppraisalId, cancellationToken)
+                        ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
         // 2. Find the property
         var property = appraisal.GetProperty(command.PropertyId)
-            ?? throw new PropertyNotFoundException(command.PropertyId);
+                       ?? throw new PropertyNotFoundException(command.PropertyId);
 
         // 3. Validate property type
         if (property.PropertyType != PropertyType.LandAndBuilding)
             throw new InvalidOperationException($"Property {command.PropertyId} is not a land and building property");
 
-        // 4. Get the detail
-        var detail = property.LandAndBuildingDetail
-            ?? throw new InvalidOperationException($"Land and building detail not found for property {command.PropertyId}");
+        // 4. Get the detail records
+        var landDetail = property.LandDetail
+                         ?? throw new InvalidOperationException(
+                             $"Land detail not found for property {command.PropertyId}");
+        var buildingDetail = property.BuildingDetail
+                             ?? throw new InvalidOperationException(
+                                 $"Building detail not found for property {command.PropertyId}");
 
         // 5. Build value objects if provided
         GpsCoordinate? coordinates = null;
@@ -40,14 +40,11 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
         AdministrativeAddress? address = null;
         if (!string.IsNullOrEmpty(command.SubDistrict) || !string.IsNullOrEmpty(command.District) ||
             !string.IsNullOrEmpty(command.Province) || !string.IsNullOrEmpty(command.LandOffice))
-            address = AdministrativeAddress.Create(command.SubDistrict, command.District, command.Province, command.LandOffice);
+            address = AdministrativeAddress.Create(command.SubDistrict, command.District, command.Province,
+                command.LandOffice);
 
-        LandArea? area = null;
-        if (command.Rai.HasValue || command.Ngan.HasValue || command.SquareWa.HasValue)
-            area = LandArea.Create(command.Rai, command.Ngan, command.SquareWa);
-
-        // 6. Update via domain method
-        detail.Update(
+        // 6. Update Land detail via domain method
+        landDetail.Update(
             // Property Identification
             propertyName: command.PropertyName,
             landDescription: command.LandDescription,
@@ -55,24 +52,13 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             address: address,
             // Owner Fields
             ownerName: command.OwnerName,
-            ownershipType: command.OwnershipType,
-            ownershipDocument: command.OwnershipDocument,
-            ownershipPercentage: command.OwnershipPercentage,
             isOwnerVerified: command.IsOwnerVerified,
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,
-            propertyUsage: command.PropertyUsage,
-            occupancyStatus: command.OccupancyStatus,
-            // Land - Title Deed
-            titleDeedType: command.TitleDeedType,
-            titleDeedNumber: command.TitleDeedNumber,
-            landNumber: command.LandNumber,
-            surveyPageNumber: command.SurveyPageNumber,
-            area: area,
             // Land - Document Verification
-            landLocationVerification: command.LandLocationVerification,
-            landCheckMethod: command.LandCheckMethod,
-            landCheckMethodOther: command.LandCheckMethodOther,
+            isLandLocationVerified: command.IsLandLocationVerified,
+            landCheckMethodType: command.LandCheckMethod,
+            landCheckMethodTypeOther: command.LandCheckMethodOther,
             // Land - Location Details
             street: command.Street,
             soi: command.Soi,
@@ -80,42 +66,33 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             village: command.Village,
             addressLocation: command.AddressLocation,
             // Land - Characteristics
-            landShape: command.LandShape,
+            landShapeType: command.LandShape,
             urbanPlanningType: command.UrbanPlanningType,
-            plotLocation: command.PlotLocation,
-            plotLocationOther: command.PlotLocationOther,
-            landFillStatus: command.LandFillStatus,
-            landFillStatusOther: command.LandFillStatusOther,
+            plotLocationType: command.PlotLocationType,
+            plotLocationTypeOther: command.PlotLocationTypeOther,
+            landFillType: command.LandFillStatus,
+            landFillTypeOther: command.LandFillStatusOther,
             landFillPercent: command.LandFillPercent,
-            terrainType: command.TerrainType,
-            soilCondition: command.SoilCondition,
             soilLevel: command.SoilLevel,
-            floodRisk: command.FloodRisk,
-            landUseZoning: command.LandUseZoning,
-            landUseZoningOther: command.LandUseZoningOther,
-            // Land - Road Access
-            accessRoadType: command.AccessRoadType,
             accessRoadWidth: command.AccessRoadWidth,
             rightOfWay: command.RightOfWay,
             roadFrontage: command.RoadFrontage,
             numberOfSidesFacingRoad: command.NumberOfSidesFacingRoad,
             roadPassInFrontOfLand: command.RoadPassInFrontOfLand,
-            landAccessibility: command.LandAccessibility,
-            landAccessibilityDescription: command.LandAccessibilityDescription,
+            landAccessibilityType: command.LandAccessibility,
+            landAccessibilityRemark: command.LandAccessibilityDescription,
             roadSurfaceType: command.RoadSurfaceType,
             roadSurfaceTypeOther: command.RoadSurfaceTypeOther,
             // Land - Utilities
-            electricityAvailable: command.ElectricityAvailable,
+            hasElectricity: command.ElectricityAvailable,
             electricityDistance: command.ElectricityDistance,
-            waterSupplyAvailable: command.WaterSupplyAvailable,
-            sewerageAvailable: command.SewerageAvailable,
-            publicUtilities: command.PublicUtilities,
-            publicUtilitiesOther: command.PublicUtilitiesOther,
-            landEntranceExit: command.LandEntranceExit,
-            landEntranceExitOther: command.LandEntranceExitOther,
-            transportationAccess: command.TransportationAccess,
-            transportationAccessOther: command.TransportationAccessOther,
-            propertyAnticipation: command.PropertyAnticipation,
+            publicUtilityType: command.PublicUtility,
+            publicUtilityTypeOther: command.PublicUtilityOther,
+            landEntranceExitType: command.LandEntranceExitType,
+            landEntranceExitTypeOther: command.LandEntranceExitTypeOther,
+            transportationAccessType: command.TransportationAccessType,
+            transportationAccessTypeOther: command.TransportationAccessTypeOther,
+            propertyAnticipationType: command.PropertyAnticipation,
             // Land - Legal
             isExpropriated: command.IsExpropriated,
             expropriationRemark: command.ExpropriationRemark,
@@ -130,9 +107,9 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             isForestBoundary: command.IsForestBoundary,
             forestBoundaryRemark: command.ForestBoundaryRemark,
             otherLegalLimitations: command.OtherLegalLimitations,
-            evictionStatus: command.EvictionStatus,
-            evictionStatusOther: command.EvictionStatusOther,
-            allocationStatus: command.AllocationStatus,
+            evictionType: command.EvictionType,
+            evictionTypeOther: command.EvictionTypeOther,
+            allocationType: command.AllocationStatus,
             // Land - Boundaries
             northAdjacentArea: command.NorthAdjacentArea,
             northBoundaryLength: command.NorthBoundaryLength,
@@ -145,15 +122,22 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             // Land - Other
             pondArea: command.PondArea,
             pondDepth: command.PondDepth,
+            remark: command.LandRemark);
+
+        // 7. Update Building detail via domain method
+        buildingDetail.Update(
             // Building - Identification
             buildingNumber: command.BuildingNumber,
             modelName: command.ModelName,
             builtOnTitleNumber: command.BuiltOnTitleNumber,
             houseNumber: command.HouseNumber,
+            ownerName: command.OwnerName,
+            isOwnerVerified: command.IsOwnerVerified,
+            hasObligation: command.HasObligation,
+            obligationDetails: command.ObligationDetails,
             // Building - Info
             buildingType: command.BuildingType,
             buildingTypeOther: command.BuildingTypeOther,
-            numberOfBuildings: command.NumberOfBuildings,
             buildingAge: command.BuildingAge,
             constructionYear: command.ConstructionYear,
             isResidentialRemark: command.IsResidentialRemark,
@@ -163,17 +147,10 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             constructionCompletionPercent: command.ConstructionCompletionPercent,
             constructionLicenseExpirationDate: command.ConstructionLicenseExpirationDate,
             isAppraisable: command.IsAppraisable,
-            maintenanceStatus: command.MaintenanceStatus,
-            renovationHistory: command.RenovationHistory,
             // Building - Area
             totalBuildingArea: command.TotalBuildingArea,
-            buildingAreaUnit: command.BuildingAreaUnit,
-            usableArea: command.UsableArea,
             // Building - Structure
             numberOfFloors: command.NumberOfFloors,
-            numberOfUnits: command.NumberOfUnits,
-            numberOfBedrooms: command.NumberOfBedrooms,
-            numberOfBathrooms: command.NumberOfBathrooms,
             // Building - Style
             buildingMaterial: command.BuildingMaterial,
             buildingStyle: command.BuildingStyle,
@@ -185,20 +162,16 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             // Building - Components
             structureType: command.StructureType,
             structureTypeOther: command.StructureTypeOther,
-            foundationType: command.FoundationType,
             roofFrameType: command.RoofFrameType,
             roofFrameTypeOther: command.RoofFrameTypeOther,
             roofType: command.RoofType,
             roofTypeOther: command.RoofTypeOther,
-            roofMaterial: command.RoofMaterial,
             ceilingType: command.CeilingType,
             ceilingTypeOther: command.CeilingTypeOther,
             interiorWallType: command.InteriorWallType,
             interiorWallTypeOther: command.InteriorWallTypeOther,
             exteriorWallType: command.ExteriorWallType,
             exteriorWallTypeOther: command.ExteriorWallTypeOther,
-            wallMaterial: command.WallMaterial,
-            floorMaterial: command.FloorMaterial,
             fenceType: command.FenceType,
             fenceTypeOther: command.FenceTypeOther,
             // Building - Decoration
@@ -207,21 +180,15 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             // Building - Utilization
             utilizationType: command.UtilizationType,
             otherPurposeUsage: command.OtherPurposeUsage,
-            // Building - Permits
-            buildingPermitNumber: command.BuildingPermitNumber,
-            buildingPermitDate: command.BuildingPermitDate,
-            hasOccupancyPermit: command.HasOccupancyPermit,
             // Building - Pricing
             buildingInsurancePrice: command.BuildingInsurancePrice,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
-            // Remarks
-            landRemark: command.LandRemark,
-            buildingRemark: command.BuildingRemark);
+            remark: command.BuildingRemark);
 
-        // 7. Save aggregate
+        // 8. Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 
-        return MediatR.Unit.Value;
+        return Unit.Value;
     }
 }

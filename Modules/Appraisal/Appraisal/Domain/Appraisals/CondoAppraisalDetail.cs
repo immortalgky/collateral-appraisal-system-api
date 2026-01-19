@@ -27,12 +27,12 @@ public class CondoAppraisalDetail : Entity<Guid>
     public AdministrativeAddress? Address { get; private set; }
 
     // Owner
-    public string OwnerName { get; private set; } = null!;
-    public bool IsOwnerVerified { get; private set; }
+    public string? OwnerName { get; private set; }
+    public bool? IsOwnerVerified { get; private set; }
     public string? BuildingConditionType { get; private set; }
-    public bool HasObligation { get; private set; }
+    public bool? HasObligation { get; private set; }
     public string? ObligationDetails { get; private set; }
-    public bool IsDocumentValidated { get; private set; }
+    public bool? IsDocumentValidated { get; private set; }
 
     // Location Details
     public string? LocationType { get; private set; }
@@ -40,8 +40,9 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? Soi { get; private set; }
     public decimal? DistanceFromMainRoad { get; private set; }
     public decimal? AccessRoadWidth { get; private set; }
-    public string? RightOfWay { get; private set; }
+    public short? RightOfWay { get; private set; }
     public string? RoadSurfaceType { get; private set; }
+    public string? RoadSurfaceTypeOther { get; private set; }
     public List<string>? PublicUtilityType { get; private set; }
     public string? PublicUtilityTypeOther { get; private set; }
 
@@ -50,7 +51,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? DecorationTypeOther { get; private set; }
     public int? BuildingAge { get; private set; }
     public int? ConstructionYear { get; private set; }
-    public int? NumberOfFloors { get; private set; }
+    public decimal? NumberOfFloors { get; private set; }
     public string? BuildingFormType { get; private set; }
     public string? ConstructionMaterialType { get; private set; }
 
@@ -71,12 +72,12 @@ public class CondoAppraisalDetail : Entity<Guid>
     public decimal? TotalBuildingArea { get; private set; }
 
     // Legal Restrictions
-    public bool IsExpropriated { get; private set; }
+    public bool? IsExpropriated { get; private set; }
     public string? ExpropriationRemark { get; private set; }
-    public bool IsInExpropriationLine { get; private set; }
+    public bool? IsInExpropriationLine { get; private set; }
     public string? ExpropriationLineRemark { get; private set; }
     public string? RoyalDecree { get; private set; }
-    public bool IsForestBoundary { get; private set; }
+    public bool? IsForestBoundary { get; private set; }
     public string? ForestBoundaryRemark { get; private set; }
 
     // Facilities & Environment
@@ -94,21 +95,18 @@ public class CondoAppraisalDetail : Entity<Guid>
 
     private CondoAppraisalDetail()
     {
+        // For EF Core
     }
 
-    public static CondoAppraisalDetail Create(
-        Guid appraisalPropertyId,
-        string ownerName,
-        Guid createdBy)
+    public static CondoAppraisalDetail Create(Guid appraisalPropertyId)
     {
         return new CondoAppraisalDetail
         {
-            Id = Guid.NewGuid(),
-            AppraisalPropertyId = appraisalPropertyId,
-            OwnerName = ownerName
+            AppraisalPropertyId = appraisalPropertyId
         };
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public void Update(
         // Property Identification
         string? propertyName = null,
@@ -136,8 +134,9 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? soi = null,
         decimal? distanceFromMainRoad = null,
         decimal? accessRoadWidth = null,
-        string? rightOfWay = null,
+        short? rightOfWay = null,
         string? roadSurfaceType = null,
+        string? roadSurfaceTypeOther = null,
         List<string>? publicUtility = null,
         string? publicUtilityOther = null,
         // Building Info
@@ -145,7 +144,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? decorationTypeOther = null,
         int? buildingAge = null,
         int? constructionYear = null,
-        int? numberOfFloors = null,
+        decimal? numberOfFloors = null,
         string? buildingForm = null,
         string? constructionMaterialType = null,
         // Layout & Materials
@@ -182,84 +181,85 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? remark = null)
     {
         // Property Identification
-        if (propertyName is not null) PropertyName = propertyName;
-        if (condoName is not null) CondoName = condoName;
-        if (buildingNumber is not null) BuildingNumber = buildingNumber;
-        if (modelName is not null) ModelName = modelName;
-        if (builtOnTitleNo is not null) BuiltOnTitleNumber = builtOnTitleNo;
-        if (condoRegistrationNo is not null) CondoRegistrationNumber = condoRegistrationNo;
-        if (roomNo is not null) RoomNumber = roomNo;
-        if (floorNo.HasValue) FloorNumber = floorNo.Value;
-        if (usableArea.HasValue) UsableArea = usableArea.Value;
+        PropertyName = propertyName;
+        CondoName = condoName;
+        BuildingNumber = buildingNumber;
+        ModelName = modelName;
+        BuiltOnTitleNumber = builtOnTitleNo;
+        CondoRegistrationNumber = condoRegistrationNo;
+        RoomNumber = roomNo;
+        FloorNumber = floorNo;
+        UsableArea = usableArea;
 
         // Value Objects
-        if (coordinates is not null) Coordinates = coordinates;
-        if (address is not null) Address = address;
+        Coordinates = coordinates;
+        Address = address;
 
         // Owner
-        if (ownerName is not null) OwnerName = ownerName;
-        if (isOwnerVerified.HasValue) IsOwnerVerified = isOwnerVerified.Value;
-        if (buildingConditionType is not null) BuildingConditionType = buildingConditionType;
-        if (hasObligation.HasValue) HasObligation = hasObligation.Value;
-        if (obligationDetails is not null) ObligationDetails = obligationDetails;
-        if (isDocumentValidated.HasValue) IsDocumentValidated = isDocumentValidated.Value;
+        OwnerName = ownerName;
+        IsOwnerVerified = isOwnerVerified;
+        BuildingConditionType = buildingConditionType;
+        HasObligation = hasObligation;
+        ObligationDetails = obligationDetails;
+        IsDocumentValidated = isDocumentValidated;
 
         // Location Details
-        if (locationType is not null) LocationType = locationType;
-        if (street is not null) Street = street;
-        if (soi is not null) Soi = soi;
-        if (distanceFromMainRoad.HasValue) DistanceFromMainRoad = distanceFromMainRoad.Value;
-        if (accessRoadWidth.HasValue) AccessRoadWidth = accessRoadWidth.Value;
-        if (rightOfWay is not null) RightOfWay = rightOfWay;
-        if (roadSurfaceType is not null) RoadSurfaceType = roadSurfaceType;
-        if (publicUtility is not null) PublicUtilityType = publicUtility;
-        if (publicUtilityOther is not null) PublicUtilityTypeOther = publicUtilityOther;
+        LocationType = locationType;
+        Street = street;
+        Soi = soi;
+        DistanceFromMainRoad = distanceFromMainRoad;
+        AccessRoadWidth = accessRoadWidth;
+        RightOfWay = rightOfWay;
+        RoadSurfaceType = roadSurfaceType;
+        RoadSurfaceTypeOther = roadSurfaceTypeOther;
+        PublicUtilityType = publicUtility;
+        PublicUtilityTypeOther = publicUtilityOther;
 
         // Building Info
-        if (decorationType is not null) DecorationType = decorationType;
-        if (decorationTypeOther is not null) DecorationTypeOther = decorationTypeOther;
-        if (buildingAge.HasValue) BuildingAge = buildingAge.Value;
-        if (constructionYear.HasValue) ConstructionYear = constructionYear.Value;
-        if (numberOfFloors.HasValue) NumberOfFloors = numberOfFloors.Value;
-        if (buildingForm is not null) BuildingFormType = buildingForm;
-        if (constructionMaterialType is not null) ConstructionMaterialType = constructionMaterialType;
+        DecorationType = decorationType;
+        DecorationTypeOther = decorationTypeOther;
+        BuildingAge = buildingAge;
+        ConstructionYear = constructionYear;
+        NumberOfFloors = numberOfFloors;
+        BuildingFormType = buildingForm;
+        ConstructionMaterialType = constructionMaterialType;
 
         // Layout & Materials
-        if (roomLayoutType is not null) RoomLayoutType = roomLayoutType;
-        if (roomLayoutTypeOther is not null) RoomLayoutTypeOther = roomLayoutTypeOther;
-        if (locationView is not null) LocationViewType = locationView;
-        if (groundFloorMaterial is not null) GroundFloorMaterialType = groundFloorMaterial;
-        if (groundFloorMaterialOther is not null) GroundFloorMaterialTypeOther = groundFloorMaterialOther;
-        if (upperFloorMaterial is not null) UpperFloorMaterialType = upperFloorMaterial;
-        if (upperFloorMaterialOther is not null) UpperFloorMaterialTypeOther = upperFloorMaterialOther;
-        if (bathroomFloorMaterial is not null) BathroomFloorMaterialType = bathroomFloorMaterial;
-        if (bathroomFloorMaterialOther is not null) BathroomFloorMaterialTypeOther = bathroomFloorMaterialOther;
-        if (roofType is not null) RoofType = roofType;
-        if (roofTypeOther is not null) RoofTypeOther = roofTypeOther;
+        RoomLayoutType = roomLayoutType;
+        RoomLayoutTypeOther = roomLayoutTypeOther;
+        LocationViewType = locationView;
+        GroundFloorMaterialType = groundFloorMaterial;
+        GroundFloorMaterialTypeOther = groundFloorMaterialOther;
+        UpperFloorMaterialType = upperFloorMaterial;
+        UpperFloorMaterialTypeOther = upperFloorMaterialOther;
+        BathroomFloorMaterialType = bathroomFloorMaterial;
+        BathroomFloorMaterialTypeOther = bathroomFloorMaterialOther;
+        RoofType = roofType;
+        RoofTypeOther = roofTypeOther;
 
         // Area
-        if (totalBuildingArea.HasValue) TotalBuildingArea = totalBuildingArea.Value;
+        TotalBuildingArea = totalBuildingArea;
 
         // Legal Restrictions
-        if (isExpropriated.HasValue) IsExpropriated = isExpropriated.Value;
-        if (expropriationRemark is not null) ExpropriationRemark = expropriationRemark;
-        if (isInExpropriationLine.HasValue) IsInExpropriationLine = isInExpropriationLine.Value;
-        if (expropriationLineRemark is not null) ExpropriationLineRemark = expropriationLineRemark;
-        if (royalDecree is not null) RoyalDecree = royalDecree;
-        if (isForestBoundary.HasValue) IsForestBoundary = isForestBoundary.Value;
-        if (forestBoundaryRemark is not null) ForestBoundaryRemark = forestBoundaryRemark;
+        IsExpropriated = isExpropriated;
+        ExpropriationRemark = expropriationRemark;
+        IsInExpropriationLine = isInExpropriationLine;
+        ExpropriationLineRemark = expropriationLineRemark;
+        RoyalDecree = royalDecree;
+        IsForestBoundary = isForestBoundary;
+        ForestBoundaryRemark = forestBoundaryRemark;
 
         // Facilities & Environment
-        if (facilityType is not null) FacilityType = facilityType;
-        if (facilityTypeOther is not null) FacilityTypeOther = facilityTypeOther;
-        if (environmentType is not null) EnvironmentType = environmentType;
+        FacilityType = facilityType;
+        FacilityTypeOther = facilityTypeOther;
+        EnvironmentType = environmentType;
 
         // Pricing
-        if (buildingInsurancePrice.HasValue) BuildingInsurancePrice = buildingInsurancePrice.Value;
-        if (sellingPrice.HasValue) SellingPrice = sellingPrice.Value;
-        if (forcedSalePrice.HasValue) ForcedSalePrice = forcedSalePrice.Value;
+        BuildingInsurancePrice = buildingInsurancePrice;
+        SellingPrice = sellingPrice;
+        ForcedSalePrice = forcedSalePrice;
 
         // Other
-        if (remark is not null) Remark = remark;
+        Remark = remark;
     }
 }

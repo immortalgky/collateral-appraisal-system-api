@@ -7,6 +7,9 @@ namespace Appraisal.Domain.Appraisals;
 /// </summary>
 public class LandAppraisalDetail : Entity<Guid>
 {
+    private readonly List<LandTitle> _titles = [];
+    public IReadOnlyList<LandTitle> Titles => _titles.AsReadOnly();
+
     // Foreign Key - 1:1 with AppraisalProperties
     public Guid AppraisalPropertyId { get; private set; }
 
@@ -21,9 +24,9 @@ public class LandAppraisalDetail : Entity<Guid>
     public AdministrativeAddress? Address { get; private set; }
 
     // Owner
-    public string OwnerName { get; private set; } = null!;
-    public bool IsOwnerVerified { get; private set; }
-    public bool HasObligation { get; private set; }
+    public string? OwnerName { get; private set; } = null!;
+    public bool? IsOwnerVerified { get; private set; }
+    public bool? HasObligation { get; private set; }
     public string? ObligationDetails { get; private set; }
 
     // Document Verification
@@ -51,7 +54,7 @@ public class LandAppraisalDetail : Entity<Guid>
 
     // Road Access
     public decimal? AccessRoadWidth { get; private set; }
-    public decimal? RightOfWay { get; private set; }
+    public short? RightOfWay { get; private set; }
     public decimal? RoadFrontage { get; private set; }
     public int? NumberOfSidesFacingRoad { get; private set; }
     public string? RoadPassInFrontOfLand { get; private set; }
@@ -74,17 +77,17 @@ public class LandAppraisalDetail : Entity<Guid>
     public string? PropertyAnticipationType { get; private set; }
 
     // Legal Restrictions
-    public bool IsExpropriated { get; private set; }
+    public bool? IsExpropriated { get; private set; }
     public string? ExpropriationRemark { get; private set; }
-    public bool IsInExpropriationLine { get; private set; }
+    public bool? IsInExpropriationLine { get; private set; }
     public string? ExpropriationLineRemark { get; private set; }
     public string? RoyalDecree { get; private set; }
-    public bool IsEncroached { get; private set; }
+    public bool? IsEncroached { get; private set; }
     public string? EncroachmentRemark { get; private set; }
     public decimal? EncroachmentArea { get; private set; }
-    public bool IsLandlocked { get; private set; }
+    public bool? IsLandlocked { get; private set; }
     public string? LandlockedRemark { get; private set; }
-    public bool IsForestBoundary { get; private set; }
+    public bool? IsForestBoundary { get; private set; }
     public string? ForestBoundaryRemark { get; private set; }
     public string? OtherLegalLimitations { get; private set; }
     public List<string>? EvictionType { get; private set; }
@@ -104,7 +107,7 @@ public class LandAppraisalDetail : Entity<Guid>
     // Other Features
     public decimal? PondArea { get; private set; }
     public decimal? PondDepth { get; private set; }
-    public bool HasBuilding { get; private set; }
+    public bool? HasBuilding { get; private set; }
     public string? HasBuildingOther { get; private set; }
     public string? Remark { get; private set; }
 
@@ -113,16 +116,11 @@ public class LandAppraisalDetail : Entity<Guid>
         // For EF Core
     }
 
-    public static LandAppraisalDetail Create(
-        Guid appraisalPropertyId,
-        string ownerName,
-        Guid createdBy)
+    public static LandAppraisalDetail Create(Guid appraisalPropertyId)
     {
         return new LandAppraisalDetail
         {
-            //Id = Guid.NewGuid(),
-            AppraisalPropertyId = appraisalPropertyId,
-            OwnerName = ownerName
+            AppraisalPropertyId = appraisalPropertyId
         };
     }
 
@@ -163,7 +161,7 @@ public class LandAppraisalDetail : Entity<Guid>
         decimal? soilLevel = null,
         // Road Access
         decimal? accessRoadWidth = null,
-        decimal? rightOfWay = null,
+        short? rightOfWay = null,
         decimal? roadFrontage = null,
         int? numberOfSidesFacingRoad = null,
         string? roadPassInFrontOfLand = null,
@@ -223,9 +221,9 @@ public class LandAppraisalDetail : Entity<Guid>
         Address = address;
 
         // Owner (OwnerName is required, keep null check; bool fields keep check since non-nullable)
-        if (ownerName is not null) OwnerName = ownerName;
-        if (isOwnerVerified.HasValue) IsOwnerVerified = isOwnerVerified.Value;
-        if (hasObligation.HasValue) HasObligation = hasObligation.Value;
+        OwnerName = ownerName;
+        IsOwnerVerified = isOwnerVerified;
+        HasObligation = hasObligation;
         ObligationDetails = obligationDetails;
 
         // Document Verification
@@ -276,17 +274,17 @@ public class LandAppraisalDetail : Entity<Guid>
         PropertyAnticipationType = propertyAnticipationType;
 
         // Legal Restrictions (non-nullable bool fields keep check)
-        if (isExpropriated.HasValue) IsExpropriated = isExpropriated.Value;
+        IsExpropriated = isExpropriated;
         ExpropriationRemark = expropriationRemark;
-        if (isInExpropriationLine.HasValue) IsInExpropriationLine = isInExpropriationLine.Value;
+        IsInExpropriationLine = isInExpropriationLine;
         ExpropriationLineRemark = expropriationLineRemark;
         RoyalDecree = royalDecree;
-        if (isEncroached.HasValue) IsEncroached = isEncroached.Value;
+        IsEncroached = isEncroached;
         EncroachmentRemark = encroachmentRemark;
         EncroachmentArea = encroachmentArea;
-        if (isLandlocked.HasValue) IsLandlocked = isLandlocked.Value;
+        IsLandlocked = isLandlocked;
         LandlockedRemark = landlockedRemark;
-        if (isForestBoundary.HasValue) IsForestBoundary = isForestBoundary.Value;
+        IsForestBoundary = isForestBoundary;
         ForestBoundaryRemark = forestBoundaryRemark;
         OtherLegalLimitations = otherLegalLimitations;
         EvictionType = evictionType;
@@ -306,8 +304,43 @@ public class LandAppraisalDetail : Entity<Guid>
         // Other Features
         PondArea = pondArea;
         PondDepth = pondDepth;
-        if (hasBuilding.HasValue) HasBuilding = hasBuilding.Value;
+        HasBuilding = hasBuilding;
         HasBuildingOther = hasBuildingOther;
         Remark = remark;
+    }
+
+    public void AddTitle(LandTitle title)
+    {
+        _titles.Add(title);
+    }
+
+    public void RemoveTitle(Guid titleId)
+    {
+        var title = _titles.FirstOrDefault(t => t.Id == titleId);
+        if (title != null) _titles.Remove(title);
+    }
+
+    public void UpdateTitle(LandTitle updatedTitle)
+    {
+        var title = _titles.FirstOrDefault(t => t.Id == updatedTitle.Id);
+        if (title != null)
+            title.Update(
+                updatedTitle.BookNumber,
+                updatedTitle.PageNumber,
+                updatedTitle.LandParcelNumber,
+                updatedTitle.SurveyNumber,
+                updatedTitle.MapSheetNumber,
+                updatedTitle.Rawang,
+                updatedTitle.AerialMapName,
+                updatedTitle.AerialMapNumber,
+                updatedTitle.Area,
+                updatedTitle.HasBoundaryMarker,
+                updatedTitle.BoundaryMarkerRemark,
+                updatedTitle.IsDocumentValidated,
+                updatedTitle.IsMissingFromSurvey,
+                updatedTitle.GovernmentPricePerSqWa,
+                updatedTitle.GovernmentPrice,
+                updatedTitle.Remark
+            );
     }
 }

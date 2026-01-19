@@ -1,6 +1,3 @@
-using Appraisal.Application.Configurations;
-using Shared.CQRS;
-
 namespace Appraisal.Application.Features.Appraisals.CreateCondoProperty;
 
 /// <summary>
@@ -41,8 +38,9 @@ public record CreateCondoPropertyCommand(
     string? Soi = null,
     decimal? DistanceFromMainRoad = null,
     decimal? AccessRoadWidth = null,
-    string? RightOfWay = null,
+    short? RightOfWay = null,
     string? RoadSurfaceType = null,
+    string? RoadSurfaceTypeOther = null,
     List<string>? PublicUtility = null,
     string? PublicUtilityOther = null,
     // Building Info

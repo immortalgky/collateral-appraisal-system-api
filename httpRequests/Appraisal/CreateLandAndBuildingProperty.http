@@ -1,0 +1,407 @@
+@appraisalId = 3E4F242D-6A81-4C57-A720-D8F0423CB509
+
+### ===========================================
+### Create Land & Building Property - Minimal (Required Only)
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/land-and-building-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe",
+  "ownershipType": "FullOwnership"
+}
+
+### ===========================================
+### Create Land & Building Property - Basic Info
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/land-and-building-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe",
+  "ownershipType": "FullOwnership",
+  "description": "Single house with land",
+  "propertyName": "Green Valley Estate House 42",
+  "landDescription": "Rectangular plot with single house",
+  "latitude": 13.7563,
+  "longitude": 100.5018,
+  "subDistrict": "100101",
+  "district": "1001",
+  "province": "10",
+  "landOffice": "Bangkok Land Office",
+
+  "titleDeedType": "NS3K",
+  "titleDeedNumber": "12345",
+  "rai": 0,
+  "ngan": 1,
+  "squareWa": 50,
+
+  "buildingNumber": "42/1",
+  "houseNumber": "42/1",
+  "buildingType": "SingleHouse",
+  "numberOfFloors": 2
+}
+
+### ===========================================
+### Create Land & Building Property - Full Details
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/land-and-building-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe",
+  "ownershipType": "FullOwnership",
+  "description": "Premium single house with landscaped garden",
+  "propertyName": "Green Valley Premium Villa",
+  "landDescription": "Corner plot with mature trees",
+
+  "latitude": 13.7563,
+  "longitude": 100.5018,
+  "subDistrict": "100101",
+  "district": "1001",
+  "province": "10",
+  "landOffice": "Bangkok Land Office",
+
+  "ownershipDocument": "Title Deed NS-3K",
+  "ownershipPercentage": 100.0,
+  "isOwnerVerified": true,
+  "hasObligation": false,
+  "obligationDetails": null,
+  "propertyUsage": "Residential",
+  "occupancyStatus": "OwnerOccupied",
+
+  "titleDeedType": "NS3K",
+  "titleDeedNumber": "12345",
+  "landNumber": "456",
+  "surveyPageNumber": "789",
+  "rai": 0,
+  "ngan": 2,
+  "squareWa": 80,
+
+  "isLandLocationVerified": true,
+  "landCheckMethod": "Rawang",
+  "landCheckMethodOther": null,
+
+  "street": "Sukhumvit Road",
+  "soi": "Soi 55",
+  "distanceFromMainRoad": 50.0,
+  "village": "Green Valley Village",
+  "addressLocation": "Corner of Soi 55/1",
+
+  "landShape": "Rectangular",
+  "urbanPlanningType": "YellowZone",
+  "plotLocationType": ["Corner", "FrontRoad"],
+  "plotLocationTypeOther": null,
+  "landFillStatus": "Filled",
+  "landFillStatusOther": null,
+  "landFillPercent": 100.0,
+  "terrainType": "Flat",
+  "soilCondition": "Good",
+  "soilLevel": 1.2,
+  "floodRisk": "Low",
+  "landUseZoning": "Residential",
+  "landUseZoningOther": null,
+
+  "accessRoadType": "PublicRoad",
+  "accessRoadWidth": 8.0,
+  "rightOfWay": 4,
+  "roadFrontage": 25.0,
+  "numberOfSidesFacingRoad": 2,
+  "roadPassInFrontOfLand": "Soi 55",
+  "landAccessibility": "Easy",
+  "landAccessibilityDescription": "Direct access from main soi",
+  "roadSurfaceType": "Asphalt",
+  "roadSurfaceTypeOther": null,
+
+  "electricityAvailable": true,
+  "electricityDistance": 0,
+  "waterSupplyAvailable": true,
+  "sewerageAvailable": true,
+  "publicUtility": ["Water", "Electricity", "Internet", "Gas"],
+  "publicUtilityOther": null,
+  "landEntranceExitType": ["MainGate", "ServiceGate"],
+  "landEntranceExitTypeOther": null,
+  "transportationAccessType": ["Car", "Motorcycle"],
+  "transportationAccessTypeOther": null,
+  "propertyAnticipation": "Appreciation",
+
+  "isExpropriated": false,
+  "expropriationRemark": null,
+  "isInExpropriationLine": false,
+  "expropriationLineRemark": null,
+  "royalDecree": null,
+  "isEncroached": false,
+  "encroachmentRemark": null,
+  "encroachmentArea": null,
+  "isLandlocked": false,
+  "landlockedRemark": null,
+  "isForestBoundary": false,
+  "forestBoundaryRemark": null,
+  "otherLegalLimitations": null,
+  "evictionType": null,
+  "evictionTypeOther": null,
+  "allocationStatus": "Private",
+
+  "northAdjacentArea": "Neighbor house - Lot 41",
+  "northBoundaryLength": 25.0,
+  "southAdjacentArea": "Public road",
+  "southBoundaryLength": 25.0,
+  "eastAdjacentArea": "Neighbor house - Lot 43",
+  "eastBoundaryLength": 32.0,
+  "westAdjacentArea": "Village common area",
+  "westBoundaryLength": 32.0,
+
+  "pondArea": null,
+  "pondDepth": null,
+
+  "buildingNumber": "42/1",
+  "modelName": "Premium Villa Type A",
+  "builtOnTitleNumber": "12345",
+  "houseNumber": "42/1",
+
+  "buildingType": "SingleHouse",
+  "buildingTypeOther": null,
+  "numberOfBuildings": 1,
+  "buildingAge": 5,
+  "constructionYear": 2020,
+  "isResidentialRemark": "Primary family residence",
+
+  "buildingCondition": "Excellent",
+  "isUnderConstruction": false,
+  "constructionCompletionPercent": 100.0,
+  "constructionLicenseExpirationDate": null,
+  "isAppraisable": true,
+  "maintenanceStatus": "WellMaintained",
+  "renovationHistory": "Kitchen renovated 2023",
+
+  "totalBuildingArea": 380.0,
+  "buildingAreaUnit": "SquareMeter",
+  "usableArea": 320.0,
+
+  "numberOfFloors": 2,
+  "numberOfUnits": 1,
+  "numberOfBedrooms": 4,
+  "numberOfBathrooms": 3,
+
+  "buildingMaterial": "Concrete",
+  "buildingStyle": "ModernContemporary",
+  "isResidential": true,
+  "constructionStyleType": "Contemporary",
+  "constructionStyleRemark": "Open floor plan with high ceilings",
+  "constructionType": "Permanent",
+  "constructionTypeOther": null,
+
+  "structureType": ["ReinforcedConcrete"],
+  "structureTypeOther": null,
+  "foundationType": "PileFoundation",
+  "roofFrameType": ["Steel"],
+  "roofFrameTypeOther": null,
+  "roofType": ["Tile"],
+  "roofTypeOther": null,
+  "roofMaterial": "ClayTile",
+  "ceilingType": ["Gypsum"],
+  "ceilingTypeOther": null,
+  "interiorWallType": ["Brick", "Plaster"],
+  "interiorWallTypeOther": null,
+  "exteriorWallType": ["Brick", "Plaster"],
+  "exteriorWallTypeOther": null,
+  "wallMaterial": "Brick",
+  "floorMaterial": "Tile",
+  "fenceType": ["Concrete", "Metal"],
+  "fenceTypeOther": null,
+
+  "decorationType": "Modern",
+  "decorationTypeOther": null,
+
+  "utilizationType": "Residential",
+  "otherPurposeUsage": null,
+
+  "buildingPermitNumber": "BP-2020-12345",
+  "buildingPermitDate": "2019-06-15",
+  "hasOccupancyPermit": true,
+
+  "buildingInsurancePrice": 8000000.00,
+  "sellingPrice": 25000000.00,
+  "forcedSalePrice": 20000000.00,
+
+  "landRemark": "Well-maintained corner plot with good drainage",
+  "buildingRemark": "Recently renovated with premium finishes"
+}
+
+### ===========================================
+### Create Land & Building Property - Commercial
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/land-and-building-properties
+Content-Type: application/json
+
+{
+  "ownerName": "ABC Trading Co., Ltd.",
+  "ownershipType": "Corporate",
+  "description": "Commercial shophouse with warehouse",
+  "propertyName": "ABC Trading Warehouse",
+
+  "latitude": 13.8120,
+  "longitude": 100.6540,
+  "subDistrict": "100201",
+  "district": "1002",
+  "province": "10",
+
+  "ownershipPercentage": 100.0,
+  "isOwnerVerified": true,
+  "hasObligation": true,
+  "obligationDetails": "Mortgage with Commercial Bank",
+  "propertyUsage": "Commercial",
+  "occupancyStatus": "TenantOccupied",
+
+  "titleDeedType": "NS4J",
+  "titleDeedNumber": "67890",
+  "rai": 1,
+  "ngan": 0,
+  "squareWa": 0,
+
+  "isLandLocationVerified": true,
+  "landShape": "Rectangular",
+  "urbanPlanningType": "PurpleZone",
+
+  "accessRoadWidth": 12.0,
+  "rightOfWay": 6,
+  "roadSurfaceType": "Concrete",
+
+  "electricityAvailable": true,
+  "waterSupplyAvailable": true,
+  "sewerageAvailable": true,
+  "publicUtility": ["Water", "Electricity", "ThreePhase", "Internet"],
+
+  "isExpropriated": false,
+  "isEncroached": false,
+  "isLandlocked": false,
+
+  "buildingType": "Warehouse",
+  "numberOfBuildings": 2,
+  "buildingAge": 10,
+  "constructionYear": 2015,
+
+  "buildingCondition": "Good",
+  "isUnderConstruction": false,
+  "isAppraisable": true,
+
+  "totalBuildingArea": 800.0,
+  "usableArea": 750.0,
+  "numberOfFloors": 1,
+
+  "buildingMaterial": "Steel",
+  "buildingStyle": "Industrial",
+  "isResidential": false,
+  "constructionType": "Permanent",
+
+  "structureType": ["Steel"],
+  "roofFrameType": ["Steel"],
+  "roofType": ["Metal"],
+  "exteriorWallType": ["Metal"],
+
+  "utilizationType": "Commercial",
+  "otherPurposeUsage": "Warehouse and distribution center",
+
+  "buildingPermitNumber": "BP-2015-54321",
+  "buildingPermitDate": "2014-03-20",
+  "hasOccupancyPermit": true,
+
+  "buildingInsurancePrice": 15000000.00,
+  "sellingPrice": 45000000.00,
+  "forcedSalePrice": 35000000.00,
+
+  "landRemark": "Industrial zone with good truck access",
+  "buildingRemark": "Modern warehouse with loading docks"
+}
+
+### ===========================================
+### Create Land & Building Property - With Mortgage
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/land-and-building-properties
+Content-Type: application/json
+
+{
+  "ownerName": "Smith Family Trust",
+  "ownershipType": "Trust",
+  "description": "Family home with mortgage",
+  "propertyName": "Smith Family Residence",
+
+  "latitude": 13.7890,
+  "longitude": 100.5120,
+  "subDistrict": "100103",
+  "district": "1001",
+  "province": "10",
+  "landOffice": "Bangkok North Land Office",
+
+  "ownershipPercentage": 100.0,
+  "isOwnerVerified": true,
+  "hasObligation": true,
+  "obligationDetails": "First mortgage with ABC Bank, outstanding 5,000,000 THB; Second mortgage with XYZ Finance, outstanding 1,500,000 THB",
+  "propertyUsage": "Residential",
+  "occupancyStatus": "OwnerOccupied",
+
+  "titleDeedType": "NS3K",
+  "titleDeedNumber": "99999",
+  "rai": 0,
+  "ngan": 1,
+  "squareWa": 25,
+
+  "isLandLocationVerified": true,
+  "landShape": "Rectangular",
+  "urbanPlanningType": "YellowZone",
+
+  "accessRoadWidth": 6.0,
+  "rightOfWay": 4,
+  "roadSurfaceType": "Asphalt",
+
+  "electricityAvailable": true,
+  "waterSupplyAvailable": true,
+  "publicUtility": ["Water", "Electricity", "Internet"],
+
+  "isExpropriated": false,
+  "isInExpropriationLine": false,
+  "isEncroached": false,
+  "isLandlocked": false,
+
+  "northAdjacentArea": "Private land",
+  "northBoundaryLength": 15.0,
+  "southAdjacentArea": "Public road",
+  "southBoundaryLength": 15.0,
+  "eastAdjacentArea": "Private land",
+  "eastBoundaryLength": 25.0,
+  "westAdjacentArea": "Private land",
+  "westBoundaryLength": 25.0,
+
+  "buildingType": "Townhouse",
+  "numberOfBuildings": 1,
+  "buildingAge": 12,
+  "constructionYear": 2013,
+
+  "buildingCondition": "Fair",
+  "isUnderConstruction": false,
+  "isAppraisable": true,
+  "maintenanceStatus": "Normal",
+
+  "totalBuildingArea": 150.0,
+  "usableArea": 130.0,
+  "numberOfFloors": 3,
+  "numberOfBedrooms": 3,
+  "numberOfBathrooms": 2,
+
+  "buildingMaterial": "Concrete",
+  "buildingStyle": "Modern",
+  "isResidential": true,
+  "constructionType": "Permanent",
+
+  "structureType": ["ReinforcedConcrete"],
+  "roofType": ["Concrete"],
+
+  "utilizationType": "Residential",
+
+  "buildingInsurancePrice": 2500000.00,
+  "sellingPrice": 4500000.00,
+  "forcedSalePrice": 3500000.00,
+
+  "landRemark": "Standard townhouse plot",
+  "buildingRemark": "Needs minor repairs - roof and paint"
+}

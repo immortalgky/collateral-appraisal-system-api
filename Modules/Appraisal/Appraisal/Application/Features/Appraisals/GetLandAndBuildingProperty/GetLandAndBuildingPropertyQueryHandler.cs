@@ -1,7 +1,3 @@
-using Appraisal.Domain.Appraisals;
-using Appraisal.Domain.Appraisals.Exceptions;
-using Shared.CQRS;
-
 namespace Appraisal.Application.Features.Appraisals.GetLandAndBuildingProperty;
 
 /// <summary>
@@ -17,205 +13,179 @@ public class GetLandAndBuildingPropertyQueryHandler(
     {
         // 1. Load aggregate root with properties
         var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(
-            query.AppraisalId, cancellationToken)
-            ?? throw new AppraisalNotFoundException(query.AppraisalId);
+                            query.AppraisalId, cancellationToken)
+                        ?? throw new AppraisalNotFoundException(query.AppraisalId);
 
         // 2. Find the property
         var property = appraisal.GetProperty(query.PropertyId)
-            ?? throw new PropertyNotFoundException(query.PropertyId);
+                       ?? throw new PropertyNotFoundException(query.PropertyId);
 
         // 3. Validate property type
         if (property.PropertyType != PropertyType.LandAndBuilding)
             throw new InvalidOperationException($"Property {query.PropertyId} is not a land and building property");
 
-        // 4. Get the detail
-        var detail = property.LandAndBuildingDetail
-            ?? throw new InvalidOperationException($"Land and building detail not found for property {query.PropertyId}");
+        // 4. Get the detail records
+        var landDetail = property.LandDetail
+                         ?? throw new InvalidOperationException(
+                             $"Land detail not found for property {query.PropertyId}");
+        var buildingDetail = property.BuildingDetail
+                             ?? throw new InvalidOperationException(
+                                 $"Building detail not found for property {query.PropertyId}");
 
-        // 5. Map to result
+        // 5. Map to result (combining data from both Land and Building details)
         return new GetLandAndBuildingPropertyResult(
             // Property
-            PropertyId: property.Id,
-            AppraisalId: property.AppraisalId,
-            SequenceNumber: property.SequenceNumber,
-            PropertyType: property.PropertyType.ToString(),
-            Description: property.Description,
-            DetailId: detail.Id,
-            // Property Identification
-            PropertyName: detail.PropertyName,
-            LandDescription: detail.LandDescription,
-            Latitude: detail.Coordinates?.Latitude,
-            Longitude: detail.Coordinates?.Longitude,
-            SubDistrict: detail.Address?.SubDistrict,
-            District: detail.Address?.District,
-            Province: detail.Address?.Province,
-            LandOffice: detail.Address?.LandOffice,
-            // Owner Fields
-            OwnerName: detail.OwnerName,
-            OwnershipType: detail.OwnershipType,
-            OwnershipDocument: detail.OwnershipDocument,
-            OwnershipPercentage: detail.OwnershipPercentage,
-            IsOwnerVerified: detail.IsOwnerVerified,
-            HasObligation: detail.HasObligation,
-            ObligationDetails: detail.ObligationDetails,
-            PropertyUsage: detail.PropertyUsage,
-            OccupancyStatus: detail.OccupancyStatus,
-            // Land - Title Deed
-            TitleDeedType: detail.TitleDeedType,
-            TitleDeedNumber: detail.TitleDeedNumber,
-            LandNumber: detail.LandNumber,
-            SurveyPageNumber: detail.SurveyPageNumber,
-            Rai: detail.Area?.Rai,
-            Ngan: detail.Area?.Ngan,
-            SquareWa: detail.Area?.SquareWa,
+            property.Id,
+            property.AppraisalId,
+            property.SequenceNumber,
+            property.PropertyType.ToString(),
+            property.Description,
+            landDetail.Id,
+            // Property Identification (from Land)
+            landDetail.PropertyName,
+            landDetail.LandDescription,
+            landDetail.Coordinates?.Latitude,
+            landDetail.Coordinates?.Longitude,
+            landDetail.Address?.SubDistrict,
+            landDetail.Address?.District,
+            landDetail.Address?.Province,
+            landDetail.Address?.LandOffice,
+            // Owner Fields (from Land)
+            landDetail.OwnerName,
+            landDetail.IsOwnerVerified,
+            landDetail.HasObligation,
+            landDetail.ObligationDetails,
             // Land - Document Verification
-            LandLocationVerification: detail.LandLocationVerification,
-            LandCheckMethod: detail.LandCheckMethod,
-            LandCheckMethodOther: detail.LandCheckMethodOther,
+            landDetail.IsLandLocationVerified,
+            landDetail.LandCheckMethodType,
+            landDetail.LandCheckMethodTypeOther,
             // Land - Location Details
-            Street: detail.Street,
-            Soi: detail.Soi,
-            DistanceFromMainRoad: detail.DistanceFromMainRoad,
-            Village: detail.Village,
-            AddressLocation: detail.AddressLocation,
+            landDetail.Street,
+            landDetail.Soi,
+            landDetail.DistanceFromMainRoad,
+            landDetail.Village,
+            landDetail.AddressLocation,
             // Land - Characteristics
-            LandShape: detail.LandShape,
-            UrbanPlanningType: detail.UrbanPlanningType,
-            PlotLocation: detail.PlotLocation,
-            PlotLocationOther: detail.PlotLocationOther,
-            LandFillStatus: detail.LandFillStatus,
-            LandFillStatusOther: detail.LandFillStatusOther,
-            LandFillPercent: detail.LandFillPercent,
-            TerrainType: detail.TerrainType,
-            SoilCondition: detail.SoilCondition,
-            SoilLevel: detail.SoilLevel,
-            FloodRisk: detail.FloodRisk,
-            LandUseZoning: detail.LandUseZoning,
-            LandUseZoningOther: detail.LandUseZoningOther,
+            landDetail.LandShapeType,
+            landDetail.UrbanPlanningType,
+            landDetail.LandZoneType,
+            landDetail.PlotLocationType,
+            landDetail.PlotLocationTypeOther,
+            landDetail.LandFillType,
+            landDetail.LandFillTypeOther,
+            landDetail.LandFillPercent,
+            landDetail.SoilLevel,
             // Land - Road Access
-            AccessRoadType: detail.AccessRoadType,
-            AccessRoadWidth: detail.AccessRoadWidth,
-            RightOfWay: detail.RightOfWay,
-            RoadFrontage: detail.RoadFrontage,
-            NumberOfSidesFacingRoad: detail.NumberOfSidesFacingRoad,
-            RoadPassInFrontOfLand: detail.RoadPassInFrontOfLand,
-            LandAccessibility: detail.LandAccessibility,
-            LandAccessibilityDescription: detail.LandAccessibilityDescription,
-            RoadSurfaceType: detail.RoadSurfaceType,
-            RoadSurfaceTypeOther: detail.RoadSurfaceTypeOther,
+            landDetail.AccessRoadWidth,
+            landDetail.RightOfWay,
+            landDetail.RoadFrontage,
+            landDetail.NumberOfSidesFacingRoad,
+            landDetail.RoadPassInFrontOfLand,
+            landDetail.LandAccessibilityType,
+            landDetail.LandAccessibilityRemark,
+            landDetail.RoadSurfaceType,
+            landDetail.RoadSurfaceTypeOther,
             // Land - Utilities
-            ElectricityAvailable: detail.ElectricityAvailable,
-            ElectricityDistance: detail.ElectricityDistance,
-            WaterSupplyAvailable: detail.WaterSupplyAvailable,
-            SewerageAvailable: detail.SewerageAvailable,
-            PublicUtilities: detail.PublicUtilities,
-            PublicUtilitiesOther: detail.PublicUtilitiesOther,
-            LandEntranceExit: detail.LandEntranceExit,
-            LandEntranceExitOther: detail.LandEntranceExitOther,
-            TransportationAccess: detail.TransportationAccess,
-            TransportationAccessOther: detail.TransportationAccessOther,
-            PropertyAnticipation: detail.PropertyAnticipation,
+            landDetail.HasElectricity,
+            landDetail.ElectricityDistance,
+            landDetail.PublicUtilityType,
+            landDetail.PublicUtilityTypeOther,
+            landDetail.LandUseType,
+            landDetail.LandUseTypeOther,
+            landDetail.LandEntranceExitType,
+            landDetail.LandEntranceExitTypeOther,
+            landDetail.TransportationAccessType,
+            landDetail.TransportationAccessTypeOther,
+            landDetail.PropertyAnticipationType,
             // Land - Legal
-            IsExpropriated: detail.IsExpropriated,
-            ExpropriationRemark: detail.ExpropriationRemark,
-            IsInExpropriationLine: detail.IsInExpropriationLine,
-            ExpropriationLineRemark: detail.ExpropriationLineRemark,
-            RoyalDecree: detail.RoyalDecree,
-            IsEncroached: detail.IsEncroached,
-            EncroachmentRemark: detail.EncroachmentRemark,
-            EncroachmentArea: detail.EncroachmentArea,
-            IsLandlocked: detail.IsLandlocked,
-            LandlockedRemark: detail.LandlockedRemark,
-            IsForestBoundary: detail.IsForestBoundary,
-            ForestBoundaryRemark: detail.ForestBoundaryRemark,
-            OtherLegalLimitations: detail.OtherLegalLimitations,
-            EvictionStatus: detail.EvictionStatus,
-            EvictionStatusOther: detail.EvictionStatusOther,
-            AllocationStatus: detail.AllocationStatus,
+            landDetail.IsExpropriated,
+            landDetail.ExpropriationRemark,
+            landDetail.IsInExpropriationLine,
+            landDetail.ExpropriationLineRemark,
+            landDetail.RoyalDecree,
+            landDetail.IsEncroached,
+            landDetail.EncroachmentRemark,
+            landDetail.EncroachmentArea,
+            landDetail.IsLandlocked,
+            landDetail.LandlockedRemark,
+            landDetail.IsForestBoundary,
+            landDetail.ForestBoundaryRemark,
+            landDetail.OtherLegalLimitations,
+            landDetail.EvictionType,
+            landDetail.EvictionTypeOther,
+            landDetail.AllocationType,
             // Land - Boundaries
-            NorthAdjacentArea: detail.NorthAdjacentArea,
-            NorthBoundaryLength: detail.NorthBoundaryLength,
-            SouthAdjacentArea: detail.SouthAdjacentArea,
-            SouthBoundaryLength: detail.SouthBoundaryLength,
-            EastAdjacentArea: detail.EastAdjacentArea,
-            EastBoundaryLength: detail.EastBoundaryLength,
-            WestAdjacentArea: detail.WestAdjacentArea,
-            WestBoundaryLength: detail.WestBoundaryLength,
+            landDetail.NorthAdjacentArea,
+            landDetail.NorthBoundaryLength,
+            landDetail.SouthAdjacentArea,
+            landDetail.SouthBoundaryLength,
+            landDetail.EastAdjacentArea,
+            landDetail.EastBoundaryLength,
+            landDetail.WestAdjacentArea,
+            landDetail.WestBoundaryLength,
             // Land - Other
-            PondArea: detail.PondArea,
-            PondDepth: detail.PondDepth,
-            // Building - Identification
-            BuildingNumber: detail.BuildingNumber,
-            ModelName: detail.ModelName,
-            BuiltOnTitleNumber: detail.BuiltOnTitleNumber,
-            HouseNumber: detail.HouseNumber,
+            landDetail.PondArea,
+            landDetail.PondDepth,
+            landDetail.HasBuilding,
+            landDetail.HasBuildingOther,
+            // Building - Identification (from Building)
+            buildingDetail.BuildingNumber,
+            buildingDetail.ModelName,
+            buildingDetail.BuiltOnTitleNumber,
+            buildingDetail.HouseNumber,
             // Building - Info
-            BuildingType: detail.BuildingType,
-            BuildingTypeOther: detail.BuildingTypeOther,
-            NumberOfBuildings: detail.NumberOfBuildings,
-            BuildingAge: detail.BuildingAge,
-            ConstructionYear: detail.ConstructionYear,
-            IsResidentialRemark: detail.IsResidentialRemark,
+            buildingDetail.BuildingType,
+            buildingDetail.BuildingTypeOther,
+            buildingDetail.NumberOfFloors,
+            buildingDetail.DecorationType,
+            buildingDetail.DecorationTypeOther,
+            buildingDetail.IsEncroachingOthers,
+            buildingDetail.EncroachingOthersRemark,
+            buildingDetail.EncroachingOthersArea,
             // Building - Status
-            BuildingCondition: detail.BuildingCondition,
-            IsUnderConstruction: detail.IsUnderConstruction,
-            ConstructionCompletionPercent: detail.ConstructionCompletionPercent,
-            ConstructionLicenseExpirationDate: detail.ConstructionLicenseExpirationDate,
-            IsAppraisable: detail.IsAppraisable,
-            MaintenanceStatus: detail.MaintenanceStatus,
-            RenovationHistory: detail.RenovationHistory,
-            // Building - Area
-            TotalBuildingArea: detail.TotalBuildingArea,
-            BuildingAreaUnit: detail.BuildingAreaUnit,
-            UsableArea: detail.UsableArea,
-            // Building - Structure
-            NumberOfFloors: detail.NumberOfFloors,
-            NumberOfUnits: detail.NumberOfUnits,
-            NumberOfBedrooms: detail.NumberOfBedrooms,
-            NumberOfBathrooms: detail.NumberOfBathrooms,
+            buildingDetail.BuildingConditionType,
+            buildingDetail.IsUnderConstruction,
+            buildingDetail.ConstructionCompletionPercent,
+            buildingDetail.ConstructionLicenseExpirationDate,
+            buildingDetail.IsAppraisable,
+            // Building - Age
+            buildingDetail.BuildingAge,
+            buildingDetail.ConstructionYear,
+            buildingDetail.ResidentialRemark,
             // Building - Style
-            BuildingMaterial: detail.BuildingMaterial,
-            BuildingStyle: detail.BuildingStyle,
-            IsResidential: detail.IsResidential,
-            ConstructionStyleType: detail.ConstructionStyleType,
-            ConstructionStyleRemark: detail.ConstructionStyleRemark,
-            ConstructionType: detail.ConstructionType,
-            ConstructionTypeOther: detail.ConstructionTypeOther,
+            buildingDetail.BuildingMaterialType,
+            buildingDetail.BuildingStyleType,
+            buildingDetail.IsResidential,
+            buildingDetail.ConstructionStyleType,
+            buildingDetail.ConstructionStyleRemark,
+            buildingDetail.ConstructionType,
+            buildingDetail.ConstructionTypeOther,
             // Building - Components
-            StructureType: detail.StructureType,
-            StructureTypeOther: detail.StructureTypeOther,
-            FoundationType: detail.FoundationType,
-            RoofFrameType: detail.RoofFrameType,
-            RoofFrameTypeOther: detail.RoofFrameTypeOther,
-            RoofType: detail.RoofType,
-            RoofTypeOther: detail.RoofTypeOther,
-            RoofMaterial: detail.RoofMaterial,
-            CeilingType: detail.CeilingType,
-            CeilingTypeOther: detail.CeilingTypeOther,
-            InteriorWallType: detail.InteriorWallType,
-            InteriorWallTypeOther: detail.InteriorWallTypeOther,
-            ExteriorWallType: detail.ExteriorWallType,
-            ExteriorWallTypeOther: detail.ExteriorWallTypeOther,
-            WallMaterial: detail.WallMaterial,
-            FloorMaterial: detail.FloorMaterial,
-            FenceType: detail.FenceType,
-            FenceTypeOther: detail.FenceTypeOther,
-            // Building - Decoration
-            DecorationType: detail.DecorationType,
-            DecorationTypeOther: detail.DecorationTypeOther,
+            buildingDetail.StructureType,
+            buildingDetail.StructureTypeOther,
+            buildingDetail.RoofFrameType,
+            buildingDetail.RoofFrameTypeOther,
+            buildingDetail.RoofType,
+            buildingDetail.RoofTypeOther,
+            buildingDetail.CeilingType,
+            buildingDetail.CeilingTypeOther,
+            buildingDetail.InteriorWallType,
+            buildingDetail.InteriorWallTypeOther,
+            buildingDetail.ExteriorWallType,
+            buildingDetail.ExteriorWallTypeOther,
+            buildingDetail.FenceType,
+            buildingDetail.FenceTypeOther,
             // Building - Utilization
-            UtilizationType: detail.UtilizationType,
-            OtherPurposeUsage: detail.OtherPurposeUsage,
-            // Building - Permits
-            BuildingPermitNumber: detail.BuildingPermitNumber,
-            BuildingPermitDate: detail.BuildingPermitDate,
-            HasOccupancyPermit: detail.HasOccupancyPermit,
+            buildingDetail.UtilizationType,
+            buildingDetail.UtilizationTypeOther,
+            // Building - Area
+            buildingDetail.TotalBuildingArea,
             // Building - Pricing
-            BuildingInsurancePrice: detail.BuildingInsurancePrice,
-            SellingPrice: detail.SellingPrice,
-            ForcedSalePrice: detail.ForcedSalePrice,
+            buildingDetail.BuildingInsurancePrice,
+            buildingDetail.SellingPrice,
+            buildingDetail.ForcedSalePrice,
             // Remarks
-            LandRemark: detail.LandRemark,
-            BuildingRemark: detail.BuildingRemark);
+            landDetail.Remark,
+            buildingDetail.Remark);
     }
 }

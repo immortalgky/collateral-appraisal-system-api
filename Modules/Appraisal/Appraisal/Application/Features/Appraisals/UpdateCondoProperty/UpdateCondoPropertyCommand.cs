@@ -37,7 +37,7 @@ public record UpdateCondoPropertyCommand(
     string? Soi = null,
     decimal? DistanceFromMainRoad = null,
     decimal? AccessRoadWidth = null,
-    string? RightOfWay = null,
+    short? RightOfWay = null,
     string? RoadSurfaceType = null,
     List<string>? PublicUtility = null,
     string? PublicUtilityOther = null,
