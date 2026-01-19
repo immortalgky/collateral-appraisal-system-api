@@ -31,8 +31,8 @@ public record GetCondoPropertyResponse(
     string? Province,
     string? LandOffice,
     // Owner
-    string Owner,
-    bool VerifiableOwner,
+    string OwnerName,
+    bool IsOwnerVerified,
     string? BuildingConditionType,
     bool IsObligation,
     string? Obligation,
