@@ -113,10 +113,10 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? condoName = null,
         string? buildingNumber = null,
         string? modelName = null,
-        string? builtOnTitleNo = null,
-        string? condoRegistrationNo = null,
-        string? roomNo = null,
-        int? floorNo = null,
+        string? builtOnTitleNumber = null,
+        string? condoRegistrationNumber = null,
+        string? roomNumber = null,
+        int? floorNumber = null,
         decimal? usableArea = null,
         // Value Objects
         GpsCoordinate? coordinates = null,
@@ -137,26 +137,26 @@ public class CondoAppraisalDetail : Entity<Guid>
         short? rightOfWay = null,
         string? roadSurfaceType = null,
         string? roadSurfaceTypeOther = null,
-        List<string>? publicUtility = null,
-        string? publicUtilityOther = null,
+        List<string>? publicUtilityType = null,
+        string? publicUtilityTypeOther = null,
         // Building Info
         string? decorationType = null,
         string? decorationTypeOther = null,
         int? buildingAge = null,
         int? constructionYear = null,
         decimal? numberOfFloors = null,
-        string? buildingForm = null,
+        string? buildingFormType = null,
         string? constructionMaterialType = null,
         // Layout & Materials
         string? roomLayoutType = null,
         string? roomLayoutTypeOther = null,
-        List<string>? locationView = null,
-        string? groundFloorMaterial = null,
-        string? groundFloorMaterialOther = null,
-        string? upperFloorMaterial = null,
-        string? upperFloorMaterialOther = null,
-        string? bathroomFloorMaterial = null,
-        string? bathroomFloorMaterialOther = null,
+        List<string>? locationViewType = null,
+        string? groundFloorMaterialType = null,
+        string? groundFloorMaterialTypeOther = null,
+        string? upperFloorMaterialType = null,
+        string? upperFloorMaterialTypeOther = null,
+        string? bathroomFloorMaterialType = null,
+        string? bathroomFloorMaterialTypeOther = null,
         string? roofType = null,
         string? roofTypeOther = null,
         // Area
@@ -185,10 +185,10 @@ public class CondoAppraisalDetail : Entity<Guid>
         CondoName = condoName;
         BuildingNumber = buildingNumber;
         ModelName = modelName;
-        BuiltOnTitleNumber = builtOnTitleNo;
-        CondoRegistrationNumber = condoRegistrationNo;
-        RoomNumber = roomNo;
-        FloorNumber = floorNo;
+        BuiltOnTitleNumber = builtOnTitleNumber;
+        CondoRegistrationNumber = condoRegistrationNumber;
+        RoomNumber = roomNumber;
+        FloorNumber = floorNumber;
         UsableArea = usableArea;
 
         // Value Objects
@@ -212,8 +212,8 @@ public class CondoAppraisalDetail : Entity<Guid>
         RightOfWay = rightOfWay;
         RoadSurfaceType = roadSurfaceType;
         RoadSurfaceTypeOther = roadSurfaceTypeOther;
-        PublicUtilityType = publicUtility;
-        PublicUtilityTypeOther = publicUtilityOther;
+        PublicUtilityType = publicUtilityType;
+        PublicUtilityTypeOther = publicUtilityTypeOther;
 
         // Building Info
         DecorationType = decorationType;
@@ -221,19 +221,19 @@ public class CondoAppraisalDetail : Entity<Guid>
         BuildingAge = buildingAge;
         ConstructionYear = constructionYear;
         NumberOfFloors = numberOfFloors;
-        BuildingFormType = buildingForm;
+        BuildingFormType = buildingFormType;
         ConstructionMaterialType = constructionMaterialType;
 
         // Layout & Materials
         RoomLayoutType = roomLayoutType;
         RoomLayoutTypeOther = roomLayoutTypeOther;
-        LocationViewType = locationView;
-        GroundFloorMaterialType = groundFloorMaterial;
-        GroundFloorMaterialTypeOther = groundFloorMaterialOther;
-        UpperFloorMaterialType = upperFloorMaterial;
-        UpperFloorMaterialTypeOther = upperFloorMaterialOther;
-        BathroomFloorMaterialType = bathroomFloorMaterial;
-        BathroomFloorMaterialTypeOther = bathroomFloorMaterialOther;
+        LocationViewType = locationViewType;
+        GroundFloorMaterialType = groundFloorMaterialType;
+        GroundFloorMaterialTypeOther = groundFloorMaterialTypeOther;
+        UpperFloorMaterialType = upperFloorMaterialType;
+        UpperFloorMaterialTypeOther = upperFloorMaterialTypeOther;
+        BathroomFloorMaterialType = bathroomFloorMaterialType;
+        BathroomFloorMaterialTypeOther = bathroomFloorMaterialTypeOther;
         RoofType = roofType;
         RoofTypeOther = roofTypeOther;
 

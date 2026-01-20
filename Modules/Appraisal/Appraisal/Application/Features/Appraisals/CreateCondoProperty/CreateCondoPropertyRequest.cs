@@ -4,19 +4,15 @@ namespace Appraisal.Application.Features.Appraisals.CreateCondoProperty;
 /// Request to create a condo property with its appraisal detail
 /// </summary>
 public record CreateCondoPropertyRequest(
-    // Required
-    string OwnerName,
-    // Property Identification
     string? PropertyName = null,
     string? CondoName = null,
     string? BuildingNumber = null,
     string? ModelName = null,
-    string? BuiltOnTitleNo = null,
-    string? CondoRegistrationNo = null,
-    string? RoomNo = null,
-    int? FloorNo = null,
+    string? BuiltOnTitleNumber = null,
+    string? CondoRegistrationNumber = null,
+    string? RoomNumber = null,
+    int? FloorNumber = null,
     decimal? UsableArea = null,
-    string? Description = null,
     // Coordinates
     decimal? Latitude = null,
     decimal? Longitude = null,
@@ -25,7 +21,8 @@ public record CreateCondoPropertyRequest(
     string? District = null,
     string? Province = null,
     string? LandOffice = null,
-    // Owner Details
+    // Owner
+    string? OwnerName = null,
     bool? IsOwnerVerified = null,
     string? BuildingConditionType = null,
     bool? HasObligation = null,
@@ -40,26 +37,26 @@ public record CreateCondoPropertyRequest(
     short? RightOfWay = null,
     string? RoadSurfaceType = null,
     string? RoadSurfaceTypeOther = null,
-    List<string>? PublicUtility = null,
-    string? PublicUtilityOther = null,
+    List<string>? PublicUtilityType = null,
+    string? PublicUtilityTypeOther = null,
     // Building Info
     string? DecorationType = null,
     string? DecorationTypeOther = null,
     int? BuildingAge = null,
     int? ConstructionYear = null,
     int? NumberOfFloors = null,
-    string? BuildingForm = null,
+    string? BuildingFormType = null,
     string? ConstructionMaterialType = null,
     // Layout & Materials
     string? RoomLayoutType = null,
     string? RoomLayoutTypeOther = null,
-    List<string>? LocationView = null,
-    string? GroundFloorMaterial = null,
-    string? GroundFloorMaterialOther = null,
-    string? UpperFloorMaterial = null,
-    string? UpperFloorMaterialOther = null,
-    string? BathroomFloorMaterial = null,
-    string? BathroomFloorMaterialOther = null,
+    List<string>? LocationViewType = null,
+    string? GroundFloorMaterialType = null,
+    string? GroundFloorMaterialTypeOther = null,
+    string? UpperFloorMaterialType = null,
+    string? UpperFloorMaterialTypeOther = null,
+    string? BathroomFloorMaterialType = null,
+    string? BathroomFloorMaterialTypeOther = null,
     string? RoofType = null,
     string? RoofTypeOther = null,
     // Area
