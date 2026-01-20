@@ -1,4 +1,5 @@
-@appraisalId = 3E4F242D-6A81-4C57-A720-D8F0423CB509
+@appraisalId = F71CD54D-4F78-4FB1-858C-19A85485C523
+@baseUrl = localhost:7111
 
 ### ===========================================
 ### Create Condo Property - Minimal (Required Only)
@@ -22,8 +23,8 @@ Content-Type: application/json
   "propertyName": "The Parkview Residence Unit A1205",
   "condoName": "The Parkview Residence",
   "buildingNumber": "A",
-  "roomNo": "1205",
-  "floorNo": 12,
+  "roomNumber": "1205",
+  "floorNumber": 12,
   "usableArea": 45.5,
   "latitude": 13.7563,
   "longitude": 100.5018,
@@ -46,10 +47,10 @@ Content-Type: application/json
   "condoName": "The Parkview Residence",
   "buildingNumber": "A",
   "modelName": "Type B - 1 Bedroom Plus",
-  "builtOnTitleNo": "NS-3 No.12345",
-  "condoRegistrationNo": "CONDO-2020-12345",
-  "roomNo": "1205",
-  "floorNo": 12,
+  "builtOnTitleNumber": "NS-3 No.12345",
+  "condoRegistrationNumber": "CONDO-2020-12345",
+  "roomNumber": "1205",
+  "floorNumber": 12,
   "usableArea": 45.5,
 
   "latitude": 13.7563,
@@ -73,26 +74,26 @@ Content-Type: application/json
   "accessRoadWidth": 12.0,
   "rightOfWay": 4,
   "roadSurfaceType": "Asphalt",
-  "publicUtility": ["Water", "Electricity", "Internet", "Gas"],
-  "publicUtilityOther": null,
+  "publicUtilityType": ["Water", "Electricity", "Internet", "Gas"],
+  "publicUtilityTypeOther": null,
 
   "decorationType": "Modern",
   "decorationTypeOther": null,
   "buildingAge": 3,
   "constructionYear": 2022,
   "numberOfFloors": 35,
-  "buildingForm": "HighRise",
+  "buildingFormType": "HighRise",
   "constructionMaterialType": "ReinforcedConcrete",
 
   "roomLayoutType": "1BedroomPlus",
   "roomLayoutTypeOther": null,
-  "locationView": ["CityView", "ParkView"],
-  "groundFloorMaterial": "Tile",
-  "groundFloorMaterialOther": null,
-  "upperFloorMaterial": "Tile",
-  "upperFloorMaterialOther": null,
-  "bathroomFloorMaterial": "Tile",
-  "bathroomFloorMaterialOther": null,
+  "locationViewType": ["CityView", "ParkView"],
+  "groundFloorMaterialType": "Tile",
+  "groundFloorMaterialTypeOther": null,
+  "upperFloorMaterialType": "Tile",
+  "upperFloorMaterialTypeOther": null,
+  "bathroomFloorMaterialType": "Tile",
+  "bathroomFloorMaterialTypeOther": null,
   "roofType": "Concrete",
   "roofTypeOther": null,
 
@@ -127,8 +128,8 @@ Content-Type: application/json
   "ownerName": "Jane Smith",
   "condoName": "Metro Living",
   "buildingNumber": "B",
-  "roomNo": "512",
-  "floorNo": 5,
+  "roomNumber": "512",
+  "floorNumber": 5,
   "usableArea": 28.0,
 
   "latitude": 13.7480,
@@ -149,9 +150,9 @@ Content-Type: application/json
   "numberOfFloors": 15,
 
   "roomLayoutType": "Studio",
-  "locationView": ["CityView"],
-  "groundFloorMaterial": "Laminate",
-  "bathroomFloorMaterial": "Tile",
+  "locationViewType": ["CityView"],
+  "groundFloorMaterialType": "Laminate",
+  "bathroomFloorMaterialType": "Tile",
 
   "totalBuildingArea": 28.0,
 

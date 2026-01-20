@@ -1,5 +1,3 @@
-
-
 namespace Appraisal.Application.Features.Appraisals.DeleteProperty;
 
 public class DeletePropertyCommandHandler(
@@ -21,6 +19,6 @@ public class DeletePropertyCommandHandler(
         await appraisalRepository.DeleteAsync(property.Id, cancellationToken);
         await appraisalRepository.SaveChangesAsync(cancellationToken);
 
-        return new DeletePropertyResult(true);
+        return new DeletePropertyResult(IsSuccess: true);
     }
 }
