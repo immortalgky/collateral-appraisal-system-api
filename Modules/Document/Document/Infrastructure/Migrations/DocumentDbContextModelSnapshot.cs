@@ -23,7 +23,7 @@ namespace Document.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("Document.Documents.Models.Document", b =>
+            modelBuilder.Entity("Document.Domain.Documents.Models.Document", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -179,7 +179,7 @@ namespace Document.Data.Migrations
                     b.ToTable("Documents", "document");
                 });
 
-            modelBuilder.Entity("Document.UploadSessions.Model.UploadSession", b =>
+            modelBuilder.Entity("Document.Domain.UploadSessions.Model.UploadSession", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -197,6 +197,10 @@ namespace Document.Data.Migrations
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("ExternalReference")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("IpAddress")
                         .HasMaxLength(50)
@@ -401,9 +405,9 @@ namespace Document.Data.Migrations
                     b.ToTable("OutboxState", "document");
                 });
 
-            modelBuilder.Entity("Document.Documents.Models.Document", b =>
+            modelBuilder.Entity("Document.Domain.Documents.Models.Document", b =>
                 {
-                    b.HasOne("Document.UploadSessions.Model.UploadSession", null)
+                    b.HasOne("Document.Domain.UploadSessions.Model.UploadSession", null)
                         .WithMany("Documents")
                         .HasForeignKey("UploadSessionId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -422,7 +426,7 @@ namespace Document.Data.Migrations
                         .HasPrincipalKey("MessageId", "ConsumerId");
                 });
 
-            modelBuilder.Entity("Document.UploadSessions.Model.UploadSession", b =>
+            modelBuilder.Entity("Document.Domain.UploadSessions.Model.UploadSession", b =>
                 {
                     b.Navigation("Documents");
                 });

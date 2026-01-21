@@ -319,11 +319,11 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("FilePath")
+                    b.Property<string>("FileName")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
-                    b.Property<string>("Filename")
+                    b.Property<string>("FilePath")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
@@ -391,6 +391,14 @@ namespace Request.Infrastructure.Migrations
                     b.Property<DateTime?>("CreatedOn")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ExternalCaseKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ExternalSystem")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<bool>("IsPma")
                         .HasColumnType("bit");
 
@@ -413,6 +421,10 @@ namespace Request.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ExternalCaseKey")
+                        .HasDatabaseName("IX_Request_ExternalCaseKey")
+                        .HasFilter("[ExternalCaseKey] IS NOT NULL");
 
                     b.HasIndex("RequestedAt")
                         .IsDescending()

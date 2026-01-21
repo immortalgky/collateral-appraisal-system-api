@@ -89,5 +89,28 @@ public class AuthDataSeed(
                     OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange // ✅ PKCE required
                 }
             });
+
+        // CLS (Corporate Loan Origination System) Integration Client
+        // Uses client credentials flow for machine-to-machine communication
+        if (await manager.FindByClientIdAsync("cls") is null)
+            await manager.CreateAsync(new OpenIddictApplicationDescriptor
+            {
+                ClientId = "cls",
+                ClientSecret = "CLS_SecretKey_2024!", // TODO: Use configuration for production
+                DisplayName = "CLS Integration",
+                ClientType = OpenIddictConstants.ClientTypes.Confidential,
+                Permissions =
+                {
+                    // Endpoints
+                    OpenIddictConstants.Permissions.Endpoints.Token,
+                    // Grant types - client credentials only for M2M
+                    OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+                    // CLS-specific scopes
+                    OpenIddictConstants.Permissions.Prefixes.Scope + "appraisal.read",
+                    OpenIddictConstants.Permissions.Prefixes.Scope + "request.write",
+                    OpenIddictConstants.Permissions.Prefixes.Scope + "document.read",
+                    OpenIddictConstants.Permissions.Prefixes.Scope + "document.write"
+                }
+            });
     }
 }
