@@ -128,12 +128,20 @@ public class GetLandAndBuildingPropertyQueryHandler(
             landDetail.PondDepth,
             landDetail.HasBuilding,
             landDetail.HasBuildingOther,
+
+
             // Building - Identification (from Building)
             buildingDetail.BuildingNumber,
             buildingDetail.ModelName,
             buildingDetail.BuiltOnTitleNumber,
             buildingDetail.HouseNumber,
-            // Building - Info
+            // Building - Status
+            buildingDetail.BuildingConditionType,
+            buildingDetail.IsUnderConstruction,
+            buildingDetail.ConstructionCompletionPercent,
+            buildingDetail.ConstructionLicenseExpirationDate,
+            buildingDetail.IsAppraisable,
+            // Building Info
             buildingDetail.BuildingType,
             buildingDetail.BuildingTypeOther,
             buildingDetail.NumberOfFloors,
@@ -142,25 +150,16 @@ public class GetLandAndBuildingPropertyQueryHandler(
             buildingDetail.IsEncroachingOthers,
             buildingDetail.EncroachingOthersRemark,
             buildingDetail.EncroachingOthersArea,
-            // Building - Status
-            buildingDetail.BuildingConditionType,
-            buildingDetail.IsUnderConstruction,
-            buildingDetail.ConstructionCompletionPercent,
-            buildingDetail.ConstructionLicenseExpirationDate,
-            buildingDetail.IsAppraisable,
-            // Building - Age
-            buildingDetail.BuildingAge,
-            buildingDetail.ConstructionYear,
-            buildingDetail.ResidentialRemark,
-            // Building - Style
+            // Construction Details
             buildingDetail.BuildingMaterialType,
             buildingDetail.BuildingStyleType,
             buildingDetail.IsResidential,
+            buildingDetail.BuildingAge,
+            buildingDetail.ConstructionYear,
+            buildingDetail.ResidentialRemark,
             buildingDetail.ConstructionStyleType,
             buildingDetail.ConstructionStyleRemark,
-            buildingDetail.ConstructionType,
-            buildingDetail.ConstructionTypeOther,
-            // Building - Components
+            // Structure Components
             buildingDetail.StructureType,
             buildingDetail.StructureTypeOther,
             buildingDetail.RoofFrameType,
@@ -175,15 +174,16 @@ public class GetLandAndBuildingPropertyQueryHandler(
             buildingDetail.ExteriorWallTypeOther,
             buildingDetail.FenceType,
             buildingDetail.FenceTypeOther,
-            // Building - Utilization
+            buildingDetail.ConstructionType,
+            buildingDetail.ConstructionTypeOther,
+            // Utilization
             buildingDetail.UtilizationType,
             buildingDetail.UtilizationTypeOther,
-            // Building - Area
+            // Area & Pricing
             buildingDetail.TotalBuildingArea,
-            // Building - Pricing
             buildingDetail.BuildingInsurancePrice,
             buildingDetail.SellingPrice,
-            buildingDetail.ForcedSalePrice,
+            buildingDetail.ForcedSalePrice,            
             // Remarks
             landDetail.Remark,
             buildingDetail.Remark);

@@ -4,83 +4,65 @@ namespace Appraisal.Application.Features.Appraisals.CreateLandAndBuildingPropert
 /// Request to create a land and building property with its appraisal detail
 /// </summary>
 public record CreateLandAndBuildingPropertyRequest(
-    // Required
-    string OwnerName,
-    string OwnershipType,
-    string? Description = null,
     // Property Identification
     string? PropertyName = null,
     string? LandDescription = null,
+    // Coordinates
     decimal? Latitude = null,
     decimal? Longitude = null,
+    // Address
     string? SubDistrict = null,
     string? District = null,
     string? Province = null,
     string? LandOffice = null,
-    // Owner Fields
-    string? OwnershipDocument = null,
-    decimal? OwnershipPercentage = null,
+    // Owner Details
+    string? OwnerName = null,
     bool? IsOwnerVerified = null,
     bool? HasObligation = null,
     string? ObligationDetails = null,
-    string? PropertyUsage = null,
-    string? OccupancyStatus = null,
-    // Land - Title Deed
-    string? TitleDeedType = null,
-    string? TitleDeedNumber = null,
-    string? LandNumber = null,
-    string? SurveyPageNumber = null,
-    decimal? Rai = null,
-    decimal? Ngan = null,
-    decimal? SquareWa = null,
-    // Land - Document Verification
+    // Document Verification
     bool? IsLandLocationVerified = null,
-    string? LandCheckMethod = null,
-    string? LandCheckMethodOther = null,
-    // Land - Location Details
+    string? LandCheckMethodType = null,
+    string? LandCheckMethodTypeOther = null,
+    // Location Details
     string? Street = null,
     string? Soi = null,
     decimal? DistanceFromMainRoad = null,
     string? Village = null,
     string? AddressLocation = null,
-    // Land - Characteristics
-    string? LandShape = null,
+    // Land Characteristics
+    string? LandShapeType = null,
     string? UrbanPlanningType = null,
+    List<string>? LandZoneType = null,
     List<string>? PlotLocationType = null,
     string? PlotLocationTypeOther = null,
-    string? LandFillStatus = null,
-    string? LandFillStatusOther = null,
+    string? LandFillType = null,
+    string? LandFillTypeOther = null,
     decimal? LandFillPercent = null,
-    string? TerrainType = null,
-    string? SoilCondition = null,
     decimal? SoilLevel = null,
-    string? FloodRisk = null,
-    string? LandUseZoning = null,
-    string? LandUseZoningOther = null,
-    // Land - Road Access
-    string? AccessRoadType = null,
+    // Road Access
     decimal? AccessRoadWidth = null,
     short? RightOfWay = null,
     decimal? RoadFrontage = null,
     int? NumberOfSidesFacingRoad = null,
     string? RoadPassInFrontOfLand = null,
-    string? LandAccessibility = null,
-    string? LandAccessibilityDescription = null,
+    string? LandAccessibilityType = null,
+    string? LandAccessibilityRemark = null,
     string? RoadSurfaceType = null,
     string? RoadSurfaceTypeOther = null,
-    // Land - Utilities
-    bool? ElectricityAvailable = null,
+    // Utilities & Infrastructure
+    bool? HasElectricity = null,
     decimal? ElectricityDistance = null,
-    bool? WaterSupplyAvailable = null,
-    bool? SewerageAvailable = null,
-    List<string>? PublicUtility = null,
-    string? PublicUtilityOther = null,
+    List<string>? PublicUtilityType = null,
+    string? PublicUtilityTypeOther = null,
+    List<string>? LandUseType = null,
+    string? LandUseTypeOther = null,
     List<string>? LandEntranceExitType = null,
     string? LandEntranceExitTypeOther = null,
     List<string>? TransportationAccessType = null,
     string? TransportationAccessTypeOther = null,
-    string? PropertyAnticipation = null,
-    // Land - Legal
+    string? PropertyAnticipationType = null,
+    // Legal Restrictions
     bool? IsExpropriated = null,
     string? ExpropriationRemark = null,
     bool? IsInExpropriationLine = null,
@@ -96,8 +78,8 @@ public record CreateLandAndBuildingPropertyRequest(
     string? OtherLegalLimitations = null,
     List<string>? EvictionType = null,
     string? EvictionTypeOther = null,
-    string? AllocationStatus = null,
-    // Land - Boundaries
+    string? AllocationType = null,
+    // Adjacent Boundaries
     string? NorthAdjacentArea = null,
     decimal? NorthBoundaryLength = null,
     string? SouthAdjacentArea = null,
@@ -106,9 +88,10 @@ public record CreateLandAndBuildingPropertyRequest(
     decimal? EastBoundaryLength = null,
     string? WestAdjacentArea = null,
     decimal? WestBoundaryLength = null,
-    // Land - Other
+    // Other Features
     decimal? PondArea = null,
     decimal? PondDepth = null,
+    //=================================
     // Building - Identification
     string? BuildingNumber = null,
     string? ModelName = null,
@@ -120,7 +103,7 @@ public record CreateLandAndBuildingPropertyRequest(
     int? NumberOfBuildings = null,
     int? BuildingAge = null,
     int? ConstructionYear = null,
-    string? IsResidentialRemark = null,
+    string? ResidentialRemark = null,
     // Building - Status
     string? BuildingCondition = null,
     bool? IsUnderConstruction = null,
@@ -135,9 +118,6 @@ public record CreateLandAndBuildingPropertyRequest(
     decimal? UsableArea = null,
     // Building - Structure
     int? NumberOfFloors = null,
-    int? NumberOfUnits = null,
-    int? NumberOfBedrooms = null,
-    int? NumberOfBathrooms = null,
     // Building - Style
     string? BuildingMaterial = null,
     string? BuildingStyle = null,

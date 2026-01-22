@@ -21,7 +21,7 @@ public class BuildingAppraisalDetailConfiguration : IEntityTypeConfiguration<Bui
         builder.Property(e => e.HouseNumber).HasMaxLength(50);
 
         // Owner
-        builder.Property(e => e.OwnerName).IsRequired().HasMaxLength(200);
+        builder.Property(e => e.OwnerName).HasMaxLength(200); // should not require for land and building
         builder.Property(e => e.ObligationDetails).HasMaxLength(500);
 
         // Building Status

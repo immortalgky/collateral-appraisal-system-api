@@ -7,7 +7,7 @@ public record UpdateBuildingPropertyCommand(
     Guid AppraisalId,
     Guid PropertyId,
     // Property Identification
-    string? PropertyName = null,
+  string? PropertyName = null,
     string? BuildingNumber = null,
     string? ModelName = null,
     string? BuiltOnTitleNumber = null,
@@ -16,7 +16,7 @@ public record UpdateBuildingPropertyCommand(
     bool? IsOwnerVerified = null,
     string? HouseNumber = null,
     // Building Status
-    string? BuildingCondition = null,
+    string? BuildingConditionType = null,
     bool? IsUnderConstruction = null,
     decimal? ConstructionCompletionPercent = null,
     DateTime? ConstructionLicenseExpirationDate = null,
@@ -33,12 +33,12 @@ public record UpdateBuildingPropertyCommand(
     string? EncroachingOthersRemark = null,
     decimal? EncroachingOthersArea = null,
     // Construction Details
-    string? BuildingMaterial = null,
-    string? BuildingStyle = null,
+    string? BuildingMaterialType = null,
+    string? BuildingStyleType = null,
     bool? IsResidential = null,
     int? BuildingAge = null,
     int? ConstructionYear = null,
-    string? IsResidentialRemark = null,
+    string? ResidentialRemark = null,
     string? ConstructionStyleType = null,
     string? ConstructionStyleRemark = null,
     // Structure Components
@@ -60,7 +60,7 @@ public record UpdateBuildingPropertyCommand(
     string? ConstructionTypeOther = null,
     // Utilization
     string? UtilizationType = null,
-    string? OtherPurposeUsage = null,
+    string? UtilizationTypeOther = null,
     // Area & Pricing
     decimal? TotalBuildingArea = null,
     decimal? BuildingInsurancePrice = null,

@@ -9,78 +9,62 @@ public record UpdateLandAndBuildingPropertyCommand(
     // Property Identification
     string? PropertyName = null,
     string? LandDescription = null,
+    // Coordinates
     decimal? Latitude = null,
     decimal? Longitude = null,
+    // Address
     string? SubDistrict = null,
     string? District = null,
     string? Province = null,
     string? LandOffice = null,
-    // Owner Fields
+    // Owner Details
     string? OwnerName = null,
-    string? OwnershipType = null,
-    string? OwnershipDocument = null,
-    decimal? OwnershipPercentage = null,
     bool? IsOwnerVerified = null,
     bool? HasObligation = null,
     string? ObligationDetails = null,
-    string? PropertyUsage = null,
-    string? OccupancyStatus = null,
-    // Land - Title Deed
-    string? TitleDeedType = null,
-    string? TitleDeedNumber = null,
-    string? LandNumber = null,
-    string? SurveyPageNumber = null,
-    decimal? Rai = null,
-    decimal? Ngan = null,
-    decimal? SquareWa = null,
-    // Land - Document Verification
+    // Document Verification
     bool? IsLandLocationVerified = null,
-    string? LandCheckMethod = null,
-    string? LandCheckMethodOther = null,
-    // Land - Location Details
+    string? LandCheckMethodType = null,
+    string? LandCheckMethodTypeOther = null,
+    // Location Details
     string? Street = null,
     string? Soi = null,
     decimal? DistanceFromMainRoad = null,
     string? Village = null,
     string? AddressLocation = null,
-    // Land - Characteristics
-    string? LandShape = null,
+    // Land Characteristics
+    string? LandShapeType = null,
     string? UrbanPlanningType = null,
+    List<string>? LandZoneType = null,
     List<string>? PlotLocationType = null,
     string? PlotLocationTypeOther = null,
-    string? LandFillStatus = null,
-    string? LandFillStatusOther = null,
+    string? LandFillType = null,
+    string? LandFillTypeOther = null,
     decimal? LandFillPercent = null,
-    string? TerrainType = null,
-    string? SoilCondition = null,
     decimal? SoilLevel = null,
-    string? FloodRisk = null,
-    string? LandUseZoning = null,
-    string? LandUseZoningOther = null,
-    // Land - Road Access
-    string? AccessRoadType = null,
+    // Road Access
     decimal? AccessRoadWidth = null,
     short? RightOfWay = null,
     decimal? RoadFrontage = null,
     int? NumberOfSidesFacingRoad = null,
     string? RoadPassInFrontOfLand = null,
-    string? LandAccessibility = null,
-    string? LandAccessibilityDescription = null,
+    string? LandAccessibilityType = null,
+    string? LandAccessibilityRemark = null,
     string? RoadSurfaceType = null,
     string? RoadSurfaceTypeOther = null,
-    // Land - Utilities
-    bool? ElectricityAvailable = null,
+    // Utilities & Infrastructure
+    bool? HasElectricity = null,
     decimal? ElectricityDistance = null,
-    bool? WaterSupplyAvailable = null,
-    bool? SewerageAvailable = null,
-    List<string>? PublicUtility = null,
-    string? PublicUtilityOther = null,
+    List<string>? PublicUtilityType = null,
+    string? PublicUtilityTypeOther = null,
+    List<string>? LandUseType = null,
+    string? LandUseTypeOther = null,
     List<string>? LandEntranceExitType = null,
     string? LandEntranceExitTypeOther = null,
     List<string>? TransportationAccessType = null,
     string? TransportationAccessTypeOther = null,
-    string? PropertyAnticipation = null,
-    // Land - Legal
+    string? PropertyAnticipationType = null,
+    // Legal Restrictions
     bool? IsExpropriated = null,
     string? ExpropriationRemark = null,
     bool? IsInExpropriationLine = null,
@@ -96,8 +80,8 @@ public record UpdateLandAndBuildingPropertyCommand(
     string? OtherLegalLimitations = null,
     List<string>? EvictionType = null,
     string? EvictionTypeOther = null,
-    string? AllocationStatus = null,
-    // Land - Boundaries
+    string? AllocationType = null,
+    // Adjacent Boundaries
     string? NorthAdjacentArea = null,
     decimal? NorthBoundaryLength = null,
     string? SouthAdjacentArea = null,
@@ -106,76 +90,61 @@ public record UpdateLandAndBuildingPropertyCommand(
     decimal? EastBoundaryLength = null,
     string? WestAdjacentArea = null,
     decimal? WestBoundaryLength = null,
-    // Land - Other
+    // Other Features
     decimal? PondArea = null,
     decimal? PondDepth = null,
+    //=================================
     // Building - Identification
     string? BuildingNumber = null,
     string? ModelName = null,
     string? BuiltOnTitleNumber = null,
     string? HouseNumber = null,
-    // Building - Info
-    string? BuildingType = null,
-    string? BuildingTypeOther = null,
-    int? NumberOfBuildings = null,
-    int? BuildingAge = null,
-    int? ConstructionYear = null,
-    string? IsResidentialRemark = null,
-    // Building - Status
-    string? BuildingCondition = null,
+    // Building Status
+    string? BuildingConditionType = null,
     bool? IsUnderConstruction = null,
     decimal? ConstructionCompletionPercent = null,
     DateTime? ConstructionLicenseExpirationDate = null,
     bool? IsAppraisable = null,
-    string? MaintenanceStatus = null,
-    string? RenovationHistory = null,
-    // Building - Area
-    decimal? TotalBuildingArea = null,
-    string? BuildingAreaUnit = null,
-    decimal? UsableArea = null,
-    // Building - Structure
+    // Building Info
+    string? BuildingType = null,
+    string? BuildingTypeOther = null,
     int? NumberOfFloors = null,
-    int? NumberOfUnits = null,
-    int? NumberOfBedrooms = null,
-    int? NumberOfBathrooms = null,
-    // Building - Style
-    string? BuildingMaterial = null,
-    string? BuildingStyle = null,
+    string? DecorationType = null,
+    string? DecorationTypeOther = null,
+    bool? IsEncroachingOthers = null,
+    string? EncroachingOthersRemark = null,
+    decimal? EncroachingOthersArea = null,
+    // Construction Details
+    string? BuildingMaterialType = null,
+    string? BuildingStyleType = null,
     bool? IsResidential = null,
+    int? BuildingAge = null,
+    int? ConstructionYear = null,
+    string? ResidentialRemark = null,
     string? ConstructionStyleType = null,
     string? ConstructionStyleRemark = null,
-    string? ConstructionType = null,
-    string? ConstructionTypeOther = null,
-    // Building - Components
+    // Structure Components
     List<string>? StructureType = null,
     string? StructureTypeOther = null,
-    string? FoundationType = null,
     List<string>? RoofFrameType = null,
     string? RoofFrameTypeOther = null,
     List<string>? RoofType = null,
     string? RoofTypeOther = null,
-    string? RoofMaterial = null,
     List<string>? CeilingType = null,
     string? CeilingTypeOther = null,
     List<string>? InteriorWallType = null,
     string? InteriorWallTypeOther = null,
     List<string>? ExteriorWallType = null,
     string? ExteriorWallTypeOther = null,
-    string? WallMaterial = null,
-    string? FloorMaterial = null,
     List<string>? FenceType = null,
     string? FenceTypeOther = null,
-    // Building - Decoration
-    string? DecorationType = null,
-    string? DecorationTypeOther = null,
-    // Building - Utilization
+    string? ConstructionType = null,
+    string? ConstructionTypeOther = null,
+    // Utilization
     string? UtilizationType = null,
-    string? OtherPurposeUsage = null,
-    // Building - Permits
-    string? BuildingPermitNumber = null,
-    DateTime? BuildingPermitDate = null,
-    bool? HasOccupancyPermit = null,
-    // Building - Pricing
+    string? UtilizationTypeOther = null,
+    // Area & Pricing
+    decimal? TotalBuildingArea = null,
     decimal? BuildingInsurancePrice = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,

@@ -40,11 +40,11 @@ public record GetBuildingPropertyResult(
     decimal? EncroachingOthersArea,
     // Construction Details
     string? BuildingMaterialType,
-    string? BuildingStyle,
-    bool? IsResidential,
+    string? BuildingStyleType,
+    bool IsResidential,
     int? BuildingAge,
     int? ConstructionYear,
-    string? IsResidentialRemark,
+    string? ResidentialRemark,
     string? ConstructionStyleType,
     string? ConstructionStyleRemark,
     // Structure Components
@@ -66,7 +66,7 @@ public record GetBuildingPropertyResult(
     string? ConstructionTypeOther,
     // Utilization
     string? UtilizationType,
-    string? OtherPurposeUsage,
+    string? UtilizationTypeOther,
     // Area & Pricing
     decimal? TotalBuildingArea,
     decimal? BuildingInsurancePrice,

@@ -16,8 +16,7 @@ public class CreateBuildingPropertyCommandHandler(
                         ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
         var property = appraisal.AddBuildingProperty(
-            command.OwnerName,
-            command.Description);
+            command.OwnerName);
 
         property.BuildingDetail!.Update(
             command.PropertyName,
@@ -29,7 +28,7 @@ public class CreateBuildingPropertyCommandHandler(
             command.IsOwnerVerified,
             command.HasObligation,
             command.ObligationDetails,
-            command.BuildingCondition,
+            command.BuildingConditionType,
             command.IsUnderConstruction,
             command.ConstructionCompletionPercent,
             command.ConstructionLicenseExpirationDate,
@@ -42,12 +41,12 @@ public class CreateBuildingPropertyCommandHandler(
             command.IsEncroachingOthers,
             command.EncroachingOthersRemark,
             command.EncroachingOthersArea,
-            command.BuildingMaterial,
-            command.BuildingStyle,
+            command.BuildingMaterialType,
+            command.BuildingStyleType,
             command.IsResidential,
             command.BuildingAge,
             command.ConstructionYear,
-            command.IsResidentialRemark,
+            command.ResidentialRemark,
             command.ConstructionStyleType,
             command.ConstructionStyleRemark,
             command.StructureType,
@@ -67,7 +66,7 @@ public class CreateBuildingPropertyCommandHandler(
             command.ConstructionType,
             command.ConstructionTypeOther,
             command.UtilizationType,
-            command.OtherPurposeUsage,
+            command.UtilizationTypeOther,
             command.TotalBuildingArea,
             command.BuildingInsurancePrice,
             command.SellingPrice,

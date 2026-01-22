@@ -110,7 +110,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
         bool? hasObligation = null,
         string? obligationDetails = null,
         // Building Status
-        string? buildingCondition = null,
+        string? buildingConditionType = null,
         bool? isUnderConstruction = null,
         decimal? constructionCompletionPercent = null,
         DateTime? constructionLicenseExpirationDate = null,
@@ -125,12 +125,12 @@ public class BuildingAppraisalDetail : Entity<Guid>
         string? encroachingOthersRemark = null,
         decimal? encroachingOthersArea = null,
         // Construction Details
-        string? buildingMaterial = null,
-        string? buildingStyle = null,
+        string? buildingMaterialType = null,
+        string? buildingStyleType = null,
         bool? isResidential = null,
         int? buildingAge = null,
         int? constructionYear = null,
-        string? isResidentialRemark = null,
+        string? residentialRemark = null,
         string? constructionStyleType = null,
         string? constructionStyleRemark = null,
         // Structure Components
@@ -152,7 +152,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
         string? constructionTypeOther = null,
         // Utilization
         string? utilizationType = null,
-        string? otherPurposeUsage = null,
+        string? utilizationTypeOther = null,
         // Area & Pricing
         decimal? totalBuildingArea = null,
         decimal? buildingInsurancePrice = null,
@@ -175,7 +175,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
         ObligationDetails = obligationDetails;
 
         // Building Status
-        BuildingConditionType = buildingCondition;
+        BuildingConditionType = buildingConditionType;
         IsUnderConstruction = isUnderConstruction;
         ConstructionCompletionPercent = constructionCompletionPercent;
 
@@ -193,12 +193,12 @@ public class BuildingAppraisalDetail : Entity<Guid>
         EncroachingOthersArea = encroachingOthersArea;
 
         // Construction Details
-        BuildingMaterialType = buildingMaterial;
-        BuildingStyleType = buildingStyle;
+        BuildingMaterialType = buildingMaterialType;
+        BuildingStyleType = buildingStyleType;
         IsResidential = isResidential;
         BuildingAge = buildingAge;
         ConstructionYear = constructionYear;
-        ResidentialRemark = isResidentialRemark;
+        ResidentialRemark = residentialRemark;
         ConstructionStyleType = constructionStyleType;
         ConstructionStyleRemark = constructionStyleRemark;
 
@@ -222,7 +222,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
 
         // Utilization
         UtilizationType = utilizationType;
-        UtilizationTypeOther = otherPurposeUsage;
+        UtilizationTypeOther = utilizationTypeOther;
 
         // Area & Pricing
         TotalBuildingArea = totalBuildingArea;

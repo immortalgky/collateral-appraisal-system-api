@@ -160,11 +160,11 @@ public class Appraisal : Aggregate<Guid>
     /// Add a land and building property with details to this appraisal.
     /// Creates both LandAppraisalDetail and BuildingAppraisalDetail linked to the same AppraisalProperty.
     /// </summary>
-    public AppraisalProperty AddLandAndBuildingProperty(string ownerName, string ownershipType,
+    public AppraisalProperty AddLandAndBuildingProperty(string ownerName,
         string? description = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(ownershipType);
+        // ArgumentException.ThrowIfNullOrWhiteSpace(ownershipType);
 
         var sequenceNumber = _properties.Count + 1;
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LandAndBuilding, description);

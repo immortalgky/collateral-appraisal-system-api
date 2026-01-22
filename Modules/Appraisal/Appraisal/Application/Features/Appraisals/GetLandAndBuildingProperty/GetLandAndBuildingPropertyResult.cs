@@ -27,8 +27,8 @@ public record GetLandAndBuildingPropertyResult(
     string? ObligationDetails,
     // Land - Document Verification
     bool? IsLandLocationVerified,
-    string? LandCheckMethod,
-    string? LandCheckMethodOther,
+    string? LandCheckMethodType,
+    string? LandCheckMethodTypeOther,
     // Land - Location Details
     string? Street,
     string? Soi,
@@ -36,13 +36,13 @@ public record GetLandAndBuildingPropertyResult(
     string? Village,
     string? AddressLocation,
     // Land - Characteristics
-    string? LandShape,
+    string? LandShapeType,
     string? UrbanPlanningType,
     List<string>? LandZoneType,
     List<string>? PlotLocationType,
     string? PlotLocationOther,
-    string? LandFillStatus,
-    string? LandFillStatusOther,
+    string? LandFillType,
+    string? LandFillTypeOther,
     decimal? LandFillPercent,
     decimal? SoilLevel,
     // Land - Road Access
@@ -51,22 +51,22 @@ public record GetLandAndBuildingPropertyResult(
     decimal? RoadFrontage,
     int? NumberOfSidesFacingRoad,
     string? RoadPassInFrontOfLand,
-    string? LandAccessibility,
-    string? LandAccessibilityDescription,
+    string? LandAccessibilityType,
+    string? LandAccessibilityRemark,
     string? RoadSurfaceType,
     string? RoadSurfaceTypeOther,
     // Land - Utilities
-    bool? ElectricityAvailable,
+    bool? HasElectricity,
     decimal? ElectricityDistance,
-    List<string>? PublicUtilities,
-    string? PublicUtilitiesOther,
+    List<string>? PublicUtilityType,
+    string? PublicUtilityTypeOther,
     List<string>? LandUseType,
     string? LandUseTypeOther,
-    List<string>? LandEntranceExit,
-    string? LandEntranceExitOther,
-    List<string>? TransportationAccess,
-    string? TransportationAccessOther,
-    string? PropertyAnticipation,
+    List<string>? LandEntranceExitType,
+    string? LandEntranceExitTypeOther,
+    List<string>? TransportationAccessType,
+    string? TransportationAccessTypeOther,
+    string? PropertyAnticipationType,
     // Land - Legal
     bool? IsExpropriated,
     string? ExpropriationRemark,
@@ -81,9 +81,9 @@ public record GetLandAndBuildingPropertyResult(
     bool? IsForestBoundary,
     string? ForestBoundaryRemark,
     string? OtherLegalLimitations,
-    List<string>? EvictionStatus,
-    string? EvictionStatusOther,
-    string? AllocationStatus,
+    List<string>? EvictionType,
+    string? EvictionTypeOther,
+    string? AllocationType,
     // Land - Boundaries
     string? NorthAdjacentArea,
     decimal? NorthBoundaryLength,
@@ -103,7 +103,13 @@ public record GetLandAndBuildingPropertyResult(
     string? ModelName,
     string? BuiltOnTitleNumber,
     string? HouseNumber,
-    // Building - Info
+    // Building Status
+    string? BuildingConditionType,
+    bool? IsUnderConstruction,
+    decimal? ConstructionCompletionPercent,
+    DateTime? ConstructionLicenseExpirationDate,
+    bool? IsAppraisable,
+    // Building Info
     string? BuildingType,
     string? BuildingTypeOther,
     decimal? NumberOfFloors,
@@ -112,25 +118,16 @@ public record GetLandAndBuildingPropertyResult(
     bool? IsEncroachingOthers,
     string? EncroachingOthersRemark,
     decimal? EncroachingOthersArea,
-    // Building - Status
-    string? BuildingCondition,
-    bool? IsUnderConstruction,
-    decimal? ConstructionCompletionPercent,
-    DateTime? ConstructionLicenseExpirationDate,
-    bool? IsAppraisable,
-    // Building - Age
+    // Construction Details
+    string? BuildingMaterialType,
+    string? BuildingStyleType,
+    bool? IsResidential,
     int? BuildingAge,
     int? ConstructionYear,
     string? ResidentialRemark,
-    // Building - Style
-    string? BuildingMaterial,
-    string? BuildingStyle,
-    bool? IsResidential,
     string? ConstructionStyleType,
     string? ConstructionStyleRemark,
-    string? ConstructionType,
-    string? ConstructionTypeOther,
-    // Building - Components
+    // Structure Components
     List<string>? StructureType,
     string? StructureTypeOther,
     List<string>? RoofFrameType,
@@ -145,12 +142,13 @@ public record GetLandAndBuildingPropertyResult(
     string? ExteriorWallTypeOther,
     List<string>? FenceType,
     string? FenceTypeOther,
-    // Building - Utilization
+    string? ConstructionType,
+    string? ConstructionTypeOther,
+    // Utilization
     string? UtilizationType,
-    string? OtherPurposeUsage,
-    // Building - Area
+    string? UtilizationTypeOther,
+    // Area & Pricing
     decimal? TotalBuildingArea,
-    // Building - Pricing
     decimal? BuildingInsurancePrice,
     decimal? SellingPrice,
     decimal? ForcedSalePrice,

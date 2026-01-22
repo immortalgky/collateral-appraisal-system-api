@@ -18,9 +18,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
 
         // 2. Execute domain operation via aggregate
         var property = appraisal.AddLandAndBuildingProperty(
-            command.OwnerName,
-            command.OwnershipType,
-            command.Description);
+            command.OwnerName);
 
         // 3. Build value objects if provided
         GpsCoordinate? coordinates = null;
@@ -40,13 +38,14 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             landDescription: command.LandDescription,
             coordinates: coordinates,
             address: address,
+            ownerName: command.OwnerName,
             isOwnerVerified: command.IsOwnerVerified,
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,
             // Land - Document Verification
             isLandLocationVerified: command.IsLandLocationVerified,
-            landCheckMethodType: command.LandCheckMethod,
-            landCheckMethodTypeOther: command.LandCheckMethodOther,
+            landCheckMethodType: command.LandCheckMethodType,
+            landCheckMethodTypeOther: command.LandCheckMethodTypeOther,
             // Land - Location Details
             street: command.Street,
             soi: command.Soi,
@@ -54,12 +53,12 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             village: command.Village,
             addressLocation: command.AddressLocation,
             // Land - Characteristics
-            landShapeType: command.LandShape,
+            landShapeType: command.LandShapeType,
             urbanPlanningType: command.UrbanPlanningType,
             plotLocationType: command.PlotLocationType,
             plotLocationTypeOther: command.PlotLocationTypeOther,
-            landFillType: command.LandFillStatus,
-            landFillTypeOther: command.LandFillStatusOther,
+            landFillType: command.LandFillType,
+            landFillTypeOther: command.LandFillTypeOther,
             landFillPercent: command.LandFillPercent,
             soilLevel: command.SoilLevel,
             accessRoadWidth: command.AccessRoadWidth,
@@ -67,20 +66,20 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             roadFrontage: command.RoadFrontage,
             numberOfSidesFacingRoad: command.NumberOfSidesFacingRoad,
             roadPassInFrontOfLand: command.RoadPassInFrontOfLand,
-            landAccessibilityType: command.LandAccessibility,
-            landAccessibilityRemark: command.LandAccessibilityDescription,
+            landAccessibilityType: command.LandAccessibilityType,
+            landAccessibilityRemark: command.LandAccessibilityRemark,
             roadSurfaceType: command.RoadSurfaceType,
             roadSurfaceTypeOther: command.RoadSurfaceTypeOther,
             // Land - Utilities
-            hasElectricity: command.ElectricityAvailable,
+            hasElectricity: command.HasElectricity,
             electricityDistance: command.ElectricityDistance,
-            publicUtilityType: command.PublicUtility,
-            publicUtilityTypeOther: command.PublicUtilityOther,
+            publicUtilityType: command.PublicUtilityType,
+            publicUtilityTypeOther: command.PublicUtilityTypeOther,
             landEntranceExitType: command.LandEntranceExitType,
             landEntranceExitTypeOther: command.LandEntranceExitTypeOther,
             transportationAccessType: command.TransportationAccessType,
             transportationAccessTypeOther: command.TransportationAccessTypeOther,
-            propertyAnticipationType: command.PropertyAnticipation,
+            propertyAnticipationType: command.PropertyAnticipationType,
             // Land - Legal
             isExpropriated: command.IsExpropriated,
             expropriationRemark: command.ExpropriationRemark,
@@ -97,7 +96,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             otherLegalLimitations: command.OtherLegalLimitations,
             evictionType: command.EvictionType,
             evictionTypeOther: command.EvictionTypeOther,
-            allocationType: command.AllocationStatus,
+            allocationType: command.AllocationType,
             // Land - Boundaries
             northAdjacentArea: command.NorthAdjacentArea,
             northBoundaryLength: command.NorthBoundaryLength,
@@ -127,9 +126,9 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             buildingTypeOther: command.BuildingTypeOther,
             buildingAge: command.BuildingAge,
             constructionYear: command.ConstructionYear,
-            isResidentialRemark: command.IsResidentialRemark,
+            residentialRemark: command.ResidentialRemark,
             // Building - Status
-            buildingCondition: command.BuildingCondition,
+            buildingConditionType: command.BuildingConditionType,
             isUnderConstruction: command.IsUnderConstruction,
             constructionCompletionPercent: command.ConstructionCompletionPercent,
             constructionLicenseExpirationDate: command.ConstructionLicenseExpirationDate,
@@ -139,8 +138,8 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             // Building - Structure
             numberOfFloors: command.NumberOfFloors,
             // Building - Style
-            buildingMaterial: command.BuildingMaterial,
-            buildingStyle: command.BuildingStyle,
+            buildingMaterialType: command.BuildingMaterialType,
+            buildingStyleType: command.BuildingStyleType,
             isResidential: command.IsResidential,
             constructionStyleType: command.ConstructionStyleType,
             constructionStyleRemark: command.ConstructionStyleRemark,
@@ -166,7 +165,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             decorationTypeOther: command.DecorationTypeOther,
             // Building - Utilization
             utilizationType: command.UtilizationType,
-            otherPurposeUsage: command.OtherPurposeUsage,
+            utilizationTypeOther: command.UtilizationTypeOther,
             // Building - Pricing
             buildingInsurancePrice: command.BuildingInsurancePrice,
             sellingPrice: command.SellingPrice,

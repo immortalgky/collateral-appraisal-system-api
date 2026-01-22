@@ -14,7 +14,7 @@ public record UpdateBuildingPropertyRequest(
     bool? IsOwnerVerified = null,
     string? HouseNumber = null,
     // Building Status
-    string? BuildingCondition = null,
+    string? BuildingConditionType = null,
     bool? IsUnderConstruction = null,
     decimal? ConstructionCompletionPercent = null,
     DateTime? ConstructionLicenseExpirationDate = null,
@@ -31,12 +31,12 @@ public record UpdateBuildingPropertyRequest(
     string? EncroachingOthersRemark = null,
     decimal? EncroachingOthersArea = null,
     // Construction Details
-    string? BuildingMaterial = null,
-    string? BuildingStyle = null,
+    string? BuildingMaterialType = null,
+    string? BuildingStyleType = null,
     bool? IsResidential = null,
     int? BuildingAge = null,
     int? ConstructionYear = null,
-    string? IsResidentialRemark = null,
+    string? ResidentialRemark = null,
     string? ConstructionStyleType = null,
     string? ConstructionStyleRemark = null,
     // Structure Components
@@ -58,7 +58,7 @@ public record UpdateBuildingPropertyRequest(
     string? ConstructionTypeOther = null,
     // Utilization
     string? UtilizationType = null,
-    string? OtherPurposeUsage = null,
+    string? UtilizationTypeOther = null,
     // Area & Pricing
     decimal? TotalBuildingArea = null,
     decimal? BuildingInsurancePrice = null,

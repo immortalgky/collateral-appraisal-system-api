@@ -5,7 +5,7 @@ namespace Appraisal.Application.Features.Appraisals.GetBuildingProperty;
 /// </summary>
 public record GetBuildingPropertyResponse(
     // Property
-     Guid PropertyId,
+    Guid PropertyId,
     Guid AppraisalId,
     int SequenceNumber,
     string PropertyType,
@@ -40,11 +40,11 @@ public record GetBuildingPropertyResponse(
     decimal? EncroachingOthersArea,
     // Construction Details
     string? BuildingMaterialType,
-    string? BuildingStyle,
+    string? BuildingStyleType,
     bool IsResidential,
     int? BuildingAge,
     int? ConstructionYear,
-    string? IsResidentialRemark,
+    string? ResidentialRemark,
     string? ConstructionStyleType,
     string? ConstructionStyleRemark,
     // Structure Components
@@ -66,7 +66,7 @@ public record GetBuildingPropertyResponse(
     string? ConstructionTypeOther,
     // Utilization
     string? UtilizationType,
-    string? OtherPurposeUsage,
+    string? UtilizationTypeOther,
     // Area & Pricing
     decimal? TotalBuildingArea,
     decimal? BuildingInsurancePrice,
