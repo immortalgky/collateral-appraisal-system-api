@@ -28,7 +28,7 @@ public sealed class TitleVessel : RequestTitle
         base.Validate();
 
         var ruleCheck = new RuleCheck();
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(VesselInfo.HullIdentificationNumber), "hullIdentificationNumber is required.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(VesselInfo.HIN), "hullIdentificationNumber is required.");
         ruleCheck.ThrowIfInvalid();
 
         VesselInfo.Validate();

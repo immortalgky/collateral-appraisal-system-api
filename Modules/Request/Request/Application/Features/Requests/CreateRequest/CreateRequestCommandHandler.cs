@@ -61,7 +61,7 @@ public class CreateRequestCommandHandler(
                     command.Detail.Contact?.ContactPersonPhone,
                     command.Detail.Contact?.DealerCode),
                 Appointment.Create(
-                    command.Detail.Appointment?.AppointmentDate,
+                    command.Detail.Appointment?.AppointmentDateTime,
                     command.Detail.Appointment?.AppointmentLocation),
                 Fee.Create(
                     command.Detail.Fee?.FeePaymentType,

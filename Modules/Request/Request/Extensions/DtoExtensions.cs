@@ -98,7 +98,7 @@ public static class DtoExtensions
     public static Appointment ToDomain(this AppointmentDto? dto)
     {
         return Appointment.Create(
-            dto?.AppointmentDate,
+            dto?.AppointmentDateTime,
             dto?.AppointmentLocation
         );
     }
@@ -180,18 +180,18 @@ public static class DtoExtensions
             DopaAddress = dto.DopaAddress.ToDomain(),
             Notes = dto.Notes,
             // Land-related fields
-            TitleDeedInfo = TitleDeedInfo.Create(dto.TitleNo, dto.DeedType),
+            TitleDeedInfo = TitleDeedInfo.Create(dto.TitleNumber, dto.TitleType),
             LandLocationInfo = LandLocationInfo.Create(dto.BookNumber, dto.PageNumber, dto.LandParcelNumber,
                 dto.SurveyNumber, dto.MapSheetNumber, dto.Rawang, dto.AerialMapName, dto.AerialMapNumber),
             LandArea = LandArea.Of(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
             // Building-related fields
             BuildingInfo = BuildingInfo.Create(dto.BuildingType, dto.UsableArea, dto.NumberOfBuilding),
             // Condo-related fields (UsableArea shared with Building in the same column)
-            CondoInfo = CondoInfo.Create(dto.CondoName, dto.BuildingNo, dto.RoomNo, dto.FloorNo, dto.UsableArea),
+            CondoInfo = CondoInfo.Create(dto.CondoName, dto.BuildingNumber, dto.RoomNumber, dto.FloorNumber, dto.UsableArea),
             // Vehicle/Vessel/Machine fields
-            VehicleInfo = VehicleInfo.Create(dto.VehicleType, dto.VehicleAppointmentLocation, dto.VIN,
+            VehicleInfo = VehicleInfo.Create(dto.VehicleType, dto.VehicleLocation, dto.VIN,
                 dto.LicensePlateNumber),
-            VesselInfo = VesselInfo.Create(dto.VesselType, dto.VesselAppointmentLocation, dto.HullIdentificationNumber,
+            VesselInfo = VesselInfo.Create(dto.VesselType, dto.VesselLocation, dto.HIN,
                 dto.VesselRegistrationNumber),
             MachineInfo = MachineInfo.Create(dto.RegistrationStatus, dto.RegistrationNo, dto.MachineType,
                 dto.InstallationStatus, dto.InvoiceNumber, dto.NumberOfMachine)
