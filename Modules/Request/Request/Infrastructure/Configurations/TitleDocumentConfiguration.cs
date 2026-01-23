@@ -25,14 +25,11 @@ public class TitleDocumentConfiguration : IEntityTypeConfiguration<TitleDocument
 
         builder.Property(x => x.Set);
 
-        builder.Property(x => x.DocumentDescription)
+        builder.Property(x => x.Notes)
             .HasMaxLength(500);
 
         builder.Property(x => x.FilePath)
             .HasMaxLength(255);
-
-        builder.Property(x => x.CreatedWorkstation)
-            .HasMaxLength(50);
 
         builder.Property(x => x.IsRequired);
 

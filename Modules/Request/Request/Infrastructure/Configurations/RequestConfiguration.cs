@@ -92,7 +92,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
 
             detail.OwnsOne(p => p.Appointment, appointment =>
             {
-                appointment.Property(p => p.AppointmentDate).HasColumnName("AppointmentDate");
+                appointment.Property(p => p.AppointmentDateTime).HasColumnName("AppointmentDate");
                 appointment.Property(p => p.AppointmentLocation).HasMaxLength(4000)
                     .HasColumnName("AppointmentLocation");
             });

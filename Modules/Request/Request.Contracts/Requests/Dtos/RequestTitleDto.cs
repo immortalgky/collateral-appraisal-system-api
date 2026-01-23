@@ -8,14 +8,19 @@ public record RequestTitleDto
     public bool CollateralStatus { get; init; }
 
     // TitleDeedInfo fields
-    public string? TitleNo { get; init; }
-    public string? DeedType { get; init; }
+    public string? TitleNumber { get; init; }
+    public string? TitleType { get; init; }
     public string? TitleDetail { get; init; }
 
     // LandLocationInfo fields (renamed from SurveyInfo)
+    public string? BookNumber { get; init; }
+    public string? PageNumber { get; init; }
+    public string? LandParcelNumber { get; init; }
+    public string? SurveyNumber { get; init; }
+    public string? MapSheetNumber { get; init; }
     public string? Rawang { get; init; }
-    public string? LandNo { get; init; }
-    public string? SurveyNo { get; init; }
+    public string? AerialMapName { get; set; }
+    public string? AerialMapNumber { get; set; }
 
     // LandArea fields
     public int? AreaRai { get; init; }
@@ -27,14 +32,14 @@ public record RequestTitleDto
 
     // VehicleInfo fields
     public string? VehicleType { get; init; }
-    public string? VehicleAppointmentLocation { get; init; }
+    public string? VehicleLocation { get; init; }
     public string? VIN { get; init; }
     public string? LicensePlateNumber { get; init; }
 
     // VesselInfo fields
     public string? VesselType { get; init; }
-    public string? VesselAppointmentLocation { get; init; }
-    public string? HullIdentificationNumber { get; init; }
+    public string? VesselLocation { get; init; }
+    public string? HIN { get; init; }
     public string? VesselRegistrationNumber { get; init; }
 
     // MachineInfo fields
@@ -52,9 +57,9 @@ public record RequestTitleDto
 
     // CondoInfo fields (UsableArea is shared with Building)
     public string? CondoName { get; init; }
-    public string? BuildingNo { get; init; }
-    public string? RoomNo { get; init; }
-    public string? FloorNo { get; init; }
+    public string? BuildingNumber { get; init; }
+    public string? RoomNumber { get; init; }
+    public string? FloorNumber { get; init; }
 
     // Address fields
     public AddressDto TitleAddress { get; init; } = default!;

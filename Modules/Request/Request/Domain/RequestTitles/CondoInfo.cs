@@ -3,39 +3,39 @@ namespace Request.Domain.RequestTitles;
 public class CondoInfo : ValueObject
 {
     public string? CondoName { get; }
-    public string? BuildingNo { get; }
-    public string? RoomNo { get; }
-    public string? FloorNo { get; }
+    public string? BuildingNumber { get; }
+    public string? RoomNumber { get; }
+    public string? FloorNumber { get; }
     public decimal? UsableArea { get; }
 
     private CondoInfo(
         string? condoName,
-        string? buildingNo,
-        string? roomNo,
-        string? floorNo,
+        string? buildingNumber,
+        string? roomNumber,
+        string? floorNumber,
         decimal? usableArea
     )
     {
         CondoName = condoName;
-        BuildingNo = buildingNo;
-        RoomNo = roomNo;
-        FloorNo = floorNo;
+        BuildingNumber = buildingNumber;
+        RoomNumber = roomNumber;
+        FloorNumber = floorNumber;
         UsableArea = usableArea;
     }
 
     public static CondoInfo Create(
         string? condoName,
-        string? buildingNo,
-        string? roomNo,
-        string? floorNo,
+        string? buildingNumber,
+        string? roomNumber,
+        string? floorNumber,
         decimal? usableArea = null
     )
     {
         return new CondoInfo(
             condoName,
-            buildingNo,
-            roomNo,
-            floorNo,
+            buildingNumber,
+            roomNumber,
+            floorNumber,
             usableArea
         );
     }
@@ -44,11 +44,10 @@ public class CondoInfo : ValueObject
     {
         var ruleCheck = new RuleCheck();
         ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(CondoName), "condoName is required.");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(BuildingNo), "buildingNo is required.");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(RoomNo), "roomNo is required.");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(FloorNo), "floorNo is required.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(BuildingNumber), "buildingNo is required.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(RoomNumber), "roomNo is required.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(FloorNumber), "floorNo is required.");
         ruleCheck.AddErrorIf(UsableArea is null || UsableArea < 0, "usableArea must be >= 0.");
         ruleCheck.ThrowIfInvalid();
     }
 }
-

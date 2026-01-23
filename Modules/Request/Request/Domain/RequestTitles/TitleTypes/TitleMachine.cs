@@ -15,7 +15,10 @@ public sealed class TitleMachine : RequestTitle
         MachineInfo = data.MachineInfo;
     }
 
-    public static TitleMachine Create(RequestTitleData data) => new(data);
+    public static TitleMachine Create(RequestTitleData data)
+    {
+        return new TitleMachine(data);
+    }
 
     public override void Update(RequestTitleData data)
     {
@@ -28,7 +31,7 @@ public sealed class TitleMachine : RequestTitle
         base.Validate();
 
         var ruleCheck = new RuleCheck();
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(MachineInfo.RegistrationNo), "registrationNo is required.");
+        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(MachineInfo.RegistrationNumber), "registrationNo is required.");
         ruleCheck.ThrowIfInvalid();
 
         MachineInfo.Validate();

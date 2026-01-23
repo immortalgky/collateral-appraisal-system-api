@@ -63,7 +63,7 @@ internal class CreateDraftRequestCommandHandler(
                     command.Detail.Contact?.ContactPersonPhone,
                     command.Detail.Contact?.DealerCode),
                 Appointment.Create(
-                    command.Detail.Appointment?.AppointmentDate,
+                    command.Detail.Appointment?.AppointmentDateTime,
                     command.Detail.Appointment?.AppointmentLocation),
                 Fee.Create(
                     command.Detail.Fee?.FeePaymentType,
@@ -136,9 +136,8 @@ internal class CreateDraftRequestCommandHandler(
                     Filename = doc.Filename,
                     Prefix = doc.Prefix,
                     Set = doc.Set,
-                    DocumentDescription = doc.DocumentDescription,
+                    Notes = doc.DocumentDescription,
                     FilePath = doc.FilePath,
-                    CreatedWorkstation = doc.CreatedWorkstation,
                     UploadedBy = doc.UploadedBy,
                     UploadedByName = doc.UploadedByName,
                     UploadedAt = doc.UploadedAt

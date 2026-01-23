@@ -100,9 +100,8 @@ public static class MappingConfiguration
             .Map(dest => dest.Filename, src => src.Filename)
             .Map(dest => dest.Prefix, src => src.Prefix)
             .Map(dest => dest.Set, src => src.Set)
-            .Map(dest => dest.DocumentDescription, src => src.DocumentDescription)
+            .Map(dest => dest.Notes, src => src.DocumentDescription)
             .Map(dest => dest.FilePath, src => src.FilePath)
-            .Map(dest => dest.CreatedWorkstation, src => src.CreatedWorkstation)
             .Map(dest => dest.UploadedBy, src => src.UploadedBy)
             .Map(dest => dest.UploadedByName, src => src.UploadedByName)
             .Map(dest => dest.UploadedAt, src => src.UploadedAt);
@@ -117,9 +116,8 @@ public static class MappingConfiguration
             .Map(dest => dest.Filename, src => src.Filename)
             .Map(dest => dest.Prefix, src => src.Prefix)
             .Map(dest => dest.Set, src => src.Set)
-            .Map(dest => dest.DocumentDescription, src => src.DocumentDescription)
+            .Map(dest => dest.DocumentDescription, src => src.Notes)
             .Map(dest => dest.FilePath, src => src.FilePath)
-            .Map(dest => dest.CreatedWorkstation, src => src.CreatedWorkstation)
             .Map(dest => dest.IsRequired, src => src.IsRequired)
             .Map(dest => dest.UploadedBy, src => src.UploadedBy)
             .Map(dest => dest.UploadedByName, src => src.UploadedByName);
