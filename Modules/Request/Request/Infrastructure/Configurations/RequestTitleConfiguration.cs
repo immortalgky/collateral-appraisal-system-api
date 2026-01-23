@@ -519,7 +519,7 @@ public class TitleVesselConfiguration : IEntityTypeConfiguration<TitleVessel>
                 .HasMaxLength(300)
                 .HasColumnName("VesselLocation");
 
-            vessel.Property(p => p.HullIdentificationNumber)
+            vessel.Property(p => p.HIN)
                 .HasMaxLength(50)
                 .HasColumnName("HullIdentificationNumber");
 
