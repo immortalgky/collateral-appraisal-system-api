@@ -135,9 +135,8 @@ public class CreateRequestCommandHandler(
                     Filename = doc.Filename,
                     Prefix = doc.Prefix,
                     Set = doc.Set,
-                    DocumentDescription = doc.DocumentDescription,
+                    Notes = doc.DocumentDescription,
                     FilePath = doc.FilePath,
-                    CreatedWorkstation = doc.CreatedWorkstation,
                     UploadedBy = doc.UploadedBy,
                     UploadedByName = doc.UploadedByName,
                     UploadedAt = doc.UploadedAt

@@ -2,31 +2,31 @@ namespace Request.Domain.RequestTitles;
 
 public class TitleDeedInfo : ValueObject
 {
-    public string? TitleNo { get; }
-    public string? DeedType { get; }
+    public string? TitleNumber { get; }
+    public string? TitleType { get; }
 
-    private TitleDeedInfo(string? titleNo, string? deedType)
+    private TitleDeedInfo(string? titleNumber, string? titleType)
     {
-        TitleNo = titleNo;
-        DeedType = deedType;
+        TitleNumber = titleNumber;
+        TitleType = titleType;
     }
 
-    public static TitleDeedInfo Create(string? titleNo, string? deedType)
+    public static TitleDeedInfo Create(string? titleNumber, string? titleType)
     {
-        return new TitleDeedInfo(titleNo, deedType);
+        return new TitleDeedInfo(titleNumber, titleType);
     }
 
-    public TitleDeedInfo Update(string? titleNo, string? deedType)
+    public TitleDeedInfo Update(string? titleNumber, string? titleType)
     {
-        return new TitleDeedInfo(titleNo, deedType);
+        return new TitleDeedInfo(titleNumber, titleType);
     }
 
     private static readonly string[] ValidDeedTypes = { "DEED", "NS3", "NS3K" };
 
     public void Validate()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(TitleNo);
-        ArgumentException.ThrowIfNullOrWhiteSpace(DeedType);
-        if (!ValidDeedTypes.Contains(DeedType)) throw new ArgumentException("deedType out of scope.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(TitleNumber);
+        ArgumentException.ThrowIfNullOrWhiteSpace(TitleType);
+        if (!ValidDeedTypes.Contains(TitleType)) throw new ArgumentException("deedType out of scope.");
     }
 }

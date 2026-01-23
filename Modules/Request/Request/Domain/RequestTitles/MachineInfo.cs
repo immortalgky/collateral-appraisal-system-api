@@ -3,11 +3,11 @@ namespace Request.Domain.RequestTitles;
 public class MachineInfo : ValueObject
 {
     public bool RegistrationStatus { get; }
-    public string? RegistrationNo { get; }
+    public string? RegistrationNumber { get; }
     public string? MachineType { get; }
     public string? InstallationStatus { get; }
     public string? InvoiceNumber { get; }
-    public int? NumberOfMachinery { get; }
+    public int? NumberOfMachine { get; }
 
     private MachineInfo()
     {
@@ -16,24 +16,24 @@ public class MachineInfo : ValueObject
 
     private MachineInfo(
         bool registrationStatus,
-        string? registrationNo,
+        string? registrationNumber,
         string? machineType,
         string? installationStatus,
         string? invoiceNumber,
-        int? numberOfMachinery
+        int? numberOfMachine
     )
     {
         RegistrationStatus = registrationStatus;
-        RegistrationNo = registrationNo;
+        RegistrationNumber = registrationNumber;
         MachineType = machineType;
         InstallationStatus = installationStatus;
         InvoiceNumber = invoiceNumber;
-        NumberOfMachinery = numberOfMachinery;
+        NumberOfMachine = numberOfMachine;
     }
 
     public static MachineInfo Create(
         bool registrationStatus,
-        string? registrationNo,
+        string? registrationNumber,
         string? machineryType,
         string? installationStatus,
         string? invoiceNumber,
@@ -42,7 +42,7 @@ public class MachineInfo : ValueObject
     {
         return new MachineInfo(
             registrationStatus,
-            registrationNo,
+            registrationNumber,
             machineryType,
             installationStatus,
             invoiceNumber,
@@ -54,11 +54,12 @@ public class MachineInfo : ValueObject
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(MachineType);
         ArgumentException.ThrowIfNullOrWhiteSpace(InstallationStatus);
-        if (NumberOfMachinery is null || NumberOfMachinery < 0)
+        if (NumberOfMachine is null || NumberOfMachine < 0)
             throw new ArgumentException("numberOfMachinery must be >= 0.");
+
         switch (RegistrationStatus)
         {
-            case true when string.IsNullOrWhiteSpace(RegistrationNo):
+            case true when string.IsNullOrWhiteSpace(RegistrationNumber):
                 throw new ArgumentException("registrationNo is required when registrationStatus is true.");
             case false when string.IsNullOrWhiteSpace(InvoiceNumber):
                 throw new ArgumentException("invoiceNumber is required when registrationStatus is false.");

@@ -13,9 +13,14 @@ public record RequestTitleDto
     public string? TitleDetail { get; init; }
 
     // LandLocationInfo fields (renamed from SurveyInfo)
+    public string? BookNumber { get; init; }
+    public string? PageNumber { get; init; }
+    public string? LandParcelNumber { get; init; }
+    public string? SurveyNumber { get; init; }
+    public string? MapSheetNumber { get; init; }
     public string? Rawang { get; init; }
-    public string? LandNo { get; init; }
-    public string? SurveyNo { get; init; }
+    public string? AerialMapName { get; set; }
+    public string? AerialMapNumber { get; set; }
 
     // LandArea fields
     public int? AreaRai { get; init; }

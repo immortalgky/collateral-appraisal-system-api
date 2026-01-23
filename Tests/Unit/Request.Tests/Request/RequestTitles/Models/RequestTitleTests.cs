@@ -39,7 +39,10 @@ public class RequestTitleDataBuilder
     public string _collateralType = "L";
     public bool _collateralStatus = true;
     public TitleDeedInfo _titleDeedInfo = TitleDeedInfo.Create("123", "Chanote");
-    public LandLocationInfo _landLocationInfo = LandLocationInfo.Create("rawang", "landNo", "surveyNo");
+
+    public LandLocationInfo _landLocationInfo = LandLocationInfo.Create(
+        "Book1", "Page1", "Parcel1", "Survey1", "Map1", "Rawang1", "AerialMap1", "AerialMapNum1");
+
     public LandArea _landArea = LandArea.Of(1, 2, 3);
     public string _ownerName = "Owner";
     public VehicleInfo _vehicleInfo = VehicleInfo.Create("Car", "Location", "VIN123", "ABC-1234");
