@@ -132,7 +132,8 @@ public static class DtoExtensions
 
     public static LandLocationInfo ToDomain(this LandLocationInfoDto dto)
     {
-        return LandLocationInfo.Create(dto.Rawang, dto.LandNo, dto.SurveyNo);
+        return LandLocationInfo.Create(dto.BookNumber, dto.PageNumber, dto.LandParcelNumber, dto.SurveyNumber,
+            dto.MapSheetNumber, dto.Rawang, dto.AerialMapName, dto.AerialMapNumber);
     }
 
     public static LandArea ToDomain(this LandAreaDto dto)
@@ -180,11 +181,12 @@ public static class DtoExtensions
             Notes = dto.Notes,
             // Land-related fields
             TitleDeedInfo = TitleDeedInfo.Create(dto.TitleNo, dto.DeedType),
-            LandLocationInfo = LandLocationInfo.Create(dto.Rawang, dto.LandNo, dto.SurveyNo),
+            LandLocationInfo = LandLocationInfo.Create(dto.BookNumber, dto.PageNumber, dto.LandParcelNumber,
+                dto.SurveyNumber, dto.MapSheetNumber, dto.Rawang, dto.AerialMapName, dto.AerialMapNumber),
             LandArea = LandArea.Of(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
             // Building-related fields
             BuildingInfo = BuildingInfo.Create(dto.BuildingType, dto.UsableArea, dto.NumberOfBuilding),
-            // Condo-related fields (UsableArea shared with Building in same column)
+            // Condo-related fields (UsableArea shared with Building in the same column)
             CondoInfo = CondoInfo.Create(dto.CondoName, dto.BuildingNo, dto.RoomNo, dto.FloorNo, dto.UsableArea),
             // Vehicle/Vessel/Machine fields
             VehicleInfo = VehicleInfo.Create(dto.VehicleType, dto.VehicleAppointmentLocation, dto.VIN,
@@ -205,9 +207,8 @@ public static class DtoExtensions
             Filename = dto.Filename,
             Prefix = dto.Prefix,
             Set = dto.Set,
-            DocumentDescription = dto.DocumentDescription,
+            Notes = dto.DocumentDescription,
             FilePath = dto.FilePath,
-            CreatedWorkstation = dto.CreatedWorkstation,
             UploadedBy = dto.UploadedBy,
             UploadedByName = dto.UploadedByName,
             UploadedAt = dto.UploadedAt
