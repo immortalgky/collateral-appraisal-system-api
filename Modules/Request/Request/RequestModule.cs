@@ -52,6 +52,9 @@ public static class RequestModule
 
         services.AddScoped<IDataSeeder<RequestDbContext>, RequestDataSeed>();
 
+        // Add other services, handlers, etc.
+        services.AddTransient<ICreateRequestService, CreateRequestService>();
+
         return services;
     }
 
