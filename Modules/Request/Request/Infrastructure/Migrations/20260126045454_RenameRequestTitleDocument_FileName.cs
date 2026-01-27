@@ -5,7 +5,7 @@
 namespace Request.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class AddExternalCaseKeyAndExternalSystem : Migration
+    public partial class RenameRequestTitleDocument_FileName : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

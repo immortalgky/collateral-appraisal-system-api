@@ -1,34 +1,52 @@
+using System.Globalization;
 using Document.Domain.UploadSessions.Model;
-using MediatR;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Shared.Configurations;
 using Shared.CQRS;
-using Shared.Data;
 
 namespace Integration.Application.Features.UploadSessions.CreateUploadSession;
 
 public class CreateUploadSessionCommandHandler(
-    IRepository<UploadSession, Guid> uploadSessionRepository
+    IRepository<UploadSession, Guid> uploadSessionRepository,
+    IOptions<FileStorageConfiguration> fileStorageConfigurationOptions,
+    ILogger<CreateUploadSessionCommandHandler> logger
 ) : ICommandHandler<CreateUploadSessionCommand, CreateUploadSessionResult>
 {
     public async Task<CreateUploadSessionResult> Handle(
         CreateUploadSessionCommand command,
         CancellationToken cancellationToken)
     {
-        var expiresAt = DateTime.UtcNow.AddHours(24);
+        var expirationTime =
+            DateTime.Now.AddHours(fileStorageConfigurationOptions.Value.Cleanup.TempSessionExpirationHours);
 
-        var session = UploadSession.Create(
-            expiresAt: expiresAt,
-            userAgent: null,
-            ipAddress: null
+        logger.LogInformation(
+            "Creating upload session with expiration at {ExpirationTime}. UserAgent: {UserAgent}, IP: {IpAddress}",
+            expirationTime,
+            command.UserAgent,
+            command.IpAddress);
+
+        var uploadSession = UploadSession.Create(
+            expirationTime,
+            command.UserAgent,
+            command.IpAddress
         );
 
-        if (!string.IsNullOrWhiteSpace(command.ExternalReference))
-        {
-            session.SetExternalReference(command.ExternalReference);
-        }
+        await uploadSessionRepository.AddAsync(uploadSession, cancellationToken);
 
-        await uploadSessionRepository.AddAsync(session, cancellationToken);
-        await uploadSessionRepository.SaveChangesAsync(cancellationToken);
+        logger.LogInformation(
+            "Created upload session {SessionId} with expiration at {ExpirationTime}",
+            uploadSession.Id,
+            expirationTime);
 
-        return new CreateUploadSessionResult(session.Id, expiresAt);
+        return new CreateUploadSessionResult(
+            uploadSession.Id,
+            uploadSession.Status,
+            expirationTime.ToString("yyyy-MM-ddTHH:mm:ss"),
+            new UploadLimitation(
+                fileStorageConfigurationOptions.Value.MaxFilesPerSession,
+                fileStorageConfigurationOptions.Value.MaxFileSizeBytes,
+                fileStorageConfigurationOptions.Value.MaxTotalSessionSizeBytes
+            ));
     }
 }

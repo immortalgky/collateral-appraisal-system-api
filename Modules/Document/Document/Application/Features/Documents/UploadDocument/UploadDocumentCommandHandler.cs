@@ -1,7 +1,5 @@
-using Document.Data;
 using Document.Services;
 using Document.Domain.UploadSessions.Model;
-using Shared.CQRS;
 using Shared.Data;
 
 namespace Document.Domain.Documents.Features.UploadDocument;
@@ -53,15 +51,15 @@ internal class UploadDocumentCommandHandler(
 
         logger.LogDebug("Calculated checksum {Checksum} for file {FileName}", checksum, command.File.FileName);
 
-        var duplicateExists = await documentRepository.ExistsAsync(d => d.Checksum == checksum, cancellationToken);
-        if (duplicateExists)
-        {
-            logger.LogWarning(
-                "Duplicate document detected with checksum {Checksum} for file {FileName}",
-                checksum,
-                command.File.FileName);
-            throw new DomainException("A document with identical content already exists");
-        }
+        // var duplicateExists = await documentRepository.ExistsAsync(d => d.Checksum == checksum, cancellationToken);
+        // if (duplicateExists)
+        // {
+        //     logger.LogWarning(
+        //         "Duplicate document detected with checksum {Checksum} for file {FileName}",
+        //         checksum,
+        //         command.File.FileName);
+        //     throw new DomainException("A document with identical content already exists");
+        // }
 
         // Upload document
         try

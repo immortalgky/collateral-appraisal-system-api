@@ -311,11 +311,11 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("FileName")
+                    b.Property<string>("FilePath")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
-                    b.Property<string>("FilePath")
+                    b.Property<string>("Filename")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 

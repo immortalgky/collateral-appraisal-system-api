@@ -135,7 +135,7 @@ public class Document : Aggregate<Guid>
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentType);
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentCategory);
+        // ArgumentException.ThrowIfNullOrWhiteSpace(documentCategory);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileExtension);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fileSizeBytes);
