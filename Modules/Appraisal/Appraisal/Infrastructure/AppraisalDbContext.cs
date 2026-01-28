@@ -43,6 +43,15 @@ public class AppraisalDbContext : DbContext
     public DbSet<AdjustmentTypeLookup> AdjustmentTypeLookups => Set<AdjustmentTypeLookup>();
 
     // =====================================================
+    // Market Comparable Templates (EAV System)
+    // =====================================================
+    public DbSet<MarketComparableTemplate> MarketComparableTemplates => Set<MarketComparableTemplate>();
+    public DbSet<MarketComparableTemplateFactor> MarketComparableTemplateFactors => Set<MarketComparableTemplateFactor>();
+    public DbSet<MarketComparableFactor> MarketComparableFactors => Set<MarketComparableFactor>();
+    public DbSet<MarketComparableData> MarketComparableData => Set<MarketComparableData>();
+    public DbSet<MarketComparableImage> MarketComparableImages => Set<MarketComparableImage>();
+
+    // =====================================================
     // Review & Committee Entities
     // =====================================================
     public DbSet<AppraisalReview> AppraisalReviews => Set<AppraisalReview>();

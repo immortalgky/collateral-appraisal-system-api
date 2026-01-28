@@ -19,7 +19,8 @@ public class CreateMarketComparableCommandHandler(
             command.PropertyType,
             command.Province,
             command.DataSource,
-            command.SurveyDate);
+            command.SurveyDate,
+            command.TemplateId);
 
         if (command.District is not null || command.SubDistrict is not null ||
             command.Address is not null || command.Latitude.HasValue || command.Longitude.HasValue)

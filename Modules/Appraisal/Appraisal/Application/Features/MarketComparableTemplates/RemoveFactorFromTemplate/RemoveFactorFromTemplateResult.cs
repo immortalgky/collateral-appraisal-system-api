@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableTemplates.RemoveFactorFromTemplate;
+
+public record RemoveFactorFromTemplateResult(bool Success);

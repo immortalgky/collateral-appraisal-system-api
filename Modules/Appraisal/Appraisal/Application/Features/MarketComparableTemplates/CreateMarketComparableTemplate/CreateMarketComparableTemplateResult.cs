@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableTemplates.CreateMarketComparableTemplate;
+
+public record CreateMarketComparableTemplateResult(Guid Id);

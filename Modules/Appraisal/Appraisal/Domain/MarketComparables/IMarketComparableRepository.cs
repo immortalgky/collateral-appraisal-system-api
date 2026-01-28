@@ -25,4 +25,6 @@ public interface IMarketComparableRepository : IRepository<MarketComparable, Gui
         CancellationToken cancellationToken = default);
 
     Task<IEnumerable<MarketComparable>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    Task<MarketComparable?> GetByIdWithDetailsAsync(Guid id, CancellationToken cancellationToken = default);
 }

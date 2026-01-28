@@ -43,10 +43,34 @@ public class MarketComparableConfiguration : IEntityTypeConfiguration<MarketComp
 
         builder.Ignore(m => m.DomainEvents);
 
+        // Navigation to factor data (EAV)
+        builder.HasMany(m => m.FactorData)
+            .WithOne()
+            .HasForeignKey(d => d.MarketComparableId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(m => m.FactorData).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // Navigation to images
+        builder.HasMany(m => m.Images)
+            .WithOne()
+            .HasForeignKey(i => i.MarketComparableId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(m => m.Images).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // Template reference (optional FK - if template deleted, set to null)
+        builder.Property(m => m.TemplateId);
+        builder.HasOne<MarketComparableTemplate>()
+            .WithMany()
+            .HasForeignKey(m => m.TemplateId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(m => m.ComparableNumber).IsUnique();
         builder.HasIndex(m => m.PropertyType);
         builder.HasIndex(m => m.Province);
         builder.HasIndex(m => m.Status);
+        builder.HasIndex(m => m.TemplateId);
     }
 }
 

@@ -1,0 +1,558 @@
+### =====================================================
+### Market Comparable Template System - API Test File
+### =====================================================
+### =====================================================
+### 1. MARKET COMPARABLE FACTORS
+### =====================================================
+
+### 1.1 Create Factor - Location Type (Text)
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "LOCATION_TYPE",
+  "factorName": "Location Type",
+  "fieldName": "LocationType",
+  "dataType": "Text",
+  "fieldLength": 100,
+  "fieldDecimal": null,
+  "parameterGroup": null
+}
+
+### 1.2 Create Factor - Land Area (Numeric)
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "LAND_AREA",
+  "factorName": "Land Area (Sq.Wah)",
+  "fieldName": "LandArea",
+  "dataType": "Numeric",
+  "fieldLength": 18,
+  "fieldDecimal": 2,
+  "parameterGroup": null
+}
+
+### 1.3 Create Factor - Road Width (Numeric)
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "ROAD_WIDTH",
+  "factorName": "Road Width (meters)",
+  "fieldName": "RoadWidth",
+  "dataType": "Numeric",
+  "fieldLength": 10,
+  "fieldDecimal": 2,
+  "parameterGroup": null
+}
+
+### 1.4 Create Factor - Land Shape (Dropdown)
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "LAND_SHAPE",
+  "factorName": "Land Shape",
+  "fieldName": "LandShape",
+  "dataType": "Dropdown",
+  "fieldLength": null,
+  "fieldDecimal": null,
+  "parameterGroup": "LAND_SHAPE_OPTIONS"
+}
+
+### 1.5 Create Factor - Corner Lot (Checkbox)
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "IS_CORNER_LOT",
+  "factorName": "Corner Lot",
+  "fieldName": "IsCornerLot",
+  "dataType": "Checkbox",
+  "fieldLength": null,
+  "fieldDecimal": null,
+  "parameterGroup": null
+}
+
+### 1.6 Create Factor - Building Age (Numeric)
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "BUILDING_AGE",
+  "factorName": "Building Age (Years)",
+  "fieldName": "BuildingAge",
+  "dataType": "Numeric",
+  "fieldLength": 5,
+  "fieldDecimal": 0,
+  "parameterGroup": null
+}
+
+### 1.7 Create Factor - Floor Count (Numeric)
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "FLOOR_COUNT",
+  "factorName": "Number of Floors",
+  "fieldName": "FloorCount",
+  "dataType": "Numeric",
+  "fieldLength": 3,
+  "fieldDecimal": 0,
+  "parameterGroup": null
+}
+
+### 1.8 Create Factor - Condo Floor Level (Numeric)
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "CONDO_FLOOR",
+  "factorName": "Floor Level",
+  "fieldName": "FloorLevel",
+  "dataType": "Numeric",
+  "fieldLength": 3,
+  "fieldDecimal": 0,
+  "parameterGroup": null
+}
+
+### 1.9 Create Factor - View Type (Dropdown)
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "VIEW_TYPE",
+  "factorName": "View Type",
+  "fieldName": "ViewType",
+  "dataType": "Dropdown",
+  "fieldLength": null,
+  "fieldDecimal": null,
+  "parameterGroup": "VIEW_TYPE_OPTIONS"
+}
+
+### 1.10 Get All Factors
+GET {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+### 1.11 Update Factor
+# Replace {factorId} with actual ID from create response
+@factorId = 5E915226-DD99-4B42-83B7-7FAB22B02482
+PUT {{baseUrl}}/market-comparable-factors/{{factorId}}
+Content-Type: application/json
+
+{
+  "factorName": "Land Area (Square Wah)",
+  "fieldName": "LandAreaSqWah",
+  "fieldLength": 18,
+  "fieldDecimal": 4,
+  "parameterGroup": null
+}
+
+### 1.12 Delete Factor (Soft Delete)
+# Replace {factorId} with actual ID
+DELETE {{baseUrl}}/market-comparable-factors/{{factorId}}
+
+### =====================================================
+### 2. MARKET COMPARABLE TEMPLATES
+### =====================================================
+
+### 2.1 Create Template - Land
+POST {{baseUrl}}/market-comparable-templates
+Content-Type: application/json
+
+{
+  "templateCode": "LAND_TEMPLATE",
+  "templateName": "Land Property Template",
+  "propertyType": "Land",
+  "description": "Template for land property comparables with location and size factors"
+}
+
+### 2.2 Create Template - Building
+POST {{baseUrl}}/market-comparable-templates
+Content-Type: application/json
+
+{
+  "templateCode": "BUILDING_TEMPLATE",
+  "templateName": "Building Property Template",
+  "propertyType": "Building",
+  "description": "Template for building property comparables"
+}
+
+### 2.3 Create Template - Condo
+POST {{baseUrl}}/market-comparable-templates
+Content-Type: application/json
+
+{
+  "templateCode": "CONDO_TEMPLATE",
+  "templateName": "Condominium Template",
+  "propertyType": "Condo",
+  "description": "Template for condominium unit comparables"
+}
+
+### 2.4 Create Template - Land & Building
+POST {{baseUrl}}/market-comparable-templates
+Content-Type: application/json
+
+{
+  "templateCode": "LAND_BUILDING_TEMPLATE",
+  "templateName": "Land and Building Template",
+  "propertyType": "LandAndBuilding",
+  "description": "Template for combined land and building comparables"
+}
+
+### 2.5 Get All Templates
+GET {{baseUrl}}/market-comparable-templates
+Content-Type: application/json
+
+### 2.6 Get All Templates - Filter by Property Type
+GET {{baseUrl}}/market-comparable-templates?propertyType=Land
+Content-Type: application/json
+
+### 2.7 Get Template By ID (with Factors)
+# Replace {templateId} with actual ID
+@templateId = 2A4D4934-40B6-44CC-88EA-42F087DF1557
+GET {{baseUrl}}/market-comparable-templates/{{templateId}}
+Content-Type: application/json
+
+### 2.8 Update Template
+PUT {{baseUrl}}/market-comparable-templates/{{templateId}}
+Content-Type: application/json
+
+{
+  "templateName": "Land Property Template (Updated)",
+  "description": "Updated template for land property comparables with enhanced factors"
+}
+
+### 2.9 Delete Template (Soft Delete)
+DELETE {{baseUrl}}/market-comparable-templates/{{templateId}}
+
+### =====================================================
+### 3. ADD FACTORS TO TEMPLATES
+### =====================================================
+
+### 3.1 Add Location Type Factor to Land Template
+# Replace {templateId} and {factorId} with actual IDs
+@landTemplateId = 2A4D4934-40B6-44CC-88EA-42F087DF1557
+@locationTypeFactorId = D916DDFD-E71B-428D-BA4A-709239E54C29
+POST {{baseUrl}}/market-comparable-templates/{{landTemplateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{locationTypeFactorId}}",
+  "displaySequence": 1,
+  "isMandatory": true
+}
+
+### 3.2 Add Land Area Factor to Land Template
+@landAreaFactorId = 5E915226-DD99-4B42-83B7-7FAB22B02482
+POST {{baseUrl}}/market-comparable-templates/{{landTemplateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{landAreaFactorId}}",
+  "displaySequence": 2,
+  "isMandatory": true
+}
+
+### 3.3 Add Road Width Factor to Land Template
+@roadWidthFactorId = F73D5684-FA32-4CA9-9457-2DBEF5461BE8
+POST {{baseUrl}}/market-comparable-templates/{{landTemplateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{roadWidthFactorId}}",
+  "displaySequence": 3,
+  "isMandatory": false
+}
+
+### 3.4 Add Land Shape Factor to Land Template
+@landShapeFactorId = 40202783-4867-4897-8A7E-5DABDDE76948
+POST {{baseUrl}}/market-comparable-templates/{{landTemplateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{landShapeFactorId}}",
+  "displaySequence": 4,
+  "isMandatory": false
+}
+
+### 3.5 Add Corner Lot Factor to Land Template
+@cornerLotFactorId = 2322A669-6F0B-42CC-87B6-3D8E14E1C1F1
+POST {{baseUrl}}/market-comparable-templates/{{landTemplateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{cornerLotFactorId}}",
+  "displaySequence": 5,
+  "isMandatory": false
+}
+
+### 3.6 Add Building Age Factor to Building Template
+@buildingTemplateId = 00000000-0000-0000-0000-000000000000
+@buildingAgeFactorId = 00000000-0000-0000-0000-000000000000
+POST {{baseUrl}}/market-comparable-templates/{{buildingTemplateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{buildingAgeFactorId}}",
+  "displaySequence": 1,
+  "isMandatory": true
+}
+
+### 3.7 Add Floor Count Factor to Building Template
+@floorCountFactorId = 00000000-0000-0000-0000-000000000000
+POST {{baseUrl}}/market-comparable-templates/{{buildingTemplateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{floorCountFactorId}}",
+  "displaySequence": 2,
+  "isMandatory": true
+}
+
+### 3.8 Add Condo Floor Factor to Condo Template
+@condoTemplateId = 00000000-0000-0000-0000-000000000000
+@condoFloorFactorId = 00000000-0000-0000-0000-000000000000
+POST {{baseUrl}}/market-comparable-templates/{{condoTemplateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{condoFloorFactorId}}",
+  "displaySequence": 1,
+  "isMandatory": true
+}
+
+### 3.9 Add View Type Factor to Condo Template
+@viewTypeFactorId = 00000000-0000-0000-0000-000000000000
+POST {{baseUrl}}/market-comparable-templates/{{condoTemplateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{viewTypeFactorId}}",
+  "displaySequence": 2,
+  "isMandatory": false
+}
+
+### 3.10 Remove Factor from Template
+# Replace {templateId} and {templateFactorId} with actual IDs
+@templateFactorId = 15D3423E-F36B-1410-8964-006F4F934FE1
+DELETE {{baseUrl}}/market-comparable-templates/{{templateId}}/factors/{{templateFactorId}}
+
+### =====================================================
+### 4. MARKET COMPARABLES
+### =====================================================
+
+### 4.0 Create Market Comparable (with TemplateId)
+# NOTE: Create a template first and use its ID here to track which template was used
+POST {{baseUrl}}/market-comparables
+Content-Type: application/json
+
+{
+  "comparableNumber": "MC-2026-001",
+  "propertyType": "Land",
+  "province": "Bangkok",
+  "dataSource": "Survey",
+  "surveyDate": "2026-01-28T00:00:00Z",
+  "district": "Chatuchak",
+  "subDistrict": "Chatuchak",
+  "address": "123 Phahonyothin Road",
+  "latitude": 13.8361,
+  "longitude": 100.5620,
+  "transactionType": "Sale",
+  "transactionDate": "2026-01-15T00:00:00Z",
+  "transactionPrice": 15000000.00,
+  "pricePerUnit": 150000.00,
+  "unitType": "Sqm",
+  "description": "Prime land near BTS station",
+  "notes": "Verified through land office records",
+  "templateId": "{{landTemplateId}}"
+}
+
+### 4.0.1 Create Market Comparable (without TemplateId - optional)
+POST {{baseUrl}}/market-comparables
+Content-Type: application/json
+
+{
+  "comparableNumber": "MC-2026-002",
+  "propertyType": "Building",
+  "province": "Bangkok",
+  "dataSource": "Internal",
+  "surveyDate": "2026-01-28T00:00:00Z",
+  "district": "Watthana",
+  "transactionType": "Listing",
+  "transactionPrice": 25000000.00
+}
+
+### 4.1 Get All Market Comparables
+GET {{baseUrl}}/market-comparables
+Content-Type: application/json
+
+### 4.2 Get Market Comparable By ID (with Factor Data and Images)
+# Replace {comparableId} with actual ID
+@comparableId = f0bd1d20-64bd-439c-8aaa-c7ce595ab5d8
+GET {{baseUrl}}/market-comparables/{{comparableId}}
+Content-Type: application/json
+
+### 4.3 Set Factor Data on Comparable
+# Replace {comparableId} with actual ID
+PUT {{baseUrl}}/market-comparables/{{comparableId}}/factor-data
+Content-Type: application/json
+
+{
+  "factorData": [
+    {
+      "factorId": "{{locationTypeFactorId}}",
+      "value": "Urban",
+      "otherRemarks": null
+    },
+    {
+      "factorId": "{{landAreaFactorId}}",
+      "value": "150.50",
+      "otherRemarks": "Approximately 150 sq.wah"
+    },
+    {
+      "factorId": "{{roadWidthFactorId}}",
+      "value": "8.00",
+      "otherRemarks": "Main road access"
+    },
+    {
+      "factorId": "{{landShapeFactorId}}",
+      "value": "Rectangle",
+      "otherRemarks": null
+    },
+    {
+      "factorId": "{{cornerLotFactorId}}",
+      "value": "true",
+      "otherRemarks": "Corner lot with two road access"
+    }
+  ]
+}
+
+### 4.4 Add Image to Comparable
+# NOTE: Images must be uploaded via the Document API first, then linked by DocumentId
+# Step 1: Upload image via POST /documents (returns DocumentId)
+# Step 2: Link document to comparable using this endpoint
+@documentId1 = 00000000-0000-0000-0000-000000000001
+POST {{baseUrl}}/market-comparables/{{comparableId}}/images
+Content-Type: application/json
+
+{
+  "documentId": "{{documentId1}}",
+  "title": "Front View",
+  "description": "Main entrance view of the property"
+}
+
+### 4.5 Add Second Image to Comparable
+@documentId2 = 00000000-0000-0000-0000-000000000002
+POST {{baseUrl}}/market-comparables/{{comparableId}}/images
+Content-Type: application/json
+
+{
+  "documentId": "{{documentId2}}",
+  "title": "Side View",
+  "description": "Side view showing boundary"
+}
+
+### 4.6 Add Third Image to Comparable
+@documentId3 = 00000000-0000-0000-0000-000000000003
+POST {{baseUrl}}/market-comparables/{{comparableId}}/images
+Content-Type: application/json
+
+{
+  "documentId": "{{documentId3}}",
+  "title": "Street View",
+  "description": "View from the main road"
+}
+
+### 4.7 Remove Image from Comparable
+# Replace {imageId} with actual ID
+@imageId = 00000000-0000-0000-0000-000000000000
+DELETE {{baseUrl}}/market-comparables/{{comparableId}}/images/{{imageId}}
+
+### =====================================================
+### 5. WORKFLOW TEST - Complete Flow
+### =====================================================
+
+### Step 1: Create a new Factor
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "UTILITY_ACCESS",
+  "factorName": "Utility Access",
+  "fieldName": "UtilityAccess",
+  "dataType": "Checkbox",
+  "fieldLength": null,
+  "fieldDecimal": null,
+  "parameterGroup": null
+}
+
+### Step 2: Create a new Template
+POST {{baseUrl}}/market-comparable-templates
+Content-Type: application/json
+
+{
+  "templateCode": "VACANT_LAND_TEMPLATE",
+  "templateName": "Vacant Land Template",
+  "propertyType": "Land",
+  "description": "Template for vacant land without structures"
+}
+
+### Step 3: Get the created template (copy ID for next step)
+GET {{baseUrl}}/market-comparable-templates?propertyType=Land
+Content-Type: application/json
+
+### Step 4: Add factor to template (replace IDs)
+# Use the template ID and factor IDs from previous responses
+POST {{baseUrl}}/market-comparable-templates/{templateId}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{factorId}",
+  "displaySequence": 1,
+  "isMandatory": false
+}
+
+### Step 5: Verify template has factors
+GET {{baseUrl}}/market-comparable-templates/{templateId}
+Content-Type: application/json
+
+### =====================================================
+### 6. DATA TYPES REFERENCE
+### =====================================================
+# FactorDataType enum values:
+# - Text (1): Free text field
+# - Numeric (2): Number with optional decimals
+# - Dropdown (3): Select from predefined options (requires parameterGroup)
+# - Checkbox (4): Boolean true/false
+# - Date (5): Date value
+# - Radio (6): Single selection from options (requires parameterGroup)
+
+### Example: Create Date Factor
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "TRANSACTION_DATE",
+  "factorName": "Transaction Date",
+  "fieldName": "TransactionDate",
+  "dataType": "Date",
+  "fieldLength": null,
+  "fieldDecimal": null,
+  "parameterGroup": null
+}
+
+### Example: Create Radio Factor
+POST {{baseUrl}}/market-comparable-factors
+Content-Type: application/json
+
+{
+  "factorCode": "LAND_USE_ZONE",
+  "factorName": "Land Use Zone",
+  "fieldName": "LandUseZone",
+  "dataType": "Radio",
+  "fieldLength": null,
+  "fieldDecimal": null,
+  "parameterGroup": "LAND_ZONE_OPTIONS"
+}

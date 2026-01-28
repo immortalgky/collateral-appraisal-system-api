@@ -3720,6 +3720,9 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid?>("SurveyedBy")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("TemplateId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("TransactionDate")
                         .HasColumnType("datetime2");
 
@@ -3759,7 +3762,272 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.HasIndex("Status");
 
+                    b.HasIndex("TemplateId");
+
                     b.ToTable("MarketComparables", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparableData", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("FactorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("MarketComparableId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("OtherRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Value")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FactorId");
+
+                    b.HasIndex("MarketComparableId");
+
+                    b.HasIndex("MarketComparableId", "FactorId")
+                        .IsUnique();
+
+                    b.ToTable("MarketComparableData", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparableFactor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("FactorCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("FactorName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("FieldDecimal")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("FieldLength")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FieldName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("ParameterGroup")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FactorCode")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("MarketComparableFactors", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparableImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("DisplaySequence")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("MarketComparableId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("MarketComparableId");
+
+                    b.HasIndex("MarketComparableId", "DisplaySequence");
+
+                    b.ToTable("MarketComparableImages", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparableTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("PropertyType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TemplateCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TemplateName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("PropertyType");
+
+                    b.HasIndex("TemplateCode")
+                        .IsUnique();
+
+                    b.ToTable("MarketComparableTemplates", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparableTemplateFactor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DisplaySequence")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("FactorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsMandatory")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FactorId");
+
+                    b.HasIndex("TemplateId");
+
+                    b.HasIndex("TemplateId", "FactorId")
+                        .IsUnique();
+
+                    b.ToTable("MarketComparableTemplateFactors", "appraisal");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Quotations.CompanyQuotation", b =>
@@ -5165,6 +5433,11 @@ namespace Appraisal.Infrastructure.Migrations
 
             modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparable", b =>
                 {
+                    b.HasOne("Appraisal.Domain.MarketComparables.MarketComparableTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.OwnsOne("Appraisal.Domain.Appraisals.SoftDelete", "SoftDelete", b1 =>
                         {
                             b1.Property<Guid>("MarketComparableId")
@@ -5195,6 +5468,49 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Navigation("SoftDelete")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparableData", b =>
+                {
+                    b.HasOne("Appraisal.Domain.MarketComparables.MarketComparableFactor", "Factor")
+                        .WithMany()
+                        .HasForeignKey("FactorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Appraisal.Domain.MarketComparables.MarketComparable", null)
+                        .WithMany("FactorData")
+                        .HasForeignKey("MarketComparableId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Factor");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparableImage", b =>
+                {
+                    b.HasOne("Appraisal.Domain.MarketComparables.MarketComparable", null)
+                        .WithMany("Images")
+                        .HasForeignKey("MarketComparableId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparableTemplateFactor", b =>
+                {
+                    b.HasOne("Appraisal.Domain.MarketComparables.MarketComparableFactor", "Factor")
+                        .WithMany()
+                        .HasForeignKey("FactorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Appraisal.Domain.MarketComparables.MarketComparableTemplate", null)
+                        .WithMany("TemplateFactors")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Factor");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Quotations.CompanyQuotation", b =>
@@ -5344,6 +5660,18 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.DocumentRequirements.DocumentType", b =>
                 {
                     b.Navigation("Requirements");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparable", b =>
+                {
+                    b.Navigation("FactorData");
+
+                    b.Navigation("Images");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparableTemplate", b =>
+                {
+                    b.Navigation("TemplateFactors");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Quotations.CompanyQuotation", b =>

@@ -23,5 +23,6 @@ public record CreateMarketComparableCommand(
     decimal? PricePerUnit = null,
     string? UnitType = null,
     string? Description = null,
-    string? Notes = null
+    string? Notes = null,
+    Guid? TemplateId = null
 ) : ICommand<CreateMarketComparableResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

@@ -28,6 +28,10 @@ public static class AppraisalModule
         services.AddScoped<IAppraisalSettingsRepository, AppraisalSettingsRepository>();
         services.AddScoped<IAutoAssignmentRuleRepository, AutoAssignmentRuleRepository>();
 
+        // Register Market Comparable Template repositories
+        services.AddScoped<IMarketComparableTemplateRepository, MarketComparableTemplateRepository>();
+        services.AddScoped<IMarketComparableFactorRepository, MarketComparableFactorRepository>();
+
         // Register additional aggregate repositories
         services.AddScoped<IQuotationRepository, QuotationRepository>();
 

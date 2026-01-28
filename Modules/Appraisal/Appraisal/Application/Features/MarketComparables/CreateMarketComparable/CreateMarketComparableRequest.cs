@@ -17,5 +17,6 @@ public record CreateMarketComparableRequest(
     decimal? PricePerUnit = null,
     string? UnitType = null,
     string? Description = null,
-    string? Notes = null
+    string? Notes = null,
+    Guid? TemplateId = null
 );

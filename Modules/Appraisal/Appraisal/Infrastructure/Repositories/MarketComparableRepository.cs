@@ -84,4 +84,16 @@ public class MarketComparableRepository(AppraisalDbContext dbContext)
             .OrderByDescending(m => m.CreatedOn)
             .ToListAsync(cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task<MarketComparable?> GetByIdWithDetailsAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.MarketComparables
+            .Include(m => m.FactorData)
+                .ThenInclude(d => d.Factor)
+            .Include(m => m.Images)
+            .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
+    }
 }
