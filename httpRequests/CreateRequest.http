@@ -1,3 +1,4 @@
+@baseUrl = https://localhost:7111/api/v1
 POST {{baseUrl}}/requests
 headers: localhost:7111
 Content-Type: application/json
@@ -105,12 +106,12 @@ Content-Type: application/json
     {
       "collateralType": "L",
       "collateralStatus": false,
-      "titleNo": "titleNo",
-      "deedType": "DEED",
+      "titleNumber": "titleNo",
+      "titleType": "DEED",
       "titleDetail": "This is title detail",
       "rawang": "rawang",
-      "landNo": "landNo",
-      "surveyNo": "surveyNo",
+      "landParcelNumber": "landNo",
+      "surveyNumber": "surveyNo",
       "areaRai": 10,
       "areaNgan": 20,
       "areaSquareWa": 100,

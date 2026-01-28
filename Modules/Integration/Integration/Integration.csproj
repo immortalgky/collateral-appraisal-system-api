@@ -8,11 +8,17 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../../../Shared/Shared/Shared.csproj"/>
-        <ProjectReference Include="../../../Shared/Shared.Messaging/Shared.Messaging.csproj"/>
-        <ProjectReference Include="../Integration.Contracts/Integration.Contracts.csproj"/>
-        <ProjectReference Include="../../Request/Request/Request.csproj"/>
-        <ProjectReference Include="../../Document/Document/Document.csproj"/>
+        <ProjectReference Include="../../../Shared/Shared/Shared.csproj" />
+        <ProjectReference Include="../../../Shared/Shared.Messaging/Shared.Messaging.csproj" />
+        <ProjectReference Include="../Integration.Contracts/Integration.Contracts.csproj" />
+        <ProjectReference Include="../../Request/Request/Request.csproj" />
+        <ProjectReference Include="../../Document/Document/Document.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Application\Features\AppraisalRequests\ResubmitRequest\" />
+      <Folder Include="Application\Features\Appraisals\" />
+      <Folder Include="Application\Features\Appraisals\CancelAppraisal\" />
     </ItemGroup>
 
 </Project>
