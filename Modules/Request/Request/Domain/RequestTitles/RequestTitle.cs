@@ -24,7 +24,7 @@ public abstract class RequestTitle : Aggregate<Guid>
 
     protected RequestTitle(RequestTitleData requestTitleData)
     {
-        Id = Guid.NewGuid();
+        Id = Guid.CreateVersion7();
         RequestId = requestTitleData.RequestId;
         CollateralType = requestTitleData.CollateralType;
         CollateralStatus = requestTitleData.CollateralStatus;

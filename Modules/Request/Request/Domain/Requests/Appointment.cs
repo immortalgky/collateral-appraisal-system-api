@@ -2,23 +2,23 @@ namespace Request.Domain.Requests;
 
 public class Appointment : ValueObject
 {
-    public DateTime? AppointmentDate { get; }
+    public DateTime? AppointmentDateTime { get; }
     public string? AppointmentLocation { get; }
 
-    private Appointment(DateTime? appointmentDate, string? appointmentLocation)
+    private Appointment(DateTime? appointmentDateTime, string? appointmentLocation)
     {
-        AppointmentDate = appointmentDate;
+        AppointmentDateTime = appointmentDateTime;
         AppointmentLocation = appointmentLocation;
     }
 
-    public static Appointment Create(DateTime? appointmentDate, string? appointmentLocation)
+    public static Appointment Create(DateTime? appointmentDateTime, string? appointmentLocation)
     {
-        return new Appointment(appointmentDate, appointmentLocation);
+        return new Appointment(appointmentDateTime, appointmentLocation);
     }
 
     public void Validate()
     {
-        ArgumentNullException.ThrowIfNull(AppointmentDate);
+        ArgumentNullException.ThrowIfNull(AppointmentDateTime);
         ArgumentException.ThrowIfNullOrWhiteSpace(AppointmentLocation);
     }
 }

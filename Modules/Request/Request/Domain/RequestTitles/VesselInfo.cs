@@ -4,7 +4,7 @@ public class VesselInfo : ValueObject
 {
     public string? VesselType { get; }
     public string? VesselLocation { get; }
-    public string? HullIdentificationNumber { get; }
+    public string? HIN { get; }
     public string? VesselRegistrationNumber { get; }
 
     private VesselInfo()
@@ -15,13 +15,13 @@ public class VesselInfo : ValueObject
     private VesselInfo(
         string? vesselType,
         string? vesselLocation,
-        string? hullIdentificationNumber,
+        string? hin,
         string? vesselRegistrationNumber
     )
     {
         VesselType = vesselType;
         VesselLocation = vesselLocation;
-        HullIdentificationNumber = hullIdentificationNumber;
+        HIN = hin;
         VesselRegistrationNumber = vesselRegistrationNumber;
     }
 
@@ -42,6 +42,6 @@ public class VesselInfo : ValueObject
 
     public void Validate()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(HullIdentificationNumber);
+        ArgumentException.ThrowIfNullOrWhiteSpace(HIN);
     }
 }

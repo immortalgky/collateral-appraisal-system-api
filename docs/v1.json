@@ -1,0 +1,4093 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Api | v1",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://localhost:7111/"
+    }
+  ],
+  "paths": {
+    "/requests/{requestId}/titles": {
+      "get": {
+        "tags": [
+          "Request Titles"
+        ],
+        "summary": "Get all titles for a request",
+        "description": "Retrieves all titles/collaterals associated with the specified request.",
+        "operationId": "GetRequestTitlesByRequestId",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRequestTitlesByRequestIdResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests/{requestId}/titles/{titleId}": {
+      "get": {
+        "tags": [
+          "Request Titles"
+        ],
+        "summary": "Get request title by ID",
+        "description": "Retrieves a specific title/collateral by its ID for the specified request.",
+        "operationId": "GetRequestTitleById",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "titleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRequestTitleByIdResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests/{id}": {
+      "put": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Update an existing request",
+        "description": "Updates an existing request in the system.",
+        "operationId": "UpdateRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRequestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Get request by ID",
+        "description": "Retrieves a specific request by its unique identifier.",
+        "operationId": "GetRequestById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRequestByIdResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Delete request by ID",
+        "description": "Deletes a request by its ID.",
+        "operationId": "DeleteRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteRequestResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests/{id}/draft": {
+      "patch": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Update a draft request",
+        "description": "Updates an existing draft request.",
+        "operationId": "UpdateDraftRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDraftRequestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateDraftRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests/{id}/submit": {
+      "patch": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Submit a request",
+        "description": "Submits a request for processing.",
+        "operationId": "SubmitRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitRequestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests": {
+      "get": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Get all requests",
+        "description": "Retrieves all requests from the system with pagination support.",
+        "operationId": "GetRequests",
+        "parameters": [
+          {
+            "name": "PageNumber",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRequestResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Create a new request",
+        "description": "Creates a new request in the system.",
+        "operationId": "CreateRequest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests/draft": {
+      "post": {
+        "tags": [
+          "Requests"
+        ],
+        "summary": "Create a draft request",
+        "description": "Creates a draft request that can be completed later.",
+        "operationId": "CreateDraftRequest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDraftRequestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDraftRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests/{requestId}/comments/{commentId}": {
+      "patch": {
+        "tags": [
+          "Request Comments"
+        ],
+        "summary": "Update a request comment",
+        "description": "Updates an existing comment on the specified request.",
+        "operationId": "UpdateRequestComment",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "commentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRequestCommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateRequestCommentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Request Comments"
+        ],
+        "summary": "Remove a comment from a request",
+        "description": "Removes an existing comment from the specified request.",
+        "operationId": "RemoveRequestComment",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "commentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveRequestCommentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Request Comments"
+        ],
+        "summary": "Get request comment by ID",
+        "description": "Retrieves a specific comment by its ID.",
+        "operationId": "GetRequestCommentById",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "commentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRequestCommentByIdResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests/{requestId}/comments": {
+      "get": {
+        "tags": [
+          "Request Comments"
+        ],
+        "summary": "Get all comments for a request",
+        "description": "Retrieves all comments associated with the specified request.",
+        "operationId": "GetRequestCommentsByRequestId",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRequestCommentsByRequestIdResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Request Comments"
+        ],
+        "summary": "Add a comment to a request",
+        "description": "Adds a new comment to the specified request.",
+        "operationId": "AddRequestComment",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRequestCommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddRequestCommentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/roles": {
+      "get": {
+        "tags": [
+          "Role"
+        ],
+        "summary": "Get all roles",
+        "description": "Retrieves all roles from the system. This endpoint returns a list of roles with their details.",
+        "operationId": "GetRoles",
+        "parameters": [
+          {
+            "name": "PageNumber",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRoleResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Role"
+        ],
+        "summary": "Create new role",
+        "description": "Create new role.",
+        "operationId": "CreateRole",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRoleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/roles/{id}": {
+      "get": {
+        "tags": [
+          "Role"
+        ],
+        "summary": "Get role by ID",
+        "description": "Get role by ID",
+        "operationId": "GetRoleById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRoleByIdResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Role"
+        ],
+        "summary": "Delete role by ID",
+        "description": "Deletes a role by its ID. If the role does not exist, a 404 Not Found error is returned.",
+        "operationId": "DeleteRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteRoleResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/permissions": {
+      "get": {
+        "tags": [
+          "Permission"
+        ],
+        "summary": "Get all permissions",
+        "description": "Retrieves all permissions from the system. This endpoint returns a list of permissions with their details.",
+        "operationId": "GetPermissions",
+        "parameters": [
+          {
+            "name": "PageNumber",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPermissionResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Permission"
+        ],
+        "summary": "Create new permission",
+        "description": "Create new permission.",
+        "operationId": "CreatePermission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePermissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePermissionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/permissions/{id}": {
+      "get": {
+        "tags": [
+          "Permission"
+        ],
+        "summary": "Get permission by ID",
+        "description": "Get permission by ID",
+        "operationId": "GetPermissionById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPermissionByIdResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Permission"
+        ],
+        "summary": "Delete permission by ID",
+        "description": "Deletes a permission by its ID. If the permission does not exist, a 404 Not Found error is returned.",
+        "operationId": "DeletePermission",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletePermissionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/token": {
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Register new user account",
+        "description": "Register a new user account.",
+        "operationId": "RegisterUser",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterUserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/clients": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Register new client",
+        "description": "Register a new client.",
+        "operationId": "RegisterClient",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterClientRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterClientResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/{notificationId}/read": {
+      "patch": {
+        "tags": [
+          "MarkNotificationAsReadEndpoint"
+        ],
+        "summary": "Mark notification as read",
+        "description": "Marks a specific notification as read",
+        "operationId": "MarkNotificationAsRead",
+        "parameters": [
+          {
+            "name": "notificationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkNotificationAsReadResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/users/{userId}/read-all": {
+      "patch": {
+        "tags": [
+          "MarkNotificationAsReadEndpoint"
+        ],
+        "summary": "Mark all notifications as read",
+        "description": "Marks all notifications for a user as read",
+        "operationId": "MarkAllNotificationsAsRead",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkNotificationAsReadResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow/{requestId}/status": {
+      "get": {
+        "tags": [
+          "GetWorkflowStatusEndpoint"
+        ],
+        "summary": "Get workflow status",
+        "description": "Retrieves the current workflow status for a request",
+        "operationId": "GetWorkflowStatus",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWorkflowStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/{userId}": {
+      "get": {
+        "tags": [
+          "GetUserNotificationsEndpoint"
+        ],
+        "summary": "Get user notifications",
+        "description": "Retrieves notifications for a specific user",
+        "operationId": "GetUserNotifications",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "unreadOnly",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetUserNotificationsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/{userId}/unread": {
+      "get": {
+        "tags": [
+          "GetUserNotificationsEndpoint"
+        ],
+        "summary": "Get unread user notifications",
+        "description": "Retrieves unread notifications for a specific user",
+        "operationId": "GetUnreadNotifications",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetUserNotificationsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/DocumentLinkedIntegrationEventTest": {
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/documents/session": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "operationId": "CreateUploadSession",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateUploadSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "operationId": "UploadDocument",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadDocumentResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/documents/{id}": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/workflow/kickstart": {
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KickstartWorkflowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/workflow/complete": {
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteActivityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/test/notifications/task-completed": {
+      "post": {
+        "tags": [
+          "Test Notifications"
+        ],
+        "summary": "Simulate a task completion event",
+        "description": "Publishes a TaskCompleted event for testing notifications",
+        "operationId": "SimulateTaskCompletion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateTaskCompletionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/test/notifications/task-assigned": {
+      "post": {
+        "tags": [
+          "Test Notifications"
+        ],
+        "summary": "Simulate a task assignment event",
+        "description": "Publishes a TaskAssigned event for testing notifications",
+        "operationId": "SimulateTaskAssignment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateTaskAssignmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/test/notifications/transition-completed": {
+      "post": {
+        "tags": [
+          "Test Notifications"
+        ],
+        "summary": "Simulate a workflow transition",
+        "description": "Publishes a TransitionCompleted event for testing notifications",
+        "operationId": "SimulateTransitionCompleted",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateTransitionCompletedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddRequestCommentRequest": {
+        "required": [
+          "comment",
+          "commentedBy",
+          "commentedByName"
+        ],
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "string"
+          },
+          "commentedBy": {
+            "type": "string"
+          },
+          "commentedByName": {
+            "type": "string"
+          }
+        }
+      },
+      "AddRequestCommentResponse": {
+        "required": [
+          "isSuccess"
+        ],
+        "type": "object",
+        "properties": {
+          "isSuccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AddressDto": {
+        "required": [
+          "houseNumber",
+          "projectName",
+          "moo",
+          "soi",
+          "road",
+          "subDistrict",
+          "district",
+          "province",
+          "postcode"
+        ],
+        "type": "object",
+        "properties": {
+          "houseNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "projectName": {
+            "type": "string",
+            "nullable": true
+          },
+          "moo": {
+            "type": "string",
+            "nullable": true
+          },
+          "soi": {
+            "type": "string",
+            "nullable": true
+          },
+          "road": {
+            "type": "string",
+            "nullable": true
+          },
+          "subDistrict": {
+            "type": "string",
+            "nullable": true
+          },
+          "district": {
+            "type": "string",
+            "nullable": true
+          },
+          "province": {
+            "type": "string",
+            "nullable": true
+          },
+          "postcode": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AddressDto2": {
+        "required": [
+          "houseNumber",
+          "projectName",
+          "moo",
+          "soi",
+          "road",
+          "subDistrict",
+          "district",
+          "province",
+          "postcode"
+        ],
+        "type": "object",
+        "properties": {
+          "houseNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "projectName": {
+            "type": "string",
+            "nullable": true
+          },
+          "moo": {
+            "type": "string",
+            "nullable": true
+          },
+          "soi": {
+            "type": "string",
+            "nullable": true
+          },
+          "road": {
+            "type": "string",
+            "nullable": true
+          },
+          "subDistrict": {
+            "type": "string",
+            "nullable": true
+          },
+          "district": {
+            "type": "string",
+            "nullable": true
+          },
+          "province": {
+            "type": "string",
+            "nullable": true
+          },
+          "postcode": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "nullable": true
+      },
+      "AppointmentDto": {
+        "required": [
+          "appointmentDateTime",
+          "appointmentLocation"
+        ],
+        "type": "object",
+        "properties": {
+          "appointmentDateTime": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "appointmentLocation": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "nullable": true
+      },
+      "CompleteActivityRequest": {
+        "required": [
+          "correlationId",
+          "activityName",
+          "actionTaken"
+        ],
+        "type": "object",
+        "properties": {
+          "correlationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "activityName": {
+            "type": "string"
+          },
+          "actionTaken": {
+            "type": "string"
+          }
+        }
+      },
+      "ContactDto": {
+        "required": [
+          "contactPersonName",
+          "contactPersonPhone",
+          "dealerCode"
+        ],
+        "type": "object",
+        "properties": {
+          "contactPersonName": {
+            "type": "string",
+            "nullable": true
+          },
+          "contactPersonPhone": {
+            "type": "string",
+            "nullable": true
+          },
+          "dealerCode": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "nullable": true
+      },
+      "CreateDraftRequestRequest": {
+        "required": [
+          "sessionId",
+          "purpose",
+          "channel",
+          "requestor",
+          "creator",
+          "priority",
+          "isPma",
+          "detail",
+          "customers",
+          "properties",
+          "documents",
+          "comments"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "requestor": {
+            "$ref": "#/components/schemas/UserInfoDto"
+          },
+          "creator": {
+            "$ref": "#/components/schemas/UserInfoDto"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "isPma": {
+            "type": "boolean"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/RequestDetailDto2"
+          },
+          "customers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestCustomerDto"
+            }
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestPropertyDto"
+            }
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestDocumentDto"
+            }
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestCommentDto"
+            }
+          }
+        }
+      },
+      "CreateDraftRequestResponse": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreatePermissionRequest": {
+        "required": [
+          "permissionCode",
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "permissionCode": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "CreatePermissionResponse": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateRequestRequest": {
+        "required": [
+          "sessionId",
+          "purpose",
+          "channel",
+          "requestor",
+          "creator",
+          "priority",
+          "isPma",
+          "detail",
+          "customers",
+          "properties",
+          "titles",
+          "documents",
+          "comments"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "requestor": {
+            "$ref": "#/components/schemas/UserInfoDto"
+          },
+          "creator": {
+            "$ref": "#/components/schemas/UserInfoDto"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "isPma": {
+            "type": "boolean"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/RequestDetailDto2"
+          },
+          "customers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestCustomerDto"
+            }
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestPropertyDto"
+            }
+          },
+          "titles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestTitleDto"
+            }
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestDocumentDto"
+            }
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestCommentDto"
+            }
+          }
+        }
+      },
+      "CreateRequestResponse": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateRoleRequest": {
+        "required": [
+          "name",
+          "description",
+          "permissions"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "CreateRoleResponse": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateUploadSessionResponse": {
+        "required": [
+          "sessionId",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DeletePermissionResponse": {
+        "required": [
+          "isSuccess"
+        ],
+        "type": "object",
+        "properties": {
+          "isSuccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DeleteRequestResponse": {
+        "required": [
+          "isSuccess"
+        ],
+        "type": "object",
+        "properties": {
+          "isSuccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DeleteRoleResponse": {
+        "required": [
+          "isSuccess"
+        ],
+        "type": "object",
+        "properties": {
+          "isSuccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DocumentLink": {
+        "type": "object",
+        "properties": {
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "isUnlink": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FeeDto": {
+        "required": [
+          "feePaymentType",
+          "feeNotes",
+          "absorbedAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "feePaymentType": {
+            "type": "string",
+            "nullable": true
+          },
+          "feeNotes": {
+            "type": "string",
+            "nullable": true
+          },
+          "absorbedAmount": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "nullable": true
+      },
+      "GetPermissionByIdResponse": {
+        "required": [
+          "id",
+          "permissionCode",
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "permissionCode": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "GetPermissionResult": {
+        "required": [
+          "result"
+        ],
+        "type": "object",
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/PaginatedResultOfPermissionDto"
+          }
+        }
+      },
+      "GetRequestByIdResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestNumber": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "requestor": {
+            "$ref": "#/components/schemas/UserInfoDto"
+          },
+          "creator": {
+            "$ref": "#/components/schemas/UserInfoDto"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "isPma": {
+            "type": "boolean"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/RequestDetailDto2"
+          },
+          "customers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestCustomerDto"
+            }
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestPropertyDto"
+            }
+          },
+          "titles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestTitleDto"
+            }
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestDocumentDto"
+            }
+          }
+        }
+      },
+      "GetRequestCommentByIdResponse": {
+        "required": [
+          "id",
+          "requestId",
+          "comment",
+          "commentedBy",
+          "commentedByName",
+          "commentedAt",
+          "lastModifiedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "commentedBy": {
+            "type": "string"
+          },
+          "commentedByName": {
+            "type": "string"
+          },
+          "commentedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastModifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "GetRequestCommentsByRequestIdResponse": {
+        "required": [
+          "comments"
+        ],
+        "type": "object",
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestCommentDto"
+            }
+          }
+        }
+      },
+      "GetRequestResult": {
+        "required": [
+          "result"
+        ],
+        "type": "object",
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/PaginatedResultOfRequestDto"
+          }
+        }
+      },
+      "GetRequestTitleByIdResponse": {
+        "required": [
+          "id",
+          "requestId",
+          "collateralType",
+          "collateralStatus",
+          "titleNo",
+          "deedType",
+          "titleDetail",
+          "rawang",
+          "landNo",
+          "surveyNo",
+          "areaRai",
+          "areaNgan",
+          "areaSquareWa",
+          "ownerName",
+          "registrationNo",
+          "vehicleType",
+          "vehicleAppointmentLocation",
+          "chassisNumber",
+          "machineStatus",
+          "machineType",
+          "installationStatus",
+          "invoiceNumber",
+          "numberOfMachinery",
+          "buildingType",
+          "usableArea",
+          "noOfBuilding",
+          "titleAddress",
+          "dopaAddress"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "collateralType": {
+            "type": "string"
+          },
+          "collateralStatus": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "titleNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "deedType": {
+            "type": "string",
+            "nullable": true
+          },
+          "titleDetail": {
+            "type": "string",
+            "nullable": true
+          },
+          "rawang": {
+            "type": "string",
+            "nullable": true
+          },
+          "landNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "surveyNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "areaRai": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "areaNgan": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "areaSquareWa": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "ownerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "registrationNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleType": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleAppointmentLocation": {
+            "type": "string",
+            "nullable": true
+          },
+          "chassisNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "machineStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "machineType": {
+            "type": "string",
+            "nullable": true
+          },
+          "installationStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "invoiceNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "numberOfMachinery": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "buildingType": {
+            "type": "string",
+            "nullable": true
+          },
+          "usableArea": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "noOfBuilding": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "titleAddress": {
+            "$ref": "#/components/schemas/AddressDto"
+          },
+          "dopaAddress": {
+            "$ref": "#/components/schemas/AddressDto"
+          }
+        }
+      },
+      "GetRequestTitlesByRequestIdResponse": {
+        "required": [
+          "requestTitles"
+        ],
+        "type": "object",
+        "properties": {
+          "requestTitles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestTitleDto"
+            }
+          }
+        }
+      },
+      "GetRoleByIdResponse": {
+        "required": [
+          "id",
+          "name",
+          "permissions"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionDto"
+            }
+          }
+        }
+      },
+      "GetRoleResult": {
+        "required": [
+          "result"
+        ],
+        "type": "object",
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/PaginatedResultOfRoleDto"
+          }
+        }
+      },
+      "GetUserNotificationsResponse": {
+        "required": [
+          "notifications"
+        ],
+        "type": "object",
+        "properties": {
+          "notifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationDto"
+            }
+          }
+        }
+      },
+      "GetWorkflowStatusResponse": {
+        "required": [
+          "requestId",
+          "currentState",
+          "nextAssignee",
+          "nextAssigneeType",
+          "workflowSteps",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currentState": {
+            "type": "string"
+          },
+          "nextAssignee": {
+            "type": "string",
+            "nullable": true
+          },
+          "nextAssigneeType": {
+            "type": "string",
+            "nullable": true
+          },
+          "workflowSteps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStepDto"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Input": {
+        "required": [
+          "sessionId",
+          "documentLinks"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "documentLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentLink"
+            }
+          }
+        }
+      },
+      "KickstartWorkflowRequest": {
+        "required": [
+          "requestId"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "LoanDetailDto": {
+        "required": [
+          "bankingSegment",
+          "loanApplicationNumber",
+          "facilityLimit",
+          "additionalFacilityLimit",
+          "previousFacilityLimit",
+          "totalSellingPrice"
+        ],
+        "type": "object",
+        "properties": {
+          "bankingSegment": {
+            "type": "string",
+            "nullable": true
+          },
+          "loanApplicationNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "facilityLimit": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "additionalFacilityLimit": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "previousFacilityLimit": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "totalSellingPrice": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "nullable": true
+      },
+      "MarkNotificationAsReadResponse": {
+        "required": [
+          "success",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "NotificationDto": {
+        "required": [
+          "id",
+          "title",
+          "message",
+          "type",
+          "createdAt",
+          "isRead",
+          "actionUrl",
+          "metadata"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/NotificationType"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isRead": {
+            "type": "boolean"
+          },
+          "actionUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true
+          }
+        }
+      },
+      "NotificationType": {
+        "type": "integer"
+      },
+      "PaginatedResultOfPermissionDto": {
+        "required": [
+          "items",
+          "count",
+          "pageNumber",
+          "pageSize"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionDto"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PaginatedResultOfRequestDto": {
+        "required": [
+          "items",
+          "count",
+          "pageNumber",
+          "pageSize"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestDto"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PaginatedResultOfRoleDto": {
+        "required": [
+          "items",
+          "count",
+          "pageNumber",
+          "pageSize"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleDto"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PermissionDto": {
+        "required": [
+          "id",
+          "permissionCode",
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "permissionCode": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RegisterClientRequest": {
+        "required": [
+          "displayName",
+          "clientType",
+          "postLogoutRedirectUris",
+          "redirectUris",
+          "permissions",
+          "requirements"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "clientType": {
+            "type": "string"
+          },
+          "postLogoutRedirectUris": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "redirectUris": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RegisterClientResponse": {
+        "required": [
+          "clientId",
+          "clientSecret"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientSecret": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RegisterUserPermissionDto": {
+        "required": [
+          "permissionId",
+          "isGranted"
+        ],
+        "type": "object",
+        "properties": {
+          "permissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "isGranted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RegisterUserRequest": {
+        "required": [
+          "username",
+          "password",
+          "email",
+          "permissions",
+          "roles"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegisterUserPermissionDto"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "RegisterUserResponse": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RemoveRequestCommentResponse": {
+        "required": [
+          "isSuccess"
+        ],
+        "type": "object",
+        "properties": {
+          "isSuccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RequestCommentDto": {
+        "required": [
+          "id",
+          "requestId",
+          "comment",
+          "commentedBy",
+          "commentedByName",
+          "commentedAt",
+          "lastModifiedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "commentedBy": {
+            "type": "string"
+          },
+          "commentedByName": {
+            "type": "string"
+          },
+          "commentedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastModifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "RequestCustomerDto": {
+        "required": [
+          "name",
+          "contactNumber"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "contactNumber": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RequestDetailDto": {
+        "required": [
+          "hasAppraisalBook",
+          "loanDetail",
+          "prevAppraisalId",
+          "address",
+          "contact",
+          "appointment",
+          "fee"
+        ],
+        "type": "object",
+        "properties": {
+          "hasAppraisalBook": {
+            "type": "boolean"
+          },
+          "loanDetail": {
+            "$ref": "#/components/schemas/LoanDetailDto"
+          },
+          "prevAppraisalId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "address": {
+            "$ref": "#/components/schemas/AddressDto2"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/ContactDto"
+          },
+          "appointment": {
+            "$ref": "#/components/schemas/AppointmentDto"
+          },
+          "fee": {
+            "$ref": "#/components/schemas/FeeDto"
+          }
+        },
+        "nullable": true
+      },
+      "RequestDetailDto2": {
+        "required": [
+          "hasAppraisalBook",
+          "loanDetail",
+          "prevAppraisalId",
+          "address",
+          "contact",
+          "appointment",
+          "fee"
+        ],
+        "type": "object",
+        "properties": {
+          "hasAppraisalBook": {
+            "type": "boolean"
+          },
+          "loanDetail": {
+            "$ref": "#/components/schemas/LoanDetailDto"
+          },
+          "prevAppraisalId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "address": {
+            "$ref": "#/components/schemas/AddressDto2"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/ContactDto"
+          },
+          "appointment": {
+            "$ref": "#/components/schemas/AppointmentDto"
+          },
+          "fee": {
+            "$ref": "#/components/schemas/FeeDto"
+          }
+        }
+      },
+      "RequestDocumentDto": {
+        "required": [
+          "id",
+          "requestId",
+          "documentId",
+          "documentType",
+          "fileName",
+          "prefix",
+          "set",
+          "notes",
+          "filePath",
+          "source",
+          "isRequired",
+          "uploadedBy",
+          "uploadedByName",
+          "uploadedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "documentType": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "set": {
+            "type": "integer",
+            "format": "int16",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "filePath": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "isRequired": {
+            "type": "boolean"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "RequestDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestNumber": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "requestor": {
+            "$ref": "#/components/schemas/UserInfoDto"
+          },
+          "creator": {
+            "$ref": "#/components/schemas/UserInfoDto"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "isPma": {
+            "type": "boolean"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/RequestDetailDto2"
+          },
+          "customers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestCustomerDto"
+            }
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestPropertyDto"
+            }
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestDocumentDto"
+            }
+          },
+          "titles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestTitleDto"
+            }
+          }
+        }
+      },
+      "RequestPropertyDto": {
+        "required": [
+          "propertyType",
+          "buildingType",
+          "sellingPrice"
+        ],
+        "type": "object",
+        "properties": {
+          "propertyType": {
+            "type": "string",
+            "nullable": true
+          },
+          "buildingType": {
+            "type": "string",
+            "nullable": true
+          },
+          "sellingPrice": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
+      "RequestTitleDocumentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "titleId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "documentType": {
+            "type": "string",
+            "nullable": true
+          },
+          "filename": {
+            "type": "string",
+            "nullable": true
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "set": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "documentDescription": {
+            "type": "string",
+            "nullable": true
+          },
+          "filePath": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdWorkstation": {
+            "type": "string",
+            "nullable": true
+          },
+          "isRequired": {
+            "type": "boolean"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RequestTitleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "collateralType": {
+            "type": "string"
+          },
+          "collateralStatus": {
+            "type": "boolean"
+          },
+          "titleNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "titleType": {
+            "type": "string",
+            "nullable": true
+          },
+          "titleDetail": {
+            "type": "string",
+            "nullable": true
+          },
+          "bookNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "landParcelNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "surveyNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "mapSheetNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "rawang": {
+            "type": "string",
+            "nullable": true
+          },
+          "aerialMapName": {
+            "type": "string",
+            "nullable": true
+          },
+          "aerialMapNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "areaRai": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "areaNgan": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "areaSquareWa": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "ownerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleType": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleLocation": {
+            "type": "string",
+            "nullable": true
+          },
+          "vin": {
+            "type": "string",
+            "nullable": true
+          },
+          "licensePlateNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "vesselType": {
+            "type": "string",
+            "nullable": true
+          },
+          "vesselLocation": {
+            "type": "string",
+            "nullable": true
+          },
+          "hin": {
+            "type": "string",
+            "nullable": true
+          },
+          "vesselRegistrationNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "registrationStatus": {
+            "type": "boolean"
+          },
+          "registrationNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "machineType": {
+            "type": "string",
+            "nullable": true
+          },
+          "installationStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "invoiceNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "numberOfMachine": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "buildingType": {
+            "type": "string",
+            "nullable": true
+          },
+          "usableArea": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "numberOfBuilding": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "condoName": {
+            "type": "string",
+            "nullable": true
+          },
+          "buildingNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "roomNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "floorNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "titleAddress": {
+            "$ref": "#/components/schemas/AddressDto"
+          },
+          "dopaAddress": {
+            "$ref": "#/components/schemas/AddressDto"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestTitleDocumentDto"
+            }
+          }
+        }
+      },
+      "RoleDto": {
+        "required": [
+          "id",
+          "name",
+          "description",
+          "permissions"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionDto"
+            }
+          }
+        }
+      },
+      "SimulateTaskAssignmentRequest": {
+        "type": "object",
+        "properties": {
+          "correlationId": {
+            "type": "string",
+            "format": "uuid",
+            "default": null,
+            "nullable": true
+          },
+          "taskName": {
+            "type": "string",
+            "default": null,
+            "nullable": true
+          },
+          "assignedTo": {
+            "type": "string",
+            "default": null,
+            "nullable": true
+          },
+          "assignedType": {
+            "type": "string",
+            "default": null,
+            "nullable": true
+          }
+        }
+      },
+      "SimulateTaskCompletionRequest": {
+        "type": "object",
+        "properties": {
+          "correlationId": {
+            "type": "string",
+            "format": "uuid",
+            "default": null,
+            "nullable": true
+          },
+          "taskName": {
+            "type": "string",
+            "default": null,
+            "nullable": true
+          },
+          "actionTaken": {
+            "type": "string",
+            "default": null,
+            "nullable": true
+          }
+        }
+      },
+      "SimulateTransitionCompletedRequest": {
+        "type": "object",
+        "properties": {
+          "correlationId": {
+            "type": "string",
+            "format": "uuid",
+            "default": null,
+            "nullable": true
+          },
+          "requestId": {
+            "type": "integer",
+            "format": "int64",
+            "default": null,
+            "nullable": true
+          },
+          "taskName": {
+            "type": "string",
+            "default": null,
+            "nullable": true
+          },
+          "currentState": {
+            "type": "string",
+            "default": null,
+            "nullable": true
+          },
+          "assignedTo": {
+            "type": "string",
+            "default": null,
+            "nullable": true
+          },
+          "assignedType": {
+            "type": "string",
+            "default": null,
+            "nullable": true
+          }
+        }
+      },
+      "SourceSystemDto": {
+        "required": [
+          "channel",
+          "requestDate",
+          "requestBy",
+          "requestByName",
+          "createdDate",
+          "creator",
+          "creatorName"
+        ],
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "nullable": true
+          },
+          "requestDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "requestBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "requestByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "creator": {
+            "type": "string",
+            "nullable": true
+          },
+          "creatorName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SubmitRequestRequest": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SubmitRequestResponse": {
+        "required": [
+          "isSuccess"
+        ],
+        "type": "object",
+        "properties": {
+          "isSuccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TokenRequest": {
+        "required": [
+          "grantType",
+          "clientId",
+          "code",
+          "codeVerifier",
+          "redirectUri"
+        ],
+        "type": "object",
+        "properties": {
+          "grantType": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "codeVerifier": {
+            "type": "string"
+          },
+          "redirectUri": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateDraftRequestRequest": {
+        "required": [
+          "id",
+          "sessionId",
+          "detail",
+          "isPMA",
+          "purpose",
+          "priority",
+          "sourceSystem",
+          "customers",
+          "properties",
+          "documents",
+          "comments",
+          "titles"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/RequestDetailDto2"
+          },
+          "isPMA": {
+            "type": "boolean"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "sourceSystem": {
+            "$ref": "#/components/schemas/SourceSystemDto"
+          },
+          "customers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestCustomerDto"
+            },
+            "nullable": true
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestPropertyDto"
+            },
+            "nullable": true
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestDocumentDto"
+            },
+            "nullable": true
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestCommentDto"
+            }
+          },
+          "titles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestTitleDto"
+            }
+          }
+        }
+      },
+      "UpdateDraftRequestResponse": {
+        "required": [
+          "isSuccess"
+        ],
+        "type": "object",
+        "properties": {
+          "isSuccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UpdateRequestCommentRequest": {
+        "required": [
+          "comment"
+        ],
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateRequestCommentResponse": {
+        "required": [
+          "isSuccess"
+        ],
+        "type": "object",
+        "properties": {
+          "isSuccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UpdateRequestRequest": {
+        "required": [
+          "purpose",
+          "channel",
+          "requestor",
+          "creator",
+          "priority",
+          "isPma",
+          "detail",
+          "customers",
+          "properties",
+          "titles",
+          "documents"
+        ],
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "requestor": {
+            "$ref": "#/components/schemas/UserInfoDto"
+          },
+          "creator": {
+            "$ref": "#/components/schemas/UserInfoDto"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "isPma": {
+            "type": "boolean"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/RequestDetailDto"
+          },
+          "customers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestCustomerDto"
+            },
+            "nullable": true
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestPropertyDto"
+            },
+            "nullable": true
+          },
+          "titles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestTitleDto"
+            },
+            "nullable": true
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestDocumentDto"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "UpdateRequestResponse": {
+        "required": [
+          "isSuccess"
+        ],
+        "type": "object",
+        "properties": {
+          "isSuccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UploadDocumentResult": {
+        "required": [
+          "isSuccess",
+          "documentId",
+          "fileName",
+          "fileSize"
+        ],
+        "type": "object",
+        "properties": {
+          "isSuccess": {
+            "type": "boolean"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "fileSize": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "UserInfoDto": {
+        "required": [
+          "userId",
+          "username"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowStepDto": {
+        "required": [
+          "stateName",
+          "isCompleted",
+          "isCurrent",
+          "assignedTo",
+          "completedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "stateName": {
+            "type": "string"
+          },
+          "isCompleted": {
+            "type": "boolean"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "assignedTo": {
+            "type": "string",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Request Titles"
+    },
+    {
+      "name": "Requests"
+    },
+    {
+      "name": "Request Comments"
+    },
+    {
+      "name": "Role"
+    },
+    {
+      "name": "Permission"
+    },
+    {
+      "name": "Api"
+    },
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "MarkNotificationAsReadEndpoint"
+    },
+    {
+      "name": "GetWorkflowStatusEndpoint"
+    },
+    {
+      "name": "GetUserNotificationsEndpoint"
+    },
+    {
+      "name": "Documents"
+    },
+    {
+      "name": "Test Notifications"
+    }
+  ]
+}

@@ -176,9 +176,8 @@ public class RequestSyncService(
                dto.Filename != existing.Filename ||
                dto.Prefix != existing.Prefix ||
                dto.Set != existing.Set ||
-               dto.DocumentDescription != existing.DocumentDescription ||
+               dto.DocumentDescription != existing.Notes ||
                dto.FilePath != existing.FilePath ||
-               dto.CreatedWorkstation != existing.CreatedWorkstation ||
                dto.IsRequired != existing.IsRequired ||
                dto.UploadedBy != existing.UploadedBy ||
                dto.UploadedByName != existing.UploadedByName;

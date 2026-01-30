@@ -11,9 +11,8 @@ public class TitleDocument : Entity<Guid>
     public string? Filename { get; private set; }
     public string? Prefix { get; private set; }
     public int Set { get; private set; }
-    public string? DocumentDescription { get; private set; }
+    public string? Notes { get; private set; }
     public string? FilePath { get; private set; }
-    public string? CreatedWorkstation { get; private set; }
     public bool IsRequired { get; private set; }
     public string? UploadedBy { get; private set; }
     public string? UploadedByName { get; private set; }
@@ -36,8 +35,7 @@ public class TitleDocument : Entity<Guid>
             Filename = documentData.Filename,
             Prefix = documentData.Prefix,
             Set = documentData.Set,
-            DocumentDescription = documentData.DocumentDescription,
-            CreatedWorkstation = documentData.CreatedWorkstation,
+            Notes = documentData.Notes,
             FilePath = documentData.FilePath,
             IsRequired = false, // TODO: Implement logic to get from configuration
             UploadedBy = documentData.UploadedBy,
@@ -53,9 +51,8 @@ public class TitleDocument : Entity<Guid>
         Filename = documentData.Filename;
         Prefix = documentData.Prefix;
         Set = documentData.Set;
-        DocumentDescription = documentData.DocumentDescription;
+        Notes = documentData.Notes;
         FilePath = documentData.FilePath;
-        CreatedWorkstation = documentData.CreatedWorkstation;
         IsRequired = false;
         UploadedBy = documentData.UploadedBy;
         UploadedByName = documentData.UploadedByName;
@@ -69,8 +66,7 @@ public class TitleDocument : Entity<Guid>
         Filename = documentData.Filename;
         Prefix = documentData.Prefix;
         Set = documentData.Set;
-        DocumentDescription = documentData.DocumentDescription;
-        CreatedWorkstation = documentData.CreatedWorkstation;
+        Notes = documentData.Notes;
         FilePath = documentData.FilePath;
         IsRequired = false;
         UploadedBy = documentData.UploadedBy;
@@ -86,9 +82,8 @@ public record TitleDocumentData
     public string? Filename { get; init; }
     public string? Prefix { get; init; }
     public int Set { get; init; }
-    public string? DocumentDescription { get; init; }
+    public string? Notes { get; init; }
     public string? FilePath { get; init; }
-    public string? CreatedWorkstation { get; init; }
     public string? UploadedBy { get; init; }
     public string? UploadedByName { get; init; }
     public DateTime UploadedAt { get; init; }
