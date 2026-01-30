@@ -30,7 +30,7 @@ public class PropertyGroup : Entity<Guid>
         string groupName,
         string? description)
     {
-        Id = Guid.NewGuid();
+        //Id = Guid.NewGuid();
         AppraisalId = appraisalId;
         GroupNumber = groupNumber;
         GroupName = groupName;

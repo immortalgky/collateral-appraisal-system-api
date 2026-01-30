@@ -1,10 +1,11 @@
 namespace Appraisal.Infrastructure.Configurations;
 
-public class VesselAppraisalDetailConfiguration : IEntityTypeConfiguration<VesselAppraisalDetail>
+public class VesselAppraisalDetailConfiguration : IOwnedEntityConfiguration<AppraisalProperty, VesselAppraisalDetail>
 {
-    public void Configure(EntityTypeBuilder<VesselAppraisalDetail> builder)
+    public void Configure(OwnedNavigationBuilder<AppraisalProperty, VesselAppraisalDetail> builder)
     {
         builder.ToTable("VesselAppraisalDetails", "appraisal");
+        builder.WithOwner().HasForeignKey(e => e.AppraisalPropertyId);
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 

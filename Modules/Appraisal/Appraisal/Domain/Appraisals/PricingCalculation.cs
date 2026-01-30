@@ -2,6 +2,7 @@ namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
 /// Calculation details per market comparable comparison.
+/// FactorScores have been moved to PricingAnalysisMethod level.
 /// </summary>
 public class PricingCalculation : Entity<Guid>
 {
@@ -21,7 +22,6 @@ public class PricingCalculation : Entity<Guid>
     public int? BuySellMonth { get; private set; }
     public decimal? AdjustedPeriodPct { get; private set; }
     public decimal? CumulativeAdjPeriod { get; private set; }
-    public decimal? TotalInitialPrice { get; private set; }
 
     // Area Adjustment
     public decimal? LandAreaDeficient { get; private set; }
@@ -39,7 +39,6 @@ public class PricingCalculation : Entity<Guid>
 
     // Results
     public decimal? TotalAdjustedValue { get; private set; }
-    public decimal? Weight { get; private set; }
 
     private PricingCalculation()
     {
@@ -49,7 +48,6 @@ public class PricingCalculation : Entity<Guid>
     {
         return new PricingCalculation
         {
-            Id = Guid.NewGuid(),
             PricingMethodId = pricingMethodId,
             MarketComparableId = marketComparableId
         };
@@ -69,14 +67,12 @@ public class PricingCalculation : Entity<Guid>
         SellingPriceUnit = unit;
     }
 
-    public void SetTimeAdjustment(int? year, int? month, decimal? adjustedPct, decimal? cumulativePct,
-        decimal? totalInitial)
+    public void SetTimeAdjustment(int? year, int? month, decimal? adjustedPct, decimal? cumulativePct)
     {
         BuySellYear = year;
         BuySellMonth = month;
         AdjustedPeriodPct = adjustedPct;
         CumulativeAdjPeriod = cumulativePct;
-        TotalInitialPrice = totalInitial;
     }
 
     public void SetLandAdjustment(decimal? deficient, string? unit, decimal? price, decimal? adjustment)
@@ -101,9 +97,8 @@ public class PricingCalculation : Entity<Guid>
         TotalFactorDiffAmt = diffAmt;
     }
 
-    public void SetResult(decimal adjustedValue, decimal? weight = null)
+    public void SetResult(decimal adjustedValue)
     {
         TotalAdjustedValue = adjustedValue;
-        Weight = weight;
     }
 }

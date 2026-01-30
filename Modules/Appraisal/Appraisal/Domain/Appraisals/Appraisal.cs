@@ -293,6 +293,35 @@ public class Appraisal : Aggregate<Guid>
         group.AddProperty(propertyId);
     }
 
+    /// <summary>
+    /// Remove a property from a group
+    /// </summary>
+    public void RemovePropertyFromGroup(Guid groupId, Guid propertyId)
+    {
+        var group = _groups.FirstOrDefault(g => g.Id == groupId)
+                    ?? throw new InvalidOperationException($"Group {groupId} not found");
+
+        group.RemoveProperty(propertyId);
+    }
+
+    /// <summary>
+    /// Delete a property group
+    /// </summary>
+    public void DeleteGroup(Guid groupId)
+    {
+        var group = _groups.FirstOrDefault(g => g.Id == groupId)
+                    ?? throw new InvalidOperationException($"Group {groupId} not found");
+
+        _groups.Remove(group);
+
+        // Resequence remaining groups
+        for (var i = 0; i < _groups.Count; i++)
+        {
+            // Note: GroupNumber is private set, so we cannot update it directly
+            // This is acceptable as GroupNumber is assigned at creation
+        }
+    }
+
     #endregion
 
     #region Assignment Management

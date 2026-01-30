@@ -2076,15 +2076,10 @@ CREATE TABLE appraisal.PricingAnalysisApproaches
     -- Approach
     ApproachType            NVARCHAR(20) NOT NULL,                   -- Market, Cost, Income
     ApproachValue           DECIMAL(18,2) NULL,                      -- Value from this approach
-    Weight                  DECIMAL(5,2) NULL,                       -- Weight in final calculation
-    Status                  NVARCHAR(20) NOT NULL DEFAULT 'Active',  -- Active, Excluded
-    ExclusionReason         NVARCHAR(500) NULL,
-
-    -- Audit
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
+    --Weight                  DECIMAL(5,2) NULL,                       -- Weight in final calculation
+    --Status                  NVARCHAR(20) NOT NULL DEFAULT 'Active',  -- Active, Excluded
+    --ExclusionReason         NVARCHAR(500) NULL,
+    IsSelected              BIT NOT NULL DEFAULT 0,                  -- Is this approach selected?
 
     CONSTRAINT FK_PricingApproach_Analysis FOREIGN KEY (PricingAnalysisId)
         REFERENCES appraisal.PricingAnalysis(Id) ON DELETE CASCADE,
@@ -2106,16 +2101,11 @@ CREATE TABLE appraisal.PricingAnalysisMethods
 
     -- Method
     MethodType              NVARCHAR(50) NOT NULL,                   -- WQS, SaleGrid, DirectComparison, CostApproach, DCF
-    Status                  NVARCHAR(20) NOT NULL DEFAULT 'Selected',-- Selected, Alternative
+    --Status                  NVARCHAR(20) NOT NULL DEFAULT 'Selected',-- Selected, Alternative
     MethodValue             DECIMAL(18,2) NULL,                      -- Value from this method
     ValuePerUnit            DECIMAL(18,2) NULL,
     UnitType                NVARCHAR(20) NULL,                       -- Sqm, Rai, Unit
-
-    -- Audit
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
+    IsSelected              BIT NOT NULL DEFAULT 0,                  -- Is this method selected?
 
     CONSTRAINT FK_PricingMethod_Approach FOREIGN KEY (ApproachId)
         REFERENCES appraisal.PricingAnalysisApproaches(Id) ON DELETE CASCADE,
@@ -2133,22 +2123,16 @@ Pricing analysis container per appraisal (1:1 relationship).
 CREATE TABLE appraisal.PricingAnalysis
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalId             UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with Appraisal
+    PropertyGroupId         UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with Appraisal
 
     -- Status
     Status                  NVARCHAR(50) NOT NULL DEFAULT 'Draft',   -- Draft, InProgress, Completed
 
     -- Final Values
-    FinalMarketValue        DECIMAL(18,2) NULL,
+    --FinalMarketValue        DECIMAL(18,2) NULL,
     FinalAppraisedValue     DECIMAL(18,2) NULL,
-    FinalForcedSaleValue    DECIMAL(18,2) NULL,
-    ValuationDate           DATE NULL,
-
-    -- Audit
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
+    --FinalForcedSaleValue    DECIMAL(18,2) NULL,
+    --ValuationDate           DATE NULL,
 
     CONSTRAINT FK_PricingAnalysis_Appraisal FOREIGN KEY (AppraisalId)
         REFERENCES appraisal.Appraisals(Id) ON DELETE CASCADE
@@ -2168,7 +2152,7 @@ CREATE TABLE appraisal.PricingComparableLinks
     PricingMethodId         UNIQUEIDENTIFIER NOT NULL,
     MarketComparableId      UNIQUEIDENTIFIER NOT NULL,
     DisplaySequence         INT NOT NULL,                            -- Comparable 1, 2, 3...
-    Weight                  DECIMAL(5,2) NULL,                       -- Weight in calculation
+    --Weight                  DECIMAL(5,2) NULL,                       -- Weight in calculation
 
     CONSTRAINT FK_PricingComparable_Method FOREIGN KEY (PricingMethodId)
         REFERENCES appraisal.PricingAnalysisMethods(Id) ON DELETE CASCADE,
@@ -2204,7 +2188,7 @@ CREATE TABLE appraisal.PricingCalculations
     BuySellMonth            INT NULL,
     AdjustedPeriodPct       DECIMAL(5,2) NULL,
     CumulativeAdjPeriod     DECIMAL(5,2) NULL,
-    TotalInitialPrice       DECIMAL(18,2) NULL,
+    --TotalInitialPrice       DECIMAL(18,2) NULL,
 
     -- Area Adjustment
     LandAreaDeficient       DECIMAL(18,2) NULL,
@@ -2222,13 +2206,7 @@ CREATE TABLE appraisal.PricingCalculations
 
     -- Results
     TotalAdjustedValue      DECIMAL(18,2) NULL,
-    Weight                  DECIMAL(5,2) NULL,                       -- Weight for weighted average
-
-    -- Audit
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
+    --Weight                  DECIMAL(5,2) NULL,                       -- Weight for weighted average
 
     CONSTRAINT FK_PricingCalc_Method FOREIGN KEY (PricingMethodId)
         REFERENCES appraisal.PricingAnalysisMethods(Id) ON DELETE CASCADE,
@@ -2266,16 +2244,290 @@ CREATE TABLE appraisal.PricingFinalValues
     AppraisalPriceWithBuilding DECIMAL(18,2) NULL,
     AppraisalPriceWithBuildingRounded DECIMAL(18,2) NULL,
 
-    -- Audit
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
-
     CONSTRAINT FK_PricingFinal_Method FOREIGN KEY (PricingMethodId)
         REFERENCES appraisal.PricingAnalysisMethods(Id) ON DELETE CASCADE
 );
 ```
+
+---
+
+## Pricing Analysis System
+
+This section provides a comprehensive overview of the Pricing Analysis data model, including entity relationships, method comparisons, sample data, and design decisions.
+
+### 1. Entity Relationship Diagram
+
+The following diagram shows the complete pricing analysis hierarchy from PropertyGroup through final value determination.
+
+**NOTE (2026-01 Restructure):** `PricingFactorScore` has been moved from `PricingCalculation` to `PricingAnalysisMethod` level. A new `MarketComparableId` column distinguishes scores per comparable (null = Collateral, GUID = Survey).
+
+```mermaid
+erDiagram
+    Appraisal ||--o{ PropertyGroup : has
+    PropertyGroup ||--o| PricingAnalysis : has
+    PricingAnalysis ||--o{ PricingAnalysisApproach : contains
+    PricingAnalysisApproach ||--o{ PricingAnalysisMethod : contains
+    PricingAnalysisMethod ||--o{ PricingComparableLink : links
+    PricingAnalysisMethod ||--o{ PricingCalculation : calculates
+    PricingAnalysisMethod ||--o{ PricingComparativeFactor : "Step1 factors"
+    PricingAnalysisMethod ||--o{ PricingFactorScore : "Step2 scores"
+    PricingAnalysisMethod ||--o| PricingFinalValue : produces
+    PricingComparableLink }o--|| MarketComparable : references
+    PricingCalculation }o--|| MarketComparable : references
+    PricingFactorScore }o--|| MarketComparableFactor : references
+    PricingComparativeFactor }o--|| MarketComparableFactor : references
+
+    %% Comparative Analysis Templates
+    ComparativeAnalysisTemplate ||--o{ ComparativeAnalysisTemplateFactor : contains
+    ComparativeAnalysisTemplateFactor }o--|| MarketComparableFactor : references
+
+    PricingAnalysis {
+        guid Id PK
+        guid PropertyGroupId FK
+        string Status
+        decimal FinalMarketValue
+        decimal FinalAppraisedValue
+        decimal FinalForcedSaleValue
+        datetime ValuationDate
+    }
+
+    PricingAnalysisApproach {
+        guid Id PK
+        guid PricingAnalysisId FK
+        string ApproachType
+        decimal ApproachValue
+        decimal Weight
+        string Status
+        string ExclusionReason
+    }
+
+    PricingAnalysisMethod {
+        guid Id PK
+        guid ApproachId FK
+        string MethodType
+        string Status
+        decimal MethodValue
+        decimal ValuePerUnit
+        string UnitType
+    }
+
+    PricingComparableLink {
+        guid Id PK
+        guid PricingMethodId FK
+        guid MarketComparableId FK
+        int DisplaySequence
+        decimal Weight
+    }
+
+    PricingCalculation {
+        guid Id PK
+        guid PricingMethodId FK
+        guid MarketComparableId FK
+        decimal OfferingPrice
+        decimal SellingPrice
+        decimal CumulativeAdjPeriod
+        decimal TotalFactorDiffPct
+        decimal TotalAdjustedValue
+        decimal Weight
+    }
+
+    PricingComparativeFactor {
+        guid Id PK
+        guid PricingMethodId FK
+        guid FactorId FK
+        int DisplaySequence
+        bool IsSelectedForScoring
+        string Remarks
+    }
+
+    PricingFactorScore {
+        guid Id PK
+        guid PricingMethodId FK
+        guid MarketComparableId FK
+        guid FactorId FK
+        string Value
+        decimal Score
+        decimal FactorWeight
+        decimal WeightedScore
+        decimal AdjustmentPct
+        int DisplaySequence
+        string Remarks
+    }
+
+    PricingFinalValue {
+        guid Id PK
+        guid PricingMethodId FK
+        decimal FinalValue
+        decimal FinalValueRounded
+        decimal LandArea
+        decimal AppraisalPrice
+        decimal AppraisalPriceRounded
+    }
+
+    ComparativeAnalysisTemplate {
+        guid Id PK
+        string TemplateCode UK
+        string TemplateName
+        string PropertyType
+        string Description
+        bool IsActive
+    }
+
+    ComparativeAnalysisTemplateFactor {
+        guid Id PK
+        guid TemplateId FK
+        guid FactorId FK
+        int DisplaySequence
+        bool IsMandatory
+        decimal DefaultWeight
+    }
+```
+
+### 2. Pricing Methods Comparison Table
+
+| Method | Uses PricingFactorScore | Description |
+|--------|------------------------|-------------|
+| WQS (Weighted Quality Score) | Yes | Factor-by-factor scoring with weights, calculates adjustment from score differences |
+| SaleGrid | Yes | Similar to WQS but may enter adjustment % directly without scoring |
+| DirectComparison | No | Simple adjustments entered directly in PricingCalculation |
+| CostApproach | No | Uses replacement cost minus depreciation |
+| DCF | No | Discounted cash flow for income properties |
+| CapitalizationRate | No | Income capitalization method |
+
+### 3. Sample Data
+
+#### PricingAnalysis (Per PropertyGroup)
+
+| Id | PropertyGroupId | Status | FinalMarketValue | FinalAppraisedValue | FinalForcedSaleValue | ValuationDate |
+|----|-----------------|--------|------------------|---------------------|----------------------|---------------|
+| PA-001 | GRP-001 | Completed | 15,880,000 | 15,500,000 | 12,400,000 | 2024-01-15 |
+| PA-002 | GRP-002 | Completed | 5,000,000 | 4,970,000 | 3,980,000 | 2024-01-15 |
+
+#### PricingAnalysisApproach
+
+| Id | PricingAnalysisId | ApproachType | ApproachValue | Weight | Status | ExclusionReason |
+|----|-------------------|--------------|---------------|--------|--------|-----------------|
+| APP-001 | PA-001 | Market | 15,500,000 | 100.00 | Active | - |
+| APP-002 | PA-001 | Cost | - | - | Excluded | Not applicable for vacant land |
+| APP-003 | PA-001 | Income | - | - | Excluded | No income-generating potential |
+
+#### PricingAnalysisMethod
+
+| Id | ApproachId | MethodType | Status | MethodValue | ValuePerUnit | UnitType |
+|----|------------|------------|--------|-------------|--------------|----------|
+| MTH-001 | APP-001 | WQS | Selected | 15,880,000 | 39,700 | SqWa |
+| MTH-002 | APP-001 | SaleGrid | Alternative | 15,600,000 | 39,000 | SqWa |
+| MTH-003 | APP-001 | DirectComparison | Alternative | 16,120,000 | 40,300 | SqWa |
+
+#### PricingComparableLink
+
+| Id | PricingMethodId | MarketComparableId | DisplaySequence | Weight |
+|----|-----------------|-------------------|-----------------|--------|
+| LNK-001 | MTH-001 | MC-001 | 1 | 35.00 |
+| LNK-002 | MTH-001 | MC-002 | 2 | 35.00 |
+| LNK-003 | MTH-001 | MC-003 | 3 | 30.00 |
+
+#### PricingCalculation (WQS with 3 Comparables)
+
+| Id | MethodId | ComparableId | OfferingPrice | SellingPrice | CumulativeAdjPeriod | TotalFactorDiffPct | TotalAdjustedValue | Weight |
+|----|----------|--------------|---------------|--------------|---------------------|--------------------|--------------------|--------|
+| CALC-001 | MTH-001 | MC-001 | 42,000 | 40,000 | +2.00% | +5.50% | 43,060 | 35.00 |
+| CALC-002 | MTH-001 | MC-002 | 38,000 | 36,000 | +3.00% | -2.00% | 36,360 | 35.00 |
+| CALC-003 | MTH-001 | MC-003 | 40,000 | 38,000 | +1.50% | +3.00% | 39,710 | 30.00 |
+
+#### PricingComparativeFactor (Step 1 - Factor Selection for MTH-001)
+
+| Id | MethodId | FactorId | Factor Name | DisplaySequence | IsSelectedForScoring | Remarks |
+|----|----------|----------|-------------|-----------------|---------------------|---------|
+| CF-001 | MTH-001 | F-001 | Road Access | 1 | Yes | Primary factor |
+| CF-002 | MTH-001 | F-002 | Location | 2 | Yes | Proximity to transit |
+| CF-003 | MTH-001 | F-003 | Shape | 3 | Yes | - |
+| CF-004 | MTH-001 | F-004 | Topology | 4 | Yes | - |
+| CF-005 | MTH-001 | F-005 | Utilities | 5 | Yes | - |
+| CF-006 | MTH-001 | F-006 | Zoning | 6 | Yes | - |
+
+#### PricingFactorScore (Step 2 - Factor Scoring at Method Level)
+
+**NOTE:** MarketComparableId = null for Collateral, GUID for Survey comparables.
+
+| Id | MethodId | MarketComparableId | Factor | Weight | Value | Score | WeightedScore | AdjustmentPct |
+|----|----------|-------------------|--------|--------|-------|-------|---------------|---------------|
+| FS-001 | MTH-001 | null (Collateral) | Road Access | 20% | 4-lane frontage | 5.0 | 1.00 | - |
+| FS-002 | MTH-001 | MC-001 (Survey 1) | Road Access | 20% | 2-lane road | 3.0 | 0.60 | +4.00% |
+| FS-003 | MTH-001 | MC-002 (Survey 2) | Road Access | 20% | 4-lane road | 4.5 | 0.90 | +1.00% |
+| FS-004 | MTH-001 | null (Collateral) | Location | 25% | BTS 500m | 5.0 | 1.25 | - |
+| FS-005 | MTH-001 | MC-001 (Survey 1) | Location | 25% | BTS 1.2km | 4.0 | 1.00 | +2.50% |
+| FS-006 | MTH-001 | MC-002 (Survey 2) | Location | 25% | BTS 800m | 4.5 | 1.125 | +1.25% |
+| ... | ... | ... | ... | ... | ... | ... | ... | ... |
+
+**Score Calculation per Comparable:**
+```
+Survey 1 (MC-001) Total Adjustment = +4.00% + 2.50% + 1.50% + 1.50% + 1.00% - 1.50% = +9.00%
+Survey 2 (MC-002) Total Adjustment = +1.00% + 1.25% + 0.75% + 0.50% + 0.50% - 0.75% = +3.25%
+```
+
+#### PricingFinalValue
+
+| Id | MethodId | FinalValue | FinalValueRounded | IncludeLandArea | LandArea | AppraisalPrice | AppraisalPriceRounded | HasBuildingCost | BuildingCost |
+|----|----------|------------|-------------------|-----------------|----------|----------------|----------------------|-----------------|--------------|
+| FV-001 | MTH-001 | 39,710.10 | 39,700 | Yes | 400 SqWa | 15,884,040 | 15,880,000 | No | - |
+
+**Final Calculation for FV-001:**
+```
+Weighted Average = (43,060 × 35%) + (36,360 × 35%) + (39,710 × 30%)
+                 = 15,071 + 12,726 + 11,913
+                 = 39,710 per SqWa
+
+Total Appraisal = 39,700 × 400 SqWa = 15,880,000 THB
+```
+
+### 4. Data Flow
+
+```
+1. Create PricingAnalysis for PropertyGroup (Status: Draft)
+2. Add Approach (Market/Cost/Income)
+3. Add Method (WQS/SaleGrid/DirectComparison)
+4. Link Comparables via PricingComparableLink
+5. For WQS/SaleGrid Methods (Comparative Analysis Screen):
+   a. Step 1 - Add PricingComparativeFactors (select which factors to compare)
+   b. Step 2 - Add PricingFactorScores per factor per comparable
+      - MarketComparableId = null for Collateral scores
+      - MarketComparableId = GUID for Survey scores
+   c. Create PricingCalculation per comparable with pricing adjustments
+   d. Use SaveComparativeAnalysis endpoint to save all in single transaction
+6. For DirectComparison: Enter adjustments directly in PricingCalculation
+7. Calculate PricingFinalValue (weighted average)
+8. Update PricingAnalysis with final values (Status: Completed)
+```
+
+**SaveComparativeAnalysis API Flow:**
+```
+PUT /pricing-analysis/{id}/methods/{methodId}/comparative-analysis
+{
+  "comparativeFactors": [...],  // Step 1: Factor selection
+  "factorScores": [...],        // Step 2: Scores per comparable
+  "calculations": [...]          // Pricing calculations
+}
+→ All saved in single transaction (all-or-nothing)
+```
+
+### 5. Key Design Decisions
+
+1. **PricingAnalysis per PropertyGroup**: Each PropertyGroup can have different valuation approaches (e.g., Market for land, Cost for building)
+
+2. **PricingFactorScore at Method Level (Restructured)**: Factor scores are now at `PricingAnalysisMethod` level with `MarketComparableId` to distinguish:
+   - `MarketComparableId = null` → Collateral property score
+   - `MarketComparableId = GUID` → Survey/Comparable score
+
+3. **Two-Step Comparative Analysis**:
+   - **Step 1 (PricingComparativeFactor)**: Select which factors to include in comparison
+   - **Step 2 (PricingFactorScore)**: Enter values/scores for each factor per comparable
+
+4. **ComparativeAnalysisTemplate**: Master data per property type defining available factors for comparative analysis
+
+5. **SaveComparativeAnalysis Endpoint**: Single transaction save for entire comparative analysis screen (Step 1 + Step 2)
+
+---
 
 ## Review Workflow Tables
 

@@ -2,11 +2,13 @@ using System.Text.Json;
 
 namespace Appraisal.Infrastructure.Configurations;
 
-public class BuildingAppraisalDetailConfiguration : IEntityTypeConfiguration<BuildingAppraisalDetail>
+public class
+    BuildingAppraisalDetailConfiguration : IOwnedEntityConfiguration<AppraisalProperty, BuildingAppraisalDetail>
 {
-    public void Configure(EntityTypeBuilder<BuildingAppraisalDetail> builder)
+    public void Configure(OwnedNavigationBuilder<AppraisalProperty, BuildingAppraisalDetail> builder)
     {
         builder.ToTable("BuildingAppraisalDetails", "appraisal");
+        builder.WithOwner().HasForeignKey(e => e.AppraisalPropertyId);
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -89,7 +91,7 @@ public class BuildingAppraisalDetailConfiguration : IEntityTypeConfiguration<Bui
         builder.Property(e => e.FenceTypeOther).HasMaxLength(200);
         builder.Property(e => e.ConstructionType).HasMaxLength(100);
         builder.Property(e => e.ConstructionTypeOther).HasMaxLength(200);
-    
+
         // Utilization
         builder.Property(e => e.UtilizationType).HasMaxLength(100);
         builder.Property(e => e.UtilizationTypeOther).HasMaxLength(200);

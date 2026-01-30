@@ -35,7 +35,7 @@ public class PricingFinalValue : Entity<Guid>
     {
         return new PricingFinalValue
         {
-            Id = Guid.NewGuid(),
+            // Id = Guid.NewGuid(),
             PricingMethodId = pricingMethodId,
             FinalValue = finalValue,
             FinalValueRounded = finalValueRounded,

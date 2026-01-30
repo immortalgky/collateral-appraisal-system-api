@@ -3,9 +3,10 @@ namespace Appraisal.Infrastructure.Configurations;
 /// <summary>
 /// EF Core configuration for the AppraisalProperty entity.
 /// </summary>
-public class AppraisalPropertyConfiguration : IEntityTypeConfiguration<AppraisalProperty>
+public class
+    AppraisalPropertyConfiguration : IOwnedEntityConfiguration<Appraisal.Domain.Appraisals.Appraisal, AppraisalProperty>
 {
-    public void Configure(EntityTypeBuilder<AppraisalProperty> builder)
+    public void Configure(OwnedNavigationBuilder<Appraisal.Domain.Appraisals.Appraisal, AppraisalProperty> builder)
     {
         builder.ToTable("AppraisalProperties");
 
@@ -33,14 +34,6 @@ public class AppraisalPropertyConfiguration : IEntityTypeConfiguration<Appraisal
                 .HasMaxLength(30);
         });
 
-        // Audit Fields
-        builder.Property(c => c.CreatedOn)
-            .IsRequired();
-        builder.Property(c => c.CreatedBy)
-            .IsRequired();
-        builder.Property(c => c.UpdatedOn);
-        builder.Property(c => c.UpdatedBy);
-
         // Indexes
         builder.HasIndex(c => c.AppraisalId);
         builder.HasIndex(c => new { c.AppraisalId, c.SequenceNumber })
@@ -48,34 +41,11 @@ public class AppraisalPropertyConfiguration : IEntityTypeConfiguration<Appraisal
 
         // Relationships with Detail entities (1:1)
         // For LandAndBuilding type, both LandDetail AND BuildingDetail are populated
-        builder.HasOne(p => p.LandDetail)
-            .WithOne()
-            .HasForeignKey<LandAppraisalDetail>(d => d.AppraisalPropertyId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(p => p.BuildingDetail)
-            .WithOne()
-            .HasForeignKey<BuildingAppraisalDetail>(d => d.AppraisalPropertyId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(p => p.CondoDetail)
-            .WithOne()
-            .HasForeignKey<CondoAppraisalDetail>(d => d.AppraisalPropertyId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(p => p.VehicleDetail)
-            .WithOne()
-            .HasForeignKey<VehicleAppraisalDetail>(d => d.AppraisalPropertyId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(p => p.VesselDetail)
-            .WithOne()
-            .HasForeignKey<VesselAppraisalDetail>(d => d.AppraisalPropertyId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(p => p.MachineryDetail)
-            .WithOne()
-            .HasForeignKey<MachineryAppraisalDetail>(d => d.AppraisalPropertyId)
-            .OnDelete(DeleteBehavior.Cascade);
+        builder.OwnsOne(p => p.LandDetail, new LandAppraisalDetailConfiguration().Configure);
+        builder.OwnsOne(p => p.BuildingDetail, new BuildingAppraisalDetailConfiguration().Configure);
+        builder.OwnsOne(p => p.CondoDetail, new CondoAppraisalDetailConfiguration().Configure);
+        builder.OwnsOne(p => p.VehicleDetail, new VehicleAppraisalDetailConfiguration().Configure);
+        builder.OwnsOne(p => p.VesselDetail, new VesselAppraisalDetailConfiguration().Configure);
+        builder.OwnsOne(p => p.MachineryDetail, new MachineryAppraisalDetailConfiguration().Configure);
     }
 }

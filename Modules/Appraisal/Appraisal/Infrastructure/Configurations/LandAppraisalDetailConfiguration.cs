@@ -2,11 +2,12 @@ using System.Text.Json;
 
 namespace Appraisal.Infrastructure.Configurations;
 
-public class LandAppraisalDetailConfiguration : IEntityTypeConfiguration<LandAppraisalDetail>
+public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<AppraisalProperty, LandAppraisalDetail>
 {
-    public void Configure(EntityTypeBuilder<LandAppraisalDetail> builder)
+    public void Configure(OwnedNavigationBuilder<AppraisalProperty, LandAppraisalDetail> builder)
     {
         builder.ToTable("LandAppraisalDetails", "appraisal");
+        builder.WithOwner().HasForeignKey(e => e.AppraisalPropertyId);
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 

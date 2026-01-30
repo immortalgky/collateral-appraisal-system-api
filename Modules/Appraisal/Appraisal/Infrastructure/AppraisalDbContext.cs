@@ -1,3 +1,4 @@
+using Appraisal.Domain.ComparativeAnalysis;
 using MassTransit;
 
 namespace Appraisal.Infrastructure;
@@ -105,7 +106,15 @@ public class AppraisalDbContext : DbContext
     public DbSet<PricingAnalysisMethod> PricingAnalysisMethods => Set<PricingAnalysisMethod>();
     public DbSet<PricingComparableLink> PricingComparableLinks => Set<PricingComparableLink>();
     public DbSet<PricingCalculation> PricingCalculations => Set<PricingCalculation>();
+    public DbSet<PricingFactorScore> PricingFactorScores => Set<PricingFactorScore>();
     public DbSet<PricingFinalValue> PricingFinalValues => Set<PricingFinalValue>();
+    public DbSet<PricingComparativeFactor> PricingComparativeFactors => Set<PricingComparativeFactor>();
+
+    // =====================================================
+    // Comparative Analysis Templates
+    // =====================================================
+    public DbSet<ComparativeAnalysisTemplate> ComparativeAnalysisTemplates => Set<ComparativeAnalysisTemplate>();
+    public DbSet<ComparativeAnalysisTemplateFactor> ComparativeAnalysisTemplateFactors => Set<ComparativeAnalysisTemplateFactor>();
 
     // =====================================================
     // Supporting Entities (part of Appraisal aggregate)

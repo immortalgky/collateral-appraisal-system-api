@@ -13,26 +13,23 @@ public class PricingAnalysisApproach : Entity<Guid>
     // Approach
     public string ApproachType { get; private set; } = null!; // Market, Cost, Income
     public decimal? ApproachValue { get; private set; }
-    public decimal? Weight { get; private set; }
-    public string Status { get; private set; } = null!; // Active, Excluded
-    public string? ExclusionReason { get; private set; }
+    public bool IsSelected { get; private set; }
 
     private PricingAnalysisApproach()
     {
+        // For EF Core
     }
 
     public static PricingAnalysisApproach Create(
         Guid pricingAnalysisId,
-        string approachType,
-        decimal? weight = null)
+        string approachType)
     {
         return new PricingAnalysisApproach
         {
-            Id = Guid.NewGuid(),
+            // Id = Guid.NewGuid(),
             PricingAnalysisId = pricingAnalysisId,
             ApproachType = approachType,
-            Weight = weight,
-            Status = "Active"
+            IsSelected = false
         };
     }
 
@@ -48,23 +45,8 @@ public class PricingAnalysisApproach : Entity<Guid>
         ApproachValue = value;
     }
 
-    public void SetWeight(decimal weight)
+    public void Select()
     {
-        if (weight < 0 || weight > 100)
-            throw new ArgumentException("Weight must be between 0 and 100");
-
-        Weight = weight;
-    }
-
-    public void Exclude(string reason)
-    {
-        Status = "Excluded";
-        ExclusionReason = reason;
-    }
-
-    public void Activate()
-    {
-        Status = "Active";
-        ExclusionReason = null;
+        IsSelected = true;
     }
 }

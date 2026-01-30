@@ -68,15 +68,76 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
         });
 
         // Navigation to child entities
-        builder.HasMany(a => a.Properties)
-            .WithOne()
-            .HasForeignKey(c => c.AppraisalId)
-            .OnDelete(DeleteBehavior.Cascade);
+        builder.OwnsMany(a => a.Properties, new AppraisalPropertyConfiguration().Configure);
 
-        builder.HasMany(a => a.Groups)
-            .WithOne()
-            .HasForeignKey(g => g.AppraisalId)
-            .OnDelete(DeleteBehavior.Cascade);
+        builder.OwnsMany(a => a.Groups, group =>
+        {
+            group.ToTable("PropertyGroups");
+            group.WithOwner().HasForeignKey("AppraisalId");
+
+            // Primary Key
+            group.HasKey(g => g.Id);
+            group.Property(g => g.Id)
+                .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+            // Core Properties
+            group.Property(g => g.AppraisalId)
+                .IsRequired()
+                .HasColumnName("AppraisalId");
+
+            group.Property(g => g.GroupNumber)
+                .IsRequired()
+                .HasColumnName("GroupNumber");
+
+            group.Property(g => g.GroupName)
+                .IsRequired()
+                .HasMaxLength(200)
+                .HasColumnName("GroupName");
+
+            group.Property(g => g.Description)
+                .HasMaxLength(500)
+                .HasColumnName("Description");
+
+            group.Property(g => g.UseSystemCalc)
+                .IsRequired()
+                .HasDefaultValue(true)
+                .HasColumnName("UseSystemCalc");
+
+            // Navigation to items
+            group.OwnsMany(g => g.Items, item =>
+            {
+                item.ToTable("PropertyGroupItems");
+
+                // Primary Key
+                item.HasKey(i => i.Id);
+                item.Property(i => i.Id)
+                    .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                // Core Properties
+                item.Property(i => i.PropertyGroupId)
+                    .IsRequired()
+                    .HasColumnName("PropertyGroupId");
+
+                item.Property(i => i.AppraisalPropertyId)
+                    .IsRequired()
+                    .HasColumnName("AppraisalPropertyId");
+
+                item.Property(i => i.SequenceInGroup)
+                    .IsRequired()
+                    .HasColumnName("SequenceInGroup");
+
+                // Indexes
+                item.HasIndex(i => i.PropertyGroupId);
+                item.HasIndex(i => i.AppraisalPropertyId);
+                item.HasIndex(i => new { i.PropertyGroupId, i.AppraisalPropertyId })
+                    .IsUnique();
+            });
+
+            // Indexes
+            group.HasIndex(g => g.AppraisalId);
+            group.HasIndex(g => new { g.AppraisalId, g.GroupNumber })
+                .IsUnique();
+        });
 
         builder.HasMany(a => a.Assignments)
             .WithOne()

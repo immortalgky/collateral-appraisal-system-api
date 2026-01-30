@@ -1,0 +1,157 @@
+### =====================================================
+### Property Group Management - API Test File
+### =====================================================
+### Prerequisites: An appraisal must exist first
+### =====================================================
+
+### =====================================================
+### 1. CREATE PROPERTY GROUP
+### =====================================================
+
+### 1.1 Create Property Group - Main Factory
+@appraisalId = 3E4F242D-6A81-4C57-A720-D8F0423CB509
+POST {{baseUrl}}/appraisals/{{appraisalId}}/property-groups
+Content-Type: application/json
+
+{
+  "groupNumber": 1,
+  "groupName": "Main Factory",
+  "description": "Land and building combined valuation"
+}
+
+### 1.2 Create Property Group - Adjacent Land
+POST {{baseUrl}}/appraisals/{{appraisalId}}/property-groups
+Content-Type: application/json
+
+{
+  "groupNumber": 2,
+  "groupName": "Adjacent Land",
+  "description": "Additional land plot for future expansion"
+}
+
+### 1.3 Create Property Group - Minimal
+POST {{baseUrl}}/appraisals/{{appraisalId}}/property-groups
+Content-Type: application/json
+
+{
+  "groupNumber": 3,
+  "groupName": "Storage Area"
+}
+
+### =====================================================
+### 2. GET PROPERTY GROUPS
+### =====================================================
+
+### 2.1 Get All Property Groups for Appraisal
+GET {{baseUrl}}/appraisals/{{appraisalId}}/property-groups
+Content-Type: application/json
+
+### 2.2 Get Property Group By ID
+@groupId = D7AA433E-F36B-1410-8965-006F4F934FE1
+GET {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupId}}
+Content-Type: application/json
+
+### =====================================================
+### 3. UPDATE PROPERTY GROUP
+### =====================================================
+
+### 3.1 Update Property Group - Full Update
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupId}}
+Content-Type: application/json
+
+{
+  "groupNumber": 1,
+  "groupName": "Main Factory Complex",
+  "description": "Updated: Land 10 Rai + Factory Building combined valuation"
+}
+
+### 3.2 Update Property Group - Name Only
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupId}}
+Content-Type: application/json
+
+{
+  "groupNumber": 1,
+  "groupName": "Primary Production Facility"
+}
+
+### =====================================================
+### 4. ADD PROPERTY TO GROUP
+### =====================================================
+
+### 4.1 Add Land Property to Group
+@propertyId1 = 4E62433E-F36B-1410-8963-006F4F934FE1
+POST {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupId}}/properties
+Content-Type: application/json
+
+{
+  "propertyId": "{{propertyId1}}"
+}
+
+### 4.2 Add Building Property to Same Group
+@propertyId2 = 6862433E-F36B-1410-8963-006F4F934FE1
+POST {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupId}}/properties
+Content-Type: application/json
+
+{
+  "propertyId": "{{propertyId2}}"
+}
+
+### 4.3 Add Another Property to Group
+@propertyId3 = 7762433E-F36B-1410-8963-006F4F934FE1
+POST {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupId}}/properties
+Content-Type: application/json
+
+{
+  "propertyId": "{{propertyId3}}"
+}
+
+### =====================================================
+### 5. REMOVE PROPERTY FROM GROUP
+### =====================================================
+
+### 5.1 Remove Property from Group
+DELETE {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupId}}/properties/{{propertyId3}}
+Content-Type: application/json
+
+### =====================================================
+### 6. DELETE PROPERTY GROUP
+### =====================================================
+
+### 6.1 Delete Property Group
+@groupIdToDelete = B8AA433E-F36B-1410-8965-006F4F934FE1
+DELETE {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupIdToDelete}}
+Content-Type: application/json
+
+### =====================================================
+### 7. WORKFLOW TEST - Complete Flow
+### =====================================================
+
+### Step 1: Create appraisal first (use CreateAppraisal.http)
+### Step 2: Create land property (use CreateLandProperty.http)
+### Step 3: Create building property (use CreateBuildingProperty.http)
+
+### Step 4: Create property group
+POST {{baseUrl}}/appraisals/{{appraisalId}}/property-groups
+Content-Type: application/json
+
+{
+  "groupNumber": 1,
+  "groupName": "Test Group",
+  "description": "Test property group for workflow"
+}
+
+### Step 5: Get groups to verify creation and copy groupId
+GET {{baseUrl}}/appraisals/{{appraisalId}}/property-groups
+Content-Type: application/json
+
+### Step 6: Add properties to group (replace groupId)
+POST {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{groupId}/properties
+Content-Type: application/json
+
+{
+  "propertyId": "{propertyId}"
+}
+
+### Step 7: Verify group has properties
+GET {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{groupId}
+Content-Type: application/json

@@ -21,7 +21,7 @@ public class PropertyGroupItem : Entity<Guid>
         Guid propertyId,
         int sequenceInGroup)
     {
-        Id = Guid.NewGuid();
+        // Id = Guid.NewGuid();
         PropertyGroupId = groupId;
         AppraisalPropertyId = propertyId;
         SequenceInGroup = sequenceInGroup;
