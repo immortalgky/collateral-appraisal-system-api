@@ -4,6 +4,6 @@ namespace Shared.Messaging.Events;
 
 public record RequestSubmittedIntegrationEvent : IntegrationEvent
 {
-    public long RequestId { get; set; } = default!;
-    public List<RequestTitleDto> RequestTitles {get; set;} = default!;
+    public Guid RequestId { get; set; }
+    public List<RequestTitleDto> RequestTitles { get; set; } = default!;
 }

@@ -1,0 +1,185 @@
+### =====================================================
+### Comparative Analysis Templates - API Test File
+### =====================================================
+### Template system for defining factors available for
+### comparative analysis based on property type.
+### =====================================================
+
+@baseUrl = https://localhost:7111
+
+### =====================================================
+### 1. CREATE TEMPLATE
+### =====================================================
+
+### 1.1 Create Template for Land
+POST {{baseUrl}}/comparative-analysis-templates
+Content-Type: application/json
+
+{
+  "templateCode": "LAND-COMPARE-001",
+  "templateName": "Land Comparative Analysis - Standard",
+  "propertyType": "Land",
+  "description": "Standard factors for land comparative analysis"
+}
+
+### 1.2 Create Template for Building
+POST {{baseUrl}}/comparative-analysis-templates
+Content-Type: application/json
+
+{
+  "templateCode": "BLDG-COMPARE-001",
+  "templateName": "Building Comparative Analysis - Standard",
+  "propertyType": "Building",
+  "description": "Standard factors for building comparative analysis"
+}
+
+### 1.3 Create Template for Condo
+POST {{baseUrl}}/comparative-analysis-templates
+Content-Type: application/json
+
+{
+  "templateCode": "CONDO-COMPARE-001",
+  "templateName": "Condo Comparative Analysis - Standard",
+  "propertyType": "Condo",
+  "description": "Standard factors for condo comparative analysis"
+}
+
+### =====================================================
+### 2. GET TEMPLATES
+### =====================================================
+
+### 2.1 Get All Templates
+GET {{baseUrl}}/comparative-analysis-templates
+Content-Type: application/json
+
+### 2.2 Get Active Templates Only
+GET {{baseUrl}}/comparative-analysis-templates?activeOnly=true
+Content-Type: application/json
+
+### 2.3 Get Template by ID
+@templateId = YOUR-TEMPLATE-ID
+GET {{baseUrl}}/comparative-analysis-templates/{{templateId}}
+Content-Type: application/json
+
+### =====================================================
+### 3. UPDATE TEMPLATE
+### =====================================================
+
+### 3.1 Update Template Name and Description
+PUT {{baseUrl}}/comparative-analysis-templates/{{templateId}}
+Content-Type: application/json
+
+{
+  "templateName": "Land Comparative Analysis - Enhanced",
+  "description": "Enhanced factors for land comparative analysis with additional criteria",
+  "isActive": true
+}
+
+### 3.2 Deactivate Template
+PUT {{baseUrl}}/comparative-analysis-templates/{{templateId}}
+Content-Type: application/json
+
+{
+  "templateName": "Land Comparative Analysis - Standard",
+  "description": "Standard factors for land comparative analysis",
+  "isActive": false
+}
+
+### =====================================================
+### 4. DELETE TEMPLATE (Soft Delete)
+### =====================================================
+
+### 4.1 Delete Template
+DELETE {{baseUrl}}/comparative-analysis-templates/{{templateId}}
+Content-Type: application/json
+
+### =====================================================
+### 5. MANAGE TEMPLATE FACTORS
+### =====================================================
+
+### 5.1 Add Factor - Road Access
+@factorId1 = YOUR-FACTOR-ID-1
+POST {{baseUrl}}/comparative-analysis-templates/{{templateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId1}}",
+  "displaySequence": 1,
+  "isMandatory": true,
+  "defaultWeight": 20.00
+}
+
+### 5.2 Add Factor - Location
+@factorId2 = YOUR-FACTOR-ID-2
+POST {{baseUrl}}/comparative-analysis-templates/{{templateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId2}}",
+  "displaySequence": 2,
+  "isMandatory": true,
+  "defaultWeight": 25.00
+}
+
+### 5.3 Add Factor - Land Shape
+@factorId3 = YOUR-FACTOR-ID-3
+POST {{baseUrl}}/comparative-analysis-templates/{{templateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId3}}",
+  "displaySequence": 3,
+  "isMandatory": false,
+  "defaultWeight": 15.00
+}
+
+### 5.4 Add Factor - Topology
+@factorId4 = YOUR-FACTOR-ID-4
+POST {{baseUrl}}/comparative-analysis-templates/{{templateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId4}}",
+  "displaySequence": 4,
+  "isMandatory": false,
+  "defaultWeight": 15.00
+}
+
+### 5.5 Add Factor - Utilities
+@factorId5 = YOUR-FACTOR-ID-5
+POST {{baseUrl}}/comparative-analysis-templates/{{templateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId5}}",
+  "displaySequence": 5,
+  "isMandatory": false,
+  "defaultWeight": 10.00
+}
+
+### 5.6 Add Factor - Zoning
+@factorId6 = YOUR-FACTOR-ID-6
+POST {{baseUrl}}/comparative-analysis-templates/{{templateId}}/factors
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId6}}",
+  "displaySequence": 6,
+  "isMandatory": false,
+  "defaultWeight": 15.00
+}
+
+### 5.7 Remove Factor from Template
+DELETE {{baseUrl}}/comparative-analysis-templates/{{templateId}}/factors/{{factorId6}}
+Content-Type: application/json
+
+### =====================================================
+### 6. PROPERTY TYPES REFERENCE
+### =====================================================
+# PropertyType values:
+# - Land
+# - Building
+# - Condo
+# - Vehicle
+# - Vessel
+# - Machinery

@@ -1,14 +1,20 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj" />
-    <ProjectReference Include="..\Appraisal.Contract\Appraisal.Contracts.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj" />
+        <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj" />
+        <ProjectReference Include="..\Appraisal.Contract\Appraisal.Contracts.csproj" />
+        <ProjectReference Include="..\..\Request\Request.Contracts\Request.Contracts.csproj" />
+    </ItemGroup>
 
-  <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="MassTransit.EntityFrameworkCore" Version="8.4.1" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
 
 </Project>

@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableTemplates.UpdateMarketComparableTemplate;
+
+public record UpdateMarketComparableTemplateResponse(Guid Id);

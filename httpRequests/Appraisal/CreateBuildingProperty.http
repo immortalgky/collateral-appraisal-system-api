@@ -1,0 +1,176 @@
+@appraisalId = 3E4F242D-6A81-4C57-A720-D8F0423CB509
+
+### ===========================================
+### Create Building Property - Minimal (Required Only)
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/building-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe"
+}
+
+### ===========================================
+### Create Building Property - Basic Info
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/building-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe",
+  "description": "Two-story residential house",
+  "propertyName": "Villa Green Valley",
+  "buildingNumber": "42/1",
+  "modelName": "Modern Villa Type A",
+  "builtOnTitleNumber": "123456",
+  "houseNumber": "42/1"
+}
+
+### ===========================================
+### Create Building Property - Full Details
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/building-properties
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe",
+  "description": "Modern two-story residential house with garden",
+  "propertyName": "Green Valley Villa 42",
+  "buildingNumber": "42/1",
+  "modelName": "Modern Villa Type A",
+  "builtOnTitleNumber": "123456",
+  "houseNumber": "42/1",
+
+  "isOwnerVerified": true,
+
+  "buildingCondition": "Good",
+  "isUnderConstruction": false,
+  "constructionCompletionPercent": 100.0,
+  "constructionLicenseExpirationDate": null,
+  "isAppraisable": true,
+  "hasObligation": false,
+  "obligationDetails": null,
+
+  "buildingType": "SingleHouse",
+  "buildingTypeOther": null,
+  "numberOfFloors": 2,
+  "decorationType": "Modern",
+  "decorationTypeOther": null,
+  "isEncroachingOthers": false,
+  "encroachingOthersRemark": null,
+  "encroachingOthersArea": null,
+
+  "buildingMaterial": "Concrete",
+  "buildingStyle": "Contemporary",
+  "isResidential": true,
+  "buildingAge": 5,
+  "constructionYear": 2020,
+  "isResidentialRemark": "Primary residence",
+  "constructionStyleType": "ModernContemporary",
+  "constructionStyleRemark": "Minimalist design with clean lines",
+
+  "structureType": ["ReinforcedConcrete", "Steel"],
+  "structureTypeOther": null,
+  "roofFrameType": ["Steel", "Wood"],
+  "roofFrameTypeOther": null,
+  "roofType": ["Tile", "Concrete"],
+  "roofTypeOther": null,
+  "ceilingType": ["Gypsum", "Wood"],
+  "ceilingTypeOther": null,
+  "interiorWallType": ["Brick", "Plaster"],
+  "interiorWallTypeOther": null,
+  "exteriorWallType": ["Brick", "Concrete"],
+  "exteriorWallTypeOther": null,
+  "fenceType": ["Concrete", "Metal"],
+  "fenceTypeOther": null,
+  "constructionType": "Permanent",
+  "constructionTypeOther": null,
+
+  "utilizationType": "Residential",
+  "otherPurposeUsage": null,
+
+  "totalBuildingArea": 350.5,
+  "buildingInsurancePrice": 5000000.00,
+  "sellingPrice": 12000000.00,
+  "forcedSalePrice": 9000000.00,
+
+  "remark": "Well-maintained property with recent renovations"
+}
+
+### ===========================================
+### Create Building Property - Under Construction
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/building-properties
+Content-Type: application/json
+
+{
+  "ownerName": "Jane Smith",
+  "propertyName": "New Development Project B",
+  "buildingNumber": "B-101",
+
+  "isOwnerVerified": true,
+  "buildingCondition": "UnderConstruction",
+  "isUnderConstruction": true,
+  "constructionCompletionPercent": 65.0,
+  "constructionLicenseExpirationDate": "2026-12-31",
+  "isAppraisable": false,
+
+  "buildingType": "Townhouse",
+  "numberOfFloors": 3,
+  "buildingAge": 0,
+  "constructionYear": 2025,
+
+  "structureType": ["ReinforcedConcrete"],
+  "roofFrameType": ["Steel"],
+  "roofType": ["Concrete"],
+
+  "totalBuildingArea": 180.0,
+  "buildingInsurancePrice": 2500000.00,
+  "sellingPrice": 4500000.00,
+  "forcedSalePrice": 3500000.00,
+
+  "remark": "Under construction - expected completion Q4 2026"
+}
+
+### ===========================================
+### Create Building Property - Commercial
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/building-properties
+Content-Type: application/json
+
+{
+  "ownerName": "ABC Corporation Co., Ltd.",
+  "propertyName": "ABC Office Building",
+  "buildingNumber": "99",
+  "houseNumber": "99 Sukhumvit Road",
+
+  "isOwnerVerified": true,
+  "buildingCondition": "Good",
+  "isUnderConstruction": false,
+  "constructionCompletionPercent": 100.0,
+  "isAppraisable": true,
+  "hasObligation": true,
+  "obligationDetails": "Mortgage with Bank XYZ",
+
+  "buildingType": "OfficeBuilding",
+  "numberOfFloors": 8,
+  "decorationType": "Corporate",
+  "buildingAge": 15,
+  "constructionYear": 2010,
+
+  "structureType": ["ReinforcedConcrete", "Steel"],
+  "roofType": ["Concrete"],
+  "ceilingType": ["Gypsum"],
+  "interiorWallType": ["Drywall", "Glass"],
+  "exteriorWallType": ["Glass", "Aluminum"],
+
+  "utilizationType": "Commercial",
+  "otherPurposeUsage": "Office space for rent",
+
+  "totalBuildingArea": 2500.0,
+  "buildingInsurancePrice": 50000000.00,
+  "sellingPrice": 150000000.00,
+  "forcedSalePrice": 120000000.00,
+
+  "remark": "Premium office building in CBD area"
+}
