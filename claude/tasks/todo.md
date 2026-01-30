@@ -203,3 +203,74 @@ Flow:
 - `Modules/Auth/OAuth2OpenId/OpenIddictModule.cs` (136 lines)
 - `Modules/Auth/OAuth2OpenId/Application/Services/TokenService.cs` (179 lines)
 - `Modules/Auth/OAuth2OpenId/Application/Controllers/OpenIddictController.cs` (77 lines)
+
+---
+
+## Implementation: `/auth/me` Endpoint
+
+### Task: Add Missing User Info Endpoint for Frontend
+
+### Todo List
+- [x] Read existing Auth feature structure for reference
+- [x] Create Me feature folder and files
+- [x] Update todo.md with implementation details
+- [ ] Commit and push changes
+
+### Files Created
+
+```
+Modules/Auth/Auth/Application/Features/Auth/Me/
+├── MeQuery.cs          # CQRS query with UserId
+├── MeResult.cs         # Internal result type
+├── MeResponse.cs       # External response DTO
+├── MeQueryHandler.cs   # Handler with permission calculation
+└── MeEndpoint.cs       # Carter endpoint (GET /auth/me)
+```
+
+### Implementation Details
+
+#### 1. MeEndpoint.cs
+- **Route**: `GET /auth/me`
+- **Auth**: `RequireAuthorization()` - requires valid JWT
+- **Flow**:
+  1. Extract `sub` claim from JWT (user ID)
+  2. Send MeQuery to handler
+  3. Return MeResponse with user profile
+
+#### 2. MeQueryHandler.cs
+- Loads user with permissions from database
+- Gets user's roles via UserManager
+- Calculates effective permissions:
+  - Granted user permissions
+  - Role permissions (excluding explicitly denied)
+- Returns MeResult
+
+#### 3. Response Format
+```json
+{
+  "id": "guid",
+  "username": "john.doe",
+  "email": "john@example.com",
+  "roles": ["Admin", "Appraiser"],
+  "permissions": ["request.create", "request.approve"]
+}
+```
+
+### Security Considerations
+- Endpoint requires authentication (JWT Bearer token)
+- User ID extracted from validated JWT claims (not user input)
+- Follows existing CQRS pattern for consistency
+- No sensitive data exposed (password hash, etc.)
+
+### Usage
+```bash
+# Get current user info
+curl -X GET https://localhost:7111/auth/me \
+  -H "Authorization: Bearer {access_token}"
+```
+
+### Review
+- Follows existing Auth module CQRS pattern
+- Uses same permission calculation logic as TokenService
+- Minimal code, maximum reuse
+- No security vulnerabilities introduced
