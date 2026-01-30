@@ -1,9 +1,3 @@
-using MassTransit;
-using Microsoft.Extensions.Logging;
-using Request.Contracts.Requests.Dtos;
-using Request.Infrastructure.Repositories;
-using Shared.Messaging.Events;
-
 namespace Request.Application.EventHandlers.Request;
 
 public class RequestSubmittedEventHandler(
@@ -39,7 +33,7 @@ public class RequestSubmittedEventHandler(
             requestTitleDtos.Count);
     }
 
-    private static RequestTitleDto MapToDto(Domain.RequestTitles.RequestTitle title)
+    private static RequestTitleDto MapToDto(RequestTitle title)
     {
         var dto = new RequestTitleDto
         {
@@ -80,9 +74,8 @@ public class RequestSubmittedEventHandler(
                 Filename = d.Filename,
                 Prefix = d.Prefix,
                 Set = d.Set,
-                DocumentDescription = d.DocumentDescription,
+                Notes = d.Notes,
                 FilePath = d.FilePath,
-                CreatedWorkstation = d.CreatedWorkstation,
                 IsRequired = d.IsRequired,
                 UploadedBy = d.UploadedBy,
                 UploadedByName = d.UploadedByName,
@@ -90,21 +83,19 @@ public class RequestSubmittedEventHandler(
             }).ToList()
         };
 
-        // Map type-specific fields based on title type
-        if (title is Domain.RequestTitles.TitleTypes.TitleLand landTitle)
-        {
+        // Map type-specific fields based on the title type
+        if (title is TitleLand landTitle)
             dto = dto with
             {
-                TitleNo = landTitle.TitleDeedInfo.TitleNo,
-                DeedType = landTitle.TitleDeedInfo.DeedType,
+                TitleNumber = landTitle.TitleDeedInfo.TitleNumber,
+                TitleType = landTitle.TitleDeedInfo.TitleType,
                 Rawang = landTitle.LandLocationInfo.Rawang,
-                LandNo = landTitle.LandLocationInfo.LandNo,
-                SurveyNo = landTitle.LandLocationInfo.SurveyNo,
+                LandParcelNumber = landTitle.LandLocationInfo.LandParcelNumber,
+                SurveyNumber = landTitle.LandLocationInfo.SurveyNumber,
                 AreaRai = landTitle.LandArea.AreaRai,
                 AreaNgan = landTitle.LandArea.AreaNgan,
                 AreaSquareWa = landTitle.LandArea.AreaSquareWa
             };
-        }
         // Additional type mappings can be added here for other collateral types
 
         return dto;

@@ -136,7 +136,7 @@ public class CreateRequestService(
                     Filename = doc.Filename,
                     Prefix = doc.Prefix,
                     Set = doc.Set,
-                    Notes = doc.DocumentDescription,
+                    Notes = doc.Notes,
                     FilePath = doc.FilePath,
                     UploadedBy = doc.UploadedBy,
                     UploadedByName = doc.UploadedByName,

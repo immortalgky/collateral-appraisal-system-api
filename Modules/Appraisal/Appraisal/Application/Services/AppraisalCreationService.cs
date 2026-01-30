@@ -1,5 +1,3 @@
-using Appraisal.Domain.Appraisals;
-using Microsoft.Extensions.Logging;
 using Request.Contracts.Requests.Dtos;
 
 namespace Appraisal.Application.Services;
@@ -47,10 +45,10 @@ public class AppraisalCreationService(
 
         // Step 3: Create Appraisal aggregate
         var appraisal = Domain.Appraisals.Appraisal.Create(
-            requestId: requestId,
-            appraisalType: "Initial",
-            priority: "Normal",
-            slaDays: 30); // Default SLA of 30 days
+            requestId,
+            "Initial",
+            "Normal",
+            30); // Default SLA of 30 days
 
         // Set appraisal number: APP-{yyyyMMdd}-{GUID8}
         var appraisalNumber = $"APP-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpper()}";
@@ -64,11 +62,11 @@ public class AppraisalCreationService(
         {
             // Add land property with detail
             var property = appraisal.AddLandProperty(
-                owner: landTitle.OwnerName ?? "Unknown",
-                description: $"Title: {landTitle.TitleNo ?? "N/A"}");
+                landTitle.OwnerName ?? "Unknown",
+                $"Title: {landTitle.TitleNumber ?? "N/A"}");
 
-            logger.LogInformation("Added land property {PropertyId} for title {TitleNo}",
-                property.Id, landTitle.TitleNo);
+            logger.LogInformation("Added land property {PropertyId} for title {TitleNumber}",
+                property.Id, landTitle.TitleNumber);
 
             // Get the land detail (it was created by AddLandProperty)
             var landDetail = property.LandDetail;
@@ -76,33 +74,33 @@ public class AppraisalCreationService(
             {
                 // Step 5: Create and add LandTitle with data from RequestTitleDto
                 var title = LandTitle.Create(
-                    landAppraisalDetailId: landDetail.Id,
-                    titleDeedNumber: landTitle.TitleNo ?? "N/A",
-                    titleDeedType: landTitle.DeedType ?? "Unknown");
+                    landDetail.Id,
+                    landTitle.TitleNumber ?? "N/A",
+                    landTitle.TitleType ?? "Unknown");
 
                 // Update with additional fields
                 var landArea = LandArea.Create(
-                    rai: landTitle.AreaRai,
-                    ngan: landTitle.AreaNgan,
-                    squareWa: landTitle.AreaSquareWa);
+                    landTitle.AreaRai,
+                    landTitle.AreaNgan,
+                    landTitle.AreaSquareWa);
 
                 title.Update(
-                    bookNumber: null, // Not provided in RequestTitleDto
-                    pageNumber: landTitle.LandNo, // Using LandNo as PageNumber
-                    landParcelNumber: null,
-                    surveyNumber: landTitle.SurveyNo,
-                    mapSheetNumber: null,
-                    rawang: landTitle.Rawang,
-                    aerialMapName: null,
-                    aerialMapNumber: null,
-                    area: landArea,
-                    hasBoundaryMarker: null,
-                    boundaryMarkerRemark: null,
-                    isDocumentValidated: null,
-                    isMissingFromSurvey: null,
-                    governmentPricePerSqWa: null,
-                    governmentPrice: null,
-                    remark: landTitle.Notes);
+                    landTitle.BookNumber,
+                    landTitle.PageNumber,
+                    landTitle.LandParcelNumber,
+                    landTitle.SurveyNumber,
+                    landTitle.MapSheetNumber,
+                    landTitle.Rawang,
+                    landTitle.AerialMapName,
+                    landTitle.AerialMapNumber,
+                    landArea,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
 
                 landDetail.AddTitle(title);
 
@@ -111,18 +109,18 @@ public class AppraisalCreationService(
             }
         }
 
-        // Step 6: Create initial PropertyGroup and add all properties to it
+        // Step 6: Create an initial PropertyGroup and add all properties to it
         var initialGroup = appraisal.CreateGroup("Initial Group", "Auto-generated group for all properties");
 
         logger.LogInformation("Created initial property group {GroupId} with name '{GroupName}'",
             initialGroup.Id, initialGroup.GroupName);
 
         // Step 7: Add all properties to the initial group
-        foreach (var property in appraisal.Properties)
+        foreach (var propertyId in appraisal.Properties.Select(p => p.Id))
         {
-            appraisal.AddPropertyToGroup(initialGroup.Id, property.Id);
+            appraisal.AddPropertyToGroup(initialGroup.Id, propertyId);
             logger.LogInformation("Added property {PropertyId} to group {GroupId}",
-                property.Id, initialGroup.Id);
+                propertyId, initialGroup.Id);
         }
 
         // Step 8: Save via repository

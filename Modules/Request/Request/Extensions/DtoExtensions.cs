@@ -187,7 +187,8 @@ public static class DtoExtensions
             // Building-related fields
             BuildingInfo = BuildingInfo.Create(dto.BuildingType, dto.UsableArea, dto.NumberOfBuilding),
             // Condo-related fields (UsableArea shared with Building in the same column)
-            CondoInfo = CondoInfo.Create(dto.CondoName, dto.BuildingNumber, dto.RoomNumber, dto.FloorNumber, dto.UsableArea),
+            CondoInfo = CondoInfo.Create(dto.CondoName, dto.BuildingNumber, dto.RoomNumber, dto.FloorNumber,
+                dto.UsableArea),
             // Vehicle/Vessel/Machine fields
             VehicleInfo = VehicleInfo.Create(dto.VehicleType, dto.VehicleLocation, dto.VIN,
                 dto.LicensePlateNumber),
@@ -207,7 +208,7 @@ public static class DtoExtensions
             Filename = dto.Filename,
             Prefix = dto.Prefix,
             Set = dto.Set,
-            Notes = dto.DocumentDescription,
+            Notes = dto.Notes,
             FilePath = dto.FilePath,
             UploadedBy = dto.UploadedBy,
             UploadedByName = dto.UploadedByName,
