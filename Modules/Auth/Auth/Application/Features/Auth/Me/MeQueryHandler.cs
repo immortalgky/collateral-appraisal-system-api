@@ -53,10 +53,13 @@ public class MeQueryHandler(
             var role = await roleRepository.GetRoleByName(roleName)
                 ?? throw new NotFoundException("Role", roleName);
 
-            foreach (var rolePermission in role.Permissions)
+            var rolePermissionCodes = role.Permissions
+                .Select(rp => rp.Permission.PermissionCode)
+                .Where(code => !deniedPermissions.Contains(code));
+
+            foreach (var code in rolePermissionCodes)
             {
-                if (!deniedPermissions.Contains(rolePermission.Permission.PermissionCode))
-                    permissions.Add(rolePermission.Permission.PermissionCode);
+                permissions.Add(code);
             }
         }
 
