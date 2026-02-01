@@ -8,7 +8,7 @@ using OAuth2OpenId.Domain.Identity.Models;
 
 namespace Auth.Tests.Auth.Features.Me;
 
-public class MeQueryHandlerTests
+public class MeQueryHandlerTests : IDisposable
 {
     private readonly OpenIddictDbContext _dbContext;
     private readonly UserManager<ApplicationUser> _userManager;
@@ -17,7 +17,7 @@ public class MeQueryHandlerTests
 
     public MeQueryHandlerTests()
     {
-        // Setup in-memory database
+        // Setup in-memory database with unique name per test instance
         var options = new DbContextOptionsBuilder<OpenIddictDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
@@ -32,6 +32,11 @@ public class MeQueryHandlerTests
         _roleRepository = Substitute.For<IRoleRepository>();
 
         _handler = new MeQueryHandler(_dbContext, _userManager, _roleRepository);
+    }
+
+    public void Dispose()
+    {
+        _dbContext.Dispose();
     }
 
     [Fact]
