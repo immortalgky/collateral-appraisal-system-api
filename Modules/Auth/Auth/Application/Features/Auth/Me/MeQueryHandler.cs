@@ -50,8 +50,8 @@ public class MeQueryHandler(
         // Add role-level permissions (excluding explicitly denied ones)
         foreach (var roleName in roleNames)
         {
-            var role = await roleRepository.GetRoleByName(roleName);
-            if (role == null) continue;
+            var role = await roleRepository.GetRoleByName(roleName)
+                ?? throw new NotFoundException("Role", roleName);
 
             foreach (var rolePermission in role.Permissions)
             {
