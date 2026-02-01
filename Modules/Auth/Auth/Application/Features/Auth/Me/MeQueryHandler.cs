@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using OAuth2OpenId.Data;
 using OAuth2OpenId.Data.Repository;
 using OAuth2OpenId.Domain.Identity.Models;
-using OAuth2OpenId.Infrastructure;
 using Shared.Exceptions;
 
 namespace Auth.Domain.Auth.Features.Me;
