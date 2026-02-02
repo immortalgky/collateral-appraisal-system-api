@@ -41,7 +41,7 @@ public class WorkflowBookmark : Entity<Guid>
     {
         return new WorkflowBookmark
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             WorkflowInstanceId = workflowInstanceId,
             ActivityId = activityId,
             CorrelationId = correlationId,

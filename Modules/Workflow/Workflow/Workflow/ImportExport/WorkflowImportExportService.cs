@@ -122,7 +122,7 @@ public class WorkflowImportExportService : IWorkflowImportExportService
 
             // In a real implementation, you would convert the import data to WorkflowDefinition entities
             // and save them using the repository
-            var workflowId = Guid.NewGuid();
+            var workflowId = Guid.CreateVersion7();
             importedIds.Add(workflowId);
 
             _logger.LogInformation("Workflow import completed: {Count} workflows imported", importedIds.Count);
@@ -206,7 +206,7 @@ public class WorkflowImportExportService : IWorkflowImportExportService
                     try
                     {
                         // Import individual workflow
-                        var workflowId = Guid.NewGuid();
+                        var workflowId = Guid.CreateVersion7();
                         importedIds.Add(workflowId);
                     }
                     catch (Exception ex)

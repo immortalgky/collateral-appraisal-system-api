@@ -141,12 +141,12 @@ namespace Request.Infrastructure.Migrations
                     BuildingType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     UsableArea = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
                     NumberOfBuilding = table.Column<int>(type: "int", nullable: true),
-                    TitleNo = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    DeedType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    TitleNumber = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    TitleType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     CondoName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    BuildingNo = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    RoomNo = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
-                    FloorNo = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    BuildingNumber = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    RoomNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: true),
+                    FloorNumber = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     BookNumber = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     PageNumber = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     LandParcelNumber = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
@@ -158,25 +158,18 @@ namespace Request.Infrastructure.Migrations
                     AreaRai = table.Column<int>(type: "int", nullable: true),
                     AreaNgan = table.Column<int>(type: "int", nullable: true),
                     AreaSquareWa = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: true),
-                    LandLocationInfo_BookNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    LandLocationInfo_PageNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    LandNo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    SurveyNo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    LandLocationInfo_MapSheetNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    LandLocationInfo_AerialMapName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    LandLocationInfo_AerialMapNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    RegistrationNo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    RegistrationNumber = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     MachineType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     InstallationStatus = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     InvoiceNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
-                    NumberOfMachinery = table.Column<int>(type: "int", nullable: true),
+                    NumberOfMachine = table.Column<int>(type: "int", nullable: true),
                     VehicleType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     VehicleLocation = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
                     VIN = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     LicensePlateNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     VesselType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     VesselLocation = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
-                    HullIdentificationNumber = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    HIN = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     VesselRegistrationNumber = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     CreatedOn = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
@@ -240,7 +233,7 @@ namespace Request.Infrastructure.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    CustomerName = table.Column<string>(type: "nvarchar(80)", maxLength: 80, nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(80)", maxLength: 80, nullable: true),
                     ContactNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     RequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
@@ -282,10 +275,10 @@ namespace Request.Infrastructure.Migrations
                     ContactPersonName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     ContactPersonPhone = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     DealerCode = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
-                    AppointmentDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    AppointmentDateTime = table.Column<DateTime>(type: "datetime2", nullable: true),
                     AppointmentLocation = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
                     FeePaymentType = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
-                    AbsorbedFee = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
+                    AbsorbedAmount = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
                     FeeNotes = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true)
                 },
                 constraints: table =>
@@ -445,7 +438,7 @@ namespace Request.Infrastructure.Migrations
                 name: "IX_RequestCustomer_Name",
                 schema: "request",
                 table: "RequestCustomers",
-                column: "CustomerName");
+                column: "Name");
 
             migrationBuilder.CreateIndex(
                 name: "IX_RequestCustomers_RequestId",
@@ -526,7 +519,7 @@ namespace Request.Infrastructure.Migrations
                 name: "IX_TitleDeedInfo_TitleDeedNumber",
                 schema: "request",
                 table: "RequestTitles",
-                column: "TitleNo");
+                column: "TitleNumber");
         }
 
         /// <inheritdoc />

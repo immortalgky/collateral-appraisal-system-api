@@ -38,7 +38,7 @@ public class AppointmentHistory : Entity<Guid>
 
         return new AppointmentHistory
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppointmentId = appointmentId,
             AppraisalId = appraisalId,
             PreviousAppointmentDate = previousAppointmentDate,

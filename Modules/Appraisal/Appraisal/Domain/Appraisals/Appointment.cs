@@ -39,7 +39,7 @@ public class Appointment : Entity<Guid>
     {
         return new Appointment
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalId = appraisalId,
             AppointmentDate = appointmentDate,
             AppointedBy = appointedBy,

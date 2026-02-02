@@ -57,7 +57,7 @@ public class AppraisalAssignment : Entity<Guid>
         Guid? previousAssignmentId,
         int reassignmentNumber)
     {
-        Id = Guid.NewGuid();
+        Id = Guid.CreateVersion7();
         AppraisalId = appraisalId;
         AssignmentMode = assignmentMode;
         AssigneeUserId = assigneeUserId;

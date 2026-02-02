@@ -47,7 +47,7 @@ public class DocumentType : Entity<Guid>
 
     private DocumentType(string code, string name, string? description, string? category, int sortOrder)
     {
-        Id = Guid.NewGuid();
+        Id = Guid.CreateVersion7();
         Code = code;
         Name = name;
         Description = description;

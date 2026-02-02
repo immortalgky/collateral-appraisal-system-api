@@ -39,7 +39,7 @@ public class AppraisalComparable : Entity<Guid>
     {
         return new AppraisalComparable
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalId = appraisalId,
             MarketComparableId = marketComparableId,
             SequenceNumber = sequenceNumber,

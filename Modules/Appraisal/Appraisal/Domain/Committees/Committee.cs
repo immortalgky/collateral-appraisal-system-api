@@ -36,7 +36,7 @@ public class Committee : Aggregate<Guid>
     {
         return new Committee
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             CommitteeName = name,
             CommitteeCode = code,
             QuorumType = quorumType,

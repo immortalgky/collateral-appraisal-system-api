@@ -33,7 +33,7 @@ public class AppraisalFeePaymentHistory : Entity<Guid>
     {
         return new AppraisalFeePaymentHistory
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalFeeItemId = appraisalFeeItemId,
             PaidAmount = paidAmount,
             PaymentDate = paymentDate,

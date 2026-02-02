@@ -20,7 +20,7 @@ public class PendingTask : Aggregate<Guid>
     private PendingTask(Guid correlationId, long requestId, TaskName taskName, string assignedTo, string assignedType,
         DateTime assignedAt)
     {
-        Id = Guid.NewGuid();
+        Id = Guid.CreateVersion7();
         CorrelationId = correlationId;
         RequestId = requestId;
         TaskName = taskName;

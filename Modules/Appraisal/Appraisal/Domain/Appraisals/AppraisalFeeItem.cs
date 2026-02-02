@@ -40,7 +40,7 @@ public class AppraisalFeeItem : Entity<Guid>
 
         return new AppraisalFeeItem
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalFeeId = appraisalFeeId,
             ItemType = itemType,
             Description = description,

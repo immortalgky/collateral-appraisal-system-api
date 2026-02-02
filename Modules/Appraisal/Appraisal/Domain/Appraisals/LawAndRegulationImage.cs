@@ -31,7 +31,7 @@ public class LawAndRegulationImage : Entity<Guid>
 
         return new LawAndRegulationImage
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             LawAndRegulationId = lawAndRegulationId,
             DisplaySequence = displaySequence,
             FileName = fileName,

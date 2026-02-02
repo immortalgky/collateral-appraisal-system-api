@@ -43,7 +43,7 @@ public class AppraisalGallery : Entity<Guid>
     {
         return new AppraisalGallery
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalId = appraisalId,
             DocumentId = documentId,
             PhotoNumber = photoNumber,

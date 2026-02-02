@@ -48,7 +48,7 @@ public class QuotationNegotiation : Entity<Guid>
 
         return new QuotationNegotiation
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             CompanyQuotationId = companyQuotationId,
             QuotationItemId = quotationItemId,
             NegotiationRound = negotiationRound,

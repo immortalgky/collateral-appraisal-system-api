@@ -1,19 +1,19 @@
 namespace Request.Application.Features.Requests.GetRequestById;
 
-public record GetRequestByIdResult
+public sealed record GetRequestByIdResult
 {
-    public Guid Id { get; set; }
-    public string RequestNumber { get; set; }
-    public string Status { get; set; }
-    public string Purpose { get; set; }
-    public string Channel { get; set; }
-    public UserInfoDto Requestor { get; set; }
-    public UserInfoDto Creator { get; set; }
-    public string Priority { get; set; }
-    public bool IsPma { get; set; }
-    public RequestDetailDto Detail { get; set; }
-    public List<RequestCustomerDto> Customers { get; set; }
-    public List<RequestPropertyDto> Properties { get; set; }
-    public List<RequestTitleDto> Titles { get; set; }
-    public List<RequestDocumentDto> Documents { get; set; }
+    public Guid Id { get; init; }
+    public string? RequestNumber { get; init; }
+    public string Status { get; init; } = default!;
+    public string? Purpose { get; init; }
+    public string? Channel { get; init; }
+    public UserInfoDto Requestor { get; init; } = default!;
+    public UserInfoDto Creator { get; init; } = default!;
+    public string? Priority { get; init; }
+    public bool IsPma { get; init; }
+    public RequestDetailDto? Detail { get; init; }
+    public List<RequestCustomerDto>? Customers { get; init; }
+    public List<RequestPropertyDto>? Properties { get; init; }
+    public List<RequestTitleDto>? Titles { get; init; }
+    public List<RequestDocumentDto>? Documents { get; init; }
 };

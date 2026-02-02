@@ -41,7 +41,7 @@ public class ValuationAnalysis : Entity<Guid>
     {
         return new ValuationAnalysis
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalId = appraisalId,
             ValuationApproach = valuationApproach,
             ValuationDate = valuationDate
