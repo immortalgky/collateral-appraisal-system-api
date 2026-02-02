@@ -32,7 +32,7 @@ public class Request : Aggregate<Guid>
 
     private Request(DateTime createdAt)
     {
-        Id = Guid.NewGuid();
+        Id = Guid.CreateVersion7();
         Status = RequestStatus.Draft;
         Priority = "NORMAL";
         CreatedAt = createdAt;

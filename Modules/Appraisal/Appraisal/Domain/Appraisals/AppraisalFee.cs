@@ -55,7 +55,7 @@ public class AppraisalFee : Entity<Guid>
     {
         return new AppraisalFee
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalId = appraisalId,
             FeeType = feeType,
             FeeCategory = feeCategory,

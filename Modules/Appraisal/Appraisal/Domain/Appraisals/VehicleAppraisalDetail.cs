@@ -67,7 +67,7 @@ public class VehicleAppraisalDetail : Entity<Guid>
     {
         return new VehicleAppraisalDetail
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalPropertyId = appraisalPropertyId,
             OwnerName = ownerName,
             CanUse = true

@@ -8,7 +8,7 @@ public class TitleDocument : Entity<Guid>
     public Guid TitleId { get; private set; }
     public Guid? DocumentId { get; private set; }
     public string? DocumentType { get; private set; }
-    public string? Filename { get; private set; }
+    public string? FileName { get; private set; }
     public string? Prefix { get; private set; }
     public int Set { get; private set; }
     public string? Notes { get; private set; }
@@ -29,10 +29,10 @@ public class TitleDocument : Entity<Guid>
 
         return new TitleDocument
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             DocumentId = documentData.DocumentId,
             DocumentType = documentData.DocumentType,
-            Filename = documentData.Filename,
+            FileName = documentData.FileName,
             Prefix = documentData.Prefix,
             Set = documentData.Set,
             Notes = documentData.Notes,
@@ -48,7 +48,7 @@ public class TitleDocument : Entity<Guid>
     {
         DocumentId = documentData.DocumentId;
         DocumentType = documentData.DocumentType;
-        Filename = documentData.Filename;
+        FileName = documentData.FileName;
         Prefix = documentData.Prefix;
         Set = documentData.Set;
         Notes = documentData.Notes;
@@ -63,7 +63,7 @@ public class TitleDocument : Entity<Guid>
     {
         DocumentId = documentData.DocumentId;
         DocumentType = documentData.DocumentType;
-        Filename = documentData.Filename;
+        FileName = documentData.FileName;
         Prefix = documentData.Prefix;
         Set = documentData.Set;
         Notes = documentData.Notes;
@@ -79,7 +79,7 @@ public record TitleDocumentData
 {
     public Guid? DocumentId { get; init; }
     public string? DocumentType { get; init; }
-    public string? Filename { get; init; }
+    public string? FileName { get; init; }
     public string? Prefix { get; init; }
     public int Set { get; init; }
     public string? Notes { get; init; }

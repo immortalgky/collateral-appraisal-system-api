@@ -71,7 +71,7 @@ public class RequestSubmittedEventHandler(
                 TitleId = d.TitleId,
                 DocumentId = d.DocumentId,
                 DocumentType = d.DocumentType,
-                Filename = d.Filename,
+                FileName = d.FileName,
                 Prefix = d.Prefix,
                 Set = d.Set,
                 Notes = d.Notes,

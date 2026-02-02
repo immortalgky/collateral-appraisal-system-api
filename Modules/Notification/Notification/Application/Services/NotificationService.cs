@@ -137,7 +137,7 @@ public class NotificationService : INotificationService
     {
         var notification = new UserNotification
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = userId,
             Title = title,
             Message = message,

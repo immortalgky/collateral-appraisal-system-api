@@ -35,7 +35,7 @@ public class GroupValuation : Entity<Guid>
     {
         return new GroupValuation
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ValuationAnalysisId = valuationAnalysisId,
             PropertyGroupId = propertyGroupId,
             MarketValue = marketValue,

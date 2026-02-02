@@ -27,7 +27,7 @@ public class WorkflowDefinition : Entity<Guid>
     {
         return new WorkflowDefinition
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Name = name,
             Description = description,
             Version = 1,

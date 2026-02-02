@@ -45,7 +45,7 @@ public class Appraisal : Aggregate<Guid>
         string priority,
         int? slaDays)
     {
-        Id = Guid.NewGuid();
+        Id = Guid.CreateVersion7();
         RequestId = requestId;
         AppraisalType = appraisalType;
         Priority = priority;

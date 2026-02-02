@@ -71,7 +71,7 @@ public class MarketComparable : Aggregate<Guid>
     {
         return new MarketComparable
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ComparableNumber = comparableNumber,
             PropertyType = propertyType,
             Province = province,

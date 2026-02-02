@@ -40,7 +40,7 @@ public class WorkflowDefinitionVersion : Entity<Guid>
     {
         return new WorkflowDefinitionVersion
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             DefinitionId = definitionId,
             Version = version,
             Name = name,

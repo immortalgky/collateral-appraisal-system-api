@@ -24,4 +24,9 @@
         <InternalsVisibleTo Include="Request.Tests"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <Compile Remove="Infrastructure\Migrations\20260102061159_RenameTitleDocumentFilenameToFileName.cs"/>
+        <Compile Remove="Infrastructure\Migrations\20260102061159_RenameTitleDocumentFilenameToFileName.Designer.cs"/>
+    </ItemGroup>
+
 </Project>

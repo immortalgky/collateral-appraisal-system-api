@@ -24,7 +24,7 @@ public class RequestComment : Aggregate<Guid>
         ArgumentException.ThrowIfNullOrWhiteSpace(data.CommentedBy);
         ArgumentException.ThrowIfNullOrWhiteSpace(data.CommentedByName);
 
-        return new RequestComment(Guid.NewGuid(), data.RequestId, data.CommentedAt)
+        return new RequestComment(Guid.CreateVersion7(), data.RequestId, data.CommentedAt)
         {
             Comment = data.Comment,
             CommentedBy = data.CommentedBy,

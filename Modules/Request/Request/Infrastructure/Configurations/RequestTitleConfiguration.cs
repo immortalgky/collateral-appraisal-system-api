@@ -1,6 +1,3 @@
-using Request.Domain.RequestTitles;
-using Request.Domain.RequestTitles.TitleTypes;
-
 namespace Request.Infrastructure.Configurations;
 
 public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
@@ -112,10 +109,8 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
             .HasDatabaseName("IX_TitleDeedInfo_RequestId");
 
         // TitleDocuments
-        builder.HasMany(p => p.Documents)
-            .WithOne()
-            .HasForeignKey(p => p.TitleId)
-            .OnDelete(DeleteBehavior.Cascade);
+        builder.OwnsMany(t => t.Documents, doc =>
+            new TitleDocumentConfiguration().Configure(doc));
     }
 }
 
@@ -128,11 +123,11 @@ public class TitleLandConfiguration : IEntityTypeConfiguration<TitleLand>
         {
             titleDeedInfo.Property(p => p.TitleNumber)
                 .HasMaxLength(200)
-                .HasColumnName("TitleNo");
+                .HasColumnName("TitleNumber");
 
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)
-                .HasColumnName("DeedType");
+                .HasColumnName("TitleType");
 
             titleDeedInfo.HasIndex(p => p.TitleNumber)
                 .HasDatabaseName("IX_TitleDeedInfo_TitleDeedNumber");
@@ -218,26 +213,46 @@ public class TitleLandBuildingConfiguration : IEntityTypeConfiguration<TitleLand
         {
             titleDeedInfo.Property(p => p.TitleNumber)
                 .HasMaxLength(200)
-                .HasColumnName("TitleNo");
+                .HasColumnName("TitleNumber");
 
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)
-                .HasColumnName("DeedType");
+                .HasColumnName("TitleType");
         });
 
         builder.OwnsOne(p => p.LandLocationInfo, landLocation =>
         {
+            landLocation.Property(p => p.BookNumber)
+                .HasMaxLength(100)
+                .HasColumnName("BookNumber");
+
+            landLocation.Property(p => p.PageNumber)
+                .HasMaxLength(100)
+                .HasColumnName("PageNumber");
+
+            landLocation.Property(p => p.LandParcelNumber)
+                .HasMaxLength(100)
+                .HasColumnName("LandParcelNumber");
+
+            landLocation.Property(p => p.SurveyNumber)
+                .HasMaxLength(100)
+                .HasColumnName("SurveyNumber");
+
+            landLocation.Property(p => p.MapSheetNumber)
+                .HasMaxLength(100)
+                .HasColumnName("MapSheetNumber");
+
             landLocation.Property(p => p.Rawang)
                 .HasMaxLength(100)
                 .HasColumnName("Rawang");
 
-            landLocation.Property(p => p.LandParcelNumber)
-                .HasMaxLength(50)
-                .HasColumnName("LandNo");
+            landLocation.Property(p => p.AerialMapName)
+                .HasMaxLength(100)
+                .HasColumnName("AerialMapName");
 
-            landLocation.Property(p => p.SurveyNumber)
-                .HasMaxLength(50)
-                .HasColumnName("SurveyNo");
+            landLocation.Property(p => p.AerialMapNumber)
+                .HasMaxLength(100)
+                .HasColumnName("AerialMapNumber");
         });
 
         builder.OwnsOne(p => p.LandArea, landArea =>
@@ -278,11 +293,11 @@ public class TitleCondoConfiguration : IEntityTypeConfiguration<TitleCondo>
         {
             titleDeedInfo.Property(p => p.TitleNumber)
                 .HasMaxLength(200)
-                .HasColumnName("TitleNo");
+                .HasColumnName("TitleNumber");
 
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)
-                .HasColumnName("DeedType");
+                .HasColumnName("TitleType");
         });
 
         builder.OwnsOne(p => p.CondoInfo, condoInfo =>
@@ -293,15 +308,15 @@ public class TitleCondoConfiguration : IEntityTypeConfiguration<TitleCondo>
 
             condoInfo.Property(p => p.BuildingNumber)
                 .HasMaxLength(100)
-                .HasColumnName("BuildingNo");
+                .HasColumnName("BuildingNumber");
 
             condoInfo.Property(p => p.RoomNumber)
                 .HasMaxLength(30)
-                .HasColumnName("RoomNo");
+                .HasColumnName("RoomNumber");
 
             condoInfo.Property(p => p.FloorNumber)
                 .HasMaxLength(10)
-                .HasColumnName("FloorNo");
+                .HasColumnName("FloorNumber");
 
             condoInfo.Property(p => p.UsableArea)
                 .HasPrecision(19, 4)
@@ -319,26 +334,46 @@ public class TitleLeaseAgreementLandConfiguration : IEntityTypeConfiguration<Tit
         {
             titleDeedInfo.Property(p => p.TitleNumber)
                 .HasMaxLength(200)
-                .HasColumnName("TitleNo");
+                .HasColumnName("TitleNumber");
 
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)
-                .HasColumnName("DeedType");
+                .HasColumnName("TitleType");
         });
 
         builder.OwnsOne(p => p.LandLocationInfo, landLocation =>
         {
+            landLocation.Property(p => p.BookNumber)
+                .HasMaxLength(100)
+                .HasColumnName("BookNumber");
+
+            landLocation.Property(p => p.PageNumber)
+                .HasMaxLength(100)
+                .HasColumnName("PageNumber");
+
+            landLocation.Property(p => p.LandParcelNumber)
+                .HasMaxLength(100)
+                .HasColumnName("LandParcelNumber");
+
+            landLocation.Property(p => p.SurveyNumber)
+                .HasMaxLength(100)
+                .HasColumnName("SurveyNumber");
+
+            landLocation.Property(p => p.MapSheetNumber)
+                .HasMaxLength(100)
+                .HasColumnName("MapSheetNumber");
+
             landLocation.Property(p => p.Rawang)
                 .HasMaxLength(100)
                 .HasColumnName("Rawang");
 
-            landLocation.Property(p => p.LandParcelNumber)
-                .HasMaxLength(50)
-                .HasColumnName("LandNo");
+            landLocation.Property(p => p.AerialMapName)
+                .HasMaxLength(100)
+                .HasColumnName("AerialMapName");
 
-            landLocation.Property(p => p.SurveyNumber)
-                .HasMaxLength(50)
-                .HasColumnName("SurveyNo");
+            landLocation.Property(p => p.AerialMapNumber)
+                .HasMaxLength(100)
+                .HasColumnName("AerialMapNumber");
         });
 
         builder.OwnsOne(p => p.LandArea, landArea =>
@@ -386,26 +421,46 @@ public class TitleLeaseAgreementLandBuildingConfiguration : IEntityTypeConfigura
         {
             titleDeedInfo.Property(p => p.TitleNumber)
                 .HasMaxLength(200)
-                .HasColumnName("TitleNo");
+                .HasColumnName("TitleNumber");
 
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)
-                .HasColumnName("DeedType");
+                .HasColumnName("TitleType");
         });
 
         builder.OwnsOne(p => p.LandLocationInfo, landLocation =>
         {
+            landLocation.Property(p => p.BookNumber)
+                .HasMaxLength(100)
+                .HasColumnName("BookNumber");
+
+            landLocation.Property(p => p.PageNumber)
+                .HasMaxLength(100)
+                .HasColumnName("PageNumber");
+
+            landLocation.Property(p => p.LandParcelNumber)
+                .HasMaxLength(100)
+                .HasColumnName("LandParcelNumber");
+
+            landLocation.Property(p => p.SurveyNumber)
+                .HasMaxLength(100)
+                .HasColumnName("SurveyNumber");
+
+            landLocation.Property(p => p.MapSheetNumber)
+                .HasMaxLength(100)
+                .HasColumnName("MapSheetNumber");
+
             landLocation.Property(p => p.Rawang)
                 .HasMaxLength(100)
                 .HasColumnName("Rawang");
 
-            landLocation.Property(p => p.LandParcelNumber)
-                .HasMaxLength(50)
-                .HasColumnName("LandNo");
+            landLocation.Property(p => p.AerialMapName)
+                .HasMaxLength(100)
+                .HasColumnName("AerialMapName");
 
-            landLocation.Property(p => p.SurveyNumber)
-                .HasMaxLength(50)
-                .HasColumnName("SurveyNo");
+            landLocation.Property(p => p.AerialMapNumber)
+                .HasMaxLength(100)
+                .HasColumnName("AerialMapNumber");
         });
 
         builder.OwnsOne(p => p.LandArea, landArea =>
@@ -446,11 +501,11 @@ public class TitleLeaseAgreementCondoConfiguration : IEntityTypeConfiguration<Ti
         {
             titleDeedInfo.Property(p => p.TitleNumber)
                 .HasMaxLength(200)
-                .HasColumnName("TitleNo");
+                .HasColumnName("TitleNumber");
 
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)
-                .HasColumnName("DeedType");
+                .HasColumnName("TitleType");
         });
 
         builder.OwnsOne(p => p.CondoInfo, condoInfo =>
@@ -461,15 +516,15 @@ public class TitleLeaseAgreementCondoConfiguration : IEntityTypeConfiguration<Ti
 
             condoInfo.Property(p => p.BuildingNumber)
                 .HasMaxLength(100)
-                .HasColumnName("BuildingNo");
+                .HasColumnName("BuildingNumber");
 
             condoInfo.Property(p => p.RoomNumber)
                 .HasMaxLength(30)
-                .HasColumnName("RoomNo");
+                .HasColumnName("RoomNumber");
 
             condoInfo.Property(p => p.FloorNumber)
                 .HasMaxLength(10)
-                .HasColumnName("FloorNo");
+                .HasColumnName("FloorNumber");
 
             condoInfo.Property(p => p.UsableArea)
                 .HasPrecision(19, 4)
@@ -521,7 +576,7 @@ public class TitleVesselConfiguration : IEntityTypeConfiguration<TitleVessel>
 
             vessel.Property(p => p.HIN)
                 .HasMaxLength(50)
-                .HasColumnName("HullIdentificationNumber");
+                .HasColumnName("HIN");
 
             vessel.Property(p => p.VesselRegistrationNumber)
                 .HasMaxLength(50)
@@ -539,7 +594,7 @@ public class TitleMachineConfiguration : IEntityTypeConfiguration<TitleMachine>
         {
             machinery.Property(p => p.RegistrationNumber)
                 .HasMaxLength(50)
-                .HasColumnName("RegistrationNo");
+                .HasColumnName("RegistrationNumber");
 
             machinery.Property(p => p.MachineType)
                 .HasMaxLength(10)
@@ -554,7 +609,7 @@ public class TitleMachineConfiguration : IEntityTypeConfiguration<TitleMachine>
                 .HasColumnName("InvoiceNumber");
 
             machinery.Property(p => p.NumberOfMachine)
-                .HasColumnName("NumberOfMachinery");
+                .HasColumnName("NumberOfMachine");
         });
     }
 }

@@ -27,7 +27,7 @@ public class MarketComparableImage : Entity<Guid>
 
         return new MarketComparableImage
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             MarketComparableId = marketComparableId,
             DisplaySequence = displaySequence,
             DocumentId = documentId,

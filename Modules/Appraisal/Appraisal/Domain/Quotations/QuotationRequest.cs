@@ -52,7 +52,7 @@ public class QuotationRequest : Aggregate<Guid>
     {
         return new QuotationRequest
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             QuotationNumber = quotationNumber,
             RequestDate = DateTime.UtcNow,
             DueDate = dueDate,

@@ -85,7 +85,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
 
             detail.OwnsOne(p => p.Appointment, appointment =>
             {
-                appointment.Property(p => p.AppointmentDateTime).HasColumnName("AppointmentDate");
+                appointment.Property(p => p.AppointmentDateTime).HasColumnName("AppointmentDateTime");
                 appointment.Property(p => p.AppointmentLocation).HasMaxLength(4000)
                     .HasColumnName("AppointmentLocation");
             });
@@ -100,7 +100,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             detail.OwnsOne(p => p.Fee, feeInfo =>
             {
                 feeInfo.Property(p => p.FeePaymentType).HasMaxLength(10).HasColumnName("FeePaymentType");
-                feeInfo.Property(p => p.AbsorbedAmount).HasPrecision(19, 4).HasColumnName("AbsorbedFee");
+                feeInfo.Property(p => p.AbsorbedAmount).HasPrecision(19, 4).HasColumnName("AbsorbedAmount");
                 feeInfo.Property(p => p.FeeNotes).HasMaxLength(4000).HasColumnName("FeeNotes");
             });
         });
@@ -113,7 +113,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             customer.Property<long>("Id");
             customer.HasKey("Id");
 
-            customer.Property(p => p.Name).HasMaxLength(80).HasColumnName("CustomerName");
+            customer.Property(p => p.Name).HasMaxLength(80).HasColumnName("Name");
             customer.Property(p => p.ContactNumber).HasMaxLength(20).HasColumnName("ContactNumber");
 
             //Index
@@ -137,10 +137,8 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
         });
 
         // RequestDocuments
-        builder.HasMany(p => p.Documents)
-            .WithOne()
-            .HasForeignKey(p => p.RequestId)
-            .OnDelete(DeleteBehavior.Cascade);
+        builder.OwnsMany(r => r.Documents, doc =>
+            new RequestDocumentConfiguration().Configure(doc));
 
         // Index
         builder

@@ -6,7 +6,6 @@ public class RequestDbContext(DbContextOptions<RequestDbContext> options) : DbCo
 {
     public DbSet<Domain.Requests.Request> Requests => Set<Domain.Requests.Request>();
     public DbSet<RequestTitle> RequestTitles => Set<RequestTitle>();
-    public DbSet<RequestDocument> RequestDocuments => Set<RequestDocument>();
     public DbSet<RequestComment> RequestComments => Set<RequestComment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

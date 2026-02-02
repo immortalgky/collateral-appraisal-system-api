@@ -20,7 +20,7 @@ public class GetLinkRequestTitleDocumentByIdQueryHandler(IRequestTitleRepository
             titleDocument.TitleId,
             titleDocument.DocumentId,
             titleDocument.DocumentType,
-            titleDocument.Filename,
+            titleDocument.FileName,
             titleDocument.Prefix,
             titleDocument.Set,
             titleDocument.Notes,

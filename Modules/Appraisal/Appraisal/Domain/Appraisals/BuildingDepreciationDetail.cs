@@ -51,7 +51,7 @@ public class BuildingDepreciationDetail : Entity<Guid>
 
         return new BuildingDepreciationDetail
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalPropertyId = appraisalPropertyId,
             DepreciationMethod = depreciationMethod,
             UsefulLifeYears = usefulLifeYears,
