@@ -15,19 +15,9 @@ public record MarketComparableDto
     public Guid Id { get; set; }
     public string ComparableNumber { get; set; } = null!;
     public string PropertyType { get; set; } = null!;
-    public string Province { get; set; } = null!;
-    public string? District { get; set; }
-    public string? SubDistrict { get; set; }
-    public string? Address { get; set; }
-    public string? TransactionType { get; set; }
-    public DateTime? TransactionDate { get; set; }
-    public decimal? TransactionPrice { get; set; }
-    public decimal? PricePerUnit { get; set; }
-    public string? UnitType { get; set; }
-    public string DataSource { get; set; } = null!;
-    public string? DataConfidence { get; set; }
-    public bool IsVerified { get; set; }
-    public string Status { get; set; } = null!;
-    public DateTime SurveyDate { get; set; }
+    public string SurveyName { get; set; } = null!;
+    public DateTime? InfoDateTime { get; set; }
+    public string? SourceInfo { get; set; }
+    public string? Notes { get; set; }
     public DateTime? CreatedOn { get; set; }
 }

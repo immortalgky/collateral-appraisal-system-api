@@ -17,28 +17,12 @@ public class CreateMarketComparableCommandHandler(
         var comparable = MarketComparable.Create(
             command.ComparableNumber,
             command.PropertyType,
-            command.Province,
-            command.DataSource,
-            command.SurveyDate,
-            command.TemplateId);
-
-        if (command.District is not null || command.SubDistrict is not null ||
-            command.Address is not null || command.Latitude.HasValue || command.Longitude.HasValue)
-            comparable.SetLocation(
-                command.District,
-                command.SubDistrict,
-                command.Address,
-                command.Latitude,
-                command.Longitude);
-
-        if (command.TransactionType is not null || command.TransactionDate.HasValue ||
-            command.TransactionPrice.HasValue || command.PricePerUnit.HasValue || command.UnitType is not null)
-            comparable.SetTransaction(
-                command.TransactionType,
-                command.TransactionDate,
-                command.TransactionPrice,
-                command.PricePerUnit,
-                command.UnitType);
+            command.SurveyName,
+            command.InfoDateTime,
+            command.SourceInfo,
+            command.TemplateId,
+            command.Notes
+            );
 
         await marketComparableRepository.AddAsync(comparable, cancellationToken);
 

@@ -29,39 +29,13 @@ public class GetMarketComparableByIdQueryHandler(
             Id = comparable.Id,
             ComparableNumber = comparable.ComparableNumber,
             PropertyType = comparable.PropertyType,
+            SurveyName = comparable.SurveyName,
 
-            // Location
-            Province = comparable.Province,
-            District = comparable.District,
-            SubDistrict = comparable.SubDistrict,
-            Address = comparable.Address,
-            Latitude = comparable.Latitude,
-            Longitude = comparable.Longitude,
-
-            // Transaction
-            TransactionType = comparable.TransactionType,
-            TransactionDate = comparable.TransactionDate,
-            TransactionPrice = comparable.TransactionPrice,
-            PricePerUnit = comparable.PricePerUnit,
-            UnitType = comparable.UnitType,
-
-            // Data Quality
-            DataSource = comparable.DataSource,
-            DataConfidence = comparable.DataConfidence,
-            IsVerified = comparable.IsVerified,
-            VerifiedAt = comparable.VerifiedAt,
-            VerifiedBy = comparable.VerifiedBy,
-
-            // Status
-            Status = comparable.Status,
-            ExpiryDate = comparable.ExpiryDate,
-
-            // Survey
-            SurveyDate = comparable.SurveyDate,
-            SurveyedBy = comparable.SurveyedBy,
+            // Data Information
+            InfoDateTime = comparable.InfoDateTime,
+            SourceInfo = comparable.SourceInfo,
 
             // Notes
-            Description = comparable.Description,
             Notes = comparable.Notes,
 
             // Template Reference
@@ -78,6 +52,13 @@ public class GetMarketComparableByIdQueryHandler(
             {
                 Id = fd.Id,
                 FactorId = fd.FactorId,
+                FactorCode = fd.Factor.FactorCode,
+                FactorName = fd.Factor.FactorName,
+                FieldName = fd.Factor.FieldName,
+                DataType = fd.Factor.DataType,
+                FieldLength = fd.Factor.FieldLength,
+                FieldDecimal = fd.Factor.FieldDecimal,
+                ParameterGroup = fd.Factor.ParameterGroup,
                 Value = fd.Value,
                 OtherRemarks = fd.OtherRemarks
             }).ToList(),

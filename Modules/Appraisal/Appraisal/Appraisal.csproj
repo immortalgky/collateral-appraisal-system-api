@@ -11,6 +11,11 @@
         <PackageReference Include="MassTransit.EntityFrameworkCore" Version="8.4.1" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Application\Features\MarketComparables\DeleteMarketComparable\" />
+      <Folder Include="Application\Features\MarketComparables\UpdateMarketComparable\" />
+    </ItemGroup>
+
     <PropertyGroup>
         <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>

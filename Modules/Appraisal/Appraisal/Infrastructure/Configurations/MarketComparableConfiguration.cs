@@ -11,24 +11,9 @@ public class MarketComparableConfiguration : IEntityTypeConfiguration<MarketComp
 
         builder.Property(m => m.ComparableNumber).IsRequired().HasMaxLength(50);
         builder.Property(m => m.PropertyType).IsRequired().HasMaxLength(50);
-
-        builder.Property(m => m.Province).IsRequired().HasMaxLength(100);
-        builder.Property(m => m.District).HasMaxLength(100);
-        builder.Property(m => m.SubDistrict).HasMaxLength(100);
-        builder.Property(m => m.Address).HasMaxLength(500);
-        builder.Property(m => m.Latitude).HasPrecision(10, 7);
-        builder.Property(m => m.Longitude).HasPrecision(10, 7);
-
-        builder.Property(m => m.TransactionType).HasMaxLength(50);
-        builder.Property(m => m.TransactionPrice).HasPrecision(18, 2);
-        builder.Property(m => m.PricePerUnit).HasPrecision(18, 2);
-        builder.Property(m => m.UnitType).HasMaxLength(20);
-
-        builder.Property(m => m.DataSource).IsRequired().HasMaxLength(50);
-        builder.Property(m => m.DataConfidence).HasMaxLength(20);
-        builder.Property(m => m.Status).IsRequired().HasMaxLength(20);
-
-        builder.Property(m => m.Description).HasMaxLength(1000);
+        builder.Property(m => m.SurveyName).IsRequired().HasMaxLength(100);
+        builder.Property(m => m.InfoDateTime);
+        builder.Property(m => m.SourceInfo).HasMaxLength(200);
         builder.Property(m => m.Notes).HasMaxLength(2000);
 
         builder.Property(m => m.CreatedOn).IsRequired();
@@ -66,10 +51,8 @@ public class MarketComparableConfiguration : IEntityTypeConfiguration<MarketComp
             .HasForeignKey(m => m.TemplateId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasIndex(m => m.ComparableNumber).IsUnique();
+        builder.HasIndex(m => m.ComparableNumber).IsUnique().HasFilter("[IsDeleted] = 0");
         builder.HasIndex(m => m.PropertyType);
-        builder.HasIndex(m => m.Province);
-        builder.HasIndex(m => m.Status);
         builder.HasIndex(m => m.TemplateId);
     }
 }
