@@ -16,6 +16,10 @@ public class Request : Aggregate<Guid>
     public SoftDelete SoftDelete { get; private set; } = default!;
     public RequestDetail? Detail { get; private set; }
 
+    // External system integration
+    public string? ExternalCaseKey { get; private set; }
+    public string? ExternalSystem { get; private set; }
+
     private readonly List<RequestCustomer> _customers = [];
     public IReadOnlyList<RequestCustomer> Customers => _customers.AsReadOnly();
 
@@ -140,6 +144,15 @@ public class Request : Aggregate<Guid>
     public void Delete(string deletedBy, DateTime deletedAt)
     {
         SoftDelete = SoftDelete.Delete(deletedBy, deletedAt);
+    }
+
+    public void SetExternalReference(string externalCaseKey, string externalSystem)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(externalCaseKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(externalSystem);
+
+        ExternalCaseKey = externalCaseKey;
+        ExternalSystem = externalSystem;
     }
 
     /// <summary>

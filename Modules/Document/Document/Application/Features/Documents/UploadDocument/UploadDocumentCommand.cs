@@ -1,5 +1,3 @@
-using Shared.CQRS;
-
 namespace Document.Domain.Documents.Features.UploadDocument;
 
 public record UploadDocumentCommand(

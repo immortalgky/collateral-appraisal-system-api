@@ -74,7 +74,9 @@ public static class OpenIddictModule
 
                 options.RegisterScopes(
                     OpenIddictConstants.Scopes.OpenId, OpenIddictConstants.Scopes.Profile,
-                    OpenIddictConstants.Scopes.Email, OpenIddictConstants.Scopes.OfflineAccess);
+                    OpenIddictConstants.Scopes.Email, OpenIddictConstants.Scopes.OfflineAccess,
+                    // CLS Integration scopes
+                    "appraisal.read", "request.write", "document.read", "document.write");
 
                 // Use a secure certificate provider instead of development certificates
                 // For development, still use development certificates temporarily

@@ -1,7 +1,5 @@
-using Document.Data;
 using Document.Services;
 using Document.Domain.UploadSessions.Model;
-using Shared.CQRS;
 using Shared.Data;
 
 namespace Document.Domain.Documents.Features.UploadDocument;
