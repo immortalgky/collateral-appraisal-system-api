@@ -51,7 +51,8 @@ public class MarketComparableConfiguration : IEntityTypeConfiguration<MarketComp
             .HasForeignKey(m => m.TemplateId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasIndex(m => m.ComparableNumber).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(m => m.ComparableNumber).IsUnique();
+            // .HasFilter("[IsDeleted] = 0");
         builder.HasIndex(m => m.PropertyType);
         builder.HasIndex(m => m.TemplateId);
     }
