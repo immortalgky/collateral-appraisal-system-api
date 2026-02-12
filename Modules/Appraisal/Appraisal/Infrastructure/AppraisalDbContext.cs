@@ -140,7 +140,10 @@ public class AppraisalDbContext : DbContext
         // Soft delete query filter for new Appraisal aggregate
         modelBuilder.Entity<Domain.Appraisals.Appraisal>()
             .HasQueryFilter(a => !a.SoftDelete.IsDeleted);
-
+        
+        modelBuilder.Entity<MarketComparable>()
+            .HasQueryFilter(m => !m.SoftDelete.IsDeleted);
+        
         // MassTransit Outbox for reliable messaging
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxStateEntity();
