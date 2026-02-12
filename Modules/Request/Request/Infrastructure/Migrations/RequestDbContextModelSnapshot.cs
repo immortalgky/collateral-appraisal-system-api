@@ -215,12 +215,15 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("CreatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("LastModifiedAt")
                         .HasColumnType("datetime2");
@@ -228,12 +231,15 @@ namespace Request.Infrastructure.Migrations
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("UpdatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -256,12 +262,15 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("CreatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
@@ -273,12 +282,15 @@ namespace Request.Infrastructure.Migrations
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("UpdatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -312,8 +324,8 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("CreatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsPma")
                         .HasColumnType("bit");
@@ -329,12 +341,15 @@ namespace Request.Infrastructure.Migrations
                     b.Property<DateTime?>("RequestedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("UpdatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -558,12 +573,15 @@ namespace Request.Infrastructure.Migrations
                             b1.Property<Guid>("Id")
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<DateTime?>("CreatedAt")
+                                .HasColumnType("datetime2");
+
                             b1.Property<string>("CreatedBy")
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)");
 
-                            b1.Property<DateTime?>("CreatedOn")
-                                .HasColumnType("datetime2");
+                            b1.Property<string>("CreatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
 
                             b1.Property<Guid?>("DocumentId")
                                 .HasColumnType("uniqueidentifier");
@@ -597,12 +615,15 @@ namespace Request.Infrastructure.Migrations
                             b1.Property<Guid>("TitleId")
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<DateTime?>("UpdatedAt")
+                                .HasColumnType("datetime2");
+
                             b1.Property<string>("UpdatedBy")
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)");
 
-                            b1.Property<DateTime?>("UpdatedOn")
-                                .HasColumnType("datetime2");
+                            b1.Property<string>("UpdatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
 
                             b1.Property<DateTime>("UploadedAt")
                                 .HasColumnType("datetime2");
@@ -702,8 +723,8 @@ namespace Request.Infrastructure.Migrations
                             SqlServerPropertyBuilderExtensions.UseIdentityColumn(b1.Property<long>("Id"));
 
                             b1.Property<string>("ContactNumber")
-                                .HasMaxLength(20)
-                                .HasColumnType("nvarchar(20)")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
                                 .HasColumnName("ContactNumber");
 
                             b1.Property<string>("Name")
@@ -736,9 +757,23 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("bit")
                                 .HasColumnName("HasAppraisalBook");
 
+                            b1.Property<DateTime?>("PrevAppraisalDate")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("PrevAppraisalDate");
+
                             b1.Property<Guid?>("PrevAppraisalId")
                                 .HasColumnType("uniqueidentifier")
                                 .HasColumnName("PrevAppraisalId");
+
+                            b1.Property<string>("PrevAppraisalNumber")
+                                .HasMaxLength(20)
+                                .HasColumnType("nvarchar(20)")
+                                .HasColumnName("PrevAppraisalNumber");
+
+                            b1.Property<decimal?>("PrevAppraisalValue")
+                                .HasPrecision(19, 4)
+                                .HasColumnType("decimal(19,4)")
+                                .HasColumnName("PrevAppraisalValue");
 
                             b1.HasKey("RequestId");
 
@@ -780,8 +815,8 @@ namespace Request.Infrastructure.Migrations
                                         .HasColumnName("ContactPersonName");
 
                                     b2.Property<string>("ContactPersonPhone")
-                                        .HasMaxLength(20)
-                                        .HasColumnType("nvarchar(20)")
+                                        .HasMaxLength(100)
+                                        .HasColumnType("nvarchar(100)")
                                         .HasColumnName("ContactPersonPhone");
 
                                     b2.Property<string>("DealerCode")
@@ -947,12 +982,15 @@ namespace Request.Infrastructure.Migrations
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<DateTime?>("CreatedAt")
+                                .HasColumnType("datetime2");
+
                             b1.Property<string>("CreatedBy")
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)");
 
-                            b1.Property<DateTime?>("CreatedOn")
-                                .HasColumnType("datetime2");
+                            b1.Property<string>("CreatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
 
                             b1.Property<Guid?>("DocumentId")
                                 .HasColumnType("uniqueidentifier");
@@ -991,12 +1029,15 @@ namespace Request.Infrastructure.Migrations
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)");
 
+                            b1.Property<DateTime?>("UpdatedAt")
+                                .HasColumnType("datetime2");
+
                             b1.Property<string>("UpdatedBy")
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)");
 
-                            b1.Property<DateTime?>("UpdatedOn")
-                                .HasColumnType("datetime2");
+                            b1.Property<string>("UpdatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
 
                             b1.Property<DateTime?>("UploadedAt")
                                 .HasColumnType("datetime2");

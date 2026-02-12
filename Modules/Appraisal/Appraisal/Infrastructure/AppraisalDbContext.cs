@@ -75,6 +75,7 @@ public class AppraisalDbContext : DbContext
     // =====================================================
     public DbSet<AppraisalSettings> AppraisalSettings => Set<AppraisalSettings>();
     public DbSet<AutoAssignmentRule> AutoAssignmentRules => Set<AutoAssignmentRule>();
+    public DbSet<FeeStructure> FeeStructures => Set<FeeStructure>();
 
     // =====================================================
     // Document Requirements

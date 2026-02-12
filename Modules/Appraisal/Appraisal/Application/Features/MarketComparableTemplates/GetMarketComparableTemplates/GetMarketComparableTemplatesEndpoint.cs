@@ -19,10 +19,10 @@ public class GetMarketComparableTemplatesEndpoint : ICarterModule
                     queryParams.IsActive);
 
                 var result = await sender.Send(query, cancellationToken);
-                return Results.Ok(result);
+                return Results.Ok(new GetMarketComparableTemplatesResponse(result.Templates));
             })
             .WithName("GetMarketComparableTemplates")
-            .Produces<GetMarketComparableTemplatesResult>(StatusCodes.Status200OK)
+            .Produces<GetMarketComparableTemplatesResponse>(StatusCodes.Status200OK)
             .WithSummary("Get market comparable templates")
             .WithDescription("Retrieve all market comparable templates with optional filtering by property type and active status.")
             .WithTags("MarketComparableTemplates");

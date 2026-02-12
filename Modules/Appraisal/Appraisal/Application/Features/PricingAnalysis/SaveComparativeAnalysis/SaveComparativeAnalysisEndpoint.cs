@@ -1,4 +1,5 @@
 using Carter;
+using Mapster;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -22,10 +23,11 @@ public class SaveComparativeAnalysisEndpoint : ICarterModule
                     );
 
                     var result = await sender.Send(command);
-                    return Results.Ok(result);
+                    var response = result.Adapt<SaveComparativeAnalysisResponse>();
+                    return Results.Ok(response);
                 })
             .WithName("SaveComparativeAnalysis")
-            .Produces<SaveComparativeAnalysisResult>()
+            .Produces<SaveComparativeAnalysisResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Save entire comparative analysis")

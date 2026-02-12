@@ -10,13 +10,13 @@ public interface IAppraisalCreationService
 {
     /// <summary>
     /// Creates an appraisal from a submitted request with its titles.
+    /// Also creates an initial unassigned assignment, fee (from FeeStructure), and appointment (if provided).
     /// </summary>
-    /// <param name="requestId">The ID of the request</param>
-    /// <param name="requestTitles">List of request titles to process</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>The ID of the created appraisal, or existing appraisal ID if already exists</returns>
     Task<Guid> CreateAppraisalFromRequest(
         Guid requestId,
         List<RequestTitleDto> requestTitles,
+        AppointmentDto? appointment = null,
+        FeeDto? fee = null,
+        Guid? createdBy = null,
         CancellationToken cancellationToken = default);
 }

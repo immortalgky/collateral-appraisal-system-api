@@ -1,4 +1,5 @@
 using Carter;
+using Mapster;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -21,10 +22,11 @@ public class UpdateTemplateEndpoint : ICarterModule
                     );
 
                     var result = await sender.Send(command);
-                    return Results.Ok(result);
+                    var response = result.Adapt<UpdateTemplateResponse>();
+                    return Results.Ok(response);
                 })
             .WithName("UpdateComparativeAnalysisTemplate")
-            .Produces<UpdateTemplateResult>()
+            .Produces<UpdateTemplateResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update a comparative analysis template")

@@ -4,6 +4,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateCondoProperty;
 /// Handler for creating a condo property with its appraisal detail
 /// </summary>
 public class CreateCondoPropertyCommandHandler(
+    IAppraisalUnitOfWork unitOfWork,
     IAppraisalRepository appraisalRepository
 ) : ICommandHandler<CreateCondoPropertyCommand, CreateCondoPropertyResult>
 {
@@ -17,8 +18,7 @@ public class CreateCondoPropertyCommandHandler(
                         ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
         // 2. Execute domain operation via aggregate
-        var property = appraisal.AddCondoProperty(
-            command.OwnerName);
+        var property = appraisal.AddCondoProperty();
 
         // 3. Create value objects if provided
         GpsCoordinate? coordinates = null;
@@ -97,8 +97,10 @@ public class CreateCondoPropertyCommandHandler(
             command.ForcedSalePrice,
             command.Remark);
 
-        // 5. Save aggregate
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // 5. Assign property to a group
+        if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
 
         // 6. Return both IDs
         return new CreateCondoPropertyResult(property.Id, property.CondoDetail.Id);

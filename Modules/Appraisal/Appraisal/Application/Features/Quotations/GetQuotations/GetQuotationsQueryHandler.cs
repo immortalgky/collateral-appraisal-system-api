@@ -1,45 +1,28 @@
+using Shared.CQRS;
+using Shared.Data;
+using Shared.Pagination;
+
 namespace Appraisal.Application.Features.Quotations.GetQuotations;
 
-public class GetQuotationsQueryHandler(IQuotationRepository quotationRepository)
-    : IQueryHandler<GetQuotationsQuery, GetQuotationsResult>
+/// <summary>
+/// Handler for getting all Quotations with pagination.
+/// Uses SQL view + Dapper for efficient read queries.
+/// </summary>
+public class GetQuotationsQueryHandler(
+    ISqlConnectionFactory connectionFactory
+) : IQueryHandler<GetQuotationsQuery, GetQuotationsResult>
 {
-    public async Task<GetQuotationsResult> Handle(GetQuotationsQuery query, CancellationToken cancellationToken)
+    public async Task<GetQuotationsResult> Handle(
+        GetQuotationsQuery query,
+        CancellationToken cancellationToken)
     {
-        var quotations = await quotationRepository.GetAllAsync(cancellationToken);
-        var quotationList = quotations.ToList();
+        var sql = "SELECT * FROM appraisal.vw_QuotationList";
 
-        var items = quotationList
-            .Skip((query.PaginationRequest.PageNumber - 1) * query.PaginationRequest.PageSize)
-            .Take(query.PaginationRequest.PageSize)
-            .Select(q => new QuotationDto(
-                q.Id,
-                q.QuotationNumber,
-                q.RequestDate,
-                q.DueDate,
-                q.Status,
-                q.RequestedByName,
-                q.TotalAppraisals,
-                q.TotalCompaniesInvited,
-                q.TotalQuotationsReceived))
-            .ToList();
+        var result = await connectionFactory.QueryPaginatedAsync<QuotationDto>(
+            sql,
+            "RequestDate DESC",
+            query.PaginationRequest);
 
-        var paginatedResult = new PaginatedResult<QuotationDto>(
-            items,
-            quotationList.Count,
-            query.PaginationRequest.PageNumber,
-            query.PaginationRequest.PageSize);
-
-        return new GetQuotationsResult(paginatedResult);
+        return new GetQuotationsResult(result);
     }
 }
-
-public record QuotationDto(
-    Guid Id,
-    string QuotationNumber,
-    DateTime RequestDate,
-    DateTime DueDate,
-    string Status,
-    string RequestedByName,
-    int TotalAppraisals,
-    int TotalCompaniesInvited,
-    int TotalQuotationsReceived);

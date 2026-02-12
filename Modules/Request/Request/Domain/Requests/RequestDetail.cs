@@ -5,6 +5,9 @@ public class RequestDetail : ValueObject
     public bool HasAppraisalBook { get; }
     public LoanDetail? LoanDetail { get; }
     public Guid? PrevAppraisalId { get; }
+    public string? PrevAppraisalNumber { get; }
+    public decimal? PrevAppraisalValue { get; }
+    public DateTime? PrevAppraisalDate { get; }
     public Address? Address { get; }
     public Contact? Contact { get; }
     public Appointment? Appointment { get; }

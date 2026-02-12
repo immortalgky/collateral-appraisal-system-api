@@ -49,6 +49,9 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
 
             detail.Property(p => p.HasAppraisalBook).HasColumnName("HasAppraisalBook");
             detail.Property(p => p.PrevAppraisalId).HasColumnName("PrevAppraisalId");
+            detail.Property(p => p.PrevAppraisalNumber).HasMaxLength(20).HasColumnName("PrevAppraisalNumber");
+            detail.Property(p => p.PrevAppraisalValue).HasPrecision(19, 4).HasColumnName("PrevAppraisalValue");
+            detail.Property(p => p.PrevAppraisalDate).HasColumnName("PrevAppraisalDate");
             detail.OwnsOne(p => p.LoanDetail,
                 loanDetail =>
                 {
@@ -93,7 +96,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             detail.OwnsOne(p => p.Contact, contact =>
             {
                 contact.Property(p => p.ContactPersonName).HasMaxLength(100).HasColumnName("ContactPersonName");
-                contact.Property(p => p.ContactPersonPhone).HasMaxLength(20).HasColumnName("ContactPersonPhone");
+                contact.Property(p => p.ContactPersonPhone).HasMaxLength(100).HasColumnName("ContactPersonPhone");
                 contact.Property(p => p.DealerCode).HasMaxLength(20).HasColumnName("DealerCode");
             });
 
@@ -114,7 +117,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             customer.HasKey("Id");
 
             customer.Property(p => p.Name).HasMaxLength(80).HasColumnName("Name");
-            customer.Property(p => p.ContactNumber).HasMaxLength(20).HasColumnName("ContactNumber");
+            customer.Property(p => p.ContactNumber).HasMaxLength(100).HasColumnName("ContactNumber");
 
             //Index
             customer.HasIndex(p => p.Name).HasDatabaseName("IX_RequestCustomer_Name");

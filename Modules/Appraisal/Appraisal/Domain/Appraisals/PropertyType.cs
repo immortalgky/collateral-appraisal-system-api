@@ -14,26 +14,26 @@ public class PropertyType : ValueObject
     }
 
     // Predefined types
-    public static PropertyType Land => new("Land");
-    public static PropertyType Building => new("Building");
-    public static PropertyType LandAndBuilding => new("LandAndBuilding");
-    public static PropertyType Condo => new("Condo");
-    public static PropertyType Vehicle => new("Vehicle");
-    public static PropertyType Vessel => new("Vessel");
-    public static PropertyType Machinery => new("Machinery");
+    public static PropertyType Land => new("L");
+    public static PropertyType Building => new("B");
+    public static PropertyType LandAndBuilding => new("LB");
+    public static PropertyType Condo => new("U");
+    public static PropertyType Vehicle => new("VEH");
+    public static PropertyType Vessel => new("VES");
+    public static PropertyType Machinery => new("MAC");
 
     // Factory method from string
     public static PropertyType FromString(string code)
     {
         return code switch
         {
-            "Land" => Land,
-            "Building" => Building,
-            "LandAndBuilding" => LandAndBuilding,
-            "Condo" => Condo,
-            "Vehicle" => Vehicle,
-            "Vessel" => Vessel,
-            "Machinery" => Machinery,
+            "L" => Land,
+            "B" => Building,
+            "LB" => LandAndBuilding,
+            "U" => Condo,
+            "VEH" => Vehicle,
+            "VES" => Vessel,
+            "MAC" => Machinery,
             _ => throw new ArgumentException($"Invalid property type: {code}")
         };
     }

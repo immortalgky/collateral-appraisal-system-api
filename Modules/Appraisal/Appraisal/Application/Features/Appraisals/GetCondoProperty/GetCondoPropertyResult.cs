@@ -20,7 +20,7 @@ public record GetCondoPropertyResult(
     string? BuiltOnTitleNumber,
     string? CondoRegistrationNumber,
     string? RoomNumber,
-    int? FloorNumber,
+    string? FloorNumber,
     decimal? UsableArea,
     // Coordinates
     decimal? Latitude,

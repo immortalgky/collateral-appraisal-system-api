@@ -4,15 +4,20 @@ namespace Appraisal.Application.Services;
 
 /// <summary>
 /// Service implementation for creating appraisals from request submissions.
+/// Creates the appraisal aggregate with properties, groups, an initial assignment, fee, and appointment.
 /// </summary>
 public class AppraisalCreationService(
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
+    AppraisalDbContext dbContext,
     ILogger<AppraisalCreationService> logger) : IAppraisalCreationService
 {
     public async Task<Guid> CreateAppraisalFromRequest(
         Guid requestId,
         List<RequestTitleDto> requestTitles,
+        AppointmentDto? appointment = null,
+        FeeDto? fee = null,
+        Guid? createdBy = null,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Creating appraisal from request {RequestId} with {TitleCount} titles",
@@ -30,7 +35,7 @@ public class AppraisalCreationService(
 
         // Step 2: Filter for Land type only (CollateralType == "L")
         var landTitles = requestTitles
-            .Where(t => t.CollateralType == "L")
+            .Where(t => t.CollateralType is "L" or "LB")
             .ToList();
 
         if (!landTitles.Any())
@@ -61,9 +66,7 @@ public class AppraisalCreationService(
         foreach (var landTitle in landTitles)
         {
             // Add land property with detail
-            var property = appraisal.AddLandProperty(
-                landTitle.OwnerName ?? "Unknown",
-                $"Title: {landTitle.TitleNumber ?? "N/A"}");
+            var property = appraisal.AddLandProperty();
 
             logger.LogInformation("Added land property {PropertyId} for title {TitleNumber}",
                 property.Id, landTitle.TitleNumber);
@@ -105,27 +108,87 @@ public class AppraisalCreationService(
                 landDetail.AddTitle(title);
 
                 logger.LogInformation("Added land title {TitleDeedNumber} to property {PropertyId}",
-                    title.TitleDeedNumber, property.Id);
+                    title.TitleNumber, property.Id);
             }
         }
 
-        // Step 6: Create an initial PropertyGroup and add all properties to it
-        var initialGroup = appraisal.CreateGroup("Initial Group", "Auto-generated group for all properties");
-
-        logger.LogInformation("Created initial property group {GroupId} with name '{GroupName}'",
-            initialGroup.Id, initialGroup.GroupName);
-
-        // Step 7: Add all properties to the initial group
-        foreach (var propertyId in appraisal.Properties.Select(p => p.Id))
+        // Wrap all saves in an explicit transaction to prevent partial success.
+        // Three phases: (1) appraisal + properties, (2) group + assignment, (3) fee + appointment.
+        // Owned entities need a save to get DB-generated IDs; the assignment must exist in DB
+        // before entities with FK references to it (Appointment, AppraisalFee) can be inserted.
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
         {
-            appraisal.AddPropertyToGroup(initialGroup.Id, propertyId);
-            logger.LogInformation("Added property {PropertyId} to group {GroupId}",
-                propertyId, initialGroup.Id);
-        }
+            // Phase 1: Save appraisal + properties to get real IDs from NEWSEQUENTIALID()
+            await appraisalRepository.AddAsync(appraisal, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Step 8: Save via repository
-        await appraisalRepository.AddAsync(appraisal, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Saved appraisal {AppraisalId} with {PropertyCount} properties (IDs assigned by DB)",
+                appraisal.Id, appraisal.Properties.Count);
+
+            // Phase 2: Create group + assignment, then save so the assignment row exists in DB
+            // before we create entities (Appointment, AppraisalFee) that FK-reference it.
+            var initialGroup = appraisal.CreateGroup("Initial Group", "Auto-generated group for all properties");
+
+            foreach (var property in appraisal.Properties) initialGroup.AddProperty(property.Id);
+
+            var assignment = appraisal.Assign(
+                "Internal",
+                null,
+                null,
+                "Manual",
+                assignedBy: createdBy ?? Guid.Empty);
+
+            // Explicitly add assignment via DbSet so EF Core traverses the entity graph
+            // (including OwnsOne value objects like AssignmentMode/AssignmentStatus) and marks
+            // everything as Added. Without this, DetectChanges discovers the assignment through
+            // the aggregate's HasMany collection with a non-sentinel key + ValueGeneratedOnAdd,
+            // causing EF Core to assume it already exists (UPDATE instead of INSERT).
+            dbContext.AppraisalAssignments.Add(assignment);
+
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation(
+                "Saved group and assignment {AssignmentId} for appraisal {AppraisalId}",
+                assignment.Id, appraisal.Id);
+
+            // Phase 3: Create fee + appointment (both FK to assignment, which now exists in DB)
+            var feeStructures = await dbContext.FeeStructures
+                .Where(fs => fs.IsActive)
+                .ToListAsync(cancellationToken);
+
+            var appraisalFee = AppraisalFee.Create(assignment.Id);
+            foreach (var fs in feeStructures) appraisalFee.AddItem(fs.FeeCode, fs.FeeName, fs.BaseAmount);
+
+            if (fee?.AbsorbedAmount is > 0) appraisalFee.SetBankAbsorb(fee.AbsorbedAmount.Value);
+
+            dbContext.AppraisalFees.Add(appraisalFee);
+
+            logger.LogInformation("Created fee {FeeId} with {ItemCount} items for assignment {AssignmentId}",
+                appraisalFee.Id, feeStructures.Count, assignment.Id);
+
+            if (appointment?.AppointmentDateTime.HasValue == true)
+            {
+                var appt = Appointment.Create(
+                    assignment.Id,
+                    appointment.AppointmentDateTime.Value,
+                    createdBy ?? Guid.Empty,
+                    appointment.AppointmentLocation);
+
+                dbContext.Appointments.Add(appt);
+
+                logger.LogInformation("Created appointment {AppointmentId} for assignment {AssignmentId}",
+                    appt.Id, assignment.Id);
+            }
+
+            // Commit — saves fee + appointment then commits the entire transaction
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+        }
+        catch
+        {
+            await unitOfWork.RollbackTransactionAsync(cancellationToken);
+            throw;
+        }
 
         logger.LogInformation(
             "Successfully created appraisal {AppraisalId} ({AppraisalNumber}) with {PropertyCount} properties for request {RequestId}",

@@ -27,8 +27,8 @@ public class GetDocumentTypesQueryHandler : IQueryHandler<GetDocumentTypesQuery,
             Category = dt.Category,
             IsActive = dt.IsActive,
             SortOrder = dt.SortOrder,
-            CreatedOn = dt.CreatedOn,
-            UpdatedOn = dt.UpdatedOn
+            CreatedOn = dt.CreatedAt,
+            UpdatedOn = dt.UpdatedAt
         }).ToList();
 
         return new GetDocumentTypesResult(dtos);

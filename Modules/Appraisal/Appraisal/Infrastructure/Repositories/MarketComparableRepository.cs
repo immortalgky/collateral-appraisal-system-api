@@ -81,7 +81,7 @@ public class MarketComparableRepository(AppraisalDbContext dbContext)
     public async Task<IEnumerable<MarketComparable>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await _dbContext.MarketComparables
-            .OrderByDescending(m => m.CreatedOn)
+            .OrderByDescending(m => m.CreatedAt)
             .ToListAsync(cancellationToken);
     }
 
@@ -92,7 +92,7 @@ public class MarketComparableRepository(AppraisalDbContext dbContext)
     {
         return await _dbContext.MarketComparables
             .Include(m => m.FactorData)
-                .ThenInclude(d => d.Factor)
+            .ThenInclude(d => d.Factor)
             .Include(m => m.Images)
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
     }

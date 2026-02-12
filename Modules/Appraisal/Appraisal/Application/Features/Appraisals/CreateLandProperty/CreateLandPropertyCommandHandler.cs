@@ -4,7 +4,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLandProperty;
 /// Handler for creating a new land property with detail
 /// </summary>
 public class CreateLandPropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    IAppraisalUnitOfWork unitOfWork
 ) : ICommandHandler<CreateLandPropertyCommand, CreateLandPropertyResult>
 {
     public async Task<CreateLandPropertyResult> Handle(
@@ -15,9 +16,7 @@ public class CreateLandPropertyCommandHandler(
                             command.AppraisalId, cancellationToken)
                         ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
-        var property = appraisal.AddLandProperty(
-            command.OwnerName,
-            command.Description);
+        var property = appraisal.AddLandProperty();
 
         GpsCoordinate? coordinates = null;
         if (command.Latitude.HasValue && command.Longitude.HasValue)
@@ -32,7 +31,9 @@ public class CreateLandPropertyCommandHandler(
                 command.Province,
                 command.LandOffice);
 
-        property.LandDetail!.Update(
+        var landDetail = property.LandDetail!;
+
+        landDetail.Update(
             command.PropertyName,
             command.LandDescription,
             coordinates,
@@ -108,6 +109,44 @@ public class CreateLandPropertyCommandHandler(
             command.HasBuildingOther,
             command.Remark);
 
-        return new CreateLandPropertyResult(property.Id, property.LandDetail.Id);
+        // Add land titles if provided
+        if (command.Titles is { Count: > 0 })
+            foreach (var titleData in command.Titles)
+            {
+                var title = LandTitle.Create(
+                    landDetail.Id,
+                    titleData.TitleNumber,
+                    titleData.TitleType);
+
+                LandArea? area = null;
+                if (titleData.Rai.HasValue || titleData.Ngan.HasValue || titleData.SquareWa.HasValue)
+                    area = LandArea.Create(titleData.Rai, titleData.Ngan, titleData.SquareWa);
+
+                title.Update(
+                    titleData.BookNumber,
+                    titleData.PageNumber,
+                    titleData.LandParcelNumber,
+                    titleData.SurveyNumber,
+                    titleData.MapSheetNumber,
+                    titleData.Rawang,
+                    titleData.AerialMapName,
+                    titleData.AerialMapNumber,
+                    area,
+                    titleData.HasBoundaryMarker,
+                    titleData.BoundaryMarkerRemark,
+                    titleData.IsDocumentValidated,
+                    titleData.IsMissingFromSurvey,
+                    titleData.GovernmentPricePerSqWa,
+                    titleData.GovernmentPrice,
+                    titleData.Remark);
+
+                landDetail.AddTitle(title);
+            }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
+
+        return new CreateLandPropertyResult(property.Id, landDetail.Id);
     }
 }

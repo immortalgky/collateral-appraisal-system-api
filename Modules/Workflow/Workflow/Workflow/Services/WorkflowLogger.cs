@@ -22,32 +22,38 @@ public class WorkflowLogger : IWorkflowLogger
         _currentActivity = Activity.Current;
     }
 
-    public IDisposable CreateCorrelationScope(Guid workflowInstanceId, string? correlationId = null, string? operationName = null)
+    public IDisposable CreateCorrelationScope(Guid workflowInstanceId, string? correlationId = null,
+        string? operationName = null)
     {
         return new WorkflowCorrelationScope(_logger, workflowInstanceId, correlationId, operationName);
     }
 
-    public IDisposable CreateActivityCorrelationScope(Guid workflowInstanceId, string activityId, string activityType, string? correlationId = null)
+    public IDisposable CreateActivityCorrelationScope(Guid workflowInstanceId, string activityId, string activityType,
+        string? correlationId = null)
     {
         return new ActivityCorrelationScope(_logger, workflowInstanceId, activityId, activityType, correlationId);
     }
 
     // Workflow Lifecycle Events
-    public void LogWorkflowStarting(Guid workflowDefinitionId, string instanceName, string startedBy, string? correlationId)
+    public void LogWorkflowStarting(Guid workflowDefinitionId, string instanceName, string startedBy,
+        string? correlationId)
     {
-        WorkflowLoggingExtensions.LogWorkflowStarting(_logger, workflowDefinitionId, instanceName, startedBy, correlationId);
+        WorkflowLoggingExtensions.LogWorkflowStarting(_logger, workflowDefinitionId, instanceName, startedBy,
+            correlationId);
     }
 
     public void LogWorkflowStarted(WorkflowInstance workflowInstance)
     {
-        WorkflowLoggingExtensions.LogWorkflowStarted(_logger, workflowInstance.Id, workflowInstance.WorkflowDefinitionId, 
-            workflowInstance.Name, workflowInstance.StartedBy, workflowInstance.CorrelationId, 
-            workflowInstance.CreatedOn ?? workflowInstance.StartedOn);
+        WorkflowLoggingExtensions.LogWorkflowStarted(_logger, workflowInstance.Id,
+            workflowInstance.WorkflowDefinitionId,
+            workflowInstance.Name, workflowInstance.StartedBy, workflowInstance.CorrelationId,
+            workflowInstance.CreatedAt ?? workflowInstance.StartedOn);
     }
 
     public void LogWorkflowCompleted(WorkflowInstance workflowInstance, TimeSpan totalDuration)
     {
-        WorkflowLoggingExtensions.LogWorkflowCompleted(_logger, workflowInstance.Id, workflowInstance.WorkflowDefinitionId,
+        WorkflowLoggingExtensions.LogWorkflowCompleted(_logger, workflowInstance.Id,
+            workflowInstance.WorkflowDefinitionId,
             workflowInstance.Name, totalDuration.TotalMilliseconds, workflowInstance.CorrelationId);
     }
 
@@ -59,37 +65,44 @@ public class WorkflowLogger : IWorkflowLogger
 
     public void LogWorkflowSuspended(WorkflowInstance workflowInstance, string reason)
     {
-        WorkflowLoggingExtensions.LogWorkflowSuspended(_logger, workflowInstance.Id, workflowInstance.WorkflowDefinitionId,
+        WorkflowLoggingExtensions.LogWorkflowSuspended(_logger, workflowInstance.Id,
+            workflowInstance.WorkflowDefinitionId,
             workflowInstance.Name, reason, workflowInstance.CorrelationId);
     }
 
     public void LogWorkflowResumed(WorkflowInstance workflowInstance, string activityId, string completedBy)
     {
-        WorkflowLoggingExtensions.LogWorkflowResumed(_logger, workflowInstance.Id, workflowInstance.WorkflowDefinitionId,
+        WorkflowLoggingExtensions.LogWorkflowResumed(_logger, workflowInstance.Id,
+            workflowInstance.WorkflowDefinitionId,
             workflowInstance.Name, activityId, completedBy, workflowInstance.CorrelationId);
     }
 
     public void LogWorkflowCancelled(WorkflowInstance workflowInstance, string reason, string cancelledBy)
     {
-        WorkflowLoggingExtensions.LogWorkflowCancelled(_logger, workflowInstance.Id, workflowInstance.WorkflowDefinitionId,
+        WorkflowLoggingExtensions.LogWorkflowCancelled(_logger, workflowInstance.Id,
+            workflowInstance.WorkflowDefinitionId,
             workflowInstance.Name, reason, cancelledBy, workflowInstance.CorrelationId);
     }
 
     // Activity Lifecycle Events
-    public void LogActivityStarting(string activityId, string activityType, Guid workflowInstanceId, bool isResume = false)
+    public void LogActivityStarting(string activityId, string activityType, Guid workflowInstanceId,
+        bool isResume = false)
     {
         WorkflowLoggingExtensions.LogActivityStarting(_logger, activityId, activityType, workflowInstanceId, isResume);
     }
 
-    public void LogActivityCompleted(string activityId, string activityType, Guid workflowInstanceId, TimeSpan duration, ActivityResultStatus status)
+    public void LogActivityCompleted(string activityId, string activityType, Guid workflowInstanceId, TimeSpan duration,
+        ActivityResultStatus status)
     {
-        WorkflowLoggingExtensions.LogActivityCompleted(_logger, activityId, activityType, workflowInstanceId, 
+        WorkflowLoggingExtensions.LogActivityCompleted(_logger, activityId, activityType, workflowInstanceId,
             duration.TotalMilliseconds, status.ToString());
     }
 
-    public void LogActivityFailed(string activityId, string activityType, Guid workflowInstanceId, string errorMessage, Exception? exception = null)
+    public void LogActivityFailed(string activityId, string activityType, Guid workflowInstanceId, string errorMessage,
+        Exception? exception = null)
     {
-        WorkflowLoggingExtensions.LogActivityFailed(_logger, activityId, activityType, workflowInstanceId, errorMessage, exception);
+        WorkflowLoggingExtensions.LogActivityFailed(_logger, activityId, activityType, workflowInstanceId, errorMessage,
+            exception);
     }
 
     public void LogActivityPending(string activityId, string activityType, Guid workflowInstanceId, string reason)
@@ -97,9 +110,11 @@ public class WorkflowLogger : IWorkflowLogger
         WorkflowLoggingExtensions.LogActivityPending(_logger, activityId, activityType, workflowInstanceId, reason);
     }
 
-    public void LogActivityRetrying(string activityId, string activityType, Guid workflowInstanceId, int retryAttempt, TimeSpan delay, string reason)
+    public void LogActivityRetrying(string activityId, string activityType, Guid workflowInstanceId, int retryAttempt,
+        TimeSpan delay, string reason)
     {
-        WorkflowLoggingExtensions.LogActivityRetrying(_logger, activityId, activityType, workflowInstanceId, retryAttempt, 
+        WorkflowLoggingExtensions.LogActivityRetrying(_logger, activityId, activityType, workflowInstanceId,
+            retryAttempt,
             delay.TotalMilliseconds, reason);
     }
 
@@ -109,9 +124,11 @@ public class WorkflowLogger : IWorkflowLogger
         WorkflowLoggingExtensions.LogEngineOperation(_logger, operation, workflowInstanceId, additionalData);
     }
 
-    public void LogEngineStep(string stepName, Guid workflowInstanceId, TimeSpan? duration = null, object? additionalData = null)
+    public void LogEngineStep(string stepName, Guid workflowInstanceId, TimeSpan? duration = null,
+        object? additionalData = null)
     {
-        WorkflowLoggingExtensions.LogEngineStep(_logger, stepName, workflowInstanceId, duration?.TotalMilliseconds, additionalData);
+        WorkflowLoggingExtensions.LogEngineStep(_logger, stepName, workflowInstanceId, duration?.TotalMilliseconds,
+            additionalData);
     }
 
     public void LogTransactionBoundary(string transactionType, Guid workflowInstanceId, string description)
@@ -120,14 +137,17 @@ public class WorkflowLogger : IWorkflowLogger
     }
 
     // Performance and Metrics
-    public void LogPerformanceMetric(string metricName, Guid workflowInstanceId, TimeSpan duration, object? additionalData = null)
+    public void LogPerformanceMetric(string metricName, Guid workflowInstanceId, TimeSpan duration,
+        object? additionalData = null)
     {
-        WorkflowLoggingExtensions.LogPerformanceMetric(_logger, metricName, workflowInstanceId, duration.TotalMilliseconds, additionalData);
+        WorkflowLoggingExtensions.LogPerformanceMetric(_logger, metricName, workflowInstanceId,
+            duration.TotalMilliseconds, additionalData);
     }
 
     public void LogConcurrencyEvent(string eventType, Guid workflowInstanceId, int retryAttempt, string description)
     {
-        WorkflowLoggingExtensions.LogConcurrencyEvent(_logger, eventType, workflowInstanceId, retryAttempt, description);
+        WorkflowLoggingExtensions.LogConcurrencyEvent(_logger, eventType, workflowInstanceId, retryAttempt,
+            description);
     }
 
     // External Integration Events
@@ -136,14 +156,18 @@ public class WorkflowLogger : IWorkflowLogger
         WorkflowLoggingExtensions.LogExternalCallStarting(_logger, url, method, workflowInstanceId, activityId);
     }
 
-    public void LogExternalCallCompleted(string url, string method, Guid workflowInstanceId, string activityId, int statusCode, TimeSpan duration)
+    public void LogExternalCallCompleted(string url, string method, Guid workflowInstanceId, string activityId,
+        int statusCode, TimeSpan duration)
     {
-        WorkflowLoggingExtensions.LogExternalCallCompleted(_logger, url, method, workflowInstanceId, activityId, statusCode, duration.TotalMilliseconds);
+        WorkflowLoggingExtensions.LogExternalCallCompleted(_logger, url, method, workflowInstanceId, activityId,
+            statusCode, duration.TotalMilliseconds);
     }
 
-    public void LogExternalCallFailed(string url, string method, Guid workflowInstanceId, string activityId, string errorMessage, Exception? exception = null)
+    public void LogExternalCallFailed(string url, string method, Guid workflowInstanceId, string activityId,
+        string errorMessage, Exception? exception = null)
     {
-        WorkflowLoggingExtensions.LogExternalCallFailed(_logger, url, method, workflowInstanceId, activityId, errorMessage, exception);
+        WorkflowLoggingExtensions.LogExternalCallFailed(_logger, url, method, workflowInstanceId, activityId,
+            errorMessage, exception);
     }
 
     // Bookmark and Persistence Events
@@ -159,7 +183,8 @@ public class WorkflowLogger : IWorkflowLogger
 
     public void LogPersistenceOperation(string operation, Guid workflowInstanceId, TimeSpan duration, bool success)
     {
-        WorkflowLoggingExtensions.LogPersistenceOperation(_logger, operation, workflowInstanceId, duration.TotalMilliseconds, success);
+        WorkflowLoggingExtensions.LogPersistenceOperation(_logger, operation, workflowInstanceId,
+            duration.TotalMilliseconds, success);
     }
 
     // Assignment Events
@@ -168,15 +193,18 @@ public class WorkflowLogger : IWorkflowLogger
         WorkflowLoggingExtensions.LogAssignmentStarting(_logger, workflowInstanceId, activityId, assignmentStrategy);
     }
 
-    public void LogAssignmentCompleted(Guid workflowInstanceId, string activityId, string assignmentStrategy, string? assigneeId, string? assigneeGroup, TimeSpan duration)
+    public void LogAssignmentCompleted(Guid workflowInstanceId, string activityId, string assignmentStrategy,
+        string? assigneeId, string? assigneeGroup, TimeSpan duration)
     {
-        WorkflowLoggingExtensions.LogAssignmentCompleted(_logger, workflowInstanceId, activityId, assignmentStrategy, 
+        WorkflowLoggingExtensions.LogAssignmentCompleted(_logger, workflowInstanceId, activityId, assignmentStrategy,
             assigneeId, assigneeGroup, duration.TotalMilliseconds);
     }
 
-    public void LogAssignmentFailed(Guid workflowInstanceId, string activityId, string assignmentStrategy, string reason)
+    public void LogAssignmentFailed(Guid workflowInstanceId, string activityId, string assignmentStrategy,
+        string reason)
     {
-        WorkflowLoggingExtensions.LogAssignmentFailed(_logger, workflowInstanceId, activityId, assignmentStrategy, reason);
+        WorkflowLoggingExtensions.LogAssignmentFailed(_logger, workflowInstanceId, activityId, assignmentStrategy,
+            reason);
     }
 
     // Error and Warning Events
@@ -185,14 +213,17 @@ public class WorkflowLogger : IWorkflowLogger
         WorkflowLoggingExtensions.LogWorkflowWarning(_logger, message, workflowInstanceId, additionalData);
     }
 
-    public void LogError(string message, Guid workflowInstanceId, Exception? exception = null, object? additionalData = null)
+    public void LogError(string message, Guid workflowInstanceId, Exception? exception = null,
+        object? additionalData = null)
     {
         WorkflowLoggingExtensions.LogWorkflowError(_logger, message, workflowInstanceId, additionalData, exception);
     }
 
-    public void LogCriticalError(string message, Guid workflowInstanceId, Exception exception, object? additionalData = null)
+    public void LogCriticalError(string message, Guid workflowInstanceId, Exception exception,
+        object? additionalData = null)
     {
-        WorkflowLoggingExtensions.LogWorkflowCriticalError(_logger, message, workflowInstanceId, additionalData, exception);
+        WorkflowLoggingExtensions.LogWorkflowCriticalError(_logger, message, workflowInstanceId, additionalData,
+            exception);
     }
 
     /// <summary>
@@ -202,7 +233,8 @@ public class WorkflowLogger : IWorkflowLogger
     {
         private readonly IDisposable _scope;
 
-        public WorkflowCorrelationScope(ILogger logger, Guid workflowInstanceId, string? correlationId, string? operationName)
+        public WorkflowCorrelationScope(ILogger logger, Guid workflowInstanceId, string? correlationId,
+            string? operationName)
         {
             var scopeData = new Dictionary<string, object>
             {
@@ -218,7 +250,10 @@ public class WorkflowLogger : IWorkflowLogger
             _scope = logger.BeginScope(scopeData);
         }
 
-        public void Dispose() => _scope.Dispose();
+        public void Dispose()
+        {
+            _scope.Dispose();
+        }
     }
 
     /// <summary>
@@ -228,7 +263,8 @@ public class WorkflowLogger : IWorkflowLogger
     {
         private readonly IDisposable _scope;
 
-        public ActivityCorrelationScope(ILogger logger, Guid workflowInstanceId, string activityId, string activityType, string? correlationId)
+        public ActivityCorrelationScope(ILogger logger, Guid workflowInstanceId, string activityId, string activityType,
+            string? correlationId)
         {
             var scopeData = new Dictionary<string, object>
             {
@@ -243,6 +279,9 @@ public class WorkflowLogger : IWorkflowLogger
             _scope = logger.BeginScope(scopeData);
         }
 
-        public void Dispose() => _scope.Dispose();
+        public void Dispose()
+        {
+            _scope.Dispose();
+        }
     }
 }

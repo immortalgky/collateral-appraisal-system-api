@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableFactors.GetMarketComparableFactors;
+
+public record GetMarketComparableFactorsResponse(IReadOnlyList<MarketComparableFactorDto> Factors);

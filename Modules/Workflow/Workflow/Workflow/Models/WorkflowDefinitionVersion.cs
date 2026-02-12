@@ -8,13 +8,13 @@ namespace Workflow.Workflow.Models;
 /// </summary>
 public class WorkflowDefinitionVersion : Entity<Guid>
 {
-    public Guid DefinitionId { get; private set; } = default!;  // Stable ID across all versions
-    public int Version { get; private set; }                    // Auto-incrementing version number
+    public Guid DefinitionId { get; private set; } = default!; // Stable ID across all versions
+    public int Version { get; private set; } // Auto-incrementing version number
     public string Name { get; private set; } = default!;
     public string Description { get; private set; } = default!;
-    public string JsonSchema { get; private set; } = default!;  // Workflow schema as JSON
-    public VersionStatus Status { get; private set; }           // Lifecycle status
-    public string? MigrationInstructions { get; private set; }  // Human-readable migration guide
+    public string JsonSchema { get; private set; } = default!; // Workflow schema as JSON
+    public VersionStatus Status { get; private set; } // Lifecycle status
+    public string? MigrationInstructions { get; private set; } // Human-readable migration guide
     public List<BreakingChange> BreakingChanges { get; private set; } = new();
     public DateTime? PublishedAt { get; private set; }
     public string? PublishedBy { get; private set; }
@@ -49,12 +49,13 @@ public class WorkflowDefinitionVersion : Entity<Guid>
             Status = VersionStatus.Draft,
             Category = category,
             Metadata = metadata ?? new Dictionary<string, object>(),
-            CreatedOn = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
             CreatedBy = createdBy
         };
     }
 
-    public void Publish(string publishedBy, List<BreakingChange>? breakingChanges = null, string? migrationInstructions = null)
+    public void Publish(string publishedBy, List<BreakingChange>? breakingChanges = null,
+        string? migrationInstructions = null)
     {
         if (Status == VersionStatus.Published)
             throw new InvalidOperationException("Version is already published");
@@ -75,10 +76,7 @@ public class WorkflowDefinitionVersion : Entity<Guid>
         DeprecatedAt = DateTime.UtcNow;
         DeprecatedBy = deprecatedBy;
 
-        if (!string.IsNullOrEmpty(reason))
-        {
-            Metadata["DeprecationReason"] = reason;
-        }
+        if (!string.IsNullOrEmpty(reason)) Metadata["DeprecationReason"] = reason;
     }
 
     public void Archive(string archivedBy)
@@ -94,7 +92,7 @@ public class WorkflowDefinitionVersion : Entity<Guid>
             throw new InvalidOperationException("Cannot modify published version schema");
 
         JsonSchema = jsonSchema;
-        UpdatedOn = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
         UpdatedBy = updatedBy;
     }
 
@@ -102,15 +100,15 @@ public class WorkflowDefinitionVersion : Entity<Guid>
     {
         Name = name;
         Description = description;
-        if (metadata != null)
-        {
-            Metadata = metadata;
-        }
-        UpdatedOn = DateTime.UtcNow;
+        if (metadata != null) Metadata = metadata;
+        UpdatedAt = DateTime.UtcNow;
         UpdatedBy = updatedBy;
     }
 
-    public bool HasBreakingChanges() => BreakingChanges.Any();
+    public bool HasBreakingChanges()
+    {
+        return BreakingChanges.Any();
+    }
 
     public bool IsCompatibleWith(WorkflowDefinitionVersion otherVersion)
     {
@@ -121,10 +119,10 @@ public class WorkflowDefinitionVersion : Entity<Guid>
 
 public enum VersionStatus
 {
-    Draft = 0,      // Under development, not available for execution
-    Published = 1,  // Active and available for new workflow instances
+    Draft = 0, // Under development, not available for execution
+    Published = 1, // Active and available for new workflow instances
     Deprecated = 2, // Discouraged for new instances, existing instances continue
-    Archived = 3    // Read-only, not available for new instances
+    Archived = 3 // Read-only, not available for new instances
 }
 
 /// <summary>
@@ -132,13 +130,14 @@ public enum VersionStatus
 /// </summary>
 public class BreakingChange
 {
-    public string Type { get; set; } = default!;        // ActivityRemoved, ActivityRenamed, PropertyChanged, etc.
+    public string Type { get; set; } = default!; // ActivityRemoved, ActivityRenamed, PropertyChanged, etc.
     public string Description { get; set; } = default!; // Human-readable description
     public string AffectedComponent { get; set; } = default!; // Activity ID, Property name, etc.
     public Dictionary<string, object> MigrationData { get; set; } = new(); // Data needed for migration
     public ChangeImpact Impact { get; set; } = ChangeImpact.Medium;
 
-    public static BreakingChange ActivityRemoved(string activityId, string description, Dictionary<string, object>? migrationData = null)
+    public static BreakingChange ActivityRemoved(string activityId, string description,
+        Dictionary<string, object>? migrationData = null)
     {
         return new BreakingChange
         {
@@ -166,7 +165,8 @@ public class BreakingChange
         };
     }
 
-    public static BreakingChange PropertyChanged(string activityId, string propertyName, string description, object? oldValue = null, object? newValue = null)
+    public static BreakingChange PropertyChanged(string activityId, string propertyName, string description,
+        object? oldValue = null, object? newValue = null)
     {
         return new BreakingChange
         {
@@ -187,8 +187,8 @@ public class BreakingChange
 
 public enum ChangeImpact
 {
-    Low = 0,    // Minor changes, backward compatible
+    Low = 0, // Minor changes, backward compatible
     Medium = 1, // Some adaptation needed, but non-breaking with migration
-    High = 2,   // Major changes, requires careful migration planning
+    High = 2, // Major changes, requires careful migration planning
     Critical = 3 // Breaking changes that may require manual intervention
 }

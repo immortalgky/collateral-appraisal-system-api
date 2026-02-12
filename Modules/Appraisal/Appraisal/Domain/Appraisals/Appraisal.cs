@@ -105,12 +105,10 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Add a land property with detail to this appraisal
     /// </summary>
-    public AppraisalProperty AddLandProperty(string owner, string? description = null)
+    public AppraisalProperty AddLandProperty()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
-
         var sequenceNumber = _properties.Count + 1;
-        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Land, description);
+        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Land);
 
         var landDetail = LandAppraisalDetail.Create(property.Id);
         property.SetLandDetail(landDetail);
@@ -141,12 +139,10 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Add a condo property with detail to this appraisal
     /// </summary>
-    public AppraisalProperty AddCondoProperty(string owner, string? description = null)
+    public AppraisalProperty AddCondoProperty()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
-
         var sequenceNumber = _properties.Count + 1;
-        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Condo, description);
+        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Condo);
 
         var condoDetail = CondoAppraisalDetail.Create(property.Id);
         property.SetCondoDetail(condoDetail);
@@ -160,14 +156,10 @@ public class Appraisal : Aggregate<Guid>
     /// Add a land and building property with details to this appraisal.
     /// Creates both LandAppraisalDetail and BuildingAppraisalDetail linked to the same AppraisalProperty.
     /// </summary>
-    public AppraisalProperty AddLandAndBuildingProperty(string ownerName,
-        string? description = null)
+    public AppraisalProperty AddLandAndBuildingProperty()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(ownerName);
-        // ArgumentException.ThrowIfNullOrWhiteSpace(ownershipType);
-
         var sequenceNumber = _properties.Count + 1;
-        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LandAndBuilding, description);
+        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LandAndBuilding);
 
         // Create both detail records linked to the same property
         var landDetail = LandAppraisalDetail.Create(property.Id);
@@ -334,7 +326,8 @@ public class Appraisal : Aggregate<Guid>
         Guid? assigneeUserId = null,
         Guid? assigneeCompanyId = null,
         string assignmentSource = "Manual",
-        Guid? autoRuleId = null)
+        Guid? autoRuleId = null,
+        Guid assignedBy = default)
     {
         ValidateCanAssign();
 
@@ -349,7 +342,8 @@ public class Appraisal : Aggregate<Guid>
             assignmentSource,
             autoRuleId,
             previousAssignment?.Id,
-            reassignmentNumber);
+            reassignmentNumber,
+            assignedBy);
 
         _assignments.Add(assignment);
         UpdateStatus(AppraisalStatus.Assigned);
@@ -417,7 +411,7 @@ public class Appraisal : Aggregate<Guid>
         UpdateStatus(AppraisalStatus.Completed);
 
         // Calculate actual days
-        ActualDaysToComplete = CreatedOn.HasValue ? (DateTime.UtcNow - CreatedOn.Value).Days : null;
+        ActualDaysToComplete = CreatedAt.HasValue ? (DateTime.UtcNow - CreatedAt.Value).Days : null;
         IsWithinSLA = !SLADueDate.HasValue || DateTime.UtcNow <= SLADueDate.Value;
 
         AddDomainEvent(new AppraisalCompletedEvent(this));

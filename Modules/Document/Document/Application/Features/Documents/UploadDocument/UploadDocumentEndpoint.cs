@@ -1,3 +1,4 @@
+using Mapster;
 using Microsoft.Extensions.Options;
 using Shared.Configurations;
 
@@ -50,12 +51,13 @@ public class UploadDocumentEndpoint : ICarterModule
 
                     var result = await sender.Send(command, cancellationToken);
 
-                    return Results.Ok(result);
+                    var response = result.Adapt<UploadDocumentResponse>();
+                    return Results.Ok(response);
                 })
             .WithName("UploadDocument")
             .WithTags("Documents")
             .DisableAntiforgery()
-            .Produces<UploadDocumentResult>(StatusCodes.Status200OK)
+            .Produces<UploadDocumentResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status500InternalServerError);

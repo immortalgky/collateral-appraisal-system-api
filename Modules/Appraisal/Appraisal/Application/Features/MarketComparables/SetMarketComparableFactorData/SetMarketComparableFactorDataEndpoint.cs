@@ -1,4 +1,5 @@
 using Carter;
+using Mapster;
 using MediatR;
 
 namespace Appraisal.Application.Features.MarketComparables.SetMarketComparableFactorData;
@@ -26,11 +27,12 @@ public class SetMarketComparableFactorDataEndpoint : ICarterModule
 
                     var result = await sender.Send(command, cancellationToken);
 
-                    return Results.Ok(new { result.Success });
+                    var response = result.Adapt<SetMarketComparableFactorDataResponse>();
+                    return Results.Ok(response);
                 }
             )
             .WithName("SetMarketComparableFactorData")
-            .Produces<object>(StatusCodes.Status200OK)
+            .Produces<SetMarketComparableFactorDataResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Set factor data for market comparable")

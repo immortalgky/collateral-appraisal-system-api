@@ -14,7 +14,7 @@ public class MarketComparableDataConfiguration : IEntityTypeConfiguration<Market
         builder.Property(d => d.Value); // NVARCHAR(MAX)
         builder.Property(d => d.OtherRemarks).HasMaxLength(500);
 
-        builder.Property(d => d.CreatedOn).IsRequired();
+        builder.Property(d => d.CreatedAt).IsRequired();
         builder.Property(d => d.CreatedBy).IsRequired();
 
         builder.HasIndex(d => new { d.MarketComparableId, d.FactorId }).IsUnique();

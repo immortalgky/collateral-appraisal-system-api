@@ -5,6 +5,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateCondoProperty;
 /// </summary>
 public record CreateCondoPropertyCommand(
     Guid AppraisalId,
+    Guid? GroupId = null,
     string? PropertyName = null,
     string? CondoName = null,
     string? BuildingNumber = null,
@@ -12,7 +13,7 @@ public record CreateCondoPropertyCommand(
     string? BuiltOnTitleNumber = null,
     string? CondoRegistrationNumber = null,
     string? RoomNumber = null,
-    int? FloorNumber = null,
+    string? FloorNumber = null,
     decimal? UsableArea = null,
     // Coordinates
     decimal? Latitude = null,

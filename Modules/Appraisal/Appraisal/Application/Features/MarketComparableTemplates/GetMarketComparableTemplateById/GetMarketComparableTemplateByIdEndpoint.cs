@@ -1,4 +1,5 @@
 using Carter;
+using Mapster;
 using MediatR;
 
 namespace Appraisal.Application.Features.MarketComparableTemplates.GetMarketComparableTemplateById;
@@ -12,10 +13,11 @@ public class GetMarketComparableTemplateByIdEndpoint : ICarterModule
             {
                 var query = new GetMarketComparableTemplateByIdQuery(id);
                 var result = await sender.Send(query, cancellationToken);
-                return Results.Ok(result);
+                var response = result.Adapt<GetMarketComparableTemplateByIdResponse>();
+                return Results.Ok(response);
             })
             .WithName("GetMarketComparableTemplateById")
-            .Produces<GetMarketComparableTemplateByIdResult>(StatusCodes.Status200OK)
+            .Produces<GetMarketComparableTemplateByIdResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get market comparable template by ID")
             .WithDescription("Retrieve a specific market comparable template with all its factors.")

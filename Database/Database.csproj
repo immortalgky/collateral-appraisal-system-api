@@ -30,15 +30,16 @@
 
     <ItemGroup>
         <Folder Include="Scripts\Views\Document\"/>
-        <Folder Include="Scripts\Views\Workflow\"/>
         <Folder Include="Scripts\Views\Auth\"/>
         <Folder Include="Scripts\Views\Notification\"/>
         <Folder Include="Scripts\Views\Shared\"/>
+        <Folder Include="Scripts\StoredProcedures\Appraisal\"/>
         <Folder Include="Scripts\StoredProcedures\Document\"/>
         <Folder Include="Scripts\StoredProcedures\Workflow\"/>
         <Folder Include="Scripts\StoredProcedures\Auth\"/>
         <Folder Include="Scripts\StoredProcedures\Notification\"/>
         <Folder Include="Scripts\StoredProcedures\Shared\"/>
+        <Folder Include="Scripts\Functions\Appraisal\"/>
         <Folder Include="Scripts\Functions\Request\"/>
         <Folder Include="Scripts\Functions\Document\"/>
         <Folder Include="Scripts\Functions\Workflow\"/>

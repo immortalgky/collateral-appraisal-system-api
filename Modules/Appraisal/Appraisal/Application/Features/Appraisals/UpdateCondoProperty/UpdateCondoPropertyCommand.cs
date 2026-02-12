@@ -14,7 +14,7 @@ public record UpdateCondoPropertyCommand(
     string? BuiltOnTitleNumber = null,
     string? CondoRegistrationNumber = null,
     string? RoomNumber = null,
-    int? FloorNumber = null,
+    string? FloorNumber = null,
     decimal? UsableArea = null,
     // Coordinates
     decimal? Latitude = null,

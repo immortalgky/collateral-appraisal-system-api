@@ -18,11 +18,42 @@ public class RequestSubmittedEventHandler(
         // Map to DTOs
         var requestTitleDtos = requestTitles.Select(MapToDto).ToList();
 
+        // Map Appointment data if available
+        AppointmentDto? appointmentDto = null;
+        if (notification.Request.Detail?.Appointment != null)
+        {
+            appointmentDto = new AppointmentDto(
+                notification.Request.Detail.Appointment.AppointmentDateTime,
+                notification.Request.Detail.Appointment.AppointmentLocation);
+        }
+
+        // Map Fee data if available
+        FeeDto? feeDto = null;
+        if (notification.Request.Detail?.Fee != null)
+        {
+            feeDto = new FeeDto(
+                notification.Request.Detail.Fee.FeePaymentType,
+                notification.Request.Detail.Fee.FeeNotes,
+                notification.Request.Detail.Fee.AbsorbedAmount);
+        }
+
+        // Parse CreatedBy from Creator.UserId (with null check for Creator)
+        Guid? createdBy = null;
+        if (notification.Request.Creator != null &&
+            !string.IsNullOrWhiteSpace(notification.Request.Creator.UserId) &&
+            Guid.TryParse(notification.Request.Creator.UserId, out var parsedGuid))
+        {
+            createdBy = parsedGuid;
+        }
+
         // Publish integration event
         var integrationEvent = new RequestSubmittedIntegrationEvent
         {
             RequestId = notification.Request.Id,
-            RequestTitles = requestTitleDtos
+            RequestTitles = requestTitleDtos,
+            Appointment = appointmentDto,
+            Fee = feeDto,
+            CreatedBy = createdBy
         };
 
         await bus.Publish(integrationEvent, cancellationToken);

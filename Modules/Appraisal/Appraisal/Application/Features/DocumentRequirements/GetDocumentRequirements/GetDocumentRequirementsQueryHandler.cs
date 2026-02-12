@@ -3,7 +3,8 @@ namespace Appraisal.Application.Features.DocumentRequirements.GetDocumentRequire
 /// <summary>
 /// Handler for GetDocumentRequirementsQuery
 /// </summary>
-public class GetDocumentRequirementsQueryHandler : IQueryHandler<GetDocumentRequirementsQuery, GetDocumentRequirementsResult>
+public class
+    GetDocumentRequirementsQueryHandler : IQueryHandler<GetDocumentRequirementsQuery, GetDocumentRequirementsResult>
 {
     private readonly IDocumentRequirementRepository _repository;
 
@@ -38,15 +39,11 @@ public class GetDocumentRequirementsQueryHandler : IQueryHandler<GetDocumentRequ
         {
             // Filter by collateral type
             if (query.CollateralTypeCode.Equals("APP", StringComparison.OrdinalIgnoreCase))
-            {
                 // Application-level requirements
                 requirements = await _repository.GetApplicationLevelRequirementsAsync(cancellationToken);
-            }
             else
-            {
                 requirements = await _repository.GetRequirementsByCollateralTypeAsync(
                     query.CollateralTypeCode, cancellationToken);
-            }
         }
         else
         {
@@ -66,8 +63,8 @@ public class GetDocumentRequirementsQueryHandler : IQueryHandler<GetDocumentRequ
             IsRequired = r.IsRequired,
             IsActive = r.IsActive,
             Notes = r.Notes,
-            CreatedOn = r.CreatedOn,
-            UpdatedOn = r.UpdatedOn
+            CreatedOn = r.CreatedAt,
+            UpdatedOn = r.UpdatedAt
         }).ToList();
 
         return new GetDocumentRequirementsResult(dtos);

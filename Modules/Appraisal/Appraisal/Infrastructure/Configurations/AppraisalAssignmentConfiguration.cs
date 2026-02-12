@@ -44,8 +44,11 @@ public class AppraisalAssignmentConfiguration : IEntityTypeConfiguration<Apprais
         builder.Property(a => a.ExternalAppraiserId);
         builder.Property(a => a.ExternalAppraiserName)
             .HasMaxLength(200);
-        builder.Property(a => a.ExternalAppraiserLicense)
-            .HasMaxLength(50);
+
+        // Internal Appraiser Details
+        builder.Property(a => a.InternalAppraiserId);
+        builder.Property(a => a.InternalAppraiserName)
+            .HasMaxLength(200);
 
         // Assignment Source
         builder.Property(a => a.AssignmentSource)
@@ -77,14 +80,8 @@ public class AppraisalAssignmentConfiguration : IEntityTypeConfiguration<Apprais
             .HasMaxLength(500);
         builder.Property(a => a.CancellationReason)
             .HasMaxLength(500);
-
-        // Audit Fields
-        builder.Property(a => a.CreatedOn)
-            .IsRequired();
-        builder.Property(a => a.CreatedBy)
-            .IsRequired();
-        builder.Property(a => a.UpdatedOn);
-        builder.Property(a => a.UpdatedBy);
+        builder.Property(a => a.Notes)
+            .HasMaxLength(4000);
 
         // Self-referencing FK for reassignment chain
         builder.HasOne<AppraisalAssignment>()

@@ -4,9 +4,9 @@ namespace Appraisal.Infrastructure.Configurations;
 /// EF Core configuration for the AppraisalProperty entity.
 /// </summary>
 public class
-    AppraisalPropertyConfiguration : IOwnedEntityConfiguration<Appraisal.Domain.Appraisals.Appraisal, AppraisalProperty>
+    AppraisalPropertyConfiguration : IEntityTypeConfiguration<AppraisalProperty>
 {
-    public void Configure(OwnedNavigationBuilder<Appraisal.Domain.Appraisals.Appraisal, AppraisalProperty> builder)
+    public void Configure(EntityTypeBuilder<AppraisalProperty> builder)
     {
         builder.ToTable("AppraisalProperties");
 

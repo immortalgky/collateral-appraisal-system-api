@@ -1,61 +1,43 @@
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
-/// Payment history for fee items.
-/// Tracks individual payments, supports partial payments and refunds.
+/// Payment history for an AppraisalFee.
+/// Tracks individual payments for partial/full payment tracking.
 /// </summary>
 public class AppraisalFeePaymentHistory : Entity<Guid>
 {
-    public Guid AppraisalFeeItemId { get; private set; }
+    public Guid AppraisalFeeId { get; private set; }
 
     // Payment Details
-    public decimal PaidAmount { get; private set; }
+    public decimal PaymentAmount { get; private set; }
     public DateTime PaymentDate { get; private set; }
-    public string PaymentMethod { get; private set; } = null!;  // Transfer, Cash, Check, CreditCard
+    public string? PaymentMethod { get; private set; } // Cash, Transfer, Cheque
     public string? PaymentReference { get; private set; }
 
-    // Status
-    public string Status { get; private set; } = null!;  // Pending, Paid, Refunded, Cancelled
+    // Remarks
+    public string? Remarks { get; private set; }
 
-    // Refund (if applicable)
-    public decimal? RefundAmount { get; private set; }
-    public DateTime? RefundDate { get; private set; }
-    public string? RefundReason { get; private set; }
-
-    private AppraisalFeePaymentHistory() { }
+    private AppraisalFeePaymentHistory()
+    {
+    }
 
     public static AppraisalFeePaymentHistory Create(
-        Guid appraisalFeeItemId,
-        decimal paidAmount,
+        Guid appraisalFeeId,
+        decimal paymentAmount,
         DateTime paymentDate,
-        string paymentMethod,
-        string? paymentReference = null)
+        string? paymentMethod = null,
+        string? paymentReference = null,
+        string? remarks = null)
     {
         return new AppraisalFeePaymentHistory
         {
             Id = Guid.CreateVersion7(),
-            AppraisalFeeItemId = appraisalFeeItemId,
-            PaidAmount = paidAmount,
+            AppraisalFeeId = appraisalFeeId,
+            PaymentAmount = paymentAmount,
             PaymentDate = paymentDate,
             PaymentMethod = paymentMethod,
             PaymentReference = paymentReference,
-            Status = "Paid"
+            Remarks = remarks
         };
-    }
-
-    public void Refund(decimal amount, string reason)
-    {
-        if (amount > PaidAmount)
-            throw new InvalidOperationException("Refund amount cannot exceed paid amount");
-
-        RefundAmount = amount;
-        RefundDate = DateTime.UtcNow;
-        RefundReason = reason;
-        Status = "Refunded";
-    }
-
-    public void Cancel()
-    {
-        Status = "Cancelled";
     }
 }

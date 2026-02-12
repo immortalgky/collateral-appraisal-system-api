@@ -1,4 +1,5 @@
 using Carter;
+using Mapster;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -30,12 +31,13 @@ public class UpdateMarketComparableFactorEndpoint : ICarterModule
 
                 var result = await sender.Send(command, cancellationToken);
 
-                return Results.Ok(result);
+                var response = result.Adapt<UpdateMarketComparableFactorResponse>();
+                return Results.Ok(response);
             })
             .WithName("UpdateMarketComparableFactor")
             .WithSummary("Update a market comparable factor")
             .WithDescription("Updates an existing market comparable factor. Note: FactorCode and DataType are immutable and cannot be changed.")
-            .Produces<UpdateMarketComparableFactorResult>(StatusCodes.Status200OK)
+            .Produces<UpdateMarketComparableFactorResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("MarketComparableFactors");

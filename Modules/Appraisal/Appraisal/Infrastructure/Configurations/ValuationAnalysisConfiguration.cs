@@ -22,7 +22,7 @@ public class ValuationAnalysisConfiguration : IEntityTypeConfiguration<Valuation
         builder.Property(v => v.AppraiserOpinion).HasMaxLength(2000);
         builder.Property(v => v.ValuationNotes).HasMaxLength(2000);
 
-        builder.Property(v => v.CreatedOn).IsRequired();
+        builder.Property(v => v.CreatedAt).IsRequired();
         builder.Property(v => v.CreatedBy).IsRequired();
 
         builder.HasMany(v => v.GroupValuations)
@@ -62,7 +62,7 @@ public class GroupValuationConfiguration : IEntityTypeConfiguration<GroupValuati
         builder.Property(g => g.ValuationWeight).HasPrecision(5, 2);
         builder.Property(g => g.ValuationNotes).HasMaxLength(1000);
 
-        builder.Property(g => g.CreatedOn).IsRequired();
+        builder.Property(g => g.CreatedAt).IsRequired();
         builder.Property(g => g.CreatedBy).IsRequired();
 
         builder.HasIndex(g => g.ValuationAnalysisId);
@@ -91,7 +91,7 @@ public class PropertyValuationConfiguration : IEntityTypeConfiguration<PropertyV
         builder.Property(p => p.ValuationWeight).HasPrecision(5, 2);
         builder.Property(p => p.ValuationNotes).HasMaxLength(1000);
 
-        builder.Property(p => p.CreatedOn).IsRequired();
+        builder.Property(p => p.CreatedAt).IsRequired();
         builder.Property(p => p.CreatedBy).IsRequired();
 
         builder.HasIndex(p => p.ValuationAnalysisId);
