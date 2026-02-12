@@ -16,10 +16,10 @@ public class GetRequestsEndpoint : ICarterModule
                 async ([AsParameters] PaginationRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
                     var result = await sender.Send(new GetRequestQuery(request), cancellationToken);
-                    return Results.Ok(result.Result);
+                    return Results.Ok(new GetRequestsResponse(result.Result));
                 })
             .WithName("GetRequests")
-            .Produces<GetRequestResult>()
+            .Produces<GetRequestsResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Requests")
             .WithSummary("Get all requests")

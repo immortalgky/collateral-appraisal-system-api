@@ -28,6 +28,11 @@ public class MeQueryHandler(
             user.Id,
             user.UserName ?? string.Empty,
             user.Email,
+            user.FirstName,
+            user.LastName,
+            user.AvatarUrl,
+            user.Position,
+            user.Department,
             roles.ToList(),
             permissions
         );

@@ -1,7 +1,3 @@
-using Carter;
-using Mapster;
-using MediatR;
-
 namespace Appraisal.Application.Features.Appraisals.CreateLandAndBuildingProperty;
 
 public class CreateLandAndBuildingPropertyEndpoint : ICarterModule
@@ -12,13 +8,18 @@ public class CreateLandAndBuildingPropertyEndpoint : ICarterModule
                 "/appraisals/{appraisalId:guid}/land-and-building-properties",
                 async (
                     Guid appraisalId,
+                    Guid? groupId,
                     CreateLandAndBuildingPropertyRequest request,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
                     var command = request.Adapt<CreateLandAndBuildingPropertyCommand>()
-                        with { AppraisalId = appraisalId };
+                        with
+                        {
+                            AppraisalId = appraisalId,
+                            GroupId = groupId
+                        };
 
                     var result = await sender.Send(command, cancellationToken);
 

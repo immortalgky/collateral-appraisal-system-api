@@ -1,3 +1,5 @@
+using Mapster;
+
 namespace Appraisal.Application.Features.DocumentRequirements.CreateDocumentType;
 
 /// <summary>
@@ -32,12 +34,13 @@ public class CreateDocumentTypeEndpoint : ICarterModule
 
                 var result = await sender.Send(command, cancellationToken);
 
-                return Results.Created($"/document-types/{result.Id}", result);
+                var response = result.Adapt<CreateDocumentTypeResponse>();
+                return Results.Created($"/document-types/{response.Id}", response);
             })
             .WithName("CreateDocumentType")
             .WithSummary("Create a new document type")
             .WithDescription("Creates a new document type for use in document requirements")
-            .Produces<CreateDocumentTypeResult>(StatusCodes.Status201Created)
+            .Produces<CreateDocumentTypeResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithTags("Document Types");
     }

@@ -19,10 +19,8 @@ public class GetMarketComparableByIdQueryHandler(
             cancellationToken);
 
         if (comparable is null)
-        {
             throw new InvalidOperationException(
                 $"Market comparable with ID {query.Id} not found");
-        }
 
         var dto = new MarketComparableDetailDto
         {
@@ -68,9 +66,9 @@ public class GetMarketComparableByIdQueryHandler(
             TemplateId = comparable.TemplateId,
 
             // Audit
-            CreatedOn = comparable.CreatedOn,
+            CreatedOn = comparable.CreatedAt,
             CreatedBy = comparable.CreatedBy,
-            UpdatedOn = comparable.UpdatedOn,
+            UpdatedOn = comparable.UpdatedAt,
             UpdatedBy = comparable.UpdatedBy,
 
             // Factor Data

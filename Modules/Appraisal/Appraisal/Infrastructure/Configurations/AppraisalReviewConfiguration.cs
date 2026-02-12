@@ -21,7 +21,7 @@ public class AppraisalReviewConfiguration : IEntityTypeConfiguration<AppraisalRe
         builder.Property(r => r.ReviewComments).HasMaxLength(2000);
         builder.Property(r => r.ReturnReason).HasMaxLength(500);
 
-        builder.Property(r => r.CreatedOn).IsRequired();
+        builder.Property(r => r.CreatedAt).IsRequired();
         builder.Property(r => r.CreatedBy).IsRequired();
 
         builder.HasIndex(r => r.AppraisalId);

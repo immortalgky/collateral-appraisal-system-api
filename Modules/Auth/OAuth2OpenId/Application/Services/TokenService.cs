@@ -63,12 +63,23 @@ public class TokenService(
             ?? throw new InvalidOperationException("Cannot find user associated with the token.");
 
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+
+        // Add basic claims
         identity.AddClaim(OpenIddictConstants.Claims.Subject, userId);
         identity.AddClaim(OpenIddictConstants.Claims.Name, username);
-        identity.SetClaims("permissions", await GetUserPermissions(user));
 
+        // Add profile claims
+        identity.AddClaim(OpenIddictConstants.Claims.GivenName, user.FirstName ?? string.Empty);
+        identity.AddClaim(OpenIddictConstants.Claims.FamilyName, user.LastName ?? string.Empty);
+        identity.AddClaim(OpenIddictConstants.Claims.Email, user.Email ?? string.Empty);
+        identity.AddClaim(OpenIddictConstants.Claims.PreferredUsername, user.UserName ?? string.Empty);
+
+        // Add permissions and roles (original approach)
+        identity.SetClaims("permissions", await GetUserPermissions(user));
         identity.SetClaims("roles", [.. await userManager.GetRolesAsync(user)]);
 
+        // Set scopes first, then destinations (order matters for GetDestinations)
+        identity.SetScopes(request.GetScopes());
         identity.SetDestinations(GetDestinations);
 
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -122,16 +133,22 @@ public class TokenService(
 
     private static IEnumerable<string> GetDestinations(Claim claim)
     {
+        // Subject and Name always go to both tokens (needed for API authorization)
+        if (claim.Type is OpenIddictConstants.Claims.Subject or OpenIddictConstants.Claims.Name)
+        {
+            return [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken];
+        }
+
+        // Other profile claims (email, given_name, etc.) go to ID Token only (OIDC standard)
         if (ClaimScopeMapping.ContainsKey(claim.Type))
         {
             return claim.Subject!.HasScope(ClaimScopeMapping[claim.Type])
                 ? [OpenIddictConstants.Destinations.IdentityToken]
                 : [];
         }
-        else
-        {
-            return [OpenIddictConstants.Destinations.AccessToken];
-        }
+
+        // Authorization claims (permissions, roles) go to Access Token only
+        return [OpenIddictConstants.Destinations.AccessToken];
     }
 
     internal async Task<ImmutableArray<string>> GetUserPermissions(ApplicationUser user)

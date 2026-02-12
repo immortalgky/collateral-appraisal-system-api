@@ -12,8 +12,8 @@ public class SubmitRequestEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPatch("/requests/{id:guid}/submit",
-                async (Guid id, SubmitRequestRequest request, ISender sender, CancellationToken cancellationToken) =>
+        app.MapPost("/requests/{id:guid}/submit",
+                async (Guid id, ISender sender, CancellationToken cancellationToken) =>
                 {
                     var command = new SubmitRequestCommand(id);
                     var result = await sender.Send(command, cancellationToken);

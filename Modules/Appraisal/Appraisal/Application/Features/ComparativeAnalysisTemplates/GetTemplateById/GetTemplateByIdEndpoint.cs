@@ -1,4 +1,5 @@
 using Carter;
+using Mapster;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -15,10 +16,11 @@ public class GetTemplateByIdEndpoint : ICarterModule
                 {
                     var query = new GetTemplateByIdQuery(id);
                     var result = await sender.Send(query);
-                    return Results.Ok(result);
+                    var response = result.Adapt<GetTemplateByIdResponse>();
+                    return Results.Ok(response);
                 })
             .WithName("GetComparativeAnalysisTemplateById")
-            .Produces<GetTemplateByIdResult>()
+            .Produces<GetTemplateByIdResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get a comparative analysis template by ID")
             .WithDescription("Returns template details with all factors")

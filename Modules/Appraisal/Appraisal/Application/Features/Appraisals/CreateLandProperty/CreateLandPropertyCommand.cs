@@ -5,8 +5,9 @@ namespace Appraisal.Application.Features.Appraisals.CreateLandProperty;
 /// </summary>
 public record CreateLandPropertyCommand(
     Guid AppraisalId,
+    Guid? GroupId = null,
     // Required
-    string OwnerName,
+    string? OwnerName = null,
     string? Description = null,
     // Property Identification
     string? PropertyName = null,
@@ -96,5 +97,30 @@ public record CreateLandPropertyCommand(
     decimal? PondDepth = null,
     bool? HasBuilding = null,
     string? HasBuildingOther = null,
-    string? Remark = null
+    string? Remark = null,
+    // Land Titles
+    List<LandTitleItemData>? Titles = null
 ) : ICommand<CreateLandPropertyResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
+
+public record LandTitleItemData(
+    string TitleNumber,
+    string TitleType,
+    string? BookNumber = null,
+    string? PageNumber = null,
+    string? LandParcelNumber = null,
+    string? SurveyNumber = null,
+    string? MapSheetNumber = null,
+    string? Rawang = null,
+    string? AerialMapName = null,
+    string? AerialMapNumber = null,
+    decimal? Rai = null,
+    decimal? Ngan = null,
+    decimal? SquareWa = null,
+    bool? HasBoundaryMarker = null,
+    string? BoundaryMarkerRemark = null,
+    bool? IsDocumentValidated = null,
+    bool? IsMissingFromSurvey = null,
+    decimal? GovernmentPricePerSqWa = null,
+    decimal? GovernmentPrice = null,
+    string? Remark = null
+);

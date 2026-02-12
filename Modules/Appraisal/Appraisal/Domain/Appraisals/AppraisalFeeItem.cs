@@ -2,85 +2,65 @@ namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
 /// Individual fee line item within an AppraisalFee.
-/// Supports detailed breakdown of fees.
+/// Supports approval workflow for additional fees.
 /// </summary>
 public class AppraisalFeeItem : Entity<Guid>
 {
     public Guid AppraisalFeeId { get; private set; }
 
-    // Item Details
-    public string ItemType { get; private set; } = null!;  // AppraisalFee, Travel, Urgent, Survey, Revision
-    public string Description { get; private set; } = null!;
-    public int Quantity { get; private set; }
-    public decimal UnitPrice { get; private set; }
+    // Fee Details
+    public string FeeCode { get; private set; } = null!; // 01=AppraisalFee, 02=Travel, 03=Urgent
+    public string FeeDescription { get; private set; } = null!;
+    public decimal FeeAmount { get; private set; }
 
-    // Amounts
-    public decimal Amount { get; private set; }
-    public decimal? VATRate { get; private set; }
-    public decimal? VATAmount { get; private set; }
-    public decimal NetAmount { get; private set; }
+    // Approval (for additional fees)
+    public bool RequiresApproval { get; private set; }
+    public string? ApprovalStatus { get; private set; } // Pending, Approved, Rejected
+    public Guid? ApprovedBy { get; private set; }
+    public DateTime? ApprovedAt { get; private set; }
+    public string? RejectionReason { get; private set; }
 
-    // Status
-    public string PaymentStatus { get; private set; } = null!;  // Pending, PartiallyPaid, Paid
-
-    // Collection of payment history
-    private readonly List<AppraisalFeePaymentHistory> _paymentHistory = [];
-    public IReadOnlyList<AppraisalFeePaymentHistory> PaymentHistory => _paymentHistory.AsReadOnly();
-
-    private AppraisalFeeItem() { }
+    private AppraisalFeeItem()
+    {
+    }
 
     public static AppraisalFeeItem Create(
         Guid appraisalFeeId,
-        string itemType,
-        string description,
-        int quantity,
-        decimal unitPrice)
+        string feeCode,
+        string feeDescription,
+        decimal feeAmount,
+        bool requiresApproval = false)
     {
-        var amount = quantity * unitPrice;
-
         return new AppraisalFeeItem
         {
             Id = Guid.CreateVersion7(),
             AppraisalFeeId = appraisalFeeId,
-            ItemType = itemType,
-            Description = description,
-            Quantity = quantity,
-            UnitPrice = unitPrice,
-            Amount = amount,
-            NetAmount = amount,
-            PaymentStatus = "Pending"
+            FeeCode = feeCode,
+            FeeDescription = feeDescription,
+            FeeAmount = feeAmount,
+            RequiresApproval = requiresApproval,
+            ApprovalStatus = requiresApproval ? "Pending" : null
         };
     }
 
-    public void SetVAT(decimal vatRate)
+    public void Approve(Guid approvedBy)
     {
-        VATRate = vatRate;
-        VATAmount = Amount * vatRate / 100;
-        NetAmount = Amount + VATAmount.Value;
+        if (ApprovalStatus != "Pending")
+            throw new InvalidOperationException($"Cannot approve fee item in status '{ApprovalStatus}'");
+
+        ApprovalStatus = "Approved";
+        ApprovedBy = approvedBy;
+        ApprovedAt = DateTime.UtcNow;
     }
 
-    public AppraisalFeePaymentHistory RecordPayment(
-        decimal paidAmount,
-        DateTime paymentDate,
-        string paymentMethod,
-        string? paymentReference = null)
+    public void Reject(Guid rejectedBy, string reason)
     {
-        var payment = AppraisalFeePaymentHistory.Create(
-            Id,
-            paidAmount,
-            paymentDate,
-            paymentMethod,
-            paymentReference);
+        if (ApprovalStatus != "Pending")
+            throw new InvalidOperationException($"Cannot reject fee item in status '{ApprovalStatus}'");
 
-        _paymentHistory.Add(payment);
-
-        // Update payment status based on total paid
-        var totalPaid = _paymentHistory.Where(p => p.Status == "Paid").Sum(p => p.PaidAmount);
-        if (totalPaid >= NetAmount)
-            PaymentStatus = "Paid";
-        else if (totalPaid > 0)
-            PaymentStatus = "PartiallyPaid";
-
-        return payment;
+        ApprovalStatus = "Rejected";
+        ApprovedBy = rejectedBy;
+        ApprovedAt = DateTime.UtcNow;
+        RejectionReason = reason;
     }
 }

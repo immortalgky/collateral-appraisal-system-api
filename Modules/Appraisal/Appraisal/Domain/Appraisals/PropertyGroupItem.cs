@@ -10,12 +10,11 @@ public class PropertyGroupItem : Entity<Guid>
     public Guid AppraisalPropertyId { get; private set; }
     public int SequenceInGroup { get; private set; }
 
-    // Private constructor for EF Core
     private PropertyGroupItem()
     {
+        // For EF Core
     }
 
-    // Private constructor for factory
     private PropertyGroupItem(
         Guid groupId,
         Guid propertyId,

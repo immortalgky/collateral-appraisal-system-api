@@ -14,18 +14,14 @@ public class GetMarketComparableTemplatesQueryHandler(
         IEnumerable<MarketComparableTemplate> templates;
 
         if (!string.IsNullOrWhiteSpace(query.PropertyType))
-        {
             templates = await repository.GetByPropertyTypeAsync(
                 query.PropertyType,
                 query.IsActive ?? true,
                 cancellationToken);
-        }
         else
-        {
             templates = await repository.GetAllAsync(
                 query.IsActive ?? true,
                 cancellationToken);
-        }
 
         var dtos = templates.Select(t => new MarketComparableTemplateDto(
             t.Id,
@@ -34,8 +30,8 @@ public class GetMarketComparableTemplatesQueryHandler(
             t.PropertyType,
             t.Description,
             t.IsActive,
-            t.CreatedOn,
-            t.UpdatedOn
+            t.CreatedAt,
+            t.UpdatedAt
         )).ToList();
 
         return new GetMarketComparableTemplatesResult(dtos);

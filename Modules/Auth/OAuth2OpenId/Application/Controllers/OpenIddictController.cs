@@ -21,11 +21,10 @@ public class OpenIddictController(ITokenService tokenService) : Controller
             return Redirect(
                 $"/Account/Login?ReturnUrl={Uri.EscapeDataString(HttpContext.Request.Path + HttpContext.Request.QueryString)}");
 
-        // Auto-approve for demo (or show consent screen)
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         identity.AddClaim(OpenIddictConstants.Claims.Subject,
             HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        identity.AddClaim(OpenIddictConstants.Claims.Name, HttpContext.User.Identity.Name);
+        identity.AddClaim(OpenIddictConstants.Claims.Name, HttpContext.User.Identity?.Name ?? string.Empty);
 
         // Add destinations for claims
         foreach (var claim in identity.Claims)
@@ -33,7 +32,7 @@ public class OpenIddictController(ITokenService tokenService) : Controller
                 OpenIddictConstants.Destinations.IdentityToken);
 
         var principal = new ClaimsPrincipal(identity);
-        principal.SetScopes(request.GetScopes());
+        principal.SetScopes(request!.GetScopes());
 
         // Use SignIn method from Controller base class
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -49,9 +48,7 @@ public class OpenIddictController(ITokenService tokenService) : Controller
             return BadRequest(new { error = "Invalid request" });
 
         if (!request.IsAuthorizationCodeGrantType() && !request.IsClientCredentialsGrantType())
-        {
             return BadRequest(new { error = "Unsupported grant_type" });
-        }
 
         var principal = (await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme))
             .Principal;
@@ -62,7 +59,8 @@ public class OpenIddictController(ITokenService tokenService) : Controller
         return await HandleAuthorizationCodeGrant(request, principal);
     }
 
-    private async Task<IActionResult> HandleAuthorizationCodeGrant(OpenIddictRequest request, ClaimsPrincipal? principal)
+    private async Task<IActionResult> HandleAuthorizationCodeGrant(OpenIddictRequest request,
+        ClaimsPrincipal? principal)
     {
         if (principal == null) return BadRequest(new { error = "Invalid authorization code" });
         var claimsPrincipal = await tokenService.CreateAuthCodeFlowAccessTokenPrincipal(request, principal);
@@ -73,5 +71,16 @@ public class OpenIddictController(ITokenService tokenService) : Controller
     {
         var claimsPrincipal = await tokenService.CreateClientCredFlowAccessTokenPrincipal(request);
         return SignIn(claimsPrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
+    [HttpGet("~/connect/logout")]
+    [HttpPost("~/connect/logout")]
+    public async Task<IActionResult> Logout()
+    {
+        await HttpContext.SignOutAsync("Identity.Application");
+
+        return SignOut(
+            authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+            properties: new AuthenticationProperties { RedirectUri = "/" });
     }
 }

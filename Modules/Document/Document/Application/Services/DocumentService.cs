@@ -87,7 +87,7 @@ public class DocumentService(
             file.ContentType,
             storagePath,
             storageUrl,
-            userId,
+            username,
             username,
             DateTime.UtcNow,
             description,

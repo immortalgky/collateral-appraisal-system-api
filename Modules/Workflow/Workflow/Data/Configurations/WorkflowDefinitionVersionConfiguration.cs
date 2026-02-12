@@ -78,7 +78,8 @@ public class WorkflowDefinitionVersionConfiguration : IEntityTypeConfiguration<W
             .HasColumnType("nvarchar(max)")
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => JsonSerializer.Deserialize<List<BreakingChange>>(v, (JsonSerializerOptions?)null) ?? new List<BreakingChange>()
+                v => JsonSerializer.Deserialize<List<BreakingChange>>(v, (JsonSerializerOptions?)null) ??
+                     new List<BreakingChange>()
             );
 
         builder.Property(x => x.Metadata)
@@ -86,11 +87,12 @@ public class WorkflowDefinitionVersionConfiguration : IEntityTypeConfiguration<W
             .HasColumnType("nvarchar(max)")
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null) ?? new Dictionary<string, object>()
+                v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null) ??
+                     new Dictionary<string, object>()
             );
 
         // Base Entity properties
-        builder.Property(x => x.CreatedOn)
+        builder.Property(x => x.CreatedAt)
             .IsRequired()
             .HasColumnName("CreatedOn")
             .HasDefaultValueSql("GETUTCDATE()");
@@ -100,7 +102,7 @@ public class WorkflowDefinitionVersionConfiguration : IEntityTypeConfiguration<W
             .HasMaxLength(256)
             .HasColumnName("CreatedBy");
 
-        builder.Property(x => x.UpdatedOn)
+        builder.Property(x => x.UpdatedAt)
             .HasColumnName("UpdatedOn");
 
         builder.Property(x => x.UpdatedBy)

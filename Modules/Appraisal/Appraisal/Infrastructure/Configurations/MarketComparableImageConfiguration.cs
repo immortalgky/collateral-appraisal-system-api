@@ -16,9 +16,9 @@ public class MarketComparableImageConfiguration : IEntityTypeConfiguration<Marke
         builder.Property(i => i.Description).HasMaxLength(500);
 
         // Only CreatedOn/CreatedBy per spec
-        builder.Property(i => i.CreatedOn).IsRequired();
+        builder.Property(i => i.CreatedAt).IsRequired();
         builder.Property(i => i.CreatedBy).IsRequired();
-        builder.Ignore(i => i.UpdatedOn);
+        builder.Ignore(i => i.UpdatedAt);
         builder.Ignore(i => i.UpdatedBy);
 
         builder.HasIndex(i => i.MarketComparableId);

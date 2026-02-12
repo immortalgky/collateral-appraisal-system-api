@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableTemplates.GetMarketComparableTemplateById;
+
+public record GetMarketComparableTemplateByIdResponse(MarketComparableTemplateDetailDto Template);

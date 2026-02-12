@@ -95,5 +95,36 @@ public record CreateLandPropertyRequest(
     decimal? PondDepth = null,
     bool? HasBuilding = null,
     string? HasBuildingOther = null,
+    string? Remark = null,
+    // Land Titles
+    List<LandTitleItemRequest>? Titles = null
+);
+
+public record LandTitleItemRequest(
+    // Required
+    string TitleNumber,
+    string TitleType,
+    // Title Deed Info
+    string? BookNumber = null,
+    string? PageNumber = null,
+    string? LandParcelNumber = null,
+    string? SurveyNumber = null,
+    string? MapSheetNumber = null,
+    string? Rawang = null,
+    string? AerialMapName = null,
+    string? AerialMapNumber = null,
+    // Area (Thai units)
+    decimal? Rai = null,
+    decimal? Ngan = null,
+    decimal? SquareWa = null,
+    // Boundary & Validation
+    bool? HasBoundaryMarker = null,
+    string? BoundaryMarkerRemark = null,
+    bool? IsDocumentValidated = null,
+    bool? IsMissingFromSurvey = null,
+    // Pricing
+    decimal? GovernmentPricePerSqWa = null,
+    decimal? GovernmentPrice = null,
+    // Remarks
     string? Remark = null
 );

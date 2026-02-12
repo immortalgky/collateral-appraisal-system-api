@@ -14,9 +14,7 @@ public class GetMarketComparableTemplateByIdQueryHandler(
         var template = await repository.GetByIdWithFactorsAsync(query.Id, cancellationToken);
 
         if (template is null)
-        {
             throw new InvalidOperationException($"Market comparable template with ID {query.Id} not found.");
-        }
 
         var dto = new MarketComparableTemplateDetailDto(
             template.Id,
@@ -39,8 +37,8 @@ public class GetMarketComparableTemplateByIdQueryHandler(
                 tf.IsMandatory,
                 tf.Factor?.IsActive ?? false
             )).OrderBy(f => f.DisplaySequence).ToList(),
-            template.CreatedOn,
-            template.UpdatedOn
+            template.CreatedAt,
+            template.UpdatedAt
         );
 
         return new GetMarketComparableTemplateByIdResult(dto);
