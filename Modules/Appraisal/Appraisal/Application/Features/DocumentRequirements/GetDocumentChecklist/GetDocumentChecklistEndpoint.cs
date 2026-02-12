@@ -42,10 +42,3 @@ public class GetDocumentChecklistEndpoint : ICarterModule
             .WithTags("Document Requirements");
     }
 }
-
-/// <summary>
-/// API Response for document checklist
-/// </summary>
-public record GetDocumentChecklistResponse(
-    IReadOnlyList<DocumentChecklistItemDto> ApplicationDocuments,
-    IReadOnlyList<CollateralDocumentGroupDto> CollateralGroups);

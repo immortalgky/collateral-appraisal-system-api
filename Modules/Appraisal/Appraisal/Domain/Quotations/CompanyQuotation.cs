@@ -55,7 +55,7 @@ public class CompanyQuotation : Entity<Guid>
     {
         return new CompanyQuotation
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             QuotationRequestId = quotationRequestId,
             InvitationId = invitationId,
             CompanyId = companyId,

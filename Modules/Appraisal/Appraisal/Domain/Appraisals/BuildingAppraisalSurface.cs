@@ -32,7 +32,7 @@ public class BuildingAppraisalSurface : Entity<Guid>
 
         return new BuildingAppraisalSurface
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalPropertyId = appraisalPropertyId,
             FromFloorNo = fromFloorNo,
             ToFloorNo = toFloorNo

@@ -35,10 +35,10 @@ SELECT Id,
        ContactPersonName,
        ContactPersonPhone,
        DealerCode,
-       AppointmentDate,
+       AppointmentDateTime,
        AppointmentLocation,
        FeePaymentType,
-       AbsorbedFee,
+       AbsorbedAmount,
        FeeNotes
 FROM request.Requests r
          JOIN request.RequestDetails d ON d.RequestId = r.Id

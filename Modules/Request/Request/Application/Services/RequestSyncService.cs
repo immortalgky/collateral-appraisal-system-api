@@ -173,7 +173,7 @@ public class RequestSyncService(
     {
         return dto.DocumentId != existing.DocumentId ||
                dto.DocumentType != existing.DocumentType ||
-               dto.Filename != existing.Filename ||
+               dto.FileName != existing.FileName ||
                dto.Prefix != existing.Prefix ||
                dto.Set != existing.Set ||
                dto.Notes != existing.Notes ||

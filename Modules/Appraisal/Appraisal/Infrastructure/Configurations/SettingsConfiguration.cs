@@ -13,7 +13,7 @@ public class AppraisalSettingsConfiguration : IEntityTypeConfiguration<Appraisal
         builder.Property(s => s.SettingValue).IsRequired().HasMaxLength(500);
         builder.Property(s => s.Description).HasMaxLength(500);
 
-        builder.Property(s => s.UpdatedOn).IsRequired();
+        builder.Property(s => s.UpdatedAt).IsRequired();
         builder.Property(s => s.UpdatedBy).IsRequired();
 
         builder.HasIndex(s => s.SettingKey).IsUnique();
@@ -42,7 +42,7 @@ public class AutoAssignmentRuleConfiguration : IEntityTypeConfiguration<AutoAssi
 
         builder.Property(r => r.AssignmentMode).IsRequired().HasMaxLength(50);
 
-        builder.Property(r => r.CreatedOn).IsRequired();
+        builder.Property(r => r.CreatedAt).IsRequired();
         builder.Property(r => r.CreatedBy).IsRequired();
 
         builder.HasIndex(r => r.Priority);

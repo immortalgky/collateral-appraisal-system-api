@@ -26,7 +26,7 @@ public class NotificationDataSeed : IDataSeeder<NotificationDbContext>
         {
             new()
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = "admin",
                 Title = "Welcome to Notification System",
                 Message = "Real-time notifications are now active for your collateral appraisal workflow.",
@@ -42,7 +42,7 @@ public class NotificationDataSeed : IDataSeeder<NotificationDbContext>
             },
             new()
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = "testuser",
                 Title = "New Task Assigned: Admin Review",
                 Message = "You have been assigned a new task for Request #1 in the Admin stage.",
@@ -61,7 +61,7 @@ public class NotificationDataSeed : IDataSeeder<NotificationDbContext>
             },
             new()
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = "testuser",
                 Title = "Task Completed: Appraisal Review",
                 Message =

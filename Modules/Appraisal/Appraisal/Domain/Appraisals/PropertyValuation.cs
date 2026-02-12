@@ -44,7 +44,7 @@ public class PropertyValuation : Entity<Guid>
 
         return new PropertyValuation
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ValuationAnalysisId = valuationAnalysisId,
             PropertyDetailType = propertyDetailType,
             PropertyDetailId = propertyDetailId,

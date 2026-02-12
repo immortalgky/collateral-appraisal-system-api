@@ -15,7 +15,7 @@ public class CommitteeConfiguration : IEntityTypeConfiguration<Committee>
         builder.Property(c => c.QuorumType).IsRequired().HasMaxLength(50);
         builder.Property(c => c.MajorityType).IsRequired().HasMaxLength(50);
 
-        builder.Property(c => c.CreatedOn).IsRequired();
+        builder.Property(c => c.CreatedAt).IsRequired();
         builder.Property(c => c.CreatedBy).IsRequired();
 
         builder.HasMany(c => c.Members)
@@ -51,7 +51,7 @@ public class CommitteeMemberConfiguration : IEntityTypeConfiguration<CommitteeMe
         builder.Property(m => m.MemberName).IsRequired().HasMaxLength(200);
         builder.Property(m => m.Role).IsRequired().HasMaxLength(100);
 
-        builder.Property(m => m.CreatedOn).IsRequired();
+        builder.Property(m => m.CreatedAt).IsRequired();
         builder.Property(m => m.CreatedBy).IsRequired();
 
         builder.HasIndex(m => m.CommitteeId);

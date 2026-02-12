@@ -6,17 +6,16 @@ namespace Appraisal.Domain.Appraisals;
 public class AppointmentHistory : Entity<Guid>
 {
     public Guid AppointmentId { get; private set; }
-    public Guid AppraisalId { get; private set; }
 
     // Original Values (snapshot at time of change)
-    public DateTime PreviousAppointmentDate { get; private set; }
+    public DateTime PreviousAppointmentDateTime { get; private set; }
     public string PreviousStatus { get; private set; } = null!;
     public string? PreviousLocationDetail { get; private set; }
 
     // Change Details
     public string ChangeType { get; private set; } = null!; // Rescheduled, Cancelled, StatusChanged
     public string? ChangeReason { get; private set; }
-    public DateTime ChangedOn { get; private set; }
+    public DateTime ChangedAt { get; private set; }
     public Guid ChangedBy { get; private set; }
 
     private AppointmentHistory()
@@ -25,8 +24,7 @@ public class AppointmentHistory : Entity<Guid>
 
     public static AppointmentHistory Create(
         Guid appointmentId,
-        Guid appraisalId,
-        DateTime previousAppointmentDate,
+        DateTime previousAppointmentDateTime,
         string previousStatus,
         string? previousLocationDetail,
         string changeType,
@@ -38,15 +36,14 @@ public class AppointmentHistory : Entity<Guid>
 
         return new AppointmentHistory
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppointmentId = appointmentId,
-            AppraisalId = appraisalId,
-            PreviousAppointmentDate = previousAppointmentDate,
+            PreviousAppointmentDateTime = previousAppointmentDateTime,
             PreviousStatus = previousStatus,
             PreviousLocationDetail = previousLocationDetail,
             ChangeType = changeType,
             ChangeReason = changeReason,
-            ChangedOn = DateTime.UtcNow,
+            ChangedAt = DateTime.UtcNow,
             ChangedBy = changedBy
         };
     }

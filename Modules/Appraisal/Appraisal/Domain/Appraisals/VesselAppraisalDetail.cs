@@ -75,7 +75,6 @@ public class VesselAppraisalDetail : Entity<Guid>
     {
         return new VesselAppraisalDetail
         {
-            Id = Guid.NewGuid(),
             AppraisalPropertyId = appraisalPropertyId,
             OwnerName = ownerName,
             CanUse = true

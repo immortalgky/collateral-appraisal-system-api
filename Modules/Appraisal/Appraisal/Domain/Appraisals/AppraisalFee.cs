@@ -1,115 +1,103 @@
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
-/// Appraisal fee entity.
-/// Tracks all fees associated with an appraisal.
+/// Fee summary per assignment. One AppraisalFee per assignment.
+/// Aggregates fee items and tracks payment status.
 /// </summary>
 public class AppraisalFee : Entity<Guid>
 {
-    // Core Properties
-    public Guid AppraisalId { get; private set; }
-    public Guid? AssignmentId { get; private set; }
+    public Guid AssignmentId { get; private set; }
 
-    // Fee Type
-    public string FeeType { get; private set; } =
-        null!; // AppraisalFee, TravelExpense, UrgentSurcharge, RevisionFee, AdditionalSurvey
+    // Fee Totals (calculated from FeeItems)
+    public decimal TotalFeeBeforeVAT { get; private set; }
+    public decimal VATRate { get; private set; } = 7.00m;
+    public decimal VATAmount { get; private set; }
+    public decimal TotalFeeAfterVAT { get; private set; }
 
-    public string FeeCategory { get; private set; } = null!; // Internal, External
-    public string Description { get; private set; } = null!;
+    // Bank Absorb
+    public decimal BankAbsorbAmount { get; private set; }
+    public decimal CustomerPayableAmount { get; private set; }
 
-    // Amount
-    public decimal Amount { get; private set; }
-    public string Currency { get; private set; } = "THB";
+    // Payment Status
+    public decimal TotalPaidAmount { get; private set; }
+    public decimal OutstandingAmount { get; private set; }
+    public string PaymentStatus { get; private set; } = "Pending"; // Pending, PartialPaid, FullyPaid
 
-    // Tax (for external fees)
-    public decimal? VATRate { get; private set; }
-    public decimal? VATAmount { get; private set; }
-    public decimal? WithholdingTaxRate { get; private set; }
-    public decimal? WithholdingTaxAmount { get; private set; }
-    public decimal NetAmount { get; private set; }
+    // InspectionFee
+    public decimal? InspectionFeeAmount { get; private set; }
 
-    // Billing (for external)
-    public bool IsBillableToCustomer { get; private set; }
-    public string? InvoiceNumber { get; private set; }
-    public DateTime? InvoiceDate { get; private set; }
-    public string? PaymentStatus { get; private set; } // Pending, Invoiced, Paid
-    public DateTime? PaymentDate { get; private set; }
-
-    // For internal cost tracking
-    public string? CostCenter { get; private set; }
-
-    // Fee Items (for 3-table design)
+    // Fee Items
     private readonly List<AppraisalFeeItem> _items = [];
     public IReadOnlyList<AppraisalFeeItem> Items => _items.AsReadOnly();
+
+    // Payment History (at fee level, not item level)
+    private readonly List<AppraisalFeePaymentHistory> _paymentHistory = [];
+    public IReadOnlyList<AppraisalFeePaymentHistory> PaymentHistory => _paymentHistory.AsReadOnly();
 
     private AppraisalFee()
     {
     }
 
-    public static AppraisalFee Create(
-        Guid appraisalId,
-        string feeType,
-        string feeCategory,
-        string description,
-        decimal amount)
+    public static AppraisalFee Create(Guid assignmentId)
     {
         return new AppraisalFee
         {
-            Id = Guid.NewGuid(),
-            AppraisalId = appraisalId,
-            FeeType = feeType,
-            FeeCategory = feeCategory,
-            Description = description,
-            Amount = amount,
-            NetAmount = amount,
+            Id = Guid.CreateVersion7(),
+            AssignmentId = assignmentId,
+            TotalFeeBeforeVAT = 0,
+            VATRate = 7.00m,
+            VATAmount = 0,
+            TotalFeeAfterVAT = 0,
+            BankAbsorbAmount = 0,
+            CustomerPayableAmount = 0,
+            TotalPaidAmount = 0,
+            OutstandingAmount = 0,
             PaymentStatus = "Pending"
         };
     }
 
-    public void SetAssignment(Guid assignmentId)
+    public AppraisalFeeItem AddItem(string feeCode, string feeDescription, decimal feeAmount)
     {
-        AssignmentId = assignmentId;
-    }
-
-    public void SetTax(decimal vatRate, decimal withholdingTaxRate)
-    {
-        VATRate = vatRate;
-        VATAmount = Amount * vatRate / 100;
-        WithholdingTaxRate = withholdingTaxRate;
-        WithholdingTaxAmount = Amount * withholdingTaxRate / 100;
-        NetAmount = Amount + VATAmount.Value - WithholdingTaxAmount.Value;
-    }
-
-    public void SetBillable(bool isBillable, string? costCenter = null)
-    {
-        IsBillableToCustomer = isBillable;
-        CostCenter = costCenter;
-    }
-
-    public void RecordInvoice(string invoiceNumber, DateTime invoiceDate)
-    {
-        InvoiceNumber = invoiceNumber;
-        InvoiceDate = invoiceDate;
-        PaymentStatus = "Invoiced";
-    }
-
-    public void RecordPayment(DateTime paymentDate)
-    {
-        PaymentDate = paymentDate;
-        PaymentStatus = "Paid";
-    }
-
-    public AppraisalFeeItem AddItem(string itemType, string description, int quantity, decimal unitPrice)
-    {
-        var item = AppraisalFeeItem.Create(Id, itemType, description, quantity, unitPrice);
+        var item = AppraisalFeeItem.Create(Id, feeCode, feeDescription, feeAmount);
         _items.Add(item);
-        RecalculateTotals();
+        RecalculateFromItems();
         return item;
     }
 
-    private void RecalculateTotals()
+    public void RecalculateFromItems()
     {
-        Amount = _items.Sum(i => i.Amount);
-        NetAmount = _items.Sum(i => i.NetAmount);
+        TotalFeeBeforeVAT = _items.Sum(i => i.FeeAmount);
+        VATAmount = TotalFeeBeforeVAT * VATRate / 100;
+        TotalFeeAfterVAT = TotalFeeBeforeVAT + VATAmount;
+        CustomerPayableAmount = TotalFeeAfterVAT - BankAbsorbAmount;
+        OutstandingAmount = CustomerPayableAmount - TotalPaidAmount;
+    }
+
+    public void SetBankAbsorb(decimal amount)
+    {
+        BankAbsorbAmount = amount;
+        CustomerPayableAmount = TotalFeeAfterVAT - BankAbsorbAmount;
+        OutstandingAmount = CustomerPayableAmount - TotalPaidAmount;
+    }
+
+    public void SetInspectionFee(decimal? amount)
+    {
+        InspectionFeeAmount = amount;
+    }
+
+    public void RecordPayment(decimal paymentAmount, DateTime paymentDate,
+        string? paymentMethod = null, string? paymentReference = null, string? remarks = null)
+    {
+        var payment = AppraisalFeePaymentHistory.Create(
+            Id, paymentAmount, paymentDate, paymentMethod, paymentReference, remarks);
+        _paymentHistory.Add(payment);
+
+        TotalPaidAmount = _paymentHistory.Sum(p => p.PaymentAmount);
+        OutstandingAmount = CustomerPayableAmount - TotalPaidAmount;
+
+        if (TotalPaidAmount >= CustomerPayableAmount && CustomerPayableAmount > 0)
+            PaymentStatus = "FullyPaid";
+        else if (TotalPaidAmount > 0)
+            PaymentStatus = "PartialPaid";
     }
 }

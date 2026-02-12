@@ -1,54 +1,62 @@
-using Appraisal.Domain.Appraisals;
+using Dapper;
 using Shared.CQRS;
+using Shared.Data;
 using Shared.Pagination;
 
 namespace Appraisal.Application.Features.Appraisals.GetAppraisals;
 
 /// <summary>
-/// Handler for getting all Appraisals with pagination
+/// Handler for getting all Appraisals with pagination and filtering.
+/// Uses SQL view + Dapper for efficient read queries.
 /// </summary>
 public class GetAppraisalsQueryHandler(
-    IAppraisalRepository appraisalRepository
+    ISqlConnectionFactory connectionFactory
 ) : IQueryHandler<GetAppraisalsQuery, GetAppraisalsResult>
 {
     public async Task<GetAppraisalsResult> Handle(
         GetAppraisalsQuery query,
         CancellationToken cancellationToken)
     {
-        var appraisals = await appraisalRepository.GetAllAsync(cancellationToken);
+        var sql = "SELECT * FROM appraisal.vw_AppraisalList";
+        var conditions = new List<string>();
+        var parameters = new DynamicParameters();
 
-        var appraisalList = appraisals.ToList();
-
-        // Apply pagination
-        var totalCount = appraisalList.Count;
-        var pageNumber = query.PaginationRequest.PageNumber;
-        var pageSize = query.PaginationRequest.PageSize;
-
-        var items = appraisalList
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .Select(a => new AppraisalDto
+        var filter = query.Filter;
+        if (filter is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(filter.Status))
             {
-                Id = a.Id,
-                AppraisalNumber = a.AppraisalNumber,
-                RequestId = a.RequestId,
-                Status = a.Status.ToString(),
-                AppraisalType = a.AppraisalType,
-                Priority = a.Priority,
-                SLADays = a.SLADays,
-                SLADueDate = a.SLADueDate,
-                SLAStatus = a.SLAStatus,
-                PropertyCount = a.Properties.Count,
-                CreatedOn = a.CreatedOn
-            })
-            .ToList();
+                conditions.Add("Status = @Status");
+                parameters.Add("Status", filter.Status);
+            }
 
-        var paginatedResult = new PaginatedResult<AppraisalDto>(
-            items,
-            totalCount,
-            pageNumber,
-            pageSize);
+            if (!string.IsNullOrWhiteSpace(filter.Priority))
+            {
+                conditions.Add("Priority = @Priority");
+                parameters.Add("Priority", filter.Priority);
+            }
 
-        return new GetAppraisalsResult(paginatedResult);
+            if (!string.IsNullOrWhiteSpace(filter.AppraisalType))
+            {
+                conditions.Add("AppraisalType = @AppraisalType");
+                parameters.Add("AppraisalType", filter.AppraisalType);
+            }
+
+            if (filter.AssigneeUserId.HasValue)
+            {
+                conditions.Add("AssigneeUserId = @AssigneeUserId");
+                parameters.Add("AssigneeUserId", filter.AssigneeUserId.Value);
+            }
+        }
+
+        if (conditions.Count > 0) sql += " WHERE " + string.Join(" AND ", conditions);
+
+        var result = await connectionFactory.QueryPaginatedAsync<AppraisalDto>(
+            sql,
+            "CreatedAt DESC",
+            query.PaginationRequest,
+            parameters);
+
+        return new GetAppraisalsResult(result);
     }
 }

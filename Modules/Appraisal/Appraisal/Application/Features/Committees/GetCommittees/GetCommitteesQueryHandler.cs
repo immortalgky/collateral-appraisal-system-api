@@ -1,54 +1,28 @@
-using Appraisal.Domain.Committees;
 using Shared.CQRS;
+using Shared.Data;
 using Shared.Pagination;
 
 namespace Appraisal.Application.Features.Committees.GetCommittees;
 
 /// <summary>
-/// Handler for getting all Committees with pagination
+/// Handler for getting all Committees with pagination.
+/// Uses SQL view + Dapper for efficient read queries.
 /// </summary>
 public class GetCommitteesQueryHandler(
-    ICommitteeRepository committeeRepository
+    ISqlConnectionFactory connectionFactory
 ) : IQueryHandler<GetCommitteesQuery, GetCommitteesResult>
 {
     public async Task<GetCommitteesResult> Handle(
         GetCommitteesQuery query,
         CancellationToken cancellationToken)
     {
-        var committees = await committeeRepository.GetAllAsync(cancellationToken);
+        var sql = "SELECT * FROM appraisal.vw_CommitteeList";
 
-        var committeeList = committees.ToList();
+        var result = await connectionFactory.QueryPaginatedAsync<CommitteeDto>(
+            sql,
+            "CreatedOn DESC",
+            query.PaginationRequest);
 
-        // Apply pagination
-        var totalCount = committeeList.Count;
-        var pageNumber = query.PaginationRequest.PageNumber;
-        var pageSize = query.PaginationRequest.PageSize;
-
-        var items = committeeList
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .Select(c => new CommitteeDto
-            {
-                Id = c.Id,
-                CommitteeName = c.CommitteeName,
-                CommitteeCode = c.CommitteeCode,
-                Description = c.Description,
-                IsActive = c.IsActive,
-                QuorumType = c.QuorumType,
-                QuorumValue = c.QuorumValue,
-                MajorityType = c.MajorityType,
-                MemberCount = c.Members.Count(m => m.IsActive),
-                ConditionCount = c.Conditions.Count,
-                CreatedOn = c.CreatedOn
-            })
-            .ToList();
-
-        var paginatedResult = new PaginatedResult<CommitteeDto>(
-            items,
-            totalCount,
-            pageNumber,
-            pageSize);
-
-        return new GetCommitteesResult(paginatedResult);
+        return new GetCommitteesResult(result);
     }
 }

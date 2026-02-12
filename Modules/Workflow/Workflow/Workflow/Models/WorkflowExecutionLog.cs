@@ -35,7 +35,7 @@ public class WorkflowExecutionLog : Entity<Guid>
     {
         return new WorkflowExecutionLog
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             WorkflowInstanceId = workflowInstanceId,
             ActivityId = activityId,
             Event = eventType,

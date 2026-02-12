@@ -35,7 +35,7 @@ public class DocumentService(
 
         await using var fileStream = file.OpenReadStream();
 
-        var docId = Guid.NewGuid();
+        var docId = Guid.CreateVersion7();
         var uniqueFileName = $"{docId}{Path.GetExtension(file.FileName)}";
 
         // Save directly to upload/documents path instead of temp
@@ -87,7 +87,7 @@ public class DocumentService(
             file.ContentType,
             storagePath,
             storageUrl,
-            userId,
+            username,
             username,
             DateTime.UtcNow,
             description,

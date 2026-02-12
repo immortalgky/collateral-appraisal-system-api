@@ -34,7 +34,7 @@ public class MarketComparableFactor : Entity<Guid>
 
         return new MarketComparableFactor
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             FactorCode = factorCode.ToUpperInvariant(),
             FactorName = factorName,
             FieldName = fieldName,

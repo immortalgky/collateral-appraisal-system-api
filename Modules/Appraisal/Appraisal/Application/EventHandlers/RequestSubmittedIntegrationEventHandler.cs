@@ -25,10 +25,12 @@ public class RequestSubmittedIntegrationEventHandler(
 
         try
         {
-            // Delegate to the service for business logic
             var appraisalId = await appraisalCreationService.CreateAppraisalFromRequest(
                 message.RequestId,
                 message.RequestTitles,
+                message.Appointment,
+                message.Fee,
+                message.CreatedBy,
                 context.CancellationToken);
 
             logger.LogInformation(

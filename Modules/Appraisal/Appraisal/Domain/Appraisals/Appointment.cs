@@ -2,16 +2,18 @@ namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
 /// Appointment entity for property survey visits.
+/// Linked to an assignment (not appraisal directly).
 /// </summary>
 public class Appointment : Entity<Guid>
 {
     private readonly List<AppointmentHistory> _history = [];
     public IReadOnlyList<AppointmentHistory> History => _history.AsReadOnly();
 
-    public Guid AppraisalId { get; private set; }
+    public Guid AssignmentId { get; private set; }
 
     // Appointment Details
-    public DateTime AppointmentDate { get; private set; }
+    public DateTime AppointmentDateTime { get; private set; }
+    public DateTime? ProposedDate { get; private set; }
     public string? LocationDetail { get; private set; }
     public decimal? Latitude { get; private set; }
     public decimal? Longitude { get; private set; }
@@ -19,6 +21,12 @@ public class Appointment : Entity<Guid>
     // Status
     public string Status { get; private set; } = null!; // Pending, Approved, Completed, Cancelled
     public DateTime? ActionDate { get; private set; }
+    public string? Reason { get; private set; }
+
+    // Approval (reschedule only)
+    public Guid? ApprovedBy { get; private set; }
+    public DateTime? ApprovedAt { get; private set; }
+    public int RescheduleCount { get; private set; }
 
     // Contact Person
     public Guid AppointedBy { get; private set; }
@@ -30,8 +38,8 @@ public class Appointment : Entity<Guid>
     }
 
     public static Appointment Create(
-        Guid appraisalId,
-        DateTime appointmentDate,
+        Guid assignmentId,
+        DateTime appointmentDateTime,
         Guid appointedBy,
         string? locationDetail = null,
         string? contactPerson = null,
@@ -39,14 +47,15 @@ public class Appointment : Entity<Guid>
     {
         return new Appointment
         {
-            Id = Guid.NewGuid(),
-            AppraisalId = appraisalId,
-            AppointmentDate = appointmentDate,
+            Id = Guid.CreateVersion7(),
+            AssignmentId = assignmentId,
+            AppointmentDateTime = appointmentDateTime,
             AppointedBy = appointedBy,
             LocationDetail = locationDetail,
             ContactPerson = contactPerson,
             ContactPhone = contactPhone,
-            Status = "Pending"
+            Status = "Pending",
+            RescheduleCount = 0
         };
     }
 
@@ -63,13 +72,15 @@ public class Appointment : Entity<Guid>
         ContactPhone = phone;
     }
 
-    public void Approve(Guid changedBy)
+    public void Approve(Guid approvedBy)
     {
         if (Status != "Pending")
             throw new InvalidOperationException($"Cannot approve appointment in status '{Status}'");
 
-        RecordHistory("StatusChanged", changedBy, "Approved from Pending");
+        RecordHistory("StatusChanged", approvedBy, "Approved from Pending");
         Status = "Approved";
+        ApprovedBy = approvedBy;
+        ApprovedAt = DateTime.UtcNow;
         ActionDate = DateTime.UtcNow;
     }
 
@@ -90,6 +101,7 @@ public class Appointment : Entity<Guid>
 
         RecordHistory("Cancelled", changedBy, reason);
         Status = "Cancelled";
+        Reason = reason;
         ActionDate = DateTime.UtcNow;
     }
 
@@ -99,14 +111,17 @@ public class Appointment : Entity<Guid>
             throw new InvalidOperationException($"Cannot reschedule appointment in status '{Status}'");
 
         RecordHistory("Rescheduled", changedBy, reason);
-        AppointmentDate = newDate;
+        AppointmentDateTime = newDate;
+        Reason = reason;
+        RescheduleCount++;
+        Status = "Pending"; // Reset to pending for re-approval
         ActionDate = DateTime.UtcNow;
     }
 
     private void RecordHistory(string changeType, Guid changedBy, string? reason)
     {
         var history = AppointmentHistory.Create(
-            Id, AppraisalId, AppointmentDate, Status, LocationDetail, changeType, reason, changedBy);
+            Id, AppointmentDateTime, Status, LocationDetail, changeType, reason, changedBy);
         _history.Add(history);
     }
 }

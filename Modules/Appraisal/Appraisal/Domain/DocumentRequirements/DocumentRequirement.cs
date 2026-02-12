@@ -48,7 +48,7 @@ public class DocumentRequirement : Entity<Guid>
         bool isRequired,
         string? notes)
     {
-        Id = Guid.NewGuid();
+        Id = Guid.CreateVersion7();
         DocumentTypeId = documentTypeId;
         CollateralTypeCode = collateralTypeCode?.ToUpperInvariant();
         IsRequired = isRequired;

@@ -15,10 +15,10 @@ public class GetTemplatesEndpoint : ICarterModule
                 {
                     var query = new GetTemplatesQuery(activeOnly ?? false);
                     var result = await sender.Send(query);
-                    return Results.Ok(result.Templates);
+                    return Results.Ok(new GetTemplatesResponse(result.Templates));
                 })
             .WithName("GetComparativeAnalysisTemplates")
-            .Produces<IReadOnlyList<TemplateDto>>()
+            .Produces<GetTemplatesResponse>()
             .WithSummary("Get all comparative analysis templates")
             .WithDescription("Returns all templates, optionally filtered to only active ones")
             .WithTags("ComparativeAnalysisTemplates");

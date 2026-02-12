@@ -30,6 +30,11 @@ public class RegistrationService(
         {
             UserName = registerUserDto.Username,
             Email = registerUserDto.Email,
+            FirstName = registerUserDto.FirstName,
+            LastName = registerUserDto.LastName,
+            AvatarUrl = registerUserDto.AvatarUrl,
+            Position = registerUserDto.Position,
+            Department = registerUserDto.Department,
             Permissions =
             [
                 .. registerUserDto.Permissions.Select(userPermission => new UserPermission

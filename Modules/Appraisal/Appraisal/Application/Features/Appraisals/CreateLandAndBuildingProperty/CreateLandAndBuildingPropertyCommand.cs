@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+
 namespace Appraisal.Application.Features.Appraisals.CreateLandAndBuildingProperty;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateLandAndBuildingPropert
 /// </summary>
 public record CreateLandAndBuildingPropertyCommand(
     Guid AppraisalId,
+    Guid? GroupId = null,
     // Property Identification
     string? PropertyName = null,
     string? LandDescription = null,
@@ -147,8 +150,11 @@ public record CreateLandAndBuildingPropertyCommand(
     decimal? BuildingInsurancePrice = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
-    
+
     // Remarks
     string? LandRemark = null,
-    string? BuildingRemark = null
+    string? BuildingRemark = null,
+
+    // Land Titles
+    List<LandTitleItemData>? Titles = null
 ) : ICommand<CreateLandAndBuildingPropertyResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

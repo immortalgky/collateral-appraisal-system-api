@@ -24,7 +24,7 @@ public class PricingAnalysis : Aggregate<Guid>
     {
         return new PricingAnalysis
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             PropertyGroupId = propertyGroupId,
             Status = "Draft"
         };

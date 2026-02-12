@@ -13,12 +13,12 @@ public class GetDocumentTypesEndpoint : ICarterModule
                 var query = new GetDocumentTypesQuery();
                 var result = await sender.Send(query, cancellationToken);
 
-                return Results.Ok(result.DocumentTypes);
+                return Results.Ok(new GetDocumentTypesResponse(result.DocumentTypes));
             })
             .WithName("GetDocumentTypes")
             .WithSummary("Get all document types")
             .WithDescription("Returns all document types for admin configuration")
-            .Produces<IReadOnlyList<DocumentTypeDto>>()
+            .Produces<GetDocumentTypesResponse>()
             .WithTags("Document Types");
     }
 }

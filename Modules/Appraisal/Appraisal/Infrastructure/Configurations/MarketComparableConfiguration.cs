@@ -16,7 +16,7 @@ public class MarketComparableConfiguration : IEntityTypeConfiguration<MarketComp
         builder.Property(m => m.SourceInfo).HasMaxLength(200);
         builder.Property(m => m.Notes).HasMaxLength(2000);
 
-        builder.Property(m => m.CreatedOn).IsRequired();
+        builder.Property(m => m.CreatedAt).IsRequired();
         builder.Property(m => m.CreatedBy).IsRequired();
 
         builder.OwnsOne(m => m.SoftDelete, sd =>
@@ -79,7 +79,7 @@ public class AppraisalComparableConfiguration : IEntityTypeConfiguration<Apprais
         builder.Property(a => a.SelectionReason).HasMaxLength(500);
         builder.Property(a => a.Notes).HasMaxLength(1000);
 
-        builder.Property(a => a.CreatedOn).IsRequired();
+        builder.Property(a => a.CreatedAt).IsRequired();
         builder.Property(a => a.CreatedBy).IsRequired();
 
         builder.HasMany(a => a.Adjustments)
@@ -114,7 +114,7 @@ public class ComparableAdjustmentConfiguration : IEntityTypeConfiguration<Compar
         builder.Property(c => c.ComparableValue).HasMaxLength(200);
         builder.Property(c => c.Justification).HasMaxLength(500);
 
-        builder.Property(c => c.CreatedOn).IsRequired();
+        builder.Property(c => c.CreatedAt).IsRequired();
         builder.Property(c => c.CreatedBy).IsRequired();
 
         builder.HasIndex(c => c.AppraisalComparableId);
@@ -139,7 +139,7 @@ public class AdjustmentTypeLookupConfiguration : IEntityTypeConfiguration<Adjust
 
         builder.Property(a => a.ApplicablePropertyTypes).HasMaxLength(500);
 
-        builder.Property(a => a.CreatedOn).IsRequired();
+        builder.Property(a => a.CreatedAt).IsRequired();
         builder.Property(a => a.CreatedBy).IsRequired();
 
         builder.HasIndex(a => a.AdjustmentCategory);

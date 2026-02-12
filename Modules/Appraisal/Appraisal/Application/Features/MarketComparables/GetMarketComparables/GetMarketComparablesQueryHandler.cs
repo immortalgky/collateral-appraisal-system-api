@@ -1,51 +1,28 @@
-using Appraisal.Domain.MarketComparables;
 using Shared.CQRS;
+using Shared.Data;
 using Shared.Pagination;
 
 namespace Appraisal.Application.Features.MarketComparables.GetMarketComparables;
 
 /// <summary>
-/// Handler for getting all Market Comparables with pagination
+/// Handler for getting all Market Comparables with pagination.
+/// Uses SQL view + Dapper for efficient read queries.
 /// </summary>
 public class GetMarketComparablesQueryHandler(
-    IMarketComparableRepository marketComparableRepository
+    ISqlConnectionFactory connectionFactory
 ) : IQueryHandler<GetMarketComparablesQuery, GetMarketComparablesResult>
 {
     public async Task<GetMarketComparablesResult> Handle(
         GetMarketComparablesQuery query,
         CancellationToken cancellationToken)
     {
-        var comparables = await marketComparableRepository.GetAllAsync(cancellationToken);
+        var sql = "SELECT * FROM appraisal.vw_MarketComparableList";
 
-        var comparableList = comparables.ToList();
+        var result = await connectionFactory.QueryPaginatedAsync<MarketComparableDto>(
+            sql,
+            "CreatedOn DESC",
+            query.PaginationRequest);
 
-        // Apply pagination
-        var totalCount = comparableList.Count;
-        var pageNumber = query.PaginationRequest.PageNumber;
-        var pageSize = query.PaginationRequest.PageSize;
-
-        var items = comparableList
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .Select(c => new MarketComparableDto
-            {
-                Id = c.Id,
-                ComparableNumber = c.ComparableNumber,
-                PropertyType = c.PropertyType,
-                SurveyName = c.SurveyName,
-                InfoDateTime = c.InfoDateTime,
-                SourceInfo = c.SourceInfo,
-                Notes = c.Notes,
-                CreatedOn = c.CreatedOn
-            })
-            .ToList();
-
-        var paginatedResult = new PaginatedResult<MarketComparableDto>(
-            items,
-            totalCount,
-            pageNumber,
-            pageSize);
-
-        return new GetMarketComparablesResult(paginatedResult);
+        return new GetMarketComparablesResult(result);
     }
 }

@@ -8,7 +8,7 @@ using OAuth2OpenId.Data;
 
 #nullable disable
 
-namespace OAuth2OpenId.Data.Migrations
+namespace OAuth2OpenId.Infrastructure.Migrations
 {
     [DbContext(typeof(OpenIddictDbContext))]
     partial class OpenIddictDbContextModelSnapshot : ModelSnapshot
@@ -126,7 +126,7 @@ namespace OAuth2OpenId.Data.Migrations
                     b.ToTable("AspNetUserTokens", "auth");
                 });
 
-            modelBuilder.Entity("OAuth2OpenId.Identity.Models.ApplicationRole", b =>
+            modelBuilder.Entity("OAuth2OpenId.Domain.Identity.Models.ApplicationRole", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -158,7 +158,7 @@ namespace OAuth2OpenId.Data.Migrations
                     b.ToTable("AspNetRoles", "auth");
                 });
 
-            modelBuilder.Entity("OAuth2OpenId.Identity.Models.ApplicationUser", b =>
+            modelBuilder.Entity("OAuth2OpenId.Domain.Identity.Models.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -167,9 +167,17 @@ namespace OAuth2OpenId.Data.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
+                    b.Property<string>("AvatarUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Department")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Email")
                         .HasMaxLength(256)
@@ -177,6 +185,16 @@ namespace OAuth2OpenId.Data.Migrations
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("bit");
@@ -201,6 +219,10 @@ namespace OAuth2OpenId.Data.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<string>("Position")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
 
@@ -224,19 +246,22 @@ namespace OAuth2OpenId.Data.Migrations
                     b.ToTable("AspNetUsers", "auth");
                 });
 
-            modelBuilder.Entity("OAuth2OpenId.Identity.Models.Permission", b =>
+            modelBuilder.Entity("OAuth2OpenId.Domain.Identity.Models.Permission", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("PermissionId");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("CreatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Description")
                         .IsRequired()
@@ -246,12 +271,15 @@ namespace OAuth2OpenId.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("UpdatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -261,7 +289,7 @@ namespace OAuth2OpenId.Data.Migrations
                     b.ToTable("Permissions", "auth");
                 });
 
-            modelBuilder.Entity("OAuth2OpenId.Identity.Models.RolePermission", b =>
+            modelBuilder.Entity("OAuth2OpenId.Domain.Identity.Models.RolePermission", b =>
                 {
                     b.Property<Guid>("RoleId")
                         .HasColumnType("uniqueidentifier");
@@ -276,7 +304,7 @@ namespace OAuth2OpenId.Data.Migrations
                     b.ToTable("RolePermissions", "auth");
                 });
 
-            modelBuilder.Entity("OAuth2OpenId.Identity.Models.UserPermission", b =>
+            modelBuilder.Entity("OAuth2OpenId.Domain.Identity.Models.UserPermission", b =>
                 {
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
@@ -507,7 +535,7 @@ namespace OAuth2OpenId.Data.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
-                    b.HasOne("OAuth2OpenId.Identity.Models.ApplicationRole", null)
+                    b.HasOne("OAuth2OpenId.Domain.Identity.Models.ApplicationRole", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -516,7 +544,7 @@ namespace OAuth2OpenId.Data.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
-                    b.HasOne("OAuth2OpenId.Identity.Models.ApplicationUser", null)
+                    b.HasOne("OAuth2OpenId.Domain.Identity.Models.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -525,7 +553,7 @@ namespace OAuth2OpenId.Data.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<System.Guid>", b =>
                 {
-                    b.HasOne("OAuth2OpenId.Identity.Models.ApplicationUser", null)
+                    b.HasOne("OAuth2OpenId.Domain.Identity.Models.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -534,13 +562,13 @@ namespace OAuth2OpenId.Data.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", b =>
                 {
-                    b.HasOne("OAuth2OpenId.Identity.Models.ApplicationRole", null)
+                    b.HasOne("OAuth2OpenId.Domain.Identity.Models.ApplicationRole", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("OAuth2OpenId.Identity.Models.ApplicationUser", null)
+                    b.HasOne("OAuth2OpenId.Domain.Identity.Models.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -549,22 +577,22 @@ namespace OAuth2OpenId.Data.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
                 {
-                    b.HasOne("OAuth2OpenId.Identity.Models.ApplicationUser", null)
+                    b.HasOne("OAuth2OpenId.Domain.Identity.Models.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("OAuth2OpenId.Identity.Models.RolePermission", b =>
+            modelBuilder.Entity("OAuth2OpenId.Domain.Identity.Models.RolePermission", b =>
                 {
-                    b.HasOne("OAuth2OpenId.Identity.Models.Permission", "Permission")
+                    b.HasOne("OAuth2OpenId.Domain.Identity.Models.Permission", "Permission")
                         .WithMany()
                         .HasForeignKey("PermissionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("OAuth2OpenId.Identity.Models.ApplicationRole", "Role")
+                    b.HasOne("OAuth2OpenId.Domain.Identity.Models.ApplicationRole", "Role")
                         .WithMany("Permissions")
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -575,15 +603,15 @@ namespace OAuth2OpenId.Data.Migrations
                     b.Navigation("Role");
                 });
 
-            modelBuilder.Entity("OAuth2OpenId.Identity.Models.UserPermission", b =>
+            modelBuilder.Entity("OAuth2OpenId.Domain.Identity.Models.UserPermission", b =>
                 {
-                    b.HasOne("OAuth2OpenId.Identity.Models.Permission", "Permission")
+                    b.HasOne("OAuth2OpenId.Domain.Identity.Models.Permission", "Permission")
                         .WithMany()
                         .HasForeignKey("PermissionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("OAuth2OpenId.Identity.Models.ApplicationUser", "User")
+                    b.HasOne("OAuth2OpenId.Domain.Identity.Models.ApplicationUser", "User")
                         .WithMany("Permissions")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -618,12 +646,12 @@ namespace OAuth2OpenId.Data.Migrations
                     b.Navigation("Authorization");
                 });
 
-            modelBuilder.Entity("OAuth2OpenId.Identity.Models.ApplicationRole", b =>
+            modelBuilder.Entity("OAuth2OpenId.Domain.Identity.Models.ApplicationRole", b =>
                 {
                     b.Navigation("Permissions");
                 });
 
-            modelBuilder.Entity("OAuth2OpenId.Identity.Models.ApplicationUser", b =>
+            modelBuilder.Entity("OAuth2OpenId.Domain.Identity.Models.ApplicationUser", b =>
                 {
                     b.Navigation("Permissions");
                 });

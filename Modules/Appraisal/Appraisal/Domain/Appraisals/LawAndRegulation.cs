@@ -27,7 +27,7 @@ public class LawAndRegulation : Entity<Guid>
 
         return new LawAndRegulation
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalId = appraisalId,
             HeaderCode = headerCode,
             Remark = remark

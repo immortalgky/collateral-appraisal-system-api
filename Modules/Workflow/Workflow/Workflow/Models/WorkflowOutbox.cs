@@ -35,7 +35,7 @@ public class WorkflowOutbox : Entity<Guid>
     {
         return new WorkflowOutbox
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             OccurredAt = DateTime.UtcNow,
             Type = eventType,
             Payload = payload,

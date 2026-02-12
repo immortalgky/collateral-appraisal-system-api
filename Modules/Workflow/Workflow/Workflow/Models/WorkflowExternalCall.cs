@@ -40,7 +40,7 @@ public class WorkflowExternalCall : Entity<Guid>
     {
         return new WorkflowExternalCall
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             WorkflowInstanceId = workflowInstanceId,
             ActivityId = activityId,
             Type = type,

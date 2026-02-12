@@ -1,4 +1,5 @@
 using Carter;
+using Mapster;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -15,10 +16,11 @@ public class GetComparativeFactorsEndpoint : ICarterModule
                 {
                     var query = new GetComparativeFactorsQuery(id, methodId);
                     var result = await sender.Send(query);
-                    return Results.Ok(result);
+                    var response = result.Adapt<GetComparativeFactorsResponse>();
+                    return Results.Ok(response);
                 })
             .WithName("GetComparativeFactors")
-            .Produces<GetComparativeFactorsResult>()
+            .Produces<GetComparativeFactorsResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get comparative factors for a pricing method")
             .WithDescription("Returns Step 1 factor selections, Step 2 factor scores, and calculations")

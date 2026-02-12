@@ -20,7 +20,7 @@ public class AppraisalSettings : Entity<Guid>
     {
         return new AppraisalSettings
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             SettingKey = key,
             SettingValue = value,
             Description = description

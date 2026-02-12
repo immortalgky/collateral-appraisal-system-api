@@ -12,11 +12,11 @@ public class GetRequestByIdEndpoint : ICarterModule
                 async (Guid id, ISender sender, CancellationToken cancellationToken) =>
                 {
                     var result = await sender.Send(new GetRequestByIdQuery(id), cancellationToken);
-                    var response = result.Adapt<GetRequestByIdResult>();
+                    var response = result.Adapt<GetRequestByIdResponse>();
                     return Results.Ok(response);
                 })
             .WithName("GetRequestById")
-            .Produces<GetRequestByIdResult>()
+            .Produces<GetRequestByIdResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Requests")
             .WithSummary("Get request by ID")

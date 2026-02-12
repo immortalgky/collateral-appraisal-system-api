@@ -4,7 +4,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLandAndBuildingPropert
 /// Handler for creating a land and building property with its appraisal detail
 /// </summary>
 public class CreateLandAndBuildingPropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    IAppraisalUnitOfWork unitOfWork
 ) : ICommandHandler<CreateLandAndBuildingPropertyCommand, CreateLandAndBuildingPropertyResult>
 {
     public async Task<CreateLandAndBuildingPropertyResult> Handle(
@@ -17,8 +18,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
                         ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
         // 2. Execute domain operation via aggregate
-        var property = appraisal.AddLandAndBuildingProperty(
-            command.OwnerName);
+        var property = appraisal.AddLandAndBuildingProperty();
 
         // 3. Build value objects if provided
         GpsCoordinate? coordinates = null;
@@ -34,27 +34,27 @@ public class CreateLandAndBuildingPropertyCommandHandler(
         // 4. Update Land detail with additional fields
         property.LandDetail!.Update(
             // Property Identification
-            propertyName: command.PropertyName,
-            landDescription: command.LandDescription,
-            coordinates: coordinates,
-            address: address,
-            ownerName: command.OwnerName,
-            isOwnerVerified: command.IsOwnerVerified,
-            hasObligation: command.HasObligation,
-            obligationDetails: command.ObligationDetails,
+            command.PropertyName,
+            command.LandDescription,
+            coordinates,
+            address,
+            command.OwnerName,
+            command.IsOwnerVerified,
+            command.HasObligation,
+            command.ObligationDetails,
             // Land - Document Verification
-            isLandLocationVerified: command.IsLandLocationVerified,
-            landCheckMethodType: command.LandCheckMethodType,
-            landCheckMethodTypeOther: command.LandCheckMethodTypeOther,
+            command.IsLandLocationVerified,
+            command.LandCheckMethodType,
+            command.LandCheckMethodTypeOther,
             // Land - Location Details
-            street: command.Street,
-            soi: command.Soi,
-            distanceFromMainRoad: command.DistanceFromMainRoad,
-            village: command.Village,
-            addressLocation: command.AddressLocation,
+            command.Street,
+            command.Soi,
+            command.DistanceFromMainRoad,
+            command.Village,
+            command.AddressLocation,
             // Land - Characteristics
-            landShapeType: command.LandShapeType,
-            urbanPlanningType: command.UrbanPlanningType,
+            command.LandShapeType,
+            command.UrbanPlanningType,
             plotLocationType: command.PlotLocationType,
             plotLocationTypeOther: command.PlotLocationTypeOther,
             landFillType: command.LandFillType,
@@ -110,6 +110,40 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             pondArea: command.PondArea,
             pondDepth: command.PondDepth,
             remark: command.LandRemark);
+
+        // Add land titles if provided
+        if (command.Titles is { Count: > 0 })
+            foreach (var titleData in command.Titles)
+            {
+                var title = LandTitle.Create(
+                    property.LandDetail.Id,
+                    titleData.TitleNumber,
+                    titleData.TitleType);
+
+                LandArea? area = null;
+                if (titleData.Rai.HasValue || titleData.Ngan.HasValue || titleData.SquareWa.HasValue)
+                    area = LandArea.Create(titleData.Rai, titleData.Ngan, titleData.SquareWa);
+
+                title.Update(
+                    titleData.BookNumber,
+                    titleData.PageNumber,
+                    titleData.LandParcelNumber,
+                    titleData.SurveyNumber,
+                    titleData.MapSheetNumber,
+                    titleData.Rawang,
+                    titleData.AerialMapName,
+                    titleData.AerialMapNumber,
+                    area,
+                    titleData.HasBoundaryMarker,
+                    titleData.BoundaryMarkerRemark,
+                    titleData.IsDocumentValidated,
+                    titleData.IsMissingFromSurvey,
+                    titleData.GovernmentPricePerSqWa,
+                    titleData.GovernmentPrice,
+                    titleData.Remark);
+
+                property.LandDetail.AddTitle(title);
+            }
 
         // 5. Update Building detail with additional fields
         property.BuildingDetail!.Update(
@@ -173,7 +207,10 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             remark: command.BuildingRemark);
 
         // 6. Save aggregate
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (command.GroupId.HasValue)
+            appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
 
         // 7. Return property ID and both detail IDs
         return new CreateLandAndBuildingPropertyResult(property.Id, property.LandDetail.Id);

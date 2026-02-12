@@ -47,7 +47,7 @@ public class AppraisalReview : Entity<Guid>
     {
         return new AppraisalReview
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalId = appraisalId,
             ReviewLevel = reviewLevel,
             ReviewSequence = reviewSequence,

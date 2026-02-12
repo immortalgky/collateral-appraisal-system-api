@@ -137,125 +137,39 @@ Immutable objects without identity, defined by their attributes.
 
 ---
 
-## Entity Relationship Diagram
+## Entity Relationship Diagrams
+
+The data model is split into **8 diagrams** organized by aggregate boundary. Cross-aggregate references use simple labeled boxes (e.g., `Entity["Entity (Source)"]`) to show where data flows between aggregates without cluttering each diagram.
+
+**Legend (applies to all diagrams):**
+- **||--||** = One-to-One, **||--o{** = One-to-Many, **}o--||** = Many-to-One, **||--o|** = One-to-Zero-or-One
+- **PK** = Primary Key, **FK** = Foreign Key, **UK** = Unique Key
+- **[AR]** = Aggregate Root, **[E]** = Entity
+- **Dashed boxes** (`["..."]`) = Cross-aggregate or cross-module references
+
+---
+
+### Diagram 1: Appraisal Core -- Properties, Groups & Assignment
+
+The Appraisal aggregate root and its core children: property registry, property grouping (for combined valuation), and assignment tracking.
 
 ```mermaid
 erDiagram
-    %% =====================================================
-    %% CORE: Request → Appraisal → Properties & Groups (with junction)
-    %% =====================================================
+    %% Cross-references
+    Request["Request (Request Module)"]
+    QuotationRequestItem["QuotationRequestItem (QuotationRequest Aggregate)"]
+
+    %% Relationships
     Request ||--|| Appraisal : "creates one"
-
-    %% Appraisal → Properties (direct link for easy query)
     Appraisal ||--o{ AppraisalProperties : "has properties"
-
-    %% Appraisal → Groups (for valuation grouping)
     Appraisal ||--o{ PropertyGroups : "has groups"
-
-    %% Junction: Properties ↔ Groups (many-to-one: property belongs to one group)
     PropertyGroups ||--o{ PropertyGroupItems : "contains items"
     PropertyGroupItems }o--|| AppraisalProperties : "references property"
-
-    %% Properties → Property Details (1:1 based on PropertyType)
-    AppraisalProperties ||--o| LandAppraisalDetail : "type=Land"
-    AppraisalProperties ||--o| BuildingAppraisalDetail : "type=Building"
-    AppraisalProperties ||--o| LandAndBuildingAppraisalDetail : "type=LandAndBuilding"
-    AppraisalProperties ||--o| CondoAppraisalDetail : "type=Condo"
-    AppraisalProperties ||--o| VehicleAppraisalDetail : "type=Vehicle"
-    AppraisalProperties ||--o| VesselAppraisalDetail : "type=Vessel"
-    AppraisalProperties ||--o| MachineryAppraisalDetail : "type=Machinery"
-
-    %% Core Appraisal Relationships
     Appraisal ||--o{ AppraisalAssignment : "has assignments"
-    Appraisal ||--o{ AppraisalGallery : "has photos"
-    Appraisal ||--o| ValuationAnalysis : "has one"
-    Appraisal ||--o{ AppraisalReview : "has reviews"
-    Appraisal ||--o{ AppraisalFees : "has fees"
-    Appraisal ||--o{ Appointments : "has appointments"
-    Appraisal ||--o{ AppraisalComparables : "uses comparables"
-    Appraisal ||--o| PricingAnalysis : "has pricing"
-
-    %% Appointment History
-    Appointments ||--o{ AppointmentHistory : "has history"
-
-    %% Fee Structure (3-table)
-    AppraisalFees ||--o{ AppraisalFeeItems : "has items"
-    AppraisalFees ||--o{ AppraisalFeePaymentHistory : "has payments"
-
-    %% Property Detail Extensions
-    LandAppraisalDetail ||--o{ LandTitles : "has titles"
-    BuildingAppraisalDetail ||--o{ BuildingDepreciationDetails : "has depreciation"
-    BuildingAppraisalDetail ||--o{ BuildingAppraisalSurfaces : "has surfaces"
-    LandAndBuildingAppraisalDetail ||--o{ LandTitles : "has titles"
-    LandAndBuildingAppraisalDetail ||--o{ BuildingDepreciationDetails : "has depreciation"
-    LandAndBuildingAppraisalDetail ||--o{ BuildingAppraisalSurfaces : "has surfaces"
-    CondoAppraisalDetail ||--o{ CondoAppraisalAreaDetails : "has areas"
-
-    %% Law & Regulation
-    Appraisal ||--o{ LawAndRegulations : "has regulations"
-    LawAndRegulations ||--o{ LawAndRegulationImages : "has images"
-
-    %% Valuation & Comparables
-    ValuationAnalysis ||--o{ GroupValuations : "has group values"
-    GroupValuations }o--|| PropertyGroups : "values group"
-    ValuationAnalysis ||--o{ AppraisalComparables : "uses comparables"
-    AppraisalComparables }o--|| MarketComparables : "references"
-    AppraisalComparables ||--o{ ComparableAdjustments : "has adjustments"
-
-    %% Market Comparables (Template System)
-    MarketComparableTemplates ||--o{ MarketComparableTemplateFactors : "has factors"
-    MarketComparableTemplateFactors }o--|| MarketComparableFactors : "uses factor"
-    MarketComparables }o--o| MarketComparableTemplates : "uses template (optional)"
-    MarketComparables ||--o{ MarketComparableData : "has data"
-    MarketComparableData }o--|| MarketComparableFactors : "for factor"
-    MarketComparables ||--o{ MarketComparableImages : "has images"
-
-    %% Pricing Analysis
-    PricingAnalysis ||--o{ PricingAnalysisApproaches : "has approaches"
-    PricingAnalysisApproaches ||--o{ PricingAnalysisMethods : "has methods"
-    PricingAnalysisMethods ||--o{ PricingComparableLinks : "links comparables"
-    PricingComparableLinks }o--|| MarketComparables : "uses comparable"
-    PricingAnalysisMethods ||--o{ PricingCalculations : "has calculations"
-    PricingAnalysis ||--o| PricingFinalValues : "has final value"
-
-    %% Quotation Workflow
-    QuotationRequest ||--o{ QuotationRequestItem : "contains items"
-    QuotationRequestItem }o--|| Appraisal : "references appraisal"
-    QuotationRequest ||--o{ QuotationInvitation : "invites companies"
-    QuotationInvitation ||--o| CompanyQuotation : "receives quotation"
-    CompanyQuotation ||--o{ CompanyQuotationItem : "itemized pricing"
-    CompanyQuotationItem }o--|| QuotationRequestItem : "responds to"
-    CompanyQuotationItem ||--o{ QuotationNegotiation : "has negotiations"
-
-    %% Assignment Links
     AppraisalAssignment }o--o| AutoAssignmentRules : "matched rule (optional)"
     AppraisalAssignment }o--o| QuotationRequestItem : "from RFQ item (optional)"
 
-    %% Photo Gallery → Property Mapping (polymorphic)
-    AppraisalGallery ||--o{ PropertyPhotoMapping : "maps to sections"
-
-    %% Review & Committee
-    AppraisalReview }o--o| Committees : "by committee (optional)"
-    Committees ||--o{ CommitteeMembers : "has members"
-    Committees ||--o{ CommitteeApprovalConditions : "has conditions"
-    AppraisalReview ||--o{ CommitteeVotes : "has votes"
-
-    %% Cross-module references
-    AppraisalGallery }o--|| Document : "references"
-    QuotationInvitation }o--|| AppraisalCompany : "invites"
-
-    %% =====================================================
-    %% CROSS-MODULE REFERENCES (simple boxes)
-    %% =====================================================
-    Request["Request (Request Module)"]
-    Document["Document (Document Module)"]
-    AppraisalCompany["AppraisalCompany (System Module)"]
-
-    %% =====================================================
-    %% ENTITY DEFINITIONS WITH DDD CLASSIFICATION
-    %% [AR] = Aggregate Root, [E] = Entity
-    %% =====================================================
-
+    %% Entity definitions
     Appraisal["[AR] Appraisal"] {
         guid Id PK
         string AppraisalNumber UK
@@ -291,10 +205,63 @@ erDiagram
         int SequenceInGroup "Order within group"
     }
 
-    %% =====================================================
-    %% PROPERTY DETAIL TABLES [E] (1:1 with AppraisalProperties)
-    %% =====================================================
+    AppraisalAssignment["[E] AppraisalAssignment"] {
+        guid Id PK
+        guid AppraisalId FK
+        string AssignmentType "Initial, Reassignment"
+        string AssignmentMode "Internal, External"
+        string AssignmentStatus "Assigned, InProgress, Completed"
+        string AssignmentSource "Manual, AutoRule, Quotation"
+        int ProgressPercent
+        guid PreviousAssignmentId "Reassignment chain"
+    }
 
+    AutoAssignmentRules["[E] AutoAssignmentRules"] {
+        guid Id PK
+        string RuleName
+        int Priority
+        string PropertyTypes "JSON array"
+        string Provinces "JSON array"
+        string AssignmentMode "Internal, ExternalPanel, ExternalQuotation"
+        bool IsActive
+    }
+
+    AppraisalSettings["[E] AppraisalSettings"] {
+        guid Id PK
+        string SettingKey UK
+        string SettingValue
+        string Description
+    }
+```
+
+---
+
+### Diagram 2: Property Detail Types & Extensions
+
+Each `AppraisalProperties` row links to exactly one property-type-specific detail table (1:0..1). Some detail types have child tables for titles, depreciation, surfaces, or area breakdowns.
+
+```mermaid
+erDiagram
+    %% Cross-reference
+    AppraisalProperties["AppraisalProperties (Appraisal Core)"]
+
+    %% Relationships
+    AppraisalProperties ||--o| LandAppraisalDetail : "type=Land"
+    AppraisalProperties ||--o| BuildingAppraisalDetail : "type=Building"
+    AppraisalProperties ||--o| LandAndBuildingAppraisalDetail : "type=LandAndBuilding"
+    AppraisalProperties ||--o| CondoAppraisalDetail : "type=Condo"
+    AppraisalProperties ||--o| VehicleAppraisalDetail : "type=Vehicle"
+    AppraisalProperties ||--o| VesselAppraisalDetail : "type=Vessel"
+    AppraisalProperties ||--o| MachineryAppraisalDetail : "type=Machinery"
+    LandAppraisalDetail ||--o{ LandTitles : "has titles"
+    BuildingAppraisalDetail ||--o{ BuildingDepreciationDetails : "has depreciation"
+    BuildingAppraisalDetail ||--o{ BuildingAppraisalSurfaces : "has surfaces"
+    LandAndBuildingAppraisalDetail ||--o{ LandTitles : "has titles"
+    LandAndBuildingAppraisalDetail ||--o{ BuildingDepreciationDetails : "has depreciation"
+    LandAndBuildingAppraisalDetail ||--o{ BuildingAppraisalSurfaces : "has surfaces"
+    CondoAppraisalDetail ||--o{ CondoAppraisalAreaDetails : "has areas"
+
+    %% Entity definitions
     LandAppraisalDetail["[E] LandAppraisalDetail"] {
         guid Id PK
         guid AppraisalPropertyId FK "1:1"
@@ -380,42 +347,74 @@ erDiagram
         string Remark "...31 fields in SQL schema"
     }
 
-    %% =====================================================
-    %% ASSIGNMENT & WORKFLOW [E]
-    %% =====================================================
-
-    AppraisalAssignment["[E] AppraisalAssignment"] {
+    LandTitles["[E] LandTitles"] {
         guid Id PK
-        guid AppraisalId FK
-        string AssignmentType "Initial, Reassignment"
-        string AssignmentMode "Internal, External"
-        string AssignmentStatus "Assigned, InProgress, Completed"
-        string AssignmentSource "Manual, AutoRule, Quotation"
-        int ProgressPercent
-        guid PreviousAssignmentId "Reassignment chain"
+        guid LandAppraisalDetailId FK
+        int TitleSequence "1, 2, 3..."
+        string TitleDeedType "Chanote, NorSor3Gor"
+        string TitleDeedNumber
+        string LandNumber
+        decimal AreaRai
+        decimal AreaNgan
+        decimal AreaSqWa
+        string Province
+        string District
     }
 
-    AutoAssignmentRules["[E] AutoAssignmentRules"] {
+    BuildingDepreciationDetails["[E] BuildingDepreciationDetails"] {
         guid Id PK
-        string RuleName
-        int Priority
-        string PropertyTypes "JSON array"
-        string Provinces "JSON array"
-        string AssignmentMode "Internal, ExternalPanel, ExternalQuotation"
-        bool IsActive
+        guid BuildingAppraisalDetailId FK
+        string DepreciationMethod "StraightLine, DecliningBalance"
+        int TotalUsefulLife
+        int RemainingLife
+        decimal ConstructionCost
+        decimal DepreciationRate
+        decimal AccumulatedDepreciation
+        decimal CurrentValue
     }
 
-    AppraisalSettings["[E] AppraisalSettings"] {
+    BuildingAppraisalSurfaces["[E] BuildingAppraisalSurfaces"] {
         guid Id PK
-        string SettingKey UK
-        string SettingValue
-        string Description
+        guid BuildingAppraisalDetailId FK
+        int FromFloorNo
+        int ToFloorNo
+        string FloorType "Normal, Mezzanine, Rooftop"
+        string FloorStructure "KSL, Wood, SmartBoard"
+        string FloorSurface "Granite, Tiles, Wood"
     }
 
-    %% =====================================================
-    %% VALUATION & COMPARABLES
-    %% =====================================================
+    CondoAppraisalAreaDetails["[E] CondoAppraisalAreaDetails"] {
+        guid Id PK
+        guid CondoAppraisalDetailId FK
+        string AreaDescription "Balcony, Living Room"
+        decimal AreaSize
+    }
+```
 
+---
+
+### Diagram 3: Valuation & Comparables
+
+Valuation analysis aggregates group-level values and links to market comparables with per-comparable adjustments. See the [Pricing Analysis Deep-Dive](#pricing-analysis-system) for the full pricing hierarchy.
+
+```mermaid
+erDiagram
+    %% Cross-references
+    Appraisal["Appraisal (Aggregate Root)"]
+    PropertyGroups["PropertyGroups (Appraisal Core)"]
+    MarketComparables["MarketComparables (MarketComparable Aggregate)"]
+    PricingAnalysis["PricingAnalysis (see Pricing Deep-Dive)"]
+
+    %% Relationships
+    Appraisal ||--o| ValuationAnalysis : "has one"
+    Appraisal ||--o| PricingAnalysis : "has pricing"
+    ValuationAnalysis ||--o{ GroupValuations : "has group values"
+    GroupValuations }o--|| PropertyGroups : "values group"
+    Appraisal ||--o{ AppraisalComparables : "uses comparables"
+    AppraisalComparables }o--|| MarketComparables : "references"
+    AppraisalComparables ||--o{ ComparableAdjustments : "has adjustments"
+
+    %% Entity definitions
     ValuationAnalysis["[E] ValuationAnalysis"] {
         guid Id PK
         guid AppraisalId FK
@@ -436,24 +435,6 @@ erDiagram
         decimal ValuationWeight
     }
 
-    MarketComparables["[AR] MarketComparables"] {
-        guid Id PK
-        string ComparableNumber UK
-        guid TemplateId FK "Optional template"
-        string PropertyType
-        string Province
-        string Address
-        date SurveyDate
-        date TransactionDate
-        decimal TransactionPrice
-        decimal PricePerUnit
-        decimal Latitude
-        decimal Longitude
-        string Source "Historical, NewSurvey"
-        string Status "Active, Expired, Flagged"
-        bool IsVerified
-    }
-
     AppraisalComparables["[E] AppraisalComparables"] {
         guid Id PK
         guid ValuationAnalysisId FK
@@ -472,11 +453,26 @@ erDiagram
         decimal AdjustmentPercent
         string Justification
     }
+```
 
-    %% =====================================================
-    %% REVIEW & COMMITTEE
-    %% =====================================================
+---
 
+### Diagram 4: Review & Committee Voting
+
+Multi-level review workflow (Checker -> Verifier -> Committee) with committee voting records.
+
+```mermaid
+erDiagram
+    %% Cross-references
+    Appraisal["Appraisal (Aggregate Root)"]
+    Committees["Committees (Committee Aggregate)"]
+
+    %% Relationships
+    Appraisal ||--o{ AppraisalReview : "has reviews"
+    AppraisalReview }o--o| Committees : "by committee (optional)"
+    AppraisalReview ||--o{ CommitteeVotes : "has votes"
+
+    %% Entity definitions
     AppraisalReview["[E] AppraisalReview"] {
         guid Id PK
         guid AppraisalId FK
@@ -488,6 +484,146 @@ erDiagram
         int VotesReject
     }
 
+    CommitteeVotes["[E] CommitteeVotes"] {
+        guid Id PK
+        guid ReviewId FK
+        guid CommitteeMemberId FK
+        string Vote "Approve, Reject, Abstain"
+        datetime VotedAt
+        string Comments
+    }
+```
+
+---
+
+### Diagram 5: Supporting Entities -- Appointments, Fees, Gallery & Law
+
+Appointment scheduling, fee tracking (3-table structure), photo gallery with property mapping, and legal/regulatory info.
+
+```mermaid
+erDiagram
+    %% Cross-references
+    Appraisal["Appraisal (Aggregate Root)"]
+    Document["Document (Document Module)"]
+
+    %% Relationships
+    Appraisal ||--o{ Appointments : "has appointments"
+    Appointments ||--o{ AppointmentHistory : "has history"
+    Appraisal ||--o{ AppraisalFees : "has fees"
+    AppraisalFees ||--o{ AppraisalFeeItems : "has items"
+    AppraisalFees ||--o{ AppraisalFeePaymentHistory : "has payments"
+    Appraisal ||--o{ AppraisalGallery : "has photos"
+    AppraisalGallery ||--o{ PropertyPhotoMapping : "maps to sections"
+    AppraisalGallery }o--|| Document : "references"
+    Appraisal ||--o{ LawAndRegulations : "has regulations"
+    LawAndRegulations ||--o{ LawAndRegulationImages : "has images"
+
+    %% Entity definitions
+    Appointments["[E] Appointments"] {
+        guid Id PK
+        guid AppraisalId FK
+        datetime ScheduledDate
+        string TimeSlot "Morning, Afternoon"
+        string Status "Scheduled, Completed, Cancelled"
+        string ContactPerson
+        string ContactPhone
+        string Location
+    }
+
+    AppointmentHistory["[E] AppointmentHistory"] {
+        guid Id PK
+        guid AppointmentId FK
+        datetime PreviousDate
+        datetime NewDate
+        string ChangeReason
+        datetime ChangedAt
+        guid ChangedBy
+    }
+
+    AppraisalFees["[E] AppraisalFees"] {
+        guid Id PK
+        guid AppraisalId FK
+        guid AssignmentId FK "Optional"
+        string FeeType "AppraisalFee, TravelExpense"
+        string FeeCategory "Internal, External"
+        decimal Amount
+        decimal VATAmount
+        decimal NetAmount
+        string PaymentStatus "Pending, Invoiced, Paid"
+    }
+
+    AppraisalFeeItems["[E] AppraisalFeeItems"] {
+        guid Id PK
+        guid AppraisalFeeId FK
+        string ItemType "AppraisalFee, Travel, Urgent"
+        string Description
+        decimal Amount
+        decimal VATAmount
+        decimal NetAmount
+    }
+
+    AppraisalFeePaymentHistory["[E] AppraisalFeePaymentHistory"] {
+        guid Id PK
+        guid AppraisalFeeItemId FK
+        decimal PaidAmount
+        date PaymentDate
+        string PaymentMethod "Transfer, Cash, Check"
+        string PaymentReference
+        string Status "Pending, Paid, Refunded"
+    }
+
+    AppraisalGallery["[E] AppraisalGallery"] {
+        guid Id PK
+        guid AppraisalId FK
+        guid DocumentId "Reference to Document module"
+        int PhotoNumber
+        string PhotoType "Exterior, Interior, Land, Defect"
+        string Caption
+        bool IsUsedInReport
+    }
+
+    PropertyPhotoMapping["[E] PropertyPhotoMapping"] {
+        guid Id PK
+        guid GalleryPhotoId FK
+        guid AppraisalPropertyId FK
+        string PhotoPurpose "Evidence, Condition, Boundary"
+        string SectionReference
+        int SequenceNumber
+    }
+
+    LawAndRegulations["[E] LawAndRegulations"] {
+        guid Id PK
+        guid AppraisalId FK
+        string HeaderCode
+        string Remark
+    }
+
+    LawAndRegulationImages["[E] LawAndRegulationImages"] {
+        guid Id PK
+        guid LawAndRegulationId FK
+        guid DocumentId "Ref to Document module"
+        int SequenceNumber
+        string Caption
+    }
+```
+
+---
+
+### Diagram 6: Committee Aggregate
+
+Independent aggregate managing committee definitions, membership, and approval conditions. Referenced by `AppraisalReview` for committee-level reviews.
+
+```mermaid
+erDiagram
+    %% Cross-reference
+    AppraisalReview["AppraisalReview (Appraisal Aggregate)"]
+
+    %% Relationships
+    Committees ||--o{ CommitteeMembers : "has members"
+    Committees ||--o{ CommitteeApprovalConditions : "has conditions"
+    AppraisalReview }o--o| Committees : "by committee (optional)"
+
+    %% Entity definitions
     Committees["[AR] Committees"] {
         guid Id PK
         string CommitteeName
@@ -513,59 +649,118 @@ erDiagram
         string RoleRequired
         int MinVotesRequired
     }
+```
 
-    CommitteeVotes["[E] CommitteeVotes"] {
+---
+
+### Diagram 7: MarketComparable Aggregate
+
+Bank-wide shared database of verified market transactions. Uses an EAV template system for dynamic/configurable factor data.
+
+```mermaid
+erDiagram
+    %% Cross-references
+    AppraisalComparables["AppraisalComparables (Appraisal Aggregate)"]
+    Document["Document (Document Module)"]
+
+    %% Relationships
+    AppraisalComparables }o--|| MarketComparables : "references"
+    MarketComparableTemplates ||--o{ MarketComparableTemplateFactors : "has factors"
+    MarketComparableTemplateFactors }o--|| MarketComparableFactors : "uses factor"
+    MarketComparables }o--o| MarketComparableTemplates : "uses template (optional)"
+    MarketComparables ||--o{ MarketComparableData : "has data"
+    MarketComparableData }o--|| MarketComparableFactors : "for factor"
+    MarketComparables ||--o{ MarketComparableImages : "has images"
+    MarketComparableImages }o--|| Document : "references"
+
+    %% Entity definitions
+    MarketComparables["[AR] MarketComparables"] {
         guid Id PK
-        guid ReviewId FK
-        guid CommitteeMemberId FK
-        string Vote "Approve, Reject, Abstain"
-        datetime VotedAt
-        string Comments
+        string ComparableNumber UK
+        guid TemplateId FK "Optional template"
+        string PropertyType
+        string Province
+        string Address
+        date SurveyDate
+        date TransactionDate
+        decimal TransactionPrice
+        decimal PricePerUnit
+        decimal Latitude
+        decimal Longitude
+        string Source "Historical, NewSurvey"
+        string Status "Active, Expired, Flagged"
+        bool IsVerified
     }
 
-    %% =====================================================
-    %% FEES [E]
-    %% =====================================================
-
-    AppraisalFees["[E] AppraisalFees"] {
+    MarketComparableTemplates["[E] MarketComparableTemplates"] {
         guid Id PK
-        guid AppraisalId FK
-        guid AssignmentId FK "Optional"
-        string FeeType "AppraisalFee, TravelExpense"
-        string FeeCategory "Internal, External"
-        decimal Amount
-        decimal VATAmount
-        decimal NetAmount
-        string PaymentStatus "Pending, Invoiced, Paid"
+        string TemplateCode UK
+        string TemplateName
+        string PropertyType "Land, Building, Condo"
+        string Description
+        bool IsActive
     }
 
-    %% =====================================================
-    %% PHOTO GALLERY [E]
-    %% =====================================================
-
-    AppraisalGallery["[E] AppraisalGallery"] {
+    MarketComparableFactors["[E] MarketComparableFactors"] {
         guid Id PK
-        guid AppraisalId FK
-        guid DocumentId "Reference to Document module"
-        int PhotoNumber
-        string PhotoType "Exterior, Interior, Land, Defect"
-        string Caption
-        bool IsUsedInReport
+        string FactorCode UK
+        string FactorName
+        string FactorCategory "Location, Physical, Legal"
+        string DataType "Text, Number, Dropdown"
+        string DropdownOptions "JSON array"
+        bool IsActive
     }
 
-    PropertyPhotoMapping["[E] PropertyPhotoMapping"] {
+    MarketComparableTemplateFactors["[E] MarketComparableTemplateFactors"] {
         guid Id PK
-        guid GalleryPhotoId FK
-        guid AppraisalPropertyId FK
-        string PhotoPurpose "Evidence, Condition, Boundary"
-        string SectionReference
+        guid TemplateId FK
+        guid FactorId FK
+        int DisplayOrder
+        bool IsRequired
+        bool IsActive
+    }
+
+    MarketComparableData["[E] MarketComparableData"] {
+        guid Id PK
+        guid MarketComparableId FK
+        guid FactorId FK
+        string FactorValue
+        string Notes
+    }
+
+    MarketComparableImages["[E] MarketComparableImages"] {
+        guid Id PK
+        guid MarketComparableId FK
+        guid DocumentId "Ref to Document module"
+        string ImageType "Survey, Evidence"
         int SequenceNumber
+        string Caption
     }
+```
 
-    %% =====================================================
-    %% QUOTATION WORKFLOW
-    %% =====================================================
+---
 
+### Diagram 8: QuotationRequest Aggregate
+
+Optional RFQ (Request for Quotation) workflow for external appraisal assignments. Manages invitations, company submissions, and price negotiations.
+
+```mermaid
+erDiagram
+    %% Cross-references
+    Appraisal["Appraisal (Appraisal Aggregate)"]
+    AppraisalCompany["AppraisalCompany (System Module)"]
+
+    %% Relationships
+    QuotationRequest ||--o{ QuotationRequestItem : "contains items"
+    QuotationRequestItem }o--|| Appraisal : "references appraisal"
+    QuotationRequest ||--o{ QuotationInvitation : "invites companies"
+    QuotationInvitation }o--|| AppraisalCompany : "invites"
+    QuotationInvitation ||--o| CompanyQuotation : "receives quotation"
+    CompanyQuotation ||--o{ CompanyQuotationItem : "itemized pricing"
+    CompanyQuotationItem }o--|| QuotationRequestItem : "responds to"
+    CompanyQuotationItem ||--o{ QuotationNegotiation : "has negotiations"
+
+    %% Entity definitions
     QuotationRequest["[AR] QuotationRequest"] {
         guid Id PK
         string QuotationNumber UK
@@ -612,237 +807,23 @@ erDiagram
         decimal ProposedPrice
         string Status "Pending, Accepted, Rejected"
     }
-
-    %% =====================================================
-    %% APPOINTMENT TABLES [E]
-    %% =====================================================
-
-    Appointments["[E] Appointments"] {
-        guid Id PK
-        guid AppraisalId FK
-        datetime ScheduledDate
-        string TimeSlot "Morning, Afternoon"
-        string Status "Scheduled, Completed, Cancelled"
-        string ContactPerson
-        string ContactPhone
-        string Location
-    }
-
-    AppointmentHistory["[E] AppointmentHistory"] {
-        guid Id PK
-        guid AppointmentId FK
-        datetime PreviousDate
-        datetime NewDate
-        string ChangeReason
-        datetime ChangedAt
-        guid ChangedBy
-    }
-
-    %% =====================================================
-    %% FEE STRUCTURE [E] (3-table design)
-    %% =====================================================
-
-    AppraisalFeeItems["[E] AppraisalFeeItems"] {
-        guid Id PK
-        guid AppraisalFeeId FK
-        string ItemType "AppraisalFee, Travel, Urgent"
-        string Description
-        decimal Amount
-        decimal VATAmount
-        decimal NetAmount
-    }
-
-    AppraisalFeePaymentHistory["[E] AppraisalFeePaymentHistory"] {
-        guid Id PK
-        guid AppraisalFeeItemId FK
-        decimal PaidAmount
-        date PaymentDate
-        string PaymentMethod "Transfer, Cash, Check"
-        string PaymentReference
-        string Status "Pending, Paid, Refunded"
-    }
-
-    %% =====================================================
-    %% PROPERTY DETAIL EXTENSIONS [E]
-    %% =====================================================
-
-    LandTitles["[E] LandTitles"] {
-        guid Id PK
-        guid LandAppraisalDetailId FK
-        int TitleSequence "1, 2, 3..."
-        string TitleDeedType "Chanote, NorSor3Gor"
-        string TitleDeedNumber
-        string LandNumber
-        decimal AreaRai
-        decimal AreaNgan
-        decimal AreaSqWa
-        string Province
-        string District
-    }
-
-    BuildingDepreciationDetails["[E] BuildingDepreciationDetails"] {
-        guid Id PK
-        guid BuildingAppraisalDetailId FK
-        string DepreciationMethod "StraightLine, DecliningBalance"
-        int TotalUsefulLife
-        int RemainingLife
-        decimal ConstructionCost
-        decimal DepreciationRate
-        decimal AccumulatedDepreciation
-        decimal CurrentValue
-    }
-
-    BuildingAppraisalSurfaces["[E] BuildingAppraisalSurfaces"] {
-        guid Id PK
-        guid BuildingAppraisalDetailId FK
-        int FromFloorNo
-        int ToFloorNo
-        string FloorType "Normal, Mezzanine, Rooftop"
-        string FloorStructure "KSL, Wood, SmartBoard"
-        string FloorSurface "Granite, Tiles, Wood"
-    }
-
-    CondoAppraisalAreaDetails["[E] CondoAppraisalAreaDetails"] {
-        guid Id PK
-        guid CondoAppraisalDetailId FK
-        string AreaDescription "Balcony, Living Room"
-        decimal AreaSize
-    }
-
-    LawAndRegulations["[E] LawAndRegulations"] {
-        guid Id PK
-        guid AppraisalId FK
-        string HeaderCode
-        string Remark
-    }
-
-    LawAndRegulationImages["[E] LawAndRegulationImages"] {
-        guid Id PK
-        guid LawAndRegulationId FK
-        guid DocumentId "Ref to Document module"
-        int SequenceNumber
-        string Caption
-    }
-
-    %% =====================================================
-    %% MARKET COMPARABLES TEMPLATE SYSTEM [E]
-    %% =====================================================
-
-    MarketComparableTemplates["[E] MarketComparableTemplates"] {
-        guid Id PK
-        string TemplateCode UK
-        string TemplateName
-        string PropertyType "Land, Building, Condo"
-        string Description
-        bool IsActive
-    }
-
-    MarketComparableFactors["[E] MarketComparableFactors"] {
-        guid Id PK
-        string FactorCode UK
-        string FactorName
-        string FactorCategory "Location, Physical, Legal"
-        string DataType "Text, Number, Dropdown"
-        string DropdownOptions "JSON array"
-        bool IsActive
-    }
-
-    MarketComparableTemplateFactors["[E] MarketComparableTemplateFactors"] {
-        guid Id PK
-        guid TemplateId FK
-        guid FactorId FK
-        int DisplayOrder
-        bool IsRequired
-        bool IsActive
-    }
-
-    MarketComparableData["[E] MarketComparableData"] {
-        guid Id PK
-        guid MarketComparableId FK
-        guid FactorId FK
-        string FactorValue
-        string Notes
-    }
-
-    MarketComparableImages["[E] MarketComparableImages"] {
-        guid Id PK
-        guid MarketComparableId FK
-        guid DocumentId "Ref to Document module"
-        string ImageType "Survey, Evidence"
-        int SequenceNumber
-        string Caption
-    }
-
-    %% =====================================================
-    %% PRICING ANALYSIS [E]
-    %% =====================================================
-
-    PricingAnalysis["[E] PricingAnalysis"] {
-        guid Id PK
-        guid AppraisalId FK
-        string Status "Draft, InProgress, Completed"
-        decimal FinalMarketValue
-        decimal FinalAppraisedValue
-        decimal FinalForcedSaleValue
-        date ValuationDate
-    }
-
-    PricingAnalysisApproaches["[E] PricingAnalysisApproaches"] {
-        guid Id PK
-        guid PricingAnalysisId FK
-        string ApproachType "Market, Cost, Income"
-        decimal ApproachValue
-        decimal Weight
-        string Status "Active, Excluded"
-        string ExclusionReason
-    }
-
-    PricingAnalysisMethods["[E] PricingAnalysisMethods"] {
-        guid Id PK
-        guid ApproachId FK
-        string MethodType "WQS, SaleGrid, DirectComparison"
-        string Status "Selected, Alternative"
-        decimal MethodValue
-        decimal ValuePerUnit
-        string UnitType "Sqm, Rai, Unit"
-    }
-
-    PricingComparableLinks["[E] PricingComparableLinks"] {
-        guid Id PK
-        guid MethodId FK
-        guid MarketComparableId FK
-        decimal Weight
-        int SequenceNumber
-    }
-
-    PricingCalculations["[E] PricingCalculations"] {
-        guid Id PK
-        guid MethodId FK
-        string CalculationType "Base, Adjustment, Final"
-        string CalculationStep
-        decimal InputValue
-        decimal OutputValue
-        string Formula
-        int StepOrder
-    }
-
-    PricingFinalValues["[E] PricingFinalValues"] {
-        guid Id PK
-        guid PricingAnalysisId FK
-        string ValueType "MarketValue, AppraisedValue, ForcedSale"
-        decimal Value
-        string Justification
-        date EffectiveDate
-    }
 ```
 
-**Legend:**
-- **||--||** = One-to-One relationship
-- **||--o{** = One-to-Many relationship
-- **}o--||** = Many-to-One relationship
-- **FK** = Foreign Key, **PK** = Primary Key, **UK** = Unique Key
-- **[AR]** = Aggregate Root, **[E]** = Entity
-- **Simple boxes** = Cross-module references (defined in other modules)
+---
+
+### Diagram Summary
+
+| # | Diagram | Full Entities | Cross-Refs | Total Items |
+|---|---------|--------------|------------|-------------|
+| 1 | Core: Properties, Groups & Assignment | 7 | 2 | 9 |
+| 2 | Property Detail Types & Extensions | 11 | 1 | 12 |
+| 3 | Valuation & Comparables | 4 | 4 | 8 |
+| 4 | Review & Committee Voting | 2 | 2 | 4 |
+| 5 | Supporting (Appointments, Fees, Gallery, Law) | 9 | 2 | 11 |
+| 6 | Committee Aggregate | 3 | 1 | 4 |
+| 7 | MarketComparable Aggregate | 6 | 2 | 8 |
+| 8 | QuotationRequest Aggregate | 6 | 2 | 8 |
+| -- | [Pricing Analysis Deep-Dive](#pricing-analysis-system) | 12 | 0 | 12 |
 
 **Key Design Notes:**
 1. **1 Request = 1 Appraisal**: Application-level tracking with SLA for the whole application
@@ -851,15 +832,15 @@ erDiagram
 4. **GroupValuations**: Valuation per group, not per individual property
 5. **PropertyPhotoMapping**: Links photos to specific properties
 6. **Quotation Workflow**: Optional RFQ process for external assignments
-7. **Review Workflow**: Sequential reviews (Checker → Verifier → Committee)
+7. **Review Workflow**: Sequential reviews (Checker -> Verifier -> Committee)
 8. **Market Comparables**: Centralized bank-wide database of verified market transactions
 9. **Cross-Module References**: RequestId, DocumentId, CompanyId stored without FK constraints
 10. **Appointments**: Scheduling with full reschedule history for audit trail
-11. **Fee 3-Table Structure**: AppraisalFees (summary) → AppraisalFeeItems (line items) → AppraisalFeePaymentHistory (payments)
+11. **Fee 3-Table Structure**: AppraisalFees (summary) -> AppraisalFeeItems (line items) -> AppraisalFeePaymentHistory (payments)
 12. **LandTitles**: Multiple title deeds per land (adjacent plots), linked to LandAppraisalDetail or LandAndBuildingAppraisalDetail
 13. **BuildingDepreciationDetails**: Detailed depreciation calculations with multiple methods (StraightLine, DecliningBalance, AgeLife)
-14. **Market Comparables Template System**: Dynamic/configurable comparables using EAV pattern (Template → TemplateFactor → Factor → Data). Supports both historical data and new surveys.
-15. **Pricing Analysis**: Hierarchical structure (PricingAnalysis → Approach → Method → Calculation → FinalValue) supporting WQS, SaleGrid, DirectComparison methods
+14. **Market Comparables Template System**: Dynamic/configurable comparables using EAV pattern (Template -> TemplateFactor -> Factor -> Data)
+15. **Pricing Analysis**: See [Pricing Analysis Deep-Dive](#pricing-analysis-system) for the full hierarchy (PricingAnalysis -> Approach -> Method -> Calculation -> FinalValue)
 
 ## Core Tables
 
@@ -1192,31 +1173,32 @@ Current appointment details for property survey visits.
 CREATE TABLE appraisal.Appointments
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalId             UNIQUEIDENTIFIER NOT NULL,
+    AssignmentId            UNIQUEIDENTIFIER NOT NULL,
 
     -- Appointment Details
-    AppointmentDate         DATETIME2 NOT NULL,
+    AppointmentDateTime     DATETIME2 NOT NULL,
+    ProposedDate            DATETIME2 NULL,
     LocationDetail          NVARCHAR(MAX) NULL,                      -- Remarks/directions
     Latitude                DECIMAL(9,6) NULL,
     Longitude               DECIMAL(9,6) NULL,
 
     -- Status
-    Status                  NVARCHAR(20) NOT NULL DEFAULT 'Pending', -- Pending, Approved, Completed, Cancelled
+    Status                  NVARCHAR(20) NOT NULL DEFAULT 'Appointed', -- Appointed, PendingApproval, Completed, Cancelled
     ActionDate              DATETIME2 NULL,                          -- Date status changed
+    Reason                  NVARCHAR(4000) NULL,
+
+    -- Approval (reschedule only)
+    ApprovedBy              UNIQUEIDENTIFIER NULL,
+    ApprovedAt              DATETIME2 NULL,
+    RescheduleCount         INT NOT NULL DEFAULT 0,                  -- For UI badge
 
     -- Contact Person
     AppointedBy             UNIQUEIDENTIFIER NOT NULL,               -- User who scheduled
     ContactPerson           NVARCHAR(200) NULL,                      -- Customer contact name
     ContactPhone            NVARCHAR(50) NULL,
 
-    -- Audit
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
-
-    CONSTRAINT FK_Appointment_Appraisal FOREIGN KEY (AppraisalId)
-        REFERENCES appraisal.Appraisals(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_Appointment_Assignment FOREIGN KEY (AssignmentId)
+       REFERENCES appraisal.AppraisalAssignments(Id),
     CONSTRAINT CK_Appointment_Status CHECK (Status IN ('Pending', 'Approved', 'Completed', 'Cancelled'))
 );
 ```
@@ -1232,23 +1214,20 @@ CREATE TABLE appraisal.AppointmentHistory
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
     AppointmentId           UNIQUEIDENTIFIER NOT NULL,
-    AppraisalId             UNIQUEIDENTIFIER NOT NULL,
 
     -- Original Values (snapshot at time of change)
-    PreviousAppointmentDate DATETIME2 NOT NULL,
+    PreviousAppointmentDateTime DATETIME2 NOT NULL,
     PreviousStatus          NVARCHAR(20) NOT NULL,
     PreviousLocationDetail  NVARCHAR(MAX) NULL,
 
     -- Change Details
     ChangeType              NVARCHAR(50) NOT NULL,                   -- Rescheduled, Cancelled, StatusChanged
-    ChangeReason            NVARCHAR(500) NULL,
-    ChangedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+    ChangeReason            NVARCHAR(4000) NULL,
+    ChangedAt               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     ChangedBy               UNIQUEIDENTIFIER NOT NULL,
 
     CONSTRAINT FK_AppointmentHistory_Appointment FOREIGN KEY (AppointmentId)
         REFERENCES appraisal.Appointments(Id) ON DELETE CASCADE,
-    CONSTRAINT FK_AppointmentHistory_Appraisal FOREIGN KEY (AppraisalId)
-        REFERENCES appraisal.Appraisals(Id),
     CONSTRAINT CK_AppointmentHistory_ChangeType CHECK (ChangeType IN ('Rescheduled', 'Cancelled', 'StatusChanged'))
 );
 ```
@@ -2750,7 +2729,7 @@ Fee summary for appraisals (aggregated totals from fee items).
 CREATE TABLE appraisal.AppraisalFees
 (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
-    AppraisalId             UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- One fee summary per appraisal
+    AssignmentId            UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- One fee summary per assignment
 
     -- Fee Totals (calculated from FeeItems)
     TotalFeeBeforeVAT       DECIMAL(18,2) NOT NULL DEFAULT 0,
@@ -2769,15 +2748,9 @@ CREATE TABLE appraisal.AppraisalFees
 
     -- InspectionFee
     InspectionFeeAmount     DECIMAL(18,2) NULL,
-    
-    -- Audit
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
 
-    CONSTRAINT FK_AppraisalFee_Appraisal FOREIGN KEY (AppraisalId)
-        REFERENCES appraisal.Appraisals(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_AppraisalFee_Assignment FOREIGN KEY (AssignmentId)
+        REFERENCES appraisal.AppraisalAssignments(Id) ON DELETE CASCADE,
     CONSTRAINT CK_AppraisalFee_PaymentStatus CHECK (PaymentStatus IN ('Pending', 'PartialPaid', 'FullyPaid'))
 );
 ```
@@ -2803,13 +2776,8 @@ CREATE TABLE appraisal.AppraisalFeeItems
     RequiresApproval        BIT NOT NULL DEFAULT 0,
     ApprovalStatus          NVARCHAR(50) NULL,                       -- Pending, Approved, Rejected
     ApprovedBy              UNIQUEIDENTIFIER NULL,
-    ApprovedOn              DATETIME2 NULL,
-
-    -- Audit
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
+    ApprovedAt              DATETIME2 NULL,
+    RejectionReason         NVARCHAR(4000) NULL,
 
     CONSTRAINT FK_FeeItem_AppraisalFee FOREIGN KEY (AppraisalFeeId)
         REFERENCES appraisal.AppraisalFees(Id) ON DELETE CASCADE,
@@ -2836,13 +2804,7 @@ CREATE TABLE appraisal.AppraisalFeePaymentHistory
     PaymentReference        NVARCHAR(100) NULL,                      -- Receipt/reference number
 
     -- Remarks
-    Remarks                 NVARCHAR(500) NULL,
-
-    -- Audit
-    CreatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    CreatedBy               UNIQUEIDENTIFIER NOT NULL,
-    UpdatedOn               DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    UpdatedBy               UNIQUEIDENTIFIER NOT NULL,
+    Remarks                 NVARCHAR(4000) NULL,
 
     CONSTRAINT FK_PaymentHistory_AppraisalFee FOREIGN KEY (AppraisalFeeId)
         REFERENCES appraisal.AppraisalFees(Id) ON DELETE CASCADE

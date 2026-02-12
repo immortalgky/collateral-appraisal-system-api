@@ -29,7 +29,7 @@ public class MarketComparableTemplate : Entity<Guid>
 
         return new MarketComparableTemplate
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             TemplateCode = templateCode.ToUpperInvariant(),
             TemplateName = templateName,
             PropertyType = propertyType,

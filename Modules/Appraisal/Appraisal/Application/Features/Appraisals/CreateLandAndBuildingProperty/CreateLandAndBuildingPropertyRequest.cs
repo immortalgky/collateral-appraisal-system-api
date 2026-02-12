@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+
 namespace Appraisal.Application.Features.Appraisals.CreateLandAndBuildingProperty;
 
 /// <summary>
@@ -161,5 +163,7 @@ public record CreateLandAndBuildingPropertyRequest(
     decimal? ForcedSalePrice = null,
     // Remarks
     string? LandRemark = null,
-    string? BuildingRemark = null
+    string? BuildingRemark = null,
+    // Land Titles
+    List<LandTitleItemRequest>? Titles = null
 );

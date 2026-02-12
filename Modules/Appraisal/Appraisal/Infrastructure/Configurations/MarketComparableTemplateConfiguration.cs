@@ -15,7 +15,7 @@ public class MarketComparableTemplateConfiguration : IEntityTypeConfiguration<Ma
         builder.Property(t => t.Description).HasMaxLength(500);
         builder.Property(t => t.IsActive).IsRequired().HasDefaultValue(true);
 
-        builder.Property(t => t.CreatedOn).IsRequired();
+        builder.Property(t => t.CreatedAt).IsRequired();
         builder.Property(t => t.CreatedBy).IsRequired();
 
         builder.HasIndex(t => t.TemplateCode).IsUnique();
@@ -46,7 +46,7 @@ public class MarketComparableTemplateFactorConfiguration : IEntityTypeConfigurat
         builder.Property(tf => tf.DisplaySequence).IsRequired();
         builder.Property(tf => tf.IsMandatory).IsRequired().HasDefaultValue(false);
 
-        builder.Property(tf => tf.CreatedOn).IsRequired();
+        builder.Property(tf => tf.CreatedAt).IsRequired();
         builder.Property(tf => tf.CreatedBy).IsRequired();
 
         builder.HasIndex(tf => new { tf.TemplateId, tf.FactorId }).IsUnique();

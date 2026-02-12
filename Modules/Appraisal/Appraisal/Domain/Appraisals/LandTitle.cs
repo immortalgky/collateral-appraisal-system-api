@@ -8,8 +8,8 @@ public class LandTitle : Entity<Guid>
     public Guid LandAppraisalDetailId { get; private set; }
 
     // Title Deed Info
-    public string TitleDeedNumber { get; private set; } = default!;
-    public string TitleDeedType { get; private set; } = default!;
+    public string TitleNumber { get; private set; } = default!;
+    public string TitleType { get; private set; } = default!;
     public string? BookNumber { get; private set; }
     public string? PageNumber { get; private set; }
     public string? LandParcelNumber { get; private set; }
@@ -48,8 +48,8 @@ public class LandTitle : Entity<Guid>
         return new LandTitle
         {
             LandAppraisalDetailId = landAppraisalDetailId,
-            TitleDeedNumber = titleDeedNumber,
-            TitleDeedType = titleDeedType
+            TitleNumber = titleDeedNumber,
+            TitleType = titleDeedType
         };
     }
 

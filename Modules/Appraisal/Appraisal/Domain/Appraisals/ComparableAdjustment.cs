@@ -35,7 +35,7 @@ public class ComparableAdjustment : Entity<Guid>
 
         return new ComparableAdjustment
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AppraisalComparableId = appraisalComparableId,
             AdjustmentCategory = adjustmentCategory,
             AdjustmentType = adjustmentType,

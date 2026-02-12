@@ -21,9 +21,9 @@ public class AppraisalProperty : Entity<Guid>
     public VesselAppraisalDetail? VesselDetail { get; private set; }
     public MachineryAppraisalDetail? MachineryDetail { get; private set; }
 
-    // Private constructor for EF Core
     private AppraisalProperty()
     {
+        // For EF Core
     }
 
     // Private constructor for factory
@@ -33,7 +33,7 @@ public class AppraisalProperty : Entity<Guid>
         PropertyType propertyType,
         string? description)
     {
-        //Id = Guid.NewGuid();
+        //Id = Guid.CreateVersion7();
         AppraisalId = appraisalId;
         SequenceNumber = sequenceNumber;
         PropertyType = propertyType;
@@ -110,7 +110,8 @@ public class AppraisalProperty : Entity<Guid>
     public void SetLandAndBuildingDetails(LandAppraisalDetail landDetail, BuildingAppraisalDetail buildingDetail)
     {
         if (PropertyType != PropertyType.LandAndBuilding)
-            throw new InvalidOperationException($"Cannot set land and building details for property type '{PropertyType}'");
+            throw new InvalidOperationException(
+                $"Cannot set land and building details for property type '{PropertyType}'");
 
         LandDetail = landDetail;
         BuildingDetail = buildingDetail;

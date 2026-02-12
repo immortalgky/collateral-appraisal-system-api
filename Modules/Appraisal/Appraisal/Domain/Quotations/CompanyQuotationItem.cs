@@ -43,7 +43,7 @@ public class CompanyQuotationItem : Entity<Guid>
     {
         return new CompanyQuotationItem
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             CompanyQuotationId = companyQuotationId,
             QuotationRequestItemId = quotationRequestItemId,
             AppraisalId = appraisalId,

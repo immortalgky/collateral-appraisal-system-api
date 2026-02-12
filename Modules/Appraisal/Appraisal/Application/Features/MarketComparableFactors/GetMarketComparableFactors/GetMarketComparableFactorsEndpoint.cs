@@ -22,12 +22,12 @@ public class GetMarketComparableFactorsEndpoint : ICarterModule
                 var query = new GetMarketComparableFactorsQuery(activeOnly);
                 var result = await sender.Send(query, cancellationToken);
 
-                return Results.Ok(result.Factors);
+                return Results.Ok(new GetMarketComparableFactorsResponse(result.Factors));
             })
             .WithName("GetMarketComparableFactors")
             .WithSummary("Get all market comparable factors")
             .WithDescription("Retrieves all market comparable factors. Set activeOnly=false to include inactive factors.")
-            .Produces<IReadOnlyList<MarketComparableFactorDto>>(StatusCodes.Status200OK)
+            .Produces<GetMarketComparableFactorsResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithTags("MarketComparableFactors");
     }

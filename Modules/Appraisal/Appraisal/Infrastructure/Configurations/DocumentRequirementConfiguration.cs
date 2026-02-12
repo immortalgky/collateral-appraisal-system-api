@@ -31,7 +31,7 @@ public class DocumentTypeConfiguration : IEntityTypeConfiguration<DocumentType>
             .IsRequired()
             .HasDefaultValue(0);
 
-        builder.Property(d => d.CreatedOn).IsRequired();
+        builder.Property(d => d.CreatedAt).IsRequired();
         builder.Property(d => d.CreatedBy).IsRequired();
 
         // Unique constraint on Code
@@ -74,7 +74,7 @@ public class DocumentRequirementConfiguration : IEntityTypeConfiguration<Documen
         builder.Property(r => r.Notes)
             .HasMaxLength(500);
 
-        builder.Property(r => r.CreatedOn).IsRequired();
+        builder.Property(r => r.CreatedAt).IsRequired();
         builder.Property(r => r.CreatedBy).IsRequired();
 
         // Unique constraint on (DocumentTypeId, CollateralTypeCode)

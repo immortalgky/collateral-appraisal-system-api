@@ -17,7 +17,8 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? BuiltOnTitleNumber { get; private set; }
     public string? CondoRegistrationNumber { get; private set; }
     public string? RoomNumber { get; private set; }
-    public int? FloorNumber { get; private set; }
+    public string? FloorNumber { get; private set; }
+    public int? PhysicalFloorNumber { get; private set; }
     public decimal? UsableArea { get; private set; }
 
     // GPS Coordinates (Value Object)
@@ -116,7 +117,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? builtOnTitleNumber = null,
         string? condoRegistrationNumber = null,
         string? roomNumber = null,
-        int? floorNumber = null,
+        string? floorNumber = null,
         decimal? usableArea = null,
         // Value Objects
         GpsCoordinate? coordinates = null,

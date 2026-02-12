@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.DocumentRequirements.GetDocumentRequirements;
+
+public record GetDocumentRequirementsResponse(IReadOnlyList<DocumentRequirementDto> Requirements);

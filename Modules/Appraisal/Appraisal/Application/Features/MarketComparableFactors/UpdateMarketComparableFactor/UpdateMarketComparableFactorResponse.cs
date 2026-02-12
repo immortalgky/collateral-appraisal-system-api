@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableFactors.UpdateMarketComparableFactor;
+
+public sealed record UpdateMarketComparableFactorResponse(Guid Id);

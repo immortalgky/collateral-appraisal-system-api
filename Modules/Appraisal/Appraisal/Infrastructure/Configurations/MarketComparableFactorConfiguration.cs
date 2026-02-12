@@ -18,7 +18,7 @@ public class MarketComparableFactorConfiguration : IEntityTypeConfiguration<Mark
         builder.Property(f => f.ParameterGroup).HasMaxLength(100);
         builder.Property(f => f.IsActive).IsRequired().HasDefaultValue(true);
 
-        builder.Property(f => f.CreatedOn).IsRequired();
+        builder.Property(f => f.CreatedAt).IsRequired();
         builder.Property(f => f.CreatedBy).IsRequired();
 
         builder.HasIndex(f => f.FactorCode).IsUnique();

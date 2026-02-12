@@ -33,7 +33,7 @@ public class PropertyPhotoMapping : Entity<Guid>
     {
         return new PropertyPhotoMapping
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             GalleryPhotoId = galleryPhotoId,
             PropertyDetailType = propertyDetailType,
             PropertyDetailId = propertyDetailId,

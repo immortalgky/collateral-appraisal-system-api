@@ -61,8 +61,9 @@ public class WorkflowTimerService : BackgroundService
         var resilienceService = scope.ServiceProvider.GetRequiredService<IWorkflowResilienceService>();
 
         // Get due timer bookmarks
-        var dueBookmarks = await bookmarkRepository.GetDueTimerBookmarksAsync(BatchSize, DateTime.UtcNow, cancellationToken);
-        
+        var dueBookmarks =
+            await bookmarkRepository.GetDueTimerBookmarksAsync(BatchSize, DateTime.UtcNow, cancellationToken);
+
         if (!dueBookmarks.Any())
         {
             _logger.LogDebug("No due timer bookmarks to process");
@@ -72,9 +73,7 @@ public class WorkflowTimerService : BackgroundService
         _logger.LogInformation("Processing {Count} due timer bookmarks", dueBookmarks.Count);
 
         foreach (var bookmark in dueBookmarks)
-        {
             await ProcessDueBookmarkAsync(bookmark, outboxRepository, resilienceService, cancellationToken);
-        }
 
         // Note: Individual repositories handle their own SaveChanges in their methods
     }
@@ -87,7 +86,8 @@ public class WorkflowTimerService : BackgroundService
     {
         try
         {
-            _logger.LogDebug("Processing due bookmark {BookmarkId} for workflow {WorkflowInstanceId}, activity {ActivityId}",
+            _logger.LogDebug(
+                "Processing due bookmark {BookmarkId} for workflow {WorkflowInstanceId}, activity {ActivityId}",
                 bookmark.Id, bookmark.WorkflowInstanceId, bookmark.ActivityId);
 
             // Execute with resilience
@@ -100,7 +100,7 @@ public class WorkflowTimerService : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to process due bookmark {BookmarkId}. Will retry on next cycle", 
+            _logger.LogError(ex, "Failed to process due bookmark {BookmarkId}. Will retry on next cycle",
                 bookmark.Id);
         }
     }
@@ -123,7 +123,7 @@ public class WorkflowTimerService : BackgroundService
         };
 
         await outboxRepository.AddAsync(timeoutEvent, cancellationToken);
-        
+
         _logger.LogInformation("Created timeout event for bookmark {BookmarkId} of type {BookmarkType}",
             bookmark.Id, bookmark.Type);
 
@@ -225,9 +225,7 @@ public class WorkflowTimerService : BackgroundService
         _logger.LogInformation("Processing {Count} potentially timed-out workflows", longRunningWorkflows.Count());
 
         foreach (var workflow in longRunningWorkflows)
-        {
             await ProcessWorkflowTimeoutAsync(workflow, outboxRepository, resilienceService, cancellationToken);
-        }
 
         // Note: Individual repositories handle their own SaveChanges in their methods
     }
@@ -240,8 +238,9 @@ public class WorkflowTimerService : BackgroundService
     {
         try
         {
-            _logger.LogWarning("Processing potential timeout for workflow {WorkflowInstanceId} running since {StartedAt}",
-                workflow.Id, workflow.CreatedOn);
+            _logger.LogWarning(
+                "Processing potential timeout for workflow {WorkflowInstanceId} running since {StartedAt}",
+                workflow.Id, workflow.CreatedAt);
 
             await resilienceService.ExecuteWithRetryAsync(
                 async ct => await HandleWorkflowTimeoutAsync(workflow, outboxRepository, ct),
@@ -261,10 +260,7 @@ public class WorkflowTimerService : BackgroundService
         CancellationToken cancellationToken)
     {
         // Check if workflow is still active and should be timed out
-        if (workflow.Status != WorkflowStatus.Running)
-        {
-            return true; // Already handled
-        }
+        if (workflow.Status != WorkflowStatus.Running) return true; // Already handled
 
         // For now, we'll create a warning event rather than automatically suspending
         // In a production system, you might want more sophisticated timeout handling
@@ -273,8 +269,8 @@ public class WorkflowTimerService : BackgroundService
             JsonSerializer.Serialize(new
             {
                 WorkflowInstanceId = workflow.Id,
-                StartedAt = workflow.CreatedOn,
-                RunningDuration = DateTime.UtcNow - workflow.CreatedOn,
+                StartedAt = workflow.CreatedAt,
+                RunningDuration = DateTime.UtcNow - workflow.CreatedAt,
                 CurrentStatus = workflow.Status.ToString(),
                 WarningAt = DateTime.UtcNow
             }),

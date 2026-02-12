@@ -35,7 +35,7 @@ public class AutoAssignmentRule : Entity<Guid>
     {
         return new AutoAssignmentRule
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             RuleName = ruleName,
             Priority = priority,
             AssignmentMode = assignmentMode,

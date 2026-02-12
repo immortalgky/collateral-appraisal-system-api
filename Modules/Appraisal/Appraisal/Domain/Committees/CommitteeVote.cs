@@ -29,7 +29,7 @@ public class CommitteeVote : Entity<Guid>
 
         return new CommitteeVote
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ReviewId = reviewId,
             CommitteeMemberId = committeeMemberId,
             MemberName = memberName,

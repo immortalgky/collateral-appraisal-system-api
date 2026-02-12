@@ -1,4 +1,5 @@
 using Carter;
+using Mapster;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -22,10 +23,11 @@ public class AddFactorToTemplateEndpoint : ICarterModule
                     );
 
                     var result = await sender.Send(command);
-                    return Results.Created($"/comparative-analysis-templates/{id}/factors/{result.TemplateFactorId}", result);
+                    var response = result.Adapt<AddFactorToTemplateResponse>();
+                    return Results.Created($"/comparative-analysis-templates/{id}/factors/{response.TemplateFactorId}", response);
                 })
             .WithName("AddFactorToComparativeAnalysisTemplate")
-            .Produces<AddFactorToTemplateResult>(StatusCodes.Status201Created)
+            .Produces<AddFactorToTemplateResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Add a factor to a template")

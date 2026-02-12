@@ -1,21 +1,25 @@
+using Shared.Data.Extensions;
+
 namespace Request.Infrastructure.Configurations;
 
-public class RequestDocumentConfiguration : IEntityTypeConfiguration<RequestDocument>
+public class RequestDocumentConfiguration
+    : IOwnedEntityConfiguration<Domain.Requests.Request, RequestDocument>
 {
-    public void Configure(EntityTypeBuilder<RequestDocument> builder)
+    public void Configure(OwnedNavigationBuilder<Domain.Requests.Request, RequestDocument> builder)
     {
-        builder.HasKey(p => p.Id);
+        builder.ToTable("RequestDocuments");
+        builder.WithOwner().HasForeignKey(d => d.RequestId);
+        builder.HasKey(d => d.Id);
 
-        builder.Property(p => p.DocumentType).HasMaxLength(10);
-        builder.Property(p => p.FileName).HasMaxLength(255);
-        builder.Property(p => p.Prefix).HasMaxLength(50);
-        builder.Property(p => p.FilePath).HasMaxLength(500);
-        builder.Property(p => p.Source).HasMaxLength(10);
-        builder.Property(p => p.Notes).HasMaxLength(4000);
-        builder.Property(p => p.UploadedBy).HasMaxLength(10);
-        builder.Property(p => p.UploadedByName).HasMaxLength(100);
+        builder.Property(d => d.DocumentType).HasMaxLength(10);
+        builder.Property(d => d.FileName).HasMaxLength(255);
+        builder.Property(d => d.Prefix).HasMaxLength(50);
+        builder.Property(d => d.Notes).HasMaxLength(4000);
+        builder.Property(d => d.FilePath).HasMaxLength(500);
+        builder.Property(d => d.Source).HasMaxLength(10);
+        builder.Property(d => d.UploadedBy).HasMaxLength(10);
+        builder.Property(d => d.UploadedByName).HasMaxLength(100);
 
-        // Unique indexes for duplicate prevention
         builder.HasIndex(d => new { d.RequestId, d.DocumentId })
             .IsUnique()
             .HasFilter("[DocumentId] IS NOT NULL")

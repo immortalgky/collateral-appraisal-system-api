@@ -26,7 +26,7 @@ public class CommitteeApprovalCondition : Entity<Guid>
     {
         return new CommitteeApprovalCondition
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             CommitteeId = committeeId,
             ConditionType = conditionType,
             RoleRequired = roleRequired,

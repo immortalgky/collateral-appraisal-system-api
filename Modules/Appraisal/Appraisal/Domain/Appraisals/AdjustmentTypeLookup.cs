@@ -38,7 +38,7 @@ public class AdjustmentTypeLookup : Entity<Guid>
 
         return new AdjustmentTypeLookup
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             AdjustmentCategory = adjustmentCategory,
             AdjustmentType = adjustmentType,
             Description = description,

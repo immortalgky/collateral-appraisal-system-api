@@ -47,11 +47,11 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
         builder.Property(a => a.IsWithinSLA);
 
         // Audit Fields
-        builder.Property(a => a.CreatedOn)
+        builder.Property(a => a.CreatedAt)
             .IsRequired();
         builder.Property(a => a.CreatedBy)
             .IsRequired();
-        builder.Property(a => a.UpdatedOn);
+        builder.Property(a => a.UpdatedAt);
         builder.Property(a => a.UpdatedBy);
 
         // SoftDelete Value Object
@@ -68,7 +68,10 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
         });
 
         // Navigation to child entities
-        builder.OwnsMany(a => a.Properties, new AppraisalPropertyConfiguration().Configure);
+        builder.HasMany(a => a.Properties)
+            .WithOne()
+            .HasForeignKey(p => p.AppraisalId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.OwnsMany(a => a.Groups, group =>
         {

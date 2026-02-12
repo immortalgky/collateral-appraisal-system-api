@@ -18,7 +18,10 @@ public class AppraisalAssignment : Entity<Guid>
     // External Appraiser Details
     public Guid? ExternalAppraiserId { get; private set; }
     public string? ExternalAppraiserName { get; private set; }
-    public string? ExternalAppraiserLicense { get; private set; }
+
+    // Internal Appraiser Details
+    public Guid? InternalAppraiserId { get; private set; }
+    public string? InternalAppraiserName { get; private set; }
 
     // Assignment Source
     public string AssignmentSource { get; private set; } = null!; // Manual, AutoRule, Quotation
@@ -39,11 +42,13 @@ public class AppraisalAssignment : Entity<Guid>
     public DateTime? StartedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
     public string? RejectionReason { get; private set; }
-    public string? CancellationReason { get; private set; }
 
-    // Private constructor for EF Core
+    public string? CancellationReason { get; private set; }
+    public string? Notes { get; private set; }
+
     private AppraisalAssignment()
     {
+        // For EF Core
     }
 
     // Private constructor for factory
@@ -55,9 +60,10 @@ public class AppraisalAssignment : Entity<Guid>
         string assignmentSource,
         Guid? autoRuleId,
         Guid? previousAssignmentId,
-        int reassignmentNumber)
+        int reassignmentNumber,
+        Guid assignedBy)
     {
-        Id = Guid.NewGuid();
+        Id = Guid.CreateVersion7();
         AppraisalId = appraisalId;
         AssignmentMode = assignmentMode;
         AssigneeUserId = assigneeUserId;
@@ -68,6 +74,7 @@ public class AppraisalAssignment : Entity<Guid>
         ReassignmentNumber = reassignmentNumber;
         AssignmentStatus = AssignmentStatus.Assigned;
         AssignedAt = DateTime.UtcNow;
+        AssignedBy = assignedBy;
         ProgressPercent = 0;
     }
 
@@ -82,16 +89,10 @@ public class AppraisalAssignment : Entity<Guid>
         string assignmentSource = "Manual",
         Guid? autoRuleId = null,
         Guid? previousAssignmentId = null,
-        int reassignmentNumber = 1)
+        int reassignmentNumber = 1,
+        Guid assignedBy = default)
     {
         var mode = AssignmentMode.FromString(assignmentMode);
-
-        // Validate assignee based on mode
-        if (mode == AssignmentMode.Internal && !assigneeUserId.HasValue)
-            throw new ArgumentException("Internal assignment requires assigneeUserId");
-
-        if (mode == AssignmentMode.External && !assigneeCompanyId.HasValue)
-            throw new ArgumentException("External assignment requires assigneeCompanyId");
 
         return new AppraisalAssignment(
             appraisalId,
@@ -101,7 +102,8 @@ public class AppraisalAssignment : Entity<Guid>
             assignmentSource,
             autoRuleId,
             previousAssignmentId,
-            reassignmentNumber);
+            reassignmentNumber,
+            assignedBy);
     }
 
     /// <summary>
@@ -177,7 +179,6 @@ public class AppraisalAssignment : Entity<Guid>
 
         ExternalAppraiserId = appraiserId;
         ExternalAppraiserName = name;
-        ExternalAppraiserLicense = license;
     }
 
     private void ValidateStatus(AssignmentStatus expectedStatus, string action)
