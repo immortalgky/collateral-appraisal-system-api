@@ -23,7 +23,7 @@ public class LandTitle : Entity<Guid>
     public LandArea? Area { get; private set; }
 
     // Boundary & Validation
-    public string? HasBoundaryMarker { get; private set; }
+    public bool? HasBoundaryMarker { get; private set; }
     public string? BoundaryMarkerRemark { get; private set; }
     public bool? IsDocumentValidated { get; private set; }
     public bool? IsMissingFromSurvey { get; private set; }
@@ -64,7 +64,7 @@ public class LandTitle : Entity<Guid>
         string? aerialMapName,
         string? aerialMapNumber,
         LandArea? area,
-        string? hasBoundaryMarker,
+        bool? hasBoundaryMarker,
         string? boundaryMarkerRemark,
         bool? isDocumentValidated,
         bool? isMissingFromSurvey,
