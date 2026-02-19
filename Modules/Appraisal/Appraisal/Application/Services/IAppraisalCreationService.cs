@@ -17,6 +17,7 @@ public interface IAppraisalCreationService
         List<RequestTitleDto> requestTitles,
         AppointmentDto? appointment = null,
         FeeDto? fee = null,
-        Guid? createdBy = null,
+        ContactDto? contact = null,
+        string? createdBy = null,
         CancellationToken cancellationToken = default);
 }

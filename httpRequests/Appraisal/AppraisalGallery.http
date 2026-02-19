@@ -1,0 +1,131 @@
+@appraisalId = 019c6758-d9e3-7d66-b354-7e83aebd60a2
+@photoId = 019C673C-9B34-7FF8-B91B-7AC0FB215706
+@mappingId = REPLACE_WITH_MAPPING_ID
+@documentId = 019C673C-9B34-7FF8-B91B-7AC0FB215706
+@userName = admin
+
+### ===========================================
+### 1. Add Gallery Photo - Minimal
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/gallery
+Content-Type: application/json
+
+{
+  "documentId": "{{documentId}}",
+  "photoType": "Exterior",
+  "uploadedBy": "{{userName}}"
+}
+
+### ===========================================
+### 2. Add Gallery Photo - Full Details
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/gallery
+Content-Type: application/json
+
+{
+  "documentId": "{{documentId}}",
+  "photoType": "Interior",
+  "uploadedBy": "{{userName}}",
+  "photoCategory": "Kitchen",
+  "caption": "Main kitchen area - recently renovated",
+  "latitude": 13.756331,
+  "longitude": 100.501762,
+  "capturedAt": "2026-02-10T09:30:00Z"
+}
+
+### ===========================================
+### 3. Add Gallery Photo - Exterior with GPS
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/gallery
+Content-Type: application/json
+
+{
+  "documentId": "{{documentId}}",
+  "photoType": "Exterior",
+  "uploadedBy": "{{userName}}",
+  "photoCategory": "Front",
+  "caption": "Front view of property from main road",
+  "latitude": 13.756400,
+  "longitude": 100.501800
+}
+
+### ===========================================
+### 4. Get Gallery Photos
+### ===========================================
+GET {{baseUrl}}/appraisals/{{appraisalId}}/gallery
+
+### ===========================================
+### 5. Update Gallery Photo
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/gallery/{{photoId}}
+Content-Type: application/json
+
+{
+  "photoCategory": "Back",
+  "caption": "Updated - rear view of property",
+  "latitude": 13.756350,
+  "longitude": 100.501780,
+  "capturedAt": "2026-02-11T14:00:00Z"
+}
+
+### ===========================================
+### 6. Mark Photo For Report
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/gallery/{{photoId}}/mark-for-report
+Content-Type: application/json
+
+{
+  "reportSection": "Cover"
+}
+
+### ===========================================
+### 7. Unmark Photo From Report
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/gallery/{{photoId}}/unmark-from-report
+
+### ===========================================
+### 8. Link Photo To Property
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/gallery/{{photoId}}/property-links
+Content-Type: application/json
+
+{
+  "appraisalPropertyId": "REPLACE_WITH_APPRAISAL_PROPERTY_ID",
+  "photoPurpose": "Evidence",
+  "sectionReference": "Boundary",
+  "linkedBy": "{{userName}}"
+}
+
+### ===========================================
+### 9. Link Photo To Building Property
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/gallery/{{photoId}}/property-links
+Content-Type: application/json
+
+{
+  "appraisalPropertyId": "REPLACE_WITH_APPRAISAL_PROPERTY_ID",
+  "photoPurpose": "Condition",
+  "sectionReference": "Roof",
+  "linkedBy": "{{userName}}"
+}
+
+### ===========================================
+### 10. Set Property Thumbnail
+### ===========================================
+@propertyId = REPLACE_WITH_APPRAISAL_PROPERTY_ID
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/properties/{{propertyId}}/photos/{{photoId}}/set-thumbnail
+
+### ===========================================
+### 11. Unset Property Thumbnail
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/properties/{{propertyId}}/photos/{{photoId}}/unset-thumbnail
+
+### ===========================================
+### 12. Unlink Photo From Property
+### ===========================================
+DELETE {{baseUrl}}/appraisals/{{appraisalId}}/gallery/property-links/{{mappingId}}
+
+### ===========================================
+### 13. Remove Gallery Photo
+### ===========================================
+DELETE {{baseUrl}}/appraisals/{{appraisalId}}/gallery/{{photoId}}

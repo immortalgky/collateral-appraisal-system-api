@@ -1,3 +1,3 @@
 namespace Appraisal.Application.Features.Appointments.CancelAppointment;
 
-public record CancelAppointmentRequest(Guid ChangedBy, string? Reason = null);
+public record CancelAppointmentRequest(string ChangedBy, string? Reason = null);

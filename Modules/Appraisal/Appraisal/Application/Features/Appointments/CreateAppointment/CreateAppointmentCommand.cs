@@ -6,7 +6,7 @@ public record CreateAppointmentCommand(
     Guid AppraisalId,
     Guid AssignmentId,
     DateTime AppointmentDateTime,
-    Guid AppointedBy,
+    string AppointedBy,
     string? LocationDetail = null,
     string? ContactPerson = null,
     string? ContactPhone = null

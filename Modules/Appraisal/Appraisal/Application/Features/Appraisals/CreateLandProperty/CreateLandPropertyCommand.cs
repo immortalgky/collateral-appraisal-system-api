@@ -103,6 +103,7 @@ public record CreateLandPropertyCommand(
 ) : ICommand<CreateLandPropertyResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
 
 public record LandTitleItemData(
+    Guid? Id,
     string TitleNumber,
     string TitleType,
     string? BookNumber = null,

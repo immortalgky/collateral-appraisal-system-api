@@ -1,7 +1,3 @@
-using Carter;
-using Mapster;
-using MediatR;
-
 namespace Appraisal.Application.Features.Appraisals.GetLandProperty;
 
 public class GetLandPropertyEndpoint : ICarterModule

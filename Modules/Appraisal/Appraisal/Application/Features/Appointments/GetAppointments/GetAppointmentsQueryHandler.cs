@@ -10,10 +10,10 @@ public class GetAppointmentsQueryHandler(ISqlConnectionFactory connectionFactory
         CancellationToken cancellationToken)
     {
         const string sql = """
-            SELECT * FROM appraisal.vw_AppointmentList
-            WHERE AppraisalId = @AppraisalId
-            ORDER BY CreatedOn DESC
-            """;
+                           SELECT * FROM appraisal.vw_AppointmentList
+                           WHERE AppraisalId = @AppraisalId
+                           ORDER BY CreatedAt DESC
+                           """;
 
         var parameters = new DynamicParameters();
         parameters.Add("AppraisalId", query.AppraisalId);

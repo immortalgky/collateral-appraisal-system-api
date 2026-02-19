@@ -20,12 +20,13 @@ SELECT a.Id,
        a.Priority
 FROM appraisal.Appraisals a
          JOIN request.Requests r ON a.RequestId = r.Id
-    CROSS APPLY (
-    SELECT TOP 1 Name FROM request.RequestCustomers WHERE RequestId = r.Id
-) C
-CROSS APPLY (
-    SELECT STRING_AGG(PropertyType, ',') AS PropertyType FROM request.RequestProperties WHERE RequestId = r.Id GROUP BY RequestId
-) P
-LEFT JOIN appraisal.AppraisalAssignments AA
-on AA.AppraisalId = a.Id
+    CROSS APPLY (SELECT TOP 1 Name
+                      FROM request.RequestCustomers
+                      WHERE RequestId = r.Id) C
+         CROSS APPLY (SELECT STRING_AGG(PropertyType, ',') AS PropertyType
+                      FROM request.RequestProperties
+                      WHERE RequestId = r.Id
+                      GROUP BY RequestId) P
+         LEFT JOIN appraisal.AppraisalAssignments AA
+on AA.AppraisalId = a.Id AND AA.AssignmentStatus != 'Rejected' AND AA.AssignmentStatus != 'Cancelled'
     LEFT JOIN appraisal.Appointments ap ON ap.AssignmentId = aa.Id

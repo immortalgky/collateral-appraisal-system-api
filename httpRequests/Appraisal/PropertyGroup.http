@@ -106,24 +106,73 @@ Content-Type: application/json
 }
 
 ### =====================================================
-### 5. REMOVE PROPERTY FROM GROUP
+### 5. MOVE PROPERTY TO ANOTHER GROUP
 ### =====================================================
 
-### 5.1 Remove Property from Group
+### 5.1 Move Property to Another Group (append to end)
+@targetGroupId = B8AA433E-F36B-1410-8965-006F4F934FE1
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/properties/{{propertyId1}}/move-to-group
+Content-Type: application/json
+
+{
+  "targetGroupId": "{{targetGroupId}}"
+}
+
+### 5.2 Move Property to Another Group (insert at position 1)
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/properties/{{propertyId2}}/move-to-group
+Content-Type: application/json
+
+{
+  "targetGroupId": "{{targetGroupId}}",
+  "targetPosition": 1
+}
+
+### =====================================================
+### 6. REORDER PROPERTIES IN GROUP
+### =====================================================
+
+### 6.1 Reorder Properties - Reverse order
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupId}}/reorder-properties
+Content-Type: application/json
+
+{
+  "orderedPropertyIds": [
+    "{{propertyId2}}",
+    "{{propertyId1}}"
+  ]
+}
+
+### 6.2 Reorder Properties - Custom order (3 items)
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupId}}/reorder-properties
+Content-Type: application/json
+
+{
+  "orderedPropertyIds": [
+    "{{propertyId3}}",
+    "{{propertyId1}}",
+    "{{propertyId2}}"
+  ]
+}
+
+### =====================================================
+### 7. REMOVE PROPERTY FROM GROUP
+### =====================================================
+
+### 7.1 Remove Property from Group
 DELETE {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupId}}/properties/{{propertyId3}}
 Content-Type: application/json
 
 ### =====================================================
-### 6. DELETE PROPERTY GROUP
+### 8. DELETE PROPERTY GROUP
 ### =====================================================
 
-### 6.1 Delete Property Group
+### 8.1 Delete Property Group
 @groupIdToDelete = B8AA433E-F36B-1410-8965-006F4F934FE1
 DELETE {{baseUrl}}/appraisals/{{appraisalId}}/property-groups/{{groupIdToDelete}}
 Content-Type: application/json
 
 ### =====================================================
-### 7. WORKFLOW TEST - Complete Flow
+### 9. WORKFLOW TEST - Complete Flow
 ### =====================================================
 
 ### Step 1: Create appraisal first (use CreateAppraisal.http)

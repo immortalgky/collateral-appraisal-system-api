@@ -19,6 +19,7 @@ public class AppraisalFeePaymentHistory : Entity<Guid>
 
     private AppraisalFeePaymentHistory()
     {
+        // For EF Core
     }
 
     public static AppraisalFeePaymentHistory Create(
@@ -31,7 +32,7 @@ public class AppraisalFeePaymentHistory : Entity<Guid>
     {
         return new AppraisalFeePaymentHistory
         {
-            Id = Guid.CreateVersion7(),
+            //Id = Guid.CreateVersion7(),
             AppraisalFeeId = appraisalFeeId,
             PaymentAmount = paymentAmount,
             PaymentDate = paymentDate,
@@ -39,5 +40,11 @@ public class AppraisalFeePaymentHistory : Entity<Guid>
             PaymentReference = paymentReference,
             Remarks = remarks
         };
+    }
+
+    public void Update(decimal paymentAmount, DateTime paymentDate)
+    {
+        PaymentAmount = paymentAmount;
+        PaymentDate = paymentDate;
     }
 }

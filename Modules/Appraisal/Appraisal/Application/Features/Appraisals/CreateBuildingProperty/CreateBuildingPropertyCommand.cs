@@ -5,6 +5,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateBuildingProperty;
 /// </summary>
 public record CreateBuildingPropertyCommand(
     Guid AppraisalId,
+    Guid? GroupId = null,
     // Property Identification
     string? PropertyName = null,
     string? BuildingNumber = null,

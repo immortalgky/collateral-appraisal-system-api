@@ -1,6 +1,5 @@
-using Appraisal.Domain.Appraisals;
-using Appraisal.Domain.Appraisals.Exceptions;
-using Shared.CQRS;
+using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+using Shared.Dtos;
 
 namespace Appraisal.Application.Features.Appraisals.GetLandProperty;
 
@@ -17,12 +16,12 @@ public class GetLandPropertyQueryHandler(
     {
         // 1. Load aggregate root with properties
         var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(
-            query.AppraisalId, cancellationToken)
-            ?? throw new AppraisalNotFoundException(query.AppraisalId);
+                            query.AppraisalId, cancellationToken)
+                        ?? throw new AppraisalNotFoundException(query.AppraisalId);
 
         // 2. Find the property
         var property = appraisal.GetProperty(query.PropertyId)
-            ?? throw new PropertyNotFoundException(query.PropertyId);
+                       ?? throw new PropertyNotFoundException(query.PropertyId);
 
         // 3. Validate property type
         if (property.PropertyType != PropertyType.Land)
@@ -125,7 +124,31 @@ public class GetLandPropertyQueryHandler(
             PondDepth = landDetail?.PondDepth,
             HasBuilding = landDetail?.HasBuilding,
             HasBuildingOther = landDetail?.HasBuildingOther,
-            Remark = landDetail?.Remark
+            Remark = landDetail?.Remark,
+
+            Titles = landDetail?.Titles.Select(title => new LandTitleItemData(
+                title.Id,
+                title.TitleNumber,
+                title.TitleType,
+                title.BookNumber,
+                title.PageNumber,
+                title.LandParcelNumber,
+                title.SurveyNumber,
+                title.MapSheetNumber,
+                title.Rawang,
+                title.AerialMapName,
+                title.AerialMapNumber,
+                title.Area?.Rai,
+                title.Area?.Ngan,
+                title.Area?.SquareWa,
+                title.HasBoundaryMarker,
+                title.BoundaryMarkerRemark,
+                title.IsDocumentValidated,
+                title.IsMissingFromSurvey,
+                title.GovernmentPricePerSqWa,
+                title.GovernmentPrice,
+                title.Remark
+            )).ToList()
         };
     }
 }

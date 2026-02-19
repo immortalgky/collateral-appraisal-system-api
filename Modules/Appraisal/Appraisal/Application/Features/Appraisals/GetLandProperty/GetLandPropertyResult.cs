@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+
 namespace Appraisal.Application.Features.Appraisals.GetLandProperty;
 
 /// <summary>
@@ -54,7 +56,7 @@ public record GetLandPropertyResult
     public string? LandFillTypeOther { get; init; }
     public decimal? LandFillPercent { get; init; }
     public decimal? SoilLevel { get; init; }
-    
+
     // Road Access
     public decimal? AccessRoadWidth { get; init; }
     public short? RightOfWay { get; init; }
@@ -107,12 +109,13 @@ public record GetLandPropertyResult
     public string? WestAdjacentArea { get; init; }
     public decimal? WestBoundaryLength { get; init; }
 
-
-
     // Other
     public decimal? PondArea { get; init; }
     public decimal? PondDepth { get; init; }
     public bool? HasBuilding { get; init; }
     public string? HasBuildingOther { get; init; }
     public string? Remark { get; init; }
+
+    // Land Titles
+    public List<LandTitleItemData>? Titles { get; init; }
 }

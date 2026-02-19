@@ -8,5 +8,6 @@ public record RequestSubmittedIntegrationEvent : IntegrationEvent
     public List<RequestTitleDto> RequestTitles { get; set; } = default!;
     public AppointmentDto? Appointment { get; set; }
     public FeeDto? Fee { get; set; }
-    public Guid? CreatedBy { get; set; }
+    public ContactDto? Contact { get; set; }
+    public string? CreatedBy { get; set; }
 }

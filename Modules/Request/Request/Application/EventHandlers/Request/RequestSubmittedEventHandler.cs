@@ -21,30 +21,26 @@ public class RequestSubmittedEventHandler(
         // Map Appointment data if available
         AppointmentDto? appointmentDto = null;
         if (notification.Request.Detail?.Appointment != null)
-        {
             appointmentDto = new AppointmentDto(
                 notification.Request.Detail.Appointment.AppointmentDateTime,
                 notification.Request.Detail.Appointment.AppointmentLocation);
-        }
 
         // Map Fee data if available
         FeeDto? feeDto = null;
         if (notification.Request.Detail?.Fee != null)
-        {
             feeDto = new FeeDto(
                 notification.Request.Detail.Fee.FeePaymentType,
                 notification.Request.Detail.Fee.FeeNotes,
-                notification.Request.Detail.Fee.AbsorbedAmount);
-        }
+                notification.Request.Detail.Fee.AbsorbedAmount,
+                notification.Request.Detail.LoanDetail?.TotalSellingPrice);
 
-        // Parse CreatedBy from Creator.UserId (with null check for Creator)
-        Guid? createdBy = null;
-        if (notification.Request.Creator != null &&
-            !string.IsNullOrWhiteSpace(notification.Request.Creator.UserId) &&
-            Guid.TryParse(notification.Request.Creator.UserId, out var parsedGuid))
-        {
-            createdBy = parsedGuid;
-        }
+        // Map Contact data if available
+        ContactDto? contactDto = null;
+        if (notification.Request.Detail?.Contact != null)
+            contactDto = new ContactDto(
+                notification.Request.Detail.Contact.ContactPersonName,
+                notification.Request.Detail.Contact.ContactPersonPhone,
+                notification.Request.Detail.Contact.DealerCode);
 
         // Publish integration event
         var integrationEvent = new RequestSubmittedIntegrationEvent
@@ -53,7 +49,8 @@ public class RequestSubmittedEventHandler(
             RequestTitles = requestTitleDtos,
             Appointment = appointmentDto,
             Fee = feeDto,
-            CreatedBy = createdBy
+            Contact = contactDto,
+            CreatedBy = notification.Request.Requestor.UserId
         };
 
         await bus.Publish(integrationEvent, cancellationToken);
@@ -123,6 +120,11 @@ public class RequestSubmittedEventHandler(
                 Rawang = landTitle.LandLocationInfo.Rawang,
                 LandParcelNumber = landTitle.LandLocationInfo.LandParcelNumber,
                 SurveyNumber = landTitle.LandLocationInfo.SurveyNumber,
+                BookNumber = landTitle.LandLocationInfo.BookNumber,
+                PageNumber = landTitle.LandLocationInfo.PageNumber,
+                MapSheetNumber = landTitle.LandLocationInfo.MapSheetNumber,
+                AerialMapName = landTitle.LandLocationInfo.AerialMapName,
+                AerialMapNumber = landTitle.LandLocationInfo.AerialMapNumber,
                 AreaRai = landTitle.LandArea.AreaRai,
                 AreaNgan = landTitle.LandArea.AreaNgan,
                 AreaSquareWa = landTitle.LandArea.AreaSquareWa

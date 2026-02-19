@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+
 namespace Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 
 /// <summary>
@@ -93,6 +95,8 @@ public record UpdateLandAndBuildingPropertyCommand(
     // Other Features
     decimal? PondArea = null,
     decimal? PondDepth = null,
+    // Land Titles
+    List<LandTitleItemData>? Titles = null,
     //=================================
     // Building - Identification
     string? BuildingNumber = null,

@@ -8,23 +8,23 @@ public class AppraisalAssignment : Entity<Guid>
 {
     // Core Properties
     public Guid AppraisalId { get; private set; }
-    public AssignmentMode AssignmentMode { get; private set; } = null!;
+    public AssignmentType AssignmentType { get; private set; } = null!;
     public AssignmentStatus AssignmentStatus { get; private set; } = null!;
 
-    // Assignee (one of these will be set based on mode)
-    public Guid? AssigneeUserId { get; private set; } // For Internal
-    public Guid? AssigneeCompanyId { get; private set; } // For External
+    // Assignee (one of these will be set based on type)
+    public string? AssigneeUserId { get; private set; } // For Internal
+    public string? AssigneeCompanyId { get; private set; } // For External
 
     // External Appraiser Details
-    public Guid? ExternalAppraiserId { get; private set; }
+    public string? ExternalAppraiserId { get; private set; }
     public string? ExternalAppraiserName { get; private set; }
 
     // Internal Appraiser Details
-    public Guid? InternalAppraiserId { get; private set; }
+    public string? InternalAppraiserId { get; private set; }
     public string? InternalAppraiserName { get; private set; }
 
-    // Assignment Source
-    public string AssignmentSource { get; private set; } = null!; // Manual, AutoRule, Quotation
+    // Assignment Method
+    public string AssignmentMethod { get; private set; } = null!; // Manual, AutoRule, Quotation
     public Guid? AutoRuleId { get; private set; }
     public Guid? QuotationRequestId { get; private set; }
 
@@ -38,7 +38,7 @@ public class AppraisalAssignment : Entity<Guid>
 
     // Timestamps
     public DateTime AssignedAt { get; private set; }
-    public Guid AssignedBy { get; private set; }
+    public string AssignedBy { get; private set; } = default!;
     public DateTime? StartedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
     public string? RejectionReason { get; private set; }
@@ -54,25 +54,27 @@ public class AppraisalAssignment : Entity<Guid>
     // Private constructor for factory
     private AppraisalAssignment(
         Guid appraisalId,
-        AssignmentMode assignmentMode,
-        Guid? assigneeUserId,
-        Guid? assigneeCompanyId,
-        string assignmentSource,
+        AssignmentType assignmentType,
+        string? assigneeUserId,
+        string? assigneeCompanyId,
+        string assignmentMethod,
+        string? internalAppraiserId,
         Guid? autoRuleId,
         Guid? previousAssignmentId,
         int reassignmentNumber,
-        Guid assignedBy)
+        string assignedBy)
     {
-        Id = Guid.CreateVersion7();
+        //Id = Guid.CreateVersion7();
         AppraisalId = appraisalId;
-        AssignmentMode = assignmentMode;
+        AssignmentType = assignmentType;
         AssigneeUserId = assigneeUserId;
         AssigneeCompanyId = assigneeCompanyId;
-        AssignmentSource = assignmentSource;
+        AssignmentMethod = assignmentMethod;
+        InternalAppraiserId = internalAppraiserId;
         AutoRuleId = autoRuleId;
         PreviousAssignmentId = previousAssignmentId;
         ReassignmentNumber = reassignmentNumber;
-        AssignmentStatus = AssignmentStatus.Assigned;
+        AssignmentStatus = AssignmentStatus.Pending;
         AssignedAt = DateTime.UtcNow;
         AssignedBy = assignedBy;
         ProgressPercent = 0;
@@ -83,27 +85,58 @@ public class AppraisalAssignment : Entity<Guid>
     /// </summary>
     public static AppraisalAssignment Create(
         Guid appraisalId,
-        string assignmentMode,
-        Guid? assigneeUserId = null,
-        Guid? assigneeCompanyId = null,
-        string assignmentSource = "Manual",
+        string assignmentType,
+        string? assigneeUserId = null,
+        string? assigneeCompanyId = null,
+        string assignmentMethod = "Manual",
+        string? internalAppraiserId = null,
         Guid? autoRuleId = null,
         Guid? previousAssignmentId = null,
         int reassignmentNumber = 1,
-        Guid assignedBy = default)
+        string assignedBy = default)
     {
-        var mode = AssignmentMode.FromString(assignmentMode);
+        var type = AssignmentType.FromString(assignmentType);
 
         return new AppraisalAssignment(
             appraisalId,
-            mode,
+            type,
             assigneeUserId,
             assigneeCompanyId,
-            assignmentSource,
+            assignmentMethod,
+            internalAppraiserId,
             autoRuleId,
             previousAssignmentId,
             reassignmentNumber,
             assignedBy);
+    }
+
+    /// <summary>
+    /// Assign the appraisal to an internal user or external company
+    /// </summary>
+    public void Assign(
+        string assignmentType,
+        string? assigneeUserId = null,
+        string? assigneeCompanyId = null,
+        string assignmentMethod = "Manual",
+        string? internalAppraiserId = null,
+        Guid? autoRuleId = null,
+        Guid? previousAssignmentId = null,
+        int reassignmentNumber = 1,
+        string assignedBy = default
+    )
+    {
+        AssignmentType = AssignmentType.FromString(assignmentType);
+        AssigneeUserId = assigneeUserId;
+        AssigneeCompanyId = assigneeCompanyId;
+        AssignmentMethod = assignmentMethod;
+        InternalAppraiserId = internalAppraiserId;
+        AutoRuleId = autoRuleId;
+        PreviousAssignmentId = previousAssignmentId;
+        ReassignmentNumber = reassignmentNumber;
+        AssignedBy = assignedBy;
+
+        AssignmentStatus = AssignmentStatus.Assigned;
+        AssignedAt = DateTime.UtcNow;
     }
 
     /// <summary>
@@ -172,9 +205,9 @@ public class AppraisalAssignment : Entity<Guid>
     /// <summary>
     /// Set external appraiser details
     /// </summary>
-    public void SetExternalAppraiser(Guid appraiserId, string name, string? license)
+    public void SetExternalAppraiser(string appraiserId, string name, string? license)
     {
-        if (AssignmentMode != AssignmentMode.External)
+        if (AssignmentType != AssignmentType.External)
             throw new InvalidOperationException("Can only set external appraiser for external assignments");
 
         ExternalAppraiserId = appraiserId;

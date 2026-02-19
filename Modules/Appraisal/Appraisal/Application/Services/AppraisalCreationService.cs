@@ -1,4 +1,5 @@
 using Request.Contracts.Requests.Dtos;
+using Shared.Identity;
 
 namespace Appraisal.Application.Services;
 
@@ -10,6 +11,7 @@ public class AppraisalCreationService(
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
     AppraisalDbContext dbContext,
+    ICurrentUserService currentUserService,
     ILogger<AppraisalCreationService> logger) : IAppraisalCreationService
 {
     public async Task<Guid> CreateAppraisalFromRequest(
@@ -17,7 +19,8 @@ public class AppraisalCreationService(
         List<RequestTitleDto> requestTitles,
         AppointmentDto? appointment = null,
         FeeDto? fee = null,
-        Guid? createdBy = null,
+        ContactDto? contact = null,
+        string? createdBy = null,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Creating appraisal from request {RequestId} with {TitleCount} titles",
@@ -35,7 +38,7 @@ public class AppraisalCreationService(
 
         // Step 2: Filter for Land type only (CollateralType == "L")
         var landTitles = requestTitles
-            .Where(t => t.CollateralType is "L" or "LB")
+            .Where(t => t.CollateralType is "L" or "LB" or "U")
             .ToList();
 
         if (!landTitles.Any())
@@ -107,6 +110,21 @@ public class AppraisalCreationService(
 
                 landDetail.AddTitle(title);
 
+                // Populate LandAppraisalDetail with address/owner data from the request title
+                var adminAddress = AdministrativeAddress.Create(
+                    landTitle.TitleAddress?.SubDistrict,
+                    landTitle.TitleAddress?.District,
+                    landTitle.TitleAddress?.Province);
+
+                landDetail.Update(
+                    landTitle.TitleAddress?.ProjectName,
+                    address: adminAddress,
+                    ownerName: landTitle.OwnerName,
+                    street: landTitle.TitleAddress?.Road,
+                    soi: landTitle.TitleAddress?.Soi,
+                    village: landTitle.TitleAddress?.Moo,
+                    addressLocation: landTitle.TitleAddress?.HouseNumber);
+
                 logger.LogInformation("Added land title {TitleDeedNumber} to property {PropertyId}",
                     title.TitleNumber, property.Id);
             }
@@ -132,15 +150,17 @@ public class AppraisalCreationService(
 
             foreach (var property in appraisal.Properties) initialGroup.AddProperty(property.Id);
 
-            var assignment = appraisal.Assign(
-                "Internal",
-                null,
-                null,
-                "Manual",
-                assignedBy: createdBy ?? Guid.Empty);
+            // var assignment = appraisal.Assign(
+            //     "Internal",
+            //     null,
+            //     null,
+            //     "Manual",
+            //     assignedBy: createdBy ?? string.Empty);
+
+            var assignment = appraisal.AssignAdmin();
 
             // Explicitly add assignment via DbSet so EF Core traverses the entity graph
-            // (including OwnsOne value objects like AssignmentMode/AssignmentStatus) and marks
+            // (including OwnsOne value objects like AssignmentType/AssignmentStatus) and marks
             // everything as Added. Without this, DetectChanges discovers the assignment through
             // the aggregate's HasMany collection with a non-sentinel key + ValueGeneratedOnAdd,
             // causing EF Core to assume it already exists (UPDATE instead of INSERT).
@@ -153,27 +173,49 @@ public class AppraisalCreationService(
                 assignment.Id, appraisal.Id);
 
             // Phase 3: Create fee + appointment (both FK to assignment, which now exists in DB)
-            var feeStructures = await dbContext.FeeStructures
-                .Where(fs => fs.IsActive)
+            // Only auto-create the Appraisal Fee (code "01") with amount based on TotalSellingPrice tier.
+            // Other fees (Travel, Urgent) are added manually via the AddFeeItem endpoint.
+            var totalSellingPrice = fee?.TotalSellingPrice ?? 0m;
+
+            var appraisalFeeStructure = await dbContext.FeeStructures
+                .Where(fs => fs.IsActive && fs.FeeCode == "01")
                 .ToListAsync(cancellationToken);
 
-            var appraisalFee = AppraisalFee.Create(assignment.Id);
-            foreach (var fs in feeStructures) appraisalFee.AddItem(fs.FeeCode, fs.FeeName, fs.BaseAmount);
+            var matchedTier = appraisalFeeStructure.FirstOrDefault(fs => fs.IsApplicableFor(totalSellingPrice));
+            if (matchedTier is null)
+            {
+                // Fallback: use highest tier (open-ended MaxSellingPrice)
+                matchedTier = appraisalFeeStructure
+                    .OrderByDescending(fs => fs.MinSellingPrice)
+                    .First();
+                logger.LogWarning(
+                    "No fee tier matched TotalSellingPrice {TotalSellingPrice}. Falling back to highest tier (BaseAmount={BaseAmount})",
+                    totalSellingPrice, matchedTier.BaseAmount);
+            }
+
+            var appraisalFee = AppraisalFee.Create(
+                assignment.Id,
+                fee?.FeePaymentType,
+                fee?.FeeNotes);
+            appraisalFee.AddItem(matchedTier.FeeCode, matchedTier.FeeName, matchedTier.BaseAmount);
 
             if (fee?.AbsorbedAmount is > 0) appraisalFee.SetBankAbsorb(fee.AbsorbedAmount.Value);
 
             dbContext.AppraisalFees.Add(appraisalFee);
 
-            logger.LogInformation("Created fee {FeeId} with {ItemCount} items for assignment {AssignmentId}",
-                appraisalFee.Id, feeStructures.Count, assignment.Id);
+            logger.LogInformation(
+                "Created fee {FeeId} with Appraisal Fee (BaseAmount={BaseAmount}) for assignment {AssignmentId} (TotalSellingPrice={TotalSellingPrice})",
+                appraisalFee.Id, matchedTier.BaseAmount, assignment.Id, totalSellingPrice);
 
             if (appointment?.AppointmentDateTime.HasValue == true)
             {
                 var appt = Appointment.Create(
                     assignment.Id,
                     appointment.AppointmentDateTime.Value,
-                    createdBy ?? Guid.Empty,
-                    appointment.AppointmentLocation);
+                    createdBy ?? "",
+                    appointment.AppointmentLocation,
+                    contact?.ContactPersonName,
+                    contact?.ContactPersonPhone);
 
                 dbContext.Appointments.Add(appt);
 

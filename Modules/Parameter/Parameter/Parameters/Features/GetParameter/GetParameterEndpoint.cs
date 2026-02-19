@@ -1,19 +1,24 @@
 namespace Parameter.Parameters.Features.GetParameter;
 
-public class GetParameterEndpoint : ICarterModule
+public class GetParametersEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/parameter", async ([AsParameters]ParameterDto parameter, ISender sender) =>
+        app.MapGet("/parameters", async ([AsParameters] ParameterDto parameter, ISender sender) =>
         {
-            var query = parameter.Adapt<GetParameterQuery>() with {Parameter = parameter};
+            var query = new GetParametersQuery(parameter);
 
             var result = await sender.Send(query);
 
-            var response = result.Adapt<GetParameterResponse>();
+            var response = result.Adapt<GetParametersResponse>();
 
-            return Results.Ok(response.Parameter);
-        });       
+            return Results.Ok(response.Parameters);
+        })
+        .WithName("GetParameters")
+        .Produces<List<ParameterDto>>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .WithSummary("Get parameters")
+        .WithDescription("Retrieve a list of parameters filtered by group, country, language, code, or active status.")
+        .WithTags("Parameter");
     }
-
 }
