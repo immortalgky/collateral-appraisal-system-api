@@ -3,14 +3,19 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Appraisal.infrastructure.Migrations
+namespace Appraisal.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class MarketComparableStaticField : Migration
+    public partial class MarketComparableRemainOnlyStaticField : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropIndex(
+                name: "IX_MarketComparables_ComparableNumber",
+                schema: "appraisal",
+                table: "MarketComparables");
+
             migrationBuilder.DropIndex(
                 name: "IX_MarketComparables_Province",
                 schema: "appraisal",
@@ -135,11 +140,24 @@ namespace Appraisal.infrastructure.Migrations
                 type: "nvarchar(200)",
                 maxLength: 200,
                 nullable: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MarketComparables_ComparableNumber",
+                schema: "appraisal",
+                table: "MarketComparables",
+                column: "ComparableNumber",
+                unique: true,
+                filter: "[IsDeleted] = 0");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropIndex(
+                name: "IX_MarketComparables_ComparableNumber",
+                schema: "appraisal",
+                table: "MarketComparables");
+
             migrationBuilder.DropColumn(
                 name: "SourceInfo",
                 schema: "appraisal",
@@ -310,6 +328,13 @@ namespace Appraisal.infrastructure.Migrations
                 table: "MarketComparables",
                 type: "uniqueidentifier",
                 nullable: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MarketComparables_ComparableNumber",
+                schema: "appraisal",
+                table: "MarketComparables",
+                column: "ComparableNumber",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_MarketComparables_Province",
