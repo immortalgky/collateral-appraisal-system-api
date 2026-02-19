@@ -1,5 +1,3 @@
-using Mapster;
-
 namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 
 public class AssignAppraisalEndpoint : ICarterModule
@@ -17,11 +15,12 @@ public class AssignAppraisalEndpoint : ICarterModule
                 {
                     var command = new AssignAppraisalCommand(
                         appraisalId,
-                        request.AssignmentMode,
+                        request.AssignmentType,
                         request.AssigneeUserId,
                         request.AssigneeCompanyId,
-                        request.AssignmentSource ?? "Manual",
-                        request.AssignedBy ?? default);
+                        request.AssignmentMethod ?? "Manual",
+                        request.InternalAppraiserId,
+                        request.AssignedBy ?? string.Empty);
 
                     var result = await sender.Send(command, cancellationToken);
 

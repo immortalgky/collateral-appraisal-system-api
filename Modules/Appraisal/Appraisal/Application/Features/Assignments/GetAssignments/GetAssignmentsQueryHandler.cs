@@ -9,11 +9,12 @@ public class GetAssignmentsQueryHandler(ISqlConnectionFactory connectionFactory)
         GetAssignmentsQuery query,
         CancellationToken cancellationToken)
     {
-        const string sql = """
-            SELECT * FROM appraisal.vw_AssignmentList
-            WHERE AppraisalId = @AppraisalId
-            ORDER BY CreatedOn DESC
-            """;
+        var sql = """
+                  SELECT * 
+                  FROM appraisal.vw_Assignment
+                  WHERE AppraisalId = @AppraisalId
+                  ORDER BY CreatedAt DESC
+                  """;
 
         var parameters = new DynamicParameters();
         parameters.Add("AppraisalId", query.AppraisalId);

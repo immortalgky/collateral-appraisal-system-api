@@ -34,11 +34,13 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             sd.Property(p => p.DeletedBy).HasMaxLength(10).HasColumnName("DeletedBy");
         });
 
-        builder.OwnsOne(p => p.Status, status =>
-        {
-            status.Property(p => p.Code).HasMaxLength(10).HasColumnName("Status");
-            status.HasIndex(p => p.Code).HasFilter("[IsDeleted] = 0").HasDatabaseName("IX_Request_Status");
-        });
+        builder.Property(p => p.Status)
+            .HasConversion(
+                v => v.Code,
+                v => RequestStatus.FromString(v)
+            )
+            .HasMaxLength(10)
+            .HasColumnName("Status");
 
         // RequestDetails
         builder.OwnsOne(r => r.Detail, detail =>
@@ -149,5 +151,10 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             .IsDescending(true)
             .HasFilter("[IsDeleted] = 0")
             .HasDatabaseName("IX_Request_RequestedAt");
+
+        builder
+            .HasIndex(p => p.Status)
+            .HasFilter("[IsDeleted] = 0")
+            .HasDatabaseName("IX_Request_Status");
     }
 }

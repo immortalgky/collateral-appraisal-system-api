@@ -1,0 +1,98 @@
+@appraisalId = 019c6758-d9e3-7d66-b354-7e83aebd60a2
+@topicId = REPLACE_WITH_TOPIC_ID
+@photoId = 019C673C-9B34-7FF8-B91B-7AC0FB215706
+@documentId = 019C673C-9B34-7FF8-B91B-7AC0FB215706
+@userName = admin
+
+### ===========================================
+### 1. Create Photo Topic
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/photo-topics
+Content-Type: application/json
+
+{
+  "topicName": "Area in front of the project",
+  "sortOrder": 1,
+  "displayColumns": 2
+}
+
+### ===========================================
+### 2. Create Photo Topic - Single Column
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/photo-topics
+Content-Type: application/json
+
+{
+  "topicName": "Collateral",
+  "sortOrder": 2,
+  "displayColumns": 1
+}
+
+### ===========================================
+### 3. Create Photo Topic - Three Columns
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/photo-topics
+Content-Type: application/json
+
+{
+  "topicName": "Surrounding area",
+  "sortOrder": 3,
+  "displayColumns": 3
+}
+
+### ===========================================
+### 4. Get Photo Topics (with nested photos)
+### ===========================================
+GET {{baseUrl}}/appraisals/{{appraisalId}}/photo-topics
+
+### ===========================================
+### 5. Update Photo Topic
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/photo-topics/{{topicId}}
+Content-Type: application/json
+
+{
+  "topicName": "Updated topic name",
+  "sortOrder": 1,
+  "displayColumns": 3
+}
+
+### ===========================================
+### 6. Assign Photo to Topic
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/gallery/{{photoId}}/assign-topic
+Content-Type: application/json
+
+{
+  "photoTopicId": "{{topicId}}"
+}
+
+### ===========================================
+### 7. Unassign Photo from Topic (set null)
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/gallery/{{photoId}}/assign-topic
+Content-Type: application/json
+
+{
+  "photoTopicId": null
+}
+
+### ===========================================
+### 8. Add Gallery Photo with Topic
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/gallery
+Content-Type: application/json
+
+{
+  "documentId": "{{documentId}}",
+  "photoType": "Exterior",
+  "uploadedBy": "{{userName}}",
+  "photoCategory": "Front",
+  "caption": "Front view - assigned to topic on upload",
+  "photoTopicId": "{{topicId}}"
+}
+
+### ===========================================
+### 9. Delete Photo Topic (fails if has photos)
+### ===========================================
+DELETE {{baseUrl}}/appraisals/{{appraisalId}}/photo-topics/{{topicId}}

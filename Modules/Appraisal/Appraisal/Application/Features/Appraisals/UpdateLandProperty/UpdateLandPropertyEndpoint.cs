@@ -1,7 +1,3 @@
-using Carter;
-using Mapster;
-using MediatR;
-
 namespace Appraisal.Application.Features.Appraisals.UpdateLandProperty;
 
 public class UpdateLandPropertyEndpoint : ICarterModule
@@ -19,7 +15,10 @@ public class UpdateLandPropertyEndpoint : ICarterModule
                 ) =>
                 {
                     var command = request.Adapt<UpdateLandPropertyCommand>()
-                        with { AppraisalId = appraisalId, PropertyId = propertyId };
+                        with
+                        {
+                            AppraisalId = appraisalId, PropertyId = propertyId
+                        };
 
                     await sender.Send(command, cancellationToken);
 

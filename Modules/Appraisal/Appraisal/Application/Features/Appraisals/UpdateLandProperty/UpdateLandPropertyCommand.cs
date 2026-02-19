@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+
 namespace Appraisal.Application.Features.Appraisals.UpdateLandProperty;
 
 /// <summary>
@@ -95,5 +97,7 @@ public record UpdateLandPropertyCommand(
     decimal? PondDepth = null,
     bool? HasBuilding = null,
     string? HasBuildingOther = null,
-    string? Remark = null
+    string? Remark = null,
+// Land Titles
+    List<LandTitleItemData>? Titles = null
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;

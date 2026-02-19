@@ -13,7 +13,7 @@ public record TaskItem(
     string? PropertyType,
     string? Status,
     DateTime? AppointmentDateTime,
-    Guid? AssigneeUserId,
+    string? AssigneeUserId,
     DateTime? RequestedAt,
     DateTime? ReceivedDate,
     string? Movement,

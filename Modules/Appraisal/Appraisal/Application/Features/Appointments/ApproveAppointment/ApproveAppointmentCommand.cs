@@ -5,5 +5,5 @@ namespace Appraisal.Application.Features.Appointments.ApproveAppointment;
 public record ApproveAppointmentCommand(
     Guid AppraisalId,
     Guid AppointmentId,
-    Guid ApprovedBy
+    string ApprovedBy
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;

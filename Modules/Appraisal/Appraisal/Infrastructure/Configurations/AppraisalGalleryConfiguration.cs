@@ -20,12 +20,19 @@ public class AppraisalGalleryConfiguration : IEntityTypeConfiguration<AppraisalG
         builder.Property(g => g.Longitude).HasPrecision(10, 7);
 
         builder.Property(g => g.UploadedAt).IsRequired();
-        builder.Property(g => g.UploadedBy).IsRequired();
+        builder.Property(g => g.UploadedBy).IsRequired().HasMaxLength(200);
 
         builder.Property(g => g.ReportSection).HasMaxLength(100);
 
+        // PhotoTopic FK (nullable)
+        builder.HasOne<PhotoTopic>()
+            .WithMany()
+            .HasForeignKey(g => g.PhotoTopicId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(g => g.AppraisalId);
         builder.HasIndex(g => g.DocumentId);
+        builder.HasIndex(g => g.PhotoTopicId);
         builder.HasIndex(g => new { g.AppraisalId, g.PhotoNumber }).IsUnique();
     }
 }
@@ -40,15 +47,21 @@ public class PropertyPhotoMappingConfiguration : IEntityTypeConfiguration<Proper
         builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
         builder.Property(p => p.GalleryPhotoId).IsRequired();
-        builder.Property(p => p.PropertyDetailType).IsRequired().HasMaxLength(50);
-        builder.Property(p => p.PropertyDetailId).IsRequired();
+        builder.Property(p => p.AppraisalPropertyId).IsRequired();
         builder.Property(p => p.PhotoPurpose).IsRequired().HasMaxLength(100);
         builder.Property(p => p.SectionReference).HasMaxLength(100);
 
-        builder.Property(p => p.LinkedBy).IsRequired();
+        builder.Property(p => p.IsThumbnail).IsRequired().HasDefaultValue(false);
+
+        builder.Property(p => p.LinkedBy).IsRequired().HasMaxLength(200);
         builder.Property(p => p.LinkedAt).IsRequired();
 
-        builder.HasIndex(p => p.GalleryPhotoId);
-        builder.HasIndex(p => new { p.PropertyDetailType, p.PropertyDetailId });
+        builder.HasOne<AppraisalProperty>()
+            .WithMany()
+            .HasForeignKey(p => p.AppraisalPropertyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(p => new { p.GalleryPhotoId, p.AppraisalPropertyId }).IsUnique();
+        builder.HasIndex(p => p.AppraisalPropertyId);
     }
 }

@@ -82,6 +82,53 @@ public class PropertyGroup : Entity<Guid>
     }
 
     /// <summary>
+    /// Insert a property at a specific position, shifting existing items down.
+    /// Position is clamped to [1, count+1].
+    /// </summary>
+    public PropertyGroupItem InsertProperty(Guid propertyId, int position)
+    {
+        if (_items.Any(i => i.AppraisalPropertyId == propertyId))
+            throw new InvalidOperationException($"Property {propertyId} is already in this group");
+
+        // Clamp position to valid range
+        position = Math.Clamp(position, 1, _items.Count + 1);
+
+        var item = PropertyGroupItem.Create(Id, propertyId, position);
+
+        // Shift items at or after the target position
+        foreach (var existing in _items.Where(i => i.SequenceInGroup >= position))
+            existing.UpdateSequence(existing.SequenceInGroup + 1);
+
+        _items.Add(item);
+
+        return item;
+    }
+
+    /// <summary>
+    /// Reorder all properties in this group using the provided ordered list.
+    /// The list must contain exactly the same property IDs currently in the group.
+    /// </summary>
+    public void ReorderProperties(List<Guid> orderedPropertyIds)
+    {
+        if (orderedPropertyIds.Count != _items.Count)
+            throw new InvalidOperationException(
+                $"Expected {_items.Count} property IDs but received {orderedPropertyIds.Count}");
+
+        var currentIds = _items.Select(i => i.AppraisalPropertyId).ToHashSet();
+        var providedIds = orderedPropertyIds.ToHashSet();
+
+        if (!currentIds.SetEquals(providedIds))
+            throw new InvalidOperationException(
+                "Provided property IDs do not match the current items in this group");
+
+        for (var i = 0; i < orderedPropertyIds.Count; i++)
+        {
+            var item = _items.First(x => x.AppraisalPropertyId == orderedPropertyIds[i]);
+            item.UpdateSequence(i + 1);
+        }
+    }
+
+    /// <summary>
     /// Update group details
     /// </summary>
     public void Update(string groupName, string? description, bool useSystemCalc)

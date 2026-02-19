@@ -5,7 +5,7 @@ namespace Appraisal.Application.Features.Appointments.RescheduleAppointment;
 public record RescheduleAppointmentCommand(
     Guid AppraisalId,
     Guid AppointmentId,
-    Guid ChangedBy,
+    string ChangedBy,
     DateTime NewDateTime,
     string? Reason = null
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;

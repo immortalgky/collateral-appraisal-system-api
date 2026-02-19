@@ -2,17 +2,13 @@ namespace Parameter.Data.Repository;
 
 public class ParameterRepository(ParameterDbContext dbContext) : IParameterRepository
 {
-    public async Task<List<Parameters.Models.Parameter>> GetParameters(CancellationToken cancellationToken = default)
-    {
-        var result = await dbContext.Parameters.ToListAsync(cancellationToken);
-
-        return result;
-    }
-
     public async Task<List<Parameters.Models.Parameter>> GetParameter(ParameterDto request, bool asNoTracking = true,
         CancellationToken cancellationToken = default)
     {
         var query = dbContext.Parameters.AsQueryable();
+
+        if (asNoTracking)
+            query = query.AsNoTracking();
 
         query = query.WhereIf(request.ParId.HasValue && request.ParId.Value != 0, d => d.Id == request.ParId.Value)
             .WhereIf(!string.IsNullOrWhiteSpace(request.Group), d => d.Group == request.Group)
@@ -23,6 +19,6 @@ public class ParameterRepository(ParameterDbContext dbContext) : IParameterRepos
             .WhereIf(request.IsActive.HasValue, d => d.IsActive == request.IsActive)
             .WhereIf(request.SeqNo.HasValue, d => d.SeqNo == request.SeqNo);
 
-        return await query.ToListAsync(cancellationToken);
+        return await query.OrderBy(p => p.SeqNo).ToListAsync(cancellationToken);
     }
 }

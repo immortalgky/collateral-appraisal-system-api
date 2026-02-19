@@ -4,6 +4,7 @@ VIEW appraisal.vw_AppraisalFeeList AS
 SELECT f.Id,
        f.AssignmentId,
        aa.AppraisalId,
+       f.FeePaymentType,
        f.TotalFeeBeforeVAT,
        f.VATRate,
        f.VATAmount,

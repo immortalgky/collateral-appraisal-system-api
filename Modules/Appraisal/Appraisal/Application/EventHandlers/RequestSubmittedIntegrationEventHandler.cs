@@ -30,6 +30,7 @@ public class RequestSubmittedIntegrationEventHandler(
                 message.RequestTitles,
                 message.Appointment,
                 message.Fee,
+                message.Contact,
                 message.CreatedBy,
                 context.CancellationToken);
 

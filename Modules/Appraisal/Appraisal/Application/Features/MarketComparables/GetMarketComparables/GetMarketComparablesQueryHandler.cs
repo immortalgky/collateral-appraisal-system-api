@@ -1,7 +1,3 @@
-using Shared.CQRS;
-using Shared.Data;
-using Shared.Pagination;
-
 namespace Appraisal.Application.Features.MarketComparables.GetMarketComparables;
 
 /// <summary>
@@ -20,7 +16,7 @@ public class GetMarketComparablesQueryHandler(
 
         var result = await connectionFactory.QueryPaginatedAsync<MarketComparableDto>(
             sql,
-            "CreatedOn DESC",
+            "CreatedAt DESC",
             query.PaginationRequest);
 
         return new GetMarketComparablesResult(result);

@@ -24,23 +24,24 @@ public class Appointment : Entity<Guid>
     public string? Reason { get; private set; }
 
     // Approval (reschedule only)
-    public Guid? ApprovedBy { get; private set; }
+    public string? ApprovedBy { get; private set; }
     public DateTime? ApprovedAt { get; private set; }
     public int RescheduleCount { get; private set; }
 
     // Contact Person
-    public Guid AppointedBy { get; private set; }
+    public string AppointedBy { get; private set; } = default!;
     public string? ContactPerson { get; private set; }
     public string? ContactPhone { get; private set; }
 
     private Appointment()
     {
+        // For EF Core
     }
 
     public static Appointment Create(
         Guid assignmentId,
         DateTime appointmentDateTime,
-        Guid appointedBy,
+        string appointedBy,
         string? locationDetail = null,
         string? contactPerson = null,
         string? contactPhone = null)
@@ -72,7 +73,7 @@ public class Appointment : Entity<Guid>
         ContactPhone = phone;
     }
 
-    public void Approve(Guid approvedBy)
+    public void Approve(string approvedBy)
     {
         if (Status != "Pending")
             throw new InvalidOperationException($"Cannot approve appointment in status '{Status}'");
@@ -84,7 +85,7 @@ public class Appointment : Entity<Guid>
         ActionDate = DateTime.UtcNow;
     }
 
-    public void Complete(Guid changedBy)
+    public void Complete(string changedBy)
     {
         if (Status != "Approved")
             throw new InvalidOperationException($"Cannot complete appointment in status '{Status}'");
@@ -94,7 +95,7 @@ public class Appointment : Entity<Guid>
         ActionDate = DateTime.UtcNow;
     }
 
-    public void Cancel(Guid changedBy, string? reason = null)
+    public void Cancel(string changedBy, string? reason = null)
     {
         if (Status == "Completed")
             throw new InvalidOperationException("Cannot cancel a completed appointment");
@@ -105,7 +106,7 @@ public class Appointment : Entity<Guid>
         ActionDate = DateTime.UtcNow;
     }
 
-    public void Reschedule(Guid changedBy, DateTime newDate, string? reason = null)
+    public void Reschedule(string changedBy, DateTime newDate, string? reason = null)
     {
         if (Status == "Completed" || Status == "Cancelled")
             throw new InvalidOperationException($"Cannot reschedule appointment in status '{Status}'");
@@ -118,7 +119,7 @@ public class Appointment : Entity<Guid>
         ActionDate = DateTime.UtcNow;
     }
 
-    private void RecordHistory(string changeType, Guid changedBy, string? reason)
+    private void RecordHistory(string changeType, string changedBy, string? reason)
     {
         var history = AppointmentHistory.Create(
             Id, AppointmentDateTime, Status, LocationDetail, changeType, reason, changedBy);
