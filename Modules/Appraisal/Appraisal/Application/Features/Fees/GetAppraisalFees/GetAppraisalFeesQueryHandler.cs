@@ -13,11 +13,12 @@ public class GetAppraisalFeesQueryHandler(ISqlConnectionFactory connectionFactor
         parameters.Add("AppraisalId", query.AppraisalId);
 
         // Get fee summaries
-        const string feeSql = """
-            SELECT * FROM appraisal.vw_AppraisalFeeList
-            WHERE AppraisalId = @AppraisalId
-            ORDER BY CreatedOn DESC
-            """;
+        var feeSql = """
+                     SELECT * 
+                     FROM appraisal.vw_AppraisalFeeList
+                     WHERE AppraisalId = @AppraisalId
+                     ORDER BY CreatedAt DESC
+                     """;
 
         var fees = (await connectionFactory.QueryAsync<AppraisalFeeDto>(feeSql, parameters)).ToList();
 
@@ -27,22 +28,22 @@ public class GetAppraisalFeesQueryHandler(ISqlConnectionFactory connectionFactor
         // Get fee items for all fees of this appraisal
         var feeIds = fees.Select(f => f.Id).ToList();
 
-        const string itemsSql = """
-            SELECT
-                i.Id,
-                i.AppraisalFeeId,
-                i.FeeCode,
-                i.FeeDescription,
-                i.FeeAmount,
-                i.RequiresApproval,
-                i.ApprovalStatus,
-                i.ApprovedBy,
-                i.ApprovedAt,
-                i.RejectionReason
-            FROM appraisal.AppraisalFeeItems i
-            WHERE i.AppraisalFeeId IN @FeeIds
-            ORDER BY i.FeeCode
-            """;
+        var itemsSql = """
+                       SELECT
+                           i.Id,
+                           i.AppraisalFeeId,
+                           i.FeeCode,
+                           i.FeeDescription,
+                           i.FeeAmount,
+                           i.RequiresApproval,
+                           i.ApprovalStatus,
+                           i.ApprovedBy,
+                           i.ApprovedAt,
+                           i.RejectionReason
+                       FROM appraisal.AppraisalFeeItems i
+                       WHERE i.AppraisalFeeId IN @FeeIds
+                       ORDER BY i.FeeCode
+                       """;
 
         var itemParams = new DynamicParameters();
         itemParams.Add("FeeIds", feeIds);
@@ -53,9 +54,31 @@ public class GetAppraisalFeesQueryHandler(ISqlConnectionFactory connectionFactor
         var itemsByFee = items.GroupBy(i => i.AppraisalFeeId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
+        var paymentSql = """
+                         SELECT 
+                            h.Id,
+                            h.AppraisalFeeId,
+                            h.PaymentDate,
+                            h.PaymentAmount,
+                            h.CreatedAt
+                         FROM appraisal.AppraisalFeePaymentHistory h 
+                         WHERE AppraisalFeeId IN @FeeIds
+                         ORDER BY PaymentDate, CreatedAt
+                         """;
+
+        var paymentParams = new DynamicParameters();
+        paymentParams.Add("FeeIds", feeIds);
+
+        var paymentHistory =
+            (await connectionFactory.QueryAsync<PaymentHistoryDto>(paymentSql, paymentParams)).ToList();
+
+        var paymentHistoryByFee = paymentHistory.GroupBy(h => h.AppraisalFeeId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         var result = fees.Select(f => f with
         {
-            Items = itemsByFee.GetValueOrDefault(f.Id, [])
+            Items = itemsByFee.GetValueOrDefault(f.Id, []),
+            PaymentHistory = paymentHistoryByFee.GetValueOrDefault(f.Id, [])
         }).ToList();
 
         return new GetAppraisalFeesResult(result);

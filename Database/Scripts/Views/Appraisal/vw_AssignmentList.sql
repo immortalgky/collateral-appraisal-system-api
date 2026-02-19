@@ -3,12 +3,12 @@ OR ALTER
 VIEW appraisal.vw_AssignmentList AS
 SELECT a.Id,
        a.AppraisalId,
-       a.AssignmentMode,
+       a.AssignmentType,
        a.AssignmentStatus,
        a.AssigneeUserId,
        a.AssigneeCompanyId,
        a.ExternalAppraiserName,
-       a.AssignmentSource,
+       a.AssignmentMethod,
        a.ReassignmentNumber,
        a.ProgressPercent,
        a.AssignedAt,
@@ -19,3 +19,4 @@ SELECT a.Id,
        a.CancellationReason,
        a.CreatedAt
 FROM appraisal.AppraisalAssignments a
+WHERE a.AssignmentStatus != 'Rejected' AND a.AssignmentStatus != 'Cancelled'

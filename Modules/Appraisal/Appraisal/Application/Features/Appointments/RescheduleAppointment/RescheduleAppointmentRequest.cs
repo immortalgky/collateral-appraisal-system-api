@@ -1,6 +1,6 @@
 namespace Appraisal.Application.Features.Appointments.RescheduleAppointment;
 
 public record RescheduleAppointmentRequest(
-    Guid ChangedBy,
+    string ChangedBy,
     DateTime NewDateTime,
     string? Reason = null);

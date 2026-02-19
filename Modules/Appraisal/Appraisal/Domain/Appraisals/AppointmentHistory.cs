@@ -16,10 +16,11 @@ public class AppointmentHistory : Entity<Guid>
     public string ChangeType { get; private set; } = null!; // Rescheduled, Cancelled, StatusChanged
     public string? ChangeReason { get; private set; }
     public DateTime ChangedAt { get; private set; }
-    public Guid ChangedBy { get; private set; }
+    public string ChangedBy { get; private set; } = default!;
 
     private AppointmentHistory()
     {
+        // For EF Core
     }
 
     public static AppointmentHistory Create(
@@ -29,14 +30,14 @@ public class AppointmentHistory : Entity<Guid>
         string? previousLocationDetail,
         string changeType,
         string? changeReason,
-        Guid changedBy)
+        string changedBy)
     {
         if (changeType != "Rescheduled" && changeType != "Cancelled" && changeType != "StatusChanged")
             throw new ArgumentException("ChangeType must be 'Rescheduled', 'Cancelled', or 'StatusChanged'");
 
         return new AppointmentHistory
         {
-            Id = Guid.CreateVersion7(),
+            //Id = Guid.CreateVersion7(),
             AppointmentId = appointmentId,
             PreviousAppointmentDateTime = previousAppointmentDateTime,
             PreviousStatus = previousStatus,

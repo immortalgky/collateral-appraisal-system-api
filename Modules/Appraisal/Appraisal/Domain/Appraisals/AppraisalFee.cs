@@ -8,6 +8,10 @@ public class AppraisalFee : Entity<Guid>
 {
     public Guid AssignmentId { get; private set; }
 
+    // Fee Metadata (from Request)
+    public string? FeePaymentType { get; private set; }
+    public string? FeeNotes { get; private set; }
+
     // Fee Totals (calculated from FeeItems)
     public decimal TotalFeeBeforeVAT { get; private set; }
     public decimal VATRate { get; private set; } = 7.00m;
@@ -36,14 +40,20 @@ public class AppraisalFee : Entity<Guid>
 
     private AppraisalFee()
     {
+        // For EF Core
     }
 
-    public static AppraisalFee Create(Guid assignmentId)
+    public static AppraisalFee Create(
+        Guid assignmentId,
+        string? feePaymentType = null,
+        string? feeNotes = null)
     {
         return new AppraisalFee
         {
             Id = Guid.CreateVersion7(),
             AssignmentId = assignmentId,
+            FeePaymentType = feePaymentType,
+            FeeNotes = feeNotes,
             TotalFeeBeforeVAT = 0,
             VATRate = 7.00m,
             VATAmount = 0,
@@ -52,7 +62,7 @@ public class AppraisalFee : Entity<Guid>
             CustomerPayableAmount = 0,
             TotalPaidAmount = 0,
             OutstandingAmount = 0,
-            PaymentStatus = "Pending"
+            PaymentStatus = "NotPaid"
         };
     }
 
@@ -64,6 +74,28 @@ public class AppraisalFee : Entity<Guid>
         return item;
     }
 
+    public AppraisalFeeItem UpdateItem(Guid feeItemId, string feeCode, string feeDescription, decimal feeAmount)
+    {
+        var item = _items.FirstOrDefault(i => i.Id == feeItemId);
+        if (item == null)
+            throw new NotFoundException($"Fee item {feeItemId} not found");
+        item.Update(feeCode, feeDescription, feeAmount);
+        RecalculateFromItems();
+        return item;
+    }
+
+    public AppraisalFeeItem RemoveItem(Guid feeItemId)
+    {
+        var item = _items.FirstOrDefault(i => i.Id == feeItemId);
+        if (item == null)
+            throw new NotFoundException($"Fee item {feeItemId} not found");
+
+        _items.Remove(item);
+        RecalculateFromItems();
+
+        return item;
+    }
+
     public void RecalculateFromItems()
     {
         TotalFeeBeforeVAT = _items.Sum(i => i.FeeAmount);
@@ -71,6 +103,11 @@ public class AppraisalFee : Entity<Guid>
         TotalFeeAfterVAT = TotalFeeBeforeVAT + VATAmount;
         CustomerPayableAmount = TotalFeeAfterVAT - BankAbsorbAmount;
         OutstandingAmount = CustomerPayableAmount - TotalPaidAmount;
+    }
+
+    public void SetFeePaymentType(string feePaymentType)
+    {
+        FeePaymentType = feePaymentType;
     }
 
     public void SetBankAbsorb(decimal amount)
@@ -92,12 +129,39 @@ public class AppraisalFee : Entity<Guid>
             Id, paymentAmount, paymentDate, paymentMethod, paymentReference, remarks);
         _paymentHistory.Add(payment);
 
+        RecalculateFromPayments();
+    }
+
+    public void UpdatePayment(Guid paymentId, decimal paymentAmount, DateTime paymentDate)
+    {
+        var payment = _paymentHistory.FirstOrDefault(p => p.Id == paymentId);
+        if (payment == null)
+            throw new NotFoundException($"Payment for {paymentDate} not found");
+
+        payment.Update(paymentAmount, paymentDate);
+
+        RecalculateFromPayments();
+    }
+
+    public void RemovePayment(Guid paymentId)
+    {
+        var payment = _paymentHistory.FirstOrDefault(p => p.Id == paymentId);
+        if (payment == null)
+            throw new NotFoundException($"Payment {paymentId} not found");
+
+        _paymentHistory.Remove(payment);
+
+        RecalculateFromPayments();
+    }
+
+    public void RecalculateFromPayments()
+    {
         TotalPaidAmount = _paymentHistory.Sum(p => p.PaymentAmount);
         OutstandingAmount = CustomerPayableAmount - TotalPaidAmount;
 
         if (TotalPaidAmount >= CustomerPayableAmount && CustomerPayableAmount > 0)
-            PaymentStatus = "FullyPaid";
+            PaymentStatus = "Paid";
         else if (TotalPaidAmount > 0)
-            PaymentStatus = "PartialPaid";
+            PaymentStatus = "Partial";
     }
 }

@@ -41,8 +41,8 @@ public class GetPropertyGroupByIdQueryHandler(
                     lookup.Add(group.PropertyGroupId, result);
                 }
 
-                if (item is not null)
-                    result.Properties.Add(item);
+                if (item.PropertyId is not null)
+                    result.Properties?.Add(item);
 
                 return result;
             },
@@ -54,10 +54,47 @@ public class GetPropertyGroupByIdQueryHandler(
             splitOn: "PropertyGroupItemId"
         );
 
-        if (result is null)
+        if (result is null || !lookup.Any())
             throw new InvalidOperationException($"Property group {query.GroupId} not found");
 
-        return lookup.First().Value;
+        var propertyGroup = lookup.First().Value;
+
+        // Secondary query: fetch photo DocumentIds per property
+        var propertyIds = propertyGroup.Properties?
+            .Where(p => p.PropertyId is not null)
+            .Select(p => p.PropertyId!.Value)
+            .ToList();
+
+        if (propertyIds is { Count: > 0 })
+        {
+            var photoSql = """
+                           SELECT PPM.AppraisalPropertyId, AG.DocumentId, PPM.IsThumbnail
+                           FROM appraisal.PropertyPhotoMappings PPM
+                           INNER JOIN appraisal.AppraisalGallery AG ON AG.Id = PPM.GalleryPhotoId
+                           WHERE PPM.AppraisalPropertyId IN @PropertyIds
+                           """;
+
+            var photos = await connection.QueryAsync<PropertyPhotoRow>(
+                photoSql,
+                new { PropertyIds = propertyIds });
+
+            var photosByProperty = photos
+                .GroupBy(p => p.AppraisalPropertyId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            foreach (var property in propertyGroup.Properties!)
+            {
+                if (property.PropertyId is not null &&
+                    photosByProperty.TryGetValue(property.PropertyId.Value, out var propertyPhotos))
+                {
+                    property.Photos = propertyPhotos
+                        .Select(p => new PropertyPhotoDto(p.DocumentId, p.IsThumbnail))
+                        .ToList();
+                }
+            }
+        }
+
+        return propertyGroup;
     }
 }
 
@@ -72,11 +109,16 @@ public record PropertyGroupDto
 
 public record PropertyGroupItemDto
 {
-    public Guid PropertyId { get; set; }
-    public int SequenceInGroup { get; set; }
-    public string PropertyType { get; set; } = default!;
-    public Guid AppraisalDetailId { get; set; }
-    public string PropertyName { get; set; } = default!;
+    public Guid? PropertyId { get; set; }
+    public int? SequenceInGroup { get; set; }
+    public string? PropertyType { get; set; } = default!;
+    public Guid? AppraisalDetailId { get; set; }
+    public string? PropertyName { get; set; } = default!;
     public decimal? Area { get; set; }
     public string? Location { get; set; }
+    public List<PropertyPhotoDto>? Photos { get; set; }
 }
+
+public record PropertyPhotoDto(Guid DocumentId, bool IsThumbnail);
+
+internal record PropertyPhotoRow(Guid AppraisalPropertyId, Guid DocumentId, bool IsThumbnail);

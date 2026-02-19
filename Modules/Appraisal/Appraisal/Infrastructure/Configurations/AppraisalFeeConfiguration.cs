@@ -26,6 +26,10 @@ public class AppraisalFeeConfiguration : IEntityTypeConfiguration<AppraisalFee>
         builder.Property(f => f.OutstandingAmount).HasPrecision(18, 2).HasDefaultValue(0m);
         builder.Property(f => f.PaymentStatus).IsRequired().HasMaxLength(50).HasDefaultValue("Pending");
 
+        // Fee Metadata
+        builder.Property(f => f.FeePaymentType).HasMaxLength(100);
+        builder.Property(f => f.FeeNotes).HasMaxLength(4000);
+
         // InspectionFee
         builder.Property(f => f.InspectionFeeAmount).HasPrecision(18, 2);
 

@@ -14,6 +14,7 @@ public class AssignmentStatus : ValueObject
     }
 
     // Predefined statuses
+    public static AssignmentStatus Pending => new("Pending");
     public static AssignmentStatus Assigned => new("Assigned");
     public static AssignmentStatus InProgress => new("InProgress");
     public static AssignmentStatus Completed => new("Completed");
@@ -25,6 +26,7 @@ public class AssignmentStatus : ValueObject
     {
         return code switch
         {
+            "Pending" => Pending,
             "Assigned" => Assigned,
             "InProgress" => InProgress,
             "Completed" => Completed,

@@ -45,6 +45,12 @@ public static class AppraisalModule
         // Register Document Requirement repository
         services.AddScoped<IDocumentRequirementRepository, DocumentRequirementRepository>();
 
+        // Register Gallery repository
+        services.AddScoped<IAppraisalGalleryRepository, AppraisalGalleryRepository>();
+
+        // Register Photo Topic repository
+        services.AddScoped<IPhotoTopicRepository, PhotoTopicRepository>();
+
         // Register Application Services
         services.AddScoped<IAppraisalCreationService, AppraisalCreationService>();
 

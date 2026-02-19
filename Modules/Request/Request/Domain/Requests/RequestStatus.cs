@@ -16,6 +16,21 @@ public class RequestStatus : ValueObject
         Code = code;
     }
 
+    public static RequestStatus FromString(string code)
+    {
+        return code switch
+        {
+            "DRAFT" => Draft,
+            "NEW" => New,
+            "SUBMITTED" => Submitted,
+            "ASSIGNED" => Assigned,
+            "INPROGRESS" => InProgress,
+            "COMPLETED" => Completed,
+            "CANCELLED" => Cancelled,
+            _ => throw new ArgumentException($"Invalid request status: {code}")
+        };
+    }
+
     public override string ToString()
     {
         return Code;

@@ -22,6 +22,7 @@ public class AppraisalFeeItem : Entity<Guid>
 
     private AppraisalFeeItem()
     {
+        // For EF Core
     }
 
     public static AppraisalFeeItem Create(
@@ -33,7 +34,7 @@ public class AppraisalFeeItem : Entity<Guid>
     {
         return new AppraisalFeeItem
         {
-            Id = Guid.CreateVersion7(),
+            //Id = Guid.CreateVersion7(),
             AppraisalFeeId = appraisalFeeId,
             FeeCode = feeCode,
             FeeDescription = feeDescription,
@@ -41,6 +42,13 @@ public class AppraisalFeeItem : Entity<Guid>
             RequiresApproval = requiresApproval,
             ApprovalStatus = requiresApproval ? "Pending" : null
         };
+    }
+
+    public void Update(string feeCode, string feeDescription, decimal feeAmount)
+    {
+        FeeCode = feeCode;
+        FeeDescription = feeDescription;
+        FeeAmount = feeAmount;
     }
 
     public void Approve(Guid approvedBy)

@@ -10,13 +10,26 @@ public class AssignAppraisalCommandHandler(IAppraisalRepository appraisalReposit
         var appraisal = await appraisalRepository.GetByIdWithAllDataAsync(command.AppraisalId, cancellationToken)
                         ?? throw new NotFoundException("Appraisal", command.AppraisalId);
 
-        var assignment = appraisal.Assign(
-            command.AssignmentMode,
-            command.AssigneeUserId,
-            command.AssigneeCompanyId,
-            command.AssignmentSource,
-            assignedBy: command.AssignedBy);
+        var assignment =
+            appraisal.Assignments.FirstOrDefault(a => a.AssignmentStatus == AssignmentStatus.Pending);
+        if (assignment is not null)
+            assignment.Assign(
+                command.AssignmentType,
+                command.AssigneeUserId,
+                command.AssigneeCompanyId,
+                command.AssignmentMethod,
+                command.InternalAppraiserId,
+                assignedBy: command.AssignedBy
+            );
+        else
+            appraisal.Assign(
+                command.AssignmentType,
+                command.AssigneeUserId,
+                command.AssigneeCompanyId,
+                command.AssignmentMethod,
+                command.InternalAppraiserId,
+                assignedBy: command.AssignedBy);
 
-        return new AssignAppraisalResult(assignment.Id);
+        return new AssignAppraisalResult(assignment?.Id ?? Guid.Empty);
     }
 }

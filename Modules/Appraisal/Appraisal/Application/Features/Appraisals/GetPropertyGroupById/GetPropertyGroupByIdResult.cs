@@ -9,5 +9,5 @@ public record GetPropertyGroupByIdResult(
     string GroupName,
     string? Description,
     bool UseSystemCalc,
-    List<PropertyGroupItemDto> Properties
+    List<PropertyGroupItemDto>? Properties
 );

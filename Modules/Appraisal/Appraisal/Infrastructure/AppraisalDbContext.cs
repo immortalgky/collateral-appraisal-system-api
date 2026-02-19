@@ -47,7 +47,10 @@ public class AppraisalDbContext : DbContext
     // Market Comparable Templates (EAV System)
     // =====================================================
     public DbSet<MarketComparableTemplate> MarketComparableTemplates => Set<MarketComparableTemplate>();
-    public DbSet<MarketComparableTemplateFactor> MarketComparableTemplateFactors => Set<MarketComparableTemplateFactor>();
+
+    public DbSet<MarketComparableTemplateFactor> MarketComparableTemplateFactors =>
+        Set<MarketComparableTemplateFactor>();
+
     public DbSet<MarketComparableFactor> MarketComparableFactors => Set<MarketComparableFactor>();
     public DbSet<MarketComparableData> MarketComparableData => Set<MarketComparableData>();
     public DbSet<MarketComparableImage> MarketComparableImages => Set<MarketComparableImage>();
@@ -69,6 +72,7 @@ public class AppraisalDbContext : DbContext
     public DbSet<AppraisalFeePaymentHistory> AppraisalFeePaymentHistories => Set<AppraisalFeePaymentHistory>();
     public DbSet<AppraisalGallery> AppraisalGallery => Set<AppraisalGallery>();
     public DbSet<PropertyPhotoMapping> PropertyPhotoMappings => Set<PropertyPhotoMapping>();
+    public DbSet<PhotoTopic> PhotoTopics => Set<PhotoTopic>();
 
     // =====================================================
     // Settings & Rules
@@ -115,7 +119,9 @@ public class AppraisalDbContext : DbContext
     // Comparative Analysis Templates
     // =====================================================
     public DbSet<ComparativeAnalysisTemplate> ComparativeAnalysisTemplates => Set<ComparativeAnalysisTemplate>();
-    public DbSet<ComparativeAnalysisTemplateFactor> ComparativeAnalysisTemplateFactors => Set<ComparativeAnalysisTemplateFactor>();
+
+    public DbSet<ComparativeAnalysisTemplateFactor> ComparativeAnalysisTemplateFactors =>
+        Set<ComparativeAnalysisTemplateFactor>();
 
     // =====================================================
     // Supporting Entities (part of Appraisal aggregate)
@@ -141,6 +147,11 @@ public class AppraisalDbContext : DbContext
         // Soft delete query filter for new Appraisal aggregate
         modelBuilder.Entity<Domain.Appraisals.Appraisal>()
             .HasQueryFilter(a => !a.SoftDelete.IsDeleted);
+
+        modelBuilder.Entity<AppraisalAssignment>()
+            .HasQueryFilter(a =>
+                a.AssignmentStatus != AssignmentStatus.Rejected && a.AssignmentStatus != AssignmentStatus.Cancelled);
+
         
         modelBuilder.Entity<MarketComparable>()
             .HasQueryFilter(m => !m.SoftDelete.IsDeleted);

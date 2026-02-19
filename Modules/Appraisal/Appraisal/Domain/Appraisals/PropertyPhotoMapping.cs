@@ -1,23 +1,23 @@
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
-/// Links photos to specific property sections using polymorphic reference.
+/// Links photos to specific appraisal properties.
 /// </summary>
 public class PropertyPhotoMapping : Entity<Guid>
 {
     public Guid GalleryPhotoId { get; private set; }
-
-    // Polymorphic Property Reference
-    public string PropertyDetailType { get; private set; } = null!; // Land, Building, Condo, Vehicle, Vessel, Machinery
-    public Guid PropertyDetailId { get; private set; }
+    public Guid AppraisalPropertyId { get; private set; }
 
     // Mapping Details
     public string PhotoPurpose { get; private set; } = null!; // Evidence, Condition, Boundary
     public string? SectionReference { get; private set; } // Roof, Kitchen, Engine, etc.
     public int SequenceNumber { get; private set; } = 1;
 
+    // Thumbnail
+    public bool IsThumbnail { get; private set; }
+
     // Linked By
-    public Guid LinkedBy { get; private set; }
+    public string LinkedBy { get; private set; } = null!;
     public DateTime LinkedAt { get; private set; }
 
     private PropertyPhotoMapping()
@@ -26,17 +26,15 @@ public class PropertyPhotoMapping : Entity<Guid>
 
     public static PropertyPhotoMapping Create(
         Guid galleryPhotoId,
-        string propertyDetailType,
-        Guid propertyDetailId,
+        Guid appraisalPropertyId,
         string photoPurpose,
-        Guid linkedBy)
+        string linkedBy)
     {
         return new PropertyPhotoMapping
         {
             Id = Guid.CreateVersion7(),
             GalleryPhotoId = galleryPhotoId,
-            PropertyDetailType = propertyDetailType,
-            PropertyDetailId = propertyDetailId,
+            AppraisalPropertyId = appraisalPropertyId,
             PhotoPurpose = photoPurpose,
             SequenceNumber = 1,
             LinkedBy = linkedBy,
@@ -52,5 +50,15 @@ public class PropertyPhotoMapping : Entity<Guid>
     public void SetSequence(int sequence)
     {
         SequenceNumber = sequence;
+    }
+
+    public void SetAsThumbnail()
+    {
+        IsThumbnail = true;
+    }
+
+    public void UnsetAsThumbnail()
+    {
+        IsThumbnail = false;
     }
 }

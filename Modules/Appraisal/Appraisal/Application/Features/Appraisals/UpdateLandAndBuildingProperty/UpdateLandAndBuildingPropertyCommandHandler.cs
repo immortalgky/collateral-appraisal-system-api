@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+
 namespace Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 
 /// <summary>
@@ -126,6 +128,10 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             pondDepth: command.PondDepth,
             remark: command.LandRemark);
 
+        // 6b. Sync land titles (null = no-op, empty list = clear all)
+        if (command.Titles is not null)
+            SyncTitles(landDetail, command.Titles);
+
         // 7. Update Building detail via domain method
         buildingDetail.Update(
             // Building - Identification
@@ -194,5 +200,59 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 
         return Unit.Value;
+    }
+
+    private static void SyncTitles(LandAppraisalDetail landDetail, List<LandTitleItemData> incomingTitles)
+    {
+        var incomingIds = incomingTitles
+            .Where(t => t.Id.HasValue)
+            .Select(t => t.Id!.Value)
+            .ToHashSet();
+
+        // Delete titles not in the incoming list
+        var titlesToRemove = landDetail.Titles
+            .Where(t => !incomingIds.Contains(t.Id))
+            .Select(t => t.Id)
+            .ToList();
+        foreach (var id in titlesToRemove)
+            landDetail.RemoveTitle(id);
+
+        // Add or update
+        foreach (var titleData in incomingTitles)
+        {
+            LandArea? area = null;
+            if (titleData.Rai.HasValue || titleData.Ngan.HasValue || titleData.SquareWa.HasValue)
+                area = LandArea.Create(titleData.Rai, titleData.Ngan, titleData.SquareWa);
+
+            if (titleData.Id.HasValue)
+            {
+                // Update existing
+                var existing = landDetail.Titles.FirstOrDefault(t => t.Id == titleData.Id.Value);
+                existing?.Update(
+                    titleData.BookNumber, titleData.PageNumber,
+                    titleData.LandParcelNumber, titleData.SurveyNumber,
+                    titleData.MapSheetNumber, titleData.Rawang,
+                    titleData.AerialMapName, titleData.AerialMapNumber,
+                    area, titleData.HasBoundaryMarker, titleData.BoundaryMarkerRemark,
+                    titleData.IsDocumentValidated, titleData.IsMissingFromSurvey,
+                    titleData.GovernmentPricePerSqWa, titleData.GovernmentPrice,
+                    titleData.Remark);
+            }
+            else
+            {
+                // Create new
+                var title = LandTitle.Create(landDetail.Id, titleData.TitleNumber, titleData.TitleType);
+                title.Update(
+                    titleData.BookNumber, titleData.PageNumber,
+                    titleData.LandParcelNumber, titleData.SurveyNumber,
+                    titleData.MapSheetNumber, titleData.Rawang,
+                    titleData.AerialMapName, titleData.AerialMapNumber,
+                    area, titleData.HasBoundaryMarker, titleData.BoundaryMarkerRemark,
+                    titleData.IsDocumentValidated, titleData.IsMissingFromSurvey,
+                    titleData.GovernmentPricePerSqWa, titleData.GovernmentPrice,
+                    titleData.Remark);
+                landDetail.AddTitle(title);
+            }
+        }
     }
 }

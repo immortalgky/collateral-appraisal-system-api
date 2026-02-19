@@ -18,40 +18,47 @@ public class AppraisalAssignmentConfiguration : IEntityTypeConfiguration<Apprais
         builder.Property(a => a.AppraisalId)
             .IsRequired();
 
-        // AssignmentMode Value Object (stored as string)
-        builder.OwnsOne(a => a.AssignmentMode, am =>
-        {
-            am.Property(m => m.Code)
-                .HasColumnName("AssignmentMode")
-                .IsRequired()
-                .HasMaxLength(30);
-        });
+        // AssignmentType Value Object (stored as string)
+        builder.Property(a => a.AssignmentType)
+            .HasConversion(
+                v => v.Code,
+                v => AssignmentType.FromString(v))
+            .HasColumnName("AssignmentType")
+            .IsRequired()
+            .HasMaxLength(30);
 
         // AssignmentStatus Value Object (stored as string)
-        builder.OwnsOne(a => a.AssignmentStatus, s =>
-        {
-            s.Property(st => st.Code)
-                .HasColumnName("AssignmentStatus")
-                .IsRequired()
-                .HasMaxLength(30);
-        });
+        // builder.OwnsOne(a => a.AssignmentStatus, s =>
+        // {
+        //     s.Property(st => st.Code)
+        //         .HasColumnName("AssignmentStatus")
+        //         .IsRequired()
+        //         .HasMaxLength(30);
+        // });
+        builder.Property(a => a.AssignmentStatus)
+            .HasConversion(
+                v => v.Code,
+                v => AssignmentStatus.FromString(v))
+            .HasColumnName("AssignmentStatus")
+            .IsRequired()
+            .HasMaxLength(30);
 
         // Assignee
-        builder.Property(a => a.AssigneeUserId);
-        builder.Property(a => a.AssigneeCompanyId);
+        builder.Property(a => a.AssigneeUserId).HasMaxLength(100);
+        builder.Property(a => a.AssigneeCompanyId).HasMaxLength(100);
 
         // External Appraiser Details
-        builder.Property(a => a.ExternalAppraiserId);
+        builder.Property(a => a.ExternalAppraiserId).HasMaxLength(100);
         builder.Property(a => a.ExternalAppraiserName)
             .HasMaxLength(200);
 
         // Internal Appraiser Details
-        builder.Property(a => a.InternalAppraiserId);
+        builder.Property(a => a.InternalAppraiserId).HasMaxLength(100);
         builder.Property(a => a.InternalAppraiserName)
             .HasMaxLength(200);
 
-        // Assignment Source
-        builder.Property(a => a.AssignmentSource)
+        // Assignment Method
+        builder.Property(a => a.AssignmentMethod)
             .IsRequired()
             .HasMaxLength(30);
         builder.Property(a => a.AutoRuleId);
@@ -73,7 +80,8 @@ public class AppraisalAssignmentConfiguration : IEntityTypeConfiguration<Apprais
         builder.Property(a => a.AssignedAt)
             .IsRequired();
         builder.Property(a => a.AssignedBy)
-            .IsRequired();
+            .IsRequired()
+            .HasMaxLength(100);
         builder.Property(a => a.StartedAt);
         builder.Property(a => a.CompletedAt);
         builder.Property(a => a.RejectionReason)

@@ -121,12 +121,10 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Add a building property with detail to this appraisal
     /// </summary>
-    public AppraisalProperty AddBuildingProperty(string owner, string? description = null)
+    public AppraisalProperty AddBuildingProperty()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
-
         var sequenceNumber = _properties.Count + 1;
-        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Building, description);
+        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Building);
 
         var buildingDetail = BuildingAppraisalDetail.Create(property.Id);
         property.SetBuildingDetail(buildingDetail);
@@ -305,13 +303,42 @@ public class Appraisal : Aggregate<Guid>
                     ?? throw new InvalidOperationException($"Group {groupId} not found");
 
         _groups.Remove(group);
+    }
 
-        // Resequence remaining groups
-        for (var i = 0; i < _groups.Count; i++)
-        {
-            // Note: GroupNumber is private set, so we cannot update it directly
-            // This is acceptable as GroupNumber is assigned at creation
-        }
+    /// <summary>
+    /// Move a property from its current group to a target group at an optional position.
+    /// The source group is discovered automatically.
+    /// </summary>
+    public void MovePropertyToGroup(Guid propertyId, Guid targetGroupId, int? targetPosition)
+    {
+        var targetGroup = _groups.FirstOrDefault(g => g.Id == targetGroupId)
+                          ?? throw new InvalidOperationException($"Target group {targetGroupId} not found");
+
+        var sourceGroup = _groups.FirstOrDefault(g => g.Items.Any(i => i.AppraisalPropertyId == propertyId))
+                          ?? throw new InvalidOperationException($"Property {propertyId} is not in any group");
+
+        if (sourceGroup.Id == targetGroupId)
+            throw new InvalidOperationException("Property is already in the target group");
+
+        // Remove from source (auto-resequences remaining items)
+        sourceGroup.RemoveProperty(propertyId);
+
+        // Add to target at position, or append
+        if (targetPosition.HasValue)
+            targetGroup.InsertProperty(propertyId, targetPosition.Value);
+        else
+            targetGroup.AddProperty(propertyId);
+    }
+
+    /// <summary>
+    /// Reorder properties within a group using a full ordered list of property IDs.
+    /// </summary>
+    public void ReorderPropertiesInGroup(Guid groupId, List<Guid> orderedPropertyIds)
+    {
+        var group = _groups.FirstOrDefault(g => g.Id == groupId)
+                    ?? throw new InvalidOperationException($"Group {groupId} not found");
+
+        group.ReorderProperties(orderedPropertyIds);
     }
 
     #endregion
@@ -322,12 +349,13 @@ public class Appraisal : Aggregate<Guid>
     /// Assign the appraisal to an internal user or external company
     /// </summary>
     public AppraisalAssignment Assign(
-        string assignmentMode,
-        Guid? assigneeUserId = null,
-        Guid? assigneeCompanyId = null,
-        string assignmentSource = "Manual",
+        string assignmentType,
+        string? assigneeUserId = null,
+        string? assigneeCompanyId = null,
+        string assignmentMethod = "Manual",
+        string? internalAppraiserId = null,
         Guid? autoRuleId = null,
-        Guid assignedBy = default)
+        string assignedBy = "")
     {
         ValidateCanAssign();
 
@@ -336,10 +364,11 @@ public class Appraisal : Aggregate<Guid>
 
         var assignment = AppraisalAssignment.Create(
             Id,
-            assignmentMode,
+            assignmentType,
             assigneeUserId,
             assigneeCompanyId,
-            assignmentSource,
+            assignmentMethod,
+            internalAppraiserId,
             autoRuleId,
             previousAssignment?.Id,
             reassignmentNumber,
@@ -347,6 +376,28 @@ public class Appraisal : Aggregate<Guid>
 
         _assignments.Add(assignment);
         UpdateStatus(AppraisalStatus.Assigned);
+
+        AddDomainEvent(new AppraisalAssignedEvent(this, assignment));
+
+        return assignment;
+    }
+
+    public AppraisalAssignment AssignAdmin()
+    {
+        var assignment = AppraisalAssignment.Create(
+            Id,
+            "Internal",
+            null,
+            null,
+            "Manual",
+            null,
+            null,
+            null,
+            1,
+            "System");
+
+        _assignments.Add(assignment);
+        UpdateStatus(AppraisalStatus.Pending);
 
         AddDomainEvent(new AppraisalAssignedEvent(this, assignment));
 

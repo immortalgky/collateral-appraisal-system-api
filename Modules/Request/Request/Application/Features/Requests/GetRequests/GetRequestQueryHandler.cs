@@ -9,6 +9,7 @@ internal class GetRequestQueryHandler(RequestDbContext dbContext)
     {
         var queryable = dbContext.Requests
             .AsNoTracking()
+            .Where(r => r.Status == RequestStatus.Draft || r.Status == RequestStatus.New)
             .Select(r => new GetRequestListItem
             {
                 Id = r.Id,

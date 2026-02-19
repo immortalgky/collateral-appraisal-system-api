@@ -4,7 +4,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateBuildingProperty;
 /// Handler for creating a building property with its appraisal detail
 /// </summary>
 public class CreateBuildingPropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    IAppraisalUnitOfWork unitOfWork
 ) : ICommandHandler<CreateBuildingPropertyCommand, CreateBuildingPropertyResult>
 {
     public async Task<CreateBuildingPropertyResult> Handle(
@@ -15,8 +16,7 @@ public class CreateBuildingPropertyCommandHandler(
                             command.AppraisalId, cancellationToken)
                         ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
-        var property = appraisal.AddBuildingProperty(
-            command.OwnerName);
+        var property = appraisal.AddBuildingProperty();
 
         property.BuildingDetail!.Update(
             command.PropertyName,
@@ -72,6 +72,10 @@ public class CreateBuildingPropertyCommandHandler(
             command.SellingPrice,
             command.ForcedSalePrice,
             command.Remark);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
 
         return new CreateBuildingPropertyResult(property.Id, property.BuildingDetail.Id);
     }

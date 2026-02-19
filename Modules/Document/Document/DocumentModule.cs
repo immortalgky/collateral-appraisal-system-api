@@ -35,6 +35,7 @@ public static class DocumentModule
         services.AddScoped<IRepository<UploadSession, Guid>, UploadSessionRepository>();
 
         services.AddScoped<IDocumentService, DocumentService>();
+        services.AddSingleton<IImageResizeService, ImageResizeService>();
 
         services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
         services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventInterceptor>();
