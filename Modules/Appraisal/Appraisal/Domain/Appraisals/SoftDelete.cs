@@ -21,7 +21,7 @@ public class SoftDelete : ValueObject
         return new SoftDelete(false, null, null);
     }
 
-    public static SoftDelete Deleted(Guid deletedBy)
+    public static SoftDelete Deleted(Guid? deletedBy)
     {
         return new SoftDelete(true, DateTime.UtcNow, deletedBy);
     }

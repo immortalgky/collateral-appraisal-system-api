@@ -233,8 +233,8 @@ DELETE {{baseUrl}}/market-comparable-templates/{{templateId}}
 
 ### 3.1 Add Location Type Factor to Land Template
 # Replace {templateId} and {factorId} with actual IDs
-@landTemplateId = 2A4D4934-40B6-44CC-88EA-42F087DF1557
-@locationTypeFactorId = D916DDFD-E71B-428D-BA4A-709239E54C29
+@landTemplateId = 019C74A9-6F17-7924-964E-270736DE2AA1
+@locationTypeFactorId = 019C74A8-ADE2-78C9-9A7A-562189B7E345
 POST {{baseUrl}}/market-comparable-templates/{{landTemplateId}}/factors
 Content-Type: application/json
 
@@ -245,7 +245,7 @@ Content-Type: application/json
 }
 
 ### 3.2 Add Land Area Factor to Land Template
-@landAreaFactorId = 5E915226-DD99-4B42-83B7-7FAB22B02482
+@landAreaFactorId = 019C74A9-0592-7BDE-8656-852535830C26
 POST {{baseUrl}}/market-comparable-templates/{{landTemplateId}}/factors
 Content-Type: application/json
 
@@ -256,7 +256,7 @@ Content-Type: application/json
 }
 
 ### 3.3 Add Road Width Factor to Land Template
-@roadWidthFactorId = F73D5684-FA32-4CA9-9457-2DBEF5461BE8
+@roadWidthFactorId = 019C74A9-0ACD-7FC9-918F-2079CDDAC1B9
 POST {{baseUrl}}/market-comparable-templates/{{landTemplateId}}/factors
 Content-Type: application/json
 
@@ -267,7 +267,7 @@ Content-Type: application/json
 }
 
 ### 3.4 Add Land Shape Factor to Land Template
-@landShapeFactorId = 40202783-4867-4897-8A7E-5DABDDE76948
+@landShapeFactorId = 019C74A9-13BC-76B8-85E6-7CBCC077D9D8
 POST {{baseUrl}}/market-comparable-templates/{{landTemplateId}}/factors
 Content-Type: application/json
 
@@ -278,7 +278,7 @@ Content-Type: application/json
 }
 
 ### 3.5 Add Corner Lot Factor to Land Template
-@cornerLotFactorId = 2322A669-6F0B-42CC-87B6-3D8E14E1C1F1
+@cornerLotFactorId = 019C74A9-19C9-7DC1-8CC4-EC79E0212035
 POST {{baseUrl}}/market-comparable-templates/{{landTemplateId}}/factors
 Content-Type: application/json
 

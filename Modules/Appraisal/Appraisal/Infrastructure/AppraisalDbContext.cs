@@ -152,6 +152,10 @@ public class AppraisalDbContext : DbContext
             .HasQueryFilter(a =>
                 a.AssignmentStatus != AssignmentStatus.Rejected && a.AssignmentStatus != AssignmentStatus.Cancelled);
 
+        
+        modelBuilder.Entity<MarketComparable>()
+            .HasQueryFilter(m => !m.SoftDelete.IsDeleted);
+        
         // MassTransit Outbox for reliable messaging
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxStateEntity();
