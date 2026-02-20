@@ -1,3 +1,3 @@
 namespace Appraisal.Contracts.Appraisals.Dto;
 
-public record CondoAppraisalAreaDetailDto(string? AreaDescription, decimal? AreaSize);
+public record CondoAppraisalAreaDetailDto(Guid? Id,string? AreaDescription, decimal? AreaSize);

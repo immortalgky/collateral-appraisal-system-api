@@ -21,7 +21,7 @@ public class GetLandPropertyQueryHandler(
 
         // 2. Find the property
         var property = appraisal.GetProperty(query.PropertyId)
-                       ?? throw new PropertyNotFoundException(query.PropertyId);
+                    ?? throw new PropertyNotFoundException(query.PropertyId);
 
         // 3. Validate property type
         if (property.PropertyType != PropertyType.Land)

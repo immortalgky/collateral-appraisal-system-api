@@ -109,19 +109,48 @@ public class UpdateCondoPropertyCommandHandler(
             remark: command.Remark);
 
         // 7. Update CondoAreaDetails if provided
-        if (command.CondoAreaDetails is not null)
-        {
-            var newAreaDetails = command.CondoAreaDetails
-                .Select(dto => CondoAppraisalAreaDetail.Create(
-                    dto.AreaDescription,
-                    dto.AreaSize))
-                .ToList();
-            detail.AddCondoAreaDetail(newAreaDetails);
-        }
+        if (command.AreaDetails is not null)SyncAreaDetail(detail,command.AreaDetails);
 
         // 8. Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 
         return MediatR.Unit.Value;
     }
+    private static void SyncAreaDetail(
+        CondoAppraisalDetail condoDetail,
+        List<CondoAppraisalAreaDetailDto> incomingAreaDetails)
+    {
+        var incomingIds = incomingAreaDetails
+            .Where(a => a.Id.HasValue)
+            .Select(a => a.Id!.Value)
+            .ToHashSet();
+
+        // Remove area details not present in incoming list
+        var idsToRemove = condoDetail.AreaDetails
+            .Where(a => !incomingIds.Contains(a.Id))
+            .Select(a => a.Id)
+            .ToList();
+
+        foreach (var id in idsToRemove)
+            condoDetail.RemoveCondoAreaDetail(id);
+
+        // Add or update
+        foreach (var dto in incomingAreaDetails)
+        {
+            if (dto.Id.HasValue)
+            {
+                // Update existing
+                var existing = condoDetail.AreaDetails
+                    .FirstOrDefault(a => a.Id == dto.Id.Value);
+                existing?.UpdateArea(dto.AreaDescription, dto.AreaSize);
+            }
+            else
+            {
+                // Create new
+                var newDetail = CondoAppraisalAreaDetail.Create(dto.AreaDescription, dto.AreaSize);
+                condoDetail.AddCondoAreaDetail(newDetail);
+            }
+        }
+    }
+
 }

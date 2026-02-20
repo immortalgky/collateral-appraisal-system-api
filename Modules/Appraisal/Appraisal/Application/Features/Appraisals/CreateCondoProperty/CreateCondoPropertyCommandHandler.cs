@@ -97,15 +97,14 @@ public class CreateCondoPropertyCommandHandler(
             command.ForcedSalePrice,
             command.Remark);
         
-        // 5. Create CondoAreaDetails if provided
-        if (command.CondoAreaDetails is not null)
+        // 5. Create CondoAreaDetails
+        if (command.AreaDetails is { Count: > 0 })
         {
-            var newAreaDetails = command.CondoAreaDetails
-            .Select(dto => CondoAppraisalAreaDetail.Create(
-                dto.AreaDescription,
-                dto.AreaSize))
-            .ToList();
-            property.CondoDetail.AddCondoAreaDetail(newAreaDetails);
+            foreach (var dto in command.AreaDetails)
+            {
+                var areaDetail = CondoAppraisalAreaDetail.Create(dto.AreaDescription, dto.AreaSize);
+                property.CondoDetail.AddCondoAreaDetail(areaDetail);
+            }
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

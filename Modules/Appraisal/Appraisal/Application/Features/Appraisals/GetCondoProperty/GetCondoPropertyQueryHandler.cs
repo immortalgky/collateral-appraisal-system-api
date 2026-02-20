@@ -84,8 +84,8 @@ public class GetCondoPropertyQueryHandler(
             BathroomFloorMaterialTypeOther: detail.BathroomFloorMaterialTypeOther,
             RoofType: detail.RoofType,
             RoofTypeOther: detail.RoofTypeOther,
-            CondoAreaDetails: detail.CondoAreaDetails
-            .Select(a => new CondoAppraisalAreaDetailDto(a.AreaDescription, a.AreaSize))
+            AreaDetails: detail.AreaDetails
+            .Select(a => new CondoAppraisalAreaDetailDto(a.Id, a.AreaDescription, a.AreaSize))
             .ToList(),
             TotalBuildingArea: detail.TotalBuildingArea,
             IsExpropriated: detail.IsExpropriated,

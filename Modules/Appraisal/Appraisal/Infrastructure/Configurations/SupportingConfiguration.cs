@@ -46,14 +46,14 @@ public class BuildingAppraisalSurfaceConfiguration : IEntityTypeConfiguration<Bu
         builder.Property(s => s.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
         builder.Property(s => s.AppraisalPropertyId).IsRequired();
-        builder.Property(s => s.FromFloorNo).IsRequired();
-        builder.Property(s => s.ToFloorNo).IsRequired();
+        builder.Property(s => s.FromFloorNumber).IsRequired();
+        builder.Property(s => s.ToFloorNumber).IsRequired();
 
         builder.Property(s => s.FloorType).HasMaxLength(50);
-        builder.Property(s => s.FloorStructure).HasMaxLength(50);
-        builder.Property(s => s.FloorStructureOther).HasMaxLength(200);
-        builder.Property(s => s.FloorSurface).HasMaxLength(50);
-        builder.Property(s => s.FloorSurfaceOther).HasMaxLength(200);
+        builder.Property(s => s.FloorStructureType).HasMaxLength(50);
+        builder.Property(s => s.FloorStructureTypeOther).HasMaxLength(200);
+        builder.Property(s => s.FloorSurfaceType).HasMaxLength(50);
+        builder.Property(s => s.FloorSurfaceTypeOther).HasMaxLength(200);
 
         builder.HasIndex(s => s.AppraisalPropertyId);
     }
