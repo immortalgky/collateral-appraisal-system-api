@@ -53,7 +53,7 @@ public class GetAppraisalsQueryHandler(
 
         var result = await connectionFactory.QueryPaginatedAsync<AppraisalDto>(
             sql,
-            "CreatedOn DESC",
+            "CreatedAt DESC",
             query.PaginationRequest,
             parameters);
 
