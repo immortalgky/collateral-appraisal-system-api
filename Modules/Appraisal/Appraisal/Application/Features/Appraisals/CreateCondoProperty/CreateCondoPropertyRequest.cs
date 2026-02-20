@@ -60,6 +60,7 @@ public record CreateCondoPropertyRequest(
     string? RoofType = null,
     string? RoofTypeOther = null,
     // Area
+    List<CondoAppraisalAreaDetailDto>? CondoAreaDetails = null,
     decimal? TotalBuildingArea = null,
     // Legal Restrictions
     bool? IsExpropriated = null,

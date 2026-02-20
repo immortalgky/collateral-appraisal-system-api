@@ -87,6 +87,16 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.RoofTypeOther).HasMaxLength(200);
 
         // Area
+        builder.OwnsMany(e => e.CondoAreaDetails, condoAreaDetail =>
+        {
+            condoAreaDetail.ToTable("CondoAppraisalAreaDetails");
+            condoAreaDetail.WithOwner().HasForeignKey("CondoAppraisalDetailsId");
+            condoAreaDetail.HasKey("Id");
+
+            condoAreaDetail.Property(p => p.AreaDescription).HasMaxLength(200).HasColumnName("AreaDescription");
+            condoAreaDetail.Property(p => p.AreaSize).HasPrecision(10, 2).HasColumnName("AreaSize");
+        });
+
         builder.Property(e => e.TotalBuildingArea).HasPrecision(18, 4);
 
         // Legal Restrictions

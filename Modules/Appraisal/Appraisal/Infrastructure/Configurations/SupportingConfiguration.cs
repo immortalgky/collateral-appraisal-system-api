@@ -59,22 +59,22 @@ public class BuildingAppraisalSurfaceConfiguration : IEntityTypeConfiguration<Bu
     }
 }
 
-public class CondoAppraisalAreaDetailConfiguration : IEntityTypeConfiguration<CondoAppraisalAreaDetail>
-{
-    public void Configure(EntityTypeBuilder<CondoAppraisalAreaDetail> builder)
-    {
-        builder.ToTable("CondoAppraisalAreaDetails");
+// public class CondoAppraisalAreaDetailConfiguration : IEntityTypeConfiguration<CondoAppraisalAreaDetail>
+// {
+//     public void Configure(EntityTypeBuilder<CondoAppraisalAreaDetail> builder)
+//     {
+//         builder.ToTable("CondoAppraisalAreaDetails");
 
-        builder.HasKey(a => a.Id);
-        builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+//         builder.HasKey(a => a.Id);
+//         builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
-        builder.Property(a => a.AppraisalPropertyId).IsRequired();
-        builder.Property(a => a.AreaDescription).IsRequired().HasMaxLength(200);
-        builder.Property(a => a.AreaSize).IsRequired().HasPrecision(10, 2);
+//         builder.Property(a => a.AppraisalPropertyId).IsRequired();
+//         builder.Property(a => a.AreaDescription).IsRequired().HasMaxLength(200);
+//         builder.Property(a => a.AreaSize).IsRequired().HasPrecision(10, 2);
 
-        builder.HasIndex(a => a.AppraisalPropertyId);
-    }
-}
+//         builder.HasIndex(a => a.AppraisalPropertyId);
+//     }
+// }
 
 public class LawAndRegulationConfiguration : IEntityTypeConfiguration<LawAndRegulation>
 {

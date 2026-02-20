@@ -5,20 +5,17 @@ namespace Appraisal.Domain.Appraisals;
 /// </summary>
 public class CondoAppraisalAreaDetail : Entity<Guid>
 {
-    public Guid AppraisalPropertyId { get; private set; }
-
     // Area Details
-    public string AreaDescription { get; private set; } = null!; // Balcony, AirCondLedge, LivingRoom, Bedroom, etc.
-    public decimal AreaSize { get; private set; } // Size in Sq.m
+    public string? AreaDescription { get; private set; } // Balcony, AirCondLedge, LivingRoom, Bedroom, etc.
+    public decimal? AreaSize { get; private set; } // Size in Sq.m
 
     private CondoAppraisalAreaDetail()
     {
     }
 
     public static CondoAppraisalAreaDetail Create(
-        Guid appraisalPropertyId,
-        string areaDescription,
-        decimal areaSize)
+        string? areaDescription,
+        decimal? areaSize)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(areaDescription);
 
@@ -27,14 +24,13 @@ public class CondoAppraisalAreaDetail : Entity<Guid>
 
         return new CondoAppraisalAreaDetail
         {
-            Id = Guid.CreateVersion7(),
-            AppraisalPropertyId = appraisalPropertyId,
+            // Id = Guid.CreateVersion7(),
             AreaDescription = areaDescription,
             AreaSize = areaSize
         };
     }
 
-    public void UpdateArea(string description, decimal size)
+    public void UpdateArea(string? description, decimal? size)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(description);
 

@@ -108,7 +108,18 @@ public class UpdateCondoPropertyCommandHandler(
             forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark);
 
-        // 7. Save aggregate
+        // 7. Update CondoAreaDetails if provided
+        if (command.CondoAreaDetails is not null)
+        {
+            var newAreaDetails = command.CondoAreaDetails
+                .Select(dto => CondoAppraisalAreaDetail.Create(
+                    dto.AreaDescription,
+                    dto.AreaSize))
+                .ToList();
+            detail.AddCondoAreaDetail(newAreaDetails);
+        }
+
+        // 8. Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 
         return MediatR.Unit.Value;

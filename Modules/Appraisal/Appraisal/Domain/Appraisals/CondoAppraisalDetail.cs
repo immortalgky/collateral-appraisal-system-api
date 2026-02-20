@@ -70,6 +70,8 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? RoofTypeOther { get; private set; }
 
     // Area
+    private readonly List<CondoAppraisalAreaDetail> _condoAreaDetails = [];
+    public IReadOnlyList<CondoAppraisalAreaDetail> CondoAreaDetails => _condoAreaDetails.AsReadOnly();
     public decimal? TotalBuildingArea { get; private set; }
 
     // Legal Restrictions
@@ -262,5 +264,12 @@ public class CondoAppraisalDetail : Entity<Guid>
 
         // Other
         Remark = remark;
+    }
+
+
+    public void AddCondoAreaDetail(List<CondoAppraisalAreaDetail> condoAreaDetails)
+    {
+        _condoAreaDetails.Clear();
+        _condoAreaDetails.AddRange(condoAreaDetails);
     }
 }
