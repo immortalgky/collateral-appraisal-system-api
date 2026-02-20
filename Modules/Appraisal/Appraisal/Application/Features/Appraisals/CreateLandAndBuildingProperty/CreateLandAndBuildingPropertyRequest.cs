@@ -107,7 +107,7 @@ public record CreateLandAndBuildingPropertyRequest(
     int? ConstructionYear = null,
     string? ResidentialRemark = null,
     // Building - Status
-    string? BuildingCondition = null,
+    string? BuildingConditionType = null,
     bool? IsUnderConstruction = null,
     decimal? ConstructionCompletionPercent = null,
     DateTime? ConstructionLicenseExpirationDate = null,
@@ -121,8 +121,8 @@ public record CreateLandAndBuildingPropertyRequest(
     // Building - Structure
     int? NumberOfFloors = null,
     // Building - Style
-    string? BuildingMaterial = null,
-    string? BuildingStyle = null,
+    string? BuildingMaterialType = null,
+    string? BuildingStyleType = null,
     bool? IsResidential = null,
     string? ConstructionStyleType = null,
     string? ConstructionStyleRemark = null,

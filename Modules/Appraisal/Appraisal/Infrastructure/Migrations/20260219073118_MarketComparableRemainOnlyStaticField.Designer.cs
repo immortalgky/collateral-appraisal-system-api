@@ -4,6 +4,7 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260219073118_MarketComparableRemainOnlyStaticField")]
+    partial class MarketComparableRemainOnlyStaticField
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1253,6 +1256,52 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasIndex("AppraisalComparableId");
 
                     b.ToTable("ComparableAdjustments", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.CondoAppraisalAreaDetail", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<Guid>("AppraisalPropertyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AreaDescription")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("AreaSize")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppraisalPropertyId");
+
+                    b.ToTable("CondoAppraisalAreaDetails", "appraisal");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.FeeStructure", b =>
@@ -4817,58 +4866,7 @@ namespace Appraisal.Infrastructure.Migrations
                                         .HasForeignKey("CondoAppraisalDetailId");
                                 });
 
-                            b1.OwnsMany("Appraisal.Domain.Appraisals.CondoAppraisalAreaDetail", "CondoAreaDetails", b2 =>
-                                {
-                                    b2.Property<Guid>("Id")
-                                        .ValueGeneratedOnAdd()
-                                        .HasColumnType("uniqueidentifier");
-
-                                    b2.Property<string>("AreaDescription")
-                                        .HasMaxLength(200)
-                                        .HasColumnType("nvarchar(200)")
-                                        .HasColumnName("AreaDescription");
-
-                                    b2.Property<decimal?>("AreaSize")
-                                        .HasPrecision(10, 2)
-                                        .HasColumnType("decimal(10,2)")
-                                        .HasColumnName("AreaSize");
-
-                                    b2.Property<Guid>("CondoAppraisalDetailsId")
-                                        .HasColumnType("uniqueidentifier");
-
-                                    b2.Property<DateTime?>("CreatedAt")
-                                        .HasColumnType("datetime2");
-
-                                    b2.Property<string>("CreatedBy")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)");
-
-                                    b2.Property<string>("CreatedWorkstation")
-                                        .HasColumnType("nvarchar(max)");
-
-                                    b2.Property<DateTime?>("UpdatedAt")
-                                        .HasColumnType("datetime2");
-
-                                    b2.Property<string>("UpdatedBy")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)");
-
-                                    b2.Property<string>("UpdatedWorkstation")
-                                        .HasColumnType("nvarchar(max)");
-
-                                    b2.HasKey("Id");
-
-                                    b2.HasIndex("CondoAppraisalDetailsId");
-
-                                    b2.ToTable("CondoAppraisalAreaDetails", "appraisal");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("CondoAppraisalDetailsId");
-                                });
-
                             b1.Navigation("Address");
-
-                            b1.Navigation("CondoAreaDetails");
 
                             b1.Navigation("Coordinates");
                         });
