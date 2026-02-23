@@ -20,7 +20,7 @@ public class GetCommitteesQueryHandler(
 
         var result = await connectionFactory.QueryPaginatedAsync<CommitteeDto>(
             sql,
-            "CreatedOn DESC",
+            "CreatedAt DESC",
             query.PaginationRequest);
 
         return new GetCommitteesResult(result);

@@ -26,7 +26,7 @@ public class GetCondoPropertyQueryHandler(
 
         // 4. Get the condo detail
         var detail = property.CondoDetail
-                     ?? throw new InvalidOperationException($"Condo detail not found for property {query.PropertyId}");
+                    ?? throw new InvalidOperationException($"Condo detail not found for property {query.PropertyId}");
 
         // 5. Map to result
         return new GetCondoPropertyResult(
@@ -84,6 +84,9 @@ public class GetCondoPropertyQueryHandler(
             BathroomFloorMaterialTypeOther: detail.BathroomFloorMaterialTypeOther,
             RoofType: detail.RoofType,
             RoofTypeOther: detail.RoofTypeOther,
+            AreaDetails: detail.AreaDetails
+            .Select(a => new CondoAppraisalAreaDetailDto(a.Id, a.AreaDescription, a.AreaSize))
+            .ToList(),
             TotalBuildingArea: detail.TotalBuildingArea,
             IsExpropriated: detail.IsExpropriated,
             ExpropriationRemark: detail.ExpropriationRemark,

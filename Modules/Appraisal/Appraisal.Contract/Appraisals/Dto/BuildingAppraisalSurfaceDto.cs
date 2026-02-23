@@ -1,11 +1,11 @@
 namespace Appraisal.Contracts.Appraisals.Dto;
 
 public record BuildingAppraisalSurfaceDto(
-    short? FromFloorNo,
-    short? ToFloorNo,
+    short? FromFloorNumber,
+    short? ToFloorNumber,
     string? FloorType,
-    string? FloorStructure,
-    string? FloorStructureOther,
-    string? FloorSurface,
-    string? FloorSurfaceOther
+    string? FloorStructureType,
+    string? FloorStructureTypeOther,
+    string? FloorSurfaceType,
+    string? FloorSurfaceTypeOther
 );

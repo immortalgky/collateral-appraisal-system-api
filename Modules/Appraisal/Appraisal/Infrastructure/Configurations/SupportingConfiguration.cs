@@ -46,35 +46,35 @@ public class BuildingAppraisalSurfaceConfiguration : IEntityTypeConfiguration<Bu
         builder.Property(s => s.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
         builder.Property(s => s.AppraisalPropertyId).IsRequired();
-        builder.Property(s => s.FromFloorNo).IsRequired();
-        builder.Property(s => s.ToFloorNo).IsRequired();
+        builder.Property(s => s.FromFloorNumber).IsRequired();
+        builder.Property(s => s.ToFloorNumber).IsRequired();
 
         builder.Property(s => s.FloorType).HasMaxLength(50);
-        builder.Property(s => s.FloorStructure).HasMaxLength(50);
-        builder.Property(s => s.FloorStructureOther).HasMaxLength(200);
-        builder.Property(s => s.FloorSurface).HasMaxLength(50);
-        builder.Property(s => s.FloorSurfaceOther).HasMaxLength(200);
+        builder.Property(s => s.FloorStructureType).HasMaxLength(50);
+        builder.Property(s => s.FloorStructureTypeOther).HasMaxLength(200);
+        builder.Property(s => s.FloorSurfaceType).HasMaxLength(50);
+        builder.Property(s => s.FloorSurfaceTypeOther).HasMaxLength(200);
 
         builder.HasIndex(s => s.AppraisalPropertyId);
     }
 }
 
-public class CondoAppraisalAreaDetailConfiguration : IEntityTypeConfiguration<CondoAppraisalAreaDetail>
-{
-    public void Configure(EntityTypeBuilder<CondoAppraisalAreaDetail> builder)
-    {
-        builder.ToTable("CondoAppraisalAreaDetails");
+// public class CondoAppraisalAreaDetailConfiguration : IEntityTypeConfiguration<CondoAppraisalAreaDetail>
+// {
+//     public void Configure(EntityTypeBuilder<CondoAppraisalAreaDetail> builder)
+//     {
+//         builder.ToTable("CondoAppraisalAreaDetails");
 
-        builder.HasKey(a => a.Id);
-        builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+//         builder.HasKey(a => a.Id);
+//         builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
-        builder.Property(a => a.AppraisalPropertyId).IsRequired();
-        builder.Property(a => a.AreaDescription).IsRequired().HasMaxLength(200);
-        builder.Property(a => a.AreaSize).IsRequired().HasPrecision(10, 2);
+//         builder.Property(a => a.AppraisalPropertyId).IsRequired();
+//         builder.Property(a => a.AreaDescription).IsRequired().HasMaxLength(200);
+//         builder.Property(a => a.AreaSize).IsRequired().HasPrecision(10, 2);
 
-        builder.HasIndex(a => a.AppraisalPropertyId);
-    }
-}
+//         builder.HasIndex(a => a.AppraisalPropertyId);
+//     }
+// }
 
 public class LawAndRegulationConfiguration : IEntityTypeConfiguration<LawAndRegulation>
 {

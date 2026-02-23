@@ -68,6 +68,7 @@ public record GetCondoPropertyResult(
     string? RoofType,
     string? RoofTypeOther,
     // Area
+    List<CondoAppraisalAreaDetailDto>? AreaDetails,
     decimal? TotalBuildingArea,
     // Legal Restrictions
     bool? IsExpropriated,
