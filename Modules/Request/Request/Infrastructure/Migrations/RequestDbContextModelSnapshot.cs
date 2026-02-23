@@ -327,6 +327,14 @@ namespace Request.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ExternalCaseKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ExternalSystem")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<bool>("IsPma")
                         .HasColumnType("bit");
 
@@ -341,6 +349,12 @@ namespace Request.Infrastructure.Migrations
                     b.Property<DateTime?>("RequestedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("Status");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -353,9 +367,17 @@ namespace Request.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ExternalCaseKey")
+                        .HasDatabaseName("IX_Request_ExternalCaseKey")
+                        .HasFilter("[ExternalCaseKey] IS NOT NULL");
+
                     b.HasIndex("RequestedAt")
                         .IsDescending()
                         .HasDatabaseName("IX_Request_RequestedAt")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_Request_Status")
                         .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("Requests", "request");
@@ -1124,29 +1146,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasForeignKey("RequestId");
                         });
 
-                    b.OwnsOne("Request.Domain.Requests.RequestStatus", "Status", b1 =>
-                        {
-                            b1.Property<Guid>("RequestId")
-                                .HasColumnType("uniqueidentifier");
-
-                            b1.Property<string>("Code")
-                                .IsRequired()
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
-                                .HasColumnName("Status");
-
-                            b1.HasKey("RequestId");
-
-                            b1.HasIndex("Code")
-                                .HasDatabaseName("IX_Request_Status")
-                                .HasFilter("[IsDeleted] = 0");
-
-                            b1.ToTable("Requests", "request");
-
-                            b1.WithOwner()
-                                .HasForeignKey("RequestId");
-                        });
-
                     b.OwnsOne("Request.Domain.Requests.SoftDelete", "SoftDelete", b1 =>
                         {
                             b1.Property<Guid>("RequestId")
@@ -1190,9 +1189,6 @@ namespace Request.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("SoftDelete")
-                        .IsRequired();
-
-                    b.Navigation("Status")
                         .IsRequired();
                 });
 

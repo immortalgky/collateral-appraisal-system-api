@@ -27,6 +27,13 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
         });
         builder.Property(p => p.Priority).HasMaxLength(255);
 
+        // External system integration
+        builder.Property(p => p.ExternalCaseKey).HasMaxLength(100);
+        builder.Property(p => p.ExternalSystem).HasMaxLength(50);
+        builder.HasIndex(p => p.ExternalCaseKey)
+            .HasFilter("[ExternalCaseKey] IS NOT NULL")
+            .HasDatabaseName("IX_Request_ExternalCaseKey");
+
         builder.OwnsOne(p => p.SoftDelete, sd =>
         {
             sd.Property(p => p.IsDeleted).HasColumnName("IsDeleted");

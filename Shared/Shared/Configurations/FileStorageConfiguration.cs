@@ -35,7 +35,17 @@ public class FileStorageConfiguration
     /// <summary>
     /// Maximum allowed file size in bytes
     /// </summary>
-    public int MaxFileSizeBytes { get; set; } = 100 * 1024 * 1024;
+    public int MaxFileSizeBytes { get; set; } = 50 * 1024 * 1024;
+
+    /// <summary>
+    /// Maximum number of files allowed per upload session
+    /// </summary>
+    public int MaxFilesPerSession { get; set; } = 20;
+
+    /// <summary>
+    /// Maximum total session size in bytes
+    /// </summary>
+    public int MaxTotalSessionSizeBytes { get; set; } = 200 * 1024 * 1024;
 
     /// <summary>
     /// Allowed file extensions

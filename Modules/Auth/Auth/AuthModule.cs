@@ -50,6 +50,11 @@ public static class AuthModule
             )
             .AddClientPermissionPolicy("CanReadRequest", ["request:read"])
             .AddClientPermissionPolicy("CanWriteRequest", ["request:read", "request:write"])
+            // CLS Integration policies
+            .AddScopePolicy("ClsReadAppraisal", "appraisal.read")
+            .AddScopePolicy("ClsWriteRequest", "request.write")
+            .AddScopePolicy("ClsReadDocument", "document.read")
+            .AddScopePolicy("ClsWriteDocument", "document.write")
             .SetDefaultPolicy(
                 new AuthorizationPolicyBuilder()
                     .RequireAuthenticatedUser()
@@ -92,5 +97,22 @@ public static class AuthModule
     )
     {
         policy.RequireClaim("permissions", allowedValues);
+    }
+
+    private static AuthorizationBuilder AddScopePolicy(
+        this AuthorizationBuilder authorizationBuilder,
+        string policyName,
+        string requiredScope
+    )
+    {
+        authorizationBuilder.AddPolicy(
+            policyName,
+            policy =>
+            {
+                policy.RequireAuthenticatedUser();
+                policy.RequireClaim("scope", requiredScope);
+            }
+        );
+        return authorizationBuilder;
     }
 }

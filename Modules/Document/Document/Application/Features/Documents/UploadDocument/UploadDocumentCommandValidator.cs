@@ -24,7 +24,8 @@ public class UploadDocumentCommandValidator : AbstractValidator<UploadDocumentCo
 
         RuleFor(x => x.File.FileName)
             .Must(HasValidExtension)
-            .WithMessage($"File extension is not allowed. Allowed extensions: {string.Join(", ", _fileStorageConfig.AllowedExtensions)}")
+            .WithMessage(
+                $"File extension is not allowed. Allowed extensions: {string.Join(", ", _fileStorageConfig.AllowedExtensions)}")
             .When(x => x.File != null);
 
         RuleFor(x => x.UploadSessionId)
@@ -37,11 +38,11 @@ public class UploadDocumentCommandValidator : AbstractValidator<UploadDocumentCo
             .MaximumLength(50)
             .WithMessage("Document type cannot exceed 50 characters");
 
-        RuleFor(x => x.DocumentCategory)
-            .NotEmpty()
-            .WithMessage("Document category is required")
-            .MaximumLength(50)
-            .WithMessage("Document category cannot exceed 50 characters");
+        // RuleFor(x => x.DocumentCategory)
+        //     .NotEmpty()
+        //     .WithMessage("Document category is required")
+        //     .MaximumLength(50)
+        //     .WithMessage("Document category cannot exceed 50 characters");
 
         RuleFor(x => x.Description)
             .MaximumLength(500)

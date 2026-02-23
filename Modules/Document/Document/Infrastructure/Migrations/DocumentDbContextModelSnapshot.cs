@@ -207,6 +207,10 @@ namespace Document.Infrastructure.Migrations
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ExternalReference")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
                     b.Property<string>("IpAddress")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");

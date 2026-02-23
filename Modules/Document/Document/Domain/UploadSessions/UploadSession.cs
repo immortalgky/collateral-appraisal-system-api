@@ -14,6 +14,7 @@ public class UploadSession : Aggregate<Guid>
     // Session Metadata
     public string? UserAgent { get; private set; }
     public string? IpAddress { get; private set; }
+    public string? ExternalReference { get; private set; }
 
     // Document Linkage
     private readonly List<Documents.Models.Document> _documents = [];
@@ -67,5 +68,10 @@ public class UploadSession : Aggregate<Guid>
 
         Status = "Completed";
         CompletedAt = completedAt;
+    }
+
+    public void SetExternalReference(string? externalReference)
+    {
+        ExternalReference = externalReference;
     }
 }
