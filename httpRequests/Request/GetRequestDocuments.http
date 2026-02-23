@@ -1,0 +1,5 @@
+@baseUrl = https://localhost:7111
+@requestId = 019c1a53-e2e2-71ca-b792-3f96b21b1c13
+
+### Get all documents for a request (combined view)
+GET {{baseUrl}}/requests/{{requestId}}/documents

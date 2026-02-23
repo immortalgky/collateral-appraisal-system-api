@@ -55,4 +55,31 @@ public class AppraisalGalleryRepository(AppraisalDbContext dbContext)
         _dbContext.PropertyPhotoMappings.Remove(mapping);
         return Task.CompletedTask;
     }
+
+    public async Task<IEnumerable<GalleryPhotoTopicMapping>> GetTopicMappingsByPhotoIdAsync(Guid galleryPhotoId, CancellationToken ct = default)
+    {
+        return await _dbContext.GalleryPhotoTopicMappings
+            .Where(m => m.GalleryPhotoId == galleryPhotoId)
+            .ToListAsync(ct);
+    }
+
+    public async Task AddTopicMappingAsync(GalleryPhotoTopicMapping mapping, CancellationToken ct = default)
+    {
+        await _dbContext.GalleryPhotoTopicMappings.AddAsync(mapping, ct);
+    }
+
+    public Task DeleteTopicMappingAsync(GalleryPhotoTopicMapping mapping, CancellationToken ct = default)
+    {
+        _dbContext.GalleryPhotoTopicMappings.Remove(mapping);
+        return Task.CompletedTask;
+    }
+
+    public async Task DeleteTopicMappingsByPhotoIdAsync(Guid galleryPhotoId, CancellationToken ct = default)
+    {
+        var mappings = await _dbContext.GalleryPhotoTopicMappings
+            .Where(m => m.GalleryPhotoId == galleryPhotoId)
+            .ToListAsync(ct);
+
+        _dbContext.GalleryPhotoTopicMappings.RemoveRange(mappings);
+    }
 }

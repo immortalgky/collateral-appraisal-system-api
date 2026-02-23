@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+
 namespace Appraisal.Application.Features.Appraisals.UpdateBuildingProperty;
 
 /// <summary>
@@ -67,5 +69,9 @@ public record UpdateBuildingPropertyCommand(
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Other
-    string? Remark = null
+    string? Remark = null,
+    // Depreciation Details (null = no-op, list = sync)
+    List<DepreciationItemData>? DepreciationDetails = null,
+    // Surfaces (null = no-op, list = sync)
+    List<SurfaceItemData>? Surfaces = null
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;

@@ -1,3 +1,3 @@
 namespace Appraisal.Application.Features.Appraisals.AssignPhotoToTopic;
 
-public record AssignPhotoToTopicRequest(Guid? PhotoTopicId);
+public record AssignPhotoToTopicRequest(List<Guid> PhotoTopicIds);

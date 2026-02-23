@@ -2,62 +2,9 @@ namespace Appraisal.Infrastructure.Configurations;
 
 // LandTitleConfiguration removed - now configured via OwnsMany in LandAppraisalDetailConfiguration
 
-public class BuildingDepreciationDetailConfiguration : IEntityTypeConfiguration<BuildingDepreciationDetail>
-{
-    public void Configure(EntityTypeBuilder<BuildingDepreciationDetail> builder)
-    {
-        builder.ToTable("BuildingDepreciationDetails");
+// BuildingDepreciationDetailConfiguration removed - now configured via OwnsMany in BuildingAppraisalDetailConfiguration
 
-        builder.HasKey(d => d.Id);
-        builder.Property(d => d.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
-
-        builder.Property(d => d.AppraisalPropertyId).IsRequired();
-        builder.Property(d => d.DepreciationMethod).IsRequired().HasMaxLength(50);
-        builder.Property(d => d.UsefulLifeYears).IsRequired();
-        builder.Property(d => d.EffectiveAge).IsRequired();
-        builder.Property(d => d.RemainingLifeYears).IsRequired();
-        builder.Property(d => d.SalvageValuePercent).HasPrecision(5, 2);
-
-        builder.Property(d => d.ReplacementCostNew).IsRequired().HasPrecision(18, 2);
-        builder.Property(d => d.PhysicalDepreciationPct).IsRequired().HasPrecision(5, 2);
-        builder.Property(d => d.PhysicalDepreciationAmt).IsRequired().HasPrecision(18, 2);
-        builder.Property(d => d.FunctionalObsolescencePct).HasPrecision(5, 2);
-        builder.Property(d => d.FunctionalObsolescenceAmt).HasPrecision(18, 2);
-        builder.Property(d => d.ExternalObsolescencePct).HasPrecision(5, 2);
-        builder.Property(d => d.ExternalObsolescenceAmt).HasPrecision(18, 2);
-        builder.Property(d => d.TotalDepreciationPct).IsRequired().HasPrecision(5, 2);
-        builder.Property(d => d.TotalDepreciationAmt).IsRequired().HasPrecision(18, 2);
-        builder.Property(d => d.DepreciatedValue).IsRequired().HasPrecision(18, 2);
-
-        builder.Property(d => d.StructuralCondition).HasMaxLength(50);
-        builder.Property(d => d.MaintenanceLevel).HasMaxLength(50);
-
-        builder.HasIndex(d => d.AppraisalPropertyId);
-    }
-}
-
-public class BuildingAppraisalSurfaceConfiguration : IEntityTypeConfiguration<BuildingAppraisalSurface>
-{
-    public void Configure(EntityTypeBuilder<BuildingAppraisalSurface> builder)
-    {
-        builder.ToTable("BuildingAppraisalSurfaces");
-
-        builder.HasKey(s => s.Id);
-        builder.Property(s => s.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
-
-        builder.Property(s => s.AppraisalPropertyId).IsRequired();
-        builder.Property(s => s.FromFloorNo).IsRequired();
-        builder.Property(s => s.ToFloorNo).IsRequired();
-
-        builder.Property(s => s.FloorType).HasMaxLength(50);
-        builder.Property(s => s.FloorStructure).HasMaxLength(50);
-        builder.Property(s => s.FloorStructureOther).HasMaxLength(200);
-        builder.Property(s => s.FloorSurface).HasMaxLength(50);
-        builder.Property(s => s.FloorSurfaceOther).HasMaxLength(200);
-
-        builder.HasIndex(s => s.AppraisalPropertyId);
-    }
-}
+// BuildingAppraisalSurfaceConfiguration removed - now configured via OwnsMany in BuildingAppraisalDetailConfiguration
 
 public class CondoAppraisalAreaDetailConfiguration : IEntityTypeConfiguration<CondoAppraisalAreaDetail>
 {
@@ -107,6 +54,7 @@ public class LawAndRegulationImageConfiguration : IEntityTypeConfiguration<LawAn
         builder.Property(i => i.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
         builder.Property(i => i.LawAndRegulationId).IsRequired();
+        builder.Property(i => i.DocumentId).IsRequired();
         builder.Property(i => i.DisplaySequence).IsRequired();
         builder.Property(i => i.Title).HasMaxLength(200);
         builder.Property(i => i.Description).HasMaxLength(500);

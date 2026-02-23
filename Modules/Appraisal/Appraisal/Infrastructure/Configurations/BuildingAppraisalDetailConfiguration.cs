@@ -107,5 +107,61 @@ public class
 
         // Relationship - FK to AppraisalProperty (1:1)
         builder.Property(e => e.AppraisalPropertyId).IsRequired();
+
+        // DepreciationDetails - Owned collection
+        builder.OwnsMany(e => e.DepreciationDetails, dep =>
+        {
+            dep.ToTable("BuildingDepreciationDetails", "appraisal");
+            dep.WithOwner().HasForeignKey(d => d.BuildingAppraisalDetailId);
+            dep.HasKey(d => d.Id);
+            dep.Property(d => d.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+            dep.Property(d => d.AreaDescription).HasMaxLength(200);
+            dep.Property(d => d.Area).HasPrecision(18, 4);
+            dep.Property(d => d.PricePerSqMBeforeDepreciation).HasPrecision(18, 2);
+            dep.Property(d => d.PriceBeforeDepreciation).HasPrecision(18, 2);
+            dep.Property(d => d.PricePerSqMAfterDepreciation).HasPrecision(18, 2);
+            dep.Property(d => d.PriceAfterDepreciation).HasPrecision(18, 2);
+            dep.Property(d => d.DepreciationMethod).IsRequired().HasMaxLength(20);
+            dep.Property(d => d.DepreciationYearPct).HasPrecision(7, 4);
+            dep.Property(d => d.TotalDepreciationPct).HasPrecision(7, 4);
+            dep.Property(d => d.PriceDepreciation).HasPrecision(18, 2);
+
+            dep.HasIndex(d => d.BuildingAppraisalDetailId);
+
+            // Nested OwnsMany for DepreciationPeriods
+            dep.OwnsMany(d => d.DepreciationPeriods, period =>
+            {
+                period.ToTable("BuildingDepreciationPeriods", "appraisal");
+                period.WithOwner().HasForeignKey(p => p.BuildingDepreciationDetailId);
+                period.HasKey(p => p.Id);
+                period.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                period.Property(p => p.DepreciationPerYear).HasPrecision(7, 4);
+                period.Property(p => p.TotalDepreciationPct).HasPrecision(7, 4);
+                period.Property(p => p.PriceDepreciation).HasPrecision(18, 2);
+
+                period.HasIndex(p => p.BuildingDepreciationDetailId);
+            });
+        });
+
+        // Surfaces - Owned collection
+        builder.OwnsMany(e => e.Surfaces, surf =>
+        {
+            surf.ToTable("BuildingAppraisalSurfaces", "appraisal");
+            surf.WithOwner().HasForeignKey(s => s.BuildingAppraisalDetailId);
+            surf.HasKey(s => s.Id);
+            surf.Property(s => s.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+            surf.Property(s => s.FromFloorNumber).IsRequired();
+            surf.Property(s => s.ToFloorNumber).IsRequired();
+            surf.Property(s => s.FloorType).HasMaxLength(50);
+            surf.Property(s => s.FloorStructureType).HasMaxLength(50);
+            surf.Property(s => s.FloorStructureTypeOther).HasMaxLength(200);
+            surf.Property(s => s.FloorSurfaceType).HasMaxLength(50);
+            surf.Property(s => s.FloorSurfaceTypeOther).HasMaxLength(200);
+
+            surf.HasIndex(s => s.BuildingAppraisalDetailId);
+        });
     }
 }

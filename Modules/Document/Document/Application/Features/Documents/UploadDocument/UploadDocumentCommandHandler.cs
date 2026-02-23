@@ -66,7 +66,7 @@ internal class UploadDocumentCommandHandler(
         // Upload document
         try
         {
-            var documentId = await documentService.UploadAsync(
+            var result = await documentService.UploadAsync(
                 command.File,
                 command.UploadSessionId,
                 command.DocumentType,
@@ -76,15 +76,11 @@ internal class UploadDocumentCommandHandler(
 
             logger.LogInformation(
                 "Successfully uploaded document {DocumentId} for session {SessionId}. File: {FileName}",
-                documentId,
+                result.DocumentId,
                 command.UploadSessionId,
                 command.File.FileName);
 
-            return new UploadDocumentResult(
-                true,
-                documentId,
-                command.File.FileName,
-                command.File.Length);
+            return result;
         }
         catch (Exception ex)
         {

@@ -1,3 +1,5 @@
+using Appraisal.Domain.Appraisals;
+
 namespace Appraisal.Application.Features.Appraisals.AssignPhotoToTopic;
 
 public class AssignPhotoToTopicCommandHandler(
@@ -13,10 +15,28 @@ public class AssignPhotoToTopicCommandHandler(
         if (photo is null)
             throw new InvalidOperationException($"Gallery photo with ID {command.PhotoId} not found");
 
-        photo.AssignToTopic(command.PhotoTopicId);
+        // Get existing topic mappings
+        var existingMappings = (await galleryRepository
+            .GetTopicMappingsByPhotoIdAsync(command.PhotoId, cancellationToken)).ToList();
 
-        await galleryRepository.UpdateAsync(photo, cancellationToken);
+        var existingTopicIds = existingMappings.Select(m => m.PhotoTopicId).ToHashSet();
+        var desiredTopicIds = command.PhotoTopicIds.ToHashSet();
 
-        return new AssignPhotoToTopicResult(photo.Id, photo.PhotoTopicId);
+        // Remove mappings no longer desired
+        var toRemove = existingMappings.Where(m => !desiredTopicIds.Contains(m.PhotoTopicId));
+        foreach (var mapping in toRemove)
+        {
+            await galleryRepository.DeleteTopicMappingAsync(mapping, cancellationToken);
+        }
+
+        // Add new mappings
+        var toAdd = desiredTopicIds.Except(existingTopicIds);
+        foreach (var topicId in toAdd)
+        {
+            var mapping = GalleryPhotoTopicMapping.Create(command.PhotoId, topicId);
+            await galleryRepository.AddTopicMappingAsync(mapping, cancellationToken);
+        }
+
+        return new AssignPhotoToTopicResult(photo.Id, command.PhotoTopicIds);
     }
 }

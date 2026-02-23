@@ -25,6 +25,38 @@ public class GetBuildingPropertyQueryHandler(
                      ?? throw new InvalidOperationException(
                          $"Building detail not found for property {query.PropertyId}");
 
+        var surfaceDtos = detail.Surfaces
+            .OrderBy(s => s.FromFloorNumber).ThenBy(s => s.ToFloorNumber)
+            .Select(s => new BuildingAppraisalSurfaceDto(
+                s.Id, s.FromFloorNumber, s.ToFloorNumber, s.FloorType,
+                s.FloorStructureType, s.FloorStructureTypeOther,
+                s.FloorSurfaceType, s.FloorSurfaceTypeOther
+            )).ToList();
+
+        var depreciationDtos = detail.DepreciationDetails
+            .OrderBy(d => d.CreatedAt)
+            .Select(d => new BuildingAppraisalDepreciationDetailDto(
+                d.Id,
+                d.AreaDescription,
+                d.Area,
+                d.PricePerSqMBeforeDepreciation,
+                d.PriceBeforeDepreciation,
+                d.Year,
+                d.IsBuilding,
+                d.DepreciationMethod,
+                d.DepreciationYearPct,
+                d.TotalDepreciationPct,
+                d.PriceDepreciation,
+                d.PricePerSqMAfterDepreciation,
+                d.PriceAfterDepreciation,
+                d.DepreciationPeriods
+                    .OrderBy(p => p.AtYear).ThenBy(p => p.ToYear)
+                    .Select(p => new BuildingAppraisalDepreciationPeriodDto(
+                        p.Id, p.AtYear, p.ToYear, p.DepreciationPerYear,
+                        p.TotalDepreciationPct, p.PriceDepreciation
+                    )).ToList()
+            )).ToList();
+
         return new GetBuildingPropertyResult(
             property.Id,
             property.AppraisalId,
@@ -84,6 +116,8 @@ public class GetBuildingPropertyQueryHandler(
             BuildingInsurancePrice: detail.BuildingInsurancePrice,
             SellingPrice: detail.SellingPrice,
             ForcedSalePrice: detail.ForcedSalePrice,
-            Remark: detail.Remark);
+            Remark: detail.Remark,
+            DepreciationDetails: depreciationDtos,
+            Surfaces: surfaceDtos);
     }
 }

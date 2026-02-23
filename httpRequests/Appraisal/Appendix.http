@@ -1,0 +1,40 @@
+@appraisalId = 019c6758-d9e3-7d66-b354-7e83aebd60a2
+@appendixId = REPLACE_AFTER_GET
+@documentId = 019C673C-9B34-7FF8-B91B-7AC0FB215706
+@appendixDocumentId = REPLACE_AFTER_ADD
+
+### ===========================================
+### 1. Get all appendices for an appraisal
+### ===========================================
+GET {{baseUrl}}/appraisals/{{appraisalId}}/appendices
+
+### ===========================================
+### 2. Add a document to an appendix
+### ===========================================
+POST {{baseUrl}}/appraisals/{{appraisalId}}/appendices/{{appendixId}}/documents
+Content-Type: application/json
+
+{
+  "galleryPhotoId": "{{documentId}}",
+  "displaySequence": 1
+}
+
+### ===========================================
+### 3. Update appendix layout columns (1, 2, or 3)
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/appendices/{{appendixId}}/layout
+Content-Type: application/json
+
+{
+  "layoutColumns": 2
+}
+
+### ===========================================
+### 4. Remove a document from an appendix
+### ===========================================
+DELETE {{baseUrl}}/appraisals/{{appraisalId}}/appendices/{{appendixId}}/documents/{{appendixDocumentId}}
+
+### ===========================================
+### 5. Get appendices (verify changes)
+### ===========================================
+GET {{baseUrl}}/appraisals/{{appraisalId}}/appendices

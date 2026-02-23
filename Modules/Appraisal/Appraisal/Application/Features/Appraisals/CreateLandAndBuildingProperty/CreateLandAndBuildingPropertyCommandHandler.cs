@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+
 namespace Appraisal.Application.Features.Appraisals.CreateLandAndBuildingProperty;
 
 /// <summary>
@@ -206,13 +208,51 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             forcedSalePrice: command.ForcedSalePrice,
             remark: command.BuildingRemark);
 
-        // 6. Save aggregate
+        // 6. Add depreciation details if provided
+        if (command.DepreciationDetails is { Count: > 0 })
+            AddDepreciationDetails(property.BuildingDetail, command.DepreciationDetails);
+
+        // 6b. Add surfaces if provided
+        if (command.Surfaces is { Count: > 0 })
+            AddSurfaces(property.BuildingDetail, command.Surfaces);
+
+        // 7. Save aggregate
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         if (command.GroupId.HasValue)
             appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
 
-        // 7. Return property ID and both detail IDs
+        // 8. Return property ID and both detail IDs
         return new CreateLandAndBuildingPropertyResult(property.Id, property.LandDetail.Id);
+    }
+
+    private static void AddDepreciationDetails(
+        BuildingAppraisalDetail buildingDetail,
+        List<DepreciationItemData> items)
+    {
+        foreach (var item in items)
+        {
+            var dep = buildingDetail.AddDepreciationDetail(
+                item.DepreciationMethod, item.AreaDescription, item.Area, item.Year,
+                item.IsBuilding, item.PricePerSqMBeforeDepreciation, item.PriceBeforeDepreciation,
+                item.PricePerSqMAfterDepreciation, item.PriceAfterDepreciation,
+                item.DepreciationYearPct, item.TotalDepreciationPct, item.PriceDepreciation);
+
+            if (item.DepreciationPeriods is { Count: > 0 })
+                foreach (var p in item.DepreciationPeriods)
+                    dep.AddPeriod(p.AtYear, p.ToYear, p.DepreciationPerYear,
+                        p.TotalDepreciationPct, p.PriceDepreciation);
+        }
+    }
+
+    private static void AddSurfaces(
+        BuildingAppraisalDetail buildingDetail,
+        List<SurfaceItemData> items)
+    {
+        foreach (var item in items)
+            buildingDetail.AddSurface(
+                item.FromFloorNumber, item.ToFloorNumber, item.FloorType,
+                item.FloorStructureType, item.FloorStructureTypeOther,
+                item.FloorSurfaceType, item.FloorSurfaceTypeOther);
     }
 }

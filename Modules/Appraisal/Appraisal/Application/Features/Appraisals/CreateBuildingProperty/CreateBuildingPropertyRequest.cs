@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+
 namespace Appraisal.Application.Features.Appraisals.CreateBuildingProperty;
 
 /// <summary>
@@ -65,5 +67,9 @@ public record CreateBuildingPropertyRequest(
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Other
-    string? Remark = null
+    string? Remark = null,
+    // Depreciation Details
+    List<DepreciationItemData>? DepreciationDetails = null,
+    // Surfaces
+    List<SurfaceItemData>? Surfaces = null
 );

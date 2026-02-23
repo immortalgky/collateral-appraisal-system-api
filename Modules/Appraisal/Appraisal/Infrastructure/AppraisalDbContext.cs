@@ -72,6 +72,7 @@ public class AppraisalDbContext : DbContext
     public DbSet<AppraisalFeePaymentHistory> AppraisalFeePaymentHistories => Set<AppraisalFeePaymentHistory>();
     public DbSet<AppraisalGallery> AppraisalGallery => Set<AppraisalGallery>();
     public DbSet<PropertyPhotoMapping> PropertyPhotoMappings => Set<PropertyPhotoMapping>();
+    public DbSet<GalleryPhotoTopicMapping> GalleryPhotoTopicMappings => Set<GalleryPhotoTopicMapping>();
     public DbSet<PhotoTopic> PhotoTopics => Set<PhotoTopic>();
 
     // =====================================================
@@ -127,11 +128,18 @@ public class AppraisalDbContext : DbContext
     // Supporting Entities (part of Appraisal aggregate)
     // =====================================================
     public DbSet<LandTitle> LandTitles => Set<LandTitle>();
-    public DbSet<BuildingDepreciationDetail> BuildingDepreciationDetails => Set<BuildingDepreciationDetail>();
-    public DbSet<BuildingAppraisalSurface> BuildingAppraisalSurfaces => Set<BuildingAppraisalSurface>();
+    // BuildingDepreciationDetail removed - now owned by BuildingAppraisalDetail via OwnsMany
+    // BuildingAppraisalSurface removed - now owned by BuildingAppraisalDetail via OwnsMany
     public DbSet<CondoAppraisalAreaDetail> CondoAppraisalAreaDetails => Set<CondoAppraisalAreaDetail>();
     public DbSet<LawAndRegulation> LawAndRegulations => Set<LawAndRegulation>();
     public DbSet<LawAndRegulationImage> LawAndRegulationImages => Set<LawAndRegulationImage>();
+
+    // =====================================================
+    // Appendix Entities
+    // =====================================================
+    public DbSet<AppendixType> AppendixTypes => Set<AppendixType>();
+    public DbSet<AppraisalAppendix> AppraisalAppendices => Set<AppraisalAppendix>();
+    public DbSet<AppendixDocument> AppendixDocuments => Set<AppendixDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

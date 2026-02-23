@@ -225,7 +225,57 @@ Content-Type: application/json
   "forcedSalePrice": 20000000.00,
 
   "landRemark": "Well-maintained corner plot with good drainage",
-  "buildingRemark": "Recently renovated with premium finishes"
+  "buildingRemark": "Recently renovated with premium finishes",
+
+  "surfaces": [
+    {
+      "fromFloorNumber": 1,
+      "toFloorNumber": 1,
+      "floorType": "Normal",
+      "floorStructureType": "KSL",
+      "floorSurfaceType": "Tiles"
+    },
+    {
+      "fromFloorNumber": 2,
+      "toFloorNumber": 2,
+      "floorType": "Normal",
+      "floorStructureType": "Wood",
+      "floorSurfaceType": "Wood"
+    }
+  ],
+
+  "depreciationDetails": [
+    {
+      "depreciationMethod": "Period",
+      "areaDescription": "Main villa - 2 floors",
+      "area": 380.00,
+      "year": 5,
+      "isBuilding": true,
+      "pricePerSqMBeforeDepreciation": 15000.00,
+      "priceBeforeDepreciation": 5700000.00,
+      "pricePerSqMAfterDepreciation": 13500.00,
+      "priceAfterDepreciation": 5130000.00,
+      "depreciationYearPct": 2.0000,
+      "totalDepreciationPct": 10.0000,
+      "priceDepreciation": 570000.00,
+      "depreciationPeriods": [
+        {
+          "atYear": 1,
+          "toYear": 3,
+          "depreciationPerYear": 1.5000,
+          "totalDepreciationPct": 4.5000,
+          "priceDepreciation": 256500.00
+        },
+        {
+          "atYear": 4,
+          "toYear": 5,
+          "depreciationPerYear": 2.7500,
+          "totalDepreciationPct": 5.5000,
+          "priceDepreciation": 313500.00
+        }
+      ]
+    }
+  ]
 }
 
 ### ===========================================
@@ -311,7 +361,25 @@ Content-Type: application/json
   "forcedSalePrice": 35000000.00,
 
   "landRemark": "Industrial zone with good truck access",
-  "buildingRemark": "Modern warehouse with loading docks"
+  "buildingRemark": "Modern warehouse with loading docks",
+
+  "depreciationDetails": [
+    {
+      "depreciationMethod": "Gross",
+      "areaDescription": "Warehouse building",
+      "area": 800.00,
+      "year": 10,
+      "isBuilding": true,
+      "pricePerSqMBeforeDepreciation": 8000.00,
+      "priceBeforeDepreciation": 6400000.00,
+      "pricePerSqMAfterDepreciation": 6000.00,
+      "priceAfterDepreciation": 4800000.00,
+      "depreciationYearPct": 2.5000,
+      "totalDepreciationPct": 25.0000,
+      "priceDepreciation": 1600000.00,
+      "depreciationPeriods": []
+    }
+  ]
 }
 
 ### ===========================================
