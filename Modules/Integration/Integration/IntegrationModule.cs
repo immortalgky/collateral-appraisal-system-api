@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Request.Application.Services;
 using Shared.Data;
 using Shared.Data.Extensions;
 
@@ -30,6 +31,7 @@ public static class IntegrationModule
 
         // Register services
         services.AddScoped<IWebhookService, WebhookService>();
+        services.AddTransient<IUpdateRequestService, UpdateRequestService>();
         services.AddHttpClient("Webhook");
 
         // Register unit of work

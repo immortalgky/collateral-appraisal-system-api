@@ -4,8 +4,6 @@ namespace Workflow.Tasks.Features.CompleteTask;
 
 public record CompleteActivityRequest(Guid CorrelationId, string ActivityName, string ActionTaken);
 
-public record CompleteActivityResponse(bool IsSuccess);
-
 public class CompleteTaskEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)

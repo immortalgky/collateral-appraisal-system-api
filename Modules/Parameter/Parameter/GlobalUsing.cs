@@ -16,7 +16,6 @@ global using Microsoft.EntityFrameworkCore.Diagnostics;
 global using Parameter.Data;
 global using Parameter.Data.Seed;
 global using Parameter.Data.Repository;
-global using Parameter.Parameters.Extensions;
 global using Parameter.Parameters.Exceptions;
 global using Parameter.Contracts.Parameters.Dtos;
 

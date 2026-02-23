@@ -5,7 +5,7 @@ public record GetLinkRequestTitleDocumentByIdResult(
     Guid? TitleId,
     Guid? DocumentId,
     string DocumentType,
-    string? Filename,
+    string? FileName,
     string Prefix,
     int Set,
     string? DocumentDescription,

@@ -37,7 +37,7 @@ public class WorkflowInstance : Entity<Guid>
     {
         return new WorkflowInstance
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             WorkflowDefinitionId = workflowDefinitionId,
             Name = name,
             CorrelationId = correlationId,

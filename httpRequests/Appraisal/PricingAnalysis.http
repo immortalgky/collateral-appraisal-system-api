@@ -1,0 +1,821 @@
+### =====================================================
+### Pricing Analysis - API Test File
+### =====================================================
+### Prerequisites: A property group must exist first
+### =====================================================
+
+### =====================================================
+### 1. CREATE PRICING ANALYSIS
+### =====================================================
+
+### 1.1 Create Pricing Analysis for Property Group
+@groupId = D7AA433E-F36B-1410-8965-006F4F934FE1
+POST {{baseUrl}}/property-groups/{{groupId}}/pricing-analysis
+Content-Type: application/json
+
+### =====================================================
+### 2. GET PRICING ANALYSIS
+### =====================================================
+
+### 2.1 Get Pricing Analysis by ID
+@pricingAnalysisId = C099ECF4-15A9-4632-8B3F-03DC51500BAA
+GET {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}
+Content-Type: application/json
+
+### 2.2 Get Pricing Analysis by Property Group
+GET {{baseUrl}}/property-groups/{{groupId}}/pricing-analysis
+Content-Type: application/json
+
+### =====================================================
+### 3. UPDATE PRICING ANALYSIS
+### =====================================================
+
+### 3.1 Update Pricing Analysis Final Values
+PUT {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}
+Content-Type: application/json
+
+{
+  "finalMarketValue": 15880000.00,
+  "finalAppraisedValue": 15500000.00,
+  "finalForcedSaleValue": 12400000.00
+}
+
+### =====================================================
+### 4. STATUS TRANSITIONS
+### =====================================================
+
+### 4.1 Start Pricing Analysis (Draft -> InProgress)
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/start
+Content-Type: application/json
+
+### 4.2 Complete Pricing Analysis (InProgress -> Completed)
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/complete
+Content-Type: application/json
+
+{
+  "finalMarketValue": 15880000.00,
+  "finalAppraisedValue": 15500000.00,
+  "finalForcedSaleValue": 12400000.00
+}
+
+### =====================================================
+### 5. APPROACH MANAGEMENT
+### =====================================================
+
+### 5.1 Add Market Approach
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/approaches
+Content-Type: application/json
+
+{
+  "approachType": "Market",
+  "weight": 100.00
+}
+
+### 5.2 Add Cost Approach
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/approaches
+Content-Type: application/json
+
+{
+  "approachType": "Cost",
+  "weight": 0.00
+}
+
+### 5.3 Add Income Approach
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/approaches
+Content-Type: application/json
+
+{
+  "approachType": "Income",
+  "weight": 0.00
+}
+
+### 5.4 Update Approach
+@approachId = E8AA433E-F36B-1410-8965-006F4F934FE1
+PUT {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/approaches/{{approachId}}
+Content-Type: application/json
+
+{
+  "approachValue": 15500000.00,
+  "weight": 100.00
+}
+
+### 5.5 Exclude Approach
+@approachIdToExclude = 00000000-0000-0000-0000-000000000002
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/approaches/{{approachIdToExclude}}/exclude
+Content-Type: application/json
+
+{
+  "reason": "Not applicable for vacant land valuation"
+}
+
+### =====================================================
+### 6. METHOD MANAGEMENT
+### =====================================================
+
+### 6.1 Add WQS Method
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/approaches/{{approachId}}/methods
+Content-Type: application/json
+
+{
+  "methodType": "WQS",
+  "status": "Selected"
+}
+
+### 6.2 Add Sale Grid Method
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/approaches/{{approachId}}/methods
+Content-Type: application/json
+
+{
+  "methodType": "SaleGrid",
+  "status": "Alternative"
+}
+
+### 6.3 Add Direct Comparison Method
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/approaches/{{approachId}}/methods
+Content-Type: application/json
+
+{
+  "methodType": "DirectComparison",
+  "status": "Alternative"
+}
+
+### 6.4 Update Method
+@methodId = EDAA433E-F36B-1410-8965-006F4F934FE1
+PUT {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}
+Content-Type: application/json
+
+{
+  "methodValue": 15880000.00,
+  "valuePerUnit": 39700.00,
+  "unitType": "SqWa"
+}
+
+### 6.5 Select Method (Mark as Selected)
+@methodIdToSelect = 00000000-0000-0000-0000-000000000002
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodIdToSelect}}/select
+Content-Type: application/json
+
+### =====================================================
+### 7. COMPARABLE LINKING
+### =====================================================
+
+### 7.1 Link Comparable 1
+@marketComparableId1 = F0BD1D20-64BD-439C-8AAA-C7CE595AB5D8
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}/comparables
+Content-Type: application/json
+
+{
+  "marketComparableId": "{{marketComparableId1}}",
+  "displaySequence": 1,
+  "weight": 35.00
+}
+
+### 7.2 Link Comparable 2
+@marketComparableId2 = 00000000-0000-0000-0000-000000000002
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}/comparables
+Content-Type: application/json
+
+{
+  "marketComparableId": "{{marketComparableId2}}",
+  "displaySequence": 2,
+  "weight": 35.00
+}
+
+### 7.3 Link Comparable 3
+@marketComparableId3 = 00000000-0000-0000-0000-000000000003
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}/comparables
+Content-Type: application/json
+
+{
+  "marketComparableId": "{{marketComparableId3}}",
+  "displaySequence": 3,
+  "weight": 30.00
+}
+
+### 7.4 Update Comparable Link Weight
+@linkId = 00000000-0000-0000-0000-000000000001
+PUT {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/comparable-links/{{linkId}}
+Content-Type: application/json
+
+{
+  "displaySequence": 1,
+  "weight": 40.00
+}
+
+### 7.5 Unlink Comparable
+@linkIdToRemove = 00000000-0000-0000-0000-000000000003
+DELETE {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}/comparables/{{linkIdToRemove}}
+Content-Type: application/json
+
+### =====================================================
+### 8. CALCULATION MANAGEMENT
+### =====================================================
+
+### 8.1 Add Calculation for Comparable 1
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}/calculations
+Content-Type: application/json
+
+{
+  "marketComparableId": "{{marketComparableId1}}",
+  "offeringPrice": 42000.00,
+  "offeringPriceUnit": "PerSqWa",
+  "adjustOfferPricePct": -5.00,
+  "sellingPrice": 40000.00,
+  "sellingPriceUnit": "PerSqWa",
+  "buySellYear": 2023,
+  "buySellMonth": 6,
+  "adjustedPeriodPct": 0.50,
+  "cumulativeAdjPeriod": 2.00,
+  "weight": 35.00
+}
+
+### 8.2 Add Calculation for Comparable 2
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}/calculations
+Content-Type: application/json
+
+{
+  "marketComparableId": "{{marketComparableId2}}",
+  "offeringPrice": 38000.00,
+  "offeringPriceUnit": "PerSqWa",
+  "adjustOfferPricePct": -5.00,
+  "sellingPrice": 36000.00,
+  "sellingPriceUnit": "PerSqWa",
+  "buySellYear": 2023,
+  "buySellMonth": 3,
+  "adjustedPeriodPct": 0.50,
+  "cumulativeAdjPeriod": 3.00,
+  "weight": 35.00
+}
+
+### 8.3 Update Calculation
+@calculationId = 00000000-0000-0000-0000-000000000001
+PUT {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/calculations/{{calculationId}}
+Content-Type: application/json
+
+{
+  "offeringPrice": 42000.00,
+  "sellingPrice": 40000.00,
+  "cumulativeAdjPeriod": 2.00,
+  "totalFactorDiffPct": 5.50,
+  "totalAdjustedValue": 43060.00,
+  "weight": 35.00
+}
+
+### 8.4 Delete Calculation
+@calculationIdToDelete = 00000000-0000-0000-0000-000000000003
+DELETE {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/calculations/{{calculationIdToDelete}}
+Content-Type: application/json
+
+### =====================================================
+### 9. FACTOR SCORES (WQS/SaleGrid)
+### =====================================================
+
+### 9.1 Add Factor Score - Road Access
+@factorId1 = 00000000-0000-0000-0000-000000000001
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/calculations/{{calculationId}}/factor-scores
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId1}}",
+  "subjectValue": "4-lane frontage",
+  "subjectScore": 5.0,
+  "comparableValue": "2-lane road",
+  "comparableScore": 3.0,
+  "factorWeight": 20.00,
+  "displaySequence": 1,
+  "remarks": "Subject has better road access"
+}
+
+### 9.2 Add Factor Score - Location
+@factorId2 = 00000000-0000-0000-0000-000000000002
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/calculations/{{calculationId}}/factor-scores
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId2}}",
+  "subjectValue": "BTS 500m",
+  "subjectScore": 5.0,
+  "comparableValue": "BTS 1.2km",
+  "comparableScore": 4.0,
+  "factorWeight": 25.00,
+  "displaySequence": 2,
+  "remarks": "Subject closer to transit"
+}
+
+### 9.3 Add Factor Score - Land Shape
+@factorId3 = 00000000-0000-0000-0000-000000000003
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/calculations/{{calculationId}}/factor-scores
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId3}}",
+  "subjectValue": "Rectangle",
+  "subjectScore": 4.0,
+  "comparableValue": "L-Shape",
+  "comparableScore": 3.0,
+  "factorWeight": 15.00,
+  "displaySequence": 3
+}
+
+### 9.4 Add Factor Score - Topology
+@factorId4 = 00000000-0000-0000-0000-000000000004
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/calculations/{{calculationId}}/factor-scores
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId4}}",
+  "subjectValue": "Flat, filled",
+  "subjectScore": 5.0,
+  "comparableValue": "Slightly low",
+  "comparableScore": 4.0,
+  "factorWeight": 15.00,
+  "displaySequence": 4
+}
+
+### 9.5 Add Factor Score - Utilities
+@factorId5 = 00000000-0000-0000-0000-000000000005
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/calculations/{{calculationId}}/factor-scores
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId5}}",
+  "subjectValue": "All utilities",
+  "subjectScore": 5.0,
+  "comparableValue": "No gas",
+  "comparableScore": 4.0,
+  "factorWeight": 10.00,
+  "displaySequence": 5
+}
+
+### 9.6 Add Factor Score - Zoning
+@factorId6 = 00000000-0000-0000-0000-000000000006
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/calculations/{{calculationId}}/factor-scores
+Content-Type: application/json
+
+{
+  "factorId": "{{factorId6}}",
+  "subjectValue": "Commercial",
+  "subjectScore": 4.0,
+  "comparableValue": "Mixed use",
+  "comparableScore": 5.0,
+  "factorWeight": 15.00,
+  "displaySequence": 6,
+  "remarks": "Comparable has better zoning flexibility"
+}
+
+### 9.7 Update Factor Score
+@factorScoreId = 00000000-0000-0000-0000-000000000001
+PUT {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/factor-scores/{{factorScoreId}}
+Content-Type: application/json
+
+{
+  "subjectScore": 5.0,
+  "comparableScore": 2.5,
+  "factorWeight": 25.00,
+  "remarks": "Updated score after review"
+}
+
+### 9.8 Delete Factor Score
+@factorScoreIdToDelete = 00000000-0000-0000-0000-000000000006
+DELETE {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/factor-scores/{{factorScoreIdToDelete}}
+Content-Type: application/json
+
+### 9.9 Recalculate Factors (Sum all factor scores)
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/calculations/{{calculationId}}/recalculate
+Content-Type: application/json
+
+### =====================================================
+### 9A. COMPARATIVE ANALYSIS - SAVE ALL (NEW)
+### =====================================================
+### Save entire comparative analysis screen in single transaction
+### Step 1 (Factor Selection) + Step 2 (Factor Scoring)
+
+### 9A.1 Get Comparative Factors (Read current state)
+### Returns all data needed for frontend display including:
+### - linkedComparables: with comparableName and comparableCode
+### - comparativeFactors: with factorName and factorCode (Step 1)
+### - factorScores: with factorName and comparableName (Step 2)
+### - calculations: with comparableName
+###
+### Example response:
+### {
+###   "pricingAnalysisId": "...",
+###   "methodId": "...",
+###   "methodType": "WQS",
+###   "linkedComparables": [
+###     {
+###       "linkId": "...",
+###       "marketComparableId": "...",
+###       "displaySequence": 1,
+###       "weight": 35.00,
+###       "comparableName": "COMP-2024-001",
+###       "comparableCode": "COMP-2024-001"
+###     }
+###   ],
+###   "comparativeFactors": [
+###     {
+###       "id": "...",
+###       "factorId": "...",
+###       "factorName": "Road Access",
+###       "factorCode": "ROAD_ACCESS",
+###       "displaySequence": 1,
+###       "isSelectedForScoring": true,
+###       "remarks": null
+###     }
+###   ],
+###   "factorScores": [
+###     {
+###       "id": "...",
+###       "factorId": "...",
+###       "factorName": "Road Access",
+###       "marketComparableId": null,
+###       "comparableName": null,
+###       "factorWeight": 20.00,
+###       "displaySequence": 1,
+###       "value": "4-lane frontage",
+###       "score": 5.0,
+###       "weightedScore": 100.0,
+###       "adjustmentPct": null,
+###       "remarks": "Collateral value"
+###     },
+###     {
+###       "id": "...",
+###       "factorId": "...",
+###       "factorName": "Road Access",
+###       "marketComparableId": "...",
+###       "comparableName": "COMP-2024-001",
+###       "factorWeight": 20.00,
+###       "displaySequence": 1,
+###       "value": "2-lane road",
+###       "score": 3.0,
+###       "weightedScore": 60.0,
+###       "adjustmentPct": 5.0,
+###       "remarks": "Survey 1"
+###     }
+###   ],
+###   "calculations": [
+###     {
+###       "id": "...",
+###       "marketComparableId": "...",
+###       "comparableName": "COMP-2024-001",
+###       "offeringPrice": 42000.00,
+###       ...
+###     }
+###   ]
+### }
+GET {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}/comparative-factors
+Content-Type: application/json
+
+### 9A.2 Save Comparative Analysis (Step 1 + Step 2)
+### id = null for new items, existing id for updates
+PUT {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}/comparative-analysis
+Content-Type: application/json
+
+{
+  "comparativeFactors": [
+    {
+      "id": null,
+      "factorId": "{{factorId1}}",
+      "displaySequence": 1,
+      "isSelectedForScoring": true,
+      "remarks": "Road access - primary factor"
+    },
+    {
+      "id": null,
+      "factorId": "{{factorId2}}",
+      "displaySequence": 2,
+      "isSelectedForScoring": true,
+      "remarks": "Location proximity"
+    },
+    {
+      "id": null,
+      "factorId": "{{factorId3}}",
+      "displaySequence": 3,
+      "isSelectedForScoring": true,
+      "remarks": null
+    },
+    {
+      "id": null,
+      "factorId": "{{factorId4}}",
+      "displaySequence": 4,
+      "isSelectedForScoring": false,
+      "remarks": "Excluded - not relevant"
+    }
+  ],
+  "factorScores": [
+    {
+      "id": null,
+      "factorId": "{{factorId1}}",
+      "marketComparableId": null,
+      "factorWeight": 20.00,
+      "displaySequence": 1,
+      "value": "4-lane frontage",
+      "score": 5.0,
+      "adjustmentPct": null,
+      "remarks": "Collateral - Road Access"
+    },
+    {
+      "id": null,
+      "factorId": "{{factorId1}}",
+      "marketComparableId": "{{marketComparableId1}}",
+      "factorWeight": 20.00,
+      "displaySequence": 1,
+      "value": "2-lane road",
+      "score": 3.0,
+      "adjustmentPct": 5.0,
+      "remarks": "Survey 1 - inferior road access"
+    },
+    {
+      "id": null,
+      "factorId": "{{factorId1}}",
+      "marketComparableId": "{{marketComparableId2}}",
+      "factorWeight": 20.00,
+      "displaySequence": 1,
+      "value": "4-lane road",
+      "score": 4.5,
+      "adjustmentPct": 1.0,
+      "remarks": "Survey 2 - similar road access"
+    },
+    {
+      "id": null,
+      "factorId": "{{factorId2}}",
+      "marketComparableId": null,
+      "factorWeight": 25.00,
+      "displaySequence": 2,
+      "value": "BTS 500m",
+      "score": 5.0,
+      "adjustmentPct": null,
+      "remarks": "Collateral - Location"
+    },
+    {
+      "id": null,
+      "factorId": "{{factorId2}}",
+      "marketComparableId": "{{marketComparableId1}}",
+      "factorWeight": 25.00,
+      "displaySequence": 2,
+      "value": "BTS 1.2km",
+      "score": 4.0,
+      "adjustmentPct": 3.0,
+      "remarks": "Survey 1 - farther from transit"
+    }
+  ],
+  "calculations": [
+    {
+      "marketComparableId": "{{marketComparableId1}}",
+      "offeringPrice": 42000.00,
+      "offeringPriceUnit": "PerSqWa",
+      "adjustOfferPricePct": -5.00,
+      "sellingPrice": 40000.00,
+      "buySellYear": 2023,
+      "buySellMonth": 6,
+      "adjustedPeriodPct": 0.50,
+      "cumulativeAdjPeriod": 2.00,
+      "totalAdjustedValue": 43060.00,
+      "weight": 35.00
+    },
+    {
+      "marketComparableId": "{{marketComparableId2}}",
+      "offeringPrice": 38000.00,
+      "offeringPriceUnit": "PerSqWa",
+      "adjustOfferPricePct": -5.00,
+      "sellingPrice": 36000.00,
+      "buySellYear": 2023,
+      "buySellMonth": 3,
+      "adjustedPeriodPct": 0.50,
+      "cumulativeAdjPeriod": 3.00,
+      "totalAdjustedValue": 36360.00,
+      "weight": 35.00
+    }
+  ]
+}
+
+### 9A.3 Save Comparative Analysis with Update (existing IDs)
+### Use IDs from GET response to update existing items
+@comparativeFactorId1 = EXISTING-FACTOR-ID-1
+@comparativeFactorId2 = EXISTING-FACTOR-ID-2
+@factorScoreId1 = EXISTING-SCORE-ID-1
+@factorScoreId2 = EXISTING-SCORE-ID-2
+
+PUT {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}/comparative-analysis
+Content-Type: application/json
+
+{
+  "comparativeFactors": [
+    {
+      "id": "{{comparativeFactorId1}}",
+      "factorId": "{{factorId1}}",
+      "displaySequence": 1,
+      "isSelectedForScoring": true,
+      "remarks": "Updated remarks"
+    },
+    {
+      "id": "{{comparativeFactorId2}}",
+      "factorId": "{{factorId2}}",
+      "displaySequence": 2,
+      "isSelectedForScoring": false,
+      "remarks": "Changed to not selected"
+    },
+    {
+      "id": null,
+      "factorId": "{{factorId3}}",
+      "displaySequence": 3,
+      "isSelectedForScoring": true,
+      "remarks": "New factor added"
+    }
+  ],
+  "factorScores": [
+    {
+      "id": "{{factorScoreId1}}",
+      "factorId": "{{factorId1}}",
+      "marketComparableId": null,
+      "factorWeight": 25.00,
+      "displaySequence": 1,
+      "value": "4-lane frontage",
+      "score": 5.0,
+      "adjustmentPct": null,
+      "remarks": "Updated weight from 20 to 25"
+    }
+  ],
+  "calculations": []
+}
+
+### =====================================================
+### 10. FINAL VALUE
+### =====================================================
+
+### 10.1 Set Final Value for Method
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}/final-value
+Content-Type: application/json
+
+{
+  "finalValue": 39710.10,
+  "finalValueRounded": 39700.00,
+  "includeLandArea": true,
+  "landArea": 400.00,
+  "appraisalPrice": 15884040.00,
+  "appraisalPriceRounded": 15880000.00,
+  "hasBuildingCost": false,
+  "buildingCost": null,
+  "appraisalPriceWithBuilding": null,
+  "appraisalPriceWithBuildingRounded": null
+}
+
+### 10.2 Set Final Value with Building Cost
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/methods/{{methodId}}/final-value
+Content-Type: application/json
+
+{
+  "finalValue": 39700.00,
+  "finalValueRounded": 39700.00,
+  "includeLandArea": true,
+  "landArea": 400.00,
+  "appraisalPrice": 15880000.00,
+  "appraisalPriceRounded": 15880000.00,
+  "hasBuildingCost": true,
+  "buildingCost": 8000000.00,
+  "appraisalPriceWithBuilding": 23880000.00,
+  "appraisalPriceWithBuildingRounded": 23900000.00
+}
+
+### 10.3 Update Final Value
+@finalValueId = 00000000-0000-0000-0000-000000000001
+PUT {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/final-values/{{finalValueId}}
+Content-Type: application/json
+
+{
+  "finalValue": 40000.00,
+  "finalValueRounded": 40000.00,
+  "includeLandArea": true,
+  "landArea": 400.00,
+  "appraisalPrice": 16000000.00,
+  "appraisalPriceRounded": 16000000.00,
+  "hasBuildingCost": false,
+  "buildingCost": null,
+  "appraisalPriceWithBuilding": null,
+  "appraisalPriceWithBuildingRounded": null
+}
+
+### =====================================================
+### 11. COMPLETE WORKFLOW TEST
+### =====================================================
+
+### This section demonstrates the complete WQS pricing workflow
+
+### Step 1: Create Property Group (use PropertyGroup.http)
+### Step 2: Create Pricing Analysis
+POST {{baseUrl}}/property-groups/{groupId}/pricing-analysis
+Content-Type: application/json
+
+### Step 3: Get created analysis (copy pricingAnalysisId)
+GET {{baseUrl}}/property-groups/{groupId}/pricing-analysis
+Content-Type: application/json
+
+### Step 4: Add Market Approach
+POST {{baseUrl}}/pricing-analysis/{pricingAnalysisId}/approaches
+Content-Type: application/json
+
+{
+  "approachType": "Market",
+  "weight": 100.00
+}
+
+### Step 5: Add WQS Method (copy approachId from GET response)
+POST {{baseUrl}}/pricing-analysis/{pricingAnalysisId}/approaches/{approachId}/methods
+Content-Type: application/json
+
+{
+  "methodType": "WQS",
+  "status": "Selected"
+}
+
+### Step 6: Link 3 Market Comparables (create comparables first using MarketComparableTemplateSystem.http)
+### Run this 3 times with different comparableIds
+POST {{baseUrl}}/pricing-analysis/{pricingAnalysisId}/methods/{methodId}/comparables
+Content-Type: application/json
+
+{
+  "marketComparableId": "{comparableId}",
+  "displaySequence": 1,
+  "weight": 35.00
+}
+
+### Step 7: Add Calculation per Comparable
+POST {{baseUrl}}/pricing-analysis/{pricingAnalysisId}/methods/{methodId}/calculations
+Content-Type: application/json
+
+{
+  "marketComparableId": "{comparableId}",
+  "offeringPrice": 42000.00,
+  "sellingPrice": 40000.00,
+  "cumulativeAdjPeriod": 2.00,
+  "weight": 35.00
+}
+
+### Step 8: Add Factor Scores (6 factors per calculation)
+POST {{baseUrl}}/pricing-analysis/{pricingAnalysisId}/calculations/{calculationId}/factor-scores
+Content-Type: application/json
+
+{
+  "factorId": "{factorId}",
+  "subjectValue": "4-lane frontage",
+  "subjectScore": 5.0,
+  "comparableValue": "2-lane road",
+  "comparableScore": 3.0,
+  "factorWeight": 20.00,
+  "displaySequence": 1
+}
+
+### Step 9: Recalculate Factors
+POST {{baseUrl}}/pricing-analysis/{pricingAnalysisId}/calculations/{calculationId}/recalculate
+Content-Type: application/json
+
+### Step 10: Set Final Value
+POST {{baseUrl}}/pricing-analysis/{pricingAnalysisId}/methods/{methodId}/final-value
+Content-Type: application/json
+
+{
+  "finalValue": 39700.00,
+  "finalValueRounded": 39700.00,
+  "includeLandArea": true,
+  "landArea": 400.00,
+  "appraisalPrice": 15880000.00,
+  "appraisalPriceRounded": 15880000.00,
+  "hasBuildingCost": false
+}
+
+### Step 11: Start Analysis
+POST {{baseUrl}}/pricing-analysis/{pricingAnalysisId}/start
+Content-Type: application/json
+
+### Step 12: Complete Analysis
+POST {{baseUrl}}/pricing-analysis/{pricingAnalysisId}/complete
+Content-Type: application/json
+
+{
+  "finalMarketValue": 15880000.00,
+  "finalAppraisedValue": 15500000.00,
+  "finalForcedSaleValue": 12400000.00
+}
+
+### Step 13: Verify Final Result
+GET {{baseUrl}}/pricing-analysis/{pricingAnalysisId}
+Content-Type: application/json
+
+### =====================================================
+### 12. METHOD TYPES REFERENCE
+### =====================================================
+# MethodType values:
+# - WQS: Weighted Quality Score (factor-by-factor scoring)
+# - SaleGrid: Sale Comparison Grid (% adjustments per factor)
+# - DirectComparison: Simple direct comparison (no factor detail)
+# - CostApproach: Cost approach method
+# - DCF: Discounted Cash Flow
+# - CapitalizationRate: Income capitalization
+
+### =====================================================
+### 13. APPROACH TYPES REFERENCE
+### =====================================================
+# ApproachType values:
+# - Market: Market/Sales Comparison Approach
+# - Cost: Cost Approach
+# - Income: Income Approach

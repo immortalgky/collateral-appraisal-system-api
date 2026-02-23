@@ -1,0 +1,3 @@
+namespace Request.Application.Features.RequestDocuments.GetRequestDocumentsByRequestId;
+
+public record GetRequestDocumentsByRequestIdQuery(Guid RequestId) : IQuery<GetRequestDocumentsByRequestIdResult>;

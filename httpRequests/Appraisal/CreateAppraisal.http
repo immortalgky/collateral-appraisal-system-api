@@ -1,0 +1,28 @@
+### ===========================================
+### Create Appraisal
+### ===========================================
+### Creates a new appraisal for a request
+### Prerequisites: A request must exist first
+@baseUrl = localhost:7111
+
+POST {{baseUrl}}/appraisals
+Content-Type: application/json
+
+{
+  "requestId": "019c7448-331e-719d-a639-caad1cce248c",
+  "appraisalType": "Full",
+  "priority": "High",
+  "slaDays": 7
+}
+
+### ===========================================
+### Create Appraisal - Minimal Request
+### ===========================================
+POST {{baseUrl}}/appraisals
+Content-Type: application/json
+
+{
+  "requestId": "991495AE-F065-4B2C-8249-B6BEF197CA13",
+  "appraisalType": "Desktop",
+  "priority": "Normal"
+}

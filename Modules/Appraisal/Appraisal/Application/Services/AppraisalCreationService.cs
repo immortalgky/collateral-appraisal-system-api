@@ -1,0 +1,308 @@
+using Request.Contracts.Requests.Dtos;
+using Shared.Identity;
+
+namespace Appraisal.Application.Services;
+
+/// <summary>
+/// Service implementation for creating appraisals from request submissions.
+/// Creates the appraisal aggregate with properties, groups, an initial assignment, fee, and appointment.
+/// </summary>
+public class AppraisalCreationService(
+    IAppraisalRepository appraisalRepository,
+    IAppraisalUnitOfWork unitOfWork,
+    AppraisalDbContext dbContext,
+    ICurrentUserService currentUserService,
+    ILogger<AppraisalCreationService> logger) : IAppraisalCreationService
+{
+    public async Task<Guid> CreateAppraisalFromRequest(
+        Guid requestId,
+        List<RequestTitleDto> requestTitles,
+        AppointmentDto? appointment = null,
+        FeeDto? fee = null,
+        ContactDto? contact = null,
+        string? createdBy = null,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation("Creating appraisal from request {RequestId} with {TitleCount} titles",
+            requestId, requestTitles.Count);
+
+        // Step 1: Check idempotency - does an appraisal already exist for this request?
+        var existingAppraisal = await appraisalRepository.GetByRequestIdAsync(requestId, cancellationToken);
+        if (existingAppraisal.Any())
+        {
+            var existingId = existingAppraisal.First().Id;
+            logger.LogInformation("Appraisal already exists for request {RequestId}: {AppraisalId}",
+                requestId, existingId);
+            return existingId;
+        }
+
+        // Step 2: Filter for Property that has land titles
+        var landTitles = requestTitles
+            .Where(t => t.CollateralType is "L" or "LB" or "U")
+            .ToList();
+
+        if (!landTitles.Any())
+            logger.LogWarning("No land titles found for request {RequestId}. Skipping appraisal creation.",
+                requestId);
+
+        logger.LogInformation("Processing {LandTitleCount} land titles for request {RequestId}",
+            landTitles.Count, requestId);
+
+        // Step 3: Create Appraisal aggregate
+        var appraisal = Domain.Appraisals.Appraisal.Create(
+            requestId,
+            "Initial",
+            "Normal",
+            30); // TODO: Default SLA of 30 days
+
+        // Set appraisal number: APP-{yyyyMMdd}-{GUID8}
+        // TODO: Replace with proper sequential number generator that ensures uniqueness and monotonicity without relying on randomness or date (e.g. separate table with auto-increment int, or SQL SEQUENCE object).
+        var appraisalNumber = $"APP-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpper()}";
+        appraisal.SetAppraisalNumber(appraisalNumber);
+
+        logger.LogInformation("Created appraisal {AppraisalNumber} for request {RequestId}",
+            appraisalNumber, requestId);
+
+        // Step 4: For each title, create the correct property type based on CollateralType
+        foreach (var title in landTitles)
+        {
+            switch (title.CollateralType)
+            {
+                case "L":
+                    CreateLandProperty(appraisal, title);
+                    break;
+                case "LB":
+                    CreateLandAndBuildingProperty(appraisal, title);
+                    break;
+                case "U":
+                    CreateCondoProperty(appraisal, title);
+                    break;
+            }
+        }
+
+        // Wrap all saves in an explicit transaction to prevent partial success.
+        // Three phases: (1) appraisal + properties, (2) group + assignment, (3) fee + appointment.
+        // Owned entities need a save to get DB-generated IDs; the assignment must exist in DB
+        // before entities with FK references to it (Appointment, AppraisalFee) can be inserted.
+        await unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            // Phase 1: Save appraisal + properties to get real IDs from NEWSEQUENTIALID()
+            await appraisalRepository.AddAsync(appraisal, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation("Saved appraisal {AppraisalId} with {PropertyCount} properties (IDs assigned by DB)",
+                appraisal.Id, appraisal.Properties.Count);
+
+            // Pre-generate appendices from active AppendixType configuration
+            var activeAppendixTypes = await dbContext.AppendixTypes
+                .Where(t => t.IsActive)
+                .OrderBy(t => t.SortOrder)
+                .ToListAsync(cancellationToken);
+
+            foreach (var appendixType in activeAppendixTypes)
+            {
+                var appendix = AppraisalAppendix.Create(
+                    appraisal.Id, appendixType.Id, appendixType.SortOrder);
+                dbContext.AppraisalAppendices.Add(appendix);
+            }
+
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation("Pre-generated {Count} appendices for appraisal {AppraisalId}",
+                activeAppendixTypes.Count, appraisal.Id);
+
+            // Phase 2: Create group + assignment, then save so the assignment row exists in DB
+            // before we create entities (Appointment, AppraisalFee) that FK-reference it.
+            var initialGroup = appraisal.CreateGroup("Initial Group", "Auto-generated group for all properties");
+
+            foreach (var property in appraisal.Properties) initialGroup.AddProperty(property.Id);
+
+            // var assignment = appraisal.Assign(
+            //     "Internal",
+            //     null,
+            //     null,
+            //     "Manual",
+            //     assignedBy: createdBy ?? string.Empty);
+
+            var assignment = appraisal.AssignAdmin();
+
+            // Explicitly add assignment via DbSet so EF Core traverses the entity graph
+            // (including OwnsOne value objects like AssignmentType/AssignmentStatus) and marks
+            // everything as Added. Without this, DetectChanges discovers the assignment through
+            // the aggregate's HasMany collection with a non-sentinel key + ValueGeneratedOnAdd,
+            // causing EF Core to assume it already exists (UPDATE instead of INSERT).
+            dbContext.AppraisalAssignments.Add(assignment);
+
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation(
+                "Saved group and assignment {AssignmentId} for appraisal {AppraisalId}",
+                assignment.Id, appraisal.Id);
+
+            // Phase 3: Create fee + appointment (both FK to assignment, which now exists in DB)
+            // Only auto-create the Appraisal Fee (code "01") with amount based on TotalSellingPrice tier.
+            // Other fees (Travel, Urgent) are added manually via the AddFeeItem endpoint.
+            var totalSellingPrice = fee?.TotalSellingPrice ?? 0m;
+
+            var appraisalFeeStructure = await dbContext.FeeStructures
+                .Where(fs => fs.IsActive && fs.FeeCode == "01")
+                .ToListAsync(cancellationToken);
+
+            var matchedTier = appraisalFeeStructure.FirstOrDefault(fs => fs.IsApplicableFor(totalSellingPrice));
+            if (matchedTier is null)
+            {
+                // Fallback: use highest tier (open-ended MaxSellingPrice)
+                matchedTier = appraisalFeeStructure
+                    .OrderByDescending(fs => fs.MinSellingPrice)
+                    .First();
+                logger.LogWarning(
+                    "No fee tier matched TotalSellingPrice {TotalSellingPrice}. Falling back to highest tier (BaseAmount={BaseAmount})",
+                    totalSellingPrice, matchedTier.BaseAmount);
+            }
+
+            var appraisalFee = AppraisalFee.Create(
+                assignment.Id,
+                fee?.FeePaymentType,
+                fee?.FeeNotes);
+            appraisalFee.AddItem(matchedTier.FeeCode, matchedTier.FeeName, matchedTier.BaseAmount);
+
+            if (fee?.AbsorbedAmount is > 0) appraisalFee.SetBankAbsorb(fee.AbsorbedAmount.Value);
+
+            dbContext.AppraisalFees.Add(appraisalFee);
+
+            logger.LogInformation(
+                "Created fee {FeeId} with Appraisal Fee (BaseAmount={BaseAmount}) for assignment {AssignmentId} (TotalSellingPrice={TotalSellingPrice})",
+                appraisalFee.Id, matchedTier.BaseAmount, assignment.Id, totalSellingPrice);
+
+            if (appointment?.AppointmentDateTime.HasValue == true)
+            {
+                var appt = Appointment.Create(
+                    assignment.Id,
+                    appointment.AppointmentDateTime.Value,
+                    createdBy ?? "",
+                    appointment.AppointmentLocation,
+                    contact?.ContactPersonName,
+                    contact?.ContactPersonPhone);
+
+                dbContext.Appointments.Add(appt);
+
+                logger.LogInformation("Created appointment {AppointmentId} for assignment {AssignmentId}",
+                    appt.Id, assignment.Id);
+            }
+
+            // Commit — saves fee + appointment then commits the entire transaction
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+        }
+        catch
+        {
+            await unitOfWork.RollbackTransactionAsync(cancellationToken);
+            throw;
+        }
+
+        logger.LogInformation(
+            "Successfully created appraisal {AppraisalId} ({AppraisalNumber}) with {PropertyCount} properties for request {RequestId}",
+            appraisal.Id, appraisalNumber, appraisal.Properties.Count, requestId);
+
+        return appraisal.Id;
+    }
+
+    private void CreateLandProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
+    {
+        var property = appraisal.AddLandProperty();
+
+        logger.LogInformation("Added land property {PropertyId} for title {TitleNumber}",
+            property.Id, requestTitle.TitleNumber);
+
+        var landDetail = property.LandDetail;
+        if (landDetail == null) return;
+
+        PopulateLandDetail(landDetail, requestTitle);
+    }
+
+    private void CreateLandAndBuildingProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
+    {
+        var property = appraisal.AddLandAndBuildingProperty();
+
+        logger.LogInformation("Added land+building property {PropertyId} for title {TitleNumber}",
+            property.Id, requestTitle.TitleNumber);
+
+        var landDetail = property.LandDetail;
+        if (landDetail == null) return;
+
+        PopulateLandDetail(landDetail, requestTitle);
+        // BuildingAppraisalDetail is initialized empty — populated later by appraiser
+    }
+
+    private void CreateCondoProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
+    {
+        var property = appraisal.AddCondoProperty();
+
+        logger.LogInformation("Added condo property {PropertyId} for title {TitleNumber}",
+            property.Id, requestTitle.TitleNumber);
+
+        var condoDetail = property.CondoDetail;
+        if (condoDetail == null) return;
+
+        var adminAddress = AdministrativeAddress.Create(
+            requestTitle.TitleAddress?.SubDistrict,
+            requestTitle.TitleAddress?.District,
+            requestTitle.TitleAddress?.Province);
+
+        condoDetail.Update(
+            propertyName: requestTitle.TitleAddress?.ProjectName,
+            condoName: requestTitle.CondoName,
+            buildingNumber: requestTitle.BuildingNumber,
+            roomNumber: requestTitle.RoomNumber,
+            floorNumber: requestTitle.FloorNumber,
+            usableArea: requestTitle.UsableArea,
+            address: adminAddress,
+            ownerName: requestTitle.OwnerName,
+            street: requestTitle.TitleAddress?.Road,
+            soi: requestTitle.TitleAddress?.Soi);
+    }
+
+    private void PopulateLandDetail(LandAppraisalDetail landDetail, RequestTitleDto requestTitle)
+    {
+        var title = LandTitle.Create(
+            landDetail.Id,
+            requestTitle.TitleNumber ?? "N/A",
+            requestTitle.TitleType ?? "Unknown");
+
+        var landArea = LandArea.Create(
+            requestTitle.AreaRai,
+            requestTitle.AreaNgan,
+            requestTitle.AreaSquareWa);
+
+        title.Update(
+            requestTitle.BookNumber,
+            requestTitle.PageNumber,
+            requestTitle.LandParcelNumber,
+            requestTitle.SurveyNumber,
+            requestTitle.MapSheetNumber,
+            requestTitle.Rawang,
+            requestTitle.AerialMapName,
+            requestTitle.AerialMapNumber,
+            landArea,
+            null, null, null, null, null, null, null);
+
+        landDetail.AddTitle(title);
+
+        var adminAddress = AdministrativeAddress.Create(
+            requestTitle.TitleAddress?.SubDistrict,
+            requestTitle.TitleAddress?.District,
+            requestTitle.TitleAddress?.Province);
+
+        landDetail.Update(
+            requestTitle.TitleAddress?.ProjectName,
+            address: adminAddress,
+            ownerName: requestTitle.OwnerName,
+            street: requestTitle.TitleAddress?.Road,
+            soi: requestTitle.TitleAddress?.Soi,
+            village: requestTitle.TitleAddress?.Moo,
+            addressLocation: requestTitle.TitleAddress?.HouseNumber);
+
+        logger.LogInformation("Added land title {TitleDeedNumber} to land detail {LandDetailId}",
+            title.TitleNumber, landDetail.Id);
+    }
+}

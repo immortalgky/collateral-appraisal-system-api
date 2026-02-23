@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparables.UpdateMarketComparable;
+
+public record UpdateMarketComparableResult(bool Success);

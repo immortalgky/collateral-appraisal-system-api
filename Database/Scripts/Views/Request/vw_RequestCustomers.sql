@@ -2,6 +2,6 @@ CREATE
 OR ALTER
 VIEW request.vw_RequestCustomers AS
 SELECT RequestId,
-       CustomerName,
+       Name,
        ContactNumber
 FROM request.RequestCustomers

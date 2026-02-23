@@ -6,6 +6,7 @@ using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Request.Infrastructure;
+using Shared.Configurations;
 using Shared.Data;
 using Workflow.Telemetry;
 
@@ -71,10 +72,14 @@ builder.Services.AddMassTransit(config =>
             r.LockStatementProvider = new SqlServerLockStatementProvider();
         });
 
-    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly, collateralAssembly, appraisalAssembly, integrationAssembly);
-    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly, collateralAssembly, appraisalAssembly, integrationAssembly);
-    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly, collateralAssembly, appraisalAssembly, integrationAssembly);
-    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly, collateralAssembly, appraisalAssembly, integrationAssembly);
+    config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly,
+        collateralAssembly, appraisalAssembly, integrationAssembly);
+    config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly,
+        collateralAssembly, appraisalAssembly, integrationAssembly);
+    config.AddSagas(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly,
+        collateralAssembly, appraisalAssembly, integrationAssembly);
+    config.AddActivities(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly,
+        collateralAssembly, appraisalAssembly, integrationAssembly);
 
     // TODO: later implement customer delivery service
     // config.AddEntityFrameworkOutbox<RequestDbContext>(o =>
@@ -111,7 +116,12 @@ builder.Services.AddMassTransit(config =>
     });
 });
 
-builder.Services.AddHttpClient("CAS", client => { client.BaseAddress = new Uri("https://localhost:7111"); });
+builder.Services.AddHttpClient("CAS", client =>
+{
+    var baseUrl = builder.Configuration["AppBaseUrl"]
+                  ?? throw new InvalidOperationException("AppBaseUrl is not configured in appsettings.");
+    client.BaseAddress = new Uri(baseUrl);
+});
 
 // Module services: request, etc.
 builder.Services
@@ -139,10 +149,14 @@ builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 
 // Add health checks with workflow telemetry
 builder.Services.AddHealthChecks();
-    // TODO: .AddWorkflowTelemetry() - to be implemented
+// TODO: .AddWorkflowTelemetry() - to be implemented
 
 // TODO: Configure workflow telemetry (extension method to be implemented)
 // builder.Services.ConfigureWorkflowTelemetry(builder.Configuration, builder.Environment);
+
+var corsConfig = builder.Configuration
+    .GetSection(CorsConfiguration.SectionName)
+    .Get<CorsConfiguration>() ?? new CorsConfiguration();
 
 builder.Services.AddCors(options =>
 {
@@ -150,7 +164,7 @@ builder.Services.AddCors(options =>
         policy =>
         {
             policy
-                .WithOrigins("https://localhost:3000", "https://localhost:7111", "null")
+                .WithOrigins(corsConfig.AllowedOrigins)
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials(); // Required for SignalR

@@ -133,10 +133,10 @@ public class CreateRequestService(
                 {
                     DocumentId = doc.DocumentId,
                     DocumentType = doc.DocumentType,
-                    Filename = doc.Filename,
+                    FileName = doc.FileName,
                     Prefix = doc.Prefix,
                     Set = doc.Set,
-                    Notes = doc.DocumentDescription,
+                    Notes = doc.Notes,
                     FilePath = doc.FilePath,
                     UploadedBy = doc.UploadedBy,
                     UploadedByName = doc.UploadedByName,

@@ -1,0 +1,111 @@
+@appraisalId = 019c6758-d9e3-7d66-b354-7e83aebd60a2
+@documentId1 = 019C673C-9B34-7FF8-B91B-7AC0FB215706
+@documentId2 = 019C673C-98F5-7675-906B-A832409FC142
+@regulationId = REPLACE_AFTER_SAVE
+
+### ===========================================
+### 1. Get Law and Regulations (empty)
+### ===========================================
+GET {{baseUrl}}/appraisals/{{appraisalId}}/law-and-regulations
+
+### ===========================================
+### 2. Save - Create two new regulations
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/law-and-regulations
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "id": null,
+      "headerCode": "LAND_USE",
+      "remark": "Land use regulations apply to this property",
+      "images": [
+        {
+          "id": null,
+          "documentId": "{{documentId1}}",
+          "displaySequence": 1,
+          "fileName": "land-use-doc.png",
+          "filePath": "/uploads/documents/{{documentId1}}.png",
+          "title": "Land Use Certificate",
+          "description": "Official land use certificate from district office"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "headerCode": "BUILDING_PERMIT",
+      "remark": "Building permit issued 2024",
+      "images": [
+        {
+          "id": null,
+          "documentId": "{{documentId2}}",
+          "displaySequence": 1,
+          "fileName": "building-permit.png",
+          "filePath": "/uploads/documents/{{documentId2}}.png",
+          "title": "Building Permit",
+          "description": "Building construction permit"
+        }
+      ]
+    }
+  ]
+}
+
+### ===========================================
+### 3. Get Law and Regulations (after save)
+### ===========================================
+GET {{baseUrl}}/appraisals/{{appraisalId}}/law-and-regulations
+
+### ===========================================
+### 4. Save - Update existing + add new + delete
+###    (replace regulationId with actual ID from step 3)
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/law-and-regulations
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "id": "{{regulationId}}",
+      "headerCode": "LAND_USE",
+      "remark": "Updated remark - land use regulations confirmed",
+      "images": [
+        {
+          "id": null,
+          "documentId": "{{documentId1}}",
+          "displaySequence": 1,
+          "fileName": "land-use-updated.png",
+          "filePath": "/uploads/documents/{{documentId1}}.png",
+          "title": "Updated Land Use Certificate",
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": null,
+      "headerCode": "ZONING",
+      "remark": "Zoning regulation - residential area",
+      "images": []
+    }
+  ]
+}
+
+### ===========================================
+### 5. Get Law and Regulations (verify upsert)
+### ===========================================
+GET {{baseUrl}}/appraisals/{{appraisalId}}/law-and-regulations
+
+### ===========================================
+### 6. Save - Clear all (empty list deletes all)
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/law-and-regulations
+Content-Type: application/json
+
+{
+  "items": []
+}
+
+### ===========================================
+### 7. Get Law and Regulations (verify empty)
+### ===========================================
+GET {{baseUrl}}/appraisals/{{appraisalId}}/law-and-regulations

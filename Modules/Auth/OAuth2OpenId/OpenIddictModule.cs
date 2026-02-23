@@ -58,6 +58,10 @@ public static class OpenIddictModule
             })
             .AddServer(options =>
             {
+                var appBaseUrl = configuration["AppBaseUrl"];
+                if (!string.IsNullOrEmpty(appBaseUrl))
+                    options.SetIssuer(new Uri(appBaseUrl));
+
                 options.SetTokenEndpointUris("/connect/token");
                 options.SetAuthorizationEndpointUris("/connect/authorize");
                 options.SetEndSessionEndpointUris("/connect/logout");
@@ -112,7 +116,8 @@ public static class OpenIddictModule
 
                 options.UseAspNetCore()
                     .EnableTokenEndpointPassthrough()
-                    .EnableAuthorizationEndpointPassthrough();
+                    .EnableAuthorizationEndpointPassthrough()
+                    .EnableEndSessionEndpointPassthrough();
             })
             .AddValidation(options =>
             {

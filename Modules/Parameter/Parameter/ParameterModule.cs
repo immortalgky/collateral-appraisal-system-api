@@ -1,11 +1,14 @@
-﻿namespace Parameter;
+namespace Parameter;
 
 public static class ParameterModule
 {
     public static IServiceCollection AddParameterModule(this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddMemoryCache();
+
         services.AddScoped<IParameterRepository, ParameterRepository>();
+        services.Decorate<IParameterRepository, CachedParameterRepository>();
 
         services.AddDbContext<ParameterDbContext>((sp, options) =>
         {

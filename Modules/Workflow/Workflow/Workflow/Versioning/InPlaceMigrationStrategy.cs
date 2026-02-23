@@ -22,11 +22,12 @@ public class InPlaceMigrationStrategy : IMigrationStrategy
         _instanceRepository = instanceRepository;
     }
 
-    public async Task<bool> MigrateInstanceAsync(WorkflowInstance instance, string targetVersion, CancellationToken cancellationToken = default)
+    public async Task<bool> MigrateInstanceAsync(WorkflowInstance instance, string targetVersion,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogInformation("Starting in-place migration for instance {InstanceId} to version {Version}", 
+            _logger.LogInformation("Starting in-place migration for instance {InstanceId} to version {Version}",
                 instance.Id, targetVersion);
 
             // Validate current state allows migration
@@ -39,31 +40,33 @@ public class InPlaceMigrationStrategy : IMigrationStrategy
             // Note: In a real implementation, you would add SchemaVersion property to WorkflowInstance
             // For now, we simulate the migration by updating the status
             _logger.LogInformation("Simulating version update to {Version}", targetVersion);
-            instance.UpdatedOn = DateTime.UtcNow;
+            instance.UpdatedAt = DateTime.UtcNow;
 
             // Save changes
             await _instanceRepository.UpdateAsync(instance, cancellationToken);
 
-            _logger.LogInformation("Successfully migrated instance {InstanceId} to version {Version}", 
+            _logger.LogInformation("Successfully migrated instance {InstanceId} to version {Version}",
                 instance.Id, targetVersion);
 
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to migrate instance {InstanceId} to version {Version}", 
+            _logger.LogError(ex, "Failed to migrate instance {InstanceId} to version {Version}",
                 instance.Id, targetVersion);
             return false;
         }
     }
 
-    public async Task<bool> CanMigrateAsync(WorkflowInstance instance, string targetVersion, CancellationToken cancellationToken = default)
+    public async Task<bool> CanMigrateAsync(WorkflowInstance instance, string targetVersion,
+        CancellationToken cancellationToken = default)
     {
         // In-place migration requires instance to be suspended or completed
         return instance.Status is WorkflowStatus.Suspended or WorkflowStatus.Completed or WorkflowStatus.Failed;
     }
 
-    public async Task<MigrationRequirements> GetRequirementsAsync(string fromVersion, string toVersion, CancellationToken cancellationToken = default)
+    public async Task<MigrationRequirements> GetRequirementsAsync(string fromVersion, string toVersion,
+        CancellationToken cancellationToken = default)
     {
         return new MigrationRequirements
         {

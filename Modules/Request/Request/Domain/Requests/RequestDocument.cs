@@ -38,7 +38,7 @@ public class RequestDocument : Entity<Guid>
     {
         ArgumentNullException.ThrowIfNull(data.DocumentType);
 
-        return new RequestDocument(Guid.NewGuid(), requestId)
+        return new RequestDocument(Guid.CreateVersion7(), requestId)
         {
             DocumentId = data.DocumentId,
             DocumentType = data.DocumentType,

@@ -1,15 +1,18 @@
 namespace Appraisal.Contracts.Appraisals.Dto;
 
 public record BuildingAppraisalDepreciationDetailDto(
-    string AreaDesc,
+    Guid Id,
+    string? AreaDescription,
     decimal Area,
-    decimal PricePerSqM,
-    decimal PriceBeforeDegradation,
+    decimal PricePerSqMBeforeDepreciation,
+    decimal PriceBeforeDepreciation,
     short Year,
-    decimal DegradationYearPct,
-    decimal TotalDegradationPct,
-    decimal PriceDegradation,
-    decimal TotalPrice,
-    bool? AppraisalMethod,
-    IReadOnlyList<BuildingAppraisalDepreciationPeriodDto> BuildingAppraisalDepreciationPeriods
+    bool IsBuilding,
+    string DepreciationMethod,
+    decimal DepreciationYearPct,
+    decimal TotalDepreciationPct,
+    decimal PriceDepreciation,
+    decimal PricePerSqMAfterDepreciation,
+    decimal PriceAfterDepreciation,
+    IReadOnlyList<BuildingAppraisalDepreciationPeriodDto> DepreciationPeriods
 );

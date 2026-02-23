@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableTemplates.DeleteMarketComparableTemplate;
+
+public record DeleteMarketComparableTemplateResult(bool Success);

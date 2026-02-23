@@ -41,11 +41,13 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             sd.Property(p => p.DeletedBy).HasMaxLength(10).HasColumnName("DeletedBy");
         });
 
-        builder.OwnsOne(p => p.Status, status =>
-        {
-            status.Property(p => p.Code).HasMaxLength(10).HasColumnName("Status");
-            status.HasIndex(p => p.Code).HasFilter("[IsDeleted] = 0").HasDatabaseName("IX_Request_Status");
-        });
+        builder.Property(p => p.Status)
+            .HasConversion(
+                v => v.Code,
+                v => RequestStatus.FromString(v)
+            )
+            .HasMaxLength(10)
+            .HasColumnName("Status");
 
         // RequestDetails
         builder.OwnsOne(r => r.Detail, detail =>
@@ -56,6 +58,9 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
 
             detail.Property(p => p.HasAppraisalBook).HasColumnName("HasAppraisalBook");
             detail.Property(p => p.PrevAppraisalId).HasColumnName("PrevAppraisalId");
+            detail.Property(p => p.PrevAppraisalNumber).HasMaxLength(20).HasColumnName("PrevAppraisalNumber");
+            detail.Property(p => p.PrevAppraisalValue).HasPrecision(19, 4).HasColumnName("PrevAppraisalValue");
+            detail.Property(p => p.PrevAppraisalDate).HasColumnName("PrevAppraisalDate");
             detail.OwnsOne(p => p.LoanDetail,
                 loanDetail =>
                 {
@@ -92,7 +97,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
 
             detail.OwnsOne(p => p.Appointment, appointment =>
             {
-                appointment.Property(p => p.AppointmentDateTime).HasColumnName("AppointmentDate");
+                appointment.Property(p => p.AppointmentDateTime).HasColumnName("AppointmentDateTime");
                 appointment.Property(p => p.AppointmentLocation).HasMaxLength(4000)
                     .HasColumnName("AppointmentLocation");
             });
@@ -100,14 +105,14 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             detail.OwnsOne(p => p.Contact, contact =>
             {
                 contact.Property(p => p.ContactPersonName).HasMaxLength(100).HasColumnName("ContactPersonName");
-                contact.Property(p => p.ContactPersonPhone).HasMaxLength(20).HasColumnName("ContactPersonPhone");
+                contact.Property(p => p.ContactPersonPhone).HasMaxLength(100).HasColumnName("ContactPersonPhone");
                 contact.Property(p => p.DealerCode).HasMaxLength(20).HasColumnName("DealerCode");
             });
 
             detail.OwnsOne(p => p.Fee, feeInfo =>
             {
                 feeInfo.Property(p => p.FeePaymentType).HasMaxLength(10).HasColumnName("FeePaymentType");
-                feeInfo.Property(p => p.AbsorbedAmount).HasPrecision(19, 4).HasColumnName("AbsorbedFee");
+                feeInfo.Property(p => p.AbsorbedAmount).HasPrecision(19, 4).HasColumnName("AbsorbedAmount");
                 feeInfo.Property(p => p.FeeNotes).HasMaxLength(4000).HasColumnName("FeeNotes");
             });
         });
@@ -120,8 +125,8 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             customer.Property<long>("Id");
             customer.HasKey("Id");
 
-            customer.Property(p => p.Name).HasMaxLength(80).HasColumnName("CustomerName");
-            customer.Property(p => p.ContactNumber).HasMaxLength(20).HasColumnName("ContactNumber");
+            customer.Property(p => p.Name).HasMaxLength(80).HasColumnName("Name");
+            customer.Property(p => p.ContactNumber).HasMaxLength(100).HasColumnName("ContactNumber");
 
             //Index
             customer.HasIndex(p => p.Name).HasDatabaseName("IX_RequestCustomer_Name");
@@ -144,10 +149,8 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
         });
 
         // RequestDocuments
-        builder.HasMany(p => p.Documents)
-            .WithOne()
-            .HasForeignKey(p => p.RequestId)
-            .OnDelete(DeleteBehavior.Cascade);
+        builder.OwnsMany(r => r.Documents, doc =>
+            new RequestDocumentConfiguration().Configure(doc));
 
         // Index
         builder
@@ -155,5 +158,10 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             .IsDescending(true)
             .HasFilter("[IsDeleted] = 0")
             .HasDatabaseName("IX_Request_RequestedAt");
+
+        builder
+            .HasIndex(p => p.Status)
+            .HasFilter("[IsDeleted] = 0")
+            .HasDatabaseName("IX_Request_Status");
     }
 }

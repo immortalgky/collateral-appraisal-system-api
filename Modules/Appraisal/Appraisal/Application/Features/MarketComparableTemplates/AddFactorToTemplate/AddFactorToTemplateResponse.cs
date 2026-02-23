@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableTemplates.AddFactorToTemplate;
+
+public record AddFactorToTemplateResponse(Guid TemplateFactorId);

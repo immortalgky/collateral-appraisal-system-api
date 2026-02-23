@@ -3,7 +3,7 @@ namespace Appraisal.Contracts.Appraisals.Dto;
 public record CondoAttributeDto(
     string? Decoration,
     short? BuildingYear,
-    short CondoHeight,
+    short NumberOfFloors,
     string? BuildingForm,
     string? ConstMaterial,
     CondoRoomLayoutDto CondoRoomLayout,

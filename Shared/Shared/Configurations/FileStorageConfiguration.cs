@@ -66,6 +66,11 @@ public class FileStorageConfiguration
     /// Configuration settings for file cleanup operations
     /// </summary>
     public CleanupConfiguration Cleanup { get; set; } = default!;
+
+    /// <summary>
+    /// Configuration for image variant/thumbnail generation
+    /// </summary>
+    public ImageVariantsConfiguration ImageVariants { get; set; } = new();
 }
 
 public class CleanupConfiguration
@@ -73,4 +78,16 @@ public class CleanupConfiguration
     public int TempSessionExpirationHours { get; set; } = 24;
     public int DeletedRetentionDays { get; set; } = 30;
     public int OrphanedCheckDays { get; set; } = 7;
+}
+
+public class ImageVariantsConfiguration
+{
+    public bool GenerateThumbnails { get; set; }
+    public Dictionary<string, ImageSizeConfiguration> Sizes { get; set; } = new();
+}
+
+public class ImageSizeConfiguration
+{
+    public int Width { get; set; }
+    public int Height { get; set; }
 }

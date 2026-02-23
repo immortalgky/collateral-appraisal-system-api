@@ -215,12 +215,15 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("CreatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("LastModifiedAt")
                         .HasColumnType("datetime2");
@@ -228,12 +231,15 @@ namespace Request.Infrastructure.Migrations
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("UpdatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -256,12 +262,15 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("CreatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
@@ -273,12 +282,15 @@ namespace Request.Infrastructure.Migrations
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("UpdatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -290,78 +302,6 @@ namespace Request.Infrastructure.Migrations
                     b.HasDiscriminator<string>("CollateralType").HasValue("RequestTitle");
 
                     b.UseTphMappingStrategy();
-                });
-
-            modelBuilder.Entity("Request.Domain.RequestTitles.TitleDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<DateTime?>("CreatedOn")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("DocumentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("DocumentType")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("FilePath")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("Filename")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<bool>("IsRequired")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Prefix")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("Set")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("TitleId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<DateTime?>("UpdatedOn")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("UploadedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UploadedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("UploadedByName")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TitleId", "DocumentId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_TitleDocument_Title_Document")
-                        .HasFilter("[DocumentId] IS NOT NULL");
-
-                    b.ToTable("RequestTitleDocuments", "request");
                 });
 
             modelBuilder.Entity("Request.Domain.Requests.Request", b =>
@@ -384,8 +324,8 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("CreatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ExternalCaseKey")
                         .HasMaxLength(100)
@@ -409,12 +349,21 @@ namespace Request.Infrastructure.Migrations
                     b.Property<DateTime?>("RequestedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("Status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<DateTime?>("UpdatedOn")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -427,85 +376,11 @@ namespace Request.Infrastructure.Migrations
                         .HasDatabaseName("IX_Request_RequestedAt")
                         .HasFilter("[IsDeleted] = 0");
 
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_Request_Status")
+                        .HasFilter("[IsDeleted] = 0");
+
                     b.ToTable("Requests", "request");
-                });
-
-            modelBuilder.Entity("Request.Domain.Requests.RequestDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<DateTime?>("CreatedOn")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("DocumentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("DocumentType")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("FileName")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("FilePath")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<bool>("IsRequired")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("Prefix")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<Guid>("RequestId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<short?>("Set")
-                        .HasColumnType("smallint");
-
-                    b.Property<string>("Source")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<DateTime?>("UpdatedOn")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("UploadedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UploadedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("UploadedByName")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RequestId", "DocumentId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_RequestDocument_Request_Document")
-                        .HasFilter("[DocumentId] IS NOT NULL");
-
-                    b.ToTable("RequestDocuments", "request");
                 });
 
             modelBuilder.Entity("Request.Domain.RequestTitles.TitleTypes.TitleBuilding", b =>
@@ -715,19 +590,93 @@ namespace Request.Infrastructure.Migrations
                                 .HasForeignKey("RequestTitleId");
                         });
 
+                    b.OwnsMany("Request.Domain.RequestTitles.TitleDocument", "Documents", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<DateTime?>("CreatedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("CreatedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("CreatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<Guid?>("DocumentId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("DocumentType")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
+
+                            b1.Property<string>("FileName")
+                                .HasMaxLength(255)
+                                .HasColumnType("nvarchar(255)");
+
+                            b1.Property<string>("FilePath")
+                                .HasMaxLength(255)
+                                .HasColumnType("nvarchar(255)");
+
+                            b1.Property<bool>("IsRequired")
+                                .HasColumnType("bit");
+
+                            b1.Property<string>("Notes")
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
+
+                            b1.Property<string>("Prefix")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)");
+
+                            b1.Property<int>("Set")
+                                .HasColumnType("int");
+
+                            b1.Property<Guid>("TitleId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<DateTime?>("UpdatedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("UpdatedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("UpdatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<DateTime>("UploadedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("UploadedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("UploadedByName")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("TitleId", "DocumentId")
+                                .IsUnique()
+                                .HasDatabaseName("IX_TitleDocument_Title_Document")
+                                .HasFilter("[DocumentId] IS NOT NULL");
+
+                            b1.ToTable("RequestTitleDocuments", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("TitleId");
+                        });
+
+                    b.Navigation("Documents");
+
                     b.Navigation("DopaAddress")
                         .IsRequired();
 
                     b.Navigation("TitleAddress")
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Request.Domain.RequestTitles.TitleDocument", b =>
-                {
-                    b.HasOne("Request.Domain.RequestTitles.RequestTitle", null)
-                        .WithMany("Documents")
-                        .HasForeignKey("TitleId")
-                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -796,14 +745,14 @@ namespace Request.Infrastructure.Migrations
                             SqlServerPropertyBuilderExtensions.UseIdentityColumn(b1.Property<long>("Id"));
 
                             b1.Property<string>("ContactNumber")
-                                .HasMaxLength(20)
-                                .HasColumnType("nvarchar(20)")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
                                 .HasColumnName("ContactNumber");
 
                             b1.Property<string>("Name")
                                 .HasMaxLength(80)
                                 .HasColumnType("nvarchar(80)")
-                                .HasColumnName("CustomerName");
+                                .HasColumnName("Name");
 
                             b1.Property<Guid>("RequestId")
                                 .HasColumnType("uniqueidentifier");
@@ -830,9 +779,23 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("bit")
                                 .HasColumnName("HasAppraisalBook");
 
+                            b1.Property<DateTime?>("PrevAppraisalDate")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("PrevAppraisalDate");
+
                             b1.Property<Guid?>("PrevAppraisalId")
                                 .HasColumnType("uniqueidentifier")
                                 .HasColumnName("PrevAppraisalId");
+
+                            b1.Property<string>("PrevAppraisalNumber")
+                                .HasMaxLength(20)
+                                .HasColumnType("nvarchar(20)")
+                                .HasColumnName("PrevAppraisalNumber");
+
+                            b1.Property<decimal?>("PrevAppraisalValue")
+                                .HasPrecision(19, 4)
+                                .HasColumnType("decimal(19,4)")
+                                .HasColumnName("PrevAppraisalValue");
 
                             b1.HasKey("RequestId");
 
@@ -848,7 +811,7 @@ namespace Request.Infrastructure.Migrations
 
                                     b2.Property<DateTime?>("AppointmentDateTime")
                                         .HasColumnType("datetime2")
-                                        .HasColumnName("AppointmentDate");
+                                        .HasColumnName("AppointmentDateTime");
 
                                     b2.Property<string>("AppointmentLocation")
                                         .HasMaxLength(4000)
@@ -874,8 +837,8 @@ namespace Request.Infrastructure.Migrations
                                         .HasColumnName("ContactPersonName");
 
                                     b2.Property<string>("ContactPersonPhone")
-                                        .HasMaxLength(20)
-                                        .HasColumnType("nvarchar(20)")
+                                        .HasMaxLength(100)
+                                        .HasColumnType("nvarchar(100)")
                                         .HasColumnName("ContactPersonPhone");
 
                                     b2.Property<string>("DealerCode")
@@ -899,7 +862,7 @@ namespace Request.Infrastructure.Migrations
                                     b2.Property<decimal?>("AbsorbedAmount")
                                         .HasPrecision(19, 4)
                                         .HasColumnType("decimal(19,4)")
-                                        .HasColumnName("AbsorbedFee");
+                                        .HasColumnName("AbsorbedAmount");
 
                                     b2.Property<string>("FeeNotes")
                                         .HasMaxLength(4000)
@@ -1035,6 +998,93 @@ namespace Request.Infrastructure.Migrations
                             b1.Navigation("LoanDetail");
                         });
 
+                    b.OwnsMany("Request.Domain.Requests.RequestDocument", "Documents", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<DateTime?>("CreatedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("CreatedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("CreatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<Guid?>("DocumentId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("DocumentType")
+                                .IsRequired()
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("FileName")
+                                .HasMaxLength(255)
+                                .HasColumnType("nvarchar(255)");
+
+                            b1.Property<string>("FilePath")
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
+
+                            b1.Property<bool>("IsRequired")
+                                .HasColumnType("bit");
+
+                            b1.Property<string>("Notes")
+                                .HasMaxLength(4000)
+                                .HasColumnType("nvarchar(4000)");
+
+                            b1.Property<string>("Prefix")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)");
+
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<short?>("Set")
+                                .HasColumnType("smallint");
+
+                            b1.Property<string>("Source")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<DateTime?>("UpdatedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("UpdatedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("UpdatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<DateTime?>("UploadedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("UploadedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("UploadedByName")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("RequestId", "DocumentId")
+                                .IsUnique()
+                                .HasDatabaseName("IX_RequestDocument_Request_Document")
+                                .HasFilter("[DocumentId] IS NOT NULL");
+
+                            b1.ToTable("RequestDocuments", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestId");
+                        });
+
                     b.OwnsOne("Request.Domain.Requests.RequestNumber", "RequestNumber", b1 =>
                         {
                             b1.Property<Guid>("RequestId")
@@ -1096,29 +1146,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasForeignKey("RequestId");
                         });
 
-                    b.OwnsOne("Request.Domain.Requests.RequestStatus", "Status", b1 =>
-                        {
-                            b1.Property<Guid>("RequestId")
-                                .HasColumnType("uniqueidentifier");
-
-                            b1.Property<string>("Code")
-                                .IsRequired()
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
-                                .HasColumnName("Status");
-
-                            b1.HasKey("RequestId");
-
-                            b1.HasIndex("Code")
-                                .HasDatabaseName("IX_Request_Status")
-                                .HasFilter("[IsDeleted] = 0");
-
-                            b1.ToTable("Requests", "request");
-
-                            b1.WithOwner()
-                                .HasForeignKey("RequestId");
-                        });
-
                     b.OwnsOne("Request.Domain.Requests.SoftDelete", "SoftDelete", b1 =>
                         {
                             b1.Property<Guid>("RequestId")
@@ -1152,6 +1179,8 @@ namespace Request.Infrastructure.Migrations
 
                     b.Navigation("Detail");
 
+                    b.Navigation("Documents");
+
                     b.Navigation("Properties");
 
                     b.Navigation("RequestNumber");
@@ -1160,18 +1189,6 @@ namespace Request.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("SoftDelete")
-                        .IsRequired();
-
-                    b.Navigation("Status")
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Request.Domain.Requests.RequestDocument", b =>
-                {
-                    b.HasOne("Request.Domain.Requests.Request", null)
-                        .WithMany("Documents")
-                        .HasForeignKey("RequestId")
-                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -1222,7 +1239,7 @@ namespace Request.Infrastructure.Migrations
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)")
-                                .HasColumnName("BuildingNo");
+                                .HasColumnName("BuildingNumber");
 
                             b1.Property<string>("CondoName")
                                 .ValueGeneratedOnUpdateSometimes()
@@ -1234,13 +1251,13 @@ namespace Request.Infrastructure.Migrations
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
-                                .HasColumnName("FloorNo");
+                                .HasColumnName("FloorNumber");
 
                             b1.Property<string>("RoomNumber")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(30)
                                 .HasColumnType("nvarchar(30)")
-                                .HasColumnName("RoomNo");
+                                .HasColumnName("RoomNumber");
 
                             b1.Property<decimal?>("UsableArea")
                                 .ValueGeneratedOnUpdateSometimes()
@@ -1265,13 +1282,13 @@ namespace Request.Infrastructure.Migrations
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)")
-                                .HasColumnName("TitleNo");
+                                .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(50)
                                 .HasColumnType("nvarchar(50)")
-                                .HasColumnName("DeedType");
+                                .HasColumnName("TitleType");
 
                             b1.HasKey("TitleCondoId");
 
@@ -1325,31 +1342,37 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("AerialMapName")
+                                .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("AerialMapName");
 
                             b1.Property<string>("AerialMapNumber")
+                                .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("AerialMapNumber");
 
                             b1.Property<string>("BookNumber")
+                                .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("BookNumber");
 
                             b1.Property<string>("LandParcelNumber")
+                                .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("LandParcelNumber");
 
                             b1.Property<string>("MapSheetNumber")
+                                .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("MapSheetNumber");
 
                             b1.Property<string>("PageNumber")
+                                .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("PageNumber");
@@ -1361,6 +1384,7 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("Rawang");
 
                             b1.Property<string>("SurveyNumber")
+                                .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("SurveyNumber");
@@ -1382,13 +1406,13 @@ namespace Request.Infrastructure.Migrations
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)")
-                                .HasColumnName("TitleNo");
+                                .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(50)
                                 .HasColumnType("nvarchar(50)")
-                                .HasColumnName("DeedType");
+                                .HasColumnName("TitleType");
 
                             b1.HasKey("TitleLandId");
 
@@ -1479,29 +1503,39 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("AerialMapName")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("AerialMapName");
 
                             b1.Property<string>("AerialMapNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("AerialMapNumber");
 
                             b1.Property<string>("BookNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("BookNumber");
 
                             b1.Property<string>("LandParcelNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)")
-                                .HasColumnName("LandNo");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("LandParcelNumber");
 
                             b1.Property<string>("MapSheetNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("MapSheetNumber");
 
                             b1.Property<string>("PageNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("PageNumber");
 
                             b1.Property<string>("Rawang")
                                 .ValueGeneratedOnUpdateSometimes()
@@ -1511,9 +1545,9 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("SurveyNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)")
-                                .HasColumnName("SurveyNo");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("SurveyNumber");
 
                             b1.HasKey("TitleLandBuildingId");
 
@@ -1532,13 +1566,13 @@ namespace Request.Infrastructure.Migrations
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)")
-                                .HasColumnName("TitleNo");
+                                .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(50)
                                 .HasColumnType("nvarchar(50)")
-                                .HasColumnName("DeedType");
+                                .HasColumnName("TitleType");
 
                             b1.HasKey("TitleLandBuildingId");
 
@@ -1608,7 +1642,7 @@ namespace Request.Infrastructure.Migrations
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)")
-                                .HasColumnName("BuildingNo");
+                                .HasColumnName("BuildingNumber");
 
                             b1.Property<string>("CondoName")
                                 .ValueGeneratedOnUpdateSometimes()
@@ -1620,13 +1654,13 @@ namespace Request.Infrastructure.Migrations
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
-                                .HasColumnName("FloorNo");
+                                .HasColumnName("FloorNumber");
 
                             b1.Property<string>("RoomNumber")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(30)
                                 .HasColumnType("nvarchar(30)")
-                                .HasColumnName("RoomNo");
+                                .HasColumnName("RoomNumber");
 
                             b1.Property<decimal?>("UsableArea")
                                 .ValueGeneratedOnUpdateSometimes()
@@ -1651,13 +1685,13 @@ namespace Request.Infrastructure.Migrations
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)")
-                                .HasColumnName("TitleNo");
+                                .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(50)
                                 .HasColumnType("nvarchar(50)")
-                                .HasColumnName("DeedType");
+                                .HasColumnName("TitleType");
 
                             b1.HasKey("TitleLeaseAgreementCondoId");
 
@@ -1712,29 +1746,39 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("AerialMapName")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("AerialMapName");
 
                             b1.Property<string>("AerialMapNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("AerialMapNumber");
 
                             b1.Property<string>("BookNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("BookNumber");
 
                             b1.Property<string>("LandParcelNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)")
-                                .HasColumnName("LandNo");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("LandParcelNumber");
 
                             b1.Property<string>("MapSheetNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("MapSheetNumber");
 
                             b1.Property<string>("PageNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("PageNumber");
 
                             b1.Property<string>("Rawang")
                                 .ValueGeneratedOnUpdateSometimes()
@@ -1744,9 +1788,9 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("SurveyNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)")
-                                .HasColumnName("SurveyNo");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("SurveyNumber");
 
                             b1.HasKey("TitleLeaseAgreementLandId");
 
@@ -1765,13 +1809,13 @@ namespace Request.Infrastructure.Migrations
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)")
-                                .HasColumnName("TitleNo");
+                                .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(50)
                                 .HasColumnType("nvarchar(50)")
-                                .HasColumnName("DeedType");
+                                .HasColumnName("TitleType");
 
                             b1.HasKey("TitleLeaseAgreementLandId");
 
@@ -1859,29 +1903,39 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("AerialMapName")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("AerialMapName");
 
                             b1.Property<string>("AerialMapNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("AerialMapNumber");
 
                             b1.Property<string>("BookNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("BookNumber");
 
                             b1.Property<string>("LandParcelNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)")
-                                .HasColumnName("LandNo");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("LandParcelNumber");
 
                             b1.Property<string>("MapSheetNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("MapSheetNumber");
 
                             b1.Property<string>("PageNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasColumnType("nvarchar(max)");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("PageNumber");
 
                             b1.Property<string>("Rawang")
                                 .ValueGeneratedOnUpdateSometimes()
@@ -1891,9 +1945,9 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("SurveyNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)")
-                                .HasColumnName("SurveyNo");
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("SurveyNumber");
 
                             b1.HasKey("TitleLeaseAgreementLandBuildingId");
 
@@ -1912,13 +1966,13 @@ namespace Request.Infrastructure.Migrations
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)")
-                                .HasColumnName("TitleNo");
+                                .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(50)
                                 .HasColumnType("nvarchar(50)")
-                                .HasColumnName("DeedType");
+                                .HasColumnName("TitleType");
 
                             b1.HasKey("TitleLeaseAgreementLandBuildingId");
 
@@ -1965,12 +2019,12 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<int?>("NumberOfMachine")
                                 .HasColumnType("int")
-                                .HasColumnName("NumberOfMachinery");
+                                .HasColumnName("NumberOfMachine");
 
                             b1.Property<string>("RegistrationNumber")
                                 .HasMaxLength(50)
                                 .HasColumnType("nvarchar(50)")
-                                .HasColumnName("RegistrationNo");
+                                .HasColumnName("RegistrationNumber");
 
                             b1.HasKey("TitleMachineId");
 
@@ -2033,7 +2087,7 @@ namespace Request.Infrastructure.Migrations
                             b1.Property<string>("HIN")
                                 .HasMaxLength(50)
                                 .HasColumnType("nvarchar(50)")
-                                .HasColumnName("HullIdentificationNumber");
+                                .HasColumnName("HIN");
 
                             b1.Property<string>("VesselLocation")
                                 .HasMaxLength(300)
@@ -2060,16 +2114,6 @@ namespace Request.Infrastructure.Migrations
 
                     b.Navigation("VesselInfo")
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("Request.Domain.RequestTitles.RequestTitle", b =>
-                {
-                    b.Navigation("Documents");
-                });
-
-            modelBuilder.Entity("Request.Domain.Requests.Request", b =>
-                {
-                    b.Navigation("Documents");
                 });
 #pragma warning restore 612, 618
         }

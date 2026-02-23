@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparables.DeleteMarketComparable;
+
+public record DeleteMarketComparableResponse(bool IsSuccess);

@@ -1,0 +1,193 @@
+### Replace these with actual IDs from your database
+@appraisalId = 00000000-0000-0000-0000-000000000000
+@propertyId = 00000000-0000-0000-0000-000000000000
+
+### ===========================================
+### Update Building Property - Basic fields only
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/properties/{{propertyId}}/building-detail
+Content-Type: application/json
+
+{
+  "propertyName": "Updated Villa Name",
+  "buildingAge": 6,
+  "remark": "Updated remark"
+}
+
+### ===========================================
+### Update Building Property - With depreciation (Period mode)
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/properties/{{propertyId}}/building-detail
+Content-Type: application/json
+
+{
+  "propertyName": "Green Valley Villa 42",
+  "buildingNumber": "42/1",
+  "buildingAge": 5,
+  "constructionYear": 2021,
+  "totalBuildingArea": 350.50,
+  "sellingPrice": 12000000.00,
+  "forcedSalePrice": 9000000.00,
+
+  "depreciationDetails": [
+    {
+      "depreciationMethod": "Period",
+      "areaDescription": "Main building - 2 floors",
+      "area": 350.50,
+      "year": 5,
+      "isBuilding": true,
+      "pricePerSqMBeforeDepreciation": 12000.00,
+      "priceBeforeDepreciation": 4206000.00,
+      "pricePerSqMAfterDepreciation": 10800.00,
+      "priceAfterDepreciation": 3785400.00,
+      "depreciationYearPct": 2.0000,
+      "totalDepreciationPct": 10.0000,
+      "priceDepreciation": 420600.00,
+      "depreciationPeriods": [
+        {
+          "atYear": 1,
+          "toYear": 3,
+          "depreciationPerYear": 1.5000,
+          "totalDepreciationPct": 4.5000,
+          "priceDepreciation": 189270.00
+        },
+        {
+          "atYear": 4,
+          "toYear": 5,
+          "depreciationPerYear": 2.7500,
+          "totalDepreciationPct": 5.5000,
+          "priceDepreciation": 231330.00
+        }
+      ]
+    }
+  ]
+}
+
+### ===========================================
+### Update Building Property - With depreciation (Gross mode)
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/properties/{{propertyId}}/building-detail
+Content-Type: application/json
+
+{
+  "totalBuildingArea": 2500.00,
+  "sellingPrice": 150000000.00,
+  "forcedSalePrice": 120000000.00,
+
+  "depreciationDetails": [
+    {
+      "depreciationMethod": "Gross",
+      "areaDescription": "Office building - 8 floors",
+      "area": 2500.00,
+      "year": 15,
+      "isBuilding": true,
+      "pricePerSqMBeforeDepreciation": 20000.00,
+      "priceBeforeDepreciation": 50000000.00,
+      "pricePerSqMAfterDepreciation": 14000.00,
+      "priceAfterDepreciation": 35000000.00,
+      "depreciationYearPct": 2.0000,
+      "totalDepreciationPct": 30.0000,
+      "priceDepreciation": 15000000.00,
+      "depreciationPeriods": []
+    }
+  ]
+}
+
+### ===========================================
+### Update Building Property - Update existing depreciation (by Id)
+### Replace the id values with actual depreciation detail IDs
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/properties/{{propertyId}}/building-detail
+Content-Type: application/json
+
+{
+  "depreciationDetails": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "depreciationMethod": "Period",
+      "areaDescription": "Main building - updated",
+      "area": 350.50,
+      "year": 6,
+      "isBuilding": true,
+      "pricePerSqMBeforeDepreciation": 12000.00,
+      "priceBeforeDepreciation": 4206000.00,
+      "pricePerSqMAfterDepreciation": 10560.00,
+      "priceAfterDepreciation": 3701280.00,
+      "depreciationYearPct": 2.0000,
+      "totalDepreciationPct": 12.0000,
+      "priceDepreciation": 504720.00,
+      "depreciationPeriods": [
+        {
+          "atYear": 1,
+          "toYear": 3,
+          "depreciationPerYear": 1.5000,
+          "totalDepreciationPct": 4.5000,
+          "priceDepreciation": 189270.00
+        },
+        {
+          "atYear": 4,
+          "toYear": 6,
+          "depreciationPerYear": 2.5000,
+          "totalDepreciationPct": 7.5000,
+          "priceDepreciation": 315450.00
+        }
+      ]
+    }
+  ]
+}
+
+### ===========================================
+### Update Building Property - With surfaces
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/properties/{{propertyId}}/building-detail
+Content-Type: application/json
+
+{
+  "surfaces": [
+    {
+      "fromFloorNumber": 1,
+      "toFloorNumber": 1,
+      "floorType": "Normal",
+      "floorStructureType": "KSL",
+      "floorSurfaceType": "Granite"
+    },
+    {
+      "fromFloorNumber": 2,
+      "toFloorNumber": 2,
+      "floorType": "Normal",
+      "floorStructureType": "Wood",
+      "floorSurfaceType": "Wood"
+    }
+  ]
+}
+
+### ===========================================
+### Update Building Property - Update existing surface (by Id)
+### Replace the id with actual surface ID
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/properties/{{propertyId}}/building-detail
+Content-Type: application/json
+
+{
+  "surfaces": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "fromFloorNumber": 1,
+      "toFloorNumber": 2,
+      "floorType": "Normal",
+      "floorStructureType": "KSL",
+      "floorSurfaceType": "Ceramic"
+    }
+  ]
+}
+
+### ===========================================
+### Update Building Property - Clear all depreciation details
+### (send empty array to remove all)
+### ===========================================
+PUT {{baseUrl}}/appraisals/{{appraisalId}}/properties/{{propertyId}}/building-detail
+Content-Type: application/json
+
+{
+  "depreciationDetails": []
+}

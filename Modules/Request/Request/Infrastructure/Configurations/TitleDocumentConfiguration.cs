@@ -1,47 +1,26 @@
 using Request.Domain.RequestTitles;
+using Shared.Data.Extensions;
 
 namespace Request.Infrastructure.Configurations;
 
-public class TitleDocumentConfiguration : IEntityTypeConfiguration<TitleDocument>
+public class TitleDocumentConfiguration
+    : IOwnedEntityConfiguration<RequestTitle, TitleDocument>
 {
-    public void Configure(EntityTypeBuilder<TitleDocument> builder)
+    public void Configure(OwnedNavigationBuilder<RequestTitle, TitleDocument> builder)
     {
-        builder.ToTable("RequestTitleDocuments"); // Keep same table name for backward compatibility
+        builder.ToTable("RequestTitleDocuments");
+        builder.WithOwner().HasForeignKey(d => d.TitleId);
+        builder.HasKey(d => d.Id);
+        builder.Property(d => d.Id).ValueGeneratedNever();
 
-        builder.HasKey(x => x.Id);
-        builder.Property(x => x.Id)
-            .ValueGeneratedNever();
+        builder.Property(d => d.DocumentType).HasMaxLength(100);
+        builder.Property(d => d.FileName).HasMaxLength(255);
+        builder.Property(d => d.Prefix).HasMaxLength(50);
+        builder.Property(d => d.Notes).HasMaxLength(500);
+        builder.Property(d => d.FilePath).HasMaxLength(255);
+        builder.Property(d => d.UploadedBy).HasMaxLength(10);
+        builder.Property(d => d.UploadedByName).HasMaxLength(100);
 
-        builder.Property(x => x.TitleId);
-
-        builder.Property(x => x.DocumentType)
-            .HasMaxLength(100);
-
-        builder.Property(x => x.Filename)
-            .HasMaxLength(255);
-
-        builder.Property(x => x.Prefix)
-            .HasMaxLength(50);
-
-        builder.Property(x => x.Set);
-
-        builder.Property(x => x.Notes)
-            .HasMaxLength(500);
-
-        builder.Property(x => x.FilePath)
-            .HasMaxLength(255);
-
-        builder.Property(x => x.IsRequired);
-
-        builder.Property(x => x.UploadedBy)
-            .HasMaxLength(10);
-
-        builder.Property(x => x.UploadedByName)
-            .HasMaxLength(100);
-
-        builder.Property(x => x.UploadedAt);
-
-        // Unique indexes for duplicate prevention
         builder.HasIndex(d => new { d.TitleId, d.DocumentId })
             .IsUnique()
             .HasFilter("[DocumentId] IS NOT NULL")
