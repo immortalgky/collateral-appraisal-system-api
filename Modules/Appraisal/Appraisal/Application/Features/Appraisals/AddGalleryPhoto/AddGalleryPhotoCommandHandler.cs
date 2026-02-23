@@ -32,10 +32,17 @@ public class AddGalleryPhotoCommandHandler(
         if (command.CapturedAt.HasValue)
             photo.SetCapturedAt(command.CapturedAt.Value);
 
-        if (command.PhotoTopicId.HasValue)
-            photo.AssignToTopic(command.PhotoTopicId.Value);
-
         await galleryRepository.AddAsync(photo, cancellationToken);
+
+        // Create topic mappings if provided
+        if (command.PhotoTopicIds is { Count: > 0 })
+        {
+            foreach (var topicId in command.PhotoTopicIds)
+            {
+                var mapping = GalleryPhotoTopicMapping.Create(photo.Id, topicId);
+                await galleryRepository.AddTopicMappingAsync(mapping, cancellationToken);
+            }
+        }
 
         return new AddGalleryPhotoResult(photo.Id, photo.PhotoNumber);
     }

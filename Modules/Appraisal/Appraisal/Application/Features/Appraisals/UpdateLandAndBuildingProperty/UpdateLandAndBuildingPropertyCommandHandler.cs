@@ -196,10 +196,75 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             forcedSalePrice: command.ForcedSalePrice,
             remark: command.BuildingRemark);
 
-        // 8. Save aggregate
+        // 8. Sync depreciation details (null = no-op, list = sync)
+        if (command.DepreciationDetails is not null)
+            SyncDepreciationDetails(buildingDetail, command.DepreciationDetails);
+
+        // 8b. Sync surfaces (null = no-op, list = sync)
+        if (command.Surfaces is not null)
+            SyncSurfaces(buildingDetail, command.Surfaces);
+
+        // 9. Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 
         return Unit.Value;
+    }
+
+    private static void SyncDepreciationDetails(
+        BuildingAppraisalDetail buildingDetail,
+        List<DepreciationItemData> incoming)
+    {
+        var incomingIds = incoming
+            .Where(d => d.Id.HasValue)
+            .Select(d => d.Id!.Value)
+            .ToHashSet();
+
+        // Delete items not in the incoming list
+        var toRemove = buildingDetail.DepreciationDetails
+            .Where(d => !incomingIds.Contains(d.Id))
+            .Select(d => d.Id)
+            .ToList();
+        foreach (var id in toRemove)
+            buildingDetail.RemoveDepreciationDetail(id);
+
+        // Add or update
+        foreach (var item in incoming)
+        {
+            if (item.Id.HasValue)
+            {
+                // Update existing
+                var existing = buildingDetail.DepreciationDetails
+                    .FirstOrDefault(d => d.Id == item.Id.Value);
+                if (existing is null) continue;
+
+                existing.Update(
+                    item.DepreciationMethod, item.AreaDescription, item.Area, item.Year,
+                    item.IsBuilding, item.PricePerSqMBeforeDepreciation, item.PriceBeforeDepreciation,
+                    item.PricePerSqMAfterDepreciation, item.PriceAfterDepreciation,
+                    item.DepreciationYearPct, item.TotalDepreciationPct, item.PriceDepreciation);
+
+                // Replace periods
+                existing.ClearPeriods();
+                if (item.DepreciationPeriods is { Count: > 0 })
+                    foreach (var p in item.DepreciationPeriods)
+                        existing.AddPeriod(p.AtYear, p.ToYear, p.DepreciationPerYear,
+                            p.TotalDepreciationPct, p.PriceDepreciation);
+            }
+            else
+            {
+                // Create new
+                var detail = buildingDetail.AddDepreciationDetail(
+                    item.DepreciationMethod, item.AreaDescription, item.Area, item.Year,
+                    item.IsBuilding, item.PricePerSqMBeforeDepreciation, item.PriceBeforeDepreciation,
+                    item.PricePerSqMAfterDepreciation, item.PriceAfterDepreciation,
+                    item.DepreciationYearPct, item.TotalDepreciationPct, item.PriceDepreciation);
+
+                if (item.DepreciationPeriods is { Count: > 0 })
+                    foreach (var p in item.DepreciationPeriods)
+                        detail.AddPeriod(p.AtYear, p.ToYear, p.DepreciationPerYear,
+                            p.TotalDepreciationPct, p.PriceDepreciation);
+            }
+        }
     }
 
     private static void SyncTitles(LandAppraisalDetail landDetail, List<LandTitleItemData> incomingTitles)
@@ -252,6 +317,45 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
                     titleData.GovernmentPricePerSqWa, titleData.GovernmentPrice,
                     titleData.Remark);
                 landDetail.AddTitle(title);
+            }
+        }
+    }
+
+    private static void SyncSurfaces(
+        BuildingAppraisalDetail buildingDetail,
+        List<SurfaceItemData> incoming)
+    {
+        var incomingIds = incoming
+            .Where(s => s.Id.HasValue)
+            .Select(s => s.Id!.Value)
+            .ToHashSet();
+
+        // Delete surfaces not in the incoming list
+        var toRemove = buildingDetail.Surfaces
+            .Where(s => !incomingIds.Contains(s.Id))
+            .Select(s => s.Id)
+            .ToList();
+        foreach (var id in toRemove)
+            buildingDetail.RemoveSurface(id);
+
+        // Add or update
+        foreach (var item in incoming)
+        {
+            if (item.Id.HasValue)
+            {
+                var existing = buildingDetail.Surfaces
+                    .FirstOrDefault(s => s.Id == item.Id.Value);
+                existing?.Update(
+                    item.FromFloorNumber, item.ToFloorNumber, item.FloorType,
+                    item.FloorStructureType, item.FloorStructureTypeOther,
+                    item.FloorSurfaceType, item.FloorSurfaceTypeOther);
+            }
+            else
+            {
+                buildingDetail.AddSurface(
+                    item.FromFloorNumber, item.ToFloorNumber, item.FloorType,
+                    item.FloorStructureType, item.FloorStructureTypeOther,
+                    item.FloorSurfaceType, item.FloorSurfaceTypeOther);
             }
         }
     }

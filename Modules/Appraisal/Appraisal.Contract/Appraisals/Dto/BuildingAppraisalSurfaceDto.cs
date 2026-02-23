@@ -1,8 +1,9 @@
 namespace Appraisal.Contracts.Appraisals.Dto;
 
 public record BuildingAppraisalSurfaceDto(
-    short? FromFloorNumber,
-    short? ToFloorNumber,
+    Guid Id,
+    int FromFloorNumber,
+    int ToFloorNumber,
     string? FloorType,
     string? FloorStructureType,
     string? FloorStructureTypeOther,

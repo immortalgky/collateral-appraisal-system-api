@@ -97,7 +97,7 @@ public record UpdateLandAndBuildingPropertyRequest(
     List<LandTitleItemData>? Titles = null,
     //=================================
     // Building - Identification
-    string? BuildingNumber= null,
+    string? BuildingNumber = null,
     string? ModelName = null,
     string? BuiltOnTitleNumber = null,
     string? HouseNumber = null,
@@ -118,7 +118,7 @@ public record UpdateLandAndBuildingPropertyRequest(
     decimal? EncroachingOthersArea = null,
     // Construction Details
     string? BuildingMaterialType = null,
-    string? BuildingStyleType  = null,
+    string? BuildingStyleType = null,
     bool? IsResidential = null,
     int? BuildingAge = null,
     int? ConstructionYear = null,
@@ -152,5 +152,9 @@ public record UpdateLandAndBuildingPropertyRequest(
     decimal? ForcedSalePrice = null,
     // Remarks
     string? LandRemark = null,
-    string? BuildingRemark = null
+    string? BuildingRemark = null,
+    // Depreciation Details (null = no-op, list = sync)
+    List<DepreciationItemData>? DepreciationDetails = null,
+    // Surfaces (null = no-op, list = sync)
+    List<SurfaceItemData>? Surfaces = null
 );

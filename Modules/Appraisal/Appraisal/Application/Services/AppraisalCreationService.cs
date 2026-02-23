@@ -36,17 +36,14 @@ public class AppraisalCreationService(
             return existingId;
         }
 
-        // Step 2: Filter for Land type only (CollateralType == "L")
+        // Step 2: Filter for Property that has land titles
         var landTitles = requestTitles
             .Where(t => t.CollateralType is "L" or "LB" or "U")
             .ToList();
 
         if (!landTitles.Any())
-        {
             logger.LogWarning("No land titles found for request {RequestId}. Skipping appraisal creation.",
                 requestId);
-            throw new InvalidOperationException($"No land titles found for request {requestId}");
-        }
 
         logger.LogInformation("Processing {LandTitleCount} land titles for request {RequestId}",
             landTitles.Count, requestId);
@@ -56,77 +53,30 @@ public class AppraisalCreationService(
             requestId,
             "Initial",
             "Normal",
-            30); // Default SLA of 30 days
+            30); // TODO: Default SLA of 30 days
 
         // Set appraisal number: APP-{yyyyMMdd}-{GUID8}
+        // TODO: Replace with proper sequential number generator that ensures uniqueness and monotonicity without relying on randomness or date (e.g. separate table with auto-increment int, or SQL SEQUENCE object).
         var appraisalNumber = $"APP-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpper()}";
         appraisal.SetAppraisalNumber(appraisalNumber);
 
         logger.LogInformation("Created appraisal {AppraisalNumber} for request {RequestId}",
             appraisalNumber, requestId);
 
-        // Step 4: For each land title, create AppraisalProperty + LandAppraisalDetail + LandTitle
-        foreach (var landTitle in landTitles)
+        // Step 4: For each title, create the correct property type based on CollateralType
+        foreach (var title in landTitles)
         {
-            // Add land property with detail
-            var property = appraisal.AddLandProperty();
-
-            logger.LogInformation("Added land property {PropertyId} for title {TitleNumber}",
-                property.Id, landTitle.TitleNumber);
-
-            // Get the land detail (it was created by AddLandProperty)
-            var landDetail = property.LandDetail;
-            if (landDetail != null)
+            switch (title.CollateralType)
             {
-                // Step 5: Create and add LandTitle with data from RequestTitleDto
-                var title = LandTitle.Create(
-                    landDetail.Id,
-                    landTitle.TitleNumber ?? "N/A",
-                    landTitle.TitleType ?? "Unknown");
-
-                // Update with additional fields
-                var landArea = LandArea.Create(
-                    landTitle.AreaRai,
-                    landTitle.AreaNgan,
-                    landTitle.AreaSquareWa);
-
-                title.Update(
-                    landTitle.BookNumber,
-                    landTitle.PageNumber,
-                    landTitle.LandParcelNumber,
-                    landTitle.SurveyNumber,
-                    landTitle.MapSheetNumber,
-                    landTitle.Rawang,
-                    landTitle.AerialMapName,
-                    landTitle.AerialMapNumber,
-                    landArea,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null);
-
-                landDetail.AddTitle(title);
-
-                // Populate LandAppraisalDetail with address/owner data from the request title
-                var adminAddress = AdministrativeAddress.Create(
-                    landTitle.TitleAddress?.SubDistrict,
-                    landTitle.TitleAddress?.District,
-                    landTitle.TitleAddress?.Province);
-
-                landDetail.Update(
-                    landTitle.TitleAddress?.ProjectName,
-                    address: adminAddress,
-                    ownerName: landTitle.OwnerName,
-                    street: landTitle.TitleAddress?.Road,
-                    soi: landTitle.TitleAddress?.Soi,
-                    village: landTitle.TitleAddress?.Moo,
-                    addressLocation: landTitle.TitleAddress?.HouseNumber);
-
-                logger.LogInformation("Added land title {TitleDeedNumber} to property {PropertyId}",
-                    title.TitleNumber, property.Id);
+                case "L":
+                    CreateLandProperty(appraisal, title);
+                    break;
+                case "LB":
+                    CreateLandAndBuildingProperty(appraisal, title);
+                    break;
+                case "U":
+                    CreateCondoProperty(appraisal, title);
+                    break;
             }
         }
 
@@ -143,6 +93,24 @@ public class AppraisalCreationService(
 
             logger.LogInformation("Saved appraisal {AppraisalId} with {PropertyCount} properties (IDs assigned by DB)",
                 appraisal.Id, appraisal.Properties.Count);
+
+            // Pre-generate appendices from active AppendixType configuration
+            var activeAppendixTypes = await dbContext.AppendixTypes
+                .Where(t => t.IsActive)
+                .OrderBy(t => t.SortOrder)
+                .ToListAsync(cancellationToken);
+
+            foreach (var appendixType in activeAppendixTypes)
+            {
+                var appendix = AppraisalAppendix.Create(
+                    appraisal.Id, appendixType.Id, appendixType.SortOrder);
+                dbContext.AppraisalAppendices.Add(appendix);
+            }
+
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation("Pre-generated {Count} appendices for appraisal {AppraisalId}",
+                activeAppendixTypes.Count, appraisal.Id);
 
             // Phase 2: Create group + assignment, then save so the assignment row exists in DB
             // before we create entities (Appointment, AppraisalFee) that FK-reference it.
@@ -237,5 +205,104 @@ public class AppraisalCreationService(
             appraisal.Id, appraisalNumber, appraisal.Properties.Count, requestId);
 
         return appraisal.Id;
+    }
+
+    private void CreateLandProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
+    {
+        var property = appraisal.AddLandProperty();
+
+        logger.LogInformation("Added land property {PropertyId} for title {TitleNumber}",
+            property.Id, requestTitle.TitleNumber);
+
+        var landDetail = property.LandDetail;
+        if (landDetail == null) return;
+
+        PopulateLandDetail(landDetail, requestTitle);
+    }
+
+    private void CreateLandAndBuildingProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
+    {
+        var property = appraisal.AddLandAndBuildingProperty();
+
+        logger.LogInformation("Added land+building property {PropertyId} for title {TitleNumber}",
+            property.Id, requestTitle.TitleNumber);
+
+        var landDetail = property.LandDetail;
+        if (landDetail == null) return;
+
+        PopulateLandDetail(landDetail, requestTitle);
+        // BuildingAppraisalDetail is initialized empty — populated later by appraiser
+    }
+
+    private void CreateCondoProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
+    {
+        var property = appraisal.AddCondoProperty();
+
+        logger.LogInformation("Added condo property {PropertyId} for title {TitleNumber}",
+            property.Id, requestTitle.TitleNumber);
+
+        var condoDetail = property.CondoDetail;
+        if (condoDetail == null) return;
+
+        var adminAddress = AdministrativeAddress.Create(
+            requestTitle.TitleAddress?.SubDistrict,
+            requestTitle.TitleAddress?.District,
+            requestTitle.TitleAddress?.Province);
+
+        condoDetail.Update(
+            propertyName: requestTitle.TitleAddress?.ProjectName,
+            condoName: requestTitle.CondoName,
+            buildingNumber: requestTitle.BuildingNumber,
+            roomNumber: requestTitle.RoomNumber,
+            floorNumber: requestTitle.FloorNumber,
+            usableArea: requestTitle.UsableArea,
+            address: adminAddress,
+            ownerName: requestTitle.OwnerName,
+            street: requestTitle.TitleAddress?.Road,
+            soi: requestTitle.TitleAddress?.Soi);
+    }
+
+    private void PopulateLandDetail(LandAppraisalDetail landDetail, RequestTitleDto requestTitle)
+    {
+        var title = LandTitle.Create(
+            landDetail.Id,
+            requestTitle.TitleNumber ?? "N/A",
+            requestTitle.TitleType ?? "Unknown");
+
+        var landArea = LandArea.Create(
+            requestTitle.AreaRai,
+            requestTitle.AreaNgan,
+            requestTitle.AreaSquareWa);
+
+        title.Update(
+            requestTitle.BookNumber,
+            requestTitle.PageNumber,
+            requestTitle.LandParcelNumber,
+            requestTitle.SurveyNumber,
+            requestTitle.MapSheetNumber,
+            requestTitle.Rawang,
+            requestTitle.AerialMapName,
+            requestTitle.AerialMapNumber,
+            landArea,
+            null, null, null, null, null, null, null);
+
+        landDetail.AddTitle(title);
+
+        var adminAddress = AdministrativeAddress.Create(
+            requestTitle.TitleAddress?.SubDistrict,
+            requestTitle.TitleAddress?.District,
+            requestTitle.TitleAddress?.Province);
+
+        landDetail.Update(
+            requestTitle.TitleAddress?.ProjectName,
+            address: adminAddress,
+            ownerName: requestTitle.OwnerName,
+            street: requestTitle.TitleAddress?.Road,
+            soi: requestTitle.TitleAddress?.Soi,
+            village: requestTitle.TitleAddress?.Moo,
+            addressLocation: requestTitle.TitleAddress?.HouseNumber);
+
+        logger.LogInformation("Added land title {TitleDeedNumber} to land detail {LandDetailId}",
+            title.TitleNumber, landDetail.Id);
     }
 }

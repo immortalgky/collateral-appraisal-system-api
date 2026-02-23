@@ -9,5 +9,5 @@ public record AddGalleryPhotoRequest(
     decimal? Latitude = null,
     decimal? Longitude = null,
     DateTime? CapturedAt = null,
-    Guid? PhotoTopicId = null
+    List<Guid>? PhotoTopicIds = null
 );

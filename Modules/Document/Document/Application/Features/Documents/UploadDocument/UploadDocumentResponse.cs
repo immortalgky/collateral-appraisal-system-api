@@ -1,8 +1,16 @@
 namespace Document.Domain.Documents.Features.UploadDocument;
 
 public record UploadDocumentResponse(
-    bool IsSuccess,
     Guid DocumentId,
     string FileName,
-    long FileSize
+    string FileExtension,
+    long FileSize,
+    string MimeType,
+    string StorageUrl,
+    string DocumentType,
+    string DocumentCategory,
+    string? Description,
+    string UploadedBy,
+    string UploadedByName,
+    DateTime UploadedAt
 );

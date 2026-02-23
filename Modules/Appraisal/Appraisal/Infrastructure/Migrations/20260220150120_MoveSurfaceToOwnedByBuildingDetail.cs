@@ -2,14 +2,26 @@
 
 #nullable disable
 
-namespace Appraisal.infrastructure.Migrations
+namespace Appraisal.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class RefactorCondoAreaDetail : Migration
+    public partial class MoveSurfaceToOwnedByBuildingDetail : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.RenameColumn(
+                name: "PricePerSqM",
+                schema: "appraisal",
+                table: "BuildingDepreciationDetails",
+                newName: "PricePerSqMBeforeDepreciation");
+
+            migrationBuilder.RenameColumn(
+                name: "AppraisalMethod",
+                schema: "appraisal",
+                table: "BuildingDepreciationDetails",
+                newName: "DepreciationMethod");
+
             migrationBuilder.RenameColumn(
                 name: "ToFloorNo",
                 schema: "appraisal",
@@ -45,11 +57,50 @@ namespace Appraisal.infrastructure.Migrations
                 schema: "appraisal",
                 table: "BuildingAppraisalSurfaces",
                 newName: "FloorStructureType");
+
+            migrationBuilder.RenameColumn(
+                name: "AppraisalPropertyId",
+                schema: "appraisal",
+                table: "BuildingAppraisalSurfaces",
+                newName: "BuildingAppraisalDetailId");
+
+            migrationBuilder.RenameIndex(
+                name: "IX_BuildingAppraisalSurfaces_AppraisalPropertyId",
+                schema: "appraisal",
+                table: "BuildingAppraisalSurfaces",
+                newName: "IX_BuildingAppraisalSurfaces_BuildingAppraisalDetailId");
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_BuildingAppraisalSurfaces_BuildingAppraisalDetails_BuildingAppraisalDetailId",
+                schema: "appraisal",
+                table: "BuildingAppraisalSurfaces",
+                column: "BuildingAppraisalDetailId",
+                principalSchema: "appraisal",
+                principalTable: "BuildingAppraisalDetails",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropForeignKey(
+                name: "FK_BuildingAppraisalSurfaces_BuildingAppraisalDetails_BuildingAppraisalDetailId",
+                schema: "appraisal",
+                table: "BuildingAppraisalSurfaces");
+
+            migrationBuilder.RenameColumn(
+                name: "PricePerSqMBeforeDepreciation",
+                schema: "appraisal",
+                table: "BuildingDepreciationDetails",
+                newName: "PricePerSqM");
+
+            migrationBuilder.RenameColumn(
+                name: "DepreciationMethod",
+                schema: "appraisal",
+                table: "BuildingDepreciationDetails",
+                newName: "AppraisalMethod");
+
             migrationBuilder.RenameColumn(
                 name: "ToFloorNumber",
                 schema: "appraisal",
@@ -85,6 +136,18 @@ namespace Appraisal.infrastructure.Migrations
                 schema: "appraisal",
                 table: "BuildingAppraisalSurfaces",
                 newName: "FloorStructure");
+
+            migrationBuilder.RenameColumn(
+                name: "BuildingAppraisalDetailId",
+                schema: "appraisal",
+                table: "BuildingAppraisalSurfaces",
+                newName: "AppraisalPropertyId");
+
+            migrationBuilder.RenameIndex(
+                name: "IX_BuildingAppraisalSurfaces_BuildingAppraisalDetailId",
+                schema: "appraisal",
+                table: "BuildingAppraisalSurfaces",
+                newName: "IX_BuildingAppraisalSurfaces_AppraisalPropertyId");
         }
     }
 }

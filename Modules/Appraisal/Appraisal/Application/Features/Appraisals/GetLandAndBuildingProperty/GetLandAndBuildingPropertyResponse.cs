@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+
 namespace Appraisal.Application.Features.Appraisals.GetLandAndBuildingProperty;
 
 /// <summary>
@@ -98,6 +100,8 @@ public record GetLandAndBuildingPropertyResponse(
     decimal? PondDepth,
     bool? HasBuilding,
     string? HasBuildingOther,
+    // Land Titles
+    List<LandTitleItemData>? Titles,
     // Building - Identification
     string? BuildingNumber,
     string? ModelName,
@@ -154,5 +158,9 @@ public record GetLandAndBuildingPropertyResponse(
     decimal? ForcedSalePrice,
     // Remarks
     string? LandRemark,
-    string? BuildingRemark
+    string? BuildingRemark,
+    // Depreciation Details
+    IReadOnlyList<BuildingAppraisalDepreciationDetailDto> DepreciationDetails,
+    // Surfaces
+    IReadOnlyList<BuildingAppraisalSurfaceDto> Surfaces
 );

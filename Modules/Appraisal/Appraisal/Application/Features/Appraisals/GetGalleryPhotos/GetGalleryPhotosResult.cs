@@ -15,5 +15,5 @@ public record GalleryPhotoDto(
     DateTime UploadedAt,
     bool IsUsedInReport,
     string? ReportSection,
-    Guid? PhotoTopicId
+    List<Guid> PhotoTopicIds
 );

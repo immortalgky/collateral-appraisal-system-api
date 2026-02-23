@@ -15,18 +15,33 @@ public class GetPhotoTopicsQueryHandler(
 
         var topicIds = topics.Select(t => t.Id).ToList();
 
+        // Query join table to find which photos belong to which topics
+        var mappings = await dbContext.GalleryPhotoTopicMappings
+            .Where(m => topicIds.Contains(m.PhotoTopicId))
+            .ToListAsync(cancellationToken);
+
+        var photoIds = mappings.Select(m => m.GalleryPhotoId).Distinct().ToList();
+
         var photos = await dbContext.AppraisalGallery
-            .Where(g => g.PhotoTopicId != null && topicIds.Contains(g.PhotoTopicId.Value))
+            .Where(g => photoIds.Contains(g.Id))
             .OrderBy(g => g.PhotoNumber)
             .ToListAsync(cancellationToken);
 
-        var photosByTopic = photos
-            .GroupBy(g => g.PhotoTopicId!.Value)
-            .ToDictionary(g => g.Key, g => g.ToList());
+        var photosById = photos.ToDictionary(p => p.Id);
+
+        var mappingsByTopic = mappings
+            .GroupBy(m => m.PhotoTopicId)
+            .ToDictionary(g => g.Key, g => g.Select(m => m.GalleryPhotoId).ToList());
 
         var dtos = topics.Select(t =>
         {
-            var topicPhotos = photosByTopic.GetValueOrDefault(t.Id, []);
+            var topicPhotoIds = mappingsByTopic.GetValueOrDefault(t.Id, []);
+            var topicPhotos = topicPhotoIds
+                .Where(id => photosById.ContainsKey(id))
+                .Select(id => photosById[id])
+                .OrderBy(p => p.PhotoNumber)
+                .ToList();
+
             return new PhotoTopicDto(
                 t.Id,
                 t.TopicName,

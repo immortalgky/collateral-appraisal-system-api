@@ -129,7 +129,37 @@ public class RequestSubmittedEventHandler(
                 AreaNgan = landTitle.LandArea.AreaNgan,
                 AreaSquareWa = landTitle.LandArea.AreaSquareWa
             };
-        // Additional type mappings can be added here for other collateral types
+        else if (title is TitleLandBuilding lbTitle)
+            dto = dto with
+            {
+                TitleNumber = lbTitle.TitleDeedInfo.TitleNumber,
+                TitleType = lbTitle.TitleDeedInfo.TitleType,
+                Rawang = lbTitle.LandLocationInfo.Rawang,
+                LandParcelNumber = lbTitle.LandLocationInfo.LandParcelNumber,
+                SurveyNumber = lbTitle.LandLocationInfo.SurveyNumber,
+                BookNumber = lbTitle.LandLocationInfo.BookNumber,
+                PageNumber = lbTitle.LandLocationInfo.PageNumber,
+                MapSheetNumber = lbTitle.LandLocationInfo.MapSheetNumber,
+                AerialMapName = lbTitle.LandLocationInfo.AerialMapName,
+                AerialMapNumber = lbTitle.LandLocationInfo.AerialMapNumber,
+                AreaRai = lbTitle.LandArea.AreaRai,
+                AreaNgan = lbTitle.LandArea.AreaNgan,
+                AreaSquareWa = lbTitle.LandArea.AreaSquareWa,
+                BuildingType = lbTitle.BuildingInfo.BuildingType,
+                UsableArea = lbTitle.BuildingInfo.UsableArea,
+                NumberOfBuilding = lbTitle.BuildingInfo.NumberOfBuilding
+            };
+        else if (title is TitleCondo condoTitle)
+            dto = dto with
+            {
+                TitleNumber = condoTitle.TitleDeedInfo.TitleNumber,
+                TitleType = condoTitle.TitleDeedInfo.TitleType,
+                CondoName = condoTitle.CondoInfo.CondoName,
+                BuildingNumber = condoTitle.CondoInfo.BuildingNumber,
+                RoomNumber = condoTitle.CondoInfo.RoomNumber,
+                FloorNumber = condoTitle.CondoInfo.FloorNumber,
+                UsableArea = condoTitle.CondoInfo.UsableArea
+            };
 
         return dto;
     }

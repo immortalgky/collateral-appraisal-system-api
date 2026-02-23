@@ -27,7 +27,7 @@ public class AddGalleryPhotoEndpoint : ICarterModule
                         request.Latitude,
                         request.Longitude,
                         request.CapturedAt,
-                        request.PhotoTopicId);
+                        request.PhotoTopicIds);
 
                     var result = await sender.Send(command, cancellationToken);
 

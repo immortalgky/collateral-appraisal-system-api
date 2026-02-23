@@ -51,11 +51,18 @@ public static class AppraisalModule
         // Register Photo Topic repository
         services.AddScoped<IPhotoTopicRepository, PhotoTopicRepository>();
 
+        // Register Law and Regulation repository
+        services.AddScoped<ILawAndRegulationRepository, LawAndRegulationRepository>();
+
+        // Register Appendix repository
+        services.AddScoped<IAppraisalAppendixRepository, AppraisalAppendixRepository>();
+
         // Register Application Services
         services.AddScoped<IAppraisalCreationService, AppraisalCreationService>();
 
-        // Register Data Seeder
+        // Register Data Seeders
         services.AddScoped<IDataSeeder<AppraisalDbContext>, DocumentRequirementDataSeed>();
+        services.AddScoped<IDataSeeder<AppraisalDbContext>, AppendixTypeDataSeed>();
 
         return services;
     }

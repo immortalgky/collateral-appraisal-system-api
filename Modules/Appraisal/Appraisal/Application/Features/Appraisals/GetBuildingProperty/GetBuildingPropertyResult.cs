@@ -73,5 +73,9 @@ public record GetBuildingPropertyResult(
     decimal? SellingPrice,
     decimal? ForcedSalePrice,
     // Other
-    string? Remark
+    string? Remark,
+    // Depreciation Details
+    IReadOnlyList<BuildingAppraisalDepreciationDetailDto> DepreciationDetails,
+    // Surfaces
+    IReadOnlyList<BuildingAppraisalSurfaceDto> Surfaces
 );

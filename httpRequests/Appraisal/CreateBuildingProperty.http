@@ -94,7 +94,57 @@ Content-Type: application/json
   "sellingPrice": 12000000.00,
   "forcedSalePrice": 9000000.00,
 
-  "remark": "Well-maintained property with recent renovations"
+  "remark": "Well-maintained property with recent renovations",
+
+  "surfaces": [
+    {
+      "fromFloorNumber": 1,
+      "toFloorNumber": 1,
+      "floorType": "Normal",
+      "floorStructureType": "KSL",
+      "floorSurfaceType": "Tiles"
+    },
+    {
+      "fromFloorNumber": 2,
+      "toFloorNumber": 2,
+      "floorType": "Normal",
+      "floorStructureType": "Wood",
+      "floorSurfaceType": "Wood"
+    }
+  ],
+
+  "depreciationDetails": [
+    {
+      "depreciationMethod": "Period",
+      "areaDescription": "Main building - 2 floors",
+      "area": 350.50,
+      "year": 5,
+      "isBuilding": true,
+      "pricePerSqMBeforeDepreciation": 12000.00,
+      "priceBeforeDepreciation": 4206000.00,
+      "pricePerSqMAfterDepreciation": 10800.00,
+      "priceAfterDepreciation": 3785400.00,
+      "depreciationYearPct": 2.0000,
+      "totalDepreciationPct": 10.0000,
+      "priceDepreciation": 420600.00,
+      "depreciationPeriods": [
+        {
+          "atYear": 1,
+          "toYear": 3,
+          "depreciationPerYear": 1.5000,
+          "totalDepreciationPct": 4.5000,
+          "priceDepreciation": 189270.00
+        },
+        {
+          "atYear": 4,
+          "toYear": 5,
+          "depreciationPerYear": 2.7500,
+          "totalDepreciationPct": 5.5000,
+          "priceDepreciation": 231330.00
+        }
+      ]
+    }
+  ]
 }
 
 ### ===========================================
@@ -172,5 +222,23 @@ Content-Type: application/json
   "sellingPrice": 150000000.00,
   "forcedSalePrice": 120000000.00,
 
-  "remark": "Premium office building in CBD area"
+  "remark": "Premium office building in CBD area",
+
+  "depreciationDetails": [
+    {
+      "depreciationMethod": "Gross",
+      "areaDescription": "Office building - 8 floors",
+      "area": 2500.00,
+      "year": 15,
+      "isBuilding": true,
+      "pricePerSqMBeforeDepreciation": 20000.00,
+      "priceBeforeDepreciation": 50000000.00,
+      "pricePerSqMAfterDepreciation": 14000.00,
+      "priceAfterDepreciation": 35000000.00,
+      "depreciationYearPct": 2.0000,
+      "totalDepreciationPct": 30.0000,
+      "priceDepreciation": 15000000.00,
+      "depreciationPeriods": []
+    }
+  ]
 }

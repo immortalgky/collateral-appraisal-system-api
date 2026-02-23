@@ -19,7 +19,7 @@ public class PhotoTopicRepository(AppraisalDbContext dbContext)
 
     public async Task<bool> HasPhotosAsync(Guid topicId, CancellationToken ct = default)
     {
-        return await _dbContext.AppraisalGallery
-            .AnyAsync(g => g.PhotoTopicId == topicId, ct);
+        return await _dbContext.GalleryPhotoTopicMappings
+            .AnyAsync(m => m.PhotoTopicId == topicId, ct);
     }
 }

@@ -1,102 +1,127 @@
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
-/// Detailed depreciation calculation for building appraisals.
+/// Thai-style building cost depreciation detail.
+/// Owned by BuildingAppraisalDetail (OwnsMany).
+/// Supports two depreciation modes: "Period" (year-range rows) and "Gross" (single total %).
 /// </summary>
 public class BuildingDepreciationDetail : Entity<Guid>
 {
-    public Guid AppraisalPropertyId { get; private set; }
+    public Guid BuildingAppraisalDetailId { get; private set; }
 
-    // Depreciation Method
-    public string DepreciationMethod { get; private set; } = null!; // StraightLine, DecliningBalance, AgeLife
-    public int UsefulLifeYears { get; private set; }
-    public int EffectiveAge { get; private set; }
-    public int RemainingLifeYears { get; private set; }
-    public decimal? SalvageValuePercent { get; private set; }
+    // Building Info
+    public string? AreaDescription { get; private set; }
+    public decimal Area { get; private set; }
+    public short Year { get; private set; }
+    public bool IsBuilding { get; private set; }
 
-    // Calculation
-    public decimal ReplacementCostNew { get; private set; }
-    public decimal PhysicalDepreciationPct { get; private set; }
-    public decimal PhysicalDepreciationAmt { get; private set; }
-    public decimal? FunctionalObsolescencePct { get; private set; }
-    public decimal? FunctionalObsolescenceAmt { get; private set; }
-    public decimal? ExternalObsolescencePct { get; private set; }
-    public decimal? ExternalObsolescenceAmt { get; private set; }
+    // Pricing
+    public decimal PricePerSqMBeforeDepreciation { get; private set; }
+    public decimal PriceBeforeDepreciation { get; private set; }
+    public decimal PricePerSqMAfterDepreciation { get; private set; }
+    public decimal PriceAfterDepreciation { get; private set; }
+
+    // Depreciation
+    public string DepreciationMethod { get; private set; } = null!; // "Period" or "Gross"
+    public decimal DepreciationYearPct { get; private set; }
     public decimal TotalDepreciationPct { get; private set; }
-    public decimal TotalDepreciationAmt { get; private set; }
-    public decimal DepreciatedValue { get; private set; }
+    public decimal PriceDepreciation { get; private set; }
 
-    // Condition Assessment
-    public string? StructuralCondition { get; private set; } // Excellent, Good, Fair, Poor
-    public string? MaintenanceLevel { get; private set; } // WellMaintained, Average, Deferred
-    public string? ConditionNotes { get; private set; }
+    // Child periods (for "Period" mode)
+    private readonly List<BuildingDepreciationPeriod> _depreciationPeriods = [];
+    public IReadOnlyList<BuildingDepreciationPeriod> DepreciationPeriods => _depreciationPeriods.AsReadOnly();
 
     private BuildingDepreciationDetail()
     {
     }
 
     public static BuildingDepreciationDetail Create(
-        Guid appraisalPropertyId,
+        Guid buildingAppraisalDetailId,
         string depreciationMethod,
-        int usefulLifeYears,
-        int effectiveAge,
-        decimal replacementCostNew)
+        string? areaDescription = null,
+        decimal area = 0,
+        short year = 0,
+        bool isBuilding = true,
+        decimal pricePerSqMBeforeDepreciation = 0,
+        decimal priceBeforeDepreciation = 0,
+        decimal pricePerSqMAfterDepreciation = 0,
+        decimal priceAfterDepreciation = 0,
+        decimal depreciationYearPct = 0,
+        decimal totalDepreciationPct = 0,
+        decimal priceDepreciation = 0)
     {
-        var validMethods = new[] { "StraightLine", "DecliningBalance", "AgeLife" };
-        if (!validMethods.Contains(depreciationMethod))
-            throw new ArgumentException($"DepreciationMethod must be one of: {string.Join(", ", validMethods)}");
-
-        var remainingLife = usefulLifeYears - effectiveAge;
-        if (remainingLife < 0) remainingLife = 0;
+        ValidateDepreciationMethod(depreciationMethod);
 
         return new BuildingDepreciationDetail
         {
-            Id = Guid.CreateVersion7(),
-            AppraisalPropertyId = appraisalPropertyId,
+            //Id = Guid.CreateVersion7(),
+            BuildingAppraisalDetailId = buildingAppraisalDetailId,
             DepreciationMethod = depreciationMethod,
-            UsefulLifeYears = usefulLifeYears,
-            EffectiveAge = effectiveAge,
-            RemainingLifeYears = remainingLife,
-            ReplacementCostNew = replacementCostNew
+            AreaDescription = areaDescription,
+            Area = area,
+            Year = year,
+            IsBuilding = isBuilding,
+            PricePerSqMBeforeDepreciation = pricePerSqMBeforeDepreciation,
+            PriceBeforeDepreciation = priceBeforeDepreciation,
+            PricePerSqMAfterDepreciation = pricePerSqMAfterDepreciation,
+            PriceAfterDepreciation = priceAfterDepreciation,
+            DepreciationYearPct = depreciationYearPct,
+            TotalDepreciationPct = totalDepreciationPct,
+            PriceDepreciation = priceDepreciation
         };
     }
 
-    public void CalculateDepreciation(
-        decimal physicalDepreciationPct,
-        decimal? functionalObsolescencePct = null,
-        decimal? externalObsolescencePct = null,
-        decimal? salvageValuePercent = null)
+    public void Update(
+        string depreciationMethod,
+        string? areaDescription = null,
+        decimal area = 0,
+        short year = 0,
+        bool isBuilding = true,
+        decimal pricePerSqMBeforeDepreciation = 0,
+        decimal priceBeforeDepreciation = 0,
+        decimal pricePerSqMAfterDepreciation = 0,
+        decimal priceAfterDepreciation = 0,
+        decimal depreciationYearPct = 0,
+        decimal totalDepreciationPct = 0,
+        decimal priceDepreciation = 0)
     {
-        SalvageValuePercent = salvageValuePercent;
-        PhysicalDepreciationPct = physicalDepreciationPct;
-        PhysicalDepreciationAmt = ReplacementCostNew * physicalDepreciationPct / 100;
+        ValidateDepreciationMethod(depreciationMethod);
 
-        FunctionalObsolescencePct = functionalObsolescencePct;
-        FunctionalObsolescenceAmt = functionalObsolescencePct.HasValue
-            ? ReplacementCostNew * functionalObsolescencePct.Value / 100
-            : null;
-
-        ExternalObsolescencePct = externalObsolescencePct;
-        ExternalObsolescenceAmt = externalObsolescencePct.HasValue
-            ? ReplacementCostNew * externalObsolescencePct.Value / 100
-            : null;
-
-        TotalDepreciationPct = physicalDepreciationPct
-                               + (functionalObsolescencePct ?? 0)
-                               + (externalObsolescencePct ?? 0);
-
-        TotalDepreciationAmt = PhysicalDepreciationAmt
-                               + (FunctionalObsolescenceAmt ?? 0)
-                               + (ExternalObsolescenceAmt ?? 0);
-
-        DepreciatedValue = ReplacementCostNew - TotalDepreciationAmt;
-        if (DepreciatedValue < 0) DepreciatedValue = 0;
+        DepreciationMethod = depreciationMethod;
+        AreaDescription = areaDescription;
+        Area = area;
+        Year = year;
+        IsBuilding = isBuilding;
+        PricePerSqMBeforeDepreciation = pricePerSqMBeforeDepreciation;
+        PriceBeforeDepreciation = priceBeforeDepreciation;
+        PricePerSqMAfterDepreciation = pricePerSqMAfterDepreciation;
+        PriceAfterDepreciation = priceAfterDepreciation;
+        DepreciationYearPct = depreciationYearPct;
+        TotalDepreciationPct = totalDepreciationPct;
+        PriceDepreciation = priceDepreciation;
     }
 
-    public void SetConditionAssessment(string? structuralCondition, string? maintenanceLevel, string? notes)
+    public BuildingDepreciationPeriod AddPeriod(
+        int atYear,
+        int toYear,
+        decimal depreciationPerYear,
+        decimal totalDepreciationPct,
+        decimal priceDepreciation)
     {
-        StructuralCondition = structuralCondition;
-        MaintenanceLevel = maintenanceLevel;
-        ConditionNotes = notes;
+        var period = BuildingDepreciationPeriod.Create(
+            Id, atYear, toYear, depreciationPerYear, totalDepreciationPct, priceDepreciation);
+        _depreciationPeriods.Add(period);
+        return period;
+    }
+
+    public void ClearPeriods()
+    {
+        _depreciationPeriods.Clear();
+    }
+
+    private static void ValidateDepreciationMethod(string method)
+    {
+        if (method is not ("Period" or "Gross"))
+            throw new ArgumentException("DepreciationMethod must be 'Period' or 'Gross'");
     }
 }

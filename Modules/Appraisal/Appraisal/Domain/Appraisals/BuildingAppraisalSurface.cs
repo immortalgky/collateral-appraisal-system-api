@@ -2,10 +2,11 @@ namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
 /// Floor-by-floor surface details for building appraisals.
+/// Owned by BuildingAppraisalDetail.
 /// </summary>
 public class BuildingAppraisalSurface : Entity<Guid>
 {
-    public Guid AppraisalPropertyId { get; private set; }
+    public Guid BuildingAppraisalDetailId { get; private set; }
 
     // Floor Range
     public int FromFloorNumber { get; private set; }
@@ -23,29 +24,46 @@ public class BuildingAppraisalSurface : Entity<Guid>
     }
 
     public static BuildingAppraisalSurface Create(
-        Guid appraisalPropertyId,
+        Guid buildingAppraisalDetailId,
         int fromFloorNumber,
-        int toFloorNumber)
+        int toFloorNumber,
+        string? floorType = null,
+        string? floorStructureType = null,
+        string? floorStructureTypeOther = null,
+        string? floorSurfaceType = null,
+        string? floorSurfaceTypeOther = null)
     {
         if (toFloorNumber < fromFloorNumber)
-            throw new ArgumentException("ToFloorNo must be greater than or equal to FromFloorNo");
+            throw new ArgumentException("ToFloorNumber must be greater than or equal to FromFloorNumber");
 
         return new BuildingAppraisalSurface
         {
-            Id = Guid.CreateVersion7(),
-            AppraisalPropertyId = appraisalPropertyId,
+            //Id = Guid.CreateVersion7(),
+            BuildingAppraisalDetailId = buildingAppraisalDetailId,
             FromFloorNumber = fromFloorNumber,
-            ToFloorNumber = toFloorNumber
+            ToFloorNumber = toFloorNumber,
+            FloorType = floorType,
+            FloorStructureType = floorStructureType,
+            FloorStructureTypeOther = floorStructureType == "Others" ? floorStructureTypeOther : null,
+            FloorSurfaceType = floorSurfaceType,
+            FloorSurfaceTypeOther = floorSurfaceType == "Others" ? floorSurfaceTypeOther : null
         };
     }
 
-    public void SetFloorDetails(
-        string? floorType,
-        string? floorStructureType,
-        string? floorStructureTypeOther,
-        string? floorSurfaceType,
-        string? floorSurfaceTypeOther)
+    public void Update(
+        int fromFloorNumber,
+        int toFloorNumber,
+        string? floorType = null,
+        string? floorStructureType = null,
+        string? floorStructureTypeOther = null,
+        string? floorSurfaceType = null,
+        string? floorSurfaceTypeOther = null)
     {
+        if (toFloorNumber < fromFloorNumber)
+            throw new ArgumentException("ToFloorNumber must be greater than or equal to FromFloorNumber");
+
+        FromFloorNumber = fromFloorNumber;
+        ToFloorNumber = toFloorNumber;
         FloorType = floorType;
         FloorStructureType = floorStructureType;
         FloorStructureTypeOther = floorStructureType == "Others" ? floorStructureTypeOther : null;

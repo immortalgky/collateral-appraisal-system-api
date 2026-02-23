@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+
 namespace Appraisal.Application.Features.Appraisals.GetLandAndBuildingProperty;
 
 /// <summary>
@@ -32,7 +34,41 @@ public class GetLandAndBuildingPropertyQueryHandler(
                              ?? throw new InvalidOperationException(
                                  $"Building detail not found for property {query.PropertyId}");
 
-        // 5. Map to result (combining data from both Land and Building details)
+        // 5. Map surfaces
+        var surfaceDtos = buildingDetail.Surfaces
+            .OrderBy(s => s.FromFloorNumber).ThenBy(s => s.ToFloorNumber)
+            .Select(s => new BuildingAppraisalSurfaceDto(
+                s.Id, s.FromFloorNumber, s.ToFloorNumber, s.FloorType,
+                s.FloorStructureType, s.FloorStructureTypeOther,
+                s.FloorSurfaceType, s.FloorSurfaceTypeOther
+            )).ToList();
+
+        // 5b. Map depreciation details
+        var depreciationDtos = buildingDetail.DepreciationDetails
+            .OrderBy(d => d.CreatedAt)
+            .Select(d => new BuildingAppraisalDepreciationDetailDto(
+                d.Id,
+                d.AreaDescription,
+                d.Area,
+                d.PricePerSqMBeforeDepreciation,
+                d.PriceBeforeDepreciation,
+                d.Year,
+                d.IsBuilding,
+                d.DepreciationMethod,
+                d.DepreciationYearPct,
+                d.TotalDepreciationPct,
+                d.PriceDepreciation,
+                d.PricePerSqMAfterDepreciation,
+                d.PriceAfterDepreciation,
+                d.DepreciationPeriods
+                    .OrderBy(p => p.AtYear).ThenBy(p => p.ToYear)
+                    .Select(p => new BuildingAppraisalDepreciationPeriodDto(
+                        p.Id, p.AtYear, p.ToYear, p.DepreciationPerYear,
+                        p.TotalDepreciationPct, p.PriceDepreciation
+                    )).ToList()
+            )).ToList();
+
+        // 6. Map to result (combining data from both Land and Building details)
         return new GetLandAndBuildingPropertyResult(
             // Property
             property.Id,
@@ -128,7 +164,30 @@ public class GetLandAndBuildingPropertyQueryHandler(
             landDetail.PondDepth,
             landDetail.HasBuilding,
             landDetail.HasBuildingOther,
-
+            // Land titles
+            landDetail.Titles.Select(title => new LandTitleItemData(
+                title.Id,
+                title.TitleNumber,
+                title.TitleType,
+                title.BookNumber,
+                title.PageNumber,
+                title.LandParcelNumber,
+                title.SurveyNumber,
+                title.MapSheetNumber,
+                title.Rawang,
+                title.AerialMapName,
+                title.AerialMapNumber,
+                title.Area?.Rai,
+                title.Area?.Ngan,
+                title.Area?.SquareWa,
+                title.HasBoundaryMarker,
+                title.BoundaryMarkerRemark,
+                title.IsDocumentValidated,
+                title.IsMissingFromSurvey,
+                title.GovernmentPricePerSqWa,
+                title.GovernmentPrice,
+                title.Remark
+            )).ToList(),
 
             // Building - Identification (from Building)
             buildingDetail.BuildingNumber,
@@ -183,9 +242,13 @@ public class GetLandAndBuildingPropertyQueryHandler(
             buildingDetail.TotalBuildingArea,
             buildingDetail.BuildingInsurancePrice,
             buildingDetail.SellingPrice,
-            buildingDetail.ForcedSalePrice,            
+            buildingDetail.ForcedSalePrice,
             // Remarks
             landDetail.Remark,
-            buildingDetail.Remark);
+            buildingDetail.Remark,
+            // Depreciation Details
+            depreciationDtos,
+            // Surfaces
+            surfaceDtos);
     }
 }

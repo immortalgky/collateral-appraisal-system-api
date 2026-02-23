@@ -83,6 +83,14 @@ public class BuildingAppraisalDetail : Entity<Guid>
     // Other
     public string? Remark { get; private set; }
 
+    // Depreciation Details (OwnsMany)
+    private readonly List<BuildingDepreciationDetail> _depreciationDetails = [];
+    public IReadOnlyList<BuildingDepreciationDetail> DepreciationDetails => _depreciationDetails.AsReadOnly();
+
+    // Surfaces (OwnsMany)
+    private readonly List<BuildingAppraisalSurface> _surfaces = [];
+    public IReadOnlyList<BuildingAppraisalSurface> Surfaces => _surfaces.AsReadOnly();
+
     private BuildingAppraisalDetail()
     {
         // For EF Core
@@ -232,5 +240,58 @@ public class BuildingAppraisalDetail : Entity<Guid>
 
         // Other
         Remark = remark;
+    }
+
+    public BuildingDepreciationDetail AddDepreciationDetail(
+        string depreciationMethod,
+        string? areaDescription = null,
+        decimal area = 0,
+        short year = 0,
+        bool isBuilding = true,
+        decimal pricePerSqMBeforeDepreciation = 0,
+        decimal priceBeforeDepreciation = 0,
+        decimal pricePerSqMAfterDepreciation = 0,
+        decimal priceAfterDepreciation = 0,
+        decimal depreciationYearPct = 0,
+        decimal totalDepreciationPct = 0,
+        decimal priceDepreciation = 0)
+    {
+        var detail = BuildingDepreciationDetail.Create(
+            Id, depreciationMethod, areaDescription, area, year, isBuilding,
+            pricePerSqMBeforeDepreciation, priceBeforeDepreciation, pricePerSqMAfterDepreciation,
+            priceAfterDepreciation, depreciationYearPct, totalDepreciationPct, priceDepreciation);
+        _depreciationDetails.Add(detail);
+        return detail;
+    }
+
+    public void RemoveDepreciationDetail(Guid depreciationDetailId)
+    {
+        var detail = _depreciationDetails.FirstOrDefault(d => d.Id == depreciationDetailId)
+                     ?? throw new InvalidOperationException(
+                         $"Depreciation detail {depreciationDetailId} not found");
+        _depreciationDetails.Remove(detail);
+    }
+
+    public BuildingAppraisalSurface AddSurface(
+        int fromFloorNumber,
+        int toFloorNumber,
+        string? floorType = null,
+        string? floorStructureType = null,
+        string? floorStructureTypeOther = null,
+        string? floorSurfaceType = null,
+        string? floorSurfaceTypeOther = null)
+    {
+        var surface = BuildingAppraisalSurface.Create(
+            Id, fromFloorNumber, toFloorNumber, floorType,
+            floorStructureType, floorStructureTypeOther, floorSurfaceType, floorSurfaceTypeOther);
+        _surfaces.Add(surface);
+        return surface;
+    }
+
+    public void RemoveSurface(Guid surfaceId)
+    {
+        var surface = _surfaces.FirstOrDefault(s => s.Id == surfaceId)
+                      ?? throw new InvalidOperationException($"Surface {surfaceId} not found");
+        _surfaces.Remove(surface);
     }
 }

@@ -1,5 +1,6 @@
 @appraisalId = 019c6758-d9e3-7d66-b354-7e83aebd60a2
 @topicId = REPLACE_WITH_TOPIC_ID
+@topicId2 = REPLACE_WITH_TOPIC_ID_2
 @photoId = 019C673C-9B34-7FF8-B91B-7AC0FB215706
 @documentId = 019C673C-9B34-7FF8-B91B-7AC0FB215706
 @userName = admin
@@ -58,27 +59,27 @@ Content-Type: application/json
 }
 
 ### ===========================================
-### 6. Assign Photo to Topic
+### 6. Assign Photo to Multiple Topics
 ### ===========================================
 PUT {{baseUrl}}/appraisals/{{appraisalId}}/gallery/{{photoId}}/assign-topic
 Content-Type: application/json
 
 {
-  "photoTopicId": "{{topicId}}"
+  "photoTopicIds": ["{{topicId}}", "{{topicId2}}"]
 }
 
 ### ===========================================
-### 7. Unassign Photo from Topic (set null)
+### 7. Unassign Photo from All Topics
 ### ===========================================
 PUT {{baseUrl}}/appraisals/{{appraisalId}}/gallery/{{photoId}}/assign-topic
 Content-Type: application/json
 
 {
-  "photoTopicId": null
+  "photoTopicIds": []
 }
 
 ### ===========================================
-### 8. Add Gallery Photo with Topic
+### 8. Add Gallery Photo with Topics
 ### ===========================================
 POST {{baseUrl}}/appraisals/{{appraisalId}}/gallery
 Content-Type: application/json
@@ -88,8 +89,8 @@ Content-Type: application/json
   "photoType": "Exterior",
   "uploadedBy": "{{userName}}",
   "photoCategory": "Front",
-  "caption": "Front view - assigned to topic on upload",
-  "photoTopicId": "{{topicId}}"
+  "caption": "Front view - assigned to topics on upload",
+  "photoTopicIds": ["{{topicId}}"]
 }
 
 ### ===========================================

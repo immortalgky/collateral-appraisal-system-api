@@ -13,4 +13,10 @@ public interface IAppraisalGalleryRepository : IRepository<AppraisalGallery, Gui
     Task<IEnumerable<PropertyPhotoMapping>> GetMappingsByPropertyIdAsync(Guid propertyId, CancellationToken ct = default);
     Task AddMappingAsync(PropertyPhotoMapping mapping, CancellationToken ct = default);
     Task DeleteMappingAsync(PropertyPhotoMapping mapping, CancellationToken ct = default);
+
+    // GalleryPhotoTopicMapping operations
+    Task<IEnumerable<GalleryPhotoTopicMapping>> GetTopicMappingsByPhotoIdAsync(Guid galleryPhotoId, CancellationToken ct = default);
+    Task AddTopicMappingAsync(GalleryPhotoTopicMapping mapping, CancellationToken ct = default);
+    Task DeleteTopicMappingAsync(GalleryPhotoTopicMapping mapping, CancellationToken ct = default);
+    Task DeleteTopicMappingsByPhotoIdAsync(Guid galleryPhotoId, CancellationToken ct = default);
 }

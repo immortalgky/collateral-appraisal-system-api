@@ -16,7 +16,7 @@ public class AssignPhotoToTopicEndpoint : ICarterModule
                 {
                     var command = new AssignPhotoToTopicCommand(
                         photoId,
-                        request.PhotoTopicId);
+                        request.PhotoTopicIds);
 
                     var result = await sender.Send(command, cancellationToken);
 
@@ -27,7 +27,7 @@ public class AssignPhotoToTopicEndpoint : ICarterModule
             .Produces<AssignPhotoToTopicResult>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithSummary("Assign photo to topic")
-            .WithDescription("Assigns a gallery photo to a topic, or unassigns it by passing null.")
+            .WithDescription("Syncs a gallery photo's topic assignments. Pass desired topic IDs; old ones are removed, new ones are added.")
             .WithTags("PhotoTopic");
     }
 }

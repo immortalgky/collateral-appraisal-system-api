@@ -24,15 +24,8 @@ public class AppraisalGalleryConfiguration : IEntityTypeConfiguration<AppraisalG
 
         builder.Property(g => g.ReportSection).HasMaxLength(100);
 
-        // PhotoTopic FK (nullable)
-        builder.HasOne<PhotoTopic>()
-            .WithMany()
-            .HasForeignKey(g => g.PhotoTopicId)
-            .OnDelete(DeleteBehavior.SetNull);
-
         builder.HasIndex(g => g.AppraisalId);
         builder.HasIndex(g => g.DocumentId);
-        builder.HasIndex(g => g.PhotoTopicId);
         builder.HasIndex(g => new { g.AppraisalId, g.PhotoNumber }).IsUnique();
     }
 }

@@ -23,9 +23,6 @@ public class AppraisalGallery : Entity<Guid>
     public DateTime? CapturedAt { get; private set; }
     public DateTime UploadedAt { get; private set; }
 
-    // Topic
-    public Guid? PhotoTopicId { get; private set; }
-
     // Report Usage
     public bool IsUsedInReport { get; private set; }
     public string? ReportSection { get; private set; } // Cover, PropertySection, etc.
@@ -83,10 +80,5 @@ public class AppraisalGallery : Entity<Guid>
     {
         IsUsedInReport = false;
         ReportSection = null;
-    }
-
-    public void AssignToTopic(Guid? photoTopicId)
-    {
-        PhotoTopicId = photoTopicId;
     }
 }

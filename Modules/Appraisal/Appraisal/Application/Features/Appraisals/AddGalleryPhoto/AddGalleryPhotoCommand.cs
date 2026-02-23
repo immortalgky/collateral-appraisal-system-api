@@ -13,5 +13,5 @@ public record AddGalleryPhotoCommand(
     decimal? Latitude = null,
     decimal? Longitude = null,
     DateTime? CapturedAt = null,
-    Guid? PhotoTopicId = null
+    List<Guid>? PhotoTopicIds = null
 ) : ICommand<AddGalleryPhotoResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

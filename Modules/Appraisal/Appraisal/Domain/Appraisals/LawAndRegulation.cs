@@ -34,7 +34,15 @@ public class LawAndRegulation : Entity<Guid>
         };
     }
 
+    public void Update(string headerCode, string? remark)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(headerCode);
+        HeaderCode = headerCode;
+        Remark = remark;
+    }
+
     public LawAndRegulationImage AddImage(
+        Guid documentId,
         int displaySequence,
         string fileName,
         string filePath,
@@ -42,7 +50,7 @@ public class LawAndRegulation : Entity<Guid>
         string? description = null)
     {
         var image = LawAndRegulationImage.Create(
-            Id, displaySequence, fileName, filePath, title, description);
+            Id, documentId, displaySequence, fileName, filePath, title, description);
         _images.Add(image);
         return image;
     }

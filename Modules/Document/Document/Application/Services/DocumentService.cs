@@ -1,4 +1,5 @@
 using Document.Domain.Documents;
+using Document.Domain.Documents.Features.UploadDocument;
 using Document.Domain.Documents.Models;
 using Document.Domain.UploadSessions.Model;
 using Microsoft.AspNetCore.Hosting;
@@ -24,7 +25,7 @@ public class DocumentService(
 
     private readonly IRepository<UploadSession, Guid> _uploadSessionRepository = uow.Repository<UploadSession, Guid>();
 
-    public async Task<Guid> UploadAsync(IFormFile file, Guid uploadSessionId, string documentType,
+    public async Task<UploadDocumentResult> UploadAsync(IFormFile file, Guid uploadSessionId, string documentType,
         string documentCategory, string? description, CancellationToken cancellationToken = default)
     {
         logger.LogInformation(
@@ -105,7 +106,20 @@ public class DocumentService(
             document.Id,
             uploadSessionId);
 
-        return document.Id;
+        return new UploadDocumentResult(
+            document.Id,
+            document.FileName,
+            document.FileExtension,
+            document.FileSizeBytes,
+            document.MimeType,
+            document.StorageUrl,
+            document.DocumentType,
+            document.DocumentCategory,
+            document.Description,
+            document.UploadedBy,
+            document.UploadedByName,
+            document.UploadedAt
+        );
     }
 
     private async Task<string> SaveFileAsync(Stream fileStream, string directoryPath, string uniqueFileName,

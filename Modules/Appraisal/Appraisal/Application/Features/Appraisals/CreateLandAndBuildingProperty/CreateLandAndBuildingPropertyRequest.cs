@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 
 namespace Appraisal.Application.Features.Appraisals.CreateLandAndBuildingProperty;
 
@@ -165,5 +166,9 @@ public record CreateLandAndBuildingPropertyRequest(
     string? LandRemark = null,
     string? BuildingRemark = null,
     // Land Titles
-    List<LandTitleItemRequest>? Titles = null
+    List<LandTitleItemRequest>? Titles = null,
+    // Depreciation Details
+    List<DepreciationItemData>? DepreciationDetails = null,
+    // Surfaces
+    List<SurfaceItemData>? Surfaces = null
 );

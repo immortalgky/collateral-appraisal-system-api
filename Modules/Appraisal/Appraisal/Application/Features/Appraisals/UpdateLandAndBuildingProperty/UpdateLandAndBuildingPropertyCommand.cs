@@ -154,5 +154,45 @@ public record UpdateLandAndBuildingPropertyCommand(
     decimal? ForcedSalePrice = null,
     // Remarks
     string? LandRemark = null,
-    string? BuildingRemark = null
+    string? BuildingRemark = null,
+    // Depreciation Details (null = no-op, list = sync)
+    List<DepreciationItemData>? DepreciationDetails = null,
+    // Surfaces (null = no-op, list = sync)
+    List<SurfaceItemData>? Surfaces = null
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;
+
+public record DepreciationItemData(
+    Guid? Id,
+    string DepreciationMethod,
+    string? AreaDescription = null,
+    decimal Area = 0,
+    short Year = 0,
+    bool IsBuilding = true,
+    decimal PricePerSqMBeforeDepreciation = 0,
+    decimal PriceBeforeDepreciation = 0,
+    decimal PricePerSqMAfterDepreciation = 0,
+    decimal PriceAfterDepreciation = 0,
+    decimal DepreciationYearPct = 0,
+    decimal TotalDepreciationPct = 0,
+    decimal PriceDepreciation = 0,
+    List<DepreciationPeriodItemData>? DepreciationPeriods = null
+);
+
+public record DepreciationPeriodItemData(
+    int AtYear,
+    int ToYear,
+    decimal DepreciationPerYear,
+    decimal TotalDepreciationPct,
+    decimal PriceDepreciation
+);
+
+public record SurfaceItemData(
+    Guid? Id,
+    int FromFloorNumber,
+    int ToFloorNumber,
+    string? FloorType = null,
+    string? FloorStructureType = null,
+    string? FloorStructureTypeOther = null,
+    string? FloorSurfaceType = null,
+    string? FloorSurfaceTypeOther = null
+);

@@ -6,6 +6,7 @@ namespace Appraisal.Domain.Appraisals;
 public class LawAndRegulationImage : Entity<Guid>
 {
     public Guid LawAndRegulationId { get; private set; }
+    public Guid DocumentId { get; private set; }
 
     // Image Details
     public int DisplaySequence { get; private set; }
@@ -20,6 +21,7 @@ public class LawAndRegulationImage : Entity<Guid>
 
     public static LawAndRegulationImage Create(
         Guid lawAndRegulationId,
+        Guid documentId,
         int displaySequence,
         string fileName,
         string filePath,
@@ -33,6 +35,7 @@ public class LawAndRegulationImage : Entity<Guid>
         {
             Id = Guid.CreateVersion7(),
             LawAndRegulationId = lawAndRegulationId,
+            DocumentId = documentId,
             DisplaySequence = displaySequence,
             FileName = fileName,
             FilePath = filePath,

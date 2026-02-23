@@ -23,6 +23,9 @@ public class RemoveGalleryPhotoCommandHandler(
             await galleryRepository.DeleteMappingAsync(mapping, cancellationToken);
         }
 
+        // Delete any topic mappings linked to this photo
+        await galleryRepository.DeleteTopicMappingsByPhotoIdAsync(command.PhotoId, cancellationToken);
+
         await galleryRepository.DeleteAsync(photo, cancellationToken);
 
         return new RemoveGalleryPhotoResult(true);
