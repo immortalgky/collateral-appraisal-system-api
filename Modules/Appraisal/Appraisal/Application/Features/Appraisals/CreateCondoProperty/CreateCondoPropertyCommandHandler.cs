@@ -96,13 +96,23 @@ public class CreateCondoPropertyCommandHandler(
             command.SellingPrice,
             command.ForcedSalePrice,
             command.Remark);
+        
+        // 5. Create CondoAreaDetails
+        if (command.AreaDetails is { Count: > 0 })
+        {
+            foreach (var dto in command.AreaDetails)
+            {
+                var areaDetail = CondoAppraisalAreaDetail.Create(dto.AreaDescription, dto.AreaSize);
+                property.CondoDetail.AddCondoAreaDetail(areaDetail);
+            }
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // 5. Assign property to a group
+        // 6. Assign property to a group
         if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
 
-        // 6. Return both IDs
+        // 7. Return both IDs
         return new CreateCondoPropertyResult(property.Id, property.CondoDetail.Id);
     }
 }

@@ -1,28 +1,5 @@
 namespace Appraisal.Infrastructure.Configurations;
 
-// LandTitleConfiguration removed - now configured via OwnsMany in LandAppraisalDetailConfiguration
-
-// BuildingDepreciationDetailConfiguration removed - now configured via OwnsMany in BuildingAppraisalDetailConfiguration
-
-// BuildingAppraisalSurfaceConfiguration removed - now configured via OwnsMany in BuildingAppraisalDetailConfiguration
-
-public class CondoAppraisalAreaDetailConfiguration : IEntityTypeConfiguration<CondoAppraisalAreaDetail>
-{
-    public void Configure(EntityTypeBuilder<CondoAppraisalAreaDetail> builder)
-    {
-        builder.ToTable("CondoAppraisalAreaDetails");
-
-        builder.HasKey(a => a.Id);
-        builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
-
-        builder.Property(a => a.AppraisalPropertyId).IsRequired();
-        builder.Property(a => a.AreaDescription).IsRequired().HasMaxLength(200);
-        builder.Property(a => a.AreaSize).IsRequired().HasPrecision(10, 2);
-
-        builder.HasIndex(a => a.AppraisalPropertyId);
-    }
-}
-
 public class LawAndRegulationConfiguration : IEntityTypeConfiguration<LawAndRegulation>
 {
     public void Configure(EntityTypeBuilder<LawAndRegulation> builder)
