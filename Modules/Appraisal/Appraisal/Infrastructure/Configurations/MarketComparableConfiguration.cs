@@ -9,7 +9,7 @@ public class MarketComparableConfiguration : IEntityTypeConfiguration<MarketComp
         builder.HasKey(m => m.Id);
         builder.Property(m => m.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
-        builder.Property(m => m.ComparableNumber).IsRequired().HasMaxLength(50);
+        builder.Property(m => m.ComparableNumber).HasMaxLength(50);
         builder.Property(m => m.PropertyType).IsRequired().HasMaxLength(50);
         builder.Property(m => m.SurveyName).IsRequired().HasMaxLength(100);
         builder.Property(m => m.InfoDateTime);
@@ -51,7 +51,8 @@ public class MarketComparableConfiguration : IEntityTypeConfiguration<MarketComp
             .HasForeignKey(m => m.TemplateId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasIndex(m => m.ComparableNumber).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(m => m.ComparableNumber).IsUnique()
+            .HasFilter("[ComparableNumber] IS NOT NULL AND [IsDeleted] = 0");
         builder.HasIndex(m => m.PropertyType);
         builder.HasIndex(m => m.TemplateId);
     }
@@ -91,7 +92,7 @@ public class AppraisalComparableConfiguration : IEntityTypeConfiguration<Apprais
 
         builder.HasIndex(a => a.AppraisalId);
         builder.HasIndex(a => a.MarketComparableId);
-        builder.HasIndex(a => new { a.AppraisalId, a.SequenceNumber }).IsUnique();
+        builder.HasIndex(a => new { a.AppraisalId, a.MarketComparableId }).IsUnique();
     }
 }
 

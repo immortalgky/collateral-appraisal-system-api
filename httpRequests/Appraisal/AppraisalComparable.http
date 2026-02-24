@@ -1,0 +1,67 @@
+### =====================================================
+### Appraisal Comparable - API Test File
+### =====================================================
+### Links/unlinks market comparables to appraisals
+### =====================================================
+
+@appraisalId = 019c813e-bd45-7fc4-9695-ce9d3ce064ab
+@marketComparableId = 019C74DF-98DB-77BD-9F1C-7F5BB8F99B40
+@comparableId = 019C8B50-39D6-75E0-B46C-9557EB0C7E15
+
+### =====================================================
+### 1. LINK COMPARABLE TO APPRAISAL
+### =====================================================
+
+### 1.1 Link Comparable 1
+POST {{baseUrl}}/appraisals/{{appraisalId}}/comparables
+Content-Type: application/json
+
+{
+  "marketComparableId": "{{marketComparableId}}",
+  "sequenceNumber": 1,
+  "originalPricePerUnit": 42000.00,
+  "weight": 35.00,
+  "selectionReason": "Closest proximity and similar land use",
+  "notes": "Located within 500m of subject property"
+}
+
+### 1.2 Link Comparable 2
+@marketComparableId2 = 019C74DF-98DB-77BD-9F1C-7F5BB8F99B40
+POST {{baseUrl}}/appraisals/{{appraisalId}}/comparables
+Content-Type: application/json
+
+{
+  "marketComparableId": "{{marketComparableId2}}",
+  "sequenceNumber": 2,
+  "originalPricePerUnit": 38000.00,
+  "weight": 35.00,
+  "selectionReason": "Similar lot size and shape"
+}
+
+### 1.3 Link Comparable 3
+@marketComparableId3 = 00000000-0000-0000-0000-000000000003
+POST {{baseUrl}}/appraisals/{{appraisalId}}/comparables
+Content-Type: application/json
+
+{
+  "marketComparableId": "{{marketComparableId3}}",
+  "sequenceNumber": 3,
+  "originalPricePerUnit": 45000.00,
+  "weight": 30.00
+}
+
+### =====================================================
+### 2. GET APPRAISAL COMPARABLES
+### =====================================================
+
+### 2.1 Get all comparables for an appraisal
+GET {{baseUrl}}/appraisals/{{appraisalId}}/comparables
+Content-Type: application/json
+
+### =====================================================
+### 3. UNLINK COMPARABLE FROM APPRAISAL
+### =====================================================
+
+### 3.1 Unlink a comparable
+DELETE {{baseUrl}}/appraisals/{{appraisalId}}/comparables/{{comparableId}}
+Content-Type: application/json

@@ -7,7 +7,7 @@ namespace Appraisal.Domain.MarketComparables;
 public class MarketComparable : Aggregate<Guid>
 {
     // Core Properties
-    public string ComparableNumber { get; private set; } = null!;
+    public string? ComparableNumber { get; private set; }
     public string PropertyType { get; private set; } = null!; // Land, Building, Condo, etc.
     public string SurveyName { get; private set; } = null!;
 
@@ -36,7 +36,6 @@ public class MarketComparable : Aggregate<Guid>
     }
 
     public static MarketComparable Create(
-        string comparableNumber,
         string propertyType,
         string surveyName,
         DateTime? infoDateTime,
@@ -47,7 +46,6 @@ public class MarketComparable : Aggregate<Guid>
         return new MarketComparable
         {
             Id = Guid.CreateVersion7(),
-            ComparableNumber = comparableNumber,
             PropertyType = propertyType,
             SurveyName = surveyName,
             InfoDateTime = infoDateTime,
@@ -55,6 +53,12 @@ public class MarketComparable : Aggregate<Guid>
             TemplateId = templateId,
             Notes = notes
         };
+    }
+
+    public void SetComparableNumber(string number)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(number);
+        ComparableNumber = number;
     }
 
     public void Save(MarketComparableUpdateData data)

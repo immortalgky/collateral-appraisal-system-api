@@ -28,6 +28,7 @@ public class AppraisalComparable : Entity<Guid>
 
     private AppraisalComparable()
     {
+        // For EF Core
     }
 
     public static AppraisalComparable Create(

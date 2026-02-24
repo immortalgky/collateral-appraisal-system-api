@@ -15,7 +15,7 @@ public class QuotationRequest : Aggregate<Guid>
     public IReadOnlyList<CompanyQuotation> Quotations => _quotations.AsReadOnly();
 
     // RFQ Information
-    public string QuotationNumber { get; private set; } = null!;
+    public string? QuotationNumber { get; private set; }
     public DateTime RequestDate { get; private set; }
     public DateTime DueDate { get; private set; }
 
@@ -44,7 +44,6 @@ public class QuotationRequest : Aggregate<Guid>
     }
 
     public static QuotationRequest Create(
-        string quotationNumber,
         DateTime dueDate,
         Guid requestedBy,
         string requestedByName,
@@ -53,7 +52,6 @@ public class QuotationRequest : Aggregate<Guid>
         return new QuotationRequest
         {
             Id = Guid.CreateVersion7(),
-            QuotationNumber = quotationNumber,
             RequestDate = DateTime.UtcNow,
             DueDate = dueDate,
             RequestedBy = requestedBy,
@@ -64,6 +62,12 @@ public class QuotationRequest : Aggregate<Guid>
             TotalCompaniesInvited = 0,
             TotalQuotationsReceived = 0
         };
+    }
+
+    public void SetQuotationNumber(string number)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(number);
+        QuotationNumber = number;
     }
 
     public QuotationRequestItem AddItem(

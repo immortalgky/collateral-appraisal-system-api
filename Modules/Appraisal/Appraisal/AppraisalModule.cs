@@ -69,7 +69,7 @@ public static class AppraisalModule
 
     public static IApplicationBuilder UseAppraisalModule(this IApplicationBuilder app)
     {
-        //app.UseMigration<AppraisalDbContext>();
+        app.UseMigration<AppraisalDbContext>();
         return app;
     }
 }
