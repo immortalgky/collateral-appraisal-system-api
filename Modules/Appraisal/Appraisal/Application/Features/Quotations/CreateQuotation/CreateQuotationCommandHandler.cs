@@ -6,7 +6,6 @@ public class CreateQuotationCommandHandler(IQuotationRepository quotationReposit
     public async Task<CreateQuotationResult> Handle(CreateQuotationCommand command, CancellationToken cancellationToken)
     {
         var quotation = QuotationRequest.Create(
-            command.QuotationNumber,
             command.DueDate,
             command.RequestedBy,
             command.RequestedByName,

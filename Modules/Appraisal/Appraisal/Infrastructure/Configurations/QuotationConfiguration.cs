@@ -11,8 +11,8 @@ public class QuotationRequestConfiguration : IEntityTypeConfiguration<QuotationR
         builder.HasKey(q => q.Id);
         builder.Property(q => q.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
-        builder.Property(q => q.QuotationNumber).IsRequired().HasMaxLength(50);
-        builder.HasIndex(q => q.QuotationNumber).IsUnique();
+        builder.Property(q => q.QuotationNumber).HasMaxLength(50);
+        builder.HasIndex(q => q.QuotationNumber).IsUnique().HasFilter("[QuotationNumber] IS NOT NULL");
 
         builder.Property(q => q.RequestDate).IsRequired();
         builder.Property(q => q.DueDate).IsRequired();

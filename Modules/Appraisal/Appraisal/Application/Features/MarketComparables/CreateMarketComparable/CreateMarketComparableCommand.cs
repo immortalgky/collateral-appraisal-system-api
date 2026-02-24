@@ -7,7 +7,6 @@ namespace Appraisal.Application.Features.MarketComparables.CreateMarketComparabl
 /// Command to create a new Market Comparable
 /// </summary>
 public record CreateMarketComparableCommand(
-    string ComparableNumber,
     string PropertyType,
     string SurveyName,
     DateTime? InfoDateTime = null,

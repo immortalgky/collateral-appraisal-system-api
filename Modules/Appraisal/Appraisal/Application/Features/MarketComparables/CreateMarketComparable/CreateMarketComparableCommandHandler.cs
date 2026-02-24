@@ -15,7 +15,6 @@ public class CreateMarketComparableCommandHandler(
         CancellationToken cancellationToken)
     {
         var comparable = MarketComparable.Create(
-            command.ComparableNumber,
             command.PropertyType,
             command.SurveyName,
             command.InfoDateTime,
