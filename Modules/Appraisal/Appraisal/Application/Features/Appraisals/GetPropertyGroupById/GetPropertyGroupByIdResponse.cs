@@ -6,5 +6,6 @@ public record GetPropertyGroupByIdResponse(
     string GroupName,
     string? Description,
     bool UseSystemCalc,
+    Guid? PricingAnalysisId,
     List<PropertyGroupItemDto> Properties
 );

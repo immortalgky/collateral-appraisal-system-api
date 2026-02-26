@@ -7,6 +7,7 @@ SELECT PG.AppraisalId,
        PG.GroupNumber,
        PG.GroupName,
        PG.Description,
+       PA.Id                                                    AS PricingAnalysisId,
        PGI.Id                                                   AS PropertyGroupItemId,
        PGI.SequenceInGroup,
        AP.Id                                                    AS PropertyId,
@@ -21,6 +22,7 @@ SELECT PG.AppraisalId,
        CONCAT_WS(',', ISNULL(L.SubDistrict, C.SubDistrict), ISNULL(L.District, C.District),
                  ISNULL(L.Province, C.Province))                AS Location
 FROM appraisal.PropertyGroups PG
+         LEFT JOIN appraisal.PricingAnalysis PA ON PA.PropertyGroupId = PG.Id
          LEFT JOIN appraisal.PropertyGroupItems PGI ON PGI.PropertyGroupId = PG.Id
          LEFT JOIN appraisal.AppraisalProperties AP ON AP.Id = PGI.AppraisalPropertyId
          LEFT JOIN appraisal.LandAppraisalDetails L ON L.AppraisalPropertyId = AP.Id OUTER APPLY (SELECT SUM(ISNULL(AreaRai, 0) * 400 + ISNULL(AreaNgan, 0) * 100 + AreaSquareWa) AS TotalSquareWa
