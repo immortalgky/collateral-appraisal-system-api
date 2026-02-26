@@ -36,6 +36,7 @@ public class GetPropertyGroupByIdQueryHandler(
                         group.GroupName ?? string.Empty,
                         group.Description,
                         true,
+                        group.PricingAnalysisId,
                         new List<PropertyGroupItemDto>()
                     );
                     lookup.Add(group.PropertyGroupId, result);
@@ -105,6 +106,7 @@ public record PropertyGroupDto
     public int? GroupNumber { get; set; }
     public string? GroupName { get; set; }
     public string? Description { get; set; }
+    public Guid? PricingAnalysisId { get; set; }
 }
 
 public record PropertyGroupItemDto
