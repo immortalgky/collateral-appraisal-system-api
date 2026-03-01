@@ -16,7 +16,12 @@ SELECT ac.Id,
        mc.PropertyType      AS ComparablePropertyType,
        mc.SurveyName        AS ComparableSurveyName,
        mc.InfoDateTime       AS ComparableInfoDateTime,
-       mc.SourceInfo         AS ComparableSourceInfo
+       mc.SourceInfo         AS ComparableSourceInfo,
+       mc.OfferPrice         AS ComparableOfferPrice,
+       mc.OfferPriceAdjustmentPercent AS ComparableOfferPriceAdjustmentPercent,
+       mc.OfferPriceAdjustmentAmount  AS ComparableOfferPriceAdjustmentAmount,
+       mc.SalePrice          AS ComparableSalePrice,
+       mc.SaleDate           AS ComparableSaleDate
 FROM appraisal.AppraisalComparables ac
          INNER JOIN appraisal.MarketComparables mc ON mc.Id = ac.MarketComparableId
 WHERE mc.IsDeleted = 0

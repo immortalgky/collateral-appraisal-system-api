@@ -33,6 +33,13 @@ public class GetMarketComparableByIdQueryHandler(
             InfoDateTime = comparable.InfoDateTime,
             SourceInfo = comparable.SourceInfo,
 
+            // Price / Sale
+            OfferPrice = comparable.OfferPrice,
+            OfferPriceAdjustmentPercent = comparable.OfferPriceAdjustmentPercent,
+            OfferPriceAdjustmentAmount = comparable.OfferPriceAdjustmentAmount,
+            SalePrice = comparable.SalePrice,
+            SaleDate = comparable.SaleDate,
+
             // Notes
             Notes = comparable.Notes,
 

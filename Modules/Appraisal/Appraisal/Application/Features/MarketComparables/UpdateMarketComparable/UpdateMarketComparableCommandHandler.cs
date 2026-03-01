@@ -25,7 +25,12 @@ public class UpdateMarketComparableCommandHandler(
             command.InfoDateTime,
             command.SourceInfo,
             command.TemplateId,
-            command.Notes
+            command.Notes,
+            command.OfferPrice,
+            command.OfferPriceAdjustmentPercent,
+            command.OfferPriceAdjustmentAmount,
+            command.SalePrice,
+            command.SaleDate
             )
         );
 

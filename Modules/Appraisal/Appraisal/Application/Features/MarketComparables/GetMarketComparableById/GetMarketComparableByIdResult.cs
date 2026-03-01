@@ -19,6 +19,13 @@ public record MarketComparableDetailDto
     public DateTime? InfoDateTime { get; set; }
     public string? SourceInfo { get; set; }
 
+    // Price / Sale
+    public decimal? OfferPrice { get; set; }
+    public decimal? OfferPriceAdjustmentPercent { get; set; }
+    public decimal? OfferPriceAdjustmentAmount { get; set; }
+    public decimal? SalePrice { get; set; }
+    public DateTime? SaleDate { get; set; }
+
     // Notes
     public string? Notes { get; set; }
 

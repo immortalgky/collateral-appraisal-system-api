@@ -14,6 +14,10 @@ public class MarketComparableConfiguration : IEntityTypeConfiguration<MarketComp
         builder.Property(m => m.SurveyName).IsRequired().HasMaxLength(100);
         builder.Property(m => m.InfoDateTime);
         builder.Property(m => m.SourceInfo).HasMaxLength(200);
+        builder.Property(m => m.OfferPrice).HasPrecision(18, 2);
+        builder.Property(m => m.OfferPriceAdjustmentPercent).HasPrecision(5, 2);
+        builder.Property(m => m.OfferPriceAdjustmentAmount).HasPrecision(18, 2);
+        builder.Property(m => m.SalePrice).HasPrecision(18, 2);
         builder.Property(m => m.Notes).HasMaxLength(2000);
 
         builder.Property(m => m.CreatedAt).IsRequired();

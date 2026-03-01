@@ -343,45 +343,34 @@ DELETE {{baseUrl}}/market-comparable-templates/{{templateId}}/factors/{{template
 ### 4. MARKET COMPARABLES
 ### =====================================================
 
-### 4.0 Create Market Comparable (with TemplateId)
+### 4.0 Create Market Comparable (with TemplateId + price/sale fields)
 # NOTE: Create a template first and use its ID here to track which template was used
 POST {{baseUrl}}/market-comparables
 Content-Type: application/json
 
 {
-  "comparableNumber": "MC-2026-001",
   "propertyType": "Land",
-  "province": "Bangkok",
-  "dataSource": "Survey",
-  "surveyDate": "2026-01-28T00:00:00Z",
-  "district": "Chatuchak",
-  "subDistrict": "Chatuchak",
-  "address": "123 Phahonyothin Road",
-  "latitude": 13.8361,
-  "longitude": 100.5620,
-  "transactionType": "Sale",
-  "transactionDate": "2026-01-15T00:00:00Z",
-  "transactionPrice": 15000000.00,
-  "pricePerUnit": 150000.00,
-  "unitType": "Sqm",
-  "description": "Prime land near BTS station",
-  "notes": "Verified through land office records",
-  "templateId": "{{landTemplateId}}"
+  "surveyName": "Chatuchak Land Survey",
+  "infoDateTime": "2026-01-28T00:00:00Z",
+  "sourceInfo": "Land Office Records",
+  "notes": "Prime land near BTS station",
+  "templateId": "{{landTemplateId}}",
+  "offerPrice": 16000000.00,
+  "offerPriceAdjustmentPercent": -5.00,
+  "offerPriceAdjustmentAmount": -800000.00,
+  "salePrice": 15200000.00,
+  "saleDate": "2026-01-15T00:00:00Z"
 }
 
-### 4.0.1 Create Market Comparable (without TemplateId - optional)
+### 4.0.1 Create Market Comparable (minimal - without optional fields)
 POST {{baseUrl}}/market-comparables
 Content-Type: application/json
 
 {
-  "comparableNumber": "MC-2026-002",
   "propertyType": "Building",
-  "province": "Bangkok",
-  "dataSource": "Internal",
-  "surveyDate": "2026-01-28T00:00:00Z",
-  "district": "Watthana",
-  "transactionType": "Listing",
-  "transactionPrice": 25000000.00
+  "surveyName": "Watthana Building Survey",
+  "infoDateTime": "2026-01-28T00:00:00Z",
+  "sourceInfo": "Internal Database"
 }
 
 ### 4.1 Get All Market Comparables
