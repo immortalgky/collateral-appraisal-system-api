@@ -18,6 +18,11 @@ public record MarketComparableDto
     public string SurveyName { get; set; } = null!;
     public DateTime? InfoDateTime { get; set; }
     public string? SourceInfo { get; set; }
+    public decimal? OfferPrice { get; set; }
+    public decimal? OfferPriceAdjustmentPercent { get; set; }
+    public decimal? OfferPriceAdjustmentAmount { get; set; }
+    public decimal? SalePrice { get; set; }
+    public DateTime? SaleDate { get; set; }
     public string? Notes { get; set; }
     public DateTime? CreatedOn { get; set; }
 }

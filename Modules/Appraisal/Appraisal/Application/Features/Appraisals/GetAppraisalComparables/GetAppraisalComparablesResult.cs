@@ -22,6 +22,11 @@ public record AppraisalComparableDto
     public string ComparableSurveyName { get; set; } = default!;
     public DateTime? ComparableInfoDateTime { get; set; }
     public string? ComparableSourceInfo { get; set; }
+    public decimal? ComparableOfferPrice { get; set; }
+    public decimal? ComparableOfferPriceAdjustmentPercent { get; set; }
+    public decimal? ComparableOfferPriceAdjustmentAmount { get; set; }
+    public decimal? ComparableSalePrice { get; set; }
+    public DateTime? ComparableSaleDate { get; set; }
 
     // Nested collection (loaded separately)
     public List<ComparableAdjustmentDto> Adjustments { get; set; } = [];

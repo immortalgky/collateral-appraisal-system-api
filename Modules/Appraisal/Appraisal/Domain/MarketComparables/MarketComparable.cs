@@ -15,6 +15,13 @@ public class MarketComparable : Aggregate<Guid>
     public DateTime? InfoDateTime { get; private set; }
     public string? SourceInfo { get; private set; }
 
+    // Important info for pricing analysis e.g. WQS, Sale grid adjustment, Direct comparison
+    public decimal? OfferPrice { get; private set; }
+    public decimal? OfferPriceAdjustmentPercent { get; private set; }
+    public decimal? OfferPriceAdjustmentAmount { get; private set; }
+    public decimal? SalePrice { get; private set; }
+    public DateTime? SaleDate { get; private set; }
+
     // Notes
     public string? Notes { get; private set; }
 
@@ -33,6 +40,7 @@ public class MarketComparable : Aggregate<Guid>
 
     private MarketComparable()
     {
+        // For EF Core
     }
 
     public static MarketComparable Create(
@@ -41,7 +49,12 @@ public class MarketComparable : Aggregate<Guid>
         DateTime? infoDateTime,
         string? sourceInfo,
         Guid? templateId = null,
-        string? notes = null)
+        string? notes = null,
+        decimal? offerPrice = null,
+        decimal? offerPriceAdjustmentPercent = null,
+        decimal? offerPriceAdjustmentAmount = null,
+        decimal? salePrice = null,
+        DateTime? saleDate = null)
     {
         return new MarketComparable
         {
@@ -51,7 +64,12 @@ public class MarketComparable : Aggregate<Guid>
             InfoDateTime = infoDateTime,
             SourceInfo = sourceInfo,
             TemplateId = templateId,
-            Notes = notes
+            Notes = notes,
+            OfferPrice = offerPrice,
+            OfferPriceAdjustmentPercent = offerPriceAdjustmentPercent,
+            OfferPriceAdjustmentAmount = offerPriceAdjustmentAmount,
+            SalePrice = salePrice,
+            SaleDate = saleDate
         };
     }
 
@@ -65,12 +83,16 @@ public class MarketComparable : Aggregate<Guid>
     {
         ArgumentNullException.ThrowIfNull(data.SurveyName);
 
-
         SurveyName = data.SurveyName;
         InfoDateTime = data.InfoDateTime;
         SourceInfo = data.SourceInfo;
         Notes = data.Notes;
         TemplateId = data.TemplateId;
+        OfferPrice = data.OfferPrice;
+        OfferPriceAdjustmentPercent = data.OfferPriceAdjustmentPercent;
+        OfferPriceAdjustmentAmount = data.OfferPriceAdjustmentAmount;
+        SalePrice = data.SalePrice;
+        SaleDate = data.SaleDate;
     }
 
     public void Delete(Guid? deletedBy)
@@ -138,5 +160,10 @@ public class MarketComparable : Aggregate<Guid>
         DateTime? InfoDateTime,
         string? SourceInfo,
         Guid? TemplateId,
-        string? Notes);
+        string? Notes,
+        decimal? OfferPrice = null,
+        decimal? OfferPriceAdjustmentPercent = null,
+        decimal? OfferPriceAdjustmentAmount = null,
+        decimal? SalePrice = null,
+        DateTime? SaleDate = null);
 }
