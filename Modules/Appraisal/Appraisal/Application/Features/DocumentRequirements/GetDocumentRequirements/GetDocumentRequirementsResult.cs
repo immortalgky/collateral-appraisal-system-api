@@ -15,8 +15,9 @@ public record DocumentRequirementDto
     public string DocumentTypeCode { get; init; } = null!;
     public string DocumentTypeName { get; init; } = null!;
     public string? DocumentTypeCategory { get; init; }
-    public string? CollateralTypeCode { get; init; }
-    public string? CollateralTypeName { get; init; }
+    public string? PropertyTypeCode { get; init; }
+    public string? PropertyTypeName { get; init; }
+    public string? PurposeCode { get; init; }
     public bool IsRequired { get; init; }
     public bool IsActive { get; init; }
     public string? Notes { get; init; }

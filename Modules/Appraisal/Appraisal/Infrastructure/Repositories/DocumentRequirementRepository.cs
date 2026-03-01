@@ -52,7 +52,8 @@ public class DocumentRequirementRepository : IDocumentRequirementRepository
         return await _context.DocumentRequirements
             .Include(r => r.DocumentType)
             .Where(r => r.IsActive)
-            .OrderBy(r => r.CollateralTypeCode ?? "")
+            .OrderBy(r => r.PropertyTypeCode ?? "")
+            .ThenBy(r => r.PurposeCode ?? "")
             .ThenBy(r => r.DocumentType.SortOrder)
             .ThenBy(r => r.DocumentType.Name)
             .ToListAsync(cancellationToken);
@@ -67,41 +68,63 @@ public class DocumentRequirementRepository : IDocumentRequirementRepository
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<DocumentRequirement>> GetApplicationLevelRequirementsAsync(
+    public async Task<IReadOnlyList<DocumentRequirement>> GetUniversalRequirementsAsync(
         CancellationToken cancellationToken = default)
     {
         return await _context.DocumentRequirements
             .Include(r => r.DocumentType)
-            .Where(r => r.IsActive && r.CollateralTypeCode == null)
+            .Where(r => r.IsActive && r.PropertyTypeCode == null && r.PurposeCode == null)
             .OrderBy(r => r.DocumentType.SortOrder)
             .ThenBy(r => r.DocumentType.Name)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<DocumentRequirement>> GetRequirementsByCollateralTypeAsync(
-        string collateralTypeCode,
+    public async Task<IReadOnlyList<DocumentRequirement>> GetPurposeOnlyRequirementsAsync(
+        string purposeCode,
         CancellationToken cancellationToken = default)
     {
-        var normalizedCode = collateralTypeCode.ToUpperInvariant();
-
         return await _context.DocumentRequirements
             .Include(r => r.DocumentType)
-            .Where(r => r.IsActive && r.CollateralTypeCode == normalizedCode)
+            .Where(r => r.IsActive && r.PropertyTypeCode == null && r.PurposeCode == purposeCode)
             .OrderBy(r => r.DocumentType.SortOrder)
             .ThenBy(r => r.DocumentType.Name)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<DocumentRequirement>> GetRequirementsByCollateralTypesAsync(
-        IEnumerable<string> collateralTypeCodes,
+    public async Task<IReadOnlyList<DocumentRequirement>> GetRequirementsByPropertyTypeAsync(
+        string propertyTypeCode,
         CancellationToken cancellationToken = default)
     {
-        var normalizedCodes = collateralTypeCodes.Select(c => c.ToUpperInvariant()).ToList();
+        var normalizedCode = propertyTypeCode.ToUpperInvariant();
 
         return await _context.DocumentRequirements
             .Include(r => r.DocumentType)
-            .Where(r => r.IsActive && r.CollateralTypeCode != null && normalizedCodes.Contains(r.CollateralTypeCode))
-            .OrderBy(r => r.CollateralTypeCode)
+            .Where(r => r.IsActive && r.PropertyTypeCode == normalizedCode && r.PurposeCode == null)
+            .OrderBy(r => r.DocumentType.SortOrder)
+            .ThenBy(r => r.DocumentType.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DocumentRequirement>> GetRequirementsByPropertyTypesAsync(
+        IEnumerable<string> propertyTypeCodes,
+        string? purposeCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedCodes = propertyTypeCodes.Select(c => c.ToUpperInvariant()).ToList();
+
+        var query = _context.DocumentRequirements
+            .Include(r => r.DocumentType)
+            .Where(r => r.IsActive && r.PropertyTypeCode != null && normalizedCodes.Contains(r.PropertyTypeCode));
+
+        // Include Tier 3 (PurposeCode IS NULL) and optionally Tier 4 (PurposeCode = purposeCode)
+        if (purposeCode is not null)
+            query = query.Where(r => r.PurposeCode == null || r.PurposeCode == purposeCode);
+        else
+            query = query.Where(r => r.PurposeCode == null);
+
+        return await query
+            .OrderBy(r => r.PropertyTypeCode)
+            .ThenBy(r => r.PurposeCode ?? "")
             .ThenBy(r => r.DocumentType.SortOrder)
             .ThenBy(r => r.DocumentType.Name)
             .ToListAsync(cancellationToken);
@@ -109,15 +132,17 @@ public class DocumentRequirementRepository : IDocumentRequirementRepository
 
     public async Task<bool> RequirementExistsAsync(
         Guid documentTypeId,
-        string? collateralTypeCode,
+        string? propertyTypeCode,
+        string? purposeCode,
         CancellationToken cancellationToken = default)
     {
-        var normalizedCode = collateralTypeCode?.ToUpperInvariant();
+        var normalizedCode = propertyTypeCode?.ToUpperInvariant();
 
         return await _context.DocumentRequirements
             .AnyAsync(r =>
                     r.DocumentTypeId == documentTypeId &&
-                    r.CollateralTypeCode == normalizedCode,
+                    r.PropertyTypeCode == normalizedCode &&
+                    r.PurposeCode == purposeCode,
                 cancellationToken);
     }
 

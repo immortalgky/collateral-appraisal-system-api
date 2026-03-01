@@ -124,14 +124,14 @@ public class DocumentRequirementDataSeed : IDataSeeder<AppraisalDbContext>
         var requirements = new List<DocumentRequirement>();
         var typeDict = types.ToDictionary(t => t.Code, t => t.Id);
 
-        // Helper function to add requirement
-        void AddReq(string typeCode, string? collateralType, bool isRequired, string? notes = null)
+        // Helper function to add requirement (all seeded as Tier 1 or Tier 3 — no purpose-specific seeds)
+        void AddReq(string typeCode, string? propertyTypeCode, bool isRequired, string? notes = null)
         {
             if (!typeDict.TryGetValue(typeCode, out var typeId)) return;
 
-            var req = collateralType is null
+            var req = propertyTypeCode is null
                 ? DocumentRequirement.CreateApplicationLevel(typeId, isRequired, notes)
-                : DocumentRequirement.CreateForCollateral(typeId, collateralType, isRequired, notes);
+                : DocumentRequirement.CreateForPropertyType(typeId, propertyTypeCode, isRequired, notes);
 
             requirements.Add(req);
         }

@@ -47,31 +47,41 @@ public interface IDocumentRequirementRepository
     Task<DocumentRequirement?> GetRequirementByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Get application-level requirements (CollateralTypeCode IS NULL)
+    /// Get universal requirements (PropertyTypeCode IS NULL AND PurposeCode IS NULL) — Tier 1
     /// </summary>
-    Task<IReadOnlyList<DocumentRequirement>> GetApplicationLevelRequirementsAsync(
+    Task<IReadOnlyList<DocumentRequirement>> GetUniversalRequirementsAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Get requirements for a specific collateral type
+    /// Get purpose-only requirements (PropertyTypeCode IS NULL AND PurposeCode = purposeCode) — Tier 2
     /// </summary>
-    Task<IReadOnlyList<DocumentRequirement>> GetRequirementsByCollateralTypeAsync(
-        string collateralTypeCode,
+    Task<IReadOnlyList<DocumentRequirement>> GetPurposeOnlyRequirementsAsync(
+        string purposeCode,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Get requirements for multiple collateral types (for multi-collateral appraisals)
+    /// Get requirements for a specific property type (PropertyTypeCode = code AND PurposeCode IS NULL) — Tier 3
     /// </summary>
-    Task<IReadOnlyList<DocumentRequirement>> GetRequirementsByCollateralTypesAsync(
-        IEnumerable<string> collateralTypeCodes,
+    Task<IReadOnlyList<DocumentRequirement>> GetRequirementsByPropertyTypeAsync(
+        string propertyTypeCode,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Check if a requirement already exists for the given document type and collateral type
+    /// Get requirements for multiple property types with optional purpose filtering.
+    /// Returns Tier 3 (PurposeCode IS NULL) and optionally Tier 4 (PurposeCode = purposeCode).
+    /// </summary>
+    Task<IReadOnlyList<DocumentRequirement>> GetRequirementsByPropertyTypesAsync(
+        IEnumerable<string> propertyTypeCodes,
+        string? purposeCode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Check if a requirement already exists for the given document type, property type, and purpose
     /// </summary>
     Task<bool> RequirementExistsAsync(
         Guid documentTypeId,
-        string? collateralTypeCode,
+        string? propertyTypeCode,
+        string? purposeCode,
         CancellationToken cancellationToken = default);
 
     /// <summary>

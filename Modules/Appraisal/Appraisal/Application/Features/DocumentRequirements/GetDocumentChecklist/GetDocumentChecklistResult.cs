@@ -1,18 +1,18 @@
 namespace Appraisal.Application.Features.DocumentRequirements.GetDocumentChecklist;
 
 /// <summary>
-/// Result containing document checklist with application-level and collateral-specific documents
+/// Result containing document checklist with application-level and property-type-specific documents
 /// </summary>
 public record GetDocumentChecklistResult(
     IReadOnlyList<DocumentChecklistItemDto> ApplicationDocuments,
-    IReadOnlyList<CollateralDocumentGroupDto> CollateralGroups);
+    IReadOnlyList<PropertyTypeDocumentGroupDto> PropertyTypeGroups);
 
 /// <summary>
-/// Group of documents for a specific collateral type
+/// Group of documents for a specific property type
 /// </summary>
-public record CollateralDocumentGroupDto(
-    string CollateralTypeCode,
-    string CollateralTypeName,
+public record PropertyTypeDocumentGroupDto(
+    string PropertyTypeCode,
+    string PropertyTypeName,
     IReadOnlyList<DocumentChecklistItemDto> Documents);
 
 /// <summary>

@@ -59,8 +59,12 @@ public class DocumentRequirementConfiguration : IEntityTypeConfiguration<Documen
         builder.Property(r => r.DocumentTypeId)
             .IsRequired();
 
-        // CollateralTypeCode is nullable (NULL = application-level)
-        builder.Property(r => r.CollateralTypeCode)
+        // PropertyTypeCode is nullable (NULL = not property-type-specific)
+        builder.Property(r => r.PropertyTypeCode)
+            .HasMaxLength(10);
+
+        // PurposeCode is nullable (NULL = not purpose-specific)
+        builder.Property(r => r.PurposeCode)
             .HasMaxLength(10);
 
         builder.Property(r => r.IsRequired)
@@ -77,14 +81,14 @@ public class DocumentRequirementConfiguration : IEntityTypeConfiguration<Documen
         builder.Property(r => r.CreatedAt).IsRequired();
         builder.Property(r => r.CreatedBy).IsRequired();
 
-        // Unique constraint on (DocumentTypeId, CollateralTypeCode)
-        // Note: SQL Server handles NULL values in unique constraints properly
-        builder.HasIndex(r => new { r.DocumentTypeId, r.CollateralTypeCode })
+        // Unique constraint on (DocumentTypeId, PropertyTypeCode, PurposeCode)
+        builder.HasIndex(r => new { r.DocumentTypeId, r.PropertyTypeCode, r.PurposeCode })
             .IsUnique()
             .HasFilter(null); // Include NULLs in unique constraint
 
         // Indexes for query performance
-        builder.HasIndex(r => r.CollateralTypeCode);
+        builder.HasIndex(r => r.PropertyTypeCode);
+        builder.HasIndex(r => r.PurposeCode);
         builder.HasIndex(r => r.IsActive);
     }
 }

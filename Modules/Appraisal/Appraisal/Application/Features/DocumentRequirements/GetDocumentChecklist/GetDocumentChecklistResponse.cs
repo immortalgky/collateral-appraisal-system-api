@@ -2,4 +2,4 @@ namespace Appraisal.Application.Features.DocumentRequirements.GetDocumentCheckli
 
 public record GetDocumentChecklistResponse(
     IReadOnlyList<DocumentChecklistItemDto> ApplicationDocuments,
-    IReadOnlyList<CollateralDocumentGroupDto> CollateralGroups);
+    IReadOnlyList<PropertyTypeDocumentGroupDto> PropertyTypeGroups);

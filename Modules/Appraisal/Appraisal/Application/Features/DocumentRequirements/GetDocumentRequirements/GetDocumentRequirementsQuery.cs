@@ -3,4 +3,6 @@ namespace Appraisal.Application.Features.DocumentRequirements.GetDocumentRequire
 /// <summary>
 /// Query to get all document requirements (admin view)
 /// </summary>
-public record GetDocumentRequirementsQuery(string? CollateralTypeCode = null) : IQuery<GetDocumentRequirementsResult>;
+public record GetDocumentRequirementsQuery(
+    string? PropertyTypeCode = null,
+    string? PurposeCode = null) : IQuery<GetDocumentRequirementsResult>;
