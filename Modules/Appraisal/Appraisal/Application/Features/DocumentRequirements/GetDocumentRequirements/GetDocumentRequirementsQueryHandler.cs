@@ -8,8 +8,7 @@ public class
 {
     private readonly IDocumentRequirementRepository _repository;
 
-    // Mapping of collateral type codes to display names
-    private static readonly Dictionary<string, string> CollateralTypeNames = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> PropertyTypeNames = new(StringComparer.OrdinalIgnoreCase)
     {
         ["L"] = "Land",
         ["B"] = "Building",
@@ -35,20 +34,25 @@ public class
     {
         IReadOnlyList<DocumentRequirement> requirements;
 
-        if (!string.IsNullOrWhiteSpace(query.CollateralTypeCode))
+        if (!string.IsNullOrWhiteSpace(query.PropertyTypeCode))
         {
-            // Filter by collateral type
-            if (query.CollateralTypeCode.Equals("APP", StringComparison.OrdinalIgnoreCase))
-                // Application-level requirements
-                requirements = await _repository.GetApplicationLevelRequirementsAsync(cancellationToken);
+            if (query.PropertyTypeCode.Equals("APP", StringComparison.OrdinalIgnoreCase))
+                requirements = await _repository.GetUniversalRequirementsAsync(cancellationToken);
             else
-                requirements = await _repository.GetRequirementsByCollateralTypeAsync(
-                    query.CollateralTypeCode, cancellationToken);
+                requirements = await _repository.GetRequirementsByPropertyTypeAsync(
+                    query.PropertyTypeCode, cancellationToken);
         }
         else
         {
-            // Get all requirements
             requirements = await _repository.GetAllRequirementsAsync(cancellationToken);
+        }
+
+        // Apply purpose filter if provided (client-side for simplicity)
+        if (!string.IsNullOrWhiteSpace(query.PurposeCode))
+        {
+            requirements = requirements
+                .Where(r => r.PurposeCode == null || r.PurposeCode == query.PurposeCode)
+                .ToList();
         }
 
         var dtos = requirements.Select(r => new DocumentRequirementDto
@@ -58,8 +62,9 @@ public class
             DocumentTypeCode = r.DocumentType.Code,
             DocumentTypeName = r.DocumentType.Name,
             DocumentTypeCategory = r.DocumentType.Category,
-            CollateralTypeCode = r.CollateralTypeCode,
-            CollateralTypeName = GetCollateralTypeName(r.CollateralTypeCode),
+            PropertyTypeCode = r.PropertyTypeCode,
+            PropertyTypeName = GetPropertyTypeName(r.PropertyTypeCode),
+            PurposeCode = r.PurposeCode,
             IsRequired = r.IsRequired,
             IsActive = r.IsActive,
             Notes = r.Notes,
@@ -70,9 +75,9 @@ public class
         return new GetDocumentRequirementsResult(dtos);
     }
 
-    private static string? GetCollateralTypeName(string? code)
+    private static string? GetPropertyTypeName(string? code)
     {
         if (code is null) return "Application Level";
-        return CollateralTypeNames.TryGetValue(code, out var name) ? name : code;
+        return PropertyTypeNames.TryGetValue(code, out var name) ? name : code;
     }
 }

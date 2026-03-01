@@ -5,6 +5,7 @@ namespace Appraisal.Application.Features.DocumentRequirements.CreateDocumentRequ
 /// </summary>
 public record CreateDocumentRequirementCommand(
     Guid DocumentTypeId,
-    string? CollateralTypeCode,
+    string? PropertyTypeCode,
+    string? PurposeCode,
     bool IsRequired,
     string? Notes) : ICommand<CreateDocumentRequirementResult>;

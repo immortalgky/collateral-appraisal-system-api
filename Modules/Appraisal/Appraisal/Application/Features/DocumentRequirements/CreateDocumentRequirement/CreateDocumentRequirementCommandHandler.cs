@@ -27,36 +27,36 @@ public class CreateDocumentRequirementCommandHandler : ICommandHandler<CreateDoc
             throw new InvalidOperationException($"Document type with ID {command.DocumentTypeId} not found");
         }
 
-        // Check for duplicate (same document type + collateral type combination)
+        // Check for duplicate (same document type + property type + purpose combination)
         var exists = await _repository.RequirementExistsAsync(
             command.DocumentTypeId,
-            command.CollateralTypeCode,
+            command.PropertyTypeCode,
+            command.PurposeCode,
             cancellationToken);
 
         if (exists)
         {
-            var typeDesc = command.CollateralTypeCode ?? "Application Level";
+            var typeDesc = command.PropertyTypeCode ?? "Application Level";
+            var purposeDesc = command.PurposeCode is not null ? $" with purpose '{command.PurposeCode}'" : "";
             throw new InvalidOperationException(
-                $"A requirement for document type '{documentType.Code}' already exists for {typeDesc}");
+                $"A requirement for document type '{documentType.Code}' already exists for {typeDesc}{purposeDesc}");
         }
 
-        // Create the requirement
-        DocumentRequirement requirement;
-        if (command.CollateralTypeCode is null)
+        // Create the requirement based on which fields are provided
+        var requirement = (command.PropertyTypeCode, command.PurposeCode) switch
         {
-            requirement = DocumentRequirement.CreateApplicationLevel(
-                command.DocumentTypeId,
-                command.IsRequired,
-                command.Notes);
-        }
-        else
-        {
-            requirement = DocumentRequirement.CreateForCollateral(
-                command.DocumentTypeId,
-                command.CollateralTypeCode,
-                command.IsRequired,
-                command.Notes);
-        }
+            (null, null) => DocumentRequirement.CreateApplicationLevel(
+                command.DocumentTypeId, command.IsRequired, command.Notes),
+
+            (null, not null) => DocumentRequirement.CreateForPurpose(
+                command.DocumentTypeId, command.PurposeCode, command.IsRequired, command.Notes),
+
+            (not null, null) => DocumentRequirement.CreateForPropertyType(
+                command.DocumentTypeId, command.PropertyTypeCode, command.IsRequired, command.Notes),
+
+            (not null, not null) => DocumentRequirement.CreateForPropertyTypeAndPurpose(
+                command.DocumentTypeId, command.PropertyTypeCode, command.PurposeCode, command.IsRequired, command.Notes)
+        };
 
         _repository.AddRequirement(requirement);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

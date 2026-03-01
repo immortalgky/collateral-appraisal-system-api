@@ -1,8 +1,12 @@
 namespace Appraisal.Domain.DocumentRequirements;
 
 /// <summary>
-/// Defines which documents are required for a specific collateral type.
-/// When CollateralTypeCode is NULL, the requirement applies to ALL appraisals (application-level).
+/// Defines which documents are required for a specific property type and/or purpose.
+/// 4 tiers of requirements:
+/// - Tier 1 (Universal): PropertyTypeCode=NULL, PurposeCode=NULL — always required
+/// - Tier 2 (Purpose-only): PropertyTypeCode=NULL, PurposeCode=NOT NULL — required for a purpose
+/// - Tier 3 (PropertyType-only): PropertyTypeCode=NOT NULL, PurposeCode=NULL — base for a property type
+/// - Tier 4 (Fully specific): PropertyTypeCode=NOT NULL, PurposeCode=NOT NULL — specific to combination
 /// </summary>
 public class DocumentRequirement : Entity<Guid>
 {
@@ -17,10 +21,16 @@ public class DocumentRequirement : Entity<Guid>
     public DocumentType DocumentType { get; private set; } = null!;
 
     /// <summary>
-    /// Collateral type code (e.g., "L", "B", "LB", "U", "VEH", "VES", "MAC").
-    /// NULL means this is an application-level requirement (required for ALL appraisals).
+    /// Property type code (e.g., "L", "B", "LB", "U", "VEH", "VES", "MAC").
+    /// NULL means this applies regardless of property type.
     /// </summary>
-    public string? CollateralTypeCode { get; private set; }
+    public string? PropertyTypeCode { get; private set; }
+
+    /// <summary>
+    /// Purpose code (e.g., "01", "02", from Parameter module "Objective" group).
+    /// NULL means this applies regardless of purpose.
+    /// </summary>
+    public string? PurposeCode { get; private set; }
 
     /// <summary>
     /// Whether this document is required (true) or optional (false)
@@ -44,41 +54,73 @@ public class DocumentRequirement : Entity<Guid>
 
     private DocumentRequirement(
         Guid documentTypeId,
-        string? collateralTypeCode,
+        string? propertyTypeCode,
+        string? purposeCode,
         bool isRequired,
         string? notes)
     {
         Id = Guid.CreateVersion7();
         DocumentTypeId = documentTypeId;
-        CollateralTypeCode = collateralTypeCode?.ToUpperInvariant();
+        PropertyTypeCode = propertyTypeCode?.ToUpperInvariant();
+        PurposeCode = purposeCode;
         IsRequired = isRequired;
         Notes = notes;
         IsActive = true;
     }
 
     /// <summary>
-    /// Factory method to create an application-level requirement (applies to ALL appraisals)
+    /// Tier 1: Universal requirement (applies to ALL appraisals regardless of property type or purpose)
     /// </summary>
     public static DocumentRequirement CreateApplicationLevel(
         Guid documentTypeId,
         bool isRequired,
         string? notes = null)
     {
-        return new DocumentRequirement(documentTypeId, null, isRequired, notes);
+        return new DocumentRequirement(documentTypeId, null, null, isRequired, notes);
     }
 
     /// <summary>
-    /// Factory method to create a collateral-specific requirement
+    /// Tier 2: Purpose-only requirement (applies to a specific purpose regardless of property type)
     /// </summary>
-    public static DocumentRequirement CreateForCollateral(
+    public static DocumentRequirement CreateForPurpose(
         Guid documentTypeId,
-        string collateralTypeCode,
+        string purposeCode,
         bool isRequired,
         string? notes = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(collateralTypeCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(purposeCode);
 
-        return new DocumentRequirement(documentTypeId, collateralTypeCode, isRequired, notes);
+        return new DocumentRequirement(documentTypeId, null, purposeCode, isRequired, notes);
+    }
+
+    /// <summary>
+    /// Tier 3: PropertyType-only requirement (applies to a specific property type regardless of purpose)
+    /// </summary>
+    public static DocumentRequirement CreateForPropertyType(
+        Guid documentTypeId,
+        string propertyTypeCode,
+        bool isRequired,
+        string? notes = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyTypeCode);
+
+        return new DocumentRequirement(documentTypeId, propertyTypeCode, null, isRequired, notes);
+    }
+
+    /// <summary>
+    /// Tier 4: Fully specific requirement (applies to a specific property type + purpose combination)
+    /// </summary>
+    public static DocumentRequirement CreateForPropertyTypeAndPurpose(
+        Guid documentTypeId,
+        string propertyTypeCode,
+        string purposeCode,
+        bool isRequired,
+        string? notes = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyTypeCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(purposeCode);
+
+        return new DocumentRequirement(documentTypeId, propertyTypeCode, purposeCode, isRequired, notes);
     }
 
     /// <summary>
@@ -107,7 +149,7 @@ public class DocumentRequirement : Entity<Guid>
     }
 
     /// <summary>
-    /// Check if this is an application-level requirement
+    /// Check if this is an application-level (universal) requirement — both PropertyTypeCode and PurposeCode are null
     /// </summary>
-    public bool IsApplicationLevel => CollateralTypeCode is null;
+    public bool IsApplicationLevel => PropertyTypeCode is null && PurposeCode is null;
 }

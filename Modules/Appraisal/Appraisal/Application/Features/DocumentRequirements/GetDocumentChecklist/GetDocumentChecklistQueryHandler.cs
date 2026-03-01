@@ -1,14 +1,18 @@
 namespace Appraisal.Application.Features.DocumentRequirements.GetDocumentChecklist;
 
 /// <summary>
-/// Handler for GetDocumentChecklistQuery
+/// Handler for GetDocumentChecklistQuery.
+/// Assembles a checklist from 4 tiers of requirements:
+/// - Tier 1 (Universal): PropertyType=NULL, Purpose=NULL
+/// - Tier 2 (Purpose-only): PropertyType=NULL, Purpose=X
+/// - Tier 3 (PropertyType-only): PropertyType=X, Purpose=NULL
+/// - Tier 4 (Fully specific): PropertyType=X, Purpose=X
 /// </summary>
 public class GetDocumentChecklistQueryHandler : IQueryHandler<GetDocumentChecklistQuery, GetDocumentChecklistResult>
 {
     private readonly IDocumentRequirementRepository _repository;
 
-    // Mapping of collateral type codes to display names
-    private static readonly Dictionary<string, string> CollateralTypeNames = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> PropertyTypeNames = new(StringComparer.OrdinalIgnoreCase)
     {
         ["L"] = "Land",
         ["B"] = "Building",
@@ -32,48 +36,78 @@ public class GetDocumentChecklistQueryHandler : IQueryHandler<GetDocumentCheckli
         GetDocumentChecklistQuery query,
         CancellationToken cancellationToken)
     {
-        // Get application-level documents (CollateralTypeCode IS NULL)
-        var applicationRequirements = await _repository.GetApplicationLevelRequirementsAsync(cancellationToken);
+        // === Application Documents (Tier 1 + Tier 2) ===
+        // Tier 1: Universal (PropertyType=NULL, Purpose=NULL)
+        var universalRequirements = await _repository.GetUniversalRequirementsAsync(cancellationToken);
 
-        var applicationDocuments = applicationRequirements
+        var applicationDocuments = universalRequirements
             .Select(MapToDto)
             .ToList();
 
-        // Get collateral-specific documents
-        var collateralTypeCodes = query.CollateralTypeCodes
+        // Tier 2: Purpose-only (PropertyType=NULL, Purpose=X)
+        if (!string.IsNullOrWhiteSpace(query.PurposeCode))
+        {
+            var purposeOnlyRequirements = await _repository
+                .GetPurposeOnlyRequirementsAsync(query.PurposeCode, cancellationToken);
+
+            // Merge: purpose-only takes priority over universal if same DocumentTypeId
+            var existingDocTypeIds = new HashSet<Guid>(applicationDocuments.Select(d => d.DocumentTypeId));
+
+            foreach (var req in purposeOnlyRequirements)
+            {
+                if (existingDocTypeIds.Contains(req.DocumentTypeId))
+                {
+                    // Replace universal with purpose-specific
+                    var index = applicationDocuments.FindIndex(d => d.DocumentTypeId == req.DocumentTypeId);
+                    applicationDocuments[index] = MapToDto(req);
+                }
+                else
+                {
+                    applicationDocuments.Add(MapToDto(req));
+                    existingDocTypeIds.Add(req.DocumentTypeId);
+                }
+            }
+        }
+
+        // === Property Type Groups (Tier 3 + Tier 4) ===
+        var propertyTypeCodes = query.PropertyTypeCodes
             .Select(c => c.ToUpperInvariant())
             .Distinct()
             .ToList();
 
-        var collateralGroups = new List<CollateralDocumentGroupDto>();
+        var propertyTypeGroups = new List<PropertyTypeDocumentGroupDto>();
 
-        if (collateralTypeCodes.Count != 0)
+        if (propertyTypeCodes.Count != 0)
         {
-            var collateralRequirements = await _repository
-                .GetRequirementsByCollateralTypesAsync(collateralTypeCodes, cancellationToken);
+            // Fetch Tier 3 (PurposeCode=NULL) and Tier 4 (PurposeCode=X) in one query
+            var propertyRequirements = await _repository
+                .GetRequirementsByPropertyTypesAsync(propertyTypeCodes, query.PurposeCode, cancellationToken);
 
-            // Group by collateral type
-            var groupedRequirements = collateralRequirements
-                .GroupBy(r => r.CollateralTypeCode!)
-                .OrderBy(g => collateralTypeCodes.IndexOf(g.Key)); // Maintain order from request
+            // Group by property type code
+            var groupedRequirements = propertyRequirements
+                .GroupBy(r => r.PropertyTypeCode!)
+                .OrderBy(g => propertyTypeCodes.IndexOf(g.Key));
 
             foreach (var group in groupedRequirements)
             {
-                var collateralTypeCode = group.Key;
-                var collateralTypeName = GetCollateralTypeName(collateralTypeCode);
+                var propertyTypeCode = group.Key;
+                var propertyTypeName = GetPropertyTypeName(propertyTypeCode);
 
+                // Dedup by DocumentTypeId: Tier 4 takes priority over Tier 3
                 var documents = group
+                    .GroupBy(r => r.DocumentTypeId)
+                    .Select(g => g.OrderByDescending(r => r.PurposeCode is not null ? 1 : 0).First())
                     .Select(MapToDto)
                     .ToList();
 
-                collateralGroups.Add(new CollateralDocumentGroupDto(
-                    collateralTypeCode,
-                    collateralTypeName,
+                propertyTypeGroups.Add(new PropertyTypeDocumentGroupDto(
+                    propertyTypeCode,
+                    propertyTypeName,
                     documents));
             }
         }
 
-        return new GetDocumentChecklistResult(applicationDocuments, collateralGroups);
+        return new GetDocumentChecklistResult(applicationDocuments, propertyTypeGroups);
     }
 
     private static DocumentChecklistItemDto MapToDto(DocumentRequirement requirement)
@@ -89,8 +123,8 @@ public class GetDocumentChecklistQueryHandler : IQueryHandler<GetDocumentCheckli
         };
     }
 
-    private static string GetCollateralTypeName(string code)
+    private static string GetPropertyTypeName(string code)
     {
-        return CollateralTypeNames.TryGetValue(code, out var name) ? name : code;
+        return PropertyTypeNames.TryGetValue(code, out var name) ? name : code;
     }
 }

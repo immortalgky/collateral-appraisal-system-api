@@ -15,7 +15,8 @@ public class CreateDocumentRequirementEndpoint : ICarterModule
             {
                 var command = new CreateDocumentRequirementCommand(
                     request.DocumentTypeId,
-                    request.CollateralTypeCode,
+                    request.PropertyTypeCode,
+                    request.PurposeCode,
                     request.IsRequired,
                     request.Notes);
 
@@ -27,7 +28,7 @@ public class CreateDocumentRequirementEndpoint : ICarterModule
             })
             .WithName("CreateDocumentRequirement")
             .WithSummary("Create a document requirement")
-            .WithDescription("Creates a new document requirement linking a document type to a collateral type. Use null for CollateralTypeCode for application-level requirements.")
+            .WithDescription("Creates a new document requirement. Use null PropertyTypeCode for application-level, null PurposeCode for purpose-agnostic requirements.")
             .Produces<CreateDocumentRequirementResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithTags("Document Requirements");
