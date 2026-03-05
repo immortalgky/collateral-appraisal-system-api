@@ -13,7 +13,12 @@ public record GalleryPhotoDto(
     decimal? Longitude,
     DateTime? CapturedAt,
     DateTime UploadedAt,
-    bool IsUsedInReport,
-    string? ReportSection,
-    List<Guid> PhotoTopicIds
+    bool IsInUse,
+    List<Guid> PhotoTopicIds,
+    string? FileName,
+    string? FilePath,
+    string? FileExtension,
+    string? MimeType,
+    long? FileSizeBytes,
+    string? UploadedByName
 );

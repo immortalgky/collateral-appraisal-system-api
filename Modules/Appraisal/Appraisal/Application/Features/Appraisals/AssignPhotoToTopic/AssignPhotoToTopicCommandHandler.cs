@@ -37,6 +37,19 @@ public class AssignPhotoToTopicCommandHandler(
             await galleryRepository.AddTopicMappingAsync(mapping, cancellationToken);
         }
 
+        // Update IsInUse: if topics were added, mark as in use;
+        // if topics were removed and no linkages remain, mark as not in use
+        if (toAdd.Any())
+        {
+            photo.MarkAsInUse();
+        }
+        else if (toRemove.Any() && !desiredTopicIds.Any())
+        {
+            var stillLinked = await galleryRepository.IsPhotoLinkedAnywhereAsync(command.PhotoId, cancellationToken);
+            if (!stillLinked)
+                photo.MarkAsNotInUse();
+        }
+
         return new AssignPhotoToTopicResult(photo.Id, command.PhotoTopicIds);
     }
 }

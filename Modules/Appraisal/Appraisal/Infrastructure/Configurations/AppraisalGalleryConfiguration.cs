@@ -19,10 +19,16 @@ public class AppraisalGalleryConfiguration : IEntityTypeConfiguration<AppraisalG
         builder.Property(g => g.Latitude).HasPrecision(10, 7);
         builder.Property(g => g.Longitude).HasPrecision(10, 7);
 
+        builder.Property(g => g.FileName).HasMaxLength(255);
+        builder.Property(g => g.FilePath).HasMaxLength(500);
+        builder.Property(g => g.FileExtension).HasMaxLength(10);
+        builder.Property(g => g.MimeType).HasMaxLength(100);
+
         builder.Property(g => g.UploadedAt).IsRequired();
         builder.Property(g => g.UploadedBy).IsRequired().HasMaxLength(200);
+        builder.Property(g => g.UploadedByName).HasMaxLength(200);
 
-        builder.Property(g => g.ReportSection).HasMaxLength(100);
+        builder.Property(g => g.IsInUse).IsRequired().HasDefaultValue(false);
 
         builder.HasIndex(g => g.AppraisalId);
         builder.HasIndex(g => g.DocumentId);

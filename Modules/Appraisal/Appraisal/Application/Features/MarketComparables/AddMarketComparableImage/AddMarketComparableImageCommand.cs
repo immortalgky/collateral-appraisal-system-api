@@ -5,11 +5,11 @@ namespace Appraisal.Application.Features.MarketComparables.AddMarketComparableIm
 
 /// <summary>
 /// Command to add an image to a market comparable.
-/// References a document that was uploaded via the Document API.
+/// References a gallery photo via GalleryPhotoId (from AppraisalGallery).
 /// </summary>
 public record AddMarketComparableImageCommand(
     Guid MarketComparableId,
-    Guid DocumentId,
+    Guid GalleryPhotoId,
     string? Title = null,
     string? Description = null
 ) : ICommand<AddMarketComparableImageResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

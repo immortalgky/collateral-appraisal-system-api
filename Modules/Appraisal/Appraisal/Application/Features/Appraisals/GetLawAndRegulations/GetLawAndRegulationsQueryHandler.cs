@@ -20,10 +20,8 @@ public class GetLawAndRegulationsQueryHandler(
             r.Remark,
             r.Images.Select(i => new LawAndRegulationImageDto(
                 i.Id,
-                i.DocumentId,
+                i.GalleryPhotoId,
                 i.DisplaySequence,
-                i.FileName,
-                i.FilePath,
                 i.Title,
                 i.Description
             )).OrderBy(i => i.DisplaySequence).ToList()

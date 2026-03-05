@@ -3,12 +3,12 @@ namespace Appraisal.Domain.MarketComparables;
 /// <summary>
 /// Photos attached to market comparables.
 /// Child entity of MarketComparable aggregate.
-/// References documents via DocumentId (uploaded via Document module).
+/// References gallery photos via GalleryPhotoId (from AppraisalGallery).
 /// </summary>
 public class MarketComparableImage : Entity<Guid>
 {
     public Guid MarketComparableId { get; private set; }
-    public Guid DocumentId { get; private set; }
+    public Guid GalleryPhotoId { get; private set; }
     public int DisplaySequence { get; private set; }
     public string? Title { get; private set; }
     public string? Description { get; private set; }
@@ -18,19 +18,19 @@ public class MarketComparableImage : Entity<Guid>
     internal static MarketComparableImage Create(
         Guid marketComparableId,
         int displaySequence,
-        Guid documentId,
+        Guid galleryPhotoId,
         string? title = null,
         string? description = null)
     {
-        if (documentId == Guid.Empty)
-            throw new ArgumentException("DocumentId cannot be empty", nameof(documentId));
+        if (galleryPhotoId == Guid.Empty)
+            throw new ArgumentException("GalleryPhotoId cannot be empty", nameof(galleryPhotoId));
 
         return new MarketComparableImage
         {
-            Id = Guid.CreateVersion7(),
+            //Id = Guid.CreateVersion7(),
             MarketComparableId = marketComparableId,
             DisplaySequence = displaySequence,
-            DocumentId = documentId,
+            GalleryPhotoId = galleryPhotoId,
             Title = title,
             Description = description
         };

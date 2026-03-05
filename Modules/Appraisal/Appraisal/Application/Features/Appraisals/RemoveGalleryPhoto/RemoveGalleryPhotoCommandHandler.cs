@@ -17,10 +17,25 @@ public class RemoveGalleryPhotoCommandHandler(
             throw new InvalidOperationException($"Gallery photo with ID {command.PhotoId} not found");
 
         // Delete any property photo mappings linked to this photo
-        var mappings = await galleryRepository.GetMappingsByPhotoIdAsync(command.PhotoId, cancellationToken);
+        var mappings = (await galleryRepository.GetMappingsByPhotoIdAsync(command.PhotoId, cancellationToken)).ToList();
+
+        // Track which properties will lose their thumbnail
+        var affectedPropertyIds = mappings
+            .Where(m => m.IsThumbnail)
+            .Select(m => m.AppraisalPropertyId)
+            .ToList();
+
         foreach (var mapping in mappings)
         {
             await galleryRepository.DeleteMappingAsync(mapping, cancellationToken);
+        }
+
+        // Auto-promote another photo as thumbnail for each affected property
+        foreach (var propertyId in affectedPropertyIds)
+        {
+            var remaining = await galleryRepository.GetMappingsByPropertyIdAsync(propertyId, cancellationToken);
+            var next = remaining.FirstOrDefault();
+            next?.SetAsThumbnail();
         }
 
         // Delete any topic mappings linked to this photo

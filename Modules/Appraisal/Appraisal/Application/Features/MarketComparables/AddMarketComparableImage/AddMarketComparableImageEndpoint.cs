@@ -6,7 +6,7 @@ namespace Appraisal.Application.Features.MarketComparables.AddMarketComparableIm
 
 /// <summary>
 /// Endpoint: POST /market-comparables/{id}/images
-/// Adds an image to a market comparable by linking a document uploaded via the Document API.
+/// Adds an image to a market comparable by linking a gallery photo.
 /// </summary>
 public class AddMarketComparableImageEndpoint : ICarterModule
 {
@@ -23,7 +23,7 @@ public class AddMarketComparableImageEndpoint : ICarterModule
                 {
                     var command = new AddMarketComparableImageCommand(
                         id,
-                        request.DocumentId,
+                        request.GalleryPhotoId,
                         request.Title,
                         request.Description);
 
@@ -39,7 +39,7 @@ public class AddMarketComparableImageEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Add image to market comparable")
-            .WithDescription("Links a document (uploaded via Document API) as an image to a market comparable record.")
+            .WithDescription("Links a gallery photo as an image to a market comparable record.")
             .WithTags("MarketComparables");
     }
 }

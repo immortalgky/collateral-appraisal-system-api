@@ -4,6 +4,7 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260304095359_RefactorGalleryPhotoIsInUseAndMarketComparableImage")]
+    partial class RefactorGalleryPhotoIsInUseAndMarketComparableImage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -955,21 +958,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("DocumentId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("FileExtension")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("FileName")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("FilePath")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<long?>("FileSizeBytes")
-                        .HasColumnType("bigint");
-
                     b.Property<bool>("IsInUse")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -982,10 +970,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<decimal?>("Longitude")
                         .HasPrecision(10, 7)
                         .HasColumnType("decimal(10,7)");
-
-                    b.Property<string>("MimeType")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("PhotoCategory")
                         .HasMaxLength(100)
@@ -1014,10 +998,6 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<string>("UploadedBy")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("UploadedByName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -1552,8 +1532,18 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<int>("DisplaySequence")
                         .HasColumnType("int");
 
-                    b.Property<Guid>("GalleryPhotoId")
+                    b.Property<Guid>("DocumentId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<Guid>("LawAndRegulationId")
                         .HasColumnType("uniqueidentifier");
@@ -1573,8 +1563,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("GalleryPhotoId");
 
                     b.HasIndex("LawAndRegulationId");
 

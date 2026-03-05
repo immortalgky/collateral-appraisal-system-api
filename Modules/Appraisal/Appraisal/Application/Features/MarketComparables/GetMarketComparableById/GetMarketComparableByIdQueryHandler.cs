@@ -72,7 +72,7 @@ public class GetMarketComparableByIdQueryHandler(
             Images = comparable.Images.Select(img => new ImageDto
             {
                 Id = img.Id,
-                DocumentId = img.DocumentId,
+                GalleryPhotoId = img.GalleryPhotoId,
                 DisplaySequence = img.DisplaySequence,
                 Title = img.Title,
                 Description = img.Description

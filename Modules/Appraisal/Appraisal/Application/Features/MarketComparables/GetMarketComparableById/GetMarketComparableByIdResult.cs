@@ -67,7 +67,7 @@ public record FactorDataDto
 public record ImageDto
 {
     public Guid Id { get; set; }
-    public Guid DocumentId { get; set; }
+    public Guid GalleryPhotoId { get; set; }
     public int DisplaySequence { get; set; }
     public string? Title { get; set; }
     public string? Description { get; set; }

@@ -31,13 +31,12 @@ public class LawAndRegulationImageConfiguration : IEntityTypeConfiguration<LawAn
         builder.Property(i => i.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
         builder.Property(i => i.LawAndRegulationId).IsRequired();
-        builder.Property(i => i.DocumentId).IsRequired();
+        builder.Property(i => i.GalleryPhotoId).IsRequired();
         builder.Property(i => i.DisplaySequence).IsRequired();
         builder.Property(i => i.Title).HasMaxLength(200);
         builder.Property(i => i.Description).HasMaxLength(500);
-        builder.Property(i => i.FileName).IsRequired().HasMaxLength(255);
-        builder.Property(i => i.FilePath).IsRequired().HasMaxLength(500);
 
         builder.HasIndex(i => i.LawAndRegulationId);
+        builder.HasIndex(i => i.GalleryPhotoId);
     }
 }
