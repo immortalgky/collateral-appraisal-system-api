@@ -22,7 +22,7 @@ public class ComparativeAnalysisTemplateConfiguration : IEntityTypeConfiguration
 
         builder.Property(t => t.PropertyType)
             .IsRequired()
-            .HasMaxLength(50);
+            .HasMaxLength(10);
 
         builder.Property(t => t.Description)
             .HasMaxLength(500);

@@ -25,6 +25,7 @@ public class UpdateMarketComparableFactorEndpoint : ICarterModule
                     id,
                     request.FactorName,
                     request.FieldName,
+                    request.DataType,
                     request.FieldLength,
                     request.FieldDecimal,
                     request.ParameterGroup);
@@ -36,7 +37,7 @@ public class UpdateMarketComparableFactorEndpoint : ICarterModule
             })
             .WithName("UpdateMarketComparableFactor")
             .WithSummary("Update a market comparable factor")
-            .WithDescription("Updates an existing market comparable factor. Note: FactorCode and DataType are immutable and cannot be changed.")
+            .WithDescription("Updates an existing market comparable factor. Note: FactorCode is immutable and cannot be changed. Valid DataType values: Text, Numeric, Dropdown, Checkbox, Date, Radio. Dropdown and Radio types require ParameterGroup.")
             .Produces<UpdateMarketComparableFactorResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)

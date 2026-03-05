@@ -15,7 +15,10 @@ public class ComparativeAnalysisTemplate : Entity<Guid>
     public string? Description { get; private set; }
     public bool IsActive { get; private set; } = true;
 
-    private ComparativeAnalysisTemplate() { }
+    private ComparativeAnalysisTemplate()
+    {
+        // For EF Core
+    }
 
     public static ComparativeAnalysisTemplate Create(
         string templateCode,
@@ -27,15 +30,11 @@ public class ComparativeAnalysisTemplate : Entity<Guid>
         ArgumentException.ThrowIfNullOrWhiteSpace(templateName);
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyType);
 
-        var validPropertyTypes = new[] { "Land", "Building", "Condo", "Vehicle", "Vessel", "Machinery" };
-        if (!validPropertyTypes.Contains(propertyType))
-            throw new ArgumentException($"PropertyType must be one of: {string.Join(", ", validPropertyTypes)}");
-
         return new ComparativeAnalysisTemplate
         {
             TemplateCode = templateCode.ToUpperInvariant(),
             TemplateName = templateName,
-            PropertyType = propertyType,
+            PropertyType = Appraisals.PropertyType.FromString(propertyType),
             Description = description,
             IsActive = true
         };
@@ -48,8 +47,15 @@ public class ComparativeAnalysisTemplate : Entity<Guid>
         Description = description;
     }
 
-    public void Activate() => IsActive = true;
-    public void Deactivate() => IsActive = false;
+    public void Activate()
+    {
+        IsActive = true;
+    }
+
+    public void Deactivate()
+    {
+        IsActive = false;
+    }
 
     public ComparativeAnalysisTemplateFactor AddFactor(
         Guid factorId,
@@ -60,7 +66,8 @@ public class ComparativeAnalysisTemplate : Entity<Guid>
         if (_factors.Any(f => f.FactorId == factorId))
             throw new InvalidOperationException($"Factor {factorId} already exists in this template");
 
-        var factor = ComparativeAnalysisTemplateFactor.Create(Id, factorId, displaySequence, isMandatory, defaultWeight);
+        var factor =
+            ComparativeAnalysisTemplateFactor.Create(Id, factorId, displaySequence, isMandatory, defaultWeight);
         _factors.Add(factor);
         return factor;
     }
@@ -75,16 +82,13 @@ public class ComparativeAnalysisTemplate : Entity<Guid>
 
         // Resequence remaining factors
         var sequence = 1;
-        foreach (var f in _factors.OrderBy(x => x.DisplaySequence))
-        {
-            f.UpdateSequence(sequence++);
-        }
+        foreach (var f in _factors.OrderBy(x => x.DisplaySequence)) f.UpdateSequence(sequence++);
     }
 
     public void UpdateFactorSequence(Guid factorId, int newSequence)
     {
         var factor = _factors.FirstOrDefault(f => f.FactorId == factorId)
-            ?? throw new InvalidOperationException($"Factor {factorId} not found in this template");
+                     ?? throw new InvalidOperationException($"Factor {factorId} not found in this template");
 
         factor.UpdateSequence(newSequence);
     }

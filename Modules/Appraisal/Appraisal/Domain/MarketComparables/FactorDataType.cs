@@ -9,6 +9,7 @@ public enum FactorDataType
     Numeric = 2,
     Dropdown = 3,
     Checkbox = 4,
-    Date = 5,
-    Radio = 6
+    CheckboxGroup = 5,
+    Date = 6,
+    Radio = 7
 }

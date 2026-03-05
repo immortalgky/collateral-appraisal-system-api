@@ -2,11 +2,12 @@ namespace Appraisal.Application.Features.MarketComparableFactors.UpdateMarketCom
 
 /// <summary>
 /// Request model for updating a market comparable factor.
-/// Note: FactorCode and DataType are immutable and cannot be changed.
+/// Note: FactorCode is immutable and cannot be changed.
 /// </summary>
 public sealed record UpdateMarketComparableFactorRequest(
     string FactorName,
     string FieldName,
+    string DataType,
     int? FieldLength,
     int? FieldDecimal,
     string? ParameterGroup);
