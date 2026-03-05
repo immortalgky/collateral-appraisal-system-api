@@ -27,7 +27,13 @@ public class AddGalleryPhotoEndpoint : ICarterModule
                         request.Latitude,
                         request.Longitude,
                         request.CapturedAt,
-                        request.PhotoTopicIds);
+                        request.PhotoTopicIds,
+                        request.FileName,
+                        request.FilePath,
+                        request.FileExtension,
+                        request.MimeType,
+                        request.FileSizeBytes,
+                        request.UploadedByName);
 
                     var result = await sender.Send(command, cancellationToken);
 

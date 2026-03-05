@@ -129,12 +129,12 @@ public class MarketComparable : Aggregate<Guid>
 
     // Image Management
     public MarketComparableImage AddImage(
-        Guid documentId,
+        Guid galleryPhotoId,
         string? title = null,
         string? description = null)
     {
         var sequence = _images.Count > 0 ? _images.Max(i => i.DisplaySequence) + 1 : 1;
-        var image = MarketComparableImage.Create(Id, sequence, documentId, title, description);
+        var image = MarketComparableImage.Create(Id, sequence, galleryPhotoId, title, description);
         _images.Add(image);
         return image;
     }

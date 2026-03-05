@@ -22,6 +22,10 @@ public class UnsetPropertyThumbnailCommandHandler(
 
         mapping.UnsetAsThumbnail();
 
-        return new UnsetPropertyThumbnailResult(mapping.Id);
+        // Auto-promote another photo as thumbnail
+        var next = propertyMappings.FirstOrDefault(m => m.Id != mapping.Id);
+        next?.SetAsThumbnail();
+
+        return new UnsetPropertyThumbnailResult(next?.Id ?? mapping.Id);
     }
 }

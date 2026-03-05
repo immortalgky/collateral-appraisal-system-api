@@ -38,9 +38,14 @@ public class GetGalleryPhotosQueryHandler(
             p.Longitude,
             p.CapturedAt,
             p.UploadedAt,
-            p.IsUsedInReport,
-            p.ReportSection,
-            topicsByPhoto.GetValueOrDefault(p.Id, [])
+            p.IsInUse,
+            topicsByPhoto.GetValueOrDefault(p.Id, []),
+            p.FileName,
+            p.FilePath,
+            p.FileExtension,
+            p.MimeType,
+            p.FileSizeBytes,
+            p.UploadedByName
         )).ToList();
 
         return new GetGalleryPhotosResult(dtos);

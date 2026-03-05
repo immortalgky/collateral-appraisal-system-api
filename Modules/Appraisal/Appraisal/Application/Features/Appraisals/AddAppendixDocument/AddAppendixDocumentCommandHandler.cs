@@ -5,7 +5,8 @@ using Shared.Exceptions;
 namespace Appraisal.Application.Features.Appraisals.AddAppendixDocument;
 
 public class AddAppendixDocumentCommandHandler(
-    IAppraisalAppendixRepository repository
+    IAppraisalAppendixRepository repository,
+    IAppraisalGalleryRepository galleryRepository
 ) : ICommandHandler<AddAppendixDocumentCommand, AddAppendixDocumentResult>
 {
     public async Task<AddAppendixDocumentResult> Handle(
@@ -20,6 +21,10 @@ public class AddAppendixDocumentCommandHandler(
             command.DisplaySequence);
 
         await repository.UpdateAsync(appendix, cancellationToken);
+
+        // Mark gallery photo as in use
+        var photo = await galleryRepository.GetByIdAsync(command.GalleryPhotoId, cancellationToken);
+        photo?.MarkAsInUse();
 
         return new AddAppendixDocumentResult(document.Id, appendix.Id);
     }

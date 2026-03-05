@@ -13,10 +13,8 @@ public record LawAndRegulationItemInput(
 
 public record LawAndRegulationImageInput(
     Guid? Id,
-    Guid DocumentId,
+    Guid GalleryPhotoId,
     int DisplaySequence,
-    string FileName,
-    string FilePath,
     string? Title,
     string? Description
 );

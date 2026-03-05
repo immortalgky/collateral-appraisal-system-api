@@ -23,15 +23,23 @@ public class AppraisalGallery : Entity<Guid>
     public DateTime? CapturedAt { get; private set; }
     public DateTime UploadedAt { get; private set; }
 
-    // Report Usage
-    public bool IsUsedInReport { get; private set; }
-    public string? ReportSection { get; private set; } // Cover, PropertySection, etc.
+    // Usage tracking
+    public bool IsInUse { get; private set; }
+
+    // File Metadata (denormalized from Document module)
+    public string? FileName { get; private set; }
+    public string? FilePath { get; private set; }
+    public string? FileExtension { get; private set; }
+    public string? MimeType { get; private set; }
+    public long? FileSizeBytes { get; private set; }
 
     // Audit
     public string UploadedBy { get; private set; } = null!;
+    public string? UploadedByName { get; private set; }
 
     private AppraisalGallery()
     {
+        // For EF Core
     }
 
     public static AppraisalGallery Create(
@@ -39,7 +47,13 @@ public class AppraisalGallery : Entity<Guid>
         Guid documentId,
         int photoNumber,
         string photoType,
-        string uploadedBy)
+        string uploadedBy,
+        string? fileName = null,
+        string? filePath = null,
+        string? fileExtension = null,
+        string? mimeType = null,
+        long? fileSizeBytes = null,
+        string? uploadedByName = null)
     {
         return new AppraisalGallery
         {
@@ -48,8 +62,15 @@ public class AppraisalGallery : Entity<Guid>
             DocumentId = documentId,
             PhotoNumber = photoNumber,
             PhotoType = photoType,
+            IsInUse = false,
             UploadedAt = DateTime.UtcNow,
-            UploadedBy = uploadedBy
+            UploadedBy = uploadedBy,
+            FileName = fileName,
+            FilePath = filePath,
+            FileExtension = fileExtension,
+            MimeType = mimeType,
+            FileSizeBytes = fileSizeBytes,
+            UploadedByName = uploadedByName
         };
     }
 
@@ -70,15 +91,13 @@ public class AppraisalGallery : Entity<Guid>
         CapturedAt = capturedAt;
     }
 
-    public void MarkForReport(string section)
+    public void MarkAsInUse()
     {
-        IsUsedInReport = true;
-        ReportSection = section;
+        IsInUse = true;
     }
 
-    public void UnmarkFromReport()
+    public void MarkAsNotInUse()
     {
-        IsUsedInReport = false;
-        ReportSection = null;
+        IsInUse = false;
     }
 }

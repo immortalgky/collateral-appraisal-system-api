@@ -6,6 +6,7 @@ public interface IAppraisalGalleryRepository : IRepository<AppraisalGallery, Gui
 {
     Task<IEnumerable<AppraisalGallery>> GetByAppraisalIdAsync(Guid appraisalId, CancellationToken ct = default);
     Task<int> GetMaxPhotoNumberAsync(Guid appraisalId, CancellationToken ct = default);
+    Task<bool> IsPhotoLinkedAnywhereAsync(Guid galleryPhotoId, CancellationToken ct = default);
 
     // PropertyPhotoMapping operations
     Task<PropertyPhotoMapping?> GetMappingByIdAsync(Guid mappingId, CancellationToken ct = default);

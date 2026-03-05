@@ -1,3 +1,4 @@
+using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.MarketComparables;
 using Shared.CQRS;
 
@@ -7,7 +8,8 @@ namespace Appraisal.Application.Features.MarketComparables.AddMarketComparableIm
 /// Handler for adding an image to a market comparable
 /// </summary>
 public class AddMarketComparableImageCommandHandler(
-    IMarketComparableRepository marketComparableRepository
+    IMarketComparableRepository marketComparableRepository,
+    IAppraisalGalleryRepository galleryRepository
 ) : ICommandHandler<AddMarketComparableImageCommand, AddMarketComparableImageResult>
 {
     public async Task<AddMarketComparableImageResult> Handle(
@@ -25,9 +27,13 @@ public class AddMarketComparableImageCommandHandler(
         }
 
         var image = comparable.AddImage(
-            command.DocumentId,
+            command.GalleryPhotoId,
             command.Title,
             command.Description);
+
+        // Mark gallery photo as in use
+        var photo = await galleryRepository.GetByIdAsync(command.GalleryPhotoId, cancellationToken);
+        photo?.MarkAsInUse();
 
         return new AddMarketComparableImageResult(image.Id);
     }

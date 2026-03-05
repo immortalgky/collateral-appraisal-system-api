@@ -69,7 +69,7 @@ public class GetPropertyGroupByIdQueryHandler(
         if (propertyIds is { Count: > 0 })
         {
             var photoSql = """
-                           SELECT PPM.AppraisalPropertyId, AG.DocumentId, PPM.IsThumbnail
+                           SELECT PPM.Id AS MappingId, PPM.AppraisalPropertyId, AG.DocumentId, PPM.IsThumbnail
                            FROM appraisal.PropertyPhotoMappings PPM
                            INNER JOIN appraisal.AppraisalGallery AG ON AG.Id = PPM.GalleryPhotoId
                            WHERE PPM.AppraisalPropertyId IN @PropertyIds
@@ -89,7 +89,7 @@ public class GetPropertyGroupByIdQueryHandler(
                     photosByProperty.TryGetValue(property.PropertyId.Value, out var propertyPhotos))
                 {
                     property.Photos = propertyPhotos
-                        .Select(p => new PropertyPhotoDto(p.DocumentId, p.IsThumbnail))
+                        .Select(p => new PropertyPhotoDto(p.MappingId, p.DocumentId, p.IsThumbnail))
                         .ToList();
                 }
             }
@@ -121,6 +121,6 @@ public record PropertyGroupItemDto
     public List<PropertyPhotoDto>? Photos { get; set; }
 }
 
-public record PropertyPhotoDto(Guid DocumentId, bool IsThumbnail);
+public record PropertyPhotoDto(Guid MappingId, Guid DocumentId, bool IsThumbnail);
 
-internal record PropertyPhotoRow(Guid AppraisalPropertyId, Guid DocumentId, bool IsThumbnail);
+internal record PropertyPhotoRow(Guid MappingId, Guid AppraisalPropertyId, Guid DocumentId, bool IsThumbnail);

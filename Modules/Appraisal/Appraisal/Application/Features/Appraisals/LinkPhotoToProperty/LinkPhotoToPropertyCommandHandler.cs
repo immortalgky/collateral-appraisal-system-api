@@ -39,6 +39,8 @@ public class LinkPhotoToPropertyCommandHandler(
 
         await galleryRepository.AddMappingAsync(mapping, cancellationToken);
 
+        photo.MarkAsInUse();
+
         return new LinkPhotoToPropertyResult(mapping.Id);
     }
 }

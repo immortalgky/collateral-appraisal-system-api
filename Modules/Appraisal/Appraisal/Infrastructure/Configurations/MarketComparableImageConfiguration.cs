@@ -10,7 +10,7 @@ public class MarketComparableImageConfiguration : IEntityTypeConfiguration<Marke
         builder.Property(i => i.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
         builder.Property(i => i.MarketComparableId).IsRequired();
-        builder.Property(i => i.DocumentId).IsRequired();
+        builder.Property(i => i.GalleryPhotoId).IsRequired();
         builder.Property(i => i.DisplaySequence).IsRequired();
         builder.Property(i => i.Title).HasMaxLength(200);
         builder.Property(i => i.Description).HasMaxLength(500);
@@ -22,7 +22,7 @@ public class MarketComparableImageConfiguration : IEntityTypeConfiguration<Marke
         builder.Ignore(i => i.UpdatedBy);
 
         builder.HasIndex(i => i.MarketComparableId);
-        builder.HasIndex(i => i.DocumentId);
+        builder.HasIndex(i => i.GalleryPhotoId);
         builder.HasIndex(i => new { i.MarketComparableId, i.DisplaySequence });
     }
 }

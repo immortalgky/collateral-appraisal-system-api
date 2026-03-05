@@ -2,10 +2,10 @@ namespace Appraisal.Application.Features.MarketComparables.AddMarketComparableIm
 
 /// <summary>
 /// Request to add an image to a market comparable.
-/// Images are uploaded via the Document API first, then linked by DocumentId.
+/// References a gallery photo from AppraisalGallery.
 /// </summary>
 public record AddMarketComparableImageRequest(
-    Guid DocumentId,
+    Guid GalleryPhotoId,
     string? Title = null,
     string? Description = null
 );

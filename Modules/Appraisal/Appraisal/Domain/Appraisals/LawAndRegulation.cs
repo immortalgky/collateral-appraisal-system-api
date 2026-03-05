@@ -42,15 +42,13 @@ public class LawAndRegulation : Entity<Guid>
     }
 
     public LawAndRegulationImage AddImage(
-        Guid documentId,
+        Guid galleryPhotoId,
         int displaySequence,
-        string fileName,
-        string filePath,
         string? title = null,
         string? description = null)
     {
         var image = LawAndRegulationImage.Create(
-            Id, documentId, displaySequence, fileName, filePath, title, description);
+            Id, galleryPhotoId, displaySequence, title, description);
         _images.Add(image);
         return image;
     }

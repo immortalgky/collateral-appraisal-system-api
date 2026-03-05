@@ -21,7 +21,13 @@ public class AddGalleryPhotoCommandHandler(
             command.DocumentId,
             photoNumber,
             command.PhotoType,
-            command.UploadedBy);
+            command.UploadedBy,
+            command.FileName,
+            command.FilePath,
+            command.FileExtension,
+            command.MimeType,
+            command.FileSizeBytes,
+            command.UploadedByName);
 
         if (command.PhotoCategory is not null || command.Caption is not null)
             photo.SetDetails(command.PhotoCategory, command.Caption);

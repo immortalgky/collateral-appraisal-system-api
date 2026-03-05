@@ -11,10 +11,8 @@ public record LawAndRegulationDto(
 
 public record LawAndRegulationImageDto(
     Guid Id,
-    Guid DocumentId,
+    Guid GalleryPhotoId,
     int DisplaySequence,
-    string FileName,
-    string FilePath,
     string? Title,
     string? Description
 );

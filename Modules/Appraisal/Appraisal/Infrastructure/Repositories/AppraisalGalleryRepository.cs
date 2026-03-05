@@ -1,4 +1,5 @@
 using Appraisal.Domain.Appraisals;
+using Appraisal.Domain.MarketComparables;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data;
 
@@ -81,5 +82,23 @@ public class AppraisalGalleryRepository(AppraisalDbContext dbContext)
             .ToListAsync(ct);
 
         _dbContext.GalleryPhotoTopicMappings.RemoveRange(mappings);
+    }
+
+    public async Task<bool> IsPhotoLinkedAnywhereAsync(Guid galleryPhotoId, CancellationToken ct = default)
+    {
+        // Flush pending changes (e.g. deletions) to DB so the check reflects current state.
+        // Runs within the existing transaction from the pipeline behavior — no commit yet.
+        await _dbContext.SaveChangesAsync(ct);
+
+        return await _dbContext.PropertyPhotoMappings
+                   .AnyAsync(m => m.GalleryPhotoId == galleryPhotoId, ct)
+               || await _dbContext.GalleryPhotoTopicMappings
+                   .AnyAsync(m => m.GalleryPhotoId == galleryPhotoId, ct)
+               || await _dbContext.Set<AppendixDocument>()
+                   .AnyAsync(d => d.GalleryPhotoId == galleryPhotoId, ct)
+               || await _dbContext.Set<MarketComparableImage>()
+                   .AnyAsync(i => i.GalleryPhotoId == galleryPhotoId, ct)
+               || await _dbContext.Set<LawAndRegulationImage>()
+                   .AnyAsync(i => i.GalleryPhotoId == galleryPhotoId, ct);
     }
 }
