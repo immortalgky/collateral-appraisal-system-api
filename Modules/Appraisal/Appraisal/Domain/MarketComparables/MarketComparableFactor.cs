@@ -62,15 +62,18 @@ public class MarketComparableFactor : Entity<Guid>
     public void Update(
         string factorName,
         string fieldName,
+        FactorDataType dataType,
         int? fieldLength,
         int? fieldDecimal,
         string? parameterGroup)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(factorName);
         ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
+        ValidateDataTypeConstraints(dataType, fieldDecimal, parameterGroup);
 
         FactorName = factorName;
         FieldName = fieldName;
+        DataType = dataType;
         FieldLength = fieldLength;
         FieldDecimal = fieldDecimal;
         ParameterGroup = parameterGroup;

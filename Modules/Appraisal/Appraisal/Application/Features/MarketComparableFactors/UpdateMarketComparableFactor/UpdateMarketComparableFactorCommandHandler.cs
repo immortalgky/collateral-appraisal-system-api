@@ -27,10 +27,16 @@ internal sealed class UpdateMarketComparableFactorCommandHandler :
         var factor = await _repository.GetByIdAsync(command.Id, cancellationToken)
             ?? throw new InvalidOperationException($"Market comparable factor with ID '{command.Id}' not found.");
 
+        // Parse DataType enum
+        if (!Enum.TryParse<FactorDataType>(command.DataType, ignoreCase: true, out var dataType))
+            throw new ArgumentException(
+                $"Invalid DataType value: {command.DataType}. Valid values are: {string.Join(", ", Enum.GetNames<FactorDataType>())}");
+
         // Update the entity using domain method
         factor.Update(
             command.FactorName,
             command.FieldName,
+            dataType,
             command.FieldLength,
             command.FieldDecimal,
             command.ParameterGroup);

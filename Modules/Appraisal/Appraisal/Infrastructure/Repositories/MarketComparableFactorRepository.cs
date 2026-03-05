@@ -26,7 +26,7 @@ public class MarketComparableFactorRepository(AppraisalDbContext dbContext)
             query = query.Where(f => f.IsActive);
 
         return await query
-            .OrderBy(f => f.FactorName)
+            .OrderBy(f => f.FactorCode)
             .ToListAsync(cancellationToken);
     }
 

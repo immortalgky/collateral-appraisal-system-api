@@ -16,9 +16,7 @@ public class DeleteTemplateCommandHandler(
         if (template is null)
             throw new InvalidOperationException($"Template {command.TemplateId} not found");
 
-        // Soft delete by deactivating
-        template.Deactivate();
-        templateRepository.Update(template);
+        templateRepository.Delete(template);
 
         return new DeleteTemplateResult(true);
     }

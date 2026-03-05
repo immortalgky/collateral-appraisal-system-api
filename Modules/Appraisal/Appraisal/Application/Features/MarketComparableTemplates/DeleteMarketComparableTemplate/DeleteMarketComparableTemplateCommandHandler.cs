@@ -18,8 +18,7 @@ public class DeleteMarketComparableTemplateCommandHandler(
             throw new InvalidOperationException($"Market comparable template with ID {command.Id} not found.");
         }
 
-        template.Deactivate();
-        await repository.UpdateAsync(template, cancellationToken);
+        await repository.DeleteAsync(template, cancellationToken);
 
         return new DeleteMarketComparableTemplateResult(true);
     }
