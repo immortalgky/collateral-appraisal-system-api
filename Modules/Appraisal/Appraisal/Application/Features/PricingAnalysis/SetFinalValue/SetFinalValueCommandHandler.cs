@@ -54,6 +54,8 @@ public class SetFinalValueCommandHandler(
             finalValue.UpdateFinalValue(command.FinalValue, command.FinalValueRounded);
         }
 
+        method.SetValue(command.FinalValueRounded);
+
         // Handle land area
         if (command.IncludeLandArea == true && command.LandArea.HasValue &&
             command.AppraisalPrice.HasValue && command.AppraisalPriceRounded.HasValue)
@@ -61,7 +63,8 @@ public class SetFinalValueCommandHandler(
             finalValue.SetLandAreaValues(
                 command.LandArea.Value,
                 command.AppraisalPrice.Value,
-                command.AppraisalPriceRounded.Value);
+                command.AppraisalPriceRounded.Value,
+                command.PriceDifferentiate);
         }
         else if (command.IncludeLandArea == false)
         {
@@ -86,6 +89,7 @@ public class SetFinalValueCommandHandler(
             finalValue.LandArea,
             finalValue.AppraisalPrice,
             finalValue.AppraisalPriceRounded,
+            finalValue.PriceDifferentiate,
             finalValue.HasBuildingCost,
             finalValue.BuildingCost,
             finalValue.AppraisalPriceWithBuilding,

@@ -58,14 +58,15 @@ public class GetMarketComparableByIdQueryHandler(
                 Id = fd.Id,
                 FactorId = fd.FactorId,
                 FactorCode = fd.Factor.FactorCode,
-                FactorName = fd.Factor.FactorName,
                 FieldName = fd.Factor.FieldName,
                 DataType = fd.Factor.DataType,
                 FieldLength = fd.Factor.FieldLength,
                 FieldDecimal = fd.Factor.FieldDecimal,
                 ParameterGroup = fd.Factor.ParameterGroup,
                 Value = fd.Value,
-                OtherRemarks = fd.OtherRemarks
+                OtherRemarks = fd.OtherRemarks,
+                Translations = fd.Factor.Translations
+                    .Select(t => new FactorTranslationDto(t.Language, t.FactorName)).ToList()
             }).ToList(),
 
             // Images

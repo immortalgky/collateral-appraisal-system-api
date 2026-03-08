@@ -8,5 +8,7 @@ public record AddFactorToTemplateCommand(
     Guid FactorId,
     int DisplaySequence,
     bool IsMandatory = false,
-    decimal? DefaultWeight = null
+    decimal? DefaultWeight = null,
+    decimal? DefaultIntensity = null,
+    bool IsCalculationFactor = false
 ) : ICommand<AddFactorToTemplateResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

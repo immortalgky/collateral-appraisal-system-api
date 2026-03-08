@@ -6,4 +6,5 @@ namespace Appraisal.Application.Features.MarketComparableFactors.GetMarketCompar
 /// Query to retrieve all market comparable factors.
 /// </summary>
 public sealed record GetMarketComparableFactorsQuery(
-    bool ActiveOnly = true) : IQuery<GetMarketComparableFactorsResult>;
+    bool ActiveOnly = true,
+    string? Language = null) : IQuery<GetMarketComparableFactorsResult>;

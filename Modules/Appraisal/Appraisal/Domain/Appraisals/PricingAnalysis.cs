@@ -64,4 +64,9 @@ public class PricingAnalysis : Aggregate<Guid>
     {
         FinalAppraisedValue = appraisedValue;
     }
+
+    public void ClearFinalValues()
+    {
+        FinalAppraisedValue = null;
+    }
 }

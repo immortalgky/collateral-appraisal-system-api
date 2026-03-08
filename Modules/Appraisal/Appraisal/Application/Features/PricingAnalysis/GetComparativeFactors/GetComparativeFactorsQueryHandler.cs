@@ -82,7 +82,7 @@ public class GetComparativeFactorsQueryHandler(
                 return new ComparativeFactorDto(
                     f.Id,
                     f.FactorId,
-                    factor?.FactorName,
+                    factor?.GetFactorName("en"),
                     factor?.FactorCode,
                     f.DisplaySequence,
                     f.IsSelectedForScoring,
@@ -107,7 +107,7 @@ public class GetComparativeFactorsQueryHandler(
                 return new FactorScoreDto(
                     f.Id,
                     f.FactorId,
-                    factor?.FactorName,
+                    factor?.GetFactorName("en"),
                     f.MarketComparableId,
                     comparableName,
                     f.FactorWeight,
@@ -115,7 +115,10 @@ public class GetComparativeFactorsQueryHandler(
                     f.Value,
                     f.Score,
                     f.WeightedScore,
+                    f.Intensity,
                     f.AdjustmentPct,
+                    f.AdjustmentAmt,
+                    f.ComparisonResult,
                     f.Remarks
                 );
             })
@@ -133,25 +136,58 @@ public class GetComparativeFactorsQueryHandler(
                     c.OfferingPrice,
                     c.OfferingPriceUnit,
                     c.AdjustOfferPricePct,
+                    c.AdjustOfferPriceAmt,
                     c.SellingPrice,
+                    c.SellingPriceUnit,
                     c.BuySellYear,
                     c.BuySellMonth,
                     c.AdjustedPeriodPct,
                     c.CumulativeAdjPeriod,
+                    c.LandAreaDeficient,
+                    c.LandAreaDeficientUnit,
+                    c.LandPrice,
+                    c.LandValueAdjustment,
+                    c.UsableAreaDeficient,
+                    c.UsableAreaDeficientUnit,
+                    c.UsableAreaPrice,
+                    c.BuildingValueAdjustment,
                     c.TotalFactorDiffPct,
-                    c.TotalAdjustedValue
+                    c.TotalFactorDiffAmt,
+                    c.TotalAdjustedValue,
+                    c.Weight,
+                    c.WeightedAdjustedValue
                 );
             })
             .ToList();
+
+        // Map RSQ result (WQS only)
+        RsqResultDto? rsqResult = null;
+        if (method.RsqResult is not null)
+        {
+            var r = method.RsqResult;
+            rsqResult = new RsqResultDto(
+                r.Id,
+                r.CoefficientOfDecision,
+                r.StandardError,
+                r.IntersectionPoint,
+                r.Slope,
+                r.RsqFinalValue,
+                r.LowestEstimate,
+                r.HighestEstimate
+            );
+        }
 
         return new GetComparativeFactorsResult(
             query.PricingAnalysisId,
             query.MethodId,
             method.MethodType,
+            method.ComparativeAnalysisTemplateId,
+            method.MethodValue,
             linkedComparables,
             comparativeFactors,
             factorScores,
-            calculations
+            calculations,
+            rsqResult
         );
     }
 }

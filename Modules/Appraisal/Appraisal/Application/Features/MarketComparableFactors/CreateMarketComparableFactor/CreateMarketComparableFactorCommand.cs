@@ -7,9 +7,9 @@ namespace Appraisal.Application.Features.MarketComparableFactors.CreateMarketCom
 /// </summary>
 public sealed record CreateMarketComparableFactorCommand(
     string FactorCode,
-    string FactorName,
     string FieldName,
     string DataType,
     int? FieldLength,
     int? FieldDecimal,
-    string? ParameterGroup) : ICommand<CreateMarketComparableFactorResult>;
+    string? ParameterGroup,
+    IReadOnlyList<(string Language, string FactorName)> Translations) : ICommand<CreateMarketComparableFactorResult>;

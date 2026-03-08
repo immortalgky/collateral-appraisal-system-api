@@ -4,10 +4,13 @@ public record GetComparativeFactorsResult(
     Guid PricingAnalysisId,
     Guid MethodId,
     string MethodType,
+    Guid? ComparativeAnalysisTemplateId,
+    decimal? MethodValue,
     IReadOnlyList<LinkedComparableDto> LinkedComparables,
     IReadOnlyList<ComparativeFactorDto> ComparativeFactors,
     IReadOnlyList<FactorScoreDto> FactorScores,
-    IReadOnlyList<CalculationDto> Calculations
+    IReadOnlyList<CalculationDto> Calculations,
+    RsqResultDto? RsqResult = null
 );
 
 /// <summary>
@@ -48,7 +51,10 @@ public record FactorScoreDto(
     string? Value,
     decimal? Score,
     decimal? WeightedScore,
+    decimal? Intensity,
     decimal? AdjustmentPct,
+    decimal? AdjustmentAmt,
+    string? ComparisonResult,
     string? Remarks
 );
 
@@ -62,11 +68,35 @@ public record CalculationDto(
     decimal? OfferingPrice,
     string? OfferingPriceUnit,
     decimal? AdjustOfferPricePct,
+    decimal? AdjustOfferPriceAmt,
     decimal? SellingPrice,
+    string? SellingPriceUnit,
     int? BuySellYear,
     int? BuySellMonth,
     decimal? AdjustedPeriodPct,
     decimal? CumulativeAdjPeriod,
+    decimal? LandAreaDeficient,
+    string? LandAreaDeficientUnit,
+    decimal? LandPrice,
+    decimal? LandValueAdjustment,
+    decimal? UsableAreaDeficient,
+    string? UsableAreaDeficientUnit,
+    decimal? UsableAreaPrice,
+    decimal? BuildingValueAdjustment,
     decimal? TotalFactorDiffPct,
-    decimal? TotalAdjustedValue
+    decimal? TotalFactorDiffAmt,
+    decimal? TotalAdjustedValue,
+    decimal? Weight,
+    decimal? WeightedAdjustedValue
+);
+
+public record RsqResultDto(
+    Guid Id,
+    decimal? CoefficientOfDecision,
+    decimal? StandardError,
+    decimal? IntersectionPoint,
+    decimal? Slope,
+    decimal? RsqFinalValue,
+    decimal? LowestEstimate,
+    decimal? HighestEstimate
 );

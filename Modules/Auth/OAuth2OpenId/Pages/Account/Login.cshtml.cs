@@ -16,6 +16,8 @@ public class Login(
 
     [BindProperty] public string Password { get; set; } = string.Empty;
 
+    [BindProperty] public bool RememberMe { get; set; }
+
     public void OnGet(string returnUrl = null)
     {
         ReturnUrl = returnUrl ?? "/";
@@ -33,7 +35,7 @@ public class Login(
         }
 
         // Validate credentials
-        var result = await signInManager.PasswordSignInAsync(Username, Password, true, false);
+        var result = await signInManager.PasswordSignInAsync(Username, Password, RememberMe, lockoutOnFailure: true);
         if (result.Succeeded)
         {
             logger.LogInformation("User {Username} logged in successfully", Username);

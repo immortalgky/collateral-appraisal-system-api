@@ -34,12 +34,12 @@ internal sealed class UpdateMarketComparableFactorCommandHandler :
 
         // Update the entity using domain method
         factor.Update(
-            command.FactorName,
             command.FieldName,
             dataType,
             command.FieldLength,
             command.FieldDecimal,
-            command.ParameterGroup);
+            command.ParameterGroup,
+            command.Translations);
 
         await _repository.UpdateAsync(factor, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

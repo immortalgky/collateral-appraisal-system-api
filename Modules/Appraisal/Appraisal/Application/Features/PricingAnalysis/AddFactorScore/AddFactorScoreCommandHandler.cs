@@ -47,7 +47,7 @@ public class AddFactorScoreCommandHandler(
 
         // Set adjustment if provided
         if (command.AdjustmentPct.HasValue)
-            factorScore.SetAdjustment(command.AdjustmentPct, command.Remarks);
+            factorScore.SetAdjustment(command.AdjustmentPct, remarks: command.Remarks);
 
         // Repository saves via EF change tracking
         await pricingAnalysisRepository.UpdateAsync(pricingAnalysis, cancellationToken);

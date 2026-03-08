@@ -31,6 +31,7 @@ public class SetFinalValueEndpoint : ICarterModule
                         request.LandArea,
                         request.AppraisalPrice,
                         request.AppraisalPriceRounded,
+                        request.PriceDifferentiate,
                         request.HasBuildingCost,
                         request.BuildingCost,
                         request.AppraisalPriceWithBuilding,

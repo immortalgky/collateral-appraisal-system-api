@@ -17,9 +17,10 @@ public class GetMarketComparableFactorsEndpoint : ICarterModule
         app.MapGet("/market-comparable-factors", async (
                 ISender sender,
                 bool activeOnly = true,
+                string? lang = null,
                 CancellationToken cancellationToken = default) =>
             {
-                var query = new GetMarketComparableFactorsQuery(activeOnly);
+                var query = new GetMarketComparableFactorsQuery(activeOnly, lang);
                 var result = await sender.Send(query, cancellationToken);
 
                 return Results.Ok(new GetMarketComparableFactorsResponse(result.Factors));

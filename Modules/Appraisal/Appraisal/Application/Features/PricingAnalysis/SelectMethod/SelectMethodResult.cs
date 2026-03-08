@@ -5,5 +5,6 @@ namespace Appraisal.Application.Features.PricingAnalysis.SelectMethod;
 /// </summary>
 public record SelectMethodResult(
     Guid Id,
-    string MethodType
+    string MethodType,
+    decimal? FinalAppraisedValue
 );

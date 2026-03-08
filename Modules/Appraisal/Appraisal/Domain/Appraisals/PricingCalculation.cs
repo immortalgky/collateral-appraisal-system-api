@@ -40,6 +40,10 @@ public class PricingCalculation : Entity<Guid>
     // Results
     public decimal? TotalAdjustedValue { get; private set; }
 
+    // Weighting (SaleGrid only)
+    public decimal? Weight { get; private set; }
+    public decimal? WeightedAdjustedValue { get; private set; }
+
     private PricingCalculation()
     {
     }
@@ -65,6 +69,20 @@ public class PricingCalculation : Entity<Guid>
     {
         SellingPrice = price;
         SellingPriceUnit = unit;
+    }
+
+    public void ClearOfferingPrice()
+    {
+        OfferingPrice = null;
+        OfferingPriceUnit = null;
+        AdjustOfferPricePct = null;
+        AdjustOfferPriceAmt = null;
+    }
+
+    public void ClearSellingPrice()
+    {
+        SellingPrice = null;
+        SellingPriceUnit = null;
     }
 
     public void SetTimeAdjustment(int? year, int? month, decimal? adjustedPct, decimal? cumulativePct)
@@ -100,5 +118,11 @@ public class PricingCalculation : Entity<Guid>
     public void SetResult(decimal adjustedValue)
     {
         TotalAdjustedValue = adjustedValue;
+    }
+
+    public void SetWeight(decimal? weight, decimal? weightedAdjustedValue)
+    {
+        Weight = weight;
+        WeightedAdjustedValue = weightedAdjustedValue;
     }
 }

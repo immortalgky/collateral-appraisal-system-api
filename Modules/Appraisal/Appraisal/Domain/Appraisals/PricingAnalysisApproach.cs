@@ -49,4 +49,18 @@ public class PricingAnalysisApproach : Entity<Guid>
     {
         IsSelected = true;
     }
+
+    public void Unselect()
+    {
+        IsSelected = false;
+    }
+
+    public void RemoveMethod(Guid methodId)
+    {
+        var method = _methods.FirstOrDefault(m => m.Id == methodId);
+        if (method is null)
+            throw new InvalidOperationException($"Method with ID {methodId} not found in approach.");
+
+        _methods.Remove(method);
+    }
 }

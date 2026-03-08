@@ -11,6 +11,7 @@ public record UpdateFinalValueResponse(
     decimal? LandArea,
     decimal? AppraisalPrice,
     decimal? AppraisalPriceRounded,
+    decimal? PriceDifferentiate,
     bool HasBuildingCost,
     decimal? BuildingCost,
     decimal? AppraisalPriceWithBuilding,

@@ -32,6 +32,7 @@ public class ComparativeAnalysisTemplate : Entity<Guid>
 
         return new ComparativeAnalysisTemplate
         {
+            Id = Guid.CreateVersion7(),
             TemplateCode = templateCode.ToUpperInvariant(),
             TemplateName = templateName,
             PropertyType = Appraisals.PropertyType.FromString(propertyType),
@@ -61,13 +62,15 @@ public class ComparativeAnalysisTemplate : Entity<Guid>
         Guid factorId,
         int displaySequence,
         bool isMandatory = false,
-        decimal? defaultWeight = null)
+        decimal? defaultWeight = null,
+        decimal? defaultIntensity = null,
+        bool isCalculationFactor = false)
     {
         if (_factors.Any(f => f.FactorId == factorId))
             throw new InvalidOperationException($"Factor {factorId} already exists in this template");
 
         var factor =
-            ComparativeAnalysisTemplateFactor.Create(Id, factorId, displaySequence, isMandatory, defaultWeight);
+            ComparativeAnalysisTemplateFactor.Create(Id, factorId, displaySequence, isMandatory, defaultWeight, defaultIntensity, isCalculationFactor);
         _factors.Add(factor);
         return factor;
     }

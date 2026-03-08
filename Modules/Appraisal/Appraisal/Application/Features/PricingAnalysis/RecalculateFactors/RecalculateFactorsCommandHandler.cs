@@ -1,21 +1,22 @@
 using Appraisal.Domain.Appraisals;
+using Appraisal.Domain.Services;
 using Shared.CQRS;
 
 namespace Appraisal.Application.Features.PricingAnalysis.RecalculateFactors;
 
 /// <summary>
-/// Handler for recalculating total factor adjustment.
-/// Factor scores are now at the method level.
+/// Handler for recalculating all derived fields on a pricing method.
+/// Uses method-specific calculation services (WQS, SaleGrid, DirectComparison).
 /// </summary>
 public class RecalculateFactorsCommandHandler(
-    IPricingAnalysisRepository pricingAnalysisRepository
+    IPricingAnalysisRepository pricingAnalysisRepository,
+    PricingCalculationServiceResolver calculationServiceResolver
 ) : ICommandHandler<RecalculateFactorsCommand, RecalculateFactorsResult>
 {
     public async Task<RecalculateFactorsResult> Handle(
         RecalculateFactorsCommand command,
         CancellationToken cancellationToken)
     {
-        // Load pricing analysis aggregate
         var pricingAnalysis = await pricingAnalysisRepository.GetByIdWithAllDataAsync(
             command.PricingAnalysisId,
             cancellationToken);
@@ -37,18 +38,21 @@ public class RecalculateFactorsCommandHandler(
             .SelectMany(a => a.Methods)
             .First(m => m.Calculations.Contains(calculation));
 
-        // Get factor scores for this specific comparable
-        var factorScoresForComparable = method.GetFactorScoresForComparable(calculation.MarketComparableId);
+        // Use method-specific calculation service
+        var calculationService = calculationServiceResolver.Resolve(method.MethodType);
+        if (calculationService is not null)
+        {
+            calculationService.Recalculate(method);
+        }
+        else
+        {
+            // Fallback: simple SUM for unsupported method types
+            var totalAdjustmentPct = method.GetFactorScoresForComparable(calculation.MarketComparableId)
+                .Where(f => f.AdjustmentPct.HasValue)
+                .Sum(f => f.AdjustmentPct!.Value);
+            calculation.SetFactorAdjustment(totalAdjustmentPct, null);
+        }
 
-        // Calculate total adjustment from factor scores
-        var totalAdjustmentPct = factorScoresForComparable
-            .Where(f => f.AdjustmentPct.HasValue)
-            .Sum(f => f.AdjustmentPct!.Value);
-
-        // Update the calculation's factor adjustment
-        calculation.SetFactorAdjustment(totalAdjustmentPct, null);
-
-        // Repository saves via EF change tracking
         await pricingAnalysisRepository.UpdateAsync(pricingAnalysis, cancellationToken);
 
         return new RecalculateFactorsResult(

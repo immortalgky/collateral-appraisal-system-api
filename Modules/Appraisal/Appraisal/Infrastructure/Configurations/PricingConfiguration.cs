@@ -1,3 +1,5 @@
+using Appraisal.Domain.ComparativeAnalysis;
+
 namespace Appraisal.Infrastructure.Configurations;
 
 public class PricingAnalysisConfiguration : IEntityTypeConfiguration<PricingAnalysis>
@@ -89,6 +91,16 @@ public class PricingAnalysisMethodConfiguration : IEntityTypeConfiguration<Prici
             .HasForeignKey<PricingFinalValue>(f => f.PricingMethodId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasOne(m => m.RsqResult)
+            .WithOne()
+            .HasForeignKey<PricingRsqResult>(r => r.PricingMethodId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne<ComparativeAnalysisTemplate>()
+            .WithMany()
+            .HasForeignKey(m => m.ComparativeAnalysisTemplateId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(m => m.ApproachId);
     }
 }
@@ -146,6 +158,9 @@ public class PricingCalculationConfiguration : IEntityTypeConfiguration<PricingC
 
         builder.Property(c => c.TotalAdjustedValue).HasPrecision(18, 2);
 
+        builder.Property(c => c.Weight).HasPrecision(10, 5);
+        builder.Property(c => c.WeightedAdjustedValue).HasPrecision(18, 2);
+
         builder.HasIndex(c => c.PricingMethodId);
     }
 }
@@ -167,7 +182,10 @@ public class PricingFactorScoreConfiguration : IEntityTypeConfiguration<PricingF
         builder.Property(f => f.Score).HasPrecision(5, 2);
         builder.Property(f => f.FactorWeight).IsRequired().HasPrecision(5, 2);
         builder.Property(f => f.WeightedScore).HasPrecision(5, 2);
+        builder.Property(f => f.Intensity).HasPrecision(5, 2);
         builder.Property(f => f.AdjustmentPct).HasPrecision(5, 2);
+        builder.Property(f => f.AdjustmentAmt).HasPrecision(18, 2);
+        builder.Property(f => f.ComparisonResult).HasMaxLength(20);
 
         builder.Property(f => f.DisplaySequence).IsRequired();
         builder.Property(f => f.Remarks).HasMaxLength(500);
@@ -194,6 +212,28 @@ public class PricingComparativeFactorConfiguration : IEntityTypeConfiguration<Pr
 
         builder.HasIndex(f => f.PricingMethodId);
         builder.HasIndex(f => new { f.PricingMethodId, f.FactorId }).IsUnique();
+    }
+}
+
+public class PricingRsqResultConfiguration : IEntityTypeConfiguration<PricingRsqResult>
+{
+    public void Configure(EntityTypeBuilder<PricingRsqResult> builder)
+    {
+        builder.ToTable("PricingRsqResults");
+
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+        builder.Property(r => r.PricingMethodId).IsRequired();
+        builder.HasIndex(r => r.PricingMethodId).IsUnique();
+
+        builder.Property(r => r.CoefficientOfDecision).HasPrecision(18, 10);
+        builder.Property(r => r.StandardError).HasPrecision(18, 2);
+        builder.Property(r => r.IntersectionPoint).HasPrecision(18, 2);
+        builder.Property(r => r.Slope).HasPrecision(18, 2);
+        builder.Property(r => r.RsqFinalValue).HasPrecision(18, 2);
+        builder.Property(r => r.LowestEstimate).HasPrecision(18, 2);
+        builder.Property(r => r.HighestEstimate).HasPrecision(18, 2);
     }
 }
 

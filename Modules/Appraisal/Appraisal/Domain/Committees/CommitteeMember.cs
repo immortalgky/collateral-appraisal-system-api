@@ -23,7 +23,7 @@ public class CommitteeMember : Entity<Guid>
     {
         return new CommitteeMember
         {
-            Id = Guid.CreateVersion7(),
+            //Id = Guid.CreateVersion7(),
             CommitteeId = committeeId,
             UserId = userId,
             MemberName = name,

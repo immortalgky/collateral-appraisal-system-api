@@ -75,4 +75,5 @@ public class PricingFinalValue : Entity<Guid>
         FinalValue = finalValue;
         FinalValueRounded = finalValueRounded;
     }
+
 }

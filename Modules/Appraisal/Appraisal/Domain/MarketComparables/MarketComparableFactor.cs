@@ -7,7 +7,6 @@ namespace Appraisal.Domain.MarketComparables;
 public class MarketComparableFactor : Entity<Guid>
 {
     public string FactorCode { get; private set; } = null!;
-    public string FactorName { get; private set; } = null!;
     public string FieldName { get; private set; } = null!;
     public FactorDataType DataType { get; private set; }
     public int? FieldLength { get; private set; }
@@ -15,28 +14,30 @@ public class MarketComparableFactor : Entity<Guid>
     public string? ParameterGroup { get; private set; }
     public bool IsActive { get; private set; } = true;
 
+    private readonly List<MarketComparableFactorTranslation> _translations = [];
+    public IReadOnlyList<MarketComparableFactorTranslation> Translations => _translations.AsReadOnly();
+
     private MarketComparableFactor() { }
 
     public static MarketComparableFactor Create(
         string factorCode,
-        string factorName,
         string fieldName,
         FactorDataType dataType,
+        IEnumerable<(string Language, string FactorName)> translations,
         int? fieldLength = null,
         int? fieldDecimal = null,
         string? parameterGroup = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(factorCode);
-        ArgumentException.ThrowIfNullOrWhiteSpace(factorName);
         ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
 
         ValidateDataTypeConstraints(dataType, fieldDecimal, parameterGroup);
+        ValidateTranslations(translations);
 
-        return new MarketComparableFactor
+        var factor = new MarketComparableFactor
         {
             Id = Guid.CreateVersion7(),
             FactorCode = factorCode.ToUpperInvariant(),
-            FactorName = factorName,
             FieldName = fieldName,
             DataType = dataType,
             FieldLength = fieldLength,
@@ -44,6 +45,11 @@ public class MarketComparableFactor : Entity<Guid>
             ParameterGroup = parameterGroup,
             IsActive = true
         };
+
+        foreach (var (language, factorName) in translations)
+            factor._translations.Add(MarketComparableFactorTranslation.Create(language, factorName));
+
+        return factor;
     }
 
     private static void ValidateDataTypeConstraints(
@@ -59,24 +65,54 @@ public class MarketComparableFactor : Entity<Guid>
             throw new ArgumentException("ParameterGroup is required for Dropdown/Radio data types.");
     }
 
+    private static void ValidateTranslations(IEnumerable<(string Language, string FactorName)> translations)
+    {
+        var list = translations.ToList();
+
+        if (list.Count == 0)
+            throw new ArgumentException("At least one translation is required.");
+
+        if (!list.Any(t => t.Language.Equals("en", StringComparison.OrdinalIgnoreCase)))
+            throw new ArgumentException("English (en) translation is required.");
+
+        var duplicates = list.GroupBy(t => t.Language.ToLowerInvariant())
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key);
+
+        if (duplicates.Any())
+            throw new ArgumentException($"Duplicate language(s): {string.Join(", ", duplicates)}");
+    }
+
     public void Update(
-        string factorName,
         string fieldName,
         FactorDataType dataType,
         int? fieldLength,
         int? fieldDecimal,
-        string? parameterGroup)
+        string? parameterGroup,
+        IEnumerable<(string Language, string FactorName)> translations)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(factorName);
         ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
         ValidateDataTypeConstraints(dataType, fieldDecimal, parameterGroup);
+        ValidateTranslations(translations);
 
-        FactorName = factorName;
         FieldName = fieldName;
         DataType = dataType;
         FieldLength = fieldLength;
         FieldDecimal = fieldDecimal;
         ParameterGroup = parameterGroup;
+
+        _translations.Clear();
+        foreach (var (language, factorName) in translations)
+            _translations.Add(MarketComparableFactorTranslation.Create(language, factorName));
+    }
+
+    public string GetFactorName(string language)
+    {
+        var translation = _translations.FirstOrDefault(
+            t => t.Language.Equals(language, StringComparison.OrdinalIgnoreCase));
+
+        return translation?.FactorName
+            ?? _translations.First(t => t.Language.Equals("en", StringComparison.OrdinalIgnoreCase)).FactorName;
     }
 
     public void Activate() => IsActive = true;

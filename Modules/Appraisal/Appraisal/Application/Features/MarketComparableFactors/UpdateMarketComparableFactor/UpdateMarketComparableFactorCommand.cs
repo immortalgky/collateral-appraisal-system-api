@@ -8,9 +8,9 @@ namespace Appraisal.Application.Features.MarketComparableFactors.UpdateMarketCom
 /// </summary>
 public sealed record UpdateMarketComparableFactorCommand(
     Guid Id,
-    string FactorName,
     string FieldName,
     string DataType,
     int? FieldLength,
     int? FieldDecimal,
-    string? ParameterGroup) : ICommand<UpdateMarketComparableFactorResult>;
+    string? ParameterGroup,
+    IReadOnlyList<(string Language, string FactorName)> Translations) : ICommand<UpdateMarketComparableFactorResult>;

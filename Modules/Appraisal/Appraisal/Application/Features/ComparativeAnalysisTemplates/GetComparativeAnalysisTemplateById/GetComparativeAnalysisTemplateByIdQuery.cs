@@ -1,0 +1,5 @@
+using Shared.CQRS;
+
+namespace Appraisal.Application.Features.ComparativeAnalysisTemplates.GetComparativeAnalysisTemplateById;
+
+public record GetComparativeAnalysisTemplateByIdQuery(Guid TemplateId) : IQuery<GetComparativeAnalysisTemplateByIdResult>;

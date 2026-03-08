@@ -4,5 +4,7 @@ public record AddFactorToTemplateRequest(
     Guid FactorId,
     int DisplaySequence,
     bool IsMandatory = false,
-    decimal? DefaultWeight = null
+    decimal? DefaultWeight = null,
+    decimal? DefaultIntensity = null,
+    bool IsCalculationFactor = false
 );

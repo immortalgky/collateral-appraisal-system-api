@@ -5,9 +5,11 @@ namespace Appraisal.Application.Features.MarketComparableFactors.UpdateMarketCom
 /// Note: FactorCode is immutable and cannot be changed.
 /// </summary>
 public sealed record UpdateMarketComparableFactorRequest(
-    string FactorName,
     string FieldName,
     string DataType,
     int? FieldLength,
     int? FieldDecimal,
-    string? ParameterGroup);
+    string? ParameterGroup,
+    List<FactorTranslationRequest> Translations);
+
+public sealed record FactorTranslationRequest(string Language, string FactorName);

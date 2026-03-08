@@ -38,6 +38,7 @@ public static class OpenIddictModule
         });
 
         // Add Identity
+        var lockoutConfig = configuration.GetSection("Identity:Lockout");
         services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
             {
                 options.Password.RequireDigit = true;
@@ -45,6 +46,12 @@ public static class OpenIddictModule
                 options.Password.RequireNonAlphanumeric = true;
                 options.Password.RequireUppercase = true;
                 options.Password.RequiredLength = 8;
+
+                options.Lockout.MaxFailedAccessAttempts = lockoutConfig.GetValue("MaxFailedAccessAttempts", 5);
+                options.Lockout.DefaultLockoutTimeSpan = lockoutConfig.GetValue("PermanentLockout", true)
+                    ? TimeSpan.MaxValue
+                    : TimeSpan.FromMinutes(lockoutConfig.GetValue("DefaultLockoutTimeSpanInMinutes", 5));
+                options.Lockout.AllowedForNewUsers = lockoutConfig.GetValue("LockoutEnabled", true);
             })
             .AddEntityFrameworkStores<OpenIddictDbContext>()
             .AddDefaultTokenProviders();

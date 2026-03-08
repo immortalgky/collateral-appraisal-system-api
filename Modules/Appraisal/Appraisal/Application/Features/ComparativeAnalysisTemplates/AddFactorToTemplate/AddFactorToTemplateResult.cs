@@ -6,5 +6,7 @@ public record AddFactorToTemplateResult(
     Guid FactorId,
     int DisplaySequence,
     bool IsMandatory,
-    decimal? DefaultWeight
+    decimal? DefaultWeight,
+    decimal? DefaultIntensity,
+    bool IsCalculationFactor
 );

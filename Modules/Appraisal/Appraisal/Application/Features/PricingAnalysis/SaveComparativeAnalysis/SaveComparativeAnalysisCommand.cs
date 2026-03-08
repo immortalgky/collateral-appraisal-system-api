@@ -12,5 +12,7 @@ public record SaveComparativeAnalysisCommand(
     Guid MethodId,
     IReadOnlyList<ComparativeFactorInput> ComparativeFactors,
     IReadOnlyList<FactorScoreInput> FactorScores,
-    IReadOnlyList<CalculationInput> Calculations
+    IReadOnlyList<CalculationInput> Calculations,
+    Guid? ComparativeAnalysisTemplateId = null,
+    decimal? AppraisalValue = null
 ) : ICommand<SaveComparativeAnalysisResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
