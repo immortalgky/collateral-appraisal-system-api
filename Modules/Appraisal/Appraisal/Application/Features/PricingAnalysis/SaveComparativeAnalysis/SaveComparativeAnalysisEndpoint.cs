@@ -19,7 +19,9 @@ public class SaveComparativeAnalysisEndpoint : ICarterModule
                         methodId,
                         request.ComparativeFactors,
                         request.FactorScores,
-                        request.Calculations
+                        request.Calculations,
+                        request.ComparativeAnalysisTemplateId,
+                        request.AppraisalValue
                     );
 
                     var result = await sender.Send(command);

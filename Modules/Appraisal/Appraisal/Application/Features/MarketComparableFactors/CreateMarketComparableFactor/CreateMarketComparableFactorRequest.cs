@@ -5,9 +5,11 @@ namespace Appraisal.Application.Features.MarketComparableFactors.CreateMarketCom
 /// </summary>
 public sealed record CreateMarketComparableFactorRequest(
     string FactorCode,
-    string FactorName,
     string FieldName,
     string DataType,
     int? FieldLength,
     int? FieldDecimal,
-    string? ParameterGroup);
+    string? ParameterGroup,
+    List<FactorTranslationRequest> Translations);
+
+public sealed record FactorTranslationRequest(string Language, string FactorName);

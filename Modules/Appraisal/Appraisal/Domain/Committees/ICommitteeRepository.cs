@@ -13,4 +13,11 @@ public interface ICommitteeRepository : IRepository<Committee, Guid>
         CancellationToken cancellationToken = default);
 
     Task<IEnumerable<Committee>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    Task<CommitteeVote?> GetVoteByReviewAndMemberAsync(Guid reviewId, Guid committeeMemberId,
+        CancellationToken cancellationToken = default);
+
+    Task AddVoteAsync(CommitteeVote vote, CancellationToken cancellationToken = default);
+
+    Task<Committee?> GetCommitteeForValueAsync(decimal value, CancellationToken cancellationToken = default);
 }

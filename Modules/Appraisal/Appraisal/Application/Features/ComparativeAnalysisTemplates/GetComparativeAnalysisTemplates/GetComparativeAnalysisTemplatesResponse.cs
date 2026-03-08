@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.ComparativeAnalysisTemplates.GetComparativeAnalysisTemplates;
+
+public record GetComparativeAnalysisTemplatesResponse(IReadOnlyList<TemplateDto> Templates);

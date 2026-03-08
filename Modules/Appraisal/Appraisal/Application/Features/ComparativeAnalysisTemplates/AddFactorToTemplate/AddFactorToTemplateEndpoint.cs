@@ -19,7 +19,9 @@ public class AddFactorToTemplateEndpoint : ICarterModule
                         request.FactorId,
                         request.DisplaySequence,
                         request.IsMandatory,
-                        request.DefaultWeight
+                        request.DefaultWeight,
+                        request.DefaultIntensity,
+                        request.IsCalculationFactor
                     );
 
                     var result = await sender.Send(command);

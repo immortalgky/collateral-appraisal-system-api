@@ -5,7 +5,7 @@ public static class InitialData
     private const string Objective = "Objective";
     private const string PayFeeType = "PatFeeType";
     private const string BusinessType = "BusinessType";
-    
+
     public static IEnumerable<Parameters.Models.Parameter> Parameters => new List<Parameters.Models.Parameter>
     {
 

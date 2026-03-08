@@ -11,6 +11,8 @@ public class ComparativeAnalysisTemplateFactor : Entity<Guid>
     public int DisplaySequence { get; private set; }
     public bool IsMandatory { get; private set; }
     public decimal? DefaultWeight { get; private set; }
+    public decimal? DefaultIntensity { get; private set; }
+    public bool IsCalculationFactor { get; private set; }
 
     private ComparativeAnalysisTemplateFactor() { }
 
@@ -19,7 +21,9 @@ public class ComparativeAnalysisTemplateFactor : Entity<Guid>
         Guid factorId,
         int displaySequence,
         bool isMandatory = false,
-        decimal? defaultWeight = null)
+        decimal? defaultWeight = null,
+        decimal? defaultIntensity = null,
+        bool isCalculationFactor = false)
     {
         if (defaultWeight.HasValue && (defaultWeight < 0 || defaultWeight > 100))
             throw new ArgumentException("DefaultWeight must be between 0 and 100");
@@ -30,7 +34,9 @@ public class ComparativeAnalysisTemplateFactor : Entity<Guid>
             FactorId = factorId,
             DisplaySequence = displaySequence,
             IsMandatory = isMandatory,
-            DefaultWeight = defaultWeight
+            DefaultWeight = defaultWeight,
+            DefaultIntensity = defaultIntensity,
+            IsCalculationFactor = isCalculationFactor
         };
     }
 
@@ -39,12 +45,14 @@ public class ComparativeAnalysisTemplateFactor : Entity<Guid>
         DisplaySequence = sequence;
     }
 
-    public void Update(bool isMandatory, decimal? defaultWeight)
+    public void Update(bool isMandatory, decimal? defaultWeight, decimal? defaultIntensity = null, bool isCalculationFactor = false)
     {
         if (defaultWeight.HasValue && (defaultWeight < 0 || defaultWeight > 100))
             throw new ArgumentException("DefaultWeight must be between 0 and 100");
 
         IsMandatory = isMandatory;
         DefaultWeight = defaultWeight;
+        DefaultIntensity = defaultIntensity;
+        IsCalculationFactor = isCalculationFactor;
     }
 }

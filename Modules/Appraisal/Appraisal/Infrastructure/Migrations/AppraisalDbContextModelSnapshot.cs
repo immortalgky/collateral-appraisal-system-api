@@ -692,6 +692,87 @@ namespace Appraisal.Infrastructure.Migrations
                     b.ToTable("AppraisalComparables", "appraisal");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("AdditionalAssumptions")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<Guid>("AppraisalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AppraiserOpinion")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("AppraiserOpinionType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CommitteeOpinion")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("CommitteeOpinionType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Condition")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("ConditionType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool?>("IsPriceVerified")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Remark")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("RemarkType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal?>("TotalAppraisalPriceReview")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppraisalId")
+                        .IsUnique();
+
+                    b.ToTable("AppraisalDecisions", "appraisal");
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalFee", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1739,6 +1820,9 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("ApproachId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("ComparativeAnalysisTemplateId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1782,6 +1866,8 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ApproachId");
+
+                    b.HasIndex("ComparativeAnalysisTemplateId");
 
                     b.ToTable("PricingAnalysisMethods", "appraisal");
                 });
@@ -1901,6 +1987,14 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("Weight")
+                        .HasPrecision(10, 5)
+                        .HasColumnType("decimal(10,5)");
+
+                    b.Property<decimal?>("WeightedAdjustedValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PricingMethodId");
@@ -2014,9 +2108,17 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
+                    b.Property<decimal?>("AdjustmentAmt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal?>("AdjustmentPct")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("ComparisonResult")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -2035,6 +2137,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("FactorWeight")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("Intensity")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
@@ -2159,6 +2265,72 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("PricingFinalValues", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingRsqResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<decimal?>("CoefficientOfDecision")
+                        .HasPrecision(18, 10)
+                        .HasColumnType("decimal(18,10)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("HighestEstimate")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("IntersectionPoint")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("LowestEstimate")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("PricingMethodId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("RsqFinalValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("Slope")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("StandardError")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PricingMethodId")
+                        .IsUnique();
+
+                    b.ToTable("PricingRsqResults", "appraisal");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PropertyPhotoMapping", b =>
@@ -2565,6 +2737,57 @@ namespace Appraisal.Infrastructure.Migrations
                     b.ToTable("CommitteeMembers", "appraisal");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Committees.CommitteeThreshold", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<Guid>("CommitteeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("MaxValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("MinValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommitteeId");
+
+                    b.ToTable("CommitteeThresholds", "appraisal");
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Committees.CommitteeVote", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2707,6 +2930,10 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal?>("DefaultIntensity")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
                     b.Property<decimal?>("DefaultWeight")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
@@ -2716,6 +2943,11 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<Guid>("FactorId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsCalculationFactor")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<bool>("IsMandatory")
                         .ValueGeneratedOnAdd()
@@ -3044,11 +3276,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("FactorName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int?>("FieldDecimal")
                         .HasColumnType("int");
@@ -6289,6 +6516,11 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasForeignKey("ApproachId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("Appraisal.Domain.ComparativeAnalysis.ComparativeAnalysisTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("ComparativeAnalysisTemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingCalculation", b =>
@@ -6332,6 +6564,15 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasOne("Appraisal.Domain.Appraisals.PricingAnalysisMethod", null)
                         .WithOne("FinalValue")
                         .HasForeignKey("Appraisal.Domain.Appraisals.PricingFinalValue", "PricingMethodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingRsqResult", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.PricingAnalysisMethod", null)
+                        .WithOne("RsqResult")
+                        .HasForeignKey("Appraisal.Domain.Appraisals.PricingRsqResult", "PricingMethodId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -6446,6 +6687,33 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Factor");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparableFactor", b =>
+                {
+                    b.OwnsMany("Appraisal.Domain.MarketComparables.MarketComparableFactorTranslation", "Translations", b1 =>
+                        {
+                            b1.Property<Guid>("MarketComparableFactorId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Language")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("FactorName")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.HasKey("MarketComparableFactorId", "Language");
+
+                            b1.ToTable("MarketComparableFactorTranslations", "appraisal");
+
+                            b1.WithOwner()
+                                .HasForeignKey("MarketComparableFactorId");
+                        });
+
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparableImage", b =>
@@ -6586,6 +6854,8 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Navigation("FactorScores");
 
                     b.Navigation("FinalValue");
+
+                    b.Navigation("RsqResult");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.ValuationAnalysis", b =>

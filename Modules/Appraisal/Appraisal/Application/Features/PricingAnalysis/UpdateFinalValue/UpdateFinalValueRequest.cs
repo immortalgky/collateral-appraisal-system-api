@@ -10,6 +10,7 @@ public record UpdateFinalValueRequest(
     decimal? LandArea = null,
     decimal? AppraisalPrice = null,
     decimal? AppraisalPriceRounded = null,
+    decimal? PriceDifferentiate = null,
     bool? HasBuildingCost = null,
     decimal? BuildingCost = null,
     decimal? AppraisalPriceWithBuilding = null,

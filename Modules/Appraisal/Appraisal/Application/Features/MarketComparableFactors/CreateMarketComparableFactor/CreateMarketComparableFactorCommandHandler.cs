@@ -41,9 +41,9 @@ internal sealed class CreateMarketComparableFactorCommandHandler :
         // Create the entity using factory method
         var factor = MarketComparableFactor.Create(
             command.FactorCode,
-            command.FactorName,
             command.FieldName,
             dataType,
+            command.Translations,
             command.FieldLength,
             command.FieldDecimal,
             command.ParameterGroup);

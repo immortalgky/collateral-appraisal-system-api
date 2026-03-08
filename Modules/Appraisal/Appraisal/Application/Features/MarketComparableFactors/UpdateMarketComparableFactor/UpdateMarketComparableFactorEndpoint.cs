@@ -23,12 +23,12 @@ public class UpdateMarketComparableFactorEndpoint : ICarterModule
             {
                 var command = new UpdateMarketComparableFactorCommand(
                     id,
-                    request.FactorName,
                     request.FieldName,
                     request.DataType,
                     request.FieldLength,
                     request.FieldDecimal,
-                    request.ParameterGroup);
+                    request.ParameterGroup,
+                    request.Translations.Select(t => (t.Language, t.FactorName)).ToList());
 
                 var result = await sender.Send(command, cancellationToken);
 

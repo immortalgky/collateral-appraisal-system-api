@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.ComparativeAnalysisTemplates.DeleteComparativeAnalysisTemplate;
+
+public record DeleteComparativeAnalysisTemplateResult(bool Success);

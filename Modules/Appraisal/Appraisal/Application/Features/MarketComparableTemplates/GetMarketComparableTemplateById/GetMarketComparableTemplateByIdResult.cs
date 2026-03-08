@@ -18,7 +18,6 @@ public record TemplateFactorDto(
     Guid TemplateFactorId,
     Guid FactorId,
     string FactorCode,
-    string FactorName,
     string FieldName,
     string DataType,
     int? FieldLength,
@@ -26,5 +25,8 @@ public record TemplateFactorDto(
     string? ParameterGroup,
     int DisplaySequence,
     bool IsMandatory,
-    bool IsActive
+    bool IsActive,
+    IReadOnlyList<FactorTranslationDto> Translations
 );
+
+public record FactorTranslationDto(string Language, string FactorName);

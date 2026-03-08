@@ -27,7 +27,6 @@ public class GetMarketComparableTemplateByIdQueryHandler(
                 tf.Id,
                 tf.FactorId,
                 tf.Factor?.FactorCode ?? string.Empty,
-                tf.Factor?.FactorName ?? string.Empty,
                 tf.Factor?.FieldName ?? string.Empty,
                 tf.Factor?.DataType.ToString() ?? string.Empty,
                 tf.Factor?.FieldLength,
@@ -35,7 +34,9 @@ public class GetMarketComparableTemplateByIdQueryHandler(
                 tf.Factor?.ParameterGroup,
                 tf.DisplaySequence,
                 tf.IsMandatory,
-                tf.Factor?.IsActive ?? false
+                tf.Factor?.IsActive ?? false,
+                tf.Factor?.Translations.Select(t => new FactorTranslationDto(t.Language, t.FactorName)).ToList()
+                    ?? []
             )).OrderBy(f => f.DisplaySequence).ToList(),
             template.CreatedAt,
             template.UpdatedAt

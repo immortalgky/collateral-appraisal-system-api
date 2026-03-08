@@ -6,7 +6,9 @@ namespace Appraisal.Application.Features.PricingAnalysis.SaveComparativeAnalysis
 public record SaveComparativeAnalysisRequest(
     IReadOnlyList<ComparativeFactorInput> ComparativeFactors,
     IReadOnlyList<FactorScoreInput> FactorScores,
-    IReadOnlyList<CalculationInput> Calculations
+    IReadOnlyList<CalculationInput> Calculations,
+    Guid? ComparativeAnalysisTemplateId = null,
+    decimal? AppraisalValue = null
 );
 
 /// <summary>
@@ -34,7 +36,10 @@ public record FactorScoreInput(
     int DisplaySequence,
     string? Value = null,
     decimal? Score = null,
+    decimal? Intensity = null, // WQS only
     decimal? AdjustmentPct = null,
+    decimal? AdjustmentAmt = null, // SaleGrid/DirectComparison
+    string? ComparisonResult = null, // SaleGrid/DirectComparison: Equal/Inferior/Superior
     string? Remarks = null
 );
 
@@ -46,11 +51,24 @@ public record CalculationInput(
     decimal? OfferingPrice = null,
     string? OfferingPriceUnit = null,
     decimal? AdjustOfferPricePct = null,
+    decimal? AdjustOfferPriceAmt = null,
     decimal? SellingPrice = null,
+    string? SellingPriceUnit = null,
     int? BuySellYear = null,
     int? BuySellMonth = null,
     decimal? AdjustedPeriodPct = null,
     decimal? CumulativeAdjPeriod = null,
+    decimal? LandAreaDeficient = null,
+    string? LandAreaDeficientUnit = null,
+    decimal? LandPrice = null,
+    decimal? LandValueAdjustment = null,
+    decimal? UsableAreaDeficient = null,
+    string? UsableAreaDeficientUnit = null,
+    decimal? UsableAreaPrice = null,
+    decimal? BuildingValueAdjustment = null,
+    decimal? TotalFactorDiffPct = null,
+    decimal? TotalFactorDiffAmt = null,
     decimal? TotalAdjustedValue = null,
-    decimal? Weight = null
+    decimal? Weight = null,
+    decimal? WeightedAdjustedValue = null
 );

@@ -1,3 +1,21 @@
+@font-face {
+    font-family: 'Roboto';
+    src: url('/Assets/fonts/Roboto-latin.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'Roboto';
+    src: url('/Assets/fonts/Roboto-latin-ext.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -76,6 +94,7 @@ form {
     font-style: normal;
     font-weight: 500;
     line-height: normal;
+    letter-spacing: 0.05em;
 }
 
 .input-container {
@@ -156,6 +175,51 @@ form {
     padding: 0.8rem;
     text-transform: uppercase;
     color: #F7F7F7;
+}
+
+.login-button:hover {
+    background-color: #579ea4;
+}
+
+.login-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.login-button.loading {
+    position: relative;
+    padding-left: 2.2rem;
+}
+
+.login-button.loading::before {
+    content: "";
+    position: absolute;
+    left: calc(50% - 2.8rem);
+    top: 50%;
+    width: 0.9rem;
+    height: 0.9rem;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.error-message {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.6rem 0.8rem;
+    background-color: #fef2f2;
+    border: 1px solid #e63946;
+    border-radius: 4px;
+    color: #e63946;
+    font-size: small;
+    text-align: left;
 }
 
 .secure-access-unauthorized {

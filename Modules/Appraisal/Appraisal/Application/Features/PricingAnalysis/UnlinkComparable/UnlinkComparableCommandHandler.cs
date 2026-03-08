@@ -40,8 +40,9 @@ public class UnlinkComparableCommandHandler(
         // Remove the link using domain method
         method.RemoveComparableLink(command.LinkId);
 
-        // Also remove associated calculation using domain method
+        // Also remove associated calculation and factor scores using domain methods
         method.RemoveCalculationByComparableId(marketComparableId);
+        method.RemoveFactorScoresByComparableId(marketComparableId);
 
         await repository.UpdateAsync(pricingAnalysis, cancellationToken);
 

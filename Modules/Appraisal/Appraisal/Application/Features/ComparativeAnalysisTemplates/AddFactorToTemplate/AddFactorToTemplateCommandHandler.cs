@@ -20,7 +20,9 @@ public class AddFactorToTemplateCommandHandler(
             command.FactorId,
             command.DisplaySequence,
             command.IsMandatory,
-            command.DefaultWeight
+            command.DefaultWeight,
+            command.DefaultIntensity,
+            command.IsCalculationFactor
         );
 
         templateRepository.Update(template);
@@ -31,7 +33,9 @@ public class AddFactorToTemplateCommandHandler(
             factor.FactorId,
             factor.DisplaySequence,
             factor.IsMandatory,
-            factor.DefaultWeight
+            factor.DefaultWeight,
+            factor.DefaultIntensity,
+            factor.IsCalculationFactor
         );
     }
 }

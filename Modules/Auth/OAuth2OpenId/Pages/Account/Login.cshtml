@@ -10,7 +10,6 @@
     <meta name="viewport" content="initial-scale=1, width=device-width">
 
     <link rel="stylesheet" href="/Assets/index.css"/>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap"/>
 
     <title>Login</title>
 </head>
@@ -29,6 +28,10 @@
                 <div class="collateral-appraisal-system-container">
                     <h1 class="collateral-appraisal">COLLATERAL APPRAISAL SYSTEM</h1>
                 </div>
+                @if (!string.IsNullOrEmpty(Model.Error))
+                {
+                    <div class="error-message">@Model.Error</div>
+                }
                 <div class="input-container">
                     <label class="input-label" for="name">
                         Username
@@ -45,7 +48,7 @@
                 </div>
                 <div class="remember-me-container">
                     <div class="remember-me">
-                        <input type="checkbox" id="remember-me">
+                        <input type="checkbox" id="remember-me" asp-for="RememberMe">
                         <label for="remember-me" class="circle-label"><span>Circle label</span></label>
                         <label for="remember-me" class="remember-me-text">Remember me</label>
                     </div>
@@ -60,6 +63,14 @@
         </div>
     </div>
 </div>
+<script>
+    document.querySelector('form').addEventListener('submit', function () {
+        var btn = document.querySelector('.login-button');
+        btn.disabled = true;
+        btn.textContent = 'Logging in...';
+        btn.classList.add('loading');
+    });
+</script>
 </body>
 
 </html>

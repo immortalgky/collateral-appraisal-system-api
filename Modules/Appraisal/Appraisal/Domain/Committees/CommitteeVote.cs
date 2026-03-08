@@ -42,7 +42,7 @@ public class CommitteeVote : Entity<Guid>
 
     private static void ValidateVote(string vote)
     {
-        var validVotes = new[] { "Approve", "Reject", "Abstain" };
+        var validVotes = new[] { "Approve", "Reject", "Abstain", "RouteBack" };
         if (!validVotes.Contains(vote))
             throw new ArgumentException($"Invalid vote: {vote}");
     }

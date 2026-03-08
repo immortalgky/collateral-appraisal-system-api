@@ -51,7 +51,6 @@ public record FactorDataDto
     public Guid Id { get; set; }
     public Guid FactorId { get; set; }
     public string FactorCode { get; set; } = default!;
-    public string FactorName { get; set; } = default!;
     public string FieldName { get; set; } = default!;
     public FactorDataType DataType { get; set; }
     public int? FieldLength { get; set; }
@@ -59,7 +58,10 @@ public record FactorDataDto
     public string? ParameterGroup { get; set; }
     public string? Value { get; set; }
     public string? OtherRemarks { get; set; }
+    public List<FactorTranslationDto> Translations { get; set; } = [];
 }
+
+public record FactorTranslationDto(string Language, string FactorName);
 
 /// <summary>
 /// DTO for image item

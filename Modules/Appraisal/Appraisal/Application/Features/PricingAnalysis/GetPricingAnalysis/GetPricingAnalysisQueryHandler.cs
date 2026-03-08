@@ -19,11 +19,13 @@ public class GetPricingAnalysisQueryHandler(
         var approaches = pricingAnalysis.Approaches.Select(a => new ApproachDto(
             a.Id,
             a.ApproachType,
+            a.IsSelected,
             a.Methods.Select(m => new MethodDto(
                 m.Id,
                 m.MethodType,
                 m.MethodValue,
-                m.IsSelected
+                m.IsSelected,
+                m.ComparativeAnalysisTemplateId
             )).ToList()
         )).ToList();
 
@@ -40,6 +42,7 @@ public class GetPricingAnalysisQueryHandler(
 public record ApproachDto(
     Guid Id,
     string ApproachType,
+    bool IsSelected,
     List<MethodDto> Methods
 );
 
@@ -47,5 +50,6 @@ public record MethodDto(
     Guid Id,
     string MethodType,
     decimal? MethodValue,
-    bool IsSelected
+    bool IsSelected,
+    Guid? ComparativeAnalysisTemplateId
 );

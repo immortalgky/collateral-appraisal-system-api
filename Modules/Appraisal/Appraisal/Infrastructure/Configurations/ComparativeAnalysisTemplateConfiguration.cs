@@ -55,6 +55,8 @@ public class ComparativeAnalysisTemplateFactorConfiguration : IEntityTypeConfigu
         builder.Property(f => f.DisplaySequence).IsRequired();
         builder.Property(f => f.IsMandatory).IsRequired().HasDefaultValue(false);
         builder.Property(f => f.DefaultWeight).HasPrecision(5, 2);
+        builder.Property(f => f.DefaultIntensity).HasPrecision(5, 2);
+        builder.Property(f => f.IsCalculationFactor).IsRequired().HasDefaultValue(false);
 
         builder.HasIndex(f => new { f.TemplateId, f.FactorId }).IsUnique();
         builder.HasIndex(f => f.TemplateId);

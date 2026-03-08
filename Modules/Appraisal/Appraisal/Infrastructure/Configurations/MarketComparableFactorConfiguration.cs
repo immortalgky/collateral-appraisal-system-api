@@ -10,7 +10,6 @@ public class MarketComparableFactorConfiguration : IEntityTypeConfiguration<Mark
         builder.Property(f => f.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
         builder.Property(f => f.FactorCode).IsRequired().HasMaxLength(50);
-        builder.Property(f => f.FactorName).IsRequired().HasMaxLength(200);
         builder.Property(f => f.FieldName).IsRequired().HasMaxLength(100);
         builder.Property(f => f.DataType).IsRequired().HasConversion<string>().HasMaxLength(20);
         builder.Property(f => f.FieldLength);
@@ -23,5 +22,14 @@ public class MarketComparableFactorConfiguration : IEntityTypeConfiguration<Mark
 
         builder.HasIndex(f => f.FactorCode).IsUnique();
         builder.HasIndex(f => f.IsActive);
+
+        builder.OwnsMany(f => f.Translations, t =>
+        {
+            t.ToTable("MarketComparableFactorTranslations");
+            t.WithOwner().HasForeignKey(x => x.MarketComparableFactorId);
+            t.Property(x => x.Language).IsRequired().HasMaxLength(10);
+            t.Property(x => x.FactorName).IsRequired().HasMaxLength(200);
+            t.HasKey(x => new { x.MarketComparableFactorId, x.Language });
+        });
     }
 }

@@ -52,4 +52,33 @@ public class CommitteeRepository(AppraisalDbContext dbContext)
             .OrderBy(c => c.CommitteeName)
             .ToListAsync(cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task<CommitteeVote?> GetVoteByReviewAndMemberAsync(Guid reviewId, Guid committeeMemberId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.CommitteeVotes
+            .FirstOrDefaultAsync(v => v.ReviewId == reviewId && v.CommitteeMemberId == committeeMemberId,
+                cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task AddVoteAsync(CommitteeVote vote, CancellationToken cancellationToken = default)
+    {
+        await _dbContext.CommitteeVotes.AddAsync(vote, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<Committee?> GetCommitteeForValueAsync(decimal value,
+        CancellationToken cancellationToken = default)
+    {
+        var threshold = await _dbContext.CommitteeThresholds
+            .Where(t => t.IsActive && t.MinValue <= value && (t.MaxValue == null || t.MaxValue > value))
+            .OrderBy(t => t.Priority)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (threshold == null) return null;
+
+        return await GetByIdWithMembersAsync(threshold.CommitteeId, cancellationToken);
+    }
 }

@@ -19,7 +19,10 @@ public class PricingFactorScore : Entity<Guid>
     public string? Value { get; private set; }
     public decimal? Score { get; private set; }
     public decimal? WeightedScore { get; private set; }
+    public decimal? Intensity { get; private set; } // WQS only
     public decimal? AdjustmentPct { get; private set; }
+    public decimal? AdjustmentAmt { get; private set; } // SaleGrid/DirectComparison
+    public string? ComparisonResult { get; private set; } // SaleGrid/DirectComparison: Equal/Inferior/Superior
 
     public string? Remarks { get; private set; }
 
@@ -47,16 +50,19 @@ public class PricingFactorScore : Entity<Guid>
         };
     }
 
-    public void SetValues(string? value, decimal? score)
+    public void SetValues(string? value, decimal? score, decimal? intensity = null)
     {
         Value = value;
         Score = score;
+        Intensity = intensity;
         CalculateWeightedScore();
     }
 
-    public void SetAdjustment(decimal? adjustmentPct, string? remarks = null)
+    public void SetAdjustment(decimal? adjustmentPct, decimal? adjustmentAmt = null, string? comparisonResult = null, string? remarks = null)
     {
         AdjustmentPct = adjustmentPct;
+        AdjustmentAmt = adjustmentAmt;
+        ComparisonResult = comparisonResult;
         Remarks = remarks;
     }
 
@@ -77,7 +83,7 @@ public class PricingFactorScore : Entity<Guid>
     private void CalculateWeightedScore()
     {
         if (Score.HasValue)
-            WeightedScore = Score.Value * (FactorWeight / 100m);
+            WeightedScore = Score.Value * FactorWeight;
         else
             WeightedScore = null;
     }
@@ -91,7 +97,10 @@ public class PricingFactorScore : Entity<Guid>
         string? value,
         decimal? score,
         decimal? adjustmentPct,
-        string? remarks)
+        string? remarks,
+        decimal? intensity = null,
+        decimal? adjustmentAmt = null,
+        string? comparisonResult = null)
     {
         if (factorWeight < 0 || factorWeight > 100)
             throw new ArgumentException("FactorWeight must be between 0 and 100");
@@ -100,7 +109,10 @@ public class PricingFactorScore : Entity<Guid>
         DisplaySequence = displaySequence;
         Value = value;
         Score = score;
+        Intensity = intensity;
         AdjustmentPct = adjustmentPct;
+        AdjustmentAmt = adjustmentAmt;
+        ComparisonResult = comparisonResult;
         Remarks = remarks;
         CalculateWeightedScore();
     }

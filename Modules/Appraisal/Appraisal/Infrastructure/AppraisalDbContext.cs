@@ -59,10 +59,12 @@ public class AppraisalDbContext : DbContext
     // Review & Committee Entities
     // =====================================================
     public DbSet<AppraisalReview> AppraisalReviews => Set<AppraisalReview>();
+    public DbSet<AppraisalDecision> AppraisalDecisions => Set<AppraisalDecision>();
     public DbSet<Committee> Committees => Set<Committee>();
     public DbSet<CommitteeMember> CommitteeMembers => Set<CommitteeMember>();
     public DbSet<CommitteeApprovalCondition> CommitteeApprovalConditions => Set<CommitteeApprovalCondition>();
     public DbSet<CommitteeVote> CommitteeVotes => Set<CommitteeVote>();
+    public DbSet<CommitteeThreshold> CommitteeThresholds => Set<CommitteeThreshold>();
 
     // =====================================================
     // Fee & Gallery Entities
@@ -115,6 +117,7 @@ public class AppraisalDbContext : DbContext
     public DbSet<PricingFactorScore> PricingFactorScores => Set<PricingFactorScore>();
     public DbSet<PricingFinalValue> PricingFinalValues => Set<PricingFinalValue>();
     public DbSet<PricingComparativeFactor> PricingComparativeFactors => Set<PricingComparativeFactor>();
+    public DbSet<PricingRsqResult> PricingRsqResults => Set<PricingRsqResult>();
 
     // =====================================================
     // Comparative Analysis Templates

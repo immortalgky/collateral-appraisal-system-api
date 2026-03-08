@@ -1,5 +1,6 @@
 using Appraisal.Application.Services;
 using Appraisal.Domain.ComparativeAnalysis;
+using Appraisal.Domain.Services;
 using Appraisal.Infrastructure.Repositories;
 using Appraisal.Infrastructure.Seed;
 using Shared.Data.Seed;
@@ -57,12 +58,19 @@ public static class AppraisalModule
         // Register Appendix repository
         services.AddScoped<IAppraisalAppendixRepository, AppraisalAppendixRepository>();
 
+        // Register Decision repository
+        services.AddScoped<IAppraisalDecisionRepository, AppraisalDecisionRepository>();
+
         // Register Application Services
         services.AddScoped<IAppraisalCreationService, AppraisalCreationService>();
+
+        // Register Domain Services
+        services.AddSingleton<PricingCalculationServiceResolver>();
 
         // Register Data Seeders
         services.AddScoped<IDataSeeder<AppraisalDbContext>, DocumentRequirementDataSeed>();
         services.AddScoped<IDataSeeder<AppraisalDbContext>, AppendixTypeDataSeed>();
+        services.AddScoped<IDataSeeder<AppraisalDbContext>, CommitteeThresholdDataSeed>();
 
         return services;
     }

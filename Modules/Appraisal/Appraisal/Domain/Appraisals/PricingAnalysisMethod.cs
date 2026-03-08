@@ -16,6 +16,7 @@ public class PricingAnalysisMethod : Entity<Guid>
     public IReadOnlyList<PricingFactorScore> FactorScores => _factorScores.AsReadOnly();
 
     public Guid ApproachId { get; private set; }
+    public Guid? ComparativeAnalysisTemplateId { get; private set; }
 
     // Method
     public string MethodType { get; private set; } =
@@ -27,6 +28,9 @@ public class PricingAnalysisMethod : Entity<Guid>
 
     // Final Value (1:1)
     public PricingFinalValue? FinalValue { get; private set; }
+
+    // RSQ Result (1:1, WQS only)
+    public PricingRsqResult? RsqResult { get; private set; }
 
     private PricingAnalysisMethod()
     {
@@ -78,6 +82,11 @@ public class PricingAnalysisMethod : Entity<Guid>
         UnitType = unitType;
     }
 
+    public void SetComparativeAnalysisTemplate(Guid? templateId)
+    {
+        ComparativeAnalysisTemplateId = templateId;
+    }
+
     public void SetAsSelected()
     {
         IsSelected = true;
@@ -91,6 +100,11 @@ public class PricingAnalysisMethod : Entity<Guid>
     public void SetFinalValue(PricingFinalValue finalValue)
     {
         FinalValue = finalValue;
+    }
+
+    public void SetRsqResult(PricingRsqResult rsqResult)
+    {
+        RsqResult = rsqResult;
     }
 
     /// <summary>
@@ -112,6 +126,15 @@ public class PricingAnalysisMethod : Entity<Guid>
     {
         var calculation = _calculations.FirstOrDefault(c => c.MarketComparableId == marketComparableId);
         if (calculation is not null) _calculations.Remove(calculation);
+    }
+
+    /// <summary>
+    /// Removes all factor scores for a specific market comparable
+    /// </summary>
+    public void RemoveFactorScoresByComparableId(Guid marketComparableId)
+    {
+        var scores = _factorScores.Where(f => f.MarketComparableId == marketComparableId).ToList();
+        foreach (var score in scores) _factorScores.Remove(score);
     }
 
     #region Comparative Factor Methods (Step 1)
@@ -205,6 +228,35 @@ public class PricingAnalysisMethod : Entity<Guid>
     public void ClearFactorScores()
     {
         _factorScores.Clear();
+    }
+
+    /// <summary>
+    /// Clears all calculations
+    /// </summary>
+    public void ClearCalculations()
+    {
+        _calculations.Clear();
+    }
+
+    /// <summary>
+    /// Clears all comparable links
+    /// </summary>
+    public void ClearComparableLinks()
+    {
+        _comparableLinks.Clear();
+    }
+
+    /// <summary>
+    /// Resets all method data: factors, scores, calculations, links, final value, and RSQ result
+    /// </summary>
+    public void Reset()
+    {
+        ClearComparativeFactors();
+        ClearFactorScores();
+        ClearCalculations();
+        ClearComparableLinks();
+        FinalValue = null;
+        RsqResult = null;
     }
 
     /// <summary>

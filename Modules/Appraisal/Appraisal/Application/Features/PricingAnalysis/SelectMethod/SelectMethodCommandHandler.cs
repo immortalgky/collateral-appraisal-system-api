@@ -47,8 +47,25 @@ public class SelectMethodCommandHandler(
             }
         }
 
+        // Mark parent approach as selected, unselect all others
+        foreach (var approach in pricingAnalysis.Approaches)
+        {
+            if (approach.Id == parentApproach.Id)
+                approach.Select();
+            else
+                approach.Unselect();
+        }
+
+        // Propagate selected method's MethodValue → ApproachValue → FinalAppraisedValue
+        if (targetMethod.MethodValue.HasValue)
+        {
+            parentApproach.SetValue(targetMethod.MethodValue.Value);
+            pricingAnalysis.SetFinalValues(targetMethod.MethodValue.Value);
+        }
+
         return new SelectMethodResult(
             targetMethod.Id,
-            targetMethod.MethodType);
+            targetMethod.MethodType,
+            pricingAnalysis.FinalAppraisedValue);
     }
 }
