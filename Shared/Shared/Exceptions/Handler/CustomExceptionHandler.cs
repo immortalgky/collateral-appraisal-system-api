@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -16,6 +17,12 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
 
         var (detail, title, statusCode) = exception switch
         {
+            BadHttpRequestException badHttpEx =>
+            (
+                GetFriendlyDeserializationMessage(badHttpEx),
+                "InvalidRequestFormat",
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest
+            ),
             BadRequestException =>
             (
                 exception.Message,
@@ -81,5 +88,15 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
 
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
         return true;
+    }
+
+    private static string GetFriendlyDeserializationMessage(BadHttpRequestException ex)
+    {
+        if (ex.InnerException is JsonException jsonEx && jsonEx.Path is not null)
+        {
+            return $"Invalid value at '{jsonEx.Path}'. Please check the data type and format.";
+        }
+
+        return "Invalid request format. Please check your input data types and try again.";
     }
 }

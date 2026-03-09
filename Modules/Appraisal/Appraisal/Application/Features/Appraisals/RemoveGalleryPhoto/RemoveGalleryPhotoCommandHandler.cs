@@ -1,10 +1,13 @@
 using Appraisal.Domain.Appraisals;
+using MassTransit;
 using Shared.CQRS;
+using Shared.Messaging.Events;
 
 namespace Appraisal.Application.Features.Appraisals.RemoveGalleryPhoto;
 
 public class RemoveGalleryPhotoCommandHandler(
-    IAppraisalGalleryRepository galleryRepository
+    IAppraisalGalleryRepository galleryRepository,
+    IBus bus
 ) : ICommandHandler<RemoveGalleryPhotoCommand, RemoveGalleryPhotoResult>
 {
     public async Task<RemoveGalleryPhotoResult> Handle(
@@ -41,7 +44,13 @@ public class RemoveGalleryPhotoCommandHandler(
         // Delete any topic mappings linked to this photo
         await galleryRepository.DeleteTopicMappingsByPhotoIdAsync(command.PhotoId, cancellationToken);
 
+        var documentId = photo.DocumentId;
+
         await galleryRepository.DeleteAsync(photo, cancellationToken);
+
+        await bus.Publish(
+            new DocumentUnlinkedIntegrationEvent(command.PhotoId, documentId),
+            cancellationToken);
 
         return new RemoveGalleryPhotoResult(true);
     }
