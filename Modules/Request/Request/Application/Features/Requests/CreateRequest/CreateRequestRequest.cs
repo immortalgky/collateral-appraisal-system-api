@@ -1,7 +1,7 @@
 namespace Request.Application.Features.Requests.CreateRequest;
 
 public record CreateRequestRequest(
-    Guid SessionId,
+    Guid? SessionId,
     string Purpose,
     string Channel,
     UserInfoDto Requestor,

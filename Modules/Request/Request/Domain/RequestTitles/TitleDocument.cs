@@ -97,8 +97,8 @@ public static class TitleDocumentValidator
 
         ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(documentData.DocumentType),
             "documentType is null or contains only whitespace.");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(documentData.UploadedBy),
-            "uploadBy is null or contains only whitespace.");
+        ruleCheck.AddErrorIf(documentData.DocumentId.HasValue && string.IsNullOrWhiteSpace(documentData.UploadedBy),
+            "uploadedBy is null or contains only whitespace.");
 
         ruleCheck.ThrowIfInvalid();
     }
