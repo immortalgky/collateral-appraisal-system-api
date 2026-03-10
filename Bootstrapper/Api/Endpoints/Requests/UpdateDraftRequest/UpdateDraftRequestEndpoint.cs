@@ -8,7 +8,7 @@ public class UpdateDraftRequestEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPatch("/requests/{id:guid}/draft",
+        app.MapPut("/requests/{id:guid}/draft",
                 async (Guid id, UpdateDraftRequestRequest request, ISender sender,
                     CancellationToken cancellationToken) =>
                 {

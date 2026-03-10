@@ -9,6 +9,7 @@ internal class UpdateDraftRequestCommandHandler(
         CancellationToken cancellationToken)
     {
         var request = await UpdateDraftRequestAsync(command, cancellationToken);
+        request.UpdateStatus(RequestStatus.Draft);
 
         if (command.Documents is not null)
             await syncService.SyncDocumentsAsync(request, command.Documents, cancellationToken);

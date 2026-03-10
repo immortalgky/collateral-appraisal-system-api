@@ -1,18 +1,15 @@
-using Request.Contracts.RequestDocuments.Dto;
-
 namespace Request.Application.Features.Requests.UpdateDraftRequest;
 
 public record UpdateDraftRequestRequest(
-    Guid Id,
-    Guid SessionId, // Add during sync requestTitles
-    RequestDetailDto Detail,
-    bool IsPMA,
-    string Purpose,
-    string Priority,
-    SourceSystemDto SourceSystem,
+    string? Purpose,
+    string? Channel,
+    UserInfoDto Requestor,
+    UserInfoDto Creator,
+    string? Priority,
+    bool IsPma,
+    RequestDetailDto? Detail,
     List<RequestCustomerDto>? Customers,
     List<RequestPropertyDto>? Properties,
-    List<RequestDocumentDto>? Documents,
-    List<RequestCommentDto> Comments,
-    List<RequestTitleDto> Titles
+    List<RequestTitleDto>? Titles,
+    List<RequestDocumentDto>? Documents
 );

@@ -1,6 +1,7 @@
 namespace Request.Application.Features.Requests.CreateDraftRequest;
 
 public record CreateDraftRequestCommand(
+    Guid? SessionId,
     string? Purpose,
     string? Channel,
     UserInfoDto Requestor,

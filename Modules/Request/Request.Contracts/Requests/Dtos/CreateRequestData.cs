@@ -3,11 +3,11 @@ using Request.Contracts.RequestDocuments.Dto;
 namespace Request.Contracts.Requests.Dtos;
 
 public record CreateRequestData(
-    string Purpose,
-    string Channel,
+    string? Purpose,
+    string? Channel,
     UserInfoDto Requestor,
     UserInfoDto Creator,
-    string Priority,
+    string? Priority,
     bool IsPma,
     RequestDetailDto? Detail,
     List<RequestCustomerDto>? Customers,
@@ -16,4 +16,3 @@ public record CreateRequestData(
     List<RequestDocumentDto>? Documents,
     List<RequestCommentDto>? Comments
 );
-

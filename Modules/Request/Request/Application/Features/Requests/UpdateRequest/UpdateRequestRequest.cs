@@ -1,11 +1,11 @@
 namespace Request.Application.Features.Requests.UpdateRequest;
 
 public record UpdateRequestRequest(
-    string Purpose,
-    string Channel,
+    string? Purpose,
+    string? Channel,
     UserInfoDto Requestor,
     UserInfoDto Creator,
-    string Priority,
+    string? Priority,
     bool IsPma,
     RequestDetailDto? Detail,
     List<RequestCustomerDto>? Customers,
