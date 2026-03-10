@@ -298,8 +298,8 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
                     titleData.LandParcelNumber, titleData.SurveyNumber,
                     titleData.MapSheetNumber, titleData.Rawang,
                     titleData.AerialMapName, titleData.AerialMapNumber,
-                    area, titleData.HasBoundaryMarker, titleData.BoundaryMarkerRemark,
-                    titleData.IsDocumentValidated, titleData.IsMissingFromSurvey,
+                    area, titleData.BoundaryMarkerType, titleData.BoundaryMarkerRemark,
+                    titleData.DocumentValidationResultType, titleData.IsMissingFromSurvey,
                     titleData.GovernmentPricePerSqWa, titleData.GovernmentPrice,
                     titleData.Remark);
             }
@@ -312,8 +312,8 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
                     titleData.LandParcelNumber, titleData.SurveyNumber,
                     titleData.MapSheetNumber, titleData.Rawang,
                     titleData.AerialMapName, titleData.AerialMapNumber,
-                    area, titleData.HasBoundaryMarker, titleData.BoundaryMarkerRemark,
-                    titleData.IsDocumentValidated, titleData.IsMissingFromSurvey,
+                    area, titleData.BoundaryMarkerType, titleData.BoundaryMarkerRemark,
+                    titleData.DocumentValidationResultType, titleData.IsMissingFromSurvey,
                     titleData.GovernmentPricePerSqWa, titleData.GovernmentPrice,
                     titleData.Remark);
                 landDetail.AddTitle(title);

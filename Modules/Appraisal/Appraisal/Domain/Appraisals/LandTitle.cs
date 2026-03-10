@@ -23,9 +23,9 @@ public class LandTitle : Entity<Guid>
     public LandArea? Area { get; private set; }
 
     // Boundary & Validation
-    public bool? HasBoundaryMarker { get; private set; }
+    public string? BoundaryMarkerType { get; private set; }
     public string? BoundaryMarkerRemark { get; private set; }
-    public bool? IsDocumentValidated { get; private set; }
+    public string? DocumentValidationResultType { get; private set; }
     public bool? IsMissingFromSurvey { get; private set; }
 
     // Pricing
@@ -64,9 +64,9 @@ public class LandTitle : Entity<Guid>
         string? aerialMapName,
         string? aerialMapNumber,
         LandArea? area,
-        bool? hasBoundaryMarker,
+        string? boundaryMarkerType,
         string? boundaryMarkerRemark,
-        bool? isDocumentValidated,
+        string? documentValidationResultType,
         bool? isMissingFromSurvey,
         decimal? governmentPricePerSqWa,
         decimal? governmentPrice,
@@ -82,9 +82,9 @@ public class LandTitle : Entity<Guid>
         AerialMapName = aerialMapName;
         AerialMapNumber = aerialMapNumber;
         Area = area;
-        HasBoundaryMarker = hasBoundaryMarker;
+        BoundaryMarkerType = boundaryMarkerType;
         BoundaryMarkerRemark = boundaryMarkerRemark;
-        IsDocumentValidated = isDocumentValidated;
+        DocumentValidationResultType = documentValidationResultType;
         IsMissingFromSurvey = isMissingFromSurvey;
         GovernmentPricePerSqWa = governmentPricePerSqWa;
         GovernmentPrice = governmentPrice;

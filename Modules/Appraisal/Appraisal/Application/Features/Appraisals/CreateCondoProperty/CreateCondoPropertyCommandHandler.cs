@@ -52,7 +52,7 @@ public class CreateCondoPropertyCommandHandler(
             command.BuildingConditionType,
             command.HasObligation,
             command.ObligationDetails,
-            command.IsDocumentValidated,
+            command.DocumentValidationResultType,
             command.LocationType,
             command.Street,
             command.Soi,
