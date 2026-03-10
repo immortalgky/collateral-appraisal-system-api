@@ -36,7 +36,7 @@ public record GetCondoPropertyResult(
     string? BuildingConditionType,
     bool? HasObligation,
     string? ObligationDetails,
-    bool? IsDocumentValidated,
+    string? DocumentValidationResultType,
     // Location Details
     string? LocationType,
     string? Street,

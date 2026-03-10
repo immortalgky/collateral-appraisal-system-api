@@ -30,7 +30,7 @@ public record UpdateCondoPropertyCommand(
     string? BuildingConditionType = null,
     bool? HasObligation = null,
     string? ObligationDetails = null,
-    bool? IsDocumentValidated = null,
+    string? DocumentValidationResultType = null,
     // Location Details
     string? LocationType = null,
     string? Street = null,

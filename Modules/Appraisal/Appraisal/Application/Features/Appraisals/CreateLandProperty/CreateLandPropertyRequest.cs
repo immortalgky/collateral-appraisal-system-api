@@ -118,9 +118,9 @@ public record LandTitleItemRequest(
     decimal? Ngan = null,
     decimal? SquareWa = null,
     // Boundary & Validation
-    bool? HasBoundaryMarker = null,
+    string? BoundaryMarkerType = null,
     string? BoundaryMarkerRemark = null,
-    bool? IsDocumentValidated = null,
+    string? DocumentValidationResultType = null,
     bool? IsMissingFromSurvey = null,
     // Pricing
     decimal? GovernmentPricePerSqWa = null,

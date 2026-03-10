@@ -56,7 +56,7 @@ public class GetCondoPropertyQueryHandler(
             BuildingConditionType: detail.BuildingConditionType,
             HasObligation: detail.HasObligation,
             ObligationDetails: detail.ObligationDetails,
-            IsDocumentValidated: detail.IsDocumentValidated,
+            DocumentValidationResultType: detail.DocumentValidationResultType,
             LocationType: detail.LocationType,
             Street: detail.Street,
             Soi: detail.Soi,
