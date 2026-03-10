@@ -2,11 +2,11 @@ namespace Request.Application.Features.Requests.CreateRequest;
 
 public record CreateRequestCommand(
     Guid? SessionId,
-    string Purpose,
-    string Channel,
+    string? Purpose,
+    string? Channel,
     UserInfoDto Requestor,
     UserInfoDto Creator,
-    string Priority,
+    string? Priority,
     bool IsPma,
     RequestDetailDto? Detail,
     List<RequestCustomerDto>? Customers,

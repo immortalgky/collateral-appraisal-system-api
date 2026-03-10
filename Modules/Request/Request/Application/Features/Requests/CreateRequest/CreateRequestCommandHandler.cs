@@ -12,6 +12,7 @@ public class CreateRequestCommandHandler(
         var request = await createRequestService.CreateRequestAsync(createRequestData, cancellationToken);
 
         request.Validate();
+        request.UpdateStatus(RequestStatus.New);
 
         if (command.SessionId.HasValue)
         {

@@ -71,12 +71,6 @@ public class Request : Aggregate<Guid>
 
     public void Save(RequestData data)
     {
-        ArgumentNullException.ThrowIfNull(data.Purpose);
-        ArgumentNullException.ThrowIfNull(data.Channel);
-        ArgumentNullException.ThrowIfNull(data.Requestor);
-        ArgumentNullException.ThrowIfNull(data.Creator);
-        ArgumentNullException.ThrowIfNull(data.Priority);
-
         Purpose = data.Purpose;
         Channel = data.Channel;
         Requestor = data.Requestor;

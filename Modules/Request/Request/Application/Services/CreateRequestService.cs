@@ -105,9 +105,6 @@ public class CreateRequestService(
                     doc.UploadedAt
                 ));
 
-        request.Validate();
-        request.UpdateStatus(RequestStatus.New);
-
         await requestRepository.AddAsync(request, cancellationToken);
 
         return request;
