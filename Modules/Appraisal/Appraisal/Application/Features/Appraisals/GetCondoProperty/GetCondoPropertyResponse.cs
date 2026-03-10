@@ -65,7 +65,7 @@ public record GetCondoPropertyResponse(
     string? UpperFloorMaterialTypeOther,
     string? BathroomFloorMaterialType,
     string? BathroomFloorMaterialTypeOther,
-    string? RoofType,
+    List<string>? RoofType,
     string? RoofTypeOther,
     // Area
     List<CondoAppraisalAreaDetailDto>? AreaDetails,
