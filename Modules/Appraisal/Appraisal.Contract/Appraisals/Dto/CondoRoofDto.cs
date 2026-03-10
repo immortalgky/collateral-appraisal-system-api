@@ -1,3 +1,3 @@
 namespace Appraisal.Contracts.Appraisals.Dto;
 
-public record CondoRoofDto(string? Roof, string? RoofOther);
+public record CondoRoofDto(List<string>? Roof, string? RoofOther);

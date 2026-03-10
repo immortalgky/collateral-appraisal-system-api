@@ -66,7 +66,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? UpperFloorMaterialTypeOther { get; private set; }
     public string? BathroomFloorMaterialType { get; private set; }
     public string? BathroomFloorMaterialTypeOther { get; private set; }
-    public string? RoofType { get; private set; }
+    public List<string>? RoofType { get; private set; }
     public string? RoofTypeOther { get; private set; }
 
     // Area
@@ -160,7 +160,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? upperFloorMaterialTypeOther = null,
         string? bathroomFloorMaterialType = null,
         string? bathroomFloorMaterialTypeOther = null,
-        string? roofType = null,
+        List<string>? roofType = null,
         string? roofTypeOther = null,
         // Area
         decimal? totalBuildingArea = null,

@@ -57,7 +57,7 @@ public record CreateCondoPropertyRequest(
     string? UpperFloorMaterialTypeOther = null,
     string? BathroomFloorMaterialType = null,
     string? BathroomFloorMaterialTypeOther = null,
-    string? RoofType = null,
+    List<string>? RoofType = null,
     string? RoofTypeOther = null,
     // Area
     List<CondoAppraisalAreaDetailDto>? AreaDetails = null,
