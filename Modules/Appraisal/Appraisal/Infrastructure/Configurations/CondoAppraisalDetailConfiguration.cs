@@ -83,7 +83,11 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.UpperFloorMaterialTypeOther).HasMaxLength(200);
         builder.Property(e => e.BathroomFloorMaterialType).HasMaxLength(100);
         builder.Property(e => e.BathroomFloorMaterialTypeOther).HasMaxLength(200);
-        builder.Property(e => e.RoofType).HasMaxLength(100);
+        builder.Property(e => e.RoofType)
+            .HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+            .HasColumnType("nvarchar(500)");
         builder.Property(e => e.RoofTypeOther).HasMaxLength(200);
 
         // Area
