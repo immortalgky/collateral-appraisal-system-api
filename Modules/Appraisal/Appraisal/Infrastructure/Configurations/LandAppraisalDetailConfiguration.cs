@@ -55,13 +55,13 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
         builder.Property(e => e.LandZoneType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
 
         builder.Property(e => e.PlotLocationType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.PlotLocationTypeOther).HasMaxLength(200);
 
@@ -87,28 +87,28 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
         builder.Property(e => e.PublicUtilityType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.PublicUtilityTypeOther).HasMaxLength(200);
 
         builder.Property(e => e.LandUseType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.LandUseTypeOther).HasMaxLength(200);
 
         builder.Property(e => e.LandEntranceExitType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.LandEntranceExitTypeOther).HasMaxLength(200);
 
         builder.Property(e => e.TransportationAccessType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.TransportationAccessTypeOther).HasMaxLength(200);
         builder.Property(e => e.PropertyAnticipationType).HasMaxLength(100);
@@ -127,7 +127,7 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
         builder.Property(e => e.EvictionType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => v == null ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.EvictionTypeOther).HasMaxLength(200);
         builder.Property(e => e.AllocationType).HasMaxLength(100);

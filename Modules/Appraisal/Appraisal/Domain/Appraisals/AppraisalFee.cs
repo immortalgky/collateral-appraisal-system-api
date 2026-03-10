@@ -163,5 +163,7 @@ public class AppraisalFee : Entity<Guid>
             PaymentStatus = "Paid";
         else if (TotalPaidAmount > 0)
             PaymentStatus = "Partial";
+        else
+            PaymentStatus = "NotPaid";
     }
 }
