@@ -17,6 +17,8 @@ internal class UpdateRequestCommandHandler(
             titles = await syncService.SyncTitlesAsync(command.Id, command.Titles, cancellationToken);
 
         request.Validate();
+        request.UpdateStatus(RequestStatus.New);
+
         foreach (var title in titles)
             title.Validate();
 
