@@ -1,5 +1,6 @@
 using Appraisal;
 using Document.Data;
+using Common;
 using Integration.Infrastructure;
 using MassTransit;
 using MassTransit.EntityFrameworkCoreIntegration;
@@ -33,11 +34,12 @@ var workflowAssembly = typeof(WorkflowModule).Assembly;
 var collateralAssembly = typeof(CollateralModule).Assembly;
 var appraisalAssembly = typeof(AppraisalModule).Assembly;
 var integrationAssembly = typeof(IntegrationModule).Assembly;
+var commonAssembly = typeof(CommonModule).Assembly;
 
 builder.Services.AddCarterWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
-    parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly);
+    parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly, commonAssembly);
 builder.Services.AddMediatRWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
-    parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly);
+    parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly, commonAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -134,7 +136,8 @@ builder.Services
     .AddWorkflowModule(builder.Configuration)
     .AddCollateralModule(builder.Configuration)
     .AddAppraisalModule(builder.Configuration)
-    .AddIntegrationModule(builder.Configuration);
+    .AddIntegrationModule(builder.Configuration)
+    .AddCommonModule(builder.Configuration);
 
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -232,7 +235,8 @@ app
     .UseOpenIddictModule()
     .UseCollateralModule()
     .UseAppraisalModule()
-    .UseIntegrationModule();
+    .UseIntegrationModule()
+    .UseCommonModule();
 
 await app.RunAsync();
 

@@ -45,6 +45,11 @@ public class PricingAnalysisApproach : Entity<Guid>
         ApproachValue = value;
     }
 
+    public void ClearValue()
+    {
+        ApproachValue = null;
+    }
+
     public void Select()
     {
         IsSelected = true;

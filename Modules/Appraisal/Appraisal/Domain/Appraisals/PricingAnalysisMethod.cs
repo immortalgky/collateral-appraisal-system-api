@@ -257,6 +257,10 @@ public class PricingAnalysisMethod : Entity<Guid>
         ClearComparableLinks();
         FinalValue = null;
         RsqResult = null;
+        MethodValue = null;
+        ValuePerUnit = null;
+        UnitType = null;
+        IsSelected = false;
     }
 
     /// <summary>

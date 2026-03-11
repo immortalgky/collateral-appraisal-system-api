@@ -10,6 +10,9 @@ public static class ParameterModule
         services.AddScoped<IParameterRepository, ParameterRepository>();
         services.Decorate<IParameterRepository, CachedParameterRepository>();
 
+        services.AddScoped<IAddressRepository, AddressRepository>();
+        services.Decorate<IAddressRepository, CachedAddressRepository>();
+
         services.AddDbContext<ParameterDbContext>((sp, options) =>
         {
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());

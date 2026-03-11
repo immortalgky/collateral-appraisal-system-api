@@ -8,4 +8,7 @@ public sealed record GetRequestListItem
     public string? Purpose { get; init; }
     public string? Channel { get; init; }
     public string? Priority { get; init; }
+    public string? CustomerName { get; init; }
+    public string? ContactNumber { get; init; }
+    public DateTime CreatedAt { get; init; }
 }

@@ -25,3 +25,6 @@ global using Shared.Extensions;
 global using Shared.Data.Extensions;
 global using Shared.Data.Seed;
 global using Shared.CQRS;
+
+global using Parameter.Addresses.Models;
+global using Parameter.Addresses.Features;
