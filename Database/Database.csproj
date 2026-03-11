@@ -29,6 +29,7 @@
 
 
     <ItemGroup>
+        <Folder Include="Scripts\Seed\Parameter\" />
         <Folder Include="Scripts\Views\Document\"/>
         <Folder Include="Scripts\Views\Auth\"/>
         <Folder Include="Scripts\Views\Notification\"/>

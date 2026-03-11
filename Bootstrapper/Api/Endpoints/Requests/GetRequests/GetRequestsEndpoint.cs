@@ -13,9 +13,18 @@ public class GetRequestsEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapGet("/requests",
-                async ([AsParameters] PaginationRequest request, ISender sender, CancellationToken cancellationToken) =>
+                async (
+                    [AsParameters] PaginationRequest request,
+                    string? search,
+                    string? status,
+                    string? purpose,
+                    string? sortBy,
+                    string? sortDirection,
+                    ISender sender,
+                    CancellationToken cancellationToken) =>
                 {
-                    var result = await sender.Send(new GetRequestQuery(request), cancellationToken);
+                    var query = new GetRequestQuery(request, search, status, purpose, sortBy, sortDirection);
+                    var result = await sender.Send(query, cancellationToken);
                     return Results.Ok(new GetRequestsResponse(result.Result));
                 })
             .WithName("GetRequests")

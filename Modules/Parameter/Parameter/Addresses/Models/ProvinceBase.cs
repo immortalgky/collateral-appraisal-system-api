@@ -1,0 +1,8 @@
+namespace Parameter.Addresses.Models;
+
+public abstract class ProvinceBase
+{
+    public string Code { get; private set; } = default!;
+    public string NameTh { get; private set; } = default!;
+    public string NameEn { get; private set; } = default!;
+}

@@ -18,15 +18,19 @@ public class ResetPricingMethodCommandHandler(
             throw new InvalidOperationException(
                 $"Pricing analysis with ID {command.PricingAnalysisId} not found.");
 
-        var method = pricingAnalysis.Approaches
-            .SelectMany(a => a.Methods)
-            .FirstOrDefault(m => m.Id == command.MethodId);
+        var approach = pricingAnalysis.Approaches
+            .FirstOrDefault(a => a.Methods.Any(m => m.Id == command.MethodId));
 
-        if (method is null)
+        if (approach is null)
             throw new InvalidOperationException(
                 $"Pricing method with ID {command.MethodId} not found.");
 
+        var method = approach.Methods.First(m => m.Id == command.MethodId);
+
         method.Reset();
+        approach.ClearValue();
+        approach.Unselect();
+        pricingAnalysis.ClearFinalValues();
 
         await repository.UpdateAsync(pricingAnalysis, cancellationToken);
 
