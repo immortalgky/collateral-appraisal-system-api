@@ -16,13 +16,14 @@ public class GetPricingAnalysisByGroupQueryHandler(
             cancellationToken);
 
         if (pricingAnalysis is null)
-            return new GetPricingAnalysisByGroupResult(null, null, null, null);
+            return new GetPricingAnalysisByGroupResult(null, null, null, null, null);
 
         return new GetPricingAnalysisByGroupResult(
             pricingAnalysis.Id,
             pricingAnalysis.PropertyGroupId,
             pricingAnalysis.Status,
-            pricingAnalysis.FinalAppraisedValue
+            pricingAnalysis.FinalAppraisedValue,
+            pricingAnalysis.UseSystemCalc
         );
     }
 }

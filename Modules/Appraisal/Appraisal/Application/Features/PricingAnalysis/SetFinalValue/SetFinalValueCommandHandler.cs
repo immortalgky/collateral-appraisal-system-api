@@ -56,6 +56,23 @@ public class SetFinalValueCommandHandler(
 
         method.SetValue(command.FinalValueRounded);
 
+        // TODO: Temporary — propagate method value upward for manual frontend updates
+        if (method.IsSelected && method.MethodValue.HasValue)
+        {
+            var parentApproach = pricingAnalysis.Approaches
+                .First(a => a.Methods.Any(m => m.Id == method.Id));
+
+            parentApproach.SetValue(method.MethodValue.Value);
+
+            if (parentApproach.IsSelected)
+            {
+                pricingAnalysis.SetFinalValues(parentApproach.ApproachValue!.Value);
+            }
+        }
+
+        // TODO: Temporary — mark as manual calc since user is overriding values from frontend
+        pricingAnalysis.SetUseSystemCalc(false);
+
         // Handle land area
         if (command.IncludeLandArea == true && command.LandArea.HasValue &&
             command.AppraisalPrice.HasValue && command.AppraisalPriceRounded.HasValue)

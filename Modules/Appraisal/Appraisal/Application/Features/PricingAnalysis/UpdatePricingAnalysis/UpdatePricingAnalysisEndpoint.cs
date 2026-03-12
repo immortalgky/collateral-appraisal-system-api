@@ -21,7 +21,8 @@ public class UpdatePricingAnalysisEndpoint : ICarterModule
                         id,
                         request.MarketValue,
                         request.AppraisedValue,
-                        request.ForcedSaleValue
+                        request.ForcedSaleValue,
+                        request.UseSystemCalc
                     );
 
                     var result = await sender.Send(command, cancellationToken);

@@ -57,6 +57,24 @@ public class SaveComparativeAnalysisCommandHandler(
         if (command.AppraisalValue.HasValue)
             method.SetValue(command.AppraisalValue.Value);
 
+        // Propagate: if method is selected and has a value, push it up
+        if (method.IsSelected && method.MethodValue.HasValue)
+        {
+            var parentApproach = pricingAnalysis.Approaches
+                .First(a => a.Methods.Any(m => m.Id == method.Id));
+
+            parentApproach.SetValue(method.MethodValue.Value);
+
+            // If approach is also selected, propagate to FinalAppraisedValue
+            if (parentApproach.IsSelected)
+            {
+                pricingAnalysis.SetFinalValues(parentApproach.ApproachValue!.Value);
+            }
+        }
+
+        // TODO: Temporary — mark as system calc since this is a backend-calculated save
+        pricingAnalysis.SetUseSystemCalc(true);
+
         // Changes are saved by TransactionalBehavior's SaveChangesAsync.
         // Do NOT call DbSet.Update() here — the aggregate is already tracked,
         // and Update() would override new child entities' Added state to Modified.

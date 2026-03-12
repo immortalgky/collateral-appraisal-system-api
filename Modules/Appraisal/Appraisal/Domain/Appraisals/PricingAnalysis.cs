@@ -16,6 +16,9 @@ public class PricingAnalysis : Aggregate<Guid>
     // Final Values
     public decimal? FinalAppraisedValue { get; private set; }
 
+    // Use system pricing calculation
+    public bool UseSystemCalc { get; private set; } = true;
+
     private PricingAnalysis()
     {
     }
@@ -68,5 +71,10 @@ public class PricingAnalysis : Aggregate<Guid>
     public void ClearFinalValues()
     {
         FinalAppraisedValue = null;
+    }
+
+    public void SetUseSystemCalc(bool value)
+    {
+        UseSystemCalc = value;
     }
 }

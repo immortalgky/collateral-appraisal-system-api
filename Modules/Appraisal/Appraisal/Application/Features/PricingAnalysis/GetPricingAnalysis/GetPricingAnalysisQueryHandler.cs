@@ -34,6 +34,7 @@ public class GetPricingAnalysisQueryHandler(
             pricingAnalysis.PropertyGroupId,
             pricingAnalysis.Status,
             pricingAnalysis.FinalAppraisedValue,
+            pricingAnalysis.UseSystemCalc,
             approaches
         );
     }

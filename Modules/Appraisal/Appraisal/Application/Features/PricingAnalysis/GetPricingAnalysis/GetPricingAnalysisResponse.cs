@@ -8,5 +8,6 @@ public record GetPricingAnalysisResponse(
     decimal? FinalAppraisedValue,
     decimal? FinalForcedSaleValue,
     DateTime? ValuationDate,
+    bool UseSystemCalc,
     List<ApproachDto> Approaches
 );

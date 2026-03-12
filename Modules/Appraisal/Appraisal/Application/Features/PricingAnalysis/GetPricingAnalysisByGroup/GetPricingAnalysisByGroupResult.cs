@@ -7,5 +7,6 @@ public record GetPricingAnalysisByGroupResult(
     Guid? Id,
     Guid? PropertyGroupId,
     string? Status,
-    decimal? FinalAppraisedValue
+    decimal? FinalAppraisedValue,
+    bool? UseSystemCalc
 );

@@ -10,5 +10,6 @@ public record UpdatePricingAnalysisCommand(
     Guid Id,
     decimal MarketValue,
     decimal AppraisedValue,
-    decimal? ForcedSaleValue
+    decimal? ForcedSaleValue,
+    bool? UseSystemCalc
 ) : ICommand<UpdatePricingAnalysisResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

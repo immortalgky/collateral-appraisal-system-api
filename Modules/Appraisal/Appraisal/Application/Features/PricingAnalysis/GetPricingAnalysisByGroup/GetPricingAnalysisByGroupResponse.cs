@@ -7,5 +7,6 @@ public record GetPricingAnalysisByGroupResponse(
     decimal? FinalMarketValue,
     decimal? FinalAppraisedValue,
     decimal? FinalForcedSaleValue,
-    DateTime? ValuationDate
+    DateTime? ValuationDate,
+    bool? UseSystemCalc
 );

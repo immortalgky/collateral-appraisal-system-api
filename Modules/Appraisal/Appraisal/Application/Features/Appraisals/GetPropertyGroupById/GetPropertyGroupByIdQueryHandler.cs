@@ -35,7 +35,6 @@ public class GetPropertyGroupByIdQueryHandler(
                         group.GroupNumber ?? 0,
                         group.GroupName ?? string.Empty,
                         group.Description,
-                        true,
                         group.PricingAnalysisId,
                         new List<PropertyGroupItemDto>()
                     );

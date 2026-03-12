@@ -101,11 +101,6 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
                 .HasMaxLength(500)
                 .HasColumnName("Description");
 
-            group.Property(g => g.UseSystemCalc)
-                .IsRequired()
-                .HasDefaultValue(true)
-                .HasColumnName("UseSystemCalc");
-
             // Navigation to items
             group.OwnsMany(g => g.Items, item =>
             {

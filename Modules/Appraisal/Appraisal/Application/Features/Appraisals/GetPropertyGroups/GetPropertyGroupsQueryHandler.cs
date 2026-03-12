@@ -19,7 +19,6 @@ public class GetPropertyGroupsQueryHandler(
             g.GroupNumber,
             g.GroupName,
             g.Description,
-            g.UseSystemCalc,
             g.Items.Count
         )).ToList();
 
@@ -32,6 +31,5 @@ public record PropertyGroupDto(
     int GroupNumber,
     string GroupName,
     string? Description,
-    bool UseSystemCalc,
     int PropertyCount
 );

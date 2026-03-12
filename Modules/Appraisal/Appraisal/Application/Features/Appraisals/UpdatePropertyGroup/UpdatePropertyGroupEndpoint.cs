@@ -22,8 +22,7 @@ public class UpdatePropertyGroupEndpoint : ICarterModule
                         appraisalId,
                         groupId,
                         request.GroupName,
-                        request.Description,
-                        request.UseSystemCalc
+                        request.Description
                     );
 
                     var result = await sender.Send(command, cancellationToken);
