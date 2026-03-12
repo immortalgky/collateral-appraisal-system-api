@@ -16,6 +16,9 @@ public class UpdatePricingAnalysisCommandHandler(
 
         pricingAnalysis.SetFinalValues(command.AppraisedValue);
 
+        if (command.UseSystemCalc.HasValue)
+            pricingAnalysis.SetUseSystemCalc(command.UseSystemCalc.Value);
+
         await pricingAnalysisRepository.UpdateAsync(pricingAnalysis, cancellationToken);
 
         return new UpdatePricingAnalysisResult(pricingAnalysis.Id);

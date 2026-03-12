@@ -13,7 +13,6 @@ public class PropertyGroup : Entity<Guid>
     public int GroupNumber { get; private set; }
     public string GroupName { get; private set; } = null!;
     public string? Description { get; private set; }
-    public bool UseSystemCalc { get; private set; } = true; // Use system pricing analysis
 
     // Read-only accessor for items
     public IReadOnlyList<PropertyGroupItem> Items => _items.AsReadOnly();
@@ -131,12 +130,11 @@ public class PropertyGroup : Entity<Guid>
     /// <summary>
     /// Update group details
     /// </summary>
-    public void Update(string groupName, string? description, bool useSystemCalc)
+    public void Update(string groupName, string? description)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(groupName);
 
         GroupName = groupName;
         Description = description;
-        UseSystemCalc = useSystemCalc;
     }
 }

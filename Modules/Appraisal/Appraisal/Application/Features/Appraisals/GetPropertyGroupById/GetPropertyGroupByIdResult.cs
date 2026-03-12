@@ -8,7 +8,6 @@ public record GetPropertyGroupByIdResult(
     int GroupNumber,
     string GroupName,
     string? Description,
-    bool UseSystemCalc,
     Guid? PricingAnalysisId,
     List<PropertyGroupItemDto>? Properties
 );

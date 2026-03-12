@@ -5,7 +5,6 @@ public record GetPropertyGroupByIdResponse(
     int GroupNumber,
     string GroupName,
     string? Description,
-    bool UseSystemCalc,
     Guid? PricingAnalysisId,
     List<PropertyGroupItemDto> Properties
 );

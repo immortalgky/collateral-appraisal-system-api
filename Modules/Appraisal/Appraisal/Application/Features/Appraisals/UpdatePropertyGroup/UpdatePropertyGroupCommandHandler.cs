@@ -17,7 +17,7 @@ public class UpdatePropertyGroupCommandHandler(
         var group = appraisal.Groups.FirstOrDefault(g => g.Id == command.GroupId)
                     ?? throw new InvalidOperationException($"Property group {command.GroupId} not found");
 
-        group.Update(command.GroupName, command.Description, command.UseSystemCalc);
+        group.Update(command.GroupName, command.Description);
 
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 

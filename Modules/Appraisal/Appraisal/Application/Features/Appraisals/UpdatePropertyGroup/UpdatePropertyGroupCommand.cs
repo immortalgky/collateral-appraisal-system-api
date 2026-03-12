@@ -10,6 +10,5 @@ public record UpdatePropertyGroupCommand(
     Guid AppraisalId,
     Guid GroupId,
     string GroupName,
-    string? Description,
-    bool UseSystemCalc
+    string? Description
 ) : ICommand<UpdatePropertyGroupResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

@@ -8,5 +8,6 @@ public record GetPricingAnalysisResult(
     Guid PropertyGroupId,
     string Status,
     decimal? FinalAppraisedValue,
+    bool UseSystemCalc,
     List<ApproachDto> Approaches
 );

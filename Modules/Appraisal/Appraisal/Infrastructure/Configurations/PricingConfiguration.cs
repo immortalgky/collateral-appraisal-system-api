@@ -18,6 +18,8 @@ public class PricingAnalysisConfiguration : IEntityTypeConfiguration<PricingAnal
 
         builder.Property(p => p.FinalAppraisedValue).HasPrecision(18, 2);
 
+        builder.Property(p => p.UseSystemCalc).IsRequired().HasDefaultValue(true);
+
         builder.HasMany(p => p.Approaches)
             .WithOne()
             .HasForeignKey(a => a.PricingAnalysisId)
