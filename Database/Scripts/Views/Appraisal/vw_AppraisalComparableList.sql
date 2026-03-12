@@ -21,7 +21,9 @@ SELECT ac.Id,
        mc.OfferPriceAdjustmentPercent AS ComparableOfferPriceAdjustmentPercent,
        mc.OfferPriceAdjustmentAmount  AS ComparableOfferPriceAdjustmentAmount,
        mc.SalePrice          AS ComparableSalePrice,
-       mc.SaleDate           AS ComparableSaleDate
+       mc.SaleDate           AS ComparableSaleDate,
+       mc.OfferPriceUnit     AS ComparableOfferPriceUnit,
+       mc.SalePriceUnit      AS ComparableSalePriceUnit
 FROM appraisal.AppraisalComparables ac
          INNER JOIN appraisal.MarketComparables mc ON mc.Id = ac.MarketComparableId
 WHERE mc.IsDeleted = 0

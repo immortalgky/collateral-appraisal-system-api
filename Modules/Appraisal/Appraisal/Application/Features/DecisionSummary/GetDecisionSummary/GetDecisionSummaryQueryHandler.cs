@@ -15,26 +15,28 @@ public class GetDecisionSummaryQueryHandler(
     {
         var param = new { query.AppraisalId };
 
-        // Query 1: Approach matrix
+        // Query 1: Approach matrix (flat rows to be grouped)
         const string approachSql = """
-            SELECT pg.Id AS PropertyGroupId, pg.GroupNumber,
+            SELECT pg.Id AS PropertyGroupId,
+                   pg.GroupNumber,
                    paa.ApproachType,
-                   pfv.FinalValue, pfv.FinalValueRounded,
+                   paa.ApproachValue,
+                   paa.IsSelected,
                    pa.FinalAppraisedValue AS GroupSummaryValue
             FROM appraisal.PropertyGroups pg
             JOIN appraisal.PricingAnalysis pa ON pa.PropertyGroupId = pg.Id
             JOIN appraisal.PricingAnalysisApproaches paa ON paa.PricingAnalysisId = pa.Id
-            JOIN appraisal.PricingAnalysisMethods pam ON pam.ApproachId = paa.Id AND pam.IsSelected = 1
-            LEFT JOIN appraisal.PricingFinalValues pfv ON pfv.PricingMethodId = pam.Id
             WHERE pg.AppraisalId = @AppraisalId
             """;
 
-        // Query 2: Building insurance
+        // Query 2: Building insurance (sum of depreciated price for actual buildings only)
         const string insuranceSql = """
-            SELECT ISNULL(SUM(bad.BuildingInsurancePrice), 0)
-            FROM appraisal.BuildingAppraisalDetails bad
+            SELECT ISNULL(SUM(bdd.PriceAfterDepreciation), 0)
+            FROM appraisal.BuildingDepreciationDetails bdd
+            JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
             WHERE ap.AppraisalId = @AppraisalId
+              AND bdd.IsBuilding = 1
             """;
 
         // Query 3: Government prices
@@ -44,6 +46,7 @@ public class GetDecisionSummaryQueryHandler(
             FROM appraisal.LandTitles lt
             JOIN appraisal.LandAppraisalDetails lad ON lad.Id = lt.LandAppraisalDetailId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
+            JOIN appraisal.PropertyGroupItems gi ON gi.AppraisalPropertyId = ap.Id
             WHERE ap.AppraisalId = @AppraisalId
             """;
 
@@ -76,28 +79,27 @@ public class GetDecisionSummaryQueryHandler(
             """;
 
         // Execute all queries
-        var approachMatrix = (await connectionFactory.QueryAsync<ApproachMatrixRow>(approachSql, param)).ToList();
+        var flatRows = (await connectionFactory.QueryAsync<FlatApproachRow>(approachSql, param)).ToList();
         var buildingInsurance = await connectionFactory.ExecuteScalarAsync<decimal>(insuranceSql, param);
         var governmentPrices = (await connectionFactory.QueryAsync<GovernmentPriceRow>(govPriceSql, param)).ToList();
         var approvalRows = (await connectionFactory.QueryAsync<ApprovalRow>(approvalSql, param)).ToList();
 
-        // Query 4: Stored decision
+        // Stored decision
         var decision = await decisionRepository.GetByAppraisalIdAsync(query.AppraisalId, cancellationToken);
 
-        // Calculate totals
-        var totalAppraisalPrice = approachMatrix
-            .Where(r => r.GroupSummaryValue.HasValue)
-            .Select(r => r.GroupSummaryValue!.Value)
-            .Distinct() // Avoid double-counting same group with multiple approaches
-            .Sum();
-
-        // Use distinct PropertyGroupId to avoid double-counting
-        var groupSummaryValues = approachMatrix
-            .GroupBy(r => r.PropertyGroupId)
-            .Select(g => g.First().GroupSummaryValue ?? 0m)
+        // Group flat rows into nested approach matrix
+        var approachMatrix = flatRows
+            .GroupBy(r => new { r.PropertyGroupId, r.GroupNumber, r.GroupSummaryValue })
+            .Select(g => new ApproachMatrixGroup(
+                g.Key.PropertyGroupId,
+                g.Key.GroupNumber,
+                g.Key.GroupSummaryValue,
+                g.Select(r => new ApproachItem(r.ApproachType, r.ApproachValue, r.IsSelected)).ToList()))
+            .OrderBy(g => g.GroupNumber)
             .ToList();
-        totalAppraisalPrice = groupSummaryValues.Sum();
 
+        // Calculate totals
+        var totalAppraisalPrice = approachMatrix.Sum(g => g.GroupSummaryValue ?? 0m);
         var forceSellingPrice = totalAppraisalPrice * 0.70m;
         var insurance = buildingInsurance;
 
@@ -151,6 +153,15 @@ public class GetDecisionSummaryQueryHandler(
             AdditionalAssumptions: decision?.AdditionalAssumptions
         );
     }
+
+    private record FlatApproachRow(
+        Guid PropertyGroupId,
+        int GroupNumber,
+        string ApproachType,
+        decimal? ApproachValue,
+        bool IsSelected,
+        decimal? GroupSummaryValue
+    );
 
     private record ApprovalRow(
         string CommitteeName,

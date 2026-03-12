@@ -302,6 +302,10 @@ public class Appraisal : Aggregate<Guid>
         var group = _groups.FirstOrDefault(g => g.Id == groupId)
                     ?? throw new InvalidOperationException($"Group {groupId} not found");
 
+        if (group.Items.Count > 0)
+            throw new InvalidOperationException(
+                $"Cannot delete group '{group.GroupName}' because it still contains {group.Items.Count} property(ies). Remove all properties from the group first.");
+
         _groups.Remove(group);
     }
 
@@ -437,6 +441,14 @@ public class Appraisal : Aggregate<Guid>
 
         UpdateStatus(AppraisalStatus.InProgress);
         UpdateSlaStatus();
+    }
+
+    // TODO: Remove this method once a proper workflow transitions appraisal to UnderReview before committee voting.
+    public void EnsureUnderReview()
+    {
+        if (Status == AppraisalStatus.UnderReview)
+            return;
+        UpdateStatus(AppraisalStatus.UnderReview);
     }
 
     /// <summary>

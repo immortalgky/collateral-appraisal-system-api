@@ -6,5 +6,6 @@ namespace Appraisal.Application.Features.PricingAnalysis.UpdateApproach;
 public record UpdateApproachResult(
     Guid Id,
     string ApproachType,
-    decimal? ApproachValue
+    decimal? ApproachValue,
+    decimal? FinalAppraisedValue
 );

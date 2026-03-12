@@ -164,6 +164,7 @@ public class GetLandAndBuildingPropertyQueryHandler(
             landDetail.PondDepth,
             landDetail.HasBuilding,
             landDetail.HasBuildingOther,
+            landDetail.TotalLandAreaInSqWa,
             // Land titles
             landDetail.Titles.Select(title => new LandTitleItemData(
                 title.Id,

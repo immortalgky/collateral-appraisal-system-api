@@ -5,11 +5,17 @@ namespace Appraisal.Application.Features.CommitteeVoting.SubmitVote;
 public class SubmitVoteCommandHandler(
     AppraisalDbContext dbContext,
     ICommitteeRepository committeeRepository,
+    IAppraisalRepository appraisalRepository,
     ICurrentUserService currentUser
 ) : ICommandHandler<SubmitVoteCommand, SubmitVoteResult>
 {
     public async Task<SubmitVoteResult> Handle(SubmitVoteCommand command, CancellationToken cancellationToken)
     {
+        // TODO: Remove once a proper workflow transitions appraisal to UnderReview before committee voting.
+        var appraisal = await appraisalRepository.GetByIdAsync(command.AppraisalId, cancellationToken)
+            ?? throw new NotFoundException("Appraisal", command.AppraisalId);
+        appraisal.EnsureUnderReview();
+
         // 1. Load the review
         var review = await dbContext.AppraisalReviews
             .FirstOrDefaultAsync(r => r.Id == command.ReviewId && r.AppraisalId == command.AppraisalId,
@@ -78,6 +84,7 @@ public class SubmitVoteCommandHandler(
             {
                 review.Approve(userId, "Auto-approved by committee majority");
                 isAutoApproved = true;
+                appraisal.Complete();
             }
         }
 

@@ -111,6 +111,11 @@ public class LandAppraisalDetail : Entity<Guid>
     public string? HasBuildingOther { get; private set; }
     public string? Remark { get; private set; }
 
+    // Computed: total land area across all titles
+    public decimal TotalLandAreaInSqWa =>
+        _titles.Where(t => t.Area != null && t.Area.HasValue)
+               .Sum(t => t.Area!.TotalSquareWa ?? 0);
+
     private LandAppraisalDetail()
     {
         // For EF Core

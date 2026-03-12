@@ -12,5 +12,7 @@ public record UpdateMarketComparableCommand(
   decimal? OfferPriceAdjustmentPercent = null,
   decimal? OfferPriceAdjustmentAmount = null,
   decimal? SalePrice = null,
-  DateTime? SaleDate = null
+  DateTime? SaleDate = null,
+  string? OfferPriceUnit = null,
+  string? SalePriceUnit = null
 ):ICommand<UpdateMarketComparableResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

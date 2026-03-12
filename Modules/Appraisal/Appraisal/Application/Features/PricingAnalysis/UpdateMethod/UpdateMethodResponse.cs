@@ -6,5 +6,7 @@ public record UpdateMethodResponse(
     decimal? MethodValue,
     decimal? ValuePerUnit,
     string? UnitType,
-    string Status
+    string Status,
+    decimal? ApproachValue,
+    decimal? FinalAppraisedValue
 );

@@ -25,6 +25,8 @@ public record MarketComparableDetailDto
     public decimal? OfferPriceAdjustmentAmount { get; set; }
     public decimal? SalePrice { get; set; }
     public DateTime? SaleDate { get; set; }
+    public string? OfferPriceUnit { get; set; }
+    public string? SalePriceUnit { get; set; }
 
     // Notes
     public string? Notes { get; set; }

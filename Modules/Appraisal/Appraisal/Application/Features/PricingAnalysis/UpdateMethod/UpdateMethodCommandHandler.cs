@@ -21,12 +21,16 @@ public class UpdateMethodCommandHandler(
             throw new InvalidOperationException($"Pricing analysis with ID '{command.PricingAnalysisId}' not found");
 
         PricingAnalysisMethod? method = null;
+        PricingAnalysisApproach? parentApproach = null;
 
         foreach (var approach in pricingAnalysis.Approaches)
         {
             method = approach.Methods.FirstOrDefault(m => m.Id == command.MethodId);
             if (method != null)
+            {
+                parentApproach = approach;
                 break;
+            }
         }
 
         if (method == null)
@@ -41,11 +45,22 @@ public class UpdateMethodCommandHandler(
                 command.UnitType ?? method.UnitType);
         }
 
+        // Propagate selected method's MethodValue → ApproachValue → FinalAppraisedValue
+        if (method.IsSelected && method.MethodValue.HasValue)
+        {
+            parentApproach!.SetValue(method.MethodValue.Value);
+
+            if (parentApproach.IsSelected)
+                pricingAnalysis.SetFinalValues(method.MethodValue.Value);
+        }
+
         return new UpdateMethodResult(
             method.Id,
             method.MethodType,
             method.MethodValue,
             method.ValuePerUnit,
-            method.UnitType);
+            method.UnitType,
+            parentApproach!.ApproachValue,
+            pricingAnalysis.FinalAppraisedValue);
     }
 }

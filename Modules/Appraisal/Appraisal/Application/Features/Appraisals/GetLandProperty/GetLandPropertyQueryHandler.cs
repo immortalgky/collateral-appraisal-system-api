@@ -125,6 +125,7 @@ public class GetLandPropertyQueryHandler(
             HasBuilding = landDetail?.HasBuilding,
             HasBuildingOther = landDetail?.HasBuildingOther,
             Remark = landDetail?.Remark,
+            TotalLandAreaInSqWa = landDetail?.TotalLandAreaInSqWa ?? 0,
 
             Titles = landDetail?.Titles.Select(title => new LandTitleItemData(
                 title.Id,
