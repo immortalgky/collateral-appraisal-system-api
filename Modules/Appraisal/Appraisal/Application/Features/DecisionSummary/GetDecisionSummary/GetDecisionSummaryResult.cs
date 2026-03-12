@@ -2,7 +2,7 @@ namespace Appraisal.Application.Features.DecisionSummary.GetDecisionSummary;
 
 public record GetDecisionSummaryResult(
     // Approach Matrix (read-only)
-    IReadOnlyList<ApproachMatrixRow> ApproachMatrix,
+    IReadOnlyList<ApproachMatrixGroup> ApproachMatrix,
 
     // Summary Totals (read-only, calculated)
     decimal TotalAppraisalPrice,
@@ -39,13 +39,17 @@ public record GetDecisionSummaryResult(
     string? AdditionalAssumptions
 );
 
-public record ApproachMatrixRow(
+public record ApproachMatrixGroup(
     Guid PropertyGroupId,
     int GroupNumber,
+    decimal? GroupSummaryValue,
+    IReadOnlyList<ApproachItem> Approaches
+);
+
+public record ApproachItem(
     string ApproachType,
-    decimal? FinalValue,
-    decimal? FinalValueRounded,
-    decimal? GroupSummaryValue
+    decimal? ApproachValue,
+    bool IsSelected
 );
 
 public record GovernmentPriceRow(

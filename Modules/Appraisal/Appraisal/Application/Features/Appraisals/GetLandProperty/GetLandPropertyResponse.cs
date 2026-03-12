@@ -115,6 +115,7 @@ public record GetLandPropertyResponse
     public bool? HasBuilding { get; init; }
     public string? HasBuildingOther { get; init; }
     public string? Remark { get; init; }
+    public decimal TotalLandAreaInSqWa { get; init; }
 
     // Land Titles
     public List<LandTitleItemData>? Titles { get; init; }

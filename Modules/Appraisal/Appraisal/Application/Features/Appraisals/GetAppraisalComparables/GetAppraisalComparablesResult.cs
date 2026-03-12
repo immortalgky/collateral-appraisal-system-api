@@ -27,6 +27,8 @@ public record AppraisalComparableDto
     public decimal? ComparableOfferPriceAdjustmentAmount { get; set; }
     public decimal? ComparableSalePrice { get; set; }
     public DateTime? ComparableSaleDate { get; set; }
+    public string? ComparableOfferPriceUnit { get; set; }
+    public string? ComparableSalePriceUnit { get; set; }
 
     // Nested collection (loaded separately)
     public List<ComparableAdjustmentDto> Adjustments { get; set; } = [];

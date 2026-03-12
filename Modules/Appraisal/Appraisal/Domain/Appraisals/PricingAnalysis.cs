@@ -32,8 +32,8 @@ public class PricingAnalysis : Aggregate<Guid>
 
     public PricingAnalysisApproach AddApproach(string approachType, decimal? weight = null)
     {
-        if (approachType != "Market" && approachType != "Cost" && approachType != "Income")
-            throw new ArgumentException("ApproachType must be 'Market', 'Cost', or 'Income'");
+        if (approachType != "Market" && approachType != "Cost" && approachType != "Income" && approachType != "Residual")
+            throw new ArgumentException("ApproachType must be 'Market', 'Cost', 'Income', or 'Residual'");
 
         if (_approaches.Any(a => a.ApproachType == approachType))
             throw new InvalidOperationException($"Approach '{approachType}' already exists");

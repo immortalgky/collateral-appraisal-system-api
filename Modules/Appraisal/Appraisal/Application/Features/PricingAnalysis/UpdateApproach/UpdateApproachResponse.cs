@@ -5,5 +5,6 @@ public record UpdateApproachResponse(
     string ApproachType,
     decimal? ApproachValue,
     decimal? Weight,
-    string Status
+    string Status,
+    decimal? FinalAppraisedValue
 );

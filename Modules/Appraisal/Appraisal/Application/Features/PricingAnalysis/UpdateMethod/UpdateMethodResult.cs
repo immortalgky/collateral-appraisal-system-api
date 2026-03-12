@@ -8,5 +8,7 @@ public record UpdateMethodResult(
     string MethodType,
     decimal? MethodValue,
     decimal? ValuePerUnit,
-    string? UnitType
+    string? UnitType,
+    decimal? ApproachValue,
+    decimal? FinalAppraisedValue
 );

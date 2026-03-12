@@ -12,6 +12,8 @@ SELECT mc.Id,
        mc.OfferPriceAdjustmentAmount,
        mc.SalePrice,
        mc.SaleDate,
+       mc.OfferPriceUnit,
+       mc.SalePriceUnit,
        mc.Notes,
        mc.TemplateId,
        mc.CreatedAt

@@ -100,6 +100,7 @@ public record GetLandAndBuildingPropertyResult(
     decimal? PondDepth,
     bool? HasBuilding,
     string? HasBuildingOther,
+    decimal TotalLandAreaInSqWa,
     // Land Titles
     List<LandTitleItemData>? Titles,
     // Building - Identification

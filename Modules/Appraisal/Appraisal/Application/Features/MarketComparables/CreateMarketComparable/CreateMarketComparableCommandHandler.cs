@@ -25,7 +25,9 @@ public class CreateMarketComparableCommandHandler(
             command.OfferPriceAdjustmentPercent,
             command.OfferPriceAdjustmentAmount,
             command.SalePrice,
-            command.SaleDate
+            command.SaleDate,
+            command.OfferPriceUnit,
+            command.SalePriceUnit
             );
 
         await marketComparableRepository.AddAsync(comparable, cancellationToken);

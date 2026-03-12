@@ -26,9 +26,14 @@ public class UpdateApproachCommandHandler(
         if (command.ApproachValue.HasValue)
             approach.SetValue(command.ApproachValue.Value);
 
+        // Propagate selected approach's ApproachValue → FinalAppraisedValue
+        if (approach.IsSelected && approach.ApproachValue.HasValue)
+            pricingAnalysis.SetFinalValues(approach.ApproachValue.Value);
+
         return new UpdateApproachResult(
             approach.Id,
             approach.ApproachType,
-            approach.ApproachValue);
+            approach.ApproachValue,
+            pricingAnalysis.FinalAppraisedValue);
     }
 }

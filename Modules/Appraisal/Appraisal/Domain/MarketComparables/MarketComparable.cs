@@ -21,6 +21,8 @@ public class MarketComparable : Aggregate<Guid>
     public decimal? OfferPriceAdjustmentAmount { get; private set; }
     public decimal? SalePrice { get; private set; }
     public DateTime? SaleDate { get; private set; }
+    public string? OfferPriceUnit { get; private set; }
+    public string? SalePriceUnit { get; private set; }
 
     // Notes
     public string? Notes { get; private set; }
@@ -54,7 +56,9 @@ public class MarketComparable : Aggregate<Guid>
         decimal? offerPriceAdjustmentPercent = null,
         decimal? offerPriceAdjustmentAmount = null,
         decimal? salePrice = null,
-        DateTime? saleDate = null)
+        DateTime? saleDate = null,
+        string? offerPriceUnit = null,
+        string? salePriceUnit = null)
     {
         return new MarketComparable
         {
@@ -69,7 +73,9 @@ public class MarketComparable : Aggregate<Guid>
             OfferPriceAdjustmentPercent = offerPriceAdjustmentPercent,
             OfferPriceAdjustmentAmount = offerPriceAdjustmentAmount,
             SalePrice = salePrice,
-            SaleDate = saleDate
+            SaleDate = saleDate,
+            OfferPriceUnit = offerPriceUnit,
+            SalePriceUnit = salePriceUnit
         };
     }
 
@@ -93,6 +99,8 @@ public class MarketComparable : Aggregate<Guid>
         OfferPriceAdjustmentAmount = data.OfferPriceAdjustmentAmount;
         SalePrice = data.SalePrice;
         SaleDate = data.SaleDate;
+        OfferPriceUnit = data.OfferPriceUnit;
+        SalePriceUnit = data.SalePriceUnit;
     }
 
     public void Delete(Guid? deletedBy)
@@ -165,5 +173,7 @@ public class MarketComparable : Aggregate<Guid>
         decimal? OfferPriceAdjustmentPercent = null,
         decimal? OfferPriceAdjustmentAmount = null,
         decimal? SalePrice = null,
-        DateTime? SaleDate = null);
+        DateTime? SaleDate = null,
+        string? OfferPriceUnit = null,
+        string? SalePriceUnit = null);
 }

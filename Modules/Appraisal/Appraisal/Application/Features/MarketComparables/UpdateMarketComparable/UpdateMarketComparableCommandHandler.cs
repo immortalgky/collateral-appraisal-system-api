@@ -30,7 +30,9 @@ public class UpdateMarketComparableCommandHandler(
             command.OfferPriceAdjustmentPercent,
             command.OfferPriceAdjustmentAmount,
             command.SalePrice,
-            command.SaleDate
+            command.SaleDate,
+            command.OfferPriceUnit,
+            command.SalePriceUnit
             )
         );
 

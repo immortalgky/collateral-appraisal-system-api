@@ -1,7 +1,7 @@
 namespace Appraisal.Application.Features.DecisionSummary.GetDecisionSummary;
 
 public record GetDecisionSummaryResponse(
-    IReadOnlyList<ApproachMatrixRow> ApproachMatrix,
+    IReadOnlyList<ApproachMatrixGroup> ApproachMatrix,
     decimal TotalAppraisalPrice,
     decimal ForceSellingPrice,
     decimal BuildingInsurance,
