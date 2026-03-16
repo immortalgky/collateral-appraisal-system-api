@@ -437,7 +437,14 @@ public class WorkflowPersistenceService : IWorkflowPersistenceService
     {
         try
         {
-            using var connection = _sqlConnectionFactory.GetOpenConnection();
+            // Must use the DbContext's own connection and transaction —
+            // sp_getapplock with LockOwner="Transaction" requires an active transaction
+            // on the SAME connection that acquired it.
+            var connection = _dbContext.Database.GetDbConnection();
+            var transaction = _dbContext.Database.CurrentTransaction?.GetDbTransaction()
+                ?? throw new InvalidOperationException(
+                    "sp_getapplock with LockOwner='Transaction' requires an active transaction. " +
+                    "Ensure this is called within ExecuteInTransactionAsync.");
 
             var parameters = new DynamicParameters();
             parameters.Add("Resource", lockResource);
@@ -450,7 +457,7 @@ public class WorkflowPersistenceService : IWorkflowPersistenceService
                 "sp_getapplock",
                 parameters,
                 commandType: CommandType.StoredProcedure,
-                transaction: _dbContext.Database.CurrentTransaction?.GetDbTransaction());
+                transaction: transaction);
 
             var result = parameters.Get<int>("ReturnValue");
 

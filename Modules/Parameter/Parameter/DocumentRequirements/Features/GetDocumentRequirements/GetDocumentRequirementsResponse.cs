@@ -1,0 +1,3 @@
+namespace Parameter.DocumentRequirements.Features.GetDocumentRequirements;
+
+public record GetDocumentRequirementsResponse(IReadOnlyList<DocumentRequirementDto> Requirements);

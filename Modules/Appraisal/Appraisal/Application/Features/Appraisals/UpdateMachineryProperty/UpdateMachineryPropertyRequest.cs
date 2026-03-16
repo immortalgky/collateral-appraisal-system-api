@@ -13,13 +13,16 @@ public record UpdateMachineryPropertyRequest(
     // Machine Specifications
     string? Brand = null,
     string? Model = null,
+    string? Series = null,
     int? YearOfManufacture = null,
-    string? CountryOfManufacture = null,
+    string? Manufacturer = null,
     // Purchase Info
     DateTime? PurchaseDate = null,
     decimal? PurchasePrice = null,
     // Dimensions
     string? Capacity = null,
+    int? Quantity = null,
+    string? MachineDimensions = null,
     decimal? Width = null,
     decimal? Length = null,
     decimal? Height = null,
@@ -30,15 +33,18 @@ public record UpdateMachineryPropertyRequest(
     string? OwnerName = null,
     bool? IsOwnerVerified = null,
     // Usage & Condition
-    bool? CanUse = null,
+    bool? IsOperational = null,
     string? Location = null,
     string? ConditionUse = null,
     string? MachineCondition = null,
     int? MachineAge = null,
     string? MachineEfficiency = null,
     string? MachineTechnology = null,
-    string? UsePurpose = null,
-    string? MachinePart = null,
+    string? UsagePurpose = null,
+    string? MachineParts = null,
+    // Valuation
+    decimal? ReplacementValue = null,
+    decimal? ConditionValue = null,
     // Appraiser Notes
     string? Remark = null,
     string? Other = null,

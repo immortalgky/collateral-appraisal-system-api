@@ -1,15 +1,15 @@
 using Workflow.AssigneeSelection.Engine;
 using Workflow.AssigneeSelection.Configuration;
-using Workflow.AssigneeSelection.Strategies;
+using Workflow.AssigneeSelection.Pipeline;
 using Workflow.AssigneeSelection.Services;
+using Workflow.Workflow.Activities;
+using Workflow.AssigneeSelection.Teams;
 using Workflow.Services.Configuration;
 using Workflow.Workflow.Repositories;
 using Workflow.Workflow.Activities.Factories;
-using Workflow.Workflow.Activities;
 using Workflow.Workflow.Actions.Core;
 using Workflow.Workflow.Engine;
 using Workflow.Workflow.Engine.Expression;
-using Workflow.Workflow.Resilience;
 using Workflow.Workflow.Services;
 using Workflow.Workflow.Hubs;
 
@@ -19,8 +19,6 @@ public static class WorkflowModule
 {
     public static IServiceCollection AddWorkflowModule(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddTransient<IAssignmentService, AssignmentService>();
-
         services.AddScoped<IAssignmentRepository, AssignmentRepository>();
 
         // User group and hashing services
@@ -34,8 +32,23 @@ public static class WorkflowModule
         services.AddScoped<RandomAssigneeSelector>();
         services.AddScoped<SupervisorAssigneeSelector>();
         services.AddScoped<PreviousOwnerAssigneeSelector>();
+        services.AddScoped<StartedByAssigneeSelector>();
         services.AddScoped<IAssigneeSelectorFactory, AssigneeSelectorFactory>();
+        services.AddScoped<TeamConstrainedAssigneeSelector>();
         services.AddScoped<ICascadingAssignmentEngine, CascadingAssignmentEngine>();
+
+        // Team service (mock — replace with Keycloak/DB implementation later)
+        services.AddScoped<ITeamService, MockTeamService>();
+
+        // Assignment pipeline — 5-stage orchestrator
+        services.AddScoped<IAssignmentContextBuilder, AssignmentContextBuilder>();
+        services.AddScoped<IAssignmentFilter, TeamFilter>();
+        services.AddScoped<IAssignmentFilter, ExclusionFilter>();
+        services.AddScoped<IAssignmentFilter, ActivityRoleFilter>();
+        services.AddScoped<IAssignmentValidator, TeamMembershipValidator>();
+        services.AddScoped<IAssignmentValidator, ExclusionRuleValidator>();
+        services.AddScoped<IAssignmentFinalizer, AssignmentFinalizer>();
+        services.AddScoped<IAssignmentPipeline, AssignmentPipeline>();
 
         // Custom assignment services - extensible assignment logic
         services.AddCustomAssignmentServices()
@@ -86,6 +99,10 @@ public static class WorkflowModule
 
         // Workflow activities
         services.AddScoped<TaskActivity>();
+        services.AddScoped<RoutingActivity>();
+
+        // Company routing
+        services.AddScoped<ICompanyRoundRobinService, CompanyRoundRobinService>();
 
         // Workflow DbContext with its own migration assembly and history table
         services.AddDbContext<WorkflowDbContext>((sp, options) =>
@@ -100,24 +117,12 @@ public static class WorkflowModule
             });
         });
 
-        // Saga DbContext with separate migration assembly and history table
-        services.AddDbContext<AppraisalSagaDbContext>((sp, options) =>
-        {
-            options.UseSqlServer(configuration.GetConnectionString("Database"), sqlOptions =>
-            {
-                sqlOptions.MigrationsAssembly(typeof(AppraisalSagaDbContext).Assembly.GetName()
-                    .Name); // Separate saga assembly
-                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "saga");
-            });
-        });
-
         return services;
     }
 
     public static IApplicationBuilder UseWorkflowModule(this IApplicationBuilder app)
     {
         app.UseMigration<WorkflowDbContext>();
-        app.UseMigration<AppraisalSagaDbContext>();
 
         // Configure SignalR workflow hub
         app.UseEndpoints(endpoints => { endpoints.MapHub<WorkflowHub>("/workflowHub"); });

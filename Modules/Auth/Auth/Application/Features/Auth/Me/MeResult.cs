@@ -9,6 +9,7 @@ public record MeResult(
     string? AvatarUrl,
     string? Position,
     string? Department,
+    Guid? CompanyId,
     List<string> Roles,
     List<string> Permissions
 );

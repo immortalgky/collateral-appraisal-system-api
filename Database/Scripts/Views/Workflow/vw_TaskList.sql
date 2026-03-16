@@ -4,21 +4,22 @@ VIEW workflow.vw_TaskList
 AS
 SELECT a.Id,
        a.AppraisalNumber,
-       c.Name                      AS CustomerName,
-       ''                          AS TaskType,
+       c.Name                             AS CustomerName,
+       CAST(pt.TaskName AS nvarchar(100)) AS TaskType,
        r.Purpose,
-       p.PropertyType              AS PropertyType,
+       p.PropertyType                     AS PropertyType,
        a.Status,
        ap.AppointmentDateTime,
-       AA.AssigneeUserId,
+       pt.AssignedTo                      AS AssigneeUserId,
        r.RequestedAt,
-       CAST(null AS datetime)      AS ReceivedDate,
-       CAST(null AS nvarchar(255)) AS Movement,
+       pt.AssignedAt                      AS ReceivedDate,
+       CAST(pt.TaskName AS nvarchar(255)) AS Movement,
        a.SLADays,
-       CAST(null AS int)           AS OLAActual,
-       CAST(null AS int)           AS OLADiff,
+       CAST(null AS int)                  AS OLAActual,
+       CAST(null AS int)                  AS OLADiff,
        a.Priority
-FROM appraisal.Appraisals a
+FROM workflow.PendingTasks pt
+         JOIN appraisal.Appraisals a ON a.Id = pt.CorrelationId
          JOIN request.Requests r ON a.RequestId = r.Id
     CROSS APPLY (SELECT TOP 1 Name
                       FROM request.RequestCustomers

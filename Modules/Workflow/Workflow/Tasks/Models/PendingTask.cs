@@ -5,7 +5,6 @@ namespace Workflow.Tasks.Models;
 public class PendingTask : Aggregate<Guid>
 {
     public Guid CorrelationId { get; private set; } = Guid.Empty!;
-    public long RequestId { get; private set; }
     public TaskName TaskName { get; private set; } = default!;
     public TaskStatus TaskStatus { get; private set; } = default!;
     public string AssignedTo { get; private set; } = default!;
@@ -17,12 +16,11 @@ public class PendingTask : Aggregate<Guid>
         // For EF Core
     }
 
-    private PendingTask(Guid correlationId, long requestId, TaskName taskName, string assignedTo, string assignedType,
+    private PendingTask(Guid correlationId, TaskName taskName, string assignedTo, string assignedType,
         DateTime assignedAt)
     {
         Id = Guid.CreateVersion7();
         CorrelationId = correlationId;
-        RequestId = requestId;
         TaskName = taskName;
         TaskStatus = TaskStatus.Assigned;
         AssignedTo = assignedTo;
@@ -30,10 +28,10 @@ public class PendingTask : Aggregate<Guid>
         AssignedAt = assignedAt;
     }
 
-    public static PendingTask Create(Guid correlationId, long requestId, TaskName taskName, string assignedTo,
+    public static PendingTask Create(Guid correlationId, TaskName taskName, string assignedTo,
         string assignedType, DateTime assignedAt)
     {
-        return new PendingTask(correlationId, requestId, taskName, assignedTo, assignedType, assignedAt);
+        return new PendingTask(correlationId, taskName, assignedTo, assignedType, assignedAt);
     }
 
     public void Reassign(string newAssignedTo, string newAssignedType, DateTime assignedAt)

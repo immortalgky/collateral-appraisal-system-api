@@ -1,7 +1,10 @@
 using System.Text.Json;
+using Shared.Messaging.Values;
 using Workflow.Workflow.Activities.Core;
+using Workflow.Workflow.Events;
 using Workflow.Workflow.Models;
 using Workflow.AssigneeSelection.Engine;
+using Workflow.AssigneeSelection.Pipeline;
 using Workflow.AssigneeSelection.Services;
 using Workflow.Services.Configuration;
 using Workflow.Workflow.Actions.Core;
@@ -17,15 +20,21 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
 {
     protected readonly IWorkflowBookmarkService _bookmarkService;
     protected readonly IWorkflowAuditService _auditService;
+    protected readonly IAssignmentPipeline _assignmentPipeline;
+    protected readonly IPublisher _publisher;
     protected readonly ILogger<HumanTaskActivityBase> _logger;
 
     protected HumanTaskActivityBase(
         IWorkflowBookmarkService bookmarkService,
         IWorkflowAuditService auditService,
+        IAssignmentPipeline assignmentPipeline,
+        IPublisher publisher,
         ILogger<HumanTaskActivityBase> logger)
     {
         _bookmarkService = bookmarkService;
         _auditService = auditService;
+        _assignmentPipeline = assignmentPipeline;
+        _publisher = publisher;
         _logger = logger;
     }
 
@@ -36,7 +45,8 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
     /// <summary>
     /// Main execution logic for human task activities
     /// </summary>
-    public virtual async Task<ActivityResult> ExecuteAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    public virtual async Task<ActivityResult> ExecuteAsync(ActivityContext context,
+        CancellationToken cancellationToken = default)
     {
         WorkflowActivityExecution? execution = null;
 
@@ -58,7 +68,7 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
             }
 
             var assignee = assignmentResult.AssigneeId;
-            
+
             // Set assignee on workflow instance
             context.WorkflowInstance.SetCurrentActivity(context.ActivityId, assignee);
 
@@ -99,6 +109,21 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
                 assignmentResult.Metadata,
                 cancellationToken);
 
+            // Publish domain event to create PendingTask projection
+            var taskName = TaskNameExtensions.FromActivityId(context.ActivityId);
+            if (taskName.HasValue)
+            {
+                var assignedType = GetProperty<string>(context, "assigneeRole") ?? "";
+                await _publisher.Publish(
+                    new TaskAssignedEvent(
+                        Guid.Parse(correlationId!),
+                        taskName.Value,
+                        assignee,
+                        assignedType,
+                        DateTime.UtcNow),
+                    cancellationToken);
+            }
+
             // Prepare output data
             var outputData = new Dictionary<string, object>
             {
@@ -110,15 +135,13 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
                 ["assignmentMetadata"] = assignmentResult.Metadata ?? new Dictionary<string, object>(),
                 ["bookmarkKey"] = bookmarkKey,
                 [$"{NormalizeActivityId(context.ActivityId)}_assignedTo"] = assignee,
-                [$"{NormalizeActivityId(context.ActivityId)}_assignmentMetadata"] = assignmentResult.Metadata ?? new Dictionary<string, object>()
+                [$"{NormalizeActivityId(context.ActivityId)}_assignmentMetadata"] =
+                    assignmentResult.Metadata ?? new Dictionary<string, object>()
             };
 
             // Allow derived classes to add custom data
             var customData = await OnExecuteAsync(context, assignee, assignmentResult, cancellationToken);
-            foreach (var kvp in customData)
-            {
-                outputData[kvp.Key] = kvp.Value;
-            }
+            foreach (var kvp in customData) outputData[kvp.Key] = kvp.Value;
 
             _logger.LogInformation(
                 "Task assigned successfully for activity {ActivityId}. Assignee: {AssigneeId}. Assignment strategy: {Strategy}",
@@ -136,58 +159,14 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
     }
 
     /// <summary>
-    /// Assignment logic that can be overridden by derived classes for simpler assignment.
-    /// Default implementation uses direct assignment from properties.
+    /// Assignment logic that delegates to the assignment pipeline.
+    /// The pipeline handles team filtering, exclusion rules, selection, validation, and finalization.
+    /// Can be overridden by derived classes for simpler assignment scenarios.
     /// </summary>
-    protected virtual Task<AssignmentResult> DetermineAssigneeAsync(ActivityContext context, CancellationToken cancellationToken)
+    protected virtual async Task<AssignmentResult> DetermineAssigneeAsync(ActivityContext context,
+        CancellationToken cancellationToken)
     {
-        // Simple assignment logic - can be overridden for complex scenarios
-        var assignee = GetProperty<string>(context, "assignee");
-        var assigneeRole = GetProperty<string>(context, "assigneeRole");
-        var assigneeGroup = GetProperty<string>(context, "assigneeGroup");
-
-        if (!string.IsNullOrEmpty(assignee))
-        {
-            return Task.FromResult(new AssignmentResult
-            {
-                IsSuccess = true,
-                AssigneeId = assignee,
-                Strategy = "DirectAssignment",
-                Metadata = new Dictionary<string, object> { ["source"] = "property" }
-            });
-        }
-
-        if (!string.IsNullOrEmpty(assigneeRole))
-        {
-            return Task.FromResult(new AssignmentResult
-            {
-                IsSuccess = true,
-                AssigneeId = assigneeRole,
-                Strategy = "RoleAssignment",
-                Metadata = new Dictionary<string, object> { ["role"] = assigneeRole }
-            });
-        }
-
-        if (!string.IsNullOrEmpty(assigneeGroup))
-        {
-            return Task.FromResult(new AssignmentResult
-            {
-                IsSuccess = true,
-                AssigneeId = assigneeGroup,
-                Strategy = "GroupAssignment",
-                Metadata = new Dictionary<string, object> { ["group"] = assigneeGroup }
-            });
-        }
-
-        // Default to "Unassigned" if no assignment method is specified
-        _logger.LogWarning("No assignee specified for activity {ActivityId}, using default", context.ActivityId);
-        return Task.FromResult(new AssignmentResult
-        {
-            IsSuccess = true,
-            AssigneeId = "Unassigned",
-            Strategy = "DefaultAssignment",
-            Metadata = new Dictionary<string, object>()
-        });
+        return await _assignmentPipeline.AssignAsync(context, cancellationToken);
     }
 
     /// <summary>
@@ -205,7 +184,8 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
     /// <summary>
     /// Resume logic for when human task is completed
     /// </summary>
-    public virtual async Task<ActivityResult> ResumeAsync(ActivityContext context, Dictionary<string, object> resumeInput, CancellationToken cancellationToken = default)
+    public virtual async Task<ActivityResult> ResumeAsync(ActivityContext context,
+        Dictionary<string, object> resumeInput, CancellationToken cancellationToken = default)
     {
         var execution = FindActivityExecution(context);
         if (execution == null)
@@ -222,7 +202,6 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
             var bookmarkKey = resumeInput.TryGetValue("bookmarkKey", out var keyValue) ? keyValue?.ToString() : null;
 
             if (!string.IsNullOrEmpty(bookmarkKey))
-            {
                 try
                 {
                     var consumeResult = await _bookmarkService.ConsumeBookmarkAsync(
@@ -233,32 +212,50 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
                         null,
                         cancellationToken);
                     if (!consumeResult.Success)
-                    {
-                        _logger.LogWarning("Failed to consume bookmark {BookmarkKey} for activity {ActivityId}: {ErrorMessage}",
+                        _logger.LogWarning(
+                            "Failed to consume bookmark {BookmarkKey} for activity {ActivityId}: {ErrorMessage}",
                             bookmarkKey, context.ActivityId, consumeResult.ErrorMessage);
-                        // Continue processing even if bookmark consumption fails
-                    }
+                    // Continue processing even if bookmark consumption fails
                     else
-                    {
                         _logger.LogInformation("Successfully consumed bookmark {BookmarkKey} for activity {ActivityId}",
                             bookmarkKey, context.ActivityId);
-                    }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error consuming bookmark {BookmarkKey} for activity {ActivityId}",
                         bookmarkKey, context.ActivityId);
                 }
-            }
 
             // Call derived class for custom resume processing
             var result = await OnResumeAsync(context, resumeInput, cancellationToken);
 
             // Update execution based on result
             if (result.Status == ActivityResultStatus.Completed)
+            {
                 execution.Complete(completedBy, result.OutputData, result.Comments);
+
+                // Publish domain event to move PendingTask → CompletedTask
+                var taskName = TaskNameExtensions.FromActivityId(context.ActivityId);
+                if (taskName.HasValue)
+                {
+                    var actionTaken = resumeInput.TryGetValue("decision", out var decisionVal)
+                        ? decisionVal?.ToString() ?? "Completed"
+                        : "Completed";
+
+                    var correlationId = context.WorkflowInstance.CorrelationId;
+                    await _publisher.Publish(
+                        new TaskCompletedDomainEvent(
+                            Guid.Parse(correlationId!),
+                            taskName.Value,
+                            actionTaken,
+                            DateTime.UtcNow),
+                        cancellationToken);
+                }
+            }
             else if (result.Status == ActivityResultStatus.Failed)
+            {
                 execution.Fail(result.ErrorMessage ?? "Activity resume failed");
+            }
 
             return result;
         }
@@ -273,7 +270,8 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
     /// <summary>
     /// Custom resume processing. Can be overridden by derived classes.
     /// </summary>
-    protected virtual Task<ActivityResult> OnResumeAsync(ActivityContext context, Dictionary<string, object> resumeInput, CancellationToken cancellationToken)
+    protected virtual Task<ActivityResult> OnResumeAsync(ActivityContext context,
+        Dictionary<string, object> resumeInput, CancellationToken cancellationToken)
     {
         var outputData = new Dictionary<string, object>();
 
@@ -284,12 +282,10 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
             outputData[$"{NormalizeActivityId(context.ActivityId)}_decision"] = decision;
         }
 
-        if (resumeInput.TryGetValue("comments", out var comments))
-        {
-            outputData["comments"] = comments;
-        }
+        if (resumeInput.TryGetValue("comments", out var comments)) outputData["comments"] = comments;
 
-        outputData["completedBy"] = resumeInput.TryGetValue("completedBy", out var completedBy) ? completedBy : "Unknown";
+        outputData["completedBy"] =
+            resumeInput.TryGetValue("completedBy", out var completedBy) ? completedBy : "Unknown";
         outputData["completedAt"] = DateTime.UtcNow;
 
         return Task.FromResult(ActivityResult.Success(outputData));
@@ -298,7 +294,8 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
     /// <summary>
     /// Validation logic. Can be overridden by derived classes.
     /// </summary>
-    public virtual Task<Core.ValidationResult> ValidateAsync(ActivityContext context, CancellationToken cancellationToken = default)
+    public virtual Task<ValidationResult> ValidateAsync(ActivityContext context,
+        CancellationToken cancellationToken = default)
     {
         var errors = new List<string>();
 
@@ -307,16 +304,14 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
         var assigneeRole = GetProperty<string>(context, "assigneeRole");
         var assigneeGroup = GetProperty<string>(context, "assigneeGroup");
 
-        if (string.IsNullOrEmpty(assignee) && 
-            string.IsNullOrEmpty(assigneeRole) && 
+        if (string.IsNullOrEmpty(assignee) &&
+            string.IsNullOrEmpty(assigneeRole) &&
             string.IsNullOrEmpty(assigneeGroup))
-        {
             errors.Add("At least one assignment method must be specified (assignee, assigneeRole, or assigneeGroup)");
-        }
 
         return Task.FromResult(errors.Any()
-            ? Core.ValidationResult.Failure(errors.ToArray())
-            : Core.ValidationResult.Success());
+            ? ValidationResult.Failure(errors.ToArray())
+            : ValidationResult.Success());
     }
 
     // Helper methods
@@ -345,7 +340,8 @@ public abstract class HumanTaskActivityBase : IWorkflowActivity
             context.Variables);
     }
 
-    protected virtual string CreateBookmarkPayload(ActivityContext context, string assignee, AssignmentResult assignmentResult)
+    protected virtual string CreateBookmarkPayload(ActivityContext context, string assignee,
+        AssignmentResult assignmentResult)
     {
         return JsonSerializer.Serialize(new
         {

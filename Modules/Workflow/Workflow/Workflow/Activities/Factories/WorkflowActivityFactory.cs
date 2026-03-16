@@ -23,16 +23,11 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
     public IWorkflowActivity CreateActivity(string activityType)
     {
         if (!_activityTypes.TryGetValue(activityType, out var type))
-        {
             throw new ArgumentException($"Unknown activity type: {activityType}");
-        }
 
         // Use service provider for dependency injection when available
         var serviceInstance = _serviceProvider.GetService(type) as IWorkflowActivity;
-        if (serviceInstance != null)
-        {
-            return serviceInstance;
-        }
+        if (serviceInstance != null) return serviceInstance;
 
         // Fallback to activator for types without dependencies
         try
@@ -41,7 +36,9 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Failed to create instance of activity type '{activityType}'. Ensure the type has a parameterless constructor or is registered in DI.", ex);
+            throw new InvalidOperationException(
+                $"Failed to create instance of activity type '{activityType}'. Ensure the type has a parameterless constructor or is registered in DI.",
+                ex);
         }
     }
 
@@ -53,9 +50,7 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
     public ActivityTypeDefinition GetActivityTypeDefinition(string activityType)
     {
         if (!_activityDefinitions.TryGetValue(activityType, out var definition))
-        {
             throw new ArgumentException($"Unknown activity type: {activityType}");
-        }
 
         return definition;
     }
@@ -70,6 +65,9 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
         _activityTypes[ActivityTypes.EndActivity] = typeof(EndActivity);
         _activityTypes[ActivityTypes.ForkActivity] = typeof(ForkActivity);
         _activityTypes[ActivityTypes.JoinActivity] = typeof(JoinActivity);
+
+        // Routing activities
+        _activityTypes[ActivityTypes.RoutingActivity] = typeof(RoutingActivity);
 
         // Appraisal-specific activities
         _activityTypes[AppraisalActivityTypes.RequestSubmission] = typeof(RequestSubmissionActivity);
@@ -142,12 +140,15 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
                 new()
                 {
                     Name = "inputMappings", DisplayName = "Input Variable Mappings", Type = "object", Required = false,
-                    Description = "Map input field names to workflow variable names (e.g. {\"propertyValue\": \"estimatedValue\", \"decision\": \"{activityId}_actionTaken\"})"
+                    Description =
+                        "Map input field names to workflow variable names (e.g. {\"propertyValue\": \"estimatedValue\", \"decision\": \"{activityId}_actionTaken\"})"
                 },
                 new()
                 {
-                    Name = "outputMappings", DisplayName = "Output Variable Mappings", Type = "object", Required = false,
-                    Description = "Map activity outputs to workflow variables (e.g. {\"calculatedValue\": \"finalPropertyValue\"})"
+                    Name = "outputMappings", DisplayName = "Output Variable Mappings", Type = "object",
+                    Required = false,
+                    Description =
+                        "Map activity outputs to workflow variables (e.g. {\"calculatedValue\": \"finalPropertyValue\"})"
                 },
                 new()
                 {
@@ -168,7 +169,8 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
         {
             Type = ActivityTypes.IfElseActivity,
             Name = "If-Else Decision",
-            Description = "Binary conditional routing based on boolean expression evaluation. Outputs result: true/false for transition-based routing.",
+            Description =
+                "Binary conditional routing based on boolean expression evaluation. Outputs result: true/false for transition-based routing.",
             Category = "Flow Control",
             Icon = "git-branch",
             Color = "#fb923c",
@@ -177,7 +179,8 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
                 new()
                 {
                     Name = "condition", DisplayName = "Condition", Type = "string", Required = true,
-                    Description = "Boolean expression to evaluate (e.g., 'amount > 50000 && status == \"approved\"'). Use transitions with conditions like 'result == true' to route."
+                    Description =
+                        "Boolean expression to evaluate (e.g., 'amount > 50000 && status == \"approved\"'). Use transitions with conditions like 'result == true' to route."
                 }
             }
         };
@@ -187,8 +190,9 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
         {
             Type = ActivityTypes.SwitchActivity,
             Name = "Switch Decision",
-            Description = "Multi-branch conditional routing with support for comparisons and value matching. Outputs case: matched_condition for transition-based routing.",
-            Category = "Flow Control", 
+            Description =
+                "Multi-branch conditional routing with support for comparisons and value matching. Outputs case: matched_condition for transition-based routing.",
+            Category = "Flow Control",
             Icon = "share-2",
             Color = "#a855f7",
             Properties = new List<ActivityPropertyDefinition>
@@ -201,7 +205,36 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
                 new()
                 {
                     Name = "cases", DisplayName = "Cases", Type = "array", Required = true,
-                    Description = "Array of case conditions to match (e.g., ['< 10000', '>= 50000', 'approved']). Use transitions with conditions like 'case == \"< 10000\"' to route."
+                    Description =
+                        "Array of case conditions to match (e.g., ['< 10000', '>= 50000', 'approved']). Use transitions with conditions like 'case == \"< 10000\"' to route."
+                }
+            }
+        };
+
+        // Routing Activity Definition
+        _activityDefinitions[ActivityTypes.RoutingActivity] = new ActivityTypeDefinition
+        {
+            Type = ActivityTypes.RoutingActivity,
+            Name = "Routing Activity",
+            Description =
+                "Automatic routing based on configurable conditions. Can auto-assign to external companies via round-robin.",
+            Category = "Flow Control",
+            Icon = "arrow-path",
+            Color = "#f59e0b",
+            Properties = new List<ActivityPropertyDefinition>
+            {
+                new()
+                {
+                    Name = "routingConditions", DisplayName = "Routing Conditions", Type = "object", Required = false,
+                    Description =
+                        "Map of decision names to condition expressions (e.g., {\"admin_review\": \"amount > 50000\"})"
+                },
+                new()
+                {
+                    Name = "defaultDecision", DisplayName = "Default Decision", Type = "string", Required = false,
+                    DefaultValue = "admin_review",
+                    Description =
+                        "Decision to use when no routing conditions match (e.g., 'admin_review', 'auto_assign_external')"
                 }
             }
         };

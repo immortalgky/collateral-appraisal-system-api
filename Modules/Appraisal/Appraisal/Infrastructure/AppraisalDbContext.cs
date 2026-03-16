@@ -27,6 +27,7 @@ public class AppraisalDbContext : DbContext
     public DbSet<VehicleAppraisalDetail> VehicleAppraisalDetails => Set<VehicleAppraisalDetail>();
     public DbSet<VesselAppraisalDetail> VesselAppraisalDetails => Set<VesselAppraisalDetail>();
     public DbSet<MachineryAppraisalDetail> MachineryAppraisalDetails => Set<MachineryAppraisalDetail>();
+    public DbSet<MachineryAppraisalSummary> MachineryAppraisalSummaries => Set<MachineryAppraisalSummary>();
 
     // =====================================================
     // Valuation Entities
@@ -85,12 +86,6 @@ public class AppraisalDbContext : DbContext
     public DbSet<FeeStructure> FeeStructures => Set<FeeStructure>();
 
     // =====================================================
-    // Document Requirements
-    // =====================================================
-    public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
-    public DbSet<DocumentRequirement> DocumentRequirements => Set<DocumentRequirement>();
-
-    // =====================================================
     // Quotation Entities
     // =====================================================
     public DbSet<QuotationRequest> QuotationRequests => Set<QuotationRequest>();
@@ -131,6 +126,7 @@ public class AppraisalDbContext : DbContext
     // Supporting Entities (part of Appraisal aggregate)
     // =====================================================
     public DbSet<LandTitle> LandTitles => Set<LandTitle>();
+
     // BuildingDepreciationDetail removed - now owned by BuildingAppraisalDetail via OwnsMany
     // BuildingAppraisalSurface removed - now owned by BuildingAppraisalDetail via OwnsMany
     public DbSet<CondoAppraisalAreaDetail> CondoAppraisalAreaDetails => Set<CondoAppraisalAreaDetail>();
@@ -163,10 +159,10 @@ public class AppraisalDbContext : DbContext
             .HasQueryFilter(a =>
                 a.AssignmentStatus != AssignmentStatus.Rejected && a.AssignmentStatus != AssignmentStatus.Cancelled);
 
-        
+
         modelBuilder.Entity<MarketComparable>()
             .HasQueryFilter(m => !m.SoftDelete.IsDeleted);
-        
+
         // MassTransit Outbox for reliable messaging
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxStateEntity();

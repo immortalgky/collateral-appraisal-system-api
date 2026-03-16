@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Identity;
-using OAuth2OpenId.Domain.Identity.Models;
+using Auth.Domain.Identity;
 using Shared.Exceptions;
 
 namespace Auth.Domain.Auth.Features.UpdateProfile;
@@ -13,7 +13,7 @@ public class UpdateProfileCommandHandler(
         CancellationToken cancellationToken)
     {
         var user = await userManager.FindByIdAsync(command.UserId.ToString())
-            ?? throw new NotFoundException("User", command.UserId);
+                   ?? throw new NotFoundException("User", command.UserId);
 
         user.FirstName = command.FirstName;
         user.LastName = command.LastName;
@@ -24,10 +24,8 @@ public class UpdateProfileCommandHandler(
         var result = await userManager.UpdateAsync(user);
 
         if (!result.Succeeded)
-        {
             throw new InvalidOperationException(
                 string.Join("; ", result.Errors.Select(e => e.Description)));
-        }
 
         return new UpdateProfileResult(
             user.Id,

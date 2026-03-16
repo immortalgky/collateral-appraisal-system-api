@@ -3,7 +3,6 @@ using Document.Data;
 using Common;
 using Integration.Infrastructure;
 using MassTransit;
-using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Request.Infrastructure;
@@ -37,9 +36,11 @@ var integrationAssembly = typeof(IntegrationModule).Assembly;
 var commonAssembly = typeof(CommonModule).Assembly;
 
 builder.Services.AddCarterWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
-    parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly, commonAssembly);
+    parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly,
+    commonAssembly);
 builder.Services.AddMediatRWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
-    parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly, commonAssembly);
+    parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly,
+    commonAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -52,27 +53,9 @@ builder.Services.AddStackExchangeRedisCache(options =>
 builder.Services.AddScoped<ISqlConnectionFactory>(provider =>
     new SqlConnectionFactory(builder.Configuration.GetConnectionString("Database")!));
 
-builder.Services.AddDbContext<AppraisalSagaDbContext>((sp, options) =>
-{
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Database"), sqlOptions =>
-    {
-        sqlOptions.MigrationsAssembly(typeof(AppraisalSagaDbContext).Assembly.GetName().Name);
-        sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "saga");
-        sqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
-    });
-});
-
 builder.Services.AddMassTransit(config =>
 {
     config.SetKebabCaseEndpointNameFormatter();
-
-    config.AddSagaStateMachine<AppraisalStateMachine, AppraisalSagaState>()
-        .EntityFrameworkRepository(r =>
-        {
-            r.ConcurrencyMode = ConcurrencyMode.Pessimistic; // Safer for SQL Server
-            r.ExistingDbContext<AppraisalSagaDbContext>();
-            r.LockStatementProvider = new SqlServerLockStatementProvider();
-        });
 
     config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly,
         collateralAssembly, appraisalAssembly, integrationAssembly);
@@ -128,7 +111,6 @@ builder.Services.AddHttpClient("CAS", client =>
 // Module services: request, etc.
 builder.Services
     .AddRequestModule(builder.Configuration)
-    .AddOpenIddictModule(builder.Configuration)
     .AddAuthModule(builder.Configuration)
     .AddNotificationModule(builder.Configuration)
     .AddParameterModule(builder.Configuration)
@@ -232,7 +214,6 @@ app
     .UseParameterModule()
     .UseDocumentModule()
     .UseWorkflowModule()
-    .UseOpenIddictModule()
     .UseCollateralModule()
     .UseAppraisalModule()
     .UseIntegrationModule()

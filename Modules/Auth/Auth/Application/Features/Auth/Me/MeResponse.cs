@@ -9,6 +9,7 @@ public record MeResponse(
     string? AvatarUrl,
     string? Position,
     string? Department,
+    Guid? CompanyId,
     List<string> Roles,
     List<string> Permissions
 );

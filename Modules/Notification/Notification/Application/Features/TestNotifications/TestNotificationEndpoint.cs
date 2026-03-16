@@ -43,7 +43,8 @@ public class TestNotificationEndpoint : ICarterModule
 
         await bus.Publish(taskCompleted);
 
-        return Results.Ok(new {
+        return Results.Ok(new
+        {
             Message = "TaskCompleted event published",
             Event = taskCompleted
         });
@@ -53,7 +54,9 @@ public class TestNotificationEndpoint : ICarterModule
         [FromBody] SimulateTaskAssignmentRequest request,
         [FromServices] IBus bus)
     {
-        var taskName = Enum.TryParse<TaskName>(request.TaskName, true, out var temp) ? temp : TaskName.AppraisalStaff;
+        var taskName = Enum.TryParse<TaskName>(request.TaskName, true, out var temp)
+            ? temp
+            : TaskName.ExtAppraisalStaff;
         var taskAssigned = new TaskAssigned
         {
             CorrelationId = request.CorrelationId ?? Guid.NewGuid(),
@@ -64,7 +67,8 @@ public class TestNotificationEndpoint : ICarterModule
 
         await bus.Publish(taskAssigned);
 
-        return Results.Ok(new { 
+        return Results.Ok(new
+        {
             Message = "TaskAssigned event published",
             Event = taskAssigned
         });
@@ -87,7 +91,8 @@ public class TestNotificationEndpoint : ICarterModule
 
         await bus.Publish(transitionCompleted);
 
-        return Results.Ok(new { 
+        return Results.Ok(new
+        {
             Message = "TransitionCompleted event published",
             Event = transitionCompleted
         });

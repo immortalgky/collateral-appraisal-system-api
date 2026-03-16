@@ -45,6 +45,15 @@ public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICur
         }
     }
 
+    public Guid? CompanyId
+    {
+        get
+        {
+            var companyIdClaim = User?.FindFirst("company_id")?.Value;
+            return Guid.TryParse(companyIdClaim, out var companyId) ? companyId : null;
+        }
+    }
+
     public bool HasPermission(string permission)
     {
         return !string.IsNullOrWhiteSpace(permission) &&

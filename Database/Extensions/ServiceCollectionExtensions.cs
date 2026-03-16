@@ -6,11 +6,11 @@ using Request.Infrastructure;
 using Workflow.Data;
 using Document.Data;
 using Notification.Data;
-using OAuth2OpenId.Data;
+using Auth.Infrastructure;
 using Shared.Data;
 using Microsoft.AspNetCore.Identity;
-using OAuth2OpenId;
-using OAuth2OpenId.Domain.Identity.Models;
+using Auth;
+using Auth.Domain.Identity;
 
 namespace Database.Extensions;
 
@@ -87,32 +87,23 @@ public static class ServiceCollectionExtensions
 
         // Register minimal Identity and OpenIddict core services for DbContext support
         services.AddIdentity<ApplicationUser, ApplicationRole>()
-            .AddEntityFrameworkStores<OpenIddictDbContext>();
+            .AddEntityFrameworkStores<AuthDbContext>();
 
         services.AddOpenIddict()
             .AddCore(options =>
             {
                 options.UseEntityFrameworkCore()
-                    .UseDbContext<OpenIddictDbContext>();
+                    .UseDbContext<AuthDbContext>();
             });
 
-        services.AddDbContext<OpenIddictDbContext>(options =>
+        services.AddDbContext<AuthDbContext>(options =>
         {
             options.UseSqlServer(connectionString, sqlOptions =>
             {
-                sqlOptions.MigrationsAssembly(typeof(OpenIddictDbContext).Assembly.GetName().Name);
+                sqlOptions.MigrationsAssembly(typeof(AuthDbContext).Assembly.GetName().Name);
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "auth");
             });
             options.UseOpenIddict();
-        });
-
-        services.AddDbContext<AppraisalSagaDbContext>(options =>
-        {
-            options.UseSqlServer(connectionString, sqlOptions =>
-            {
-                sqlOptions.MigrationsAssembly(typeof(AppraisalSagaDbContext).Assembly.GetName().Name);
-                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "saga");
-            });
         });
 
         return services;
