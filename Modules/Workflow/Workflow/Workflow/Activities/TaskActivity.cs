@@ -103,6 +103,7 @@ public class TaskActivity : WorkflowActivityBase
             var previousOwnerContext = new AssignmentContext
             {
                 ActivityName = activityName,
+                StartedBy = context.WorkflowInstance.StartedBy,
                 Properties = new Dictionary<string, object>
                 {
                     ["WorkflowInstanceId"] = context.WorkflowInstance.Id,
@@ -188,6 +189,7 @@ public class TaskActivity : WorkflowActivityBase
                 // TODO: Add support for multiple assignees by splitting the assignee string
                 UserGroups = [assigneeGroup],
                 UserCode = assignee,
+                StartedBy = context.WorkflowInstance.StartedBy,
 
                 Properties = new Dictionary<string, object>
                 {
