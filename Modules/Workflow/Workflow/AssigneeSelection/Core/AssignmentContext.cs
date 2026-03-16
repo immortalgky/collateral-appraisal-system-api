@@ -1,3 +1,5 @@
+using Workflow.AssigneeSelection.Teams;
+
 namespace Workflow.AssigneeSelection.Core;
 
 public class AssignmentContext
@@ -8,4 +10,16 @@ public class AssignmentContext
     public string UserCode { get; set; } = default!;
     public DateTime DueDate { get; set; }
     public Dictionary<string, object>? Properties { get; set; }
+
+    /// <summary>
+    /// The user who originally started the workflow instance.
+    /// Used by the StartedBy assignee selection strategy.
+    /// </summary>
+    public string? StartedBy { get; set; }
+
+    /// <summary>
+    /// Pre-filtered candidate pool from the assignment pipeline (Stage 2).
+    /// When set, selectors should prefer this list over querying their own user sources.
+    /// </summary>
+    public List<TeamMemberInfo>? CandidatePool { get; set; }
 }

@@ -28,6 +28,16 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
             );
     }
 
+    public async Task<PendingTask?> GetPendingTaskByCorrelationIdAsync(Guid correlationId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.PendingTasks
+            .FirstOrDefaultAsync(
+                x => x.CorrelationId == correlationId,
+                cancellationToken
+            );
+    }
+
     public async Task AddTaskAsync(PendingTask pendingTask, CancellationToken cancellationToken = default)
     {
         dbContext.PendingTasks.Add(pendingTask);

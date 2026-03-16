@@ -1,4 +1,4 @@
-using OAuth2OpenId.Domain.Identity.Models;
+using Auth.Domain.Identity;
 using OpenIddict.Abstractions;
 
 namespace Auth.Services;
@@ -9,6 +9,7 @@ public interface IRegistrationService
         RegisterUserDto registerUserDto,
         CancellationToken cancellationToken = default
     );
+
     public Task<OpenIddictApplicationDescriptor> RegisterClient(
         RegisterClientDto registerClientDto
     );

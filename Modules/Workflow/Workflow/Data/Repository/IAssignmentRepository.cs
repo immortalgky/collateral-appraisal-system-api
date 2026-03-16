@@ -9,6 +9,9 @@ public interface IAssignmentRepository
     Task<PendingTask?> GetPendingTaskAsync(Guid correlationId, TaskName taskName,
         CancellationToken cancellationToken = default);
 
+    Task<PendingTask?> GetPendingTaskByCorrelationIdAsync(Guid correlationId,
+        CancellationToken cancellationToken = default);
+
     Task AddTaskAsync(PendingTask pendingTask, CancellationToken cancellationToken = default);
     Task AddCompletedTaskAsync(CompletedTask completedTask, CancellationToken cancellationToken = default);
     Task RemovePendingTaskAsync(PendingTask pendingTask, CancellationToken cancellationToken = default);

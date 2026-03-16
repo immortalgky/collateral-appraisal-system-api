@@ -1,3 +1,5 @@
+using Parameter.DocumentRequirements.Models;
+
 namespace Parameter;
 
 public static class ParameterModule
@@ -13,6 +15,16 @@ public static class ParameterModule
         services.AddScoped<IAddressRepository, AddressRepository>();
         services.Decorate<IAddressRepository, CachedAddressRepository>();
 
+        // Document Requirements
+        services.AddScoped<IDocumentRequirementRepository, DocumentRequirementRepository>();
+
+        // Unit of Work
+        services.AddScoped<IParameterUnitOfWork, ParameterUnitOfWork>();
+
+        // Document Checklist Service (cross-module contract)
+        services.AddScoped<Parameter.Contracts.DocumentRequirements.IDocumentChecklistService,
+            DocumentRequirements.Services.DocumentChecklistService>();
+
         services.AddDbContext<ParameterDbContext>((sp, options) =>
         {
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
@@ -20,6 +32,7 @@ public static class ParameterModule
         });
 
         services.AddScoped<IDataSeeder<ParameterDbContext>, ParameterDataSeed>();
+        services.AddScoped<IDataSeeder<ParameterDbContext>, DocumentRequirementDataSeed>();
 
         return services;
     }

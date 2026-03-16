@@ -1,0 +1,3 @@
+namespace Parameter.DocumentRequirements.Features.UpdateDocumentRequirement;
+
+public record UpdateDocumentRequirementResult(bool Success);

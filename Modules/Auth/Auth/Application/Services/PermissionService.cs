@@ -1,5 +1,5 @@
-using OAuth2OpenId.Data.Repository;
-using OAuth2OpenId.Domain.Identity.Models;
+using Auth.Infrastructure.Repository;
+using Auth.Domain.Identity;
 using Shared.Exceptions;
 
 namespace Auth.Services;
@@ -16,7 +16,7 @@ public class PermissionService(
         var permission = new Permission
         {
             PermissionCode = permissionDto.PermissionCode,
-            Description = permissionDto.Description,
+            Description = permissionDto.Description
         };
         await permissionRepository.AddAsync(permission, cancellationToken);
         await permissionRepository.SaveChangesAsync(cancellationToken);
@@ -64,10 +64,7 @@ public class PermissionService(
                 permissionId,
                 cancellationToken
             );
-            if (!isPermissionExisted)
-            {
-                throw new NotFoundException("Permission", permissionId);
-            }
+            if (!isPermissionExisted) throw new NotFoundException("Permission", permissionId);
         }
     }
 }

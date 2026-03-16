@@ -24,8 +24,13 @@ public class AssigneeSelectorFactory : IAssigneeSelectorFactory
             AssigneeSelectionStrategy.WorkloadBased => _serviceProvider
                 .GetRequiredService<WorkloadBasedAssigneeSelector>(),
             AssigneeSelectionStrategy.Random => _serviceProvider.GetRequiredService<RandomAssigneeSelector>(),
-            AssigneeSelectionStrategy.PreviousOwner => _serviceProvider.GetRequiredService<PreviousOwnerAssigneeSelector>(),
+            AssigneeSelectionStrategy.PreviousOwner => _serviceProvider
+                .GetRequiredService<PreviousOwnerAssigneeSelector>(),
             AssigneeSelectionStrategy.Supervisor => _serviceProvider.GetRequiredService<SupervisorAssigneeSelector>(),
+            AssigneeSelectionStrategy.TeamConstrained => _serviceProvider
+                .GetRequiredService<TeamConstrainedAssigneeSelector>(),
+            AssigneeSelectionStrategy.StartedBy => _serviceProvider
+                .GetRequiredService<StartedByAssigneeSelector>(),
             _ => throw new ArgumentException($"Unknown assignee selection strategy: {strategy}")
         };
     }

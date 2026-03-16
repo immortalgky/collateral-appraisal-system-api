@@ -21,13 +21,16 @@ public record GetMachineryPropertyResponse(
     // Machine Specifications
     string? Brand,
     string? Model,
+    string? Series,
     int? YearOfManufacture,
-    string? CountryOfManufacture,
+    string? Manufacturer,
     // Purchase Info
     DateTime? PurchaseDate,
     decimal? PurchasePrice,
     // Dimensions
     string? Capacity,
+    int? Quantity,
+    string? MachineDimensions,
     decimal? Width,
     decimal? Length,
     decimal? Height,
@@ -38,15 +41,18 @@ public record GetMachineryPropertyResponse(
     string? OwnerName,
     bool VerifiableOwner,
     // Usage & Condition
-    bool CanUse,
+    bool IsOperational,
     string? Location,
     string? ConditionUse,
     string? MachineCondition,
     int? MachineAge,
     string? MachineEfficiency,
     string? MachineTechnology,
-    string? UsePurpose,
-    string? MachinePart,
+    string? UsagePurpose,
+    string? MachineParts,
+    // Valuation
+    decimal? ReplacementValue,
+    decimal? ConditionValue,
     // Appraiser Notes
     string? Remark,
     string? Other,

@@ -51,6 +51,12 @@ public interface ICurrentUserService
     IReadOnlyList<string> Roles { get; }
 
     /// <summary>
+    /// Gets the current user's company identifier from the "company_id" claim.
+    /// Returns null if the user has no company or is not authenticated.
+    /// </summary>
+    Guid? CompanyId { get; }
+
+    /// <summary>
     /// Checks if the current user has a specific role.
     /// </summary>
     /// <param name="role">The role name to check</param>

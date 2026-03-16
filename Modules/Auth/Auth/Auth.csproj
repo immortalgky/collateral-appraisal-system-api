@@ -1,10 +1,23 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
 
     <PropertyGroup>
         <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <RazorLangVersion>8.0</RazorLangVersion>
+        <EnableRazorRuntimeCompilation>true</EnableRazorRuntimeCompilation>
+        <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
     </PropertyGroup>
+
+    <ItemGroup>
+        <Content Include="Assets\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.5"/>
@@ -12,15 +25,19 @@
         <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="6.3.0"/>
         <PackageReference Include="OpenIddict.Server.AspNetCore" Version="6.3.0"/>
         <PackageReference Include="OpenIddict.Validation.AspNetCore" Version="6.3.0"/>
+        <PackageReference Include="System.Linq.Async" Version="6.0.3"/>
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
-        <ProjectReference Include="..\OAuth2OpenId\OAuth2OpenId.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Auth\Features\Logout\"/>
+        <Folder Include="Application\Features\Auth\Logout\"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Auth.Tests"/>
     </ItemGroup>
 
 </Project>

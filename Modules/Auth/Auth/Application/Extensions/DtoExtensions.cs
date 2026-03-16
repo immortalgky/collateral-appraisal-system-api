@@ -1,4 +1,4 @@
-using OAuth2OpenId.Domain.Identity.Models;
+using Auth.Domain.Identity;
 
 namespace Auth.Extensions;
 

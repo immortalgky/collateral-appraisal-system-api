@@ -5,7 +5,6 @@ namespace Workflow.Tasks.Models;
 public class CompletedTask : Aggregate<Guid>
 {
     public Guid CorrelationId { get; private set; } = Guid.Empty!;
-    public long RequestId { get; private set; }
     public TaskName TaskName { get; private set; } = default!;
     public TaskStatus TaskStatus { get; private set; } = default!;
     public string AssignedTo { get; private set; } = default!;
@@ -19,12 +18,11 @@ public class CompletedTask : Aggregate<Guid>
         // For EF Core
     }
 
-    private CompletedTask(Guid id, Guid correlationId, long requestId, TaskName taskName, string assignedTo,
+    private CompletedTask(Guid id, Guid correlationId, TaskName taskName, string assignedTo,
         string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt)
     {
         Id = id;
         CorrelationId = correlationId;
-        RequestId = requestId;
         TaskName = taskName;
         TaskStatus = TaskStatus.Completed;
         AssignedTo = assignedTo;
@@ -34,10 +32,10 @@ public class CompletedTask : Aggregate<Guid>
         CompletedAt = completedAt;
     }
 
-    public static CompletedTask Create(Guid id, Guid correlationId, long requestId, TaskName taskName, string assignedTo,
+    public static CompletedTask Create(Guid id, Guid correlationId, TaskName taskName, string assignedTo,
         string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt)
     {
-        return new CompletedTask(id, correlationId, requestId, taskName, assignedTo, assignedType, assignedAt,
+        return new CompletedTask(id, correlationId, taskName, assignedTo, assignedType, assignedAt,
             actionTaken, completedAt);
     }
 
@@ -46,7 +44,6 @@ public class CompletedTask : Aggregate<Guid>
         return new CompletedTask(
             pendingTask.Id,
             pendingTask.CorrelationId,
-            pendingTask.RequestId,
             pendingTask.TaskName,
             pendingTask.AssignedTo,
             pendingTask.AssignedType,

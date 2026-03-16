@@ -1,6 +1,7 @@
 using Workflow.AssigneeSelection.Core;
 using Workflow.AssigneeSelection.Engine;
 using Workflow.AssigneeSelection.Factories;
+using Workflow.AssigneeSelection.Pipeline;
 using Workflow.AssigneeSelection.Services;
 using Workflow.Services.Configuration;
 using Workflow.Services.Configuration.Models;
@@ -31,12 +32,16 @@ public class SimpleWorkflowTests
         var actionExecutor = Substitute.For<IWorkflowActionExecutor>();
         var auditService = Substitute.For<IWorkflowAuditService>();
         var bookmarkService = Substitute.For<IWorkflowBookmarkService>();
+        var assignmentPipeline = Substitute.For<IAssignmentPipeline>();
         var logger = Substitute.For<ILogger<HumanTaskActivity>>();
 
         // Act
+        var publisher = Substitute.For<MediatR.IPublisher>();
         var humanTaskActivity = new HumanTaskActivity(
             bookmarkService,
             auditService,
+            assignmentPipeline,
+            publisher,
             logger);
 
         // Assert
@@ -82,10 +87,10 @@ public class SimpleWorkflowTests
     public void ActivityResult_Success_ShouldCreateCompletedResult()
     {
         // Arrange
-        var outputData = new Dictionary<string, object> 
-        { 
-            ["Decision"] = "Approved", 
-            ["Value"] = 250000 
+        var outputData = new Dictionary<string, object>
+        {
+            ["Decision"] = "Approved",
+            ["Value"] = 250000
         };
 
         // Act

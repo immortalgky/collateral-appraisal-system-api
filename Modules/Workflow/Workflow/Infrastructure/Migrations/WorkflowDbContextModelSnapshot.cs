@@ -147,9 +147,6 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<long>("RequestId")
-                        .HasColumnType("bigint");
-
                     b.Property<string>("TaskName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -201,9 +198,6 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<long>("RequestId")
-                        .HasColumnType("bigint");
 
                     b.Property<string>("TaskName")
                         .IsRequired()

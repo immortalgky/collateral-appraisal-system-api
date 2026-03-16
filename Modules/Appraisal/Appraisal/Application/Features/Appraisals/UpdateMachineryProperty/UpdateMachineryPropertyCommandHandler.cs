@@ -11,18 +11,18 @@ public class UpdateMachineryPropertyCommandHandler(
     IAppraisalRepository appraisalRepository
 ) : ICommandHandler<UpdateMachineryPropertyCommand>
 {
-    public async Task<MediatR.Unit> Handle(
+    public async Task<Unit> Handle(
         UpdateMachineryPropertyCommand command,
         CancellationToken cancellationToken)
     {
         // 1. Load aggregate root with properties
         var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(
-            command.AppraisalId, cancellationToken)
-            ?? throw new AppraisalNotFoundException(command.AppraisalId);
+                            command.AppraisalId, cancellationToken)
+                        ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
         // 2. Find the property
         var property = appraisal.GetProperty(command.PropertyId)
-            ?? throw new PropertyNotFoundException(command.PropertyId);
+                       ?? throw new PropertyNotFoundException(command.PropertyId);
 
         // 3. Validate property type
         if (property.PropertyType != PropertyType.Machinery)
@@ -30,42 +30,48 @@ public class UpdateMachineryPropertyCommandHandler(
 
         // 4. Get the machinery detail
         var detail = property.MachineryDetail
-            ?? throw new InvalidOperationException($"Machinery detail not found for property {command.PropertyId}");
+                     ?? throw new InvalidOperationException(
+                         $"Machinery detail not found for property {command.PropertyId}");
 
         // 5. Update via domain method
         detail.Update(
-            propertyName: command.PropertyName,
-            machineName: command.MachineName,
-            engineNo: command.EngineNo,
-            chassisNo: command.ChassisNo,
-            registrationNo: command.RegistrationNo,
-            brand: command.Brand,
-            model: command.Model,
-            yearOfManufacture: command.YearOfManufacture,
-            countryOfManufacture: command.CountryOfManufacture,
-            purchaseDate: command.PurchaseDate,
-            purchasePrice: command.PurchasePrice,
-            capacity: command.Capacity,
-            width: command.Width,
-            length: command.Length,
-            height: command.Height,
-            energyUse: command.EnergyUse,
-            energyUseRemark: command.EnergyUseRemark,
-            ownerName: command.OwnerName,
-            isOwnerVerified: command.IsOwnerVerified,
-            canUse: command.CanUse,
-            location: command.Location,
-            conditionUse: command.ConditionUse,
-            machineCondition: command.MachineCondition,
-            machineAge: command.MachineAge,
-            machineEfficiency: command.MachineEfficiency,
-            machineTechnology: command.MachineTechnology,
-            usePurpose: command.UsePurpose,
-            machinePart: command.MachinePart,
-            remark: command.Remark,
-            other: command.Other,
-            appraiserOpinion: command.AppraiserOpinion);
+            command.PropertyName,
+            command.MachineName,
+            command.EngineNo,
+            command.ChassisNo,
+            command.RegistrationNo,
+            command.Brand,
+            command.Model,
+            command.Series,
+            command.YearOfManufacture,
+            command.Manufacturer,
+            command.PurchaseDate,
+            command.PurchasePrice,
+            command.Capacity,
+            command.Quantity,
+            command.MachineDimensions,
+            command.Width,
+            command.Length,
+            command.Height,
+            command.EnergyUse,
+            command.EnergyUseRemark,
+            command.OwnerName,
+            command.IsOwnerVerified,
+            command.IsOperational,
+            command.Location,
+            command.ConditionUse,
+            command.MachineCondition,
+            command.MachineAge,
+            command.MachineEfficiency,
+            command.MachineTechnology,
+            command.UsagePurpose,
+            command.MachineParts,
+            command.ReplacementValue,
+            command.ConditionValue,
+            command.Remark,
+            command.Other,
+            command.AppraiserOpinion);
 
-        return MediatR.Unit.Value;
+        return Unit.Value;
     }
 }

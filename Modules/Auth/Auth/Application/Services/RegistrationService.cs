@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
-using OAuth2OpenId.Data.Repository;
-using OAuth2OpenId.Domain.Identity.Models;
+using Auth.Infrastructure.Repository;
+using Auth.Domain.Identity;
 using OpenIddict.Abstractions;
 using Shared.Exceptions;
 
@@ -35,14 +35,15 @@ public class RegistrationService(
             AvatarUrl = registerUserDto.AvatarUrl,
             Position = registerUserDto.Position,
             Department = registerUserDto.Department,
+            CompanyId = registerUserDto.CompanyId,
             Permissions =
             [
                 .. registerUserDto.Permissions.Select(userPermission => new UserPermission
                 {
                     PermissionId = userPermission.PermissionId,
-                    IsGranted = userPermission.IsGranted,
-                }),
-            ],
+                    IsGranted = userPermission.IsGranted
+                })
+            ]
         };
 
         var result = await userManager.CreateAsync(user, registerUserDto.Password);
@@ -64,17 +65,16 @@ public class RegistrationService(
                 ?? throw new NotFoundException("Role", roleId);
             roleNames.Add(role.Name!);
         }
+
         return roleNames;
     }
 
     private static void HandleIdentityResult(IdentityResult result)
     {
         if (!result.Succeeded)
-        {
             throw new InvalidOperationException(
                 string.Join("; ", result.Errors.Select(error => error.Description).ToList())
             );
-        }
     }
 
     public async Task<OpenIddictApplicationDescriptor> RegisterClient(
@@ -84,9 +84,7 @@ public class RegistrationService(
         var clientId = Guid.NewGuid().ToString();
         string? clientSecret = null;
         if (registerClientDto.ClientType == OpenIddictConstants.ClientTypes.Confidential)
-        {
             clientSecret = RandomNumberGenerator.GetHexString(30);
-        }
 
         var applicationDescriptor = new OpenIddictApplicationDescriptor
         {
@@ -97,7 +95,7 @@ public class RegistrationService(
             PostLogoutRedirectUris = { },
             RedirectUris = { },
             Permissions = { },
-            Requirements = { },
+            Requirements = { }
         };
 
         applicationDescriptor.PostLogoutRedirectUris.UnionWith(

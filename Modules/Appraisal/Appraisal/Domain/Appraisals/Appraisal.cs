@@ -66,13 +66,14 @@ public class Appraisal : Aggregate<Guid>
         Guid requestId,
         string appraisalType,
         string priority,
-        int? slaDays = null)
+        int? slaDays = null,
+        string? requestedBy = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appraisalType);
         ArgumentException.ThrowIfNullOrWhiteSpace(priority);
 
         var appraisal = new Appraisal(requestId, appraisalType, priority, slaDays);
-        appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal));
+        appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal, requestedBy));
 
         return appraisal;
     }
