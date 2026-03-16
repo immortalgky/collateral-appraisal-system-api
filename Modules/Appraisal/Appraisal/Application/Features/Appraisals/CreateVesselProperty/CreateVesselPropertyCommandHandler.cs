@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateVesselProperty;
 /// Handler for creating a vessel property with its appraisal detail
 /// </summary>
 public class CreateVesselPropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    IAppraisalUnitOfWork unitOfWork
 ) : ICommandHandler<CreateVesselPropertyCommand, CreateVesselPropertyResult>
 {
     public async Task<CreateVesselPropertyResult> Handle(
@@ -21,9 +22,7 @@ public class CreateVesselPropertyCommandHandler(
             ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
         // 2. Execute domain operation via aggregate
-        var property = appraisal.AddVesselProperty(
-            command.OwnerName,
-            command.Description);
+        var property = appraisal.AddVesselProperty();
 
         // 3. Update detail with additional fields
         property.VesselDetail!.Update(
@@ -65,8 +64,10 @@ public class CreateVesselPropertyCommandHandler(
             appraiserOpinion: command.AppraiserOpinion);
 
         // 4. Save aggregate
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
+        
         // 5. Return both IDs
         return new CreateVesselPropertyResult(property.Id, property.VesselDetail.Id);
     }

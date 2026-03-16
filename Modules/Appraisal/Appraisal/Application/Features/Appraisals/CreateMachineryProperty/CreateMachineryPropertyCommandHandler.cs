@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateMachineryProperty;
 /// Handler for creating a machinery property with its appraisal detail
 /// </summary>
 public class CreateMachineryPropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    IAppraisalUnitOfWork unitOfWork
 ) : ICommandHandler<CreateMachineryPropertyCommand, CreateMachineryPropertyResult>
 {
     public async Task<CreateMachineryPropertyResult> Handle(
@@ -21,9 +22,7 @@ public class CreateMachineryPropertyCommandHandler(
             ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
         // 2. Execute domain operation via aggregate
-        var property = appraisal.AddMachineryProperty(
-            command.OwnerName,
-            command.Description);
+        var property = appraisal.AddMachineryProperty();
 
         // 3. Update detail with additional fields
         property.MachineryDetail!.Update(
@@ -59,8 +58,10 @@ public class CreateMachineryPropertyCommandHandler(
             appraiserOpinion: command.AppraiserOpinion);
 
         // 4. Save aggregate
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
+        
         // 5. Return both IDs
         return new CreateMachineryPropertyResult(property.Id, property.MachineryDetail.Id);
     }

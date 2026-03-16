@@ -37,7 +37,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
     public string? EnergyUseRemark { get; private set; }
 
     // Owner
-    public string OwnerName { get; private set; } = null!;
+    public string? OwnerName { get; private set; }
     public bool IsOwnerVerified { get; private set; }
 
     // Usage & Condition
@@ -61,15 +61,11 @@ public class MachineryAppraisalDetail : Entity<Guid>
     }
 
     public static MachineryAppraisalDetail Create(
-        Guid appraisalPropertyId,
-        string ownerName,
-        Guid createdBy)
+        Guid appraisalPropertyId)
     {
         return new MachineryAppraisalDetail
         {
             AppraisalPropertyId = appraisalPropertyId,
-            OwnerName = ownerName,
-            CanUse = true
         };
     }
 

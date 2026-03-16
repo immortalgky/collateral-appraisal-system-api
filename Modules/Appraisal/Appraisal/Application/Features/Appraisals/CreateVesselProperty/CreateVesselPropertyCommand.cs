@@ -8,6 +8,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateVesselProperty;
 /// </summary>
 public record CreateVesselPropertyCommand(
     Guid AppraisalId,
+    Guid? GroupId,
     // Required
     string OwnerName,
     // Vessel Identification

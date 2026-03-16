@@ -66,9 +66,6 @@ public class UpdateVehiclePropertyCommandHandler(
             other: command.Other,
             appraiserOpinion: command.AppraiserOpinion);
 
-        // 6. Save aggregate
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
-
         return MediatR.Unit.Value;
     }
 }

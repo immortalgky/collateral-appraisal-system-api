@@ -12,13 +12,14 @@ public class CreateVesselPropertyEndpoint : ICarterModule
                 "/appraisals/{appraisalId:guid}/vessel-properties",
                 async (
                     Guid appraisalId,
+                    Guid groupId,
                     CreateVesselPropertyRequest request,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
                     var command = request.Adapt<CreateVesselPropertyCommand>()
-                        with { AppraisalId = appraisalId };
+                        with { AppraisalId = appraisalId, GroupId = groupId };
 
                     var result = await sender.Send(command, cancellationToken);
 
