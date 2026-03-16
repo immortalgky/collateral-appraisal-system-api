@@ -39,7 +39,7 @@ public class
         builder.Property(e => e.EnergyUseRemark).HasMaxLength(200);
 
         // Owner
-        builder.Property(e => e.OwnerName).IsRequired().HasMaxLength(200);
+        builder.Property(e => e.OwnerName).HasMaxLength(200);
 
         // Usage & Condition
         builder.Property(e => e.Location).HasMaxLength(200);

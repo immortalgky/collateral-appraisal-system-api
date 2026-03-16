@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateVehicleProperty;
 /// Handler for creating a vehicle property with its appraisal detail
 /// </summary>
 public class CreateVehiclePropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    IAppraisalUnitOfWork unitOfWork
 ) : ICommandHandler<CreateVehiclePropertyCommand, CreateVehiclePropertyResult>
 {
     public async Task<CreateVehiclePropertyResult> Handle(
@@ -21,9 +22,7 @@ public class CreateVehiclePropertyCommandHandler(
             ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
         // 2. Execute domain operation via aggregate
-        var property = appraisal.AddVehicleProperty(
-            command.OwnerName,
-            command.Description);
+        var property = appraisal.AddVehicleProperty();
 
         // 3. Update detail with additional fields
         property.VehicleDetail!.Update(
@@ -59,8 +58,10 @@ public class CreateVehiclePropertyCommandHandler(
             appraiserOpinion: command.AppraiserOpinion);
 
         // 4. Save aggregate
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
+        
         // 5. Return both IDs
         return new CreateVehiclePropertyResult(property.Id, property.VehicleDetail.Id);
     }

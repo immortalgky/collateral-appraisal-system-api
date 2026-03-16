@@ -39,7 +39,7 @@ public record GetVesselPropertyResult(
     string? EnergyUse,
     string? EnergyUseRemark,
     // Owner
-    string Owner,
+    string? OwnerName,
     bool VerifiableOwner,
     // Vessel Info
     bool CanUse,

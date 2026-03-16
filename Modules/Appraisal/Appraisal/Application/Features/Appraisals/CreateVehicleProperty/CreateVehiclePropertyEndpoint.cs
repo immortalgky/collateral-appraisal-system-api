@@ -12,13 +12,14 @@ public class CreateVehiclePropertyEndpoint : ICarterModule
                 "/appraisals/{appraisalId:guid}/vehicle-properties",
                 async (
                     Guid appraisalId,
+                    Guid groupId,
                     CreateVehiclePropertyRequest request,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
                     var command = request.Adapt<CreateVehiclePropertyCommand>()
-                        with { AppraisalId = appraisalId };
+                        with { AppraisalId = appraisalId, GroupId = groupId };
 
                     var result = await sender.Send(command, cancellationToken);
 

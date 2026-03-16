@@ -8,6 +8,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateVehicleProperty;
 /// </summary>
 public record CreateVehiclePropertyCommand(
     Guid AppraisalId,
+    Guid? GroupId,
     // Required
     string OwnerName,
     // Vehicle Identification

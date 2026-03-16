@@ -41,7 +41,7 @@ public class VesselAppraisalDetail : Entity<Guid>
     public string? EnergyUseRemark { get; private set; }
 
     // Owner
-    public string OwnerName { get; private set; } = null!;
+    public string? OwnerName { get; private set; }
     public bool IsOwnerVerified { get; private set; }
 
     // Vessel Info
@@ -69,15 +69,11 @@ public class VesselAppraisalDetail : Entity<Guid>
     }
 
     public static VesselAppraisalDetail Create(
-        Guid appraisalPropertyId,
-        string ownerName,
-        Guid createdBy)
+        Guid appraisalPropertyId)
     {
         return new VesselAppraisalDetail
         {
             AppraisalPropertyId = appraisalPropertyId,
-            OwnerName = ownerName,
-            CanUse = true
         };
     }
 

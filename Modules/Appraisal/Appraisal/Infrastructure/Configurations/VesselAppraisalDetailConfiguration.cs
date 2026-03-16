@@ -41,7 +41,7 @@ public class VesselAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appr
         builder.Property(e => e.EnergyUseRemark).HasMaxLength(200);
 
         // Owner
-        builder.Property(e => e.OwnerName).IsRequired().HasMaxLength(200);
+        builder.Property(e => e.OwnerName).HasMaxLength(200);
 
         // Vessel Info
         builder.Property(e => e.FormerName).HasMaxLength(200);

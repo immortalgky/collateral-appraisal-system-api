@@ -61,7 +61,7 @@ public class GetVesselPropertyQueryHandler(
             NetTonnage: detail.NetTonnage,
             EnergyUse: detail.EnergyUse,
             EnergyUseRemark: detail.EnergyUseRemark,
-            Owner: detail.OwnerName,
+            OwnerName: detail.OwnerName,
             VerifiableOwner: detail.IsOwnerVerified,
             CanUse: detail.CanUse,
             FormerName: detail.FormerName,

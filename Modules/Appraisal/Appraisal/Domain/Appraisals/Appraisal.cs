@@ -172,14 +172,12 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Add a vehicle property with detail to this appraisal
     /// </summary>
-    public AppraisalProperty AddVehicleProperty(string owner, string? description = null)
+    public AppraisalProperty AddVehicleProperty()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
-
         var sequenceNumber = _properties.Count + 1;
-        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Vehicle, description);
+        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Vehicle);
 
-        var vehicleDetail = VehicleAppraisalDetail.Create(property.Id, owner, Guid.Empty);
+        var vehicleDetail = VehicleAppraisalDetail.Create(property.Id);
         property.SetVehicleDetail(vehicleDetail);
 
         _properties.Add(property);
@@ -190,14 +188,13 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Add a vessel property with detail to this appraisal
     /// </summary>
-    public AppraisalProperty AddVesselProperty(string owner, string? description = null)
+    public AppraisalProperty AddVesselProperty()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
 
         var sequenceNumber = _properties.Count + 1;
-        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Vessel, description);
+        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Vessel);
 
-        var vesselDetail = VesselAppraisalDetail.Create(property.Id, owner, Guid.Empty);
+        var vesselDetail = VesselAppraisalDetail.Create(property.Id);
         property.SetVesselDetail(vesselDetail);
 
         _properties.Add(property);
@@ -208,14 +205,13 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Add a machinery property with detail to this appraisal
     /// </summary>
-    public AppraisalProperty AddMachineryProperty(string owner, string? description = null)
+    public AppraisalProperty AddMachineryProperty()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
 
         var sequenceNumber = _properties.Count + 1;
-        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Machinery, description);
+        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Machinery);
 
-        var machineryDetail = MachineryAppraisalDetail.Create(property.Id, owner, Guid.Empty);
+        var machineryDetail = MachineryAppraisalDetail.Create(property.Id);
         property.SetMachineryDetail(machineryDetail);
 
         _properties.Add(property);

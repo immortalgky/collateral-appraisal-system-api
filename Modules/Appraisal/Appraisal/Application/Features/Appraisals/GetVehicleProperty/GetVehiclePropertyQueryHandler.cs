@@ -57,7 +57,7 @@ public class GetVehiclePropertyQueryHandler(
             Height: detail.Height,
             EnergyUse: detail.EnergyUse,
             EnergyUseRemark: detail.EnergyUseRemark,
-            Owner: detail.OwnerName,
+            OwnerName: detail.OwnerName,
             VerifiableOwner: detail.IsOwnerVerified,
             CanUse: detail.CanUse,
             Location: detail.Location,

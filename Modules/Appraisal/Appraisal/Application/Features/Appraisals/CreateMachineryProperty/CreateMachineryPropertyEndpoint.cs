@@ -12,13 +12,14 @@ public class CreateMachineryPropertyEndpoint : ICarterModule
                 "/appraisals/{appraisalId:guid}/machinery-properties",
                 async (
                     Guid appraisalId,
+                    Guid? groupId,
                     CreateMachineryPropertyRequest request,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
                     var command = request.Adapt<CreateMachineryPropertyCommand>()
-                        with { AppraisalId = appraisalId };
+                        with { AppraisalId = appraisalId, GroupId = groupId };
 
                     var result = await sender.Send(command, cancellationToken);
 

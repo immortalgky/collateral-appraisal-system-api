@@ -35,7 +35,7 @@ public record GetMachineryPropertyResult(
     string? EnergyUse,
     string? EnergyUseRemark,
     // Owner
-    string Owner,
+    string? OwnerName,
     bool VerifiableOwner,
     // Usage & Condition
     bool CanUse,
