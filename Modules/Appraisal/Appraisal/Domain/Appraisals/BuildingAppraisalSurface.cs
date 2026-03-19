@@ -44,9 +44,9 @@ public class BuildingAppraisalSurface : Entity<Guid>
             ToFloorNumber = toFloorNumber,
             FloorType = floorType,
             FloorStructureType = floorStructureType,
-            FloorStructureTypeOther = floorStructureType == "Others" ? floorStructureTypeOther : null,
+            FloorStructureTypeOther = floorStructureType == "99" ? floorStructureTypeOther : null,
             FloorSurfaceType = floorSurfaceType,
-            FloorSurfaceTypeOther = floorSurfaceType == "Others" ? floorSurfaceTypeOther : null
+            FloorSurfaceTypeOther = floorSurfaceType == "99" ? floorSurfaceTypeOther : null
         };
     }
 
@@ -66,8 +66,8 @@ public class BuildingAppraisalSurface : Entity<Guid>
         ToFloorNumber = toFloorNumber;
         FloorType = floorType;
         FloorStructureType = floorStructureType;
-        FloorStructureTypeOther = floorStructureType == "Others" ? floorStructureTypeOther : null;
+        FloorStructureTypeOther = floorStructureType == "99" ? floorStructureTypeOther : null;
         FloorSurfaceType = floorSurfaceType;
-        FloorSurfaceTypeOther = floorSurfaceType == "Others" ? floorSurfaceTypeOther : null;
+        FloorSurfaceTypeOther = floorSurfaceType == "99" ? floorSurfaceTypeOther : null;
     }
 }
