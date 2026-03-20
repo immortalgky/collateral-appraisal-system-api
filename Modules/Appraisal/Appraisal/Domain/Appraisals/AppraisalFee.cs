@@ -103,6 +103,7 @@ public class AppraisalFee : Entity<Guid>
         TotalFeeAfterVAT = TotalFeeBeforeVAT + VATAmount;
         CustomerPayableAmount = TotalFeeAfterVAT - BankAbsorbAmount;
         OutstandingAmount = CustomerPayableAmount - TotalPaidAmount;
+        UpdatePaymentStatus();
     }
 
     public void SetFeePaymentType(string feePaymentType)
@@ -115,6 +116,7 @@ public class AppraisalFee : Entity<Guid>
         BankAbsorbAmount = amount;
         CustomerPayableAmount = TotalFeeAfterVAT - BankAbsorbAmount;
         OutstandingAmount = CustomerPayableAmount - TotalPaidAmount;
+        UpdatePaymentStatus();
     }
 
     public void SetInspectionFee(decimal? amount)
@@ -158,7 +160,11 @@ public class AppraisalFee : Entity<Guid>
     {
         TotalPaidAmount = _paymentHistory.Sum(p => p.PaymentAmount);
         OutstandingAmount = CustomerPayableAmount - TotalPaidAmount;
+        UpdatePaymentStatus();
+    }
 
+    private void UpdatePaymentStatus()
+    {
         if (TotalPaidAmount >= CustomerPayableAmount && CustomerPayableAmount > 0)
             PaymentStatus = "Paid";
         else if (TotalPaidAmount > 0)

@@ -1,3 +1,4 @@
+using Auth.Application.Configurations;
 using Auth.Domain.Companies;
 using Auth.Infrastructure.Repository;
 using Auth.Infrastructure.Seed;
@@ -140,6 +141,10 @@ public static class AuthModule
 
         // Data seeding
         services.AddScoped<IDataSeeder<AuthDbContext>, AuthDataSeed>();
+
+        // LDAP
+        services.Configure<LdapConfiguration>(configuration.GetSection(LdapConfiguration.SectionName));
+        services.AddScoped<ILdapAuthenticationService, LdapAuthenticationService>();
 
         // Services
         services.AddScoped<ITokenService, TokenService>();

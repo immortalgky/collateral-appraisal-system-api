@@ -1,6 +1,6 @@
-namespace Appraisal.Application.Features.Appointments.GetAppointments;
+namespace Appraisal.Application.Features.Appointments.GetAppointment;
 
-public record GetAppointmentsResult(List<AppointmentDto> Appointments);
+public record GetAppointmentResult(AppointmentDto? Appointment);
 
 public sealed record AppointmentDto
 {

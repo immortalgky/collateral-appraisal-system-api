@@ -77,6 +77,51 @@ public class VesselAppraisalDetail : Entity<Guid>
         };
     }
 
+    public static VesselAppraisalDetail CopyFrom(VesselAppraisalDetail source, Guid newPropertyId)
+    {
+        return new VesselAppraisalDetail
+        {
+            AppraisalPropertyId = newPropertyId,
+            PropertyName = source.PropertyName,
+            VesselName = source.VesselName,
+            EngineNo = source.EngineNo,
+            RegistrationNo = source.RegistrationNo,
+            RegistrationDate = source.RegistrationDate,
+            Brand = source.Brand,
+            Model = source.Model,
+            YearOfManufacture = source.YearOfManufacture,
+            PlaceOfManufacture = source.PlaceOfManufacture,
+            VesselType = source.VesselType,
+            ClassOfVessel = source.ClassOfVessel,
+            PurchaseDate = source.PurchaseDate,
+            PurchasePrice = source.PurchasePrice,
+            EngineCapacity = source.EngineCapacity,
+            Width = source.Width,
+            Length = source.Length,
+            Height = source.Height,
+            GrossTonnage = source.GrossTonnage,
+            NetTonnage = source.NetTonnage,
+            EnergyUse = source.EnergyUse,
+            EnergyUseRemark = source.EnergyUseRemark,
+            OwnerName = source.OwnerName,
+            IsOwnerVerified = source.IsOwnerVerified,
+            CanUse = source.CanUse,
+            FormerName = source.FormerName,
+            VesselCurrentName = source.VesselCurrentName,
+            Location = source.Location,
+            ConditionUse = source.ConditionUse,
+            VesselCondition = source.VesselCondition,
+            VesselAge = source.VesselAge,
+            VesselEfficiency = source.VesselEfficiency,
+            VesselTechnology = source.VesselTechnology,
+            UsePurpose = source.UsePurpose,
+            VesselPart = source.VesselPart,
+            Remark = source.Remark,
+            Other = source.Other,
+            AppraiserOpinion = source.AppraiserOpinion
+        };
+    }
+
     public void Update(
         // Vessel Identification
         string? propertyName = null,

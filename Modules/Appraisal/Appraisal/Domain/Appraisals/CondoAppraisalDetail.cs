@@ -267,6 +267,87 @@ public class CondoAppraisalDetail : Entity<Guid>
     }
 
 
+    public static CondoAppraisalDetail CopyFrom(CondoAppraisalDetail source, Guid newPropertyId)
+    {
+        var copy = new CondoAppraisalDetail
+        {
+            AppraisalPropertyId = newPropertyId,
+            PropertyName = source.PropertyName,
+            CondoName = source.CondoName,
+            BuildingNumber = source.BuildingNumber,
+            ModelName = source.ModelName,
+            BuiltOnTitleNumber = source.BuiltOnTitleNumber,
+            CondoRegistrationNumber = source.CondoRegistrationNumber,
+            RoomNumber = source.RoomNumber,
+            FloorNumber = source.FloorNumber,
+            PhysicalFloorNumber = source.PhysicalFloorNumber,
+            UsableArea = source.UsableArea,
+            Coordinates = source.Coordinates is not null
+                ? GpsCoordinate.Create(source.Coordinates.Latitude, source.Coordinates.Longitude)
+                : null,
+            Address = source.Address is not null
+                ? AdministrativeAddress.Create(source.Address.SubDistrict, source.Address.District, source.Address.Province, source.Address.LandOffice)
+                : null,
+            OwnerName = source.OwnerName,
+            IsOwnerVerified = source.IsOwnerVerified,
+            BuildingConditionType = source.BuildingConditionType,
+            HasObligation = source.HasObligation,
+            ObligationDetails = source.ObligationDetails,
+            DocumentValidationResultType = source.DocumentValidationResultType,
+            LocationType = source.LocationType,
+            Street = source.Street,
+            Soi = source.Soi,
+            DistanceFromMainRoad = source.DistanceFromMainRoad,
+            AccessRoadWidth = source.AccessRoadWidth,
+            RightOfWay = source.RightOfWay,
+            RoadSurfaceType = source.RoadSurfaceType,
+            RoadSurfaceTypeOther = source.RoadSurfaceTypeOther,
+            PublicUtilityType = source.PublicUtilityType?.ToList(),
+            PublicUtilityTypeOther = source.PublicUtilityTypeOther,
+            DecorationType = source.DecorationType,
+            DecorationTypeOther = source.DecorationTypeOther,
+            BuildingAge = source.BuildingAge,
+            ConstructionYear = source.ConstructionYear,
+            NumberOfFloors = source.NumberOfFloors,
+            BuildingFormType = source.BuildingFormType,
+            ConstructionMaterialType = source.ConstructionMaterialType,
+            RoomLayoutType = source.RoomLayoutType,
+            RoomLayoutTypeOther = source.RoomLayoutTypeOther,
+            LocationViewType = source.LocationViewType?.ToList(),
+            GroundFloorMaterialType = source.GroundFloorMaterialType,
+            GroundFloorMaterialTypeOther = source.GroundFloorMaterialTypeOther,
+            UpperFloorMaterialType = source.UpperFloorMaterialType,
+            UpperFloorMaterialTypeOther = source.UpperFloorMaterialTypeOther,
+            BathroomFloorMaterialType = source.BathroomFloorMaterialType,
+            BathroomFloorMaterialTypeOther = source.BathroomFloorMaterialTypeOther,
+            RoofType = source.RoofType?.ToList(),
+            RoofTypeOther = source.RoofTypeOther,
+            TotalBuildingArea = source.TotalBuildingArea,
+            IsExpropriated = source.IsExpropriated,
+            ExpropriationRemark = source.ExpropriationRemark,
+            IsInExpropriationLine = source.IsInExpropriationLine,
+            ExpropriationLineRemark = source.ExpropriationLineRemark,
+            RoyalDecree = source.RoyalDecree,
+            IsForestBoundary = source.IsForestBoundary,
+            ForestBoundaryRemark = source.ForestBoundaryRemark,
+            FacilityType = source.FacilityType?.ToList(),
+            FacilityTypeOther = source.FacilityTypeOther,
+            EnvironmentType = source.EnvironmentType?.ToList(),
+            BuildingInsurancePrice = source.BuildingInsurancePrice,
+            SellingPrice = source.SellingPrice,
+            ForcedSalePrice = source.ForcedSalePrice,
+            Remark = source.Remark
+        };
+
+        foreach (var area in source.AreaDetails)
+        {
+            var areaCopy = CondoAppraisalAreaDetail.Create(area.AreaDescription, area.AreaSize);
+            copy._areaDetails.Add(areaCopy);
+        }
+
+        return copy;
+    }
+
     public void AddCondoAreaDetail(CondoAppraisalAreaDetail  areaDetails)
     {
         _areaDetails.Add(areaDetails);

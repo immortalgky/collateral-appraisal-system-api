@@ -242,6 +242,96 @@ public class BuildingAppraisalDetail : Entity<Guid>
         Remark = remark;
     }
 
+    public static BuildingAppraisalDetail CopyFrom(BuildingAppraisalDetail source, Guid newPropertyId)
+    {
+        var copy = new BuildingAppraisalDetail
+        {
+            AppraisalPropertyId = newPropertyId,
+            PropertyName = source.PropertyName,
+            BuildingNumber = source.BuildingNumber,
+            ModelName = source.ModelName,
+            BuiltOnTitleNumber = source.BuiltOnTitleNumber,
+            HouseNumber = source.HouseNumber,
+            OwnerName = source.OwnerName,
+            IsOwnerVerified = source.IsOwnerVerified,
+            HasObligation = source.HasObligation,
+            ObligationDetails = source.ObligationDetails,
+            BuildingConditionType = source.BuildingConditionType,
+            IsUnderConstruction = source.IsUnderConstruction,
+            ConstructionCompletionPercent = source.ConstructionCompletionPercent,
+            ConstructionLicenseExpirationDate = source.ConstructionLicenseExpirationDate,
+            IsAppraisable = source.IsAppraisable,
+            BuildingType = source.BuildingType,
+            BuildingTypeOther = source.BuildingTypeOther,
+            NumberOfFloors = source.NumberOfFloors,
+            DecorationType = source.DecorationType,
+            DecorationTypeOther = source.DecorationTypeOther,
+            IsEncroachingOthers = source.IsEncroachingOthers,
+            EncroachingOthersRemark = source.EncroachingOthersRemark,
+            EncroachingOthersArea = source.EncroachingOthersArea,
+            BuildingMaterialType = source.BuildingMaterialType,
+            BuildingStyleType = source.BuildingStyleType,
+            IsResidential = source.IsResidential,
+            BuildingAge = source.BuildingAge,
+            ConstructionYear = source.ConstructionYear,
+            ResidentialRemark = source.ResidentialRemark,
+            ConstructionStyleType = source.ConstructionStyleType,
+            ConstructionStyleRemark = source.ConstructionStyleRemark,
+            StructureType = source.StructureType?.ToList(),
+            StructureTypeOther = source.StructureTypeOther,
+            RoofFrameType = source.RoofFrameType?.ToList(),
+            RoofFrameTypeOther = source.RoofFrameTypeOther,
+            RoofType = source.RoofType?.ToList(),
+            RoofTypeOther = source.RoofTypeOther,
+            CeilingType = source.CeilingType?.ToList(),
+            CeilingTypeOther = source.CeilingTypeOther,
+            InteriorWallType = source.InteriorWallType?.ToList(),
+            InteriorWallTypeOther = source.InteriorWallTypeOther,
+            ExteriorWallType = source.ExteriorWallType?.ToList(),
+            ExteriorWallTypeOther = source.ExteriorWallTypeOther,
+            FenceType = source.FenceType?.ToList(),
+            FenceTypeOther = source.FenceTypeOther,
+            ConstructionType = source.ConstructionType,
+            ConstructionTypeOther = source.ConstructionTypeOther,
+            UtilizationType = source.UtilizationType,
+            UtilizationTypeOther = source.UtilizationTypeOther,
+            TotalBuildingArea = source.TotalBuildingArea,
+            BuildingInsurancePrice = source.BuildingInsurancePrice,
+            SellingPrice = source.SellingPrice,
+            ForcedSalePrice = source.ForcedSalePrice,
+            Remark = source.Remark
+        };
+
+        foreach (var dep in source.DepreciationDetails)
+        {
+            var depCopy = BuildingDepreciationDetail.Create(
+                copy.Id, dep.DepreciationMethod, dep.AreaDescription, dep.Area, dep.Year,
+                dep.IsBuilding, dep.PricePerSqMBeforeDepreciation, dep.PriceBeforeDepreciation,
+                dep.PricePerSqMAfterDepreciation, dep.PriceAfterDepreciation,
+                dep.DepreciationYearPct, dep.TotalDepreciationPct, dep.PriceDepreciation);
+
+            foreach (var period in dep.DepreciationPeriods)
+            {
+                depCopy.AddPeriod(
+                    period.AtYear, period.ToYear, period.DepreciationPerYear,
+                    period.TotalDepreciationPct, period.PriceDepreciation);
+            }
+
+            copy._depreciationDetails.Add(depCopy);
+        }
+
+        foreach (var surface in source.Surfaces)
+        {
+            var surfaceCopy = BuildingAppraisalSurface.Create(
+                copy.Id, surface.FromFloorNumber, surface.ToFloorNumber,
+                surface.FloorType, surface.FloorStructureType, surface.FloorStructureTypeOther,
+                surface.FloorSurfaceType, surface.FloorSurfaceTypeOther);
+            copy._surfaces.Add(surfaceCopy);
+        }
+
+        return copy;
+    }
+
     public BuildingDepreciationDetail AddDepreciationDetail(
         string depreciationMethod,
         string? areaDescription = null,

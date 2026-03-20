@@ -30,4 +30,4 @@ FROM workflow.PendingTasks pt
                       GROUP BY RequestId) P
          LEFT JOIN appraisal.AppraisalAssignments AA
 on AA.AppraisalId = a.Id AND AA.AssignmentStatus != 'Rejected' AND AA.AssignmentStatus != 'Cancelled'
-    LEFT JOIN appraisal.Appointments ap ON ap.AssignmentId = aa.Id
+    LEFT JOIN appraisal.Appointments ap ON ap.AssignmentId = aa.Id AND ap.Status != 'Cancelled'

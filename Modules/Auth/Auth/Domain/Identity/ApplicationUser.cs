@@ -8,5 +8,6 @@ public class ApplicationUser : IdentityUser<Guid>
     public string? Position { get; set; }
     public string? Department { get; set; }
     public Guid? CompanyId { get; set; }
+    public string AuthSource { get; set; } = "Local";
     public List<UserPermission> Permissions { get; set; } = default!;
 }

@@ -17,7 +17,6 @@ public class CreateAppointmentEndpoint : ICarterModule
                 {
                     var command = new CreateAppointmentCommand(
                         appraisalId,
-                        request.AssignmentId,
                         request.AppointmentDateTime,
                         request.AppointedBy,
                         request.LocationDetail,

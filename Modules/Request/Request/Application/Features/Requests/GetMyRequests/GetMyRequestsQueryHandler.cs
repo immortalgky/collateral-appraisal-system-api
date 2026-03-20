@@ -1,13 +1,19 @@
+using Request.Application.Features.Requests.GetRequests;
+using Shared.Identity;
 using Shared.Pagination;
 
-namespace Request.Application.Features.Requests.GetRequests;
+namespace Request.Application.Features.Requests.GetMyRequests;
 
-internal class GetRequestQueryHandler(RequestDbContext dbContext)
-    : IQueryHandler<GetRequestQuery, GetRequestResult>
+internal class GetMyRequestsQueryHandler(RequestDbContext dbContext, ICurrentUserService currentUserService)
+    : IQueryHandler<GetMyRequestsQuery, GetMyRequestsResult>
 {
-    public async Task<GetRequestResult> Handle(GetRequestQuery query, CancellationToken cancellationToken)
+    public async Task<GetMyRequestsResult> Handle(GetMyRequestsQuery query, CancellationToken cancellationToken)
     {
         var queryable = dbContext.Requests.AsNoTracking().AsQueryable();
+
+        // Filter by current user
+        var username = currentUserService.Username;
+        queryable = queryable.Where(r => r.CreatedBy == username);
 
         // Filter by status (default: Draft or New)
         if (!string.IsNullOrWhiteSpace(query.Status))
@@ -72,6 +78,6 @@ internal class GetRequestQueryHandler(RequestDbContext dbContext)
             query.PaginationRequest,
             cancellationToken);
 
-        return new GetRequestResult(paginatedResult);
+        return new GetMyRequestsResult(paginatedResult);
     }
 }

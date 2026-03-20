@@ -25,6 +25,7 @@
         <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="6.3.0"/>
         <PackageReference Include="OpenIddict.Server.AspNetCore" Version="6.3.0"/>
         <PackageReference Include="OpenIddict.Validation.AspNetCore" Version="6.3.0"/>
+        <PackageReference Include="System.DirectoryServices.Protocols" Version="9.0.0"/>
         <PackageReference Include="System.Linq.Async" Version="6.0.3"/>
     </ItemGroup>
 

@@ -28,10 +28,10 @@ public class GetAppraisalAppendicesQueryHandler(
             .Distinct()
             .ToList();
 
-        var documentIdByPhotoId = await dbContext.AppraisalGallery
+        var galleryLookup = await dbContext.AppraisalGallery
             .Where(g => allGalleryPhotoIds.Contains(g.Id))
-            .Select(g => new { g.Id, g.DocumentId })
-            .ToDictionaryAsync(g => g.Id, g => g.DocumentId, cancellationToken);
+            .Select(g => new { g.Id, g.DocumentId, g.FileName, g.FilePath, g.FileExtension, g.MimeType, g.FileSizeBytes })
+            .ToDictionaryAsync(g => g.Id, cancellationToken);
 
         var dtos = appendices
             .Where(a => typesById.ContainsKey(a.AppendixTypeId))
@@ -47,12 +47,21 @@ public class GetAppraisalAppendicesQueryHandler(
                     a.LayoutColumns,
                     a.Documents
                         .OrderBy(d => d.DisplaySequence)
-                        .Select(d => new AppendixDocumentDto(
-                            d.Id,
-                            d.GalleryPhotoId,
-                            documentIdByPhotoId.GetValueOrDefault(d.GalleryPhotoId),
-                            d.DisplaySequence
-                        )).ToList()
+                        .Select(d =>
+                        {
+                            var photo = galleryLookup.GetValueOrDefault(d.GalleryPhotoId);
+                            return new AppendixDocumentDto(
+                                d.Id,
+                                d.GalleryPhotoId,
+                                photo?.DocumentId ?? Guid.Empty,
+                                d.DisplaySequence,
+                                photo?.FileName,
+                                photo?.FilePath,
+                                photo?.FileExtension,
+                                photo?.MimeType,
+                                photo?.FileSizeBytes
+                            );
+                        }).ToList()
                 );
             }).ToList();
 
