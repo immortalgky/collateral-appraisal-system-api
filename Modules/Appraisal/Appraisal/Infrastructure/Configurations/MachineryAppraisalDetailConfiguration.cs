@@ -23,13 +23,15 @@ public class
         // Machine Specifications
         builder.Property(e => e.Brand).HasMaxLength(100);
         builder.Property(e => e.Model).HasMaxLength(100);
-        builder.Property(e => e.CountryOfManufacture).HasMaxLength(100);
+        builder.Property(e => e.Series).HasMaxLength(200);
+        builder.Property(e => e.Manufacturer).HasMaxLength(100);
 
         // Purchase Info
         builder.Property(e => e.PurchasePrice).HasPrecision(18, 2);
 
         // Dimensions
         builder.Property(e => e.Capacity).HasMaxLength(100);
+        builder.Property(e => e.MachineDimensions).HasMaxLength(200);
         builder.Property(e => e.Width).HasPrecision(10, 2);
         builder.Property(e => e.Length).HasPrecision(10, 2);
         builder.Property(e => e.Height).HasPrecision(10, 2);
@@ -47,8 +49,12 @@ public class
         builder.Property(e => e.MachineCondition).HasMaxLength(100);
         builder.Property(e => e.MachineEfficiency).HasMaxLength(100);
         builder.Property(e => e.MachineTechnology).HasMaxLength(100);
-        builder.Property(e => e.UsePurpose).HasMaxLength(200);
-        builder.Property(e => e.MachinePart).HasMaxLength(500);
+        builder.Property(e => e.UsagePurpose).HasMaxLength(200);
+        builder.Property(e => e.MachineParts).HasMaxLength(500);
+
+        // Valuation
+        builder.Property(e => e.ReplacementValue).HasPrecision(18, 2);
+        builder.Property(e => e.ConditionValue).HasPrecision(18, 2);
 
         // Appraiser Notes
         builder.Property(e => e.Remark).HasMaxLength(1000);

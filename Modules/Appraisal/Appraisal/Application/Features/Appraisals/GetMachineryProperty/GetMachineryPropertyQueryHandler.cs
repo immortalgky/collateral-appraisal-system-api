@@ -17,12 +17,12 @@ public class GetMachineryPropertyQueryHandler(
     {
         // 1. Load aggregate root with properties
         var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(
-            query.AppraisalId, cancellationToken)
-            ?? throw new AppraisalNotFoundException(query.AppraisalId);
+                            query.AppraisalId, cancellationToken)
+                        ?? throw new AppraisalNotFoundException(query.AppraisalId);
 
         // 2. Find the property
         var property = appraisal.GetProperty(query.PropertyId)
-            ?? throw new PropertyNotFoundException(query.PropertyId);
+                       ?? throw new PropertyNotFoundException(query.PropertyId);
 
         // 3. Validate property type
         if (property.PropertyType != PropertyType.Machinery)
@@ -30,46 +30,52 @@ public class GetMachineryPropertyQueryHandler(
 
         // 4. Get the machinery detail
         var detail = property.MachineryDetail
-            ?? throw new InvalidOperationException($"Machinery detail not found for property {query.PropertyId}");
+                     ?? throw new InvalidOperationException(
+                         $"Machinery detail not found for property {query.PropertyId}");
 
         // 5. Map to result
         return new GetMachineryPropertyResult(
-            PropertyId: property.Id,
-            AppraisalId: property.AppraisalId,
-            SequenceNumber: property.SequenceNumber,
-            PropertyType: property.PropertyType.ToString(),
-            Description: property.Description,
-            DetailId: detail.Id,
-            PropertyName: detail.PropertyName,
-            MachineName: detail.MachineName,
-            EngineNo: detail.EngineNo,
-            ChassisNo: detail.ChassisNo,
-            RegistrationNo: detail.RegistrationNo,
-            Brand: detail.Brand,
-            Model: detail.Model,
-            YearOfManufacture: detail.YearOfManufacture,
-            CountryOfManufacture: detail.CountryOfManufacture,
-            PurchaseDate: detail.PurchaseDate,
-            PurchasePrice: detail.PurchasePrice,
-            Capacity: detail.Capacity,
-            Width: detail.Width,
-            Length: detail.Length,
-            Height: detail.Height,
-            EnergyUse: detail.EnergyUse,
-            EnergyUseRemark: detail.EnergyUseRemark,
-            OwnerName: detail.OwnerName,
-            VerifiableOwner: detail.IsOwnerVerified,
-            CanUse: detail.CanUse,
-            Location: detail.Location,
-            ConditionUse: detail.ConditionUse,
-            MachineCondition: detail.MachineCondition,
-            MachineAge: detail.MachineAge,
-            MachineEfficiency: detail.MachineEfficiency,
-            MachineTechnology: detail.MachineTechnology,
-            UsePurpose: detail.UsePurpose,
-            MachinePart: detail.MachinePart,
-            Remark: detail.Remark,
-            Other: detail.Other,
-            AppraiserOpinion: detail.AppraiserOpinion);
+            property.Id,
+            property.AppraisalId,
+            property.SequenceNumber,
+            property.PropertyType.ToString(),
+            property.Description,
+            detail.Id,
+            detail.PropertyName,
+            detail.MachineName,
+            detail.EngineNo,
+            detail.ChassisNo,
+            detail.RegistrationNo,
+            detail.Brand,
+            detail.Model,
+            detail.Series,
+            detail.YearOfManufacture,
+            detail.Manufacturer,
+            detail.PurchaseDate,
+            detail.PurchasePrice,
+            detail.Capacity,
+            detail.Quantity,
+            detail.MachineDimensions,
+            detail.Width,
+            detail.Length,
+            detail.Height,
+            detail.EnergyUse,
+            detail.EnergyUseRemark,
+            detail.OwnerName,
+            detail.IsOwnerVerified,
+            detail.IsOperational,
+            detail.Location,
+            detail.ConditionUse,
+            detail.MachineCondition,
+            detail.MachineAge,
+            detail.MachineEfficiency,
+            detail.MachineTechnology,
+            detail.UsagePurpose,
+            detail.MachineParts,
+            detail.ReplacementValue,
+            detail.ConditionValue,
+            detail.Remark,
+            detail.Other,
+            detail.AppraiserOpinion);
     }
 }

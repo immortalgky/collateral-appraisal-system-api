@@ -1,0 +1,20 @@
+namespace Parameter.DocumentRequirements.Features.GetDocumentRequirements;
+
+public record GetDocumentRequirementsResult(IReadOnlyList<DocumentRequirementDto> Requirements);
+
+public record DocumentRequirementDto
+{
+    public Guid Id { get; init; }
+    public Guid DocumentTypeId { get; init; }
+    public string DocumentTypeCode { get; init; } = null!;
+    public string DocumentTypeName { get; init; } = null!;
+    public string? DocumentTypeCategory { get; init; }
+    public string? PropertyTypeCode { get; init; }
+    public string? PropertyTypeName { get; init; }
+    public string? PurposeCode { get; init; }
+    public bool IsRequired { get; init; }
+    public bool IsActive { get; init; }
+    public string? Notes { get; init; }
+    public DateTime? CreatedOn { get; init; }
+    public DateTime? UpdatedOn { get; init; }
+}

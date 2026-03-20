@@ -1,5 +1,7 @@
 using System.Data;
+using Shared.Messaging.Values;
 using Workflow.Workflow.Activities.Core;
+using Workflow.Workflow.Events;
 using Workflow.Workflow.Schema;
 using Workflow.Workflow.Models;
 using Workflow.AssigneeSelection.Engine;
@@ -21,6 +23,7 @@ public class TaskActivity : WorkflowActivityBase
     private readonly IWorkflowActionExecutor _actionExecutor;
     private readonly IWorkflowAuditService _auditService;
     private readonly IWorkflowPersistenceService _persistenceService;
+    private readonly IPublisher _publisher;
     private readonly ExpressionEvaluator _expressionEvaluator;
     private readonly ILogger<TaskActivity> _logger;
 
@@ -32,6 +35,7 @@ public class TaskActivity : WorkflowActivityBase
         IWorkflowActionExecutor actionExecutor,
         IWorkflowAuditService auditService,
         IWorkflowPersistenceService persistenceService,
+        IPublisher publisher,
         ILogger<TaskActivity> logger)
     {
         _assigneeSelectorFactory = assigneeSelectorFactory;
@@ -41,6 +45,7 @@ public class TaskActivity : WorkflowActivityBase
         _actionExecutor = actionExecutor;
         _auditService = auditService;
         _persistenceService = persistenceService;
+        _publisher = publisher;
         _expressionEvaluator = new ExpressionEvaluator();
         _logger = logger;
     }
@@ -98,6 +103,7 @@ public class TaskActivity : WorkflowActivityBase
             var previousOwnerContext = new AssignmentContext
             {
                 ActivityName = activityName,
+                StartedBy = context.WorkflowInstance.StartedBy,
                 Properties = new Dictionary<string, object>
                 {
                     ["WorkflowInstanceId"] = context.WorkflowInstance.Id,
@@ -124,6 +130,10 @@ public class TaskActivity : WorkflowActivityBase
                     "Found and assigned to previous handler",
                     AssignmentChangeType.InitialAssignment,
                     previousOwnerResult.Metadata,
+                    cancellationToken);
+
+                // Publish domain event to create PendingTask projection
+                await PublishTaskAssignedEventAsync(context, previousOwnerResult.AssigneeId, assigneeRole,
                     cancellationToken);
 
                 var previousOwnerOutput = new Dictionary<string, object>
@@ -179,6 +189,7 @@ public class TaskActivity : WorkflowActivityBase
                 // TODO: Add support for multiple assignees by splitting the assignee string
                 UserGroups = [assigneeGroup],
                 UserCode = assignee,
+                StartedBy = context.WorkflowInstance.StartedBy,
 
                 Properties = new Dictionary<string, object>
                 {
@@ -188,12 +199,11 @@ public class TaskActivity : WorkflowActivityBase
             };
 
             // Execute cascading assignment strategies with explicit locking
-            // var result = await _persistenceService.ExecuteInTransactionWithStrategyAsync<AssigneeSelectionResult>(
-            //     () => ExecuteAssignmentWithLockAsync(assignmentContext, cancellationToken),
-            //     IsolationLevel.ReadCommitted, // Better performance with explicit sp_getapplock
-            //     cancellationToken);
-
-            var result = await ExecuteAssignmentWithLockAsync(assignmentContext, cancellationToken);
+            // sp_getapplock requires an active transaction (LockOwner="Transaction")
+            var result = await _persistenceService.ExecuteInTransactionWithStrategyAsync<AssigneeSelectionResult>(
+                () => ExecuteAssignmentWithLockAsync(assignmentContext, cancellationToken),
+                IsolationLevel.ReadCommitted,
+                cancellationToken);
 
             // If strategies failed, try admin pool fallback
             if (!result.IsSuccess && externalConfig?.EscalateToAdminPool == true)
@@ -232,6 +242,9 @@ public class TaskActivity : WorkflowActivityBase
                 outputData[$"{NormalizeActivityId(context.ActivityId)}_assignedTo"] = result.AssigneeId ?? "";
                 outputData[$"{NormalizeActivityId(context.ActivityId)}_assignmentMetadata"] =
                     result.Metadata ?? new Dictionary<string, object>();
+
+                // Publish domain event to create PendingTask projection
+                await PublishTaskAssignedEventAsync(context, result.AssigneeId, assigneeRole, cancellationToken);
 
                 _logger.LogInformation(
                     "Task assigned successfully for activity {ActivityId}. Assignee: {AssigneeId}. Assignment type: {AssignmentType}",
@@ -363,6 +376,9 @@ public class TaskActivity : WorkflowActivityBase
                         context.ActivityId, evaluatedDecision);
                 }
             }
+
+            // Publish domain event to move PendingTask → CompletedTask
+            await PublishTaskCompletedEventAsync(context, outputData, cancellationToken);
 
             _logger.LogInformation("TaskActivity {ActivityId} resumed with {InputCount} inputs, {OutputCount} outputs",
                 context.ActivityId, activityInputs.Count, outputData.Count);
@@ -1339,5 +1355,39 @@ public class TaskActivity : WorkflowActivityBase
     {
         public bool IsValid { get; set; }
         public string? ErrorMessage { get; set; }
+    }
+
+    private async Task PublishTaskAssignedEventAsync(
+        ActivityContext context, string assigneeId, string assigneeRole,
+        CancellationToken cancellationToken)
+    {
+        var taskName = TaskNameExtensions.FromActivityId(context.ActivityId);
+        if (!taskName.HasValue) return;
+
+        var correlationId = context.WorkflowInstance.CorrelationId;
+        if (string.IsNullOrEmpty(correlationId) || !Guid.TryParse(correlationId, out var correlationGuid)) return;
+
+        await _publisher.Publish(
+            new TaskAssignedEvent(correlationGuid, taskName.Value, assigneeId, assigneeRole ?? "", DateTime.UtcNow),
+            cancellationToken);
+    }
+
+    private async Task PublishTaskCompletedEventAsync(
+        ActivityContext context, Dictionary<string, object> outputData,
+        CancellationToken cancellationToken)
+    {
+        var taskName = TaskNameExtensions.FromActivityId(context.ActivityId);
+        if (!taskName.HasValue) return;
+
+        var correlationId = context.WorkflowInstance.CorrelationId;
+        if (string.IsNullOrEmpty(correlationId) || !Guid.TryParse(correlationId, out var correlationGuid)) return;
+
+        var actionTaken = outputData.TryGetValue("decision", out var decision)
+            ? decision?.ToString() ?? "Completed"
+            : "Completed";
+
+        await _publisher.Publish(
+            new TaskCompletedDomainEvent(correlationGuid, taskName.Value, actionTaken, DateTime.UtcNow),
+            cancellationToken);
     }
 }

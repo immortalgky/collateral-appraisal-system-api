@@ -1,0 +1,3 @@
+namespace Parameter.DocumentRequirements.Features.DeleteDocumentRequirement;
+
+public record DeleteDocumentRequirementResult(bool Success);

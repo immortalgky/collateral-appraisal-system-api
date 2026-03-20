@@ -72,6 +72,7 @@ public static class ActivityTypes
     public const string EndActivity = "EndActivity";
     public const string ForkActivity = "ForkActivity";
     public const string JoinActivity = "JoinActivity";
+    public const string RoutingActivity = "RoutingActivity";
 }
 
 public static class AppraisalActivityTypes

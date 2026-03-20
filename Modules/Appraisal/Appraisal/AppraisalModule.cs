@@ -3,6 +3,7 @@ using Appraisal.Domain.ComparativeAnalysis;
 using Appraisal.Domain.Services;
 using Appraisal.Infrastructure.Repositories;
 using Appraisal.Infrastructure.Seed;
+// DocumentRequirement entities moved to Parameter module
 using Shared.Data.Seed;
 
 namespace Appraisal;
@@ -43,9 +44,6 @@ public static class AppraisalModule
         // Register additional aggregate repositories
         services.AddScoped<IQuotationRepository, QuotationRepository>();
 
-        // Register Document Requirement repository
-        services.AddScoped<IDocumentRequirementRepository, DocumentRequirementRepository>();
-
         // Register Gallery repository
         services.AddScoped<IAppraisalGalleryRepository, AppraisalGalleryRepository>();
 
@@ -68,7 +66,6 @@ public static class AppraisalModule
         services.AddSingleton<PricingCalculationServiceResolver>();
 
         // Register Data Seeders
-        services.AddScoped<IDataSeeder<AppraisalDbContext>, DocumentRequirementDataSeed>();
         services.AddScoped<IDataSeeder<AppraisalDbContext>, AppendixTypeDataSeed>();
         services.AddScoped<IDataSeeder<AppraisalDbContext>, CommitteeThresholdDataSeed>();
 

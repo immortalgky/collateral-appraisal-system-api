@@ -29,7 +29,7 @@
 
 
     <ItemGroup>
-        <Folder Include="Scripts\Seed\Parameter\" />
+        <Folder Include="Scripts\Seed\Parameter\"/>
         <Folder Include="Scripts\Views\Document\"/>
         <Folder Include="Scripts\Views\Auth\"/>
         <Folder Include="Scripts\Views\Notification\"/>
@@ -55,7 +55,7 @@
         <ProjectReference Include="..\Modules\Workflow\Workflow\Workflow.csproj"/>
         <ProjectReference Include="..\Modules\Document\Document\Document.csproj"/>
         <ProjectReference Include="..\Modules\Notification\Notification\Notification.csproj"/>
-        <ProjectReference Include="..\Modules\Auth\OAuth2OpenId\OAuth2OpenId.csproj"/>
+        <ProjectReference Include="..\Modules\Auth\Auth\Auth.csproj"/>
     </ItemGroup>
 
 </Project>

@@ -54,9 +54,7 @@ public class TaskCompletedNotificationEventHandler : IConsumer<TaskCompleted>
     {
         if (context.Headers.TryGetHeader("RequestId", out var requestIdObj) &&
             long.TryParse(requestIdObj?.ToString(), out var requestId))
-        {
             return requestId;
-        }
 
         return 0;
     }
@@ -64,9 +62,7 @@ public class TaskCompletedNotificationEventHandler : IConsumer<TaskCompleted>
     private static string GetCompletedBy(ConsumeContext<TaskCompleted> context)
     {
         if (context.Headers.TryGetHeader("CompletedBy", out var completedByObj))
-        {
             return completedByObj?.ToString() ?? "System";
-        }
 
         return "System";
     }
@@ -77,9 +73,13 @@ public class TaskCompletedNotificationEventHandler : IConsumer<TaskCompleted>
         return taskName switch
         {
             "Admin" => "AwaitingAssignment",
-            "AppraisalStaff" => "Admin",
-            "AppraisalChecker" => "AppraisalStaff",
-            "AppraisalVerifier" => "AppraisalChecker",
+            "ExtAppraisalStaff" => "Admin",
+            "ExtAppraisalChecker" => "ExtAppraisalStaff",
+            "ExtAppraisalVerifier" => "ExtAppraisalChecker",
+            "IntAppraisalStaff" => "ExtAppraisalVerifier",
+            "IntAppraisalChecker" => "IntAppraisalStaff",
+            "IntAppraisalVerifier" => "IntAppraisalChecker",
+            "PendingApproval" => "IntAppraisalVerifier",
             _ => "Unknown"
         };
     }
@@ -87,27 +87,31 @@ public class TaskCompletedNotificationEventHandler : IConsumer<TaskCompleted>
     private static string GetNextState(string taskName, string actionTaken)
     {
         // Map task names and actions to next states
-        if (actionTaken == "R") // Return/Reject
-        {
+        if (actionTaken == "R") // Return/Route back
             return taskName switch
             {
                 "Admin" => "RequestMaker",
-                "AppraisalStaff" => "Admin",
-                "AppraisalChecker" => "AppraisalStaff",
-                "AppraisalVerifier" => "AppraisalChecker",
+                "ExtAppraisalStaff" => "Admin",
+                "ExtAppraisalChecker" => "ExtAppraisalStaff",
+                "ExtAppraisalVerifier" => "ExtAppraisalChecker",
+                "IntAppraisalStaff" => "ExtAppraisalStaff",
+                "IntAppraisalChecker" => "IntAppraisalStaff",
+                "IntAppraisalVerifier" => "IntAppraisalChecker",
+                "PendingApproval" => "IntAppraisalStaff",
                 _ => "Unknown"
             };
-        }
         else // Proceed
-        {
             return taskName switch
             {
-                "Admin" => "AppraisalStaff",
-                "AppraisalStaff" => "AppraisalChecker",
-                "AppraisalChecker" => "AppraisalVerifier",
-                "AppraisalVerifier" => "Completed",
+                "Admin" => "ExtAppraisalStaff",
+                "ExtAppraisalStaff" => "ExtAppraisalChecker",
+                "ExtAppraisalChecker" => "ExtAppraisalVerifier",
+                "ExtAppraisalVerifier" => "IntAppraisalStaff",
+                "IntAppraisalStaff" => "IntAppraisalChecker",
+                "IntAppraisalChecker" => "IntAppraisalVerifier",
+                "IntAppraisalVerifier" => "PendingApproval",
+                "PendingApproval" => "Completed",
                 _ => "Unknown"
             };
-        }
     }
 }

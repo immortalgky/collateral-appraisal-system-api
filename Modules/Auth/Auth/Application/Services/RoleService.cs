@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using OAuth2OpenId.Data.Repository;
-using OAuth2OpenId.Domain.Identity.Models;
+using Auth.Infrastructure.Repository;
+using Auth.Domain.Identity;
 using Shared.Exceptions;
 
 namespace Auth.Services;
@@ -29,20 +29,18 @@ public class RoleService(
             [
                 .. roleDto.Permissions.Select(permissionId => new RolePermission
                 {
-                    PermissionId = permissionId,
-                }),
-            ],
+                    PermissionId = permissionId
+                })
+            ]
         };
         var result = await roleManager.CreateAsync(role);
         if (!result.Succeeded)
-        {
             throw new InvalidOperationException(
                 string.Join(
                     "; ",
                     result.Errors.Select(error => $"{error.Code}: {error.Description}")
                 )
             );
-        }
         return role;
     }
 
@@ -70,7 +68,7 @@ public class RoleService(
     {
         var role = await roleManager
             .Roles.Include(role => role.Permissions)
-            .FirstOrDefaultAsync(role => role.Id == id, cancellationToken: cancellationToken);
+            .FirstOrDefaultAsync(role => role.Id == id, cancellationToken);
 
         return role;
     }

@@ -6,9 +6,9 @@ using Request.Infrastructure;
 using Workflow.Data;
 using Document.Data;
 using Notification.Data;
-using OAuth2OpenId.Data;
-using OAuth2OpenId;
-using OAuth2OpenId.Domain.Identity.Models;
+using Auth.Infrastructure;
+using Auth;
+using Auth.Domain.Identity;
 
 namespace Database.Migration;
 
@@ -33,7 +33,6 @@ public class EfCoreMigrationService : IEfCoreMigrationService
         var contextTypes = GetDbContextTypes();
 
         foreach (var contextType in contextTypes)
-        {
             try
             {
                 _logger.LogInformation("Running EF Core migrations for: {ContextType}", contextType.Name);
@@ -60,7 +59,6 @@ public class EfCoreMigrationService : IEfCoreMigrationService
                 _logger.LogError(ex, "EF Core migration failed for: {ContextType}", contextType.Name);
                 return false;
             }
-        }
 
         return true;
     }
@@ -72,10 +70,9 @@ public class EfCoreMigrationService : IEfCoreMigrationService
         {
             typeof(RequestDbContext),
             typeof(WorkflowDbContext),
-            typeof(AppraisalSagaDbContext),
             typeof(DocumentDbContext),
             typeof(NotificationDbContext),
-            typeof(OpenIddictDbContext)
+            typeof(AuthDbContext)
         };
     }
 
@@ -85,10 +82,9 @@ public class EfCoreMigrationService : IEfCoreMigrationService
         {
             nameof(RequestDbContext) => CreateRequestDbContext(connectionString),
             nameof(WorkflowDbContext) => CreateWorkflowDbContext(connectionString),
-            nameof(AppraisalSagaDbContext) => CreateAppraisalSagaDbContext(connectionString),
             nameof(DocumentDbContext) => CreateDocumentDbContext(connectionString),
             nameof(NotificationDbContext) => CreateNotificationDbContext(connectionString),
-            nameof(OpenIddictDbContext) => CreateOpenIddictDbContext(connectionString),
+            nameof(AuthDbContext) => CreateAuthDbContext(connectionString),
             _ => throw new ArgumentException($"Unknown context type: {contextType.Name}")
         };
     }
@@ -117,18 +113,6 @@ public class EfCoreMigrationService : IEfCoreMigrationService
         return new WorkflowDbContext(optionsBuilder.Options);
     }
 
-    private AppraisalSagaDbContext CreateAppraisalSagaDbContext(string connectionString)
-    {
-        var optionsBuilder = new DbContextOptionsBuilder<AppraisalSagaDbContext>();
-        //optionsBuilder.UseSqlServer(connectionString);
-        optionsBuilder.UseSqlServer(connectionString, sqlOptions =>
-        {
-            sqlOptions.MigrationsAssembly(typeof(AppraisalSagaDbContext).Assembly.GetName().Name);
-            sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "saga");
-        });
-        return new AppraisalSagaDbContext(optionsBuilder.Options);
-    }
-
     private DocumentDbContext CreateDocumentDbContext(string connectionString)
     {
         var optionsBuilder = new DbContextOptionsBuilder<DocumentDbContext>();
@@ -153,17 +137,17 @@ public class EfCoreMigrationService : IEfCoreMigrationService
         return new NotificationDbContext(optionsBuilder.Options);
     }
 
-    private OpenIddictDbContext CreateOpenIddictDbContext(string connectionString)
+    private AuthDbContext CreateAuthDbContext(string connectionString)
     {
-        var optionsBuilder = new DbContextOptionsBuilder<OpenIddictDbContext>();
+        var optionsBuilder = new DbContextOptionsBuilder<AuthDbContext>();
         //optionsBuilder.UseSqlServer(connectionString);
         optionsBuilder.UseSqlServer(connectionString, sqlOptions =>
         {
-            sqlOptions.MigrationsAssembly(typeof(OpenIddictDbContext).Assembly.GetName().Name);
+            sqlOptions.MigrationsAssembly(typeof(AuthDbContext).Assembly.GetName().Name);
             sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "auth");
         });
         optionsBuilder.UseOpenIddict();
-        return new OpenIddictDbContext(optionsBuilder.Options);
+        return new AuthDbContext(optionsBuilder.Options);
     }
 
     private async Task ProcessMigrations(DbContext context, Type contextType)

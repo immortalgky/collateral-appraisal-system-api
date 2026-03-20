@@ -1,3 +1,5 @@
+using Parameter.DocumentRequirements.Models;
+
 namespace Parameter.Data;
 
 public class ParameterDbContext : DbContext
@@ -15,6 +17,10 @@ public class ParameterDbContext : DbContext
     public DbSet<DopaDistrict> DopaDistricts => Set<DopaDistrict>();
     public DbSet<DopaSubDistrict> DopaSubDistricts => Set<DopaSubDistrict>();
 
+    // Document Requirements
+    public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
+    public DbSet<DocumentRequirement> DocumentRequirements => Set<DocumentRequirement>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("parameter");
@@ -25,5 +31,4 @@ public class ParameterDbContext : DbContext
 
         base.OnModelCreating(modelBuilder);
     }
-
 }

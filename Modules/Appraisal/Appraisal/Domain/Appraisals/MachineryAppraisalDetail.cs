@@ -19,8 +19,9 @@ public class MachineryAppraisalDetail : Entity<Guid>
     // Machine Specifications
     public string? Brand { get; private set; }
     public string? Model { get; private set; }
+    public string? Series { get; private set; }
     public int? YearOfManufacture { get; private set; }
-    public string? CountryOfManufacture { get; private set; }
+    public string? Manufacturer { get; private set; }
 
     // Purchase Info
     public DateTime? PurchaseDate { get; private set; }
@@ -28,6 +29,8 @@ public class MachineryAppraisalDetail : Entity<Guid>
 
     // Dimensions
     public string? Capacity { get; private set; }
+    public int? Quantity { get; private set; }
+    public string? MachineDimensions { get; private set; }
     public decimal? Width { get; private set; }
     public decimal? Length { get; private set; }
     public decimal? Height { get; private set; }
@@ -41,15 +44,19 @@ public class MachineryAppraisalDetail : Entity<Guid>
     public bool IsOwnerVerified { get; private set; }
 
     // Usage & Condition
-    public bool CanUse { get; private set; } = true;
+    public bool IsOperational { get; private set; } = true;
     public string? Location { get; private set; }
     public string? ConditionUse { get; private set; }
     public string? MachineCondition { get; private set; }
     public int? MachineAge { get; private set; }
     public string? MachineEfficiency { get; private set; }
     public string? MachineTechnology { get; private set; }
-    public string? UsePurpose { get; private set; }
-    public string? MachinePart { get; private set; }
+    public string? UsagePurpose { get; private set; }
+    public string? MachineParts { get; private set; }
+
+    // Valuation
+    public decimal? ReplacementValue { get; private set; }
+    public decimal? ConditionValue { get; private set; }
 
     // Appraiser Notes
     public string? Remark { get; private set; }
@@ -58,6 +65,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
 
     private MachineryAppraisalDetail()
     {
+        // For EF Core
     }
 
     public static MachineryAppraisalDetail Create(
@@ -65,7 +73,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
     {
         return new MachineryAppraisalDetail
         {
-            AppraisalPropertyId = appraisalPropertyId,
+            AppraisalPropertyId = appraisalPropertyId
         };
     }
 
@@ -79,13 +87,16 @@ public class MachineryAppraisalDetail : Entity<Guid>
         // Machine Specifications
         string? brand = null,
         string? model = null,
+        string? series = null,
         int? yearOfManufacture = null,
-        string? countryOfManufacture = null,
+        string? manufacturer = null,
         // Purchase Info
         DateTime? purchaseDate = null,
         decimal? purchasePrice = null,
         // Dimensions
         string? capacity = null,
+        int? quantity = null,
+        string? machineDimensions = null,
         decimal? width = null,
         decimal? length = null,
         decimal? height = null,
@@ -96,15 +107,18 @@ public class MachineryAppraisalDetail : Entity<Guid>
         string? ownerName = null,
         bool? isOwnerVerified = null,
         // Usage & Condition
-        bool? canUse = null,
+        bool? isOperational = null,
         string? location = null,
         string? conditionUse = null,
         string? machineCondition = null,
         int? machineAge = null,
         string? machineEfficiency = null,
         string? machineTechnology = null,
-        string? usePurpose = null,
-        string? machinePart = null,
+        string? usagePurpose = null,
+        string? machineParts = null,
+        // Valuation
+        decimal? replacementValue = null,
+        decimal? conditionValue = null,
         // Appraiser Notes
         string? remark = null,
         string? other = null,
@@ -120,8 +134,9 @@ public class MachineryAppraisalDetail : Entity<Guid>
         // Machine Specifications
         if (brand is not null) Brand = brand;
         if (model is not null) Model = model;
+        if (series is not null) Series = series;
         if (yearOfManufacture.HasValue) YearOfManufacture = yearOfManufacture.Value;
-        if (countryOfManufacture is not null) CountryOfManufacture = countryOfManufacture;
+        if (manufacturer is not null) Manufacturer = manufacturer;
 
         // Purchase Info
         if (purchaseDate.HasValue) PurchaseDate = purchaseDate.Value;
@@ -129,6 +144,8 @@ public class MachineryAppraisalDetail : Entity<Guid>
 
         // Dimensions
         if (capacity is not null) Capacity = capacity;
+        if (quantity.HasValue) Quantity = quantity.Value;
+        if (machineDimensions is not null) MachineDimensions = machineDimensions;
         if (width.HasValue) Width = width.Value;
         if (length.HasValue) Length = length.Value;
         if (height.HasValue) Height = height.Value;
@@ -142,15 +159,19 @@ public class MachineryAppraisalDetail : Entity<Guid>
         if (isOwnerVerified.HasValue) IsOwnerVerified = isOwnerVerified.Value;
 
         // Usage & Condition
-        if (canUse.HasValue) CanUse = canUse.Value;
+        if (isOperational.HasValue) IsOperational = isOperational.Value;
         if (location is not null) Location = location;
         if (conditionUse is not null) ConditionUse = conditionUse;
         if (machineCondition is not null) MachineCondition = machineCondition;
         if (machineAge.HasValue) MachineAge = machineAge.Value;
         if (machineEfficiency is not null) MachineEfficiency = machineEfficiency;
         if (machineTechnology is not null) MachineTechnology = machineTechnology;
-        if (usePurpose is not null) UsePurpose = usePurpose;
-        if (machinePart is not null) MachinePart = machinePart;
+        if (usagePurpose is not null) UsagePurpose = usagePurpose;
+        if (machineParts is not null) MachineParts = machineParts;
+
+        // Valuation
+        if (replacementValue.HasValue) ReplacementValue = replacementValue.Value;
+        if (conditionValue.HasValue) ConditionValue = conditionValue.Value;
 
         // Appraiser Notes
         if (remark is not null) Remark = remark;

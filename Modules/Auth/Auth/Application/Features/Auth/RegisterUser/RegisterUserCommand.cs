@@ -9,6 +9,7 @@ public record RegisterUserCommand(
     string? AvatarUrl,
     string? Position,
     string? Department,
+    Guid? CompanyId,
     List<RegisterUserPermissionDto> Permissions,
     List<Guid> Roles
 ) : ICommand<RegisterUserResult>;
