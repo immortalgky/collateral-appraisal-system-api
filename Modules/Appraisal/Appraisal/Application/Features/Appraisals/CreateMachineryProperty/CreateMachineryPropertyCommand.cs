@@ -10,7 +10,7 @@ public record CreateMachineryPropertyCommand(
     Guid AppraisalId,
     Guid? GroupId,
     // Required
-    string OwnerName,
+    string? OwnerName,
     // Machine Identification
     string? PropertyName = null,
     string? MachineName = null,
