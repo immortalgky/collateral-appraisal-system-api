@@ -16,5 +16,10 @@ public record AppendixDocumentDto(
     Guid Id,
     Guid GalleryPhotoId,
     Guid DocumentId,
-    int DisplaySequence
+    int DisplaySequence,
+    string? FileName,
+    string? FilePath,
+    string? FileExtension,
+    string? MimeType,
+    long? FileSizeBytes
 );

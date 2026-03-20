@@ -221,6 +221,54 @@ public class Appraisal : Aggregate<Guid>
     }
 
     /// <summary>
+    /// Deep-copy an existing property. Call SaveChanges to generate the ID,
+    /// then use AddPropertyToGroup to assign it to a group.
+    /// </summary>
+    public AppraisalProperty CopyProperty(Guid sourcePropertyId)
+    {
+        var source = _properties.FirstOrDefault(p => p.Id == sourcePropertyId)
+                     ?? throw new InvalidOperationException($"Property {sourcePropertyId} not found");
+
+        var sequenceNumber = _properties.Count + 1;
+        var newProperty = AppraisalProperty.Create(Id, sequenceNumber, source.PropertyType);
+
+        if (source.PropertyType == PropertyType.Land)
+        {
+            newProperty.SetLandDetail(LandAppraisalDetail.CopyFrom(source.LandDetail!, newProperty.Id));
+        }
+        else if (source.PropertyType == PropertyType.Building)
+        {
+            newProperty.SetBuildingDetail(BuildingAppraisalDetail.CopyFrom(source.BuildingDetail!, newProperty.Id));
+        }
+        else if (source.PropertyType == PropertyType.LandAndBuilding)
+        {
+            newProperty.SetLandAndBuildingDetails(
+                LandAppraisalDetail.CopyFrom(source.LandDetail!, newProperty.Id),
+                BuildingAppraisalDetail.CopyFrom(source.BuildingDetail!, newProperty.Id));
+        }
+        else if (source.PropertyType == PropertyType.Condo)
+        {
+            newProperty.SetCondoDetail(CondoAppraisalDetail.CopyFrom(source.CondoDetail!, newProperty.Id));
+        }
+        else if (source.PropertyType == PropertyType.Vehicle)
+        {
+            newProperty.SetVehicleDetail(VehicleAppraisalDetail.CopyFrom(source.VehicleDetail!, newProperty.Id));
+        }
+        else if (source.PropertyType == PropertyType.Vessel)
+        {
+            newProperty.SetVesselDetail(VesselAppraisalDetail.CopyFrom(source.VesselDetail!, newProperty.Id));
+        }
+        else if (source.PropertyType == PropertyType.Machinery)
+        {
+            newProperty.SetMachineryDetail(MachineryAppraisalDetail.CopyFrom(source.MachineryDetail!, newProperty.Id));
+        }
+
+        _properties.Add(newProperty);
+
+        return newProperty;
+    }
+
+    /// <summary>
     /// Get a property by ID
     /// </summary>
     public AppraisalProperty? GetProperty(Guid propertyId)
@@ -304,6 +352,9 @@ public class Appraisal : Aggregate<Guid>
                 $"Cannot delete group '{group.GroupName}' because it still contains {group.Items.Count} property(ies). Remove all properties from the group first.");
 
         _groups.Remove(group);
+
+        // Resequence remaining groups
+        for (var i = 0; i < _groups.Count; i++) _groups[i].UpdateGroupNumber(i + 1);
     }
 
     /// <summary>

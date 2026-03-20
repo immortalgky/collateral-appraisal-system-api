@@ -1,11 +1,23 @@
 namespace Shared.Configurations;
 
+public enum StorageMode { Local, Nas }
+
 /// <summary>
 /// Configuration for file storage settings
 /// </summary>
 public class FileStorageConfiguration
 {
     public const string SectionName = "FileStorage";
+
+    /// <summary>
+    /// Storage mode: Local (wwwroot) or Nas (network share)
+    /// </summary>
+    public StorageMode Mode { get; set; } = StorageMode.Local;
+
+    /// <summary>
+    /// Base path for NAS storage (e.g. "\\\\nas_app_dev\\CAS")
+    /// </summary>
+    public string? NasBasePath { get; set; }
 
     /// <summary>
     /// Root path for file storage

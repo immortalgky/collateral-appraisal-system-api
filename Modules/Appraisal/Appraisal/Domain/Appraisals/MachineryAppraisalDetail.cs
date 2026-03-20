@@ -77,6 +77,50 @@ public class MachineryAppraisalDetail : Entity<Guid>
         };
     }
 
+    public static MachineryAppraisalDetail CopyFrom(MachineryAppraisalDetail source, Guid newPropertyId)
+    {
+        return new MachineryAppraisalDetail
+        {
+            AppraisalPropertyId = newPropertyId,
+            PropertyName = source.PropertyName,
+            MachineName = source.MachineName,
+            EngineNo = source.EngineNo,
+            ChassisNo = source.ChassisNo,
+            RegistrationNo = source.RegistrationNo,
+            Brand = source.Brand,
+            Model = source.Model,
+            Series = source.Series,
+            YearOfManufacture = source.YearOfManufacture,
+            Manufacturer = source.Manufacturer,
+            PurchaseDate = source.PurchaseDate,
+            PurchasePrice = source.PurchasePrice,
+            Capacity = source.Capacity,
+            Quantity = source.Quantity,
+            MachineDimensions = source.MachineDimensions,
+            Width = source.Width,
+            Length = source.Length,
+            Height = source.Height,
+            EnergyUse = source.EnergyUse,
+            EnergyUseRemark = source.EnergyUseRemark,
+            OwnerName = source.OwnerName,
+            IsOwnerVerified = source.IsOwnerVerified,
+            IsOperational = source.IsOperational,
+            Location = source.Location,
+            ConditionUse = source.ConditionUse,
+            MachineCondition = source.MachineCondition,
+            MachineAge = source.MachineAge,
+            MachineEfficiency = source.MachineEfficiency,
+            MachineTechnology = source.MachineTechnology,
+            UsagePurpose = source.UsagePurpose,
+            MachineParts = source.MachineParts,
+            ReplacementValue = source.ReplacementValue,
+            ConditionValue = source.ConditionValue,
+            Remark = source.Remark,
+            Other = source.Other,
+            AppraiserOpinion = source.AppraiserOpinion
+        };
+    }
+
     public void Update(
         // Machine Identification
         string? propertyName = null,

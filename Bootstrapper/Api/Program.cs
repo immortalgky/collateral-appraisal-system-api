@@ -163,7 +163,35 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 //if (app.Environment.IsDevelopment()) app.UseDeveloperExceptionPage();
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+
+// Configure static file serving based on storage mode
+var fileStorageConfig = app.Configuration
+    .GetSection(FileStorageConfiguration.SectionName)
+    .Get<FileStorageConfiguration>();
+
+if (fileStorageConfig?.Mode == StorageMode.Nas
+    && !string.IsNullOrEmpty(fileStorageConfig.NasBasePath))
+{
+    if (Directory.Exists(fileStorageConfig.NasBasePath))
+    {
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new PhysicalFileProvider(fileStorageConfig.NasBasePath),
+            RequestPath = ""
+        });
+        Log.Information("Static files served from NAS: {NasBasePath}", fileStorageConfig.NasBasePath);
+    }
+    else
+    {
+        Log.Warning("NAS path is not accessible: {NasBasePath}. Falling back to local storage.", fileStorageConfig.NasBasePath);
+        app.UseStaticFiles();
+    }
+}
+else
+{
+    app.UseStaticFiles();
+}
+
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(

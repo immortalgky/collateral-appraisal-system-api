@@ -69,6 +69,45 @@ public class VehicleAppraisalDetail : Entity<Guid>
         };
     }
 
+    public static VehicleAppraisalDetail CopyFrom(VehicleAppraisalDetail source, Guid newPropertyId)
+    {
+        return new VehicleAppraisalDetail
+        {
+            AppraisalPropertyId = newPropertyId,
+            PropertyName = source.PropertyName,
+            VehicleName = source.VehicleName,
+            EngineNo = source.EngineNo,
+            ChassisNo = source.ChassisNo,
+            RegistrationNo = source.RegistrationNo,
+            Brand = source.Brand,
+            Model = source.Model,
+            YearOfManufacture = source.YearOfManufacture,
+            CountryOfManufacture = source.CountryOfManufacture,
+            PurchaseDate = source.PurchaseDate,
+            PurchasePrice = source.PurchasePrice,
+            Capacity = source.Capacity,
+            Width = source.Width,
+            Length = source.Length,
+            Height = source.Height,
+            EnergyUse = source.EnergyUse,
+            EnergyUseRemark = source.EnergyUseRemark,
+            OwnerName = source.OwnerName,
+            IsOwnerVerified = source.IsOwnerVerified,
+            CanUse = source.CanUse,
+            Location = source.Location,
+            ConditionUse = source.ConditionUse,
+            VehicleCondition = source.VehicleCondition,
+            VehicleAge = source.VehicleAge,
+            VehicleEfficiency = source.VehicleEfficiency,
+            VehicleTechnology = source.VehicleTechnology,
+            UsePurpose = source.UsePurpose,
+            VehiclePart = source.VehiclePart,
+            Remark = source.Remark,
+            Other = source.Other,
+            AppraiserOpinion = source.AppraiserOpinion
+        };
+    }
+
     public void Update(
         // Vehicle Identification
         string? propertyName = null,
