@@ -14,17 +14,18 @@ public class AppraisalRepository(AppraisalDbContext dbContext)
     {
         return await _dbContext.Appraisals
             .Include(a => a.Properties)
-                .ThenInclude(p => p.LandDetail)
+            .ThenInclude(p => p.LandDetail)
             .Include(a => a.Properties)
-                .ThenInclude(p => p.BuildingDetail)
+            .ThenInclude(p => p.BuildingDetail)
             .Include(p => p.Properties)
-                .ThenInclude(p => p.CondoDetail)
+            .ThenInclude(p => p.CondoDetail)
             .Include(p => p.Properties)
-                .ThenInclude(p => p.VehicleDetail)
+            .ThenInclude(p => p.VehicleDetail)
             .Include(p => p.Properties)
-                .ThenInclude(p => p.VesselDetail)
+            .ThenInclude(p => p.VesselDetail)
             .Include(p => p.Properties)
-                .ThenInclude(p => p.MachineryDetail)
+            .ThenInclude(p => p.MachineryDetail)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
     }
 
@@ -37,6 +38,7 @@ public class AppraisalRepository(AppraisalDbContext dbContext)
             .Include(a => a.Groups)
             .ThenInclude(g => g.Items)
             .Include(a => a.Assignments)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
     }
 
@@ -72,7 +74,7 @@ public class AppraisalRepository(AppraisalDbContext dbContext)
             .Include(a => a.Properties)
             .Include(a => a.Groups)
             .Include(a => a.Assignments)
+            .AsSplitQuery()
             .ToListAsync(cancellationToken);
     }
 }
-
