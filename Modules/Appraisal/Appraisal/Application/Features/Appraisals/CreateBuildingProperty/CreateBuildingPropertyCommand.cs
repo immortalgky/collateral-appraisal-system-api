@@ -73,5 +73,7 @@ public record CreateBuildingPropertyCommand(
     // Depreciation Details
     List<DepreciationItemData>? DepreciationDetails = null,
     // Surfaces
-    List<SurfaceItemData>? Surfaces = null
+    List<SurfaceItemData>? Surfaces = null,
+    // Construction Inspection (null = skip)
+    ConstructionInspectionData? ConstructionInspection = null
 ) : ICommand<CreateBuildingPropertyResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

@@ -62,7 +62,11 @@ Appraisal Module
 ├── BuildingAppraisalSurfaces (Floor-by-Floor Surface Details)
 ├── CondoAppraisalAreaDetails (Area Breakdown per Room)
 ├── LawAndRegulations (Legal/Regulatory Info)
-└── LawAndRegulationImages (Regulation Photo Evidence)
+├── LawAndRegulationImages (Regulation Photo Evidence)
+├── ConstructionInspections (Construction Progress Tracking)
+├── ConstructionWorkDetails (Work Item Details per Inspection)
+├── ConstructionWorkGroups (Work Group Lookup - Seeded)
+└── ConstructionWorkItems (Work Item Lookup - Seeded)
 ```
 
 **Note:** `AppraisalCompanies` (external vendor registry) is maintained in the **System Module** and referenced by this module for external assignments and quotations.
@@ -841,6 +845,74 @@ erDiagram
 13. **BuildingDepreciationDetails**: Detailed depreciation calculations with multiple methods (StraightLine, DecliningBalance, AgeLife)
 14. **Market Comparables Template System**: Dynamic/configurable comparables using EAV pattern (Template -> TemplateFactor -> Factor -> Data)
 15. **Pricing Analysis**: See [Pricing Analysis Deep-Dive](#pricing-analysis-system) for the full hierarchy (PricingAnalysis -> Approach -> Method -> Calculation -> FinalValue)
+16. **Construction Inspection**: Tracks construction progress per property with dual mode (full detail with work breakdown, or summary-only)
+
+---
+
+### Diagram 9: Construction Inspection
+
+Construction progress tracking linked to AppraisalProperty (1:1). Supports full-detail mode (grouped work items with value/progress tracking) and summary mode.
+
+```mermaid
+erDiagram
+    AppraisalProperties["AppraisalProperties (Core)"]
+
+    AppraisalProperties ||--o| ConstructionInspections : "has inspection (1:1)"
+    ConstructionInspections ||--o{ ConstructionWorkDetails : "has work items (full detail)"
+    ConstructionWorkGroups ||--o{ ConstructionWorkItems : "has predefined items"
+    ConstructionWorkGroups ||--o{ ConstructionWorkDetails : "references group"
+
+    ConstructionInspections {
+        guid Id PK
+        guid AppraisalPropertyId FK "unique"
+        bool IsFullDetail "true=detail, false=summary"
+        decimal TotalValue "18,2 - total construction value"
+        string SummaryDetail "summary mode"
+        decimal SummaryPreviousProgressPct "7,4"
+        decimal SummaryPreviousValue "18,2"
+        decimal SummaryCurrentProgressPct "7,4"
+        decimal SummaryCurrentValue "18,2"
+        string Remark
+        guid DocumentId "nullable - summary doc"
+        string DocumentFileName
+        string DocumentFilePath
+    }
+
+    ConstructionWorkDetails {
+        guid Id PK
+        guid ConstructionInspectionId FK
+        guid ConstructionWorkGroupId FK
+        guid ConstructionWorkItemId FK "nullable"
+        string WorkItemName "denormalized"
+        int DisplayOrder
+        decimal ConstructionValue "18,2 user-entered"
+        decimal PreviousProgressPct "7,4 user-entered"
+        decimal CurrentProgressPct "7,4 user-entered"
+        decimal ProportionPct "7,4 computed"
+        decimal CurrentProportionPct "7,4 computed"
+        decimal PreviousPropertyValue "18,2 computed"
+        decimal CurrentPropertyValue "18,2 computed"
+    }
+
+    ConstructionWorkGroups {
+        guid Id PK
+        string Code UK "e.g. BuildingStructure"
+        string NameTh
+        string NameEn
+        int DisplayOrder
+        bool IsActive
+    }
+
+    ConstructionWorkItems {
+        guid Id PK
+        guid ConstructionWorkGroupId FK
+        string Code "e.g. Pillar"
+        string NameTh
+        string NameEn
+        int DisplayOrder
+        bool IsActive
+    }
+```
 
 ## Core Tables
 
@@ -3805,6 +3877,147 @@ CREATE TABLE appraisal.LawAndRegulationImages
 );
 ```
 
+## Construction Inspection Tables
+
+### 33. ConstructionInspections
+
+Construction progress inspection record per property. Supports full-detail mode (grouped work breakdown) or summary mode (simple overview with document upload).
+
+#### SQL Schema
+
+```sql
+CREATE TABLE appraisal.ConstructionInspections
+(
+    Id                          UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+    AppraisalPropertyId         UNIQUEIDENTIFIER NOT NULL UNIQUE,        -- 1:1 with AppraisalProperties
+
+    -- Mode
+    IsFullDetail                BIT NOT NULL,                             -- true = detail mode, false = summary
+    TotalValue                  DECIMAL(18,2) NOT NULL,                   -- Total construction value (Baht)
+
+    -- Summary Mode fields
+    SummaryDetail               NVARCHAR(1000) NULL,
+    SummaryPreviousProgressPct  DECIMAL(7,4) NULL,
+    SummaryPreviousValue        DECIMAL(18,2) NULL,
+    SummaryCurrentProgressPct   DECIMAL(7,4) NULL,
+    SummaryCurrentValue         DECIMAL(18,2) NULL,
+    Remark                      NVARCHAR(2000) NULL,
+
+    -- Document reference (summary mode)
+    DocumentId                  UNIQUEIDENTIFIER NULL,
+    DocumentFileName            NVARCHAR(500) NULL,
+    DocumentFilePath            NVARCHAR(1000) NULL,
+
+    -- Audit
+    CreatedAt                   DATETIME2 NULL,
+    CreatedBy                   NVARCHAR(10) NULL,
+    UpdatedAt                   DATETIME2 NULL,
+    UpdatedBy                   NVARCHAR(10) NULL,
+
+    CONSTRAINT FK_ConstructionInspection_Property FOREIGN KEY (AppraisalPropertyId)
+        REFERENCES appraisal.AppraisalProperties(Id) ON DELETE CASCADE
+);
+```
+
+### 34. ConstructionWorkDetails
+
+Individual work item within a construction inspection (full detail mode). Tracks construction value, progress percentages, and server-computed derived values.
+
+#### SQL Schema
+
+```sql
+CREATE TABLE appraisal.ConstructionWorkDetails
+(
+    Id                          UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+    ConstructionInspectionId    UNIQUEIDENTIFIER NOT NULL,
+    ConstructionWorkGroupId     UNIQUEIDENTIFIER NOT NULL,                -- which group (Building Structure, etc.)
+    ConstructionWorkItemId      UNIQUEIDENTIFIER NULL,                    -- predefined item (nullable for custom)
+    WorkItemName                NVARCHAR(200) NOT NULL,                   -- denormalized name
+    DisplayOrder                INT NOT NULL,
+
+    -- User-entered values
+    ConstructionValue           DECIMAL(18,2) NOT NULL,                   -- e.g. 2,482,000.00
+    PreviousProgressPct         DECIMAL(7,4) NOT NULL,                    -- e.g. 50.00%
+    CurrentProgressPct          DECIMAL(7,4) NOT NULL,                    -- e.g. 100.00%
+
+    -- Server-computed values
+    ProportionPct               DECIMAL(7,4) NOT NULL,                    -- ConstructionValue / TotalValue * 100
+    CurrentProportionPct        DECIMAL(7,4) NOT NULL,                    -- ProportionPct * CurrentProgressPct / 100
+    PreviousPropertyValue       DECIMAL(18,2) NOT NULL,                   -- ConstructionValue * PreviousProgressPct / 100
+    CurrentPropertyValue        DECIMAL(18,2) NOT NULL,                   -- ConstructionValue * CurrentProgressPct / 100
+
+    -- Audit
+    CreatedAt                   DATETIME2 NULL,
+    CreatedBy                   NVARCHAR(10) NULL,
+    UpdatedAt                   DATETIME2 NULL,
+    UpdatedBy                   NVARCHAR(10) NULL,
+
+    CONSTRAINT FK_ConstructionWorkDetail_Inspection FOREIGN KEY (ConstructionInspectionId)
+        REFERENCES appraisal.ConstructionInspections(Id) ON DELETE CASCADE
+);
+```
+
+### 35. ConstructionWorkGroups (Lookup/Seed)
+
+Predefined construction work groups. Seeded with 3 groups: Building Structure, Architecture, Building Management System.
+
+#### SQL Schema
+
+```sql
+CREATE TABLE appraisal.ConstructionWorkGroups
+(
+    Id                          UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+    Code                        NVARCHAR(50) NOT NULL UNIQUE,
+    NameTh                      NVARCHAR(200) NOT NULL,
+    NameEn                      NVARCHAR(200) NOT NULL,
+    DisplayOrder                INT NOT NULL,
+    IsActive                    BIT NOT NULL DEFAULT 1,
+
+    -- Audit
+    CreatedAt                   DATETIME2 NULL,
+    CreatedBy                   NVARCHAR(10) NULL,
+    UpdatedAt                   DATETIME2 NULL,
+    UpdatedBy                   NVARCHAR(10) NULL
+);
+```
+
+#### Seed Data
+
+| Code | Thai | English | Items |
+|------|------|---------|-------|
+| BuildingStructure | งานโครงสร้าง | Building Structure | Pillar, Floor, Stair, Rooftop Floor |
+| Architecture | งานสถาปัตยกรรม | Architecture | Floor Surface, Wall, Ceiling, Doors & Windows, Sanitary Ware, Painting, Stair, Miscellaneous |
+| BuildingManagement | งานระบบ | Building Management System | Electrical System, Sanitary System, Protection System |
+
+### 36. ConstructionWorkItems (Lookup/Seed)
+
+Predefined work items within each group. Users select from these when adding work details.
+
+#### SQL Schema
+
+```sql
+CREATE TABLE appraisal.ConstructionWorkItems
+(
+    Id                          UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+    ConstructionWorkGroupId     UNIQUEIDENTIFIER NOT NULL,
+    Code                        NVARCHAR(50) NOT NULL,
+    NameTh                      NVARCHAR(200) NOT NULL,
+    NameEn                      NVARCHAR(200) NOT NULL,
+    DisplayOrder                INT NOT NULL,
+    IsActive                    BIT NOT NULL DEFAULT 1,
+
+    -- Audit
+    CreatedAt                   DATETIME2 NULL,
+    CreatedBy                   NVARCHAR(10) NULL,
+    UpdatedAt                   DATETIME2 NULL,
+    UpdatedBy                   NVARCHAR(10) NULL,
+
+    CONSTRAINT FK_ConstructionWorkItem_Group FOREIGN KEY (ConstructionWorkGroupId)
+        REFERENCES appraisal.ConstructionWorkGroups(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_ConstructionWorkItem_GroupCode UNIQUE (ConstructionWorkGroupId, Code)
+);
+```
+
 ## Indexes
 
 ```sql
@@ -3934,6 +4147,13 @@ CREATE INDEX IX_AppraisalAssignment_AssignmentMode ON appraisal.AppraisalAssignm
 CREATE INDEX IX_AppraisalAssignment_Status ON appraisal.AppraisalAssignments(AssignmentStatus);
 CREATE INDEX IX_AppraisalAssignment_RequestItemId ON appraisal.AppraisalAssignments(QuotationRequestItemId);
 CREATE INDEX IX_AppraisalAssignment_SelectedItemId ON appraisal.AppraisalAssignments(SelectedQuotationItemId);
+
+-- Construction Inspection indexes
+CREATE UNIQUE INDEX IX_ConstructionInspection_PropertyId ON appraisal.ConstructionInspections(AppraisalPropertyId);
+CREATE INDEX IX_ConstructionWorkDetail_InspectionId ON appraisal.ConstructionWorkDetails(ConstructionInspectionId);
+CREATE INDEX IX_ConstructionWorkDetail_GroupId ON appraisal.ConstructionWorkDetails(ConstructionWorkGroupId);
+CREATE UNIQUE INDEX IX_ConstructionWorkGroup_Code ON appraisal.ConstructionWorkGroups(Code);
+CREATE UNIQUE INDEX IX_ConstructionWorkItem_GroupCode ON appraisal.ConstructionWorkItems(ConstructionWorkGroupId, Code);
 ```
 
 ## Quotation Workflow Examples

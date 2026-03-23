@@ -21,6 +21,9 @@ public class AppraisalProperty : Entity<Guid>
     public VesselAppraisalDetail? VesselDetail { get; private set; }
     public MachineryAppraisalDetail? MachineryDetail { get; private set; }
 
+    // Construction Inspection (1:1)
+    public ConstructionInspection? ConstructionInspection { get; private set; }
+
     private AppraisalProperty()
     {
         // For EF Core
@@ -148,6 +151,22 @@ public class AppraisalProperty : Entity<Guid>
             throw new InvalidOperationException($"Cannot set machinery detail for property type '{PropertyType}'");
 
         MachineryDetail = detail;
+    }
+
+    /// <summary>
+    /// Set the construction inspection for this property
+    /// </summary>
+    public void SetConstructionInspection(ConstructionInspection inspection)
+    {
+        ConstructionInspection = inspection;
+    }
+
+    /// <summary>
+    /// Clear the construction inspection for this property
+    /// </summary>
+    public void ClearConstructionInspection()
+    {
+        ConstructionInspection = null;
     }
 
     #endregion

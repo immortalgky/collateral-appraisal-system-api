@@ -216,6 +216,10 @@ public class CreateLandAndBuildingPropertyCommandHandler(
         if (command.Surfaces is { Count: > 0 })
             AddSurfaces(property.BuildingDetail, command.Surfaces);
 
+        // 6c. Add construction inspection if provided and building is under construction
+        if (command.ConstructionInspection is { } ci && command.IsUnderConstruction != false)
+            SetConstructionInspection(property, ci);
+
         // 7. Save aggregate
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -254,5 +258,34 @@ public class CreateLandAndBuildingPropertyCommandHandler(
                 item.FromFloorNumber, item.ToFloorNumber, item.FloorType,
                 item.FloorStructureType, item.FloorStructureTypeOther,
                 item.FloorSurfaceType, item.FloorSurfaceTypeOther);
+    }
+
+    private static void SetConstructionInspection(
+        AppraisalProperty property,
+        ConstructionInspectionData ci)
+    {
+        ConstructionInspection inspection;
+        if (ci.IsFullDetail)
+        {
+            inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue);
+            if (ci.WorkDetails is { Count: > 0 })
+            {
+                foreach (var wd in ci.WorkDetails)
+                    inspection.AddWorkDetail(wd.ConstructionWorkGroupId, wd.WorkItemName,
+                        wd.DisplayOrder, wd.ProportionPct, wd.PreviousProgressPct,
+                        wd.CurrentProgressPct, wd.ConstructionWorkItemId);
+                inspection.ComputeAllValues();
+            }
+        }
+        else
+        {
+            inspection = ConstructionInspection.CreateSummary(property.Id, ci.TotalValue,
+                ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
+                ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+            if (ci.DocumentId.HasValue)
+                inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
+        }
+
+        property.SetConstructionInspection(inspection);
     }
 }
