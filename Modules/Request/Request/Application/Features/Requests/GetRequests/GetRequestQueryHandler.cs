@@ -1,18 +1,13 @@
-using Shared.Identity;
 using Shared.Pagination;
 
 namespace Request.Application.Features.Requests.GetRequests;
 
-internal class GetRequestQueryHandler(RequestDbContext dbContext, ICurrentUserService currentUserService)
+internal class GetRequestQueryHandler(RequestDbContext dbContext)
     : IQueryHandler<GetRequestQuery, GetRequestResult>
 {
     public async Task<GetRequestResult> Handle(GetRequestQuery query, CancellationToken cancellationToken)
     {
         var queryable = dbContext.Requests.AsNoTracking().AsQueryable();
-
-        // Filter by current user
-        var username = currentUserService.Username;
-        queryable = queryable.Where(r => r.CreatedBy == username);
 
         // Filter by status (default: Draft or New)
         if (!string.IsNullOrWhiteSpace(query.Status))

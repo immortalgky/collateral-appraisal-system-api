@@ -1,3 +1,4 @@
+using Shared.Data.Seed;
 using Workflow.AssigneeSelection.Engine;
 using Workflow.AssigneeSelection.Configuration;
 using Workflow.AssigneeSelection.Pipeline;
@@ -10,6 +11,8 @@ using Workflow.Workflow.Activities.Factories;
 using Workflow.Workflow.Actions.Core;
 using Workflow.Workflow.Engine;
 using Workflow.Workflow.Engine.Expression;
+using Workflow.Workflow.Pipeline;
+using Workflow.Workflow.Pipeline.Steps;
 using Workflow.Workflow.Services;
 using Workflow.Workflow.Hubs;
 
@@ -103,6 +106,16 @@ public static class WorkflowModule
 
         // Company routing
         services.AddScoped<ICompanyRoundRobinService, CompanyRoundRobinService>();
+
+        // Activity process pipeline (submission pipeline)
+        services.AddScoped<IActivityProcessStep, UpdateAppraisalStatusStep>();
+        services.AddScoped<IActivityProcessStep, UpdateAssignmentStatusStep>();
+        services.AddScoped<IActivityProcessStep, ValidateHasAppraisedValueStep>();
+        services.AddScoped<ProcessStepResolver>();
+        services.AddScoped<IActivityProcessPipeline, ActivityProcessPipeline>();
+
+        // Data seeders
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, Data.Seed.ActivityProcessConfigurationSeeder>();
 
         // Workflow DbContext with its own migration assembly and history table
         services.AddDbContext<WorkflowDbContext>((sp, options) =>

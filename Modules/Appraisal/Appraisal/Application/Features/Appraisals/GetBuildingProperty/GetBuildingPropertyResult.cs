@@ -77,5 +77,7 @@ public record GetBuildingPropertyResult(
     // Depreciation Details
     IReadOnlyList<BuildingAppraisalDepreciationDetailDto> DepreciationDetails,
     // Surfaces
-    IReadOnlyList<BuildingAppraisalSurfaceDto> Surfaces
+    IReadOnlyList<BuildingAppraisalSurfaceDto> Surfaces,
+    // Construction Inspection
+    ConstructionInspectionDto? ConstructionInspection
 );

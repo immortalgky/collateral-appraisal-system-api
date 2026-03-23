@@ -128,6 +128,14 @@ public class PropertyGroup : Entity<Guid>
     }
 
     /// <summary>
+    /// Update the group number (used for resequencing after deletion)
+    /// </summary>
+    internal void UpdateGroupNumber(int number)
+    {
+        GroupNumber = number;
+    }
+
+    /// <summary>
     /// Update group details
     /// </summary>
     public void Update(string groupName, string? description)

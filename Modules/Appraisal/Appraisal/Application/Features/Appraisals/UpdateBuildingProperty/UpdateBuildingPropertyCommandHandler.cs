@@ -89,6 +89,13 @@ public class UpdateBuildingPropertyCommandHandler(
         if (command.Surfaces is not null)
             SyncSurfaces(detail, command.Surfaces);
 
+        // Sync construction inspection (null = clear, provided = upsert)
+        // Also clear if building is not under construction
+        if (command.ConstructionInspection is null || command.IsUnderConstruction == false)
+            ClearConstructionInspection(property);
+        else
+            SyncConstructionInspection(property, command.ConstructionInspection);
+
         return MediatR.Unit.Value;
     }
 
@@ -182,6 +189,73 @@ public class UpdateBuildingPropertyCommandHandler(
                     item.FloorStructureType, item.FloorStructureTypeOther,
                     item.FloorSurfaceType, item.FloorSurfaceTypeOther);
             }
+        }
+    }
+
+    private static void ClearConstructionInspection(AppraisalProperty property)
+    {
+        if (property.ConstructionInspection is not null)
+            property.ClearConstructionInspection();
+    }
+
+    private static void SyncConstructionInspection(
+        AppraisalProperty property,
+        ConstructionInspectionData ci)
+    {
+        if (property.ConstructionInspection is not null)
+        {
+            // Update existing
+            var inspection = property.ConstructionInspection;
+            if (ci.IsFullDetail)
+            {
+                inspection.UpdateFullDetail(ci.TotalValue);
+                inspection.ClearWorkDetails();
+                if (ci.WorkDetails is { Count: > 0 })
+                {
+                    foreach (var wd in ci.WorkDetails)
+                        inspection.AddWorkDetail(wd.ConstructionWorkGroupId, wd.WorkItemName,
+                            wd.DisplayOrder, wd.ProportionPct, wd.PreviousProgressPct,
+                            wd.CurrentProgressPct, wd.ConstructionWorkItemId);
+                    inspection.ComputeAllValues();
+                }
+            }
+            else
+            {
+                inspection.UpdateSummary(ci.TotalValue, ci.SummaryDetail,
+                    ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
+                    ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+                if (ci.DocumentId.HasValue)
+                    inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
+                else
+                    inspection.ClearDocument();
+            }
+        }
+        else
+        {
+            // Create new
+            ConstructionInspection inspection;
+            if (ci.IsFullDetail)
+            {
+                inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue);
+                if (ci.WorkDetails is { Count: > 0 })
+                {
+                    foreach (var wd in ci.WorkDetails)
+                        inspection.AddWorkDetail(wd.ConstructionWorkGroupId, wd.WorkItemName,
+                            wd.DisplayOrder, wd.ProportionPct, wd.PreviousProgressPct,
+                            wd.CurrentProgressPct, wd.ConstructionWorkItemId);
+                    inspection.ComputeAllValues();
+                }
+            }
+            else
+            {
+                inspection = ConstructionInspection.CreateSummary(property.Id, ci.TotalValue,
+                    ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
+                    ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+                if (ci.DocumentId.HasValue)
+                    inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
+            }
+
+            property.SetConstructionInspection(inspection);
         }
     }
 }

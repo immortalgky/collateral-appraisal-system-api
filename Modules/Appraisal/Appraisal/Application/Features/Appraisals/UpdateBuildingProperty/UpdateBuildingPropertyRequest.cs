@@ -71,5 +71,7 @@ public record UpdateBuildingPropertyRequest(
     // Depreciation Details (null = no-op, list = sync)
     List<DepreciationItemData>? DepreciationDetails = null,
     // Surfaces (null = no-op, list = sync)
-    List<SurfaceItemData>? Surfaces = null
+    List<SurfaceItemData>? Surfaces = null,
+    // Construction Inspection (null = no-op)
+    ConstructionInspectionData? ConstructionInspection = null
 );

@@ -57,6 +57,20 @@ public class GetBuildingPropertyQueryHandler(
                     )).ToList()
             )).ToList();
 
+        var constructionDto = property.ConstructionInspection is { } ci
+            ? new ConstructionInspectionDto(
+                ci.Id, ci.AppraisalPropertyId, ci.IsFullDetail, ci.TotalValue,
+                ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
+                ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark,
+                ci.DocumentId, ci.FileName, ci.FilePath,
+                ci.FileExtension, ci.MimeType, ci.FileSizeBytes,
+                ci.WorkDetails.OrderBy(w => w.DisplayOrder).Select(w => new ConstructionWorkDetailDto(
+                    w.Id, w.ConstructionWorkGroupId, w.ConstructionWorkItemId, w.WorkItemName,
+                    w.DisplayOrder, w.ConstructionValue, w.PreviousProgressPct, w.CurrentProgressPct,
+                    w.ProportionPct, w.CurrentProportionPct, w.PreviousPropertyValue, w.CurrentPropertyValue
+                )).ToList())
+            : null;
+
         return new GetBuildingPropertyResult(
             property.Id,
             property.AppraisalId,
@@ -118,6 +132,7 @@ public class GetBuildingPropertyQueryHandler(
             ForcedSalePrice: detail.ForcedSalePrice,
             Remark: detail.Remark,
             DepreciationDetails: depreciationDtos,
-            Surfaces: surfaceDtos);
+            Surfaces: surfaceDtos,
+            ConstructionInspection: constructionDto);
     }
 }

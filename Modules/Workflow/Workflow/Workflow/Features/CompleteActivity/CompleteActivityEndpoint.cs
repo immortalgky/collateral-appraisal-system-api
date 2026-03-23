@@ -1,3 +1,4 @@
+using Workflow.Workflow.Pipeline;
 using Workflow.Workflow.Services;
 using Workflow.Workflow.Activities.Core;
 
@@ -91,23 +92,37 @@ public record CompleteActivityResponse
     public string? CurrentAssignee { get; init; }
     public string? NextAssignee { get; init; }
     public bool IsCompleted { get; init; }
+    public List<string>? ValidationErrors { get; init; }
 }
 
-public class CompleteActivityCommandHandler : ICommandHandler<CompleteActivityCommand, CompleteActivityResponse>
+public class CompleteActivityCommandHandler(
+    IWorkflowService workflowService,
+    IActivityProcessPipeline processPipeline) : ICommandHandler<CompleteActivityCommand, CompleteActivityResponse>
 {
-    private readonly IWorkflowService _workflowService;
-
-    public CompleteActivityCommandHandler(IWorkflowService workflowService)
-    {
-        _workflowService = workflowService;
-    }
-
     public async Task<CompleteActivityResponse> Handle(CompleteActivityCommand request,
         CancellationToken cancellationToken)
     {
+        // Run the configurable process pipeline before resuming the workflow
+        var pipelineResult = await processPipeline.ExecuteAsync(
+            request.WorkflowInstanceId,
+            request.ActivityId,
+            request.CompletedBy,
+            request.Input,
+            cancellationToken);
+
+        if (!pipelineResult.Success)
+        {
+            return new CompleteActivityResponse
+            {
+                WorkflowInstanceId = request.WorkflowInstanceId,
+                Status = "ValidationFailed",
+                ValidationErrors = pipelineResult.Errors
+            };
+        }
+
         // Get the workflow instance before resuming to capture the current assignee
         var currentWorkflowInstance =
-            await _workflowService.GetWorkflowInstanceAsync(request.WorkflowInstanceId, cancellationToken);
+            await workflowService.GetWorkflowInstanceAsync(request.WorkflowInstanceId, cancellationToken);
         var currentAssignee = currentWorkflowInstance?.CurrentAssignee;
 
         // Convert assignment override requests to runtime override objects
@@ -133,7 +148,7 @@ public class CompleteActivityCommandHandler : ICommandHandler<CompleteActivityCo
             }
         }
 
-        var workflowInstance = await _workflowService.ResumeWorkflowAsync(
+        var workflowInstance = await workflowService.ResumeWorkflowAsync(
             request.WorkflowInstanceId,
             request.ActivityId,
             request.CompletedBy,

@@ -41,7 +41,7 @@ public class DocumentService(
 
         // Save directly to upload/documents path instead of temp
         var directoryPath = Path.Combine(
-            webHostEnvironment.WebRootPath,
+            GetStorageBasePath(),
             _fileStorageConfiguration.RootPath.TrimStart('/'),
             _fileStorageConfiguration.DocumentsPath);
 
@@ -159,4 +159,10 @@ public class DocumentService(
         var hash = await sha256.ComputeHashAsync(stream, cancellationToken);
         return Convert.ToBase64String(hash);
     }
+
+    private string GetStorageBasePath() =>
+        _fileStorageConfiguration.Mode == StorageMode.Nas
+        && !string.IsNullOrEmpty(_fileStorageConfiguration.NasBasePath)
+            ? _fileStorageConfiguration.NasBasePath
+            : webHostEnvironment.WebRootPath;
 }

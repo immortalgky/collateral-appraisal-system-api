@@ -1,3 +1,4 @@
+using Parameter.ConstructionWork.Models;
 using Parameter.DocumentRequirements.Models;
 
 namespace Parameter.Data;
@@ -20,6 +21,10 @@ public class ParameterDbContext : DbContext
     // Document Requirements
     public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
     public DbSet<DocumentRequirement> DocumentRequirements => Set<DocumentRequirement>();
+
+    // Construction Work Lookups
+    public DbSet<ConstructionWorkGroup> ConstructionWorkGroups => Set<ConstructionWorkGroup>();
+    public DbSet<ConstructionWorkItem> ConstructionWorkItems => Set<ConstructionWorkItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

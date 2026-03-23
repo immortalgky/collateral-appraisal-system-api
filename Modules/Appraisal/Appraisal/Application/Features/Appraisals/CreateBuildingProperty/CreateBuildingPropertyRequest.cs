@@ -71,5 +71,7 @@ public record CreateBuildingPropertyRequest(
     // Depreciation Details
     List<DepreciationItemData>? DepreciationDetails = null,
     // Surfaces
-    List<SurfaceItemData>? Surfaces = null
+    List<SurfaceItemData>? Surfaces = null,
+    // Construction Inspection (null = skip)
+    ConstructionInspectionData? ConstructionInspection = null
 );

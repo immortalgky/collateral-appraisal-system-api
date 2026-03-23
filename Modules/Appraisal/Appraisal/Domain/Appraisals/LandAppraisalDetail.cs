@@ -314,6 +314,110 @@ public class LandAppraisalDetail : Entity<Guid>
         Remark = remark;
     }
 
+    public static LandAppraisalDetail CopyFrom(LandAppraisalDetail source, Guid newPropertyId)
+    {
+        var copy = new LandAppraisalDetail
+        {
+            AppraisalPropertyId = newPropertyId,
+            PropertyName = source.PropertyName,
+            LandDescription = source.LandDescription,
+            Coordinates = source.Coordinates is not null
+                ? GpsCoordinate.Create(source.Coordinates.Latitude, source.Coordinates.Longitude)
+                : null,
+            Address = source.Address is not null
+                ? AdministrativeAddress.Create(source.Address.SubDistrict, source.Address.District, source.Address.Province, source.Address.LandOffice)
+                : null,
+            OwnerName = source.OwnerName,
+            IsOwnerVerified = source.IsOwnerVerified,
+            HasObligation = source.HasObligation,
+            ObligationDetails = source.ObligationDetails,
+            IsLandLocationVerified = source.IsLandLocationVerified,
+            LandCheckMethodType = source.LandCheckMethodType,
+            LandCheckMethodTypeOther = source.LandCheckMethodTypeOther,
+            Street = source.Street,
+            Soi = source.Soi,
+            DistanceFromMainRoad = source.DistanceFromMainRoad,
+            Village = source.Village,
+            AddressLocation = source.AddressLocation,
+            LandShapeType = source.LandShapeType,
+            UrbanPlanningType = source.UrbanPlanningType,
+            LandZoneType = source.LandZoneType?.ToList(),
+            PlotLocationType = source.PlotLocationType?.ToList(),
+            PlotLocationTypeOther = source.PlotLocationTypeOther,
+            LandFillType = source.LandFillType,
+            LandFillTypeOther = source.LandFillTypeOther,
+            LandFillPercent = source.LandFillPercent,
+            SoilLevel = source.SoilLevel,
+            AccessRoadWidth = source.AccessRoadWidth,
+            RightOfWay = source.RightOfWay,
+            RoadFrontage = source.RoadFrontage,
+            NumberOfSidesFacingRoad = source.NumberOfSidesFacingRoad,
+            RoadPassInFrontOfLand = source.RoadPassInFrontOfLand,
+            LandAccessibilityType = source.LandAccessibilityType,
+            LandAccessibilityRemark = source.LandAccessibilityRemark,
+            RoadSurfaceType = source.RoadSurfaceType,
+            RoadSurfaceTypeOther = source.RoadSurfaceTypeOther,
+            HasElectricity = source.HasElectricity,
+            ElectricityDistance = source.ElectricityDistance,
+            PublicUtilityType = source.PublicUtilityType?.ToList(),
+            PublicUtilityTypeOther = source.PublicUtilityTypeOther,
+            LandUseType = source.LandUseType?.ToList(),
+            LandUseTypeOther = source.LandUseTypeOther,
+            LandEntranceExitType = source.LandEntranceExitType?.ToList(),
+            LandEntranceExitTypeOther = source.LandEntranceExitTypeOther,
+            TransportationAccessType = source.TransportationAccessType?.ToList(),
+            TransportationAccessTypeOther = source.TransportationAccessTypeOther,
+            PropertyAnticipationType = source.PropertyAnticipationType,
+            IsExpropriated = source.IsExpropriated,
+            ExpropriationRemark = source.ExpropriationRemark,
+            IsInExpropriationLine = source.IsInExpropriationLine,
+            ExpropriationLineRemark = source.ExpropriationLineRemark,
+            RoyalDecree = source.RoyalDecree,
+            IsEncroached = source.IsEncroached,
+            EncroachmentRemark = source.EncroachmentRemark,
+            EncroachmentArea = source.EncroachmentArea,
+            IsLandlocked = source.IsLandlocked,
+            LandlockedRemark = source.LandlockedRemark,
+            IsForestBoundary = source.IsForestBoundary,
+            ForestBoundaryRemark = source.ForestBoundaryRemark,
+            OtherLegalLimitations = source.OtherLegalLimitations,
+            EvictionType = source.EvictionType?.ToList(),
+            EvictionTypeOther = source.EvictionTypeOther,
+            AllocationType = source.AllocationType,
+            NorthAdjacentArea = source.NorthAdjacentArea,
+            NorthBoundaryLength = source.NorthBoundaryLength,
+            SouthAdjacentArea = source.SouthAdjacentArea,
+            SouthBoundaryLength = source.SouthBoundaryLength,
+            EastAdjacentArea = source.EastAdjacentArea,
+            EastBoundaryLength = source.EastBoundaryLength,
+            WestAdjacentArea = source.WestAdjacentArea,
+            WestBoundaryLength = source.WestBoundaryLength,
+            PondArea = source.PondArea,
+            PondDepth = source.PondDepth,
+            HasBuilding = source.HasBuilding,
+            HasBuildingOther = source.HasBuildingOther,
+            Remark = source.Remark
+        };
+
+        foreach (var title in source.Titles)
+        {
+            var titleCopy = LandTitle.Create(copy.Id, title.TitleNumber, title.TitleType);
+            var areaCopy = title.Area is not null
+                ? LandArea.Create(title.Area.Rai, title.Area.Ngan, title.Area.SquareWa)
+                : null;
+            titleCopy.Update(
+                title.BookNumber, title.PageNumber, title.LandParcelNumber,
+                title.SurveyNumber, title.MapSheetNumber, title.Rawang,
+                title.AerialMapName, title.AerialMapNumber, areaCopy,
+                title.BoundaryMarkerType, title.BoundaryMarkerRemark,
+                title.DocumentValidationResultType, title.IsMissingFromSurvey,
+                title.GovernmentPricePerSqWa, title.GovernmentPrice, title.Remark);
+            copy._titles.Add(titleCopy);
+        }
+
+        return copy;
+    }
+
     public void AddTitle(LandTitle title)
     {
         _titles.Add(title);
