@@ -88,6 +88,7 @@ public class GetBuildingPropertyQueryHandler(
             HasObligation: detail.HasObligation,
             ObligationDetails: detail.ObligationDetails,
             BuildingConditionType: detail.BuildingConditionType,
+            BuildingConditionTypeOther: detail.BuildingConditionTypeOther,
             IsUnderConstruction: detail.IsUnderConstruction,
             ConstructionCompletionPercent: detail.ConstructionCompletionPercent,
             ConstructionLicenseExpirationDate: detail.ConstructionLicenseExpirationDate,

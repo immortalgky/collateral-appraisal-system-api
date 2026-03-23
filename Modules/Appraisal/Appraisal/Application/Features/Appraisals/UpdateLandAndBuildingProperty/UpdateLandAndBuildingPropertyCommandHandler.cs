@@ -70,6 +70,7 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             landShapeType: command.LandShapeType,
             urbanPlanningType: command.UrbanPlanningType,
             landZoneType: command.LandZoneType,
+            landZoneTypeOther: command.LandZoneTypeOther,
             plotLocationType: command.PlotLocationType,
             plotLocationTypeOther: command.PlotLocationTypeOther,
             landFillType: command.LandFillType,
@@ -97,6 +98,7 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             transportationAccessType: command.TransportationAccessType,
             transportationAccessTypeOther: command.TransportationAccessTypeOther,
             propertyAnticipationType: command.PropertyAnticipationType,
+            propertyAnticipationTypeOther: command.PropertyAnticipationTypeOther,
             // Land - Legal
             isExpropriated: command.IsExpropriated,
             expropriationRemark: command.ExpropriationRemark,
@@ -126,7 +128,9 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             // Land - Other
             pondArea: command.PondArea,
             pondDepth: command.PondDepth,
-            remark: command.LandRemark);
+            hasBuilding: command.HasBuilding,
+            hasBuildingOther: command.HasBuildingOther,
+            remark: command.Remark);
 
         // 6b. Sync land titles (null = no-op, empty list = clear all)
         if (command.Titles is not null)
@@ -150,6 +154,7 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             residentialRemark: command.ResidentialRemark,
             // Building - Status
             buildingConditionType: command.BuildingConditionType,
+            buildingConditionTypeOther: command.BuildingConditionTypeOther,
             isUnderConstruction: command.IsUnderConstruction,
             constructionCompletionPercent: command.ConstructionCompletionPercent,
             constructionLicenseExpirationDate: command.ConstructionLicenseExpirationDate,
@@ -194,7 +199,7 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             buildingInsurancePrice: command.BuildingInsurancePrice,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
-            remark: command.BuildingRemark);
+            remark: command.Remark);
 
         // 8. Sync depreciation details (null = no-op, list = sync)
         if (command.DepreciationDetails is not null)

@@ -65,6 +65,7 @@ public class GetLandPropertyQueryHandler(
             LandShapeType = landDetail?.LandShapeType,
             UrbanPlanningType = landDetail?.UrbanPlanningType,
             LandZoneType = landDetail?.LandZoneType.Adapt<List<string>>(),
+            LandZoneTypeOther = landDetail?.LandZoneTypeOther,
             PlotLocationType = landDetail?.PlotLocationType.Adapt<List<string>>(),
             PlotLocationTypeOther = landDetail?.PlotLocationTypeOther,
             LandFillType = landDetail?.LandFillType,
@@ -93,6 +94,7 @@ public class GetLandPropertyQueryHandler(
             TransportationAccessType = landDetail?.TransportationAccessType.Adapt<List<string>>(),
             TransportationAccessTypeOther = landDetail?.TransportationAccessTypeOther,
             PropertyAnticipationType = landDetail?.PropertyAnticipationType,
+            PropertyAnticipationTypeOther = landDetail?.PropertyAnticipationTypeOther,
 
             IsExpropriated = landDetail?.IsExpropriated,
             ExpropriationRemark = landDetail?.ExpropriationRemark,

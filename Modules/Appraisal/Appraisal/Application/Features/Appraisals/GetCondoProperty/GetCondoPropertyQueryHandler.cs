@@ -54,6 +54,7 @@ public class GetCondoPropertyQueryHandler(
             OwnerName: detail.OwnerName,
             IsOwnerVerified: detail.IsOwnerVerified,
             BuildingConditionType: detail.BuildingConditionType,
+            BuildingConditionTypeOther: detail.BuildingConditionTypeOther,
             HasObligation: detail.HasObligation,
             ObligationDetails: detail.ObligationDetails,
             DocumentValidationResultType: detail.DocumentValidationResultType,

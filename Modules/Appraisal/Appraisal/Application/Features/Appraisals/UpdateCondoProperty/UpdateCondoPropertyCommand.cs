@@ -28,6 +28,7 @@ public record UpdateCondoPropertyCommand(
     string? OwnerName = null,
     bool? IsOwnerVerified = null,
     string? BuildingConditionType = null,
+    string? BuildingConditionTypeOther = null,
     bool? HasObligation = null,
     string? ObligationDetails = null,
     string? DocumentValidationResultType = null,

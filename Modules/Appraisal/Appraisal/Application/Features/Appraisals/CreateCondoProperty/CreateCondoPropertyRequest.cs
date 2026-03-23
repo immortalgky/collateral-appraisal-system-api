@@ -11,7 +11,7 @@ public record CreateCondoPropertyRequest(
     string? BuiltOnTitleNumber = null,
     string? CondoRegistrationNumber = null,
     string? RoomNumber = null,
-    int? FloorNumber = null,
+    string? FloorNumber = null,
     decimal? UsableArea = null,
     // Coordinates
     decimal? Latitude = null,
@@ -25,6 +25,7 @@ public record CreateCondoPropertyRequest(
     string? OwnerName = null,
     bool? IsOwnerVerified = null,
     string? BuildingConditionType = null,
+    string? BuildingConditionTypeOther = null,
     bool? HasObligation = null,
     string? ObligationDetails = null,
     string? DocumentValidationResultType = null,

@@ -34,6 +34,7 @@ public record GetCondoPropertyResult(
     string? OwnerName,
     bool? IsOwnerVerified,
     string? BuildingConditionType,
+    string? BuildingConditionTypeOther,
     bool? HasObligation,
     string? ObligationDetails,
     string? DocumentValidationResultType,

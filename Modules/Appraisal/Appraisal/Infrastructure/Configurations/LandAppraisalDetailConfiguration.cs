@@ -57,6 +57,8 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.LandZoneTypeOther).HasMaxLength(200);
+
 
         builder.Property(e => e.PlotLocationType)
             .HasConversion(
@@ -112,6 +114,7 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.TransportationAccessTypeOther).HasMaxLength(200);
         builder.Property(e => e.PropertyAnticipationType).HasMaxLength(100);
+        builder.Property(e => e.PropertyAnticipationTypeOther).HasMaxLength(200);
 
         // Legal Restrictions
         builder.Property(e => e.ExpropriationRemark).HasMaxLength(500);

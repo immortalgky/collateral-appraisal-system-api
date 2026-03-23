@@ -62,6 +62,7 @@ public class UpdateCondoPropertyCommandHandler(
             ownerName: command.OwnerName,
             isOwnerVerified: command.IsOwnerVerified,
             buildingConditionType: command.BuildingConditionType,
+            buildingConditionTypeOther: command.BuildingConditionTypeOther,
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,
             documentValidationResultType: command.DocumentValidationResultType,

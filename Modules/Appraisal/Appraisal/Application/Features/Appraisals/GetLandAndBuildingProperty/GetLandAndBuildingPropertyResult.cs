@@ -41,8 +41,9 @@ public record GetLandAndBuildingPropertyResult(
     string? LandShapeType,
     string? UrbanPlanningType,
     List<string>? LandZoneType,
+    string? LandZoneTypeOther,
     List<string>? PlotLocationType,
-    string? PlotLocationOther,
+    string? PlotLocationTypeOther,
     string? LandFillType,
     string? LandFillTypeOther,
     decimal? LandFillPercent,
@@ -69,6 +70,7 @@ public record GetLandAndBuildingPropertyResult(
     List<string>? TransportationAccessType,
     string? TransportationAccessTypeOther,
     string? PropertyAnticipationType,
+    string? PropertyAnticipationTypeOther,
     // Land - Legal
     bool? IsExpropriated,
     string? ExpropriationRemark,
@@ -110,6 +112,7 @@ public record GetLandAndBuildingPropertyResult(
     string? HouseNumber,
     // Building Status
     string? BuildingConditionType,
+    string? BuildingConditionTypeOther,
     bool? IsUnderConstruction,
     decimal? ConstructionCompletionPercent,
     DateTime? ConstructionLicenseExpirationDate,
@@ -158,8 +161,7 @@ public record GetLandAndBuildingPropertyResult(
     decimal? SellingPrice,
     decimal? ForcedSalePrice,
     // Remarks
-    string? LandRemark,
-    string? BuildingRemark,
+    string? Remark,
     // Depreciation Details
     IReadOnlyList<BuildingAppraisalDepreciationDetailDto> DepreciationDetails,
     // Surfaces

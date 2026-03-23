@@ -31,6 +31,7 @@ public class CreateBuildingPropertyCommandHandler(
             command.HasObligation,
             command.ObligationDetails,
             command.BuildingConditionType,
+            command.BuildingConditionTypeOther,
             command.IsUnderConstruction,
             command.ConstructionCompletionPercent,
             command.ConstructionLicenseExpirationDate,
