@@ -5360,6 +5360,186 @@ namespace Appraisal.Infrastructure.Migrations
                             b1.Navigation("Coordinates");
                         });
 
+                    b.OwnsOne("Appraisal.Domain.Appraisals.ConstructionInspection", "ConstructionInspection", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("uniqueidentifier")
+                                .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                            b1.Property<Guid>("AppraisalPropertyId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<DateTime?>("CreatedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("CreatedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("CreatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<Guid?>("DocumentId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("FileExtension")
+                                .HasMaxLength(20)
+                                .HasColumnType("nvarchar(20)");
+
+                            b1.Property<string>("FileName")
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
+
+                            b1.Property<string>("FilePath")
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
+
+                            b1.Property<long?>("FileSizeBytes")
+                                .HasColumnType("bigint");
+
+                            b1.Property<bool>("IsFullDetail")
+                                .HasColumnType("bit");
+
+                            b1.Property<string>("MimeType")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
+
+                            b1.Property<string>("Remark")
+                                .HasMaxLength(2000)
+                                .HasColumnType("nvarchar(2000)");
+
+                            b1.Property<decimal?>("SummaryCurrentProgressPct")
+                                .HasPrecision(7, 4)
+                                .HasColumnType("decimal(7,4)");
+
+                            b1.Property<decimal?>("SummaryCurrentValue")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("decimal(18,2)");
+
+                            b1.Property<string>("SummaryDetail")
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
+
+                            b1.Property<decimal?>("SummaryPreviousProgressPct")
+                                .HasPrecision(7, 4)
+                                .HasColumnType("decimal(7,4)");
+
+                            b1.Property<decimal?>("SummaryPreviousValue")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("decimal(18,2)");
+
+                            b1.Property<decimal>("TotalValue")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("decimal(18,2)");
+
+                            b1.Property<DateTime?>("UpdatedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("UpdatedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("UpdatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("AppraisalPropertyId")
+                                .IsUnique();
+
+                            b1.ToTable("ConstructionInspections", "appraisal");
+
+                            b1.WithOwner()
+                                .HasForeignKey("AppraisalPropertyId");
+
+                            b1.OwnsMany("Appraisal.Domain.Appraisals.ConstructionWorkDetail", "WorkDetails", b2 =>
+                                {
+                                    b2.Property<Guid>("Id")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("uniqueidentifier")
+                                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                                    b2.Property<Guid>("ConstructionInspectionId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<decimal>("ConstructionValue")
+                                        .HasPrecision(18, 2)
+                                        .HasColumnType("decimal(18,2)");
+
+                                    b2.Property<Guid>("ConstructionWorkGroupId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<Guid?>("ConstructionWorkItemId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<DateTime?>("CreatedAt")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("CreatedBy")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)");
+
+                                    b2.Property<string>("CreatedWorkstation")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<decimal>("CurrentProgressPct")
+                                        .HasPrecision(7, 4)
+                                        .HasColumnType("decimal(7,4)");
+
+                                    b2.Property<decimal>("CurrentPropertyValue")
+                                        .HasPrecision(18, 2)
+                                        .HasColumnType("decimal(18,2)");
+
+                                    b2.Property<decimal>("CurrentProportionPct")
+                                        .HasPrecision(7, 4)
+                                        .HasColumnType("decimal(7,4)");
+
+                                    b2.Property<int>("DisplayOrder")
+                                        .HasColumnType("int");
+
+                                    b2.Property<decimal>("PreviousProgressPct")
+                                        .HasPrecision(7, 4)
+                                        .HasColumnType("decimal(7,4)");
+
+                                    b2.Property<decimal>("PreviousPropertyValue")
+                                        .HasPrecision(18, 2)
+                                        .HasColumnType("decimal(18,2)");
+
+                                    b2.Property<decimal>("ProportionPct")
+                                        .HasPrecision(7, 4)
+                                        .HasColumnType("decimal(7,4)");
+
+                                    b2.Property<DateTime?>("UpdatedAt")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("UpdatedBy")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)");
+
+                                    b2.Property<string>("UpdatedWorkstation")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<string>("WorkItemName")
+                                        .IsRequired()
+                                        .HasMaxLength(200)
+                                        .HasColumnType("nvarchar(200)");
+
+                                    b2.HasKey("Id");
+
+                                    b2.HasIndex("ConstructionInspectionId");
+
+                                    b2.HasIndex("ConstructionWorkGroupId");
+
+                                    b2.ToTable("ConstructionWorkDetails", "appraisal");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("ConstructionInspectionId");
+                                });
+
+                            b1.Navigation("WorkDetails");
+                        });
+
                     b.OwnsOne("Appraisal.Domain.Appraisals.LandAppraisalDetail", "LandDetail", b1 =>
                         {
                             b1.Property<Guid>("Id")
@@ -6417,6 +6597,8 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Navigation("BuildingDetail");
 
                     b.Navigation("CondoDetail");
+
+                    b.Navigation("ConstructionInspection");
 
                     b.Navigation("LandDetail");
 

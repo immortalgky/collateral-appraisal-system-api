@@ -68,6 +68,20 @@ public class GetLandAndBuildingPropertyQueryHandler(
                     )).ToList()
             )).ToList();
 
+        var constructionDto = property.ConstructionInspection is { } ci
+            ? new ConstructionInspectionDto(
+                ci.Id, ci.AppraisalPropertyId, ci.IsFullDetail, ci.TotalValue,
+                ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
+                ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark,
+                ci.DocumentId, ci.FileName, ci.FilePath,
+                ci.FileExtension, ci.MimeType, ci.FileSizeBytes,
+                ci.WorkDetails.OrderBy(w => w.DisplayOrder).Select(w => new ConstructionWorkDetailDto(
+                    w.Id, w.ConstructionWorkGroupId, w.ConstructionWorkItemId, w.WorkItemName,
+                    w.DisplayOrder, w.ConstructionValue, w.PreviousProgressPct, w.CurrentProgressPct,
+                    w.ProportionPct, w.CurrentProportionPct, w.PreviousPropertyValue, w.CurrentPropertyValue
+                )).ToList())
+            : null;
+
         // 6. Map to result (combining data from both Land and Building details)
         return new GetLandAndBuildingPropertyResult(
             // Property
@@ -250,6 +264,8 @@ public class GetLandAndBuildingPropertyQueryHandler(
             // Depreciation Details
             depreciationDtos,
             // Surfaces
-            surfaceDtos);
+            surfaceDtos,
+            // Construction Inspection
+            constructionDto);
     }
 }

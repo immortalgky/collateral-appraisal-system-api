@@ -13,7 +13,7 @@ internal class GetMyRequestsQueryHandler(RequestDbContext dbContext, ICurrentUse
 
         // Filter by current user
         var username = currentUserService.Username;
-        queryable = queryable.Where(r => r.CreatedBy == username);
+        queryable = queryable.Where(r => r.Requestor.UserId == username);
 
         // Filter by status (default: Draft or New)
         if (!string.IsNullOrWhiteSpace(query.Status))

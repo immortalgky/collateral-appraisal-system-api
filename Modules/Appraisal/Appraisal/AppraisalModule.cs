@@ -5,6 +5,7 @@ using Appraisal.Infrastructure.Repositories;
 using Appraisal.Infrastructure.Seed;
 // DocumentRequirement entities moved to Parameter module
 using Shared.Data.Seed;
+using Shared.Messaging.Services;
 
 namespace Appraisal;
 
@@ -61,6 +62,7 @@ public static class AppraisalModule
 
         // Register Application Services
         services.AddScoped<IAppraisalCreationService, AppraisalCreationService>();
+        services.AddScoped<IAppraisalStatusService, AppraisalStatusService>();
 
         // Register Domain Services
         services.AddSingleton<PricingCalculationServiceResolver>();

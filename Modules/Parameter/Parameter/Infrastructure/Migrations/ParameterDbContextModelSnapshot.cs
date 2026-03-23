@@ -191,6 +191,125 @@ namespace Parameter.Infrastructure.Migrations
                     b.ToTable("TitleSubDistricts", "parameter");
                 });
 
+            modelBuilder.Entity("Parameter.ConstructionWork.Models.ConstructionWorkGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameTh")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("ConstructionWorkGroups", "parameter");
+                });
+
+            modelBuilder.Entity("Parameter.ConstructionWork.Models.ConstructionWorkItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid>("ConstructionWorkGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameTh")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConstructionWorkGroupId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("ConstructionWorkItems", "parameter");
+                });
+
             modelBuilder.Entity("Parameter.DocumentRequirements.Models.DocumentRequirement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -438,6 +557,15 @@ namespace Parameter.Infrastructure.Migrations
                     b.Navigation("District");
                 });
 
+            modelBuilder.Entity("Parameter.ConstructionWork.Models.ConstructionWorkItem", b =>
+                {
+                    b.HasOne("Parameter.ConstructionWork.Models.ConstructionWorkGroup", null)
+                        .WithMany("WorkItems")
+                        .HasForeignKey("ConstructionWorkGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Parameter.DocumentRequirements.Models.DocumentRequirement", b =>
                 {
                     b.HasOne("Parameter.DocumentRequirements.Models.DocumentType", "DocumentType")
@@ -467,6 +595,11 @@ namespace Parameter.Infrastructure.Migrations
             modelBuilder.Entity("Parameter.Addresses.Models.TitleProvince", b =>
                 {
                     b.Navigation("Districts");
+                });
+
+            modelBuilder.Entity("Parameter.ConstructionWork.Models.ConstructionWorkGroup", b =>
+                {
+                    b.Navigation("WorkItems");
                 });
 
             modelBuilder.Entity("Parameter.DocumentRequirements.Models.DocumentType", b =>

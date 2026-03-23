@@ -17,6 +17,9 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
     // Task assignment configuration
     public DbSet<TaskAssignmentConfiguration> TaskAssignmentConfigurations => Set<TaskAssignmentConfiguration>();
 
+    // Activity process configuration (submission pipeline)
+    public DbSet<ActivityProcessConfiguration> ActivityProcessConfigurations => Set<ActivityProcessConfiguration>();
+
     // Workflow support entities
     public DbSet<WorkflowOutbox> WorkflowOutboxes => Set<WorkflowOutbox>();
     public DbSet<WorkflowBookmark> WorkflowBookmarks => Set<WorkflowBookmark>();
