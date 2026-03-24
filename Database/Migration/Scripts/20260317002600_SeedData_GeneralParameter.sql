@@ -1204,16 +1204,10 @@ VALUES
     (N'Decoration', N'TH', N'TH', N'01', N'ที่อยู่อาศัยตกแต่งพร้อมอยู่', 1, 1),
     (N'Decoration', N'TH', N'EN', N'02', N'Partially', 1, 2),
     (N'Decoration', N'TH', N'TH', N'02', N'ที่อยู่อาศัยตกแต่งบางส่วน', 1, 2),
-    (N'Decoration', N'TH', N'EN', N'03', N'03', 1, 3),
+    (N'Decoration', N'TH', N'EN', N'03', N'None', 1, 3),
     (N'Decoration', N'TH', N'TH', N'03', N'ที่อยู่อาศัยไม่ตกแต่ง', 1, 3),
     (N'Decoration', N'TH', N'EN', N'99', N'Other', 1, 4),
-    (N'Decoration', N'TH', N'TH', N'99', N'อื่นๆ', 1, 4),
-    (N'Decoration', N'TH', N'EN', N'Ready to move in', N'ที่อยู่อาศัยตกแต่งพร้อมอยู่', 1, 6),
-    (N'Decoration', N'TH', N'TH', N'Ready to move in', N'ที่อยู่อาศัยตกแต่งพร้อมอยู่', 1, 6),
-    (N'Decoration', N'TH', N'EN', N'Partially', N'ที่อยู่อาศัยตกแต่งบางส่วน', 1, 7),
-    (N'Decoration', N'TH', N'TH', N'Partially', N'ที่อยู่อาศัยตกแต่งบางส่วน', 1, 7),
-    (N'Decoration', N'TH', N'EN', N'Other', N'อื่นๆ', 1, 8),
-    (N'Decoration', N'TH', N'TH', N'Other', N'อื่นๆ', 1, 8);
+    (N'Decoration', N'TH', N'TH', N'99', N'อื่นๆ', 1, 4);
 GO
 
 -- ----------------------------------------
@@ -4612,8 +4606,8 @@ VALUES
     (N'Utilization', N'TH', N'TH', N'03', N'Residing less than 30%', 1, 3),
     (N'Utilization', N'TH', N'EN', N'04', N'Used for Rent Sharing', 1, 4),
     (N'Utilization', N'TH', N'TH', N'04', N'Used for Rent Sharing', 1, 4),
-    (N'Utilization', N'TH', N'EN', N'05', N'Used For Other Purposes', 1, 5),
-    (N'Utilization', N'TH', N'TH', N'05', N'Used For Other Purposes', 1, 5);
+    (N'Utilization', N'TH', N'EN', N'99', N'Used For Other Purposes', 1, 5),
+    (N'Utilization', N'TH', N'TH', N'99', N'Used For Other Purposes', 1, 5);
 GO
 
 -- ----------------------------------------
