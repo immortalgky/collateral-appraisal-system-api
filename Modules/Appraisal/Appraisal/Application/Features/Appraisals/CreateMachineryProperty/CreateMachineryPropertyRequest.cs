@@ -5,7 +5,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateMachineryProperty;
 /// </summary>
 public record CreateMachineryPropertyRequest(
     // Required
-    string OwnerName,
+    string? OwnerName,
     // Machine Identification
     string? PropertyName = null,
     string? MachineName = null,

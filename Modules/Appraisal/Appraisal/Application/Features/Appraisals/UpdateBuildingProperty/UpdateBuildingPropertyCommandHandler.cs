@@ -37,6 +37,7 @@ public class UpdateBuildingPropertyCommandHandler(
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,
             buildingConditionType: command.BuildingConditionType,
+            buildingConditionTypeOther: command.BuildingConditionTypeOther,
             isUnderConstruction: command.IsUnderConstruction,
             constructionCompletionPercent: command.ConstructionCompletionPercent,
             constructionLicenseExpirationDate: command.ConstructionLicenseExpirationDate,

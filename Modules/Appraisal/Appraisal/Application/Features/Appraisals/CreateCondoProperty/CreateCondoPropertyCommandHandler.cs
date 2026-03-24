@@ -50,6 +50,7 @@ public class CreateCondoPropertyCommandHandler(
             command.OwnerName,
             command.IsOwnerVerified,
             command.BuildingConditionType,
+            command.BuildingConditionTypeOther,
             command.HasObligation,
             command.ObligationDetails,
             command.DocumentValidationResultType,

@@ -57,6 +57,8 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             // Land - Characteristics
             command.LandShapeType,
             command.UrbanPlanningType,
+            landZoneType: command.LandZoneType,
+            landZoneTypeOther: command.LandZoneTypeOther,
             plotLocationType: command.PlotLocationType,
             plotLocationTypeOther: command.PlotLocationTypeOther,
             landFillType: command.LandFillType,
@@ -82,6 +84,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             transportationAccessType: command.TransportationAccessType,
             transportationAccessTypeOther: command.TransportationAccessTypeOther,
             propertyAnticipationType: command.PropertyAnticipationType,
+            propertyAnticipationTypeOther: command.PropertyAnticipationTypeOther,
             // Land - Legal
             isExpropriated: command.IsExpropriated,
             expropriationRemark: command.ExpropriationRemark,
@@ -111,7 +114,9 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             // Land - Other
             pondArea: command.PondArea,
             pondDepth: command.PondDepth,
-            remark: command.LandRemark);
+            hasBuilding: command.HasBuilding,
+            hasBuildingOther: command.HasBuildingOther,
+            remark: command.Remark);
 
         // Add land titles if provided
         if (command.Titles is { Count: > 0 })
@@ -165,6 +170,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             residentialRemark: command.ResidentialRemark,
             // Building - Status
             buildingConditionType: command.BuildingConditionType,
+            buildingConditionTypeOther: command.BuildingConditionTypeOther,
             isUnderConstruction: command.IsUnderConstruction,
             constructionCompletionPercent: command.ConstructionCompletionPercent,
             constructionLicenseExpirationDate: command.ConstructionLicenseExpirationDate,
@@ -206,7 +212,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             buildingInsurancePrice: command.BuildingInsurancePrice,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
-            remark: command.BuildingRemark);
+            remark: command.Remark);
 
         // 6. Add depreciation details if provided
         if (command.DepreciationDetails is { Count: > 0 })

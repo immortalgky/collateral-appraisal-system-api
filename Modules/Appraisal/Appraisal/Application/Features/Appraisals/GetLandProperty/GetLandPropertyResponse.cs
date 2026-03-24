@@ -50,6 +50,7 @@ public record GetLandPropertyResponse
     public string? LandShapeType { get; init; }
     public string? UrbanPlanningType { get; init; }
     public List<string>? LandZoneType { get; init; }
+    public string? LandZoneTypeOther { get; init; }
     public List<string>? PlotLocationType { get; init; }
     public string? PlotLocationTypeOther { get; init; }
     public string? LandFillType { get; init; }
@@ -80,6 +81,7 @@ public record GetLandPropertyResponse
     public List<string>? TransportationAccessType { get; init; }
     public string? TransportationAccessTypeOther { get; init; }
     public string? PropertyAnticipationType { get; init; }
+    public string? PropertyAnticipationTypeOther { get; init; }
 
     // Legal Information
     public bool? IsExpropriated { get; init; }

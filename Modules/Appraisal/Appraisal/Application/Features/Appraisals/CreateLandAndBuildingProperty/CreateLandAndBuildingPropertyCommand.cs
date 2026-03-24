@@ -39,6 +39,7 @@ public record CreateLandAndBuildingPropertyCommand(
     string? LandShapeType = null,
     string? UrbanPlanningType = null,
     List<string>? LandZoneType = null,
+    string? LandZoneTypeOther = null,
     List<string>? PlotLocationType = null,
     string? PlotLocationTypeOther = null,
     string? LandFillType = null,
@@ -67,6 +68,7 @@ public record CreateLandAndBuildingPropertyCommand(
     List<string>? TransportationAccessType = null,
     string? TransportationAccessTypeOther = null,
     string? PropertyAnticipationType = null,
+    string? PropertyAnticipationTypeOther = null,
     // Legal Restrictions
     bool? IsExpropriated = null,
     string? ExpropriationRemark = null,
@@ -96,6 +98,8 @@ public record CreateLandAndBuildingPropertyCommand(
     // Other Features
     decimal? PondArea = null,
     decimal? PondDepth = null,
+    bool? HasBuilding = null,
+    string? HasBuildingOther = null,
 
     // Building - Identification
     string? BuildingNumber = null,
@@ -104,6 +108,7 @@ public record CreateLandAndBuildingPropertyCommand(
     string? HouseNumber = null,
     // Building Status
     string? BuildingConditionType = null,
+    string? BuildingConditionTypeOther = null,
     bool? IsUnderConstruction = null,
     decimal? ConstructionCompletionPercent = null,
     DateTime? ConstructionLicenseExpirationDate = null,
@@ -153,8 +158,7 @@ public record CreateLandAndBuildingPropertyCommand(
     decimal? ForcedSalePrice = null,
 
     // Remarks
-    string? LandRemark = null,
-    string? BuildingRemark = null,
+    string? Remark = null,
 
     // Land Titles
     List<LandTitleItemData>? Titles = null,

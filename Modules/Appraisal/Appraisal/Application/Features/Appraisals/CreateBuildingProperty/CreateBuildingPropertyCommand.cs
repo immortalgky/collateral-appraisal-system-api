@@ -19,6 +19,7 @@ public record CreateBuildingPropertyCommand(
     string? HouseNumber = null,
     // Building Status
     string? BuildingConditionType = null,
+    string? BuildingConditionTypeOther = null,
     bool? IsUnderConstruction = null,
     decimal? ConstructionCompletionPercent = null,
     DateTime? ConstructionLicenseExpirationDate = null,

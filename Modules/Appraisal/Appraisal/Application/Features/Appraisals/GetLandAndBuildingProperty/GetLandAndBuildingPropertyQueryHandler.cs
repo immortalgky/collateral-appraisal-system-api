@@ -119,6 +119,7 @@ public class GetLandAndBuildingPropertyQueryHandler(
             landDetail.LandShapeType,
             landDetail.UrbanPlanningType,
             landDetail.LandZoneType,
+            landDetail.LandZoneTypeOther,
             landDetail.PlotLocationType,
             landDetail.PlotLocationTypeOther,
             landDetail.LandFillType,
@@ -147,6 +148,7 @@ public class GetLandAndBuildingPropertyQueryHandler(
             landDetail.TransportationAccessType,
             landDetail.TransportationAccessTypeOther,
             landDetail.PropertyAnticipationType,
+            landDetail.PropertyAnticipationTypeOther,
             // Land - Legal
             landDetail.IsExpropriated,
             landDetail.ExpropriationRemark,
@@ -211,6 +213,7 @@ public class GetLandAndBuildingPropertyQueryHandler(
             buildingDetail.HouseNumber,
             // Building - Status
             buildingDetail.BuildingConditionType,
+            buildingDetail.BuildingConditionTypeOther,
             buildingDetail.IsUnderConstruction,
             buildingDetail.ConstructionCompletionPercent,
             buildingDetail.ConstructionLicenseExpirationDate,
@@ -260,7 +263,6 @@ public class GetLandAndBuildingPropertyQueryHandler(
             buildingDetail.ForcedSalePrice,
             // Remarks
             landDetail.Remark,
-            buildingDetail.Remark,
             // Depreciation Details
             depreciationDtos,
             // Surfaces

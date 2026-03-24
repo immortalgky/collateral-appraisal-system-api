@@ -28,6 +28,7 @@ public class
 
         // Building Status
         builder.Property(e => e.BuildingConditionType).HasMaxLength(50);
+        builder.Property(e => e.BuildingConditionTypeOther).HasMaxLength(200);
         builder.Property(e => e.ConstructionCompletionPercent).HasPrecision(5, 2);
 
         // Building Info

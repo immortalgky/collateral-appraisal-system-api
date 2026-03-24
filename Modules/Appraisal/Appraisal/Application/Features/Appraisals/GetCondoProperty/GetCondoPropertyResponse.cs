@@ -20,7 +20,7 @@ public record GetCondoPropertyResponse(
     string? BuiltOnTitleNumber,
     string? CondoRegistrationNumber,
     string? RoomNumber,
-    int? FloorNumber,
+    string? FloorNumber,
     decimal? UsableArea,
     // Coordinates
     decimal? Latitude,
@@ -34,6 +34,7 @@ public record GetCondoPropertyResponse(
     string? OwnerName,
     bool? IsOwnerVerified,
     string? BuildingConditionType,
+    string? BuildingConditionTypeOther,
     bool? HasObligation,
     string? ObligationDetails,
     string? DocumentValidationResultType,

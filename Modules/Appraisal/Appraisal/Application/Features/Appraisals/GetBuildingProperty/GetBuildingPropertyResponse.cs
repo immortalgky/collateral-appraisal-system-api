@@ -23,6 +23,7 @@ public record GetBuildingPropertyResponse(
     string? HouseNumber,
     // Building Status
     string? BuildingConditionType,
+    string? BuildingConditionTypeOther,
     bool IsUnderConstruction,
     decimal? ConstructionCompletionPercent,
     DateTime? ConstructionLicenseExpirationDate,

@@ -38,6 +38,7 @@ public record CreateLandPropertyCommand(
     string? LandShapeType = null,
     string? UrbanPlanningType = null,
     List<string>? LandZoneType = null,
+    string? LandZoneTypeOther = null,
     List<string>? PlotLocationType = null,
     string? PlotLocationTypeOther = null,
     string? LandFillType = null,
@@ -66,6 +67,7 @@ public record CreateLandPropertyCommand(
     List<string>? TransportationAccessType = null,
     string? TransportationAccessTypeOther = null,
     string? PropertyAnticipationType = null,
+    string? PropertyAnticipationTypeOther = null,
     // Legal Restrictions
     bool? IsExpropriated = null,
     string? ExpropriationRemark = null,

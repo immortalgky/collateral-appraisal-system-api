@@ -45,6 +45,7 @@ public class LandAppraisalDetail : Entity<Guid>
     public string? LandShapeType { get; private set; }
     public string? UrbanPlanningType { get; private set; }
     public List<string>? LandZoneType { get; private set; }
+    public string? LandZoneTypeOther { get; private set; }
     public List<string>? PlotLocationType { get; private set; }
     public string? PlotLocationTypeOther { get; private set; }
     public string? LandFillType { get; private set; }
@@ -75,6 +76,7 @@ public class LandAppraisalDetail : Entity<Guid>
     public List<string>? TransportationAccessType { get; private set; }
     public string? TransportationAccessTypeOther { get; private set; }
     public string? PropertyAnticipationType { get; private set; }
+    public string? PropertyAnticipationTypeOther { get; private set; }
 
     // Legal Restrictions
     public bool? IsExpropriated { get; private set; }
@@ -158,6 +160,7 @@ public class LandAppraisalDetail : Entity<Guid>
         string? landShapeType = null,
         string? urbanPlanningType = null,
         List<string>? landZoneType = null,
+        string? landZoneTypeOther = null,
         List<string>? plotLocationType = null,
         string? plotLocationTypeOther = null,
         string? landFillType = null,
@@ -186,6 +189,7 @@ public class LandAppraisalDetail : Entity<Guid>
         List<string>? transportationAccessType = null,
         string? transportationAccessTypeOther = null,
         string? propertyAnticipationType = null,
+        string? propertyAnticipationTypeOther = null,
         // Legal Restrictions
         bool? isExpropriated = null,
         string? expropriationRemark = null,
@@ -247,6 +251,7 @@ public class LandAppraisalDetail : Entity<Guid>
         LandShapeType = landShapeType;
         UrbanPlanningType = urbanPlanningType;
         LandZoneType = landZoneType;
+        LandZoneTypeOther = landZoneTypeOther;
         PlotLocationType = plotLocationType;
         PlotLocationTypeOther = plotLocationTypeOther;
         LandFillType = landFillType;
@@ -277,6 +282,7 @@ public class LandAppraisalDetail : Entity<Guid>
         TransportationAccessType = transportationAccessType;
         TransportationAccessTypeOther = transportationAccessTypeOther;
         PropertyAnticipationType = propertyAnticipationType;
+        PropertyAnticipationTypeOther = propertyAnticipationTypeOther;
 
         // Legal Restrictions (non-nullable bool fields keep check)
         IsExpropriated = isExpropriated;
@@ -342,6 +348,7 @@ public class LandAppraisalDetail : Entity<Guid>
             LandShapeType = source.LandShapeType,
             UrbanPlanningType = source.UrbanPlanningType,
             LandZoneType = source.LandZoneType?.ToList(),
+            LandZoneTypeOther = source.LandZoneTypeOther,
             PlotLocationType = source.PlotLocationType?.ToList(),
             PlotLocationTypeOther = source.PlotLocationTypeOther,
             LandFillType = source.LandFillType,
@@ -368,6 +375,7 @@ public class LandAppraisalDetail : Entity<Guid>
             TransportationAccessType = source.TransportationAccessType?.ToList(),
             TransportationAccessTypeOther = source.TransportationAccessTypeOther,
             PropertyAnticipationType = source.PropertyAnticipationType,
+            PropertyAnticipationTypeOther = source.PropertyAnticipationTypeOther,
             IsExpropriated = source.IsExpropriated,
             ExpropriationRemark = source.ExpropriationRemark,
             IsInExpropriationLine = source.IsInExpropriationLine,

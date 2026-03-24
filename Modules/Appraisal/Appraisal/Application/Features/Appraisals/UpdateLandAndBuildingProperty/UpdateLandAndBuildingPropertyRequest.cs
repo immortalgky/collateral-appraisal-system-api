@@ -36,6 +36,7 @@ public record UpdateLandAndBuildingPropertyRequest(
     string? LandShapeType = null,
     string? UrbanPlanningType = null,
     List<string>? LandZoneType = null,
+    string? LandZoneTypeOther = null,
     List<string>? PlotLocationType = null,
     string? PlotLocationTypeOther = null,
     string? LandFillType = null,
@@ -64,6 +65,7 @@ public record UpdateLandAndBuildingPropertyRequest(
     List<string>? TransportationAccessType = null,
     string? TransportationAccessTypeOther = null,
     string? PropertyAnticipationType = null,
+    string? PropertyAnticipationTypeOther = null,
     // Legal Restrictions
     bool? IsExpropriated = null,
     string? ExpropriationRemark = null,
@@ -93,6 +95,8 @@ public record UpdateLandAndBuildingPropertyRequest(
     // Other Features
     decimal? PondArea = null,
     decimal? PondDepth = null,
+    bool? HasBuilding = null,
+    string? HasBuildingOther = null,
     // Land Titles
     List<LandTitleItemData>? Titles = null,
     //=================================
@@ -103,6 +107,7 @@ public record UpdateLandAndBuildingPropertyRequest(
     string? HouseNumber = null,
     // Building Status
     string? BuildingConditionType = null,
+    string? BuildingConditionTypeOther = null,
     bool? IsUnderConstruction = null,
     decimal? ConstructionCompletionPercent = null,
     DateTime? ConstructionLicenseExpirationDate = null,
@@ -151,8 +156,7 @@ public record UpdateLandAndBuildingPropertyRequest(
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Remarks
-    string? LandRemark = null,
-    string? BuildingRemark = null,
+    string? Remark = null,
     // Depreciation Details (null = no-op, list = sync)
     List<DepreciationItemData>? DepreciationDetails = null,
     // Surfaces (null = no-op, list = sync)
