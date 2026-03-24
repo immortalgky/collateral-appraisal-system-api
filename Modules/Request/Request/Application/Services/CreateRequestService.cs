@@ -140,7 +140,6 @@ public class CreateRequestService(
                     UploadedAt = doc.UploadedAt
                 });
 
-            title.Validate();
             titles.Add(title);
         }
 
@@ -168,7 +167,6 @@ public class CreateRequestService(
                 now
             ));
 
-            comment.Validate();
             comments.Add(comment);
         }
 
