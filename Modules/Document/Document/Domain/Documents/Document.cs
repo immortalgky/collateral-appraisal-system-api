@@ -187,6 +187,15 @@ public class Document : Aggregate<Guid>
         }
     }
 
+    public void Delete(string deletedBy)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
+        IsDeleted = true;
+        DeletedAt = DateTime.UtcNow;
+        DeletedBy = deletedBy;
+        IsActive = false;
+    }
+
     public void UpdateStoragePath(string newPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(newPath);

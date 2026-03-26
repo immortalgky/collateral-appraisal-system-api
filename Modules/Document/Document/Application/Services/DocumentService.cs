@@ -147,9 +147,31 @@ public class DocumentService(
         if (deleteSource) File.Delete(sourcePath);
     }
 
-    public Task<bool> DeleteFileAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteFileAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        var document = await _documentRepository.GetByIdAsync(id, cancellationToken);
+        if (document is null)
+            throw new NotFoundException($"Document {id} not found");
+
+        var username = currentUserService.Username ?? "anonymous";
+        document.Delete(username);
+
+        await _documentRepository.UpdateAsync(document, cancellationToken);
+
+        if (File.Exists(document.StoragePath))
+        {
+            File.Delete(document.StoragePath);
+            logger.LogInformation("Physical file deleted at {StoragePath}", document.StoragePath);
+        }
+        else
+        {
+            logger.LogWarning("Physical file not found at {StoragePath} for document {DocumentId}",
+                document.StoragePath, id);
+        }
+
+        logger.LogInformation("Document {DocumentId} deleted by {Username}", id, username);
+
+        return true;
     }
 
     public async Task<string> CalculateChecksumAsync(Stream stream,
@@ -160,9 +182,11 @@ public class DocumentService(
         return Convert.ToBase64String(hash);
     }
 
-    private string GetStorageBasePath() =>
-        _fileStorageConfiguration.Mode == StorageMode.Nas
-        && !string.IsNullOrEmpty(_fileStorageConfiguration.NasBasePath)
+    private string GetStorageBasePath()
+    {
+        return _fileStorageConfiguration.Mode == StorageMode.Nas
+               && !string.IsNullOrEmpty(_fileStorageConfiguration.NasBasePath)
             ? _fileStorageConfiguration.NasBasePath
             : webHostEnvironment.WebRootPath;
+    }
 }

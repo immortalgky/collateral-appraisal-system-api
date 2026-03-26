@@ -5,9 +5,7 @@ public class DeleteDocumentCommandValidator : AbstractValidator<DeleteDocumentCo
     public DeleteDocumentCommandValidator()
     {
         RuleFor(x => x.Id)
-            .NotNull()
-            .WithMessage("Id is required.")
-            .GreaterThan(0)
-            .WithMessage("Id must be greater than 0.");
+            .NotEmpty()
+            .WithMessage("Id is required.");
     }
 }

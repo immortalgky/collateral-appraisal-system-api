@@ -4,10 +4,11 @@ namespace Document.Services;
 
 public interface IDocumentService
 {
-    Task<UploadDocumentResult> UploadAsync(IFormFile file, Guid uploadSessionId, string documentType, string documentCategory,
+    Task<UploadDocumentResult> UploadAsync(IFormFile file, Guid uploadSessionId, string documentType,
+        string documentCategory,
         string? description, CancellationToken cancellationToken = default);
 
-    Task<bool> DeleteFileAsync(long id, CancellationToken cancellationToken = default);
+    Task<bool> DeleteFileAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<string> CalculateChecksumAsync(Stream stream, CancellationToken cancellationToken = default);
 
