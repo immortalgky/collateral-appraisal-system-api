@@ -4,6 +4,7 @@ namespace Workflow.AssigneeSelection.Core;
 
 public class AssignmentContext
 {
+    public Guid WorkflowInstanceId { get; set; }
     public string ActivityName { get; set; } = default!;
     public List<string> AssignmentStrategies { get; set; } = new();
     public List<string> UserGroups { get; set; } = new();
@@ -22,4 +23,9 @@ public class AssignmentContext
     /// When set, selectors should prefer this list over querying their own user sources.
     /// </summary>
     public List<TeamMemberInfo>? CandidatePool { get; set; }
+
+    /// <summary>
+    /// Workflow instance variables (runtime state). Used by VariableAssignee strategy.
+    /// </summary>
+    public Dictionary<string, object>? Variables { get; set; }
 }

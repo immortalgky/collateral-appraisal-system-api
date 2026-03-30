@@ -1,11 +1,11 @@
 using FluentValidation;
 
-namespace Auth.Domain.Permissions.Features.DeletePermission;
+namespace Auth.Application.Features.Permissions.DeletePermission;
 
 public class DeletePermissionCommandValidator : AbstractValidator<DeletePermissionCommand>
 {
     public DeletePermissionCommandValidator()
     {
-        RuleFor(x => x.Id).NotEmpty().WithMessage("Id is required.");
+        RuleFor(x => x.Id).NotEmpty();
     }
 }

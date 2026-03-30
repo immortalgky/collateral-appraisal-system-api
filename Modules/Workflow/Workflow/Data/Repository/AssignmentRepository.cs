@@ -1,4 +1,3 @@
-using Shared.Messaging.Values;
 using Microsoft.Data.SqlClient;
 using System.Data;
 using System.Data.Common;
@@ -18,7 +17,7 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
         throw new NotImplementedException();
     }
 
-    public async Task<PendingTask?> GetPendingTaskAsync(Guid correlationId, TaskName taskName,
+    public async Task<PendingTask?> GetPendingTaskAsync(Guid correlationId, string taskName,
         CancellationToken cancellationToken = default)
     {
         return await dbContext.PendingTasks
@@ -69,7 +68,7 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<CompletedTask?> GetLastCompletedTaskForActivityAsync(TaskName activityName,
+    public async Task<CompletedTask?> GetLastCompletedTaskForActivityAsync(string activityName,
         CancellationToken cancellationToken = default)
     {
         return await dbContext.CompletedTasks
@@ -79,7 +78,7 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
     }
 
     public async Task<CompletedTask?> GetLastCompletedTaskForIdAndActivityAsync(Guid correlationId,
-        TaskName activityName,
+        string activityName,
         CancellationToken cancellationToken = default)
     {
         return await dbContext.CompletedTasks
@@ -169,5 +168,13 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return selectedUser.UserId;
+    }
+
+    public async Task<List<PendingTask>> GetPendingTasksByCorrelationIdAsync(Guid correlationId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.PendingTasks
+            .Where(x => x.CorrelationId == correlationId)
+            .ToListAsync(cancellationToken);
     }
 }

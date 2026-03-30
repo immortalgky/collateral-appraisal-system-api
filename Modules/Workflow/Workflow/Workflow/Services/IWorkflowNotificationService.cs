@@ -9,4 +9,9 @@ public interface IWorkflowNotificationService
     Task NotifyWorkflowFailed(Guid workflowInstanceId, string errorMessage);
     Task NotifyWorkflowCancelled(Guid workflowInstanceId, string cancelledBy, string reason);
     Task NotifyUserTaskAssigned(string userId, Guid workflowInstanceId, string taskName, string activityId);
+
+    // Pool task notifications
+    Task NotifyPoolTaskAssigned(string poolGroup, Guid taskId, string taskName);
+    Task NotifyPoolTaskStarted(string poolGroup, Guid taskId, string startedBy);
+    Task NotifyPoolTaskClaimed(string poolGroup, Guid taskId, string claimedBy);
 }

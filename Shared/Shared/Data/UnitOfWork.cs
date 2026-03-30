@@ -112,6 +112,8 @@ public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     /// <summary>
     /// Disposes the transaction and context.
     /// </summary>
+    public IExecutionStrategy CreateExecutionStrategy() => _context.Database.CreateExecutionStrategy();
+
     public void Dispose()
     {
         _transaction?.Dispose();

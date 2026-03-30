@@ -1,6 +1,9 @@
 using Workflow.AssigneeSelection.Core;
 using Workflow.AssigneeSelection.Strategies;
+using Workflow.Data;
+using Workflow.Workflow.Models;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -10,133 +13,80 @@ namespace Workflow.Tests.AssigneeSelection;
 public class PreviousOwnerAssigneeSelectorTests
 {
     private readonly PreviousOwnerAssigneeSelector _selector;
-    private readonly ILogger<PreviousOwnerAssigneeSelector> _logger;
 
     public PreviousOwnerAssigneeSelectorTests()
     {
-        _logger = Substitute.For<ILogger<PreviousOwnerAssigneeSelector>>();
-        _selector = new PreviousOwnerAssigneeSelector(_logger);
+        var options = new DbContextOptionsBuilder<WorkflowDbContext>()
+            .UseInMemoryDatabase($"PreviousOwnerTests_{Guid.NewGuid()}")
+            .Options;
+        var dbContext = new WorkflowDbContext(options);
+        var logger = Substitute.For<ILogger<PreviousOwnerAssigneeSelector>>();
+        _selector = new PreviousOwnerAssigneeSelector(dbContext, logger);
     }
 
     [Fact]
-    public async Task SelectAssigneeAsync_WithValidWorkflowContext_ShouldReturnAssignee()
+    public async Task SelectAssigneeAsync_EmptyWorkflowInstanceId_ReturnsFailure()
     {
-        // Arrange
         var context = new AssignmentContext
         {
-            ActivityName = "PreviousOwnerTest",
-            UserGroups = new List<string> { "Appraisers" },
-            Properties = new Dictionary<string, object>
-            {
-                ["WorkflowInstanceId"] = Guid.NewGuid(),
-                ["ActivityId"] = "review-activity"
-            }
+            WorkflowInstanceId = Guid.Empty,
+            ActivityName = "ext-admin"
         };
 
-        // Act
-        var result = await _selector.SelectAssigneeAsync(context, CancellationToken.None);
+        var result = await _selector.SelectAssigneeAsync(context);
 
-        // Assert - The current implementation may return failure due to missing workflow data
-        // This test validates the basic structure and error handling
-        result.Should().NotBeNull();
-        
-        if (result.IsSuccess)
-        {
-            result.AssigneeId.Should().NotBeNullOrEmpty();
-        }
-        else
-        {
-            result.ErrorMessage.Should().NotBeNullOrEmpty();
-        }
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("WorkflowInstanceId");
     }
 
     [Fact]
-    public async Task SelectAssigneeAsync_WithMissingWorkflowInstanceId_ShouldReturnFailure()
+    public async Task SelectAssigneeAsync_NoPreviousExecution_ReturnsFailure()
     {
-        // Arrange
         var context = new AssignmentContext
         {
-            ActivityName = "MissingWorkflowTest",
-            UserGroups = new List<string> { "Appraisers" },
-            Properties = new Dictionary<string, object>
-            {
-                ["ActivityId"] = "review-activity"
-                // Missing WorkflowInstanceId
-            }
+            WorkflowInstanceId = Guid.NewGuid(),
+            ActivityName = "ext-admin"
+        };
+
+        var result = await _selector.SelectAssigneeAsync(context);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("No previous owner");
+    }
+
+    [Fact]
+    public async Task SelectAssigneeAsync_HasPreviousExecution_ReturnsPreviousOwner()
+    {
+        // Arrange — seed a completed execution
+        var options = new DbContextOptionsBuilder<WorkflowDbContext>()
+            .UseInMemoryDatabase($"PreviousOwnerTests_{Guid.NewGuid()}")
+            .Options;
+        var dbContext = new WorkflowDbContext(options);
+
+        var workflowInstanceId = Guid.NewGuid();
+        var execution = WorkflowActivityExecution.Create(
+            workflowInstanceId, "ext-admin", "External Admin", "TaskActivity", "th.admin1",
+            new Dictionary<string, object>());
+        execution.Complete("th.admin1", new Dictionary<string, object>(), "Done");
+
+        dbContext.WorkflowActivityExecutions.Add(execution);
+        await dbContext.SaveChangesAsync();
+
+        var logger = Substitute.For<ILogger<PreviousOwnerAssigneeSelector>>();
+        var selector = new PreviousOwnerAssigneeSelector(dbContext, logger);
+
+        var context = new AssignmentContext
+        {
+            WorkflowInstanceId = workflowInstanceId,
+            ActivityName = "ext-admin"
         };
 
         // Act
-        var result = await _selector.SelectAssigneeAsync(context, CancellationToken.None);
+        var result = await selector.SelectAssigneeAsync(context);
 
         // Assert
-        result.Should().NotBeNull();
-        result.IsSuccess.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("requires workflow instance ID");
-    }
-
-    [Fact]
-    public async Task SelectAssigneeAsync_WithMissingActivityId_ShouldReturnFailure()
-    {
-        // Arrange
-        var context = new AssignmentContext
-        {
-            ActivityName = "MissingActivityTest",
-            UserGroups = new List<string> { "Appraisers" },
-            Properties = new Dictionary<string, object>
-            {
-                ["WorkflowInstanceId"] = Guid.NewGuid()
-                // Missing ActivityId
-            }
-        };
-
-        // Act
-        var result = await _selector.SelectAssigneeAsync(context, CancellationToken.None);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.IsSuccess.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("requires workflow instance ID and activity ID");
-    }
-
-    [Fact]
-    public async Task SelectAssigneeAsync_WithNullProperties_ShouldReturnFailure()
-    {
-        // Arrange
-        var context = new AssignmentContext
-        {
-            ActivityName = "NullPropertiesTest",
-            UserGroups = new List<string> { "Appraisers" },
-            Properties = null
-        };
-
-        // Act
-        var result = await _selector.SelectAssigneeAsync(context, CancellationToken.None);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.IsSuccess.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("requires workflow instance ID and activity ID");
-    }
-
-    [Fact]
-    public async Task SelectAssigneeAsync_WithCancellationToken_ShouldRespectCancellation()
-    {
-        // Arrange
-        var context = new AssignmentContext
-        {
-            ActivityName = "CancellationTest",
-            Properties = new Dictionary<string, object>
-            {
-                ["WorkflowInstanceId"] = Guid.NewGuid(),
-                ["ActivityId"] = "test-activity"
-            }
-        };
-
-        using var cts = new CancellationTokenSource();
-        cts.Cancel();
-
-        // Act & Assert
-        await Assert.ThrowsAsync<OperationCanceledException>(
-            () => _selector.SelectAssigneeAsync(context, cts.Token));
+        result.IsSuccess.Should().BeTrue();
+        result.AssigneeId.Should().Be("th.admin1");
+        result.Metadata.Should().ContainKey("PreviouslyCompletedBy");
     }
 }

@@ -1,3 +1,5 @@
-namespace Auth.Domain.Permissions.Features.GetPermissions;
+using Shared.Pagination;
 
-public record GetPermissionQuery(PaginationRequest PaginationRequest) : IQuery<GetPermissionResult>;
+namespace Auth.Application.Features.Permissions.GetPermissions;
+
+public record GetPermissionQuery(string? Search, int PageNumber = 1, int PageSize = 20) : IQuery<GetPermissionResult>;

@@ -43,4 +43,9 @@ public interface IUnitOfWork : IDisposable
     /// <returns>A repository for the entity type.</returns>
     IRepository<T, TId> Repository<T, TId>() where T : class, IEntity<TId>;
 
+    /// <summary>
+    /// Creates an execution strategy for the underlying database context.
+    /// Handles retry logic for transient failures when configured.
+    /// </summary>
+    IExecutionStrategy CreateExecutionStrategy();
 }

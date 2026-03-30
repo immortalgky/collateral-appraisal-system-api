@@ -5,7 +5,7 @@ using Appraisal.Infrastructure.Repositories;
 using Appraisal.Infrastructure.Seed;
 // DocumentRequirement entities moved to Parameter module
 using Shared.Data.Seed;
-using Shared.Messaging.Services;
+using Appraisal.Contracts.Services;
 
 namespace Appraisal;
 

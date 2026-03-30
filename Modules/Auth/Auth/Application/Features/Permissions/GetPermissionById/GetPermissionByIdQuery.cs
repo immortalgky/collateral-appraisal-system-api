@@ -1,3 +1,3 @@
-namespace Auth.Domain.Permissions.Features.GetPermissionById;
+namespace Auth.Application.Features.Permissions.GetPermissionById;
 
 public record GetPermissionByIdQuery(Guid Id) : IQuery<GetPermissionByIdResult>;

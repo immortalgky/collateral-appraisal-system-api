@@ -1,7 +1,6 @@
 using Carter;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
-using Shared.Messaging.Values;
 
 namespace Notification.Domain.Notifications.Features.TestNotifications;
 
@@ -32,12 +31,10 @@ public class TestNotificationEndpoint : ICarterModule
         [FromBody] SimulateTaskCompletionRequest request,
         [FromServices] IBus bus)
     {
-        var taskName = Enum.TryParse<TaskName>(request.TaskName, true, out var temp) ? temp : TaskName.Admin;
-        var taskCompleted = new TaskCompleted
+        var taskCompleted = new TaskCompletedIntegrationEvent
         {
             CorrelationId = request.CorrelationId ?? Guid.NewGuid(),
-
-            TaskName = taskName,
+            TaskName = request.TaskName ?? "IntAdmin",
             ActionTaken = request.ActionTaken ?? "P"
         };
 
@@ -54,13 +51,10 @@ public class TestNotificationEndpoint : ICarterModule
         [FromBody] SimulateTaskAssignmentRequest request,
         [FromServices] IBus bus)
     {
-        var taskName = Enum.TryParse<TaskName>(request.TaskName, true, out var temp)
-            ? temp
-            : TaskName.ExtAppraisalStaff;
-        var taskAssigned = new TaskAssigned
+        var taskAssigned = new TaskAssignedIntegrationEvent
         {
             CorrelationId = request.CorrelationId ?? Guid.NewGuid(),
-            TaskName = taskName,
+            TaskName = request.TaskName ?? "ExtAppraisalStaff",
             AssignedTo = request.AssignedTo ?? "testuser",
             AssignedType = request.AssignedType ?? "U"
         };
@@ -78,12 +72,11 @@ public class TestNotificationEndpoint : ICarterModule
         [FromBody] SimulateTransitionCompletedRequest request,
         [FromServices] IBus bus)
     {
-        var taskName = Enum.TryParse<TaskName>(request.TaskName, true, out var temp) ? temp : TaskName.Admin;
-        var transitionCompleted = new TransitionCompleted
+        var transitionCompleted = new TransitionCompletedIntegrationEvent
         {
             CorrelationId = request.CorrelationId ?? Guid.NewGuid(),
             RequestId = request.RequestId ?? 1,
-            TaskName = taskName,
+            TaskName = request.TaskName ?? "IntAdmin",
             CurrentState = request.CurrentState ?? "Admin",
             AssignedTo = request.AssignedTo ?? "testuser",
             AssignedType = request.AssignedType ?? "U"

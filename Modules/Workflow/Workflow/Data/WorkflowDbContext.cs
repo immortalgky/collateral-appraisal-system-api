@@ -1,5 +1,9 @@
+using Shared.Data.Outbox;
+using Workflow.Domain;
+using Workflow.Domain.Committees;
 using Workflow.Workflow.Models;
 using Workflow.Data.Entities;
+using Workflow.Sla.Models;
 
 namespace Workflow.Data;
 
@@ -27,6 +31,17 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
     public DbSet<WorkflowDefinitionVersion> WorkflowDefinitionVersions => Set<WorkflowDefinitionVersion>();
     public DbSet<WorkflowExternalCall> WorkflowExternalCalls => Set<WorkflowExternalCall>();
 
+    // Committee and approval entities
+    public DbSet<Committee> Committees => Set<Committee>();
+    public DbSet<ApprovalVote> ApprovalVotes => Set<ApprovalVote>();
+
+    // SLA entities
+    public DbSet<SlaConfiguration> SlaConfigurations => Set<SlaConfiguration>();
+    public DbSet<WorkflowSlaConfiguration> WorkflowSlaConfigurations => Set<WorkflowSlaConfiguration>();
+    public DbSet<Holiday> Holidays => Set<Holiday>();
+    public DbSet<BusinessHoursConfig> BusinessHoursConfigs => Set<BusinessHoursConfig>();
+    public DbSet<SlaBreachLog> SlaBreachLogs => Set<SlaBreachLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("workflow");
@@ -34,6 +49,9 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
         modelBuilder.ApplyGlobalConventions();
 
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+
+        // Integration event outbox for reliable messaging
+        modelBuilder.AddIntegrationEventOutbox();
 
         base.OnModelCreating(modelBuilder);
     }

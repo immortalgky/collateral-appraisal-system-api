@@ -97,13 +97,13 @@ public class CommitteeThresholdDataSeed : IDataSeeder<AppraisalDbContext>
         // Sub Committee: 3 members
         AddMemberIfUserExists(subCommittee, userMap, "john.doe", "John Doe", "Chairman");
         AddMemberIfUserExists(subCommittee, userMap, "jane.smith", "Jane Smith", "UW");
-        AddMemberIfUserExists(subCommittee, userMap, "mike.wilson", "Mike Wilson", "Risk");
+        AddMemberIfUserExists(subCommittee, userMap, "m.wilson", "Mike Wilson", "Risk");
 
         // Committee Group 2: 5 members (all Sub Committee members + 2 more)
         AddMemberIfUserExists(committeeGroup2, userMap, "john.doe", "John Doe", "Chairman");
         AddMemberIfUserExists(committeeGroup2, userMap, "jane.smith", "Jane Smith", "UW");
-        AddMemberIfUserExists(committeeGroup2, userMap, "mike.wilson", "Mike Wilson", "Risk");
-        AddMemberIfUserExists(committeeGroup2, userMap, "sarah.johnson", "Sarah Johnson", "Credit");
+        AddMemberIfUserExists(committeeGroup2, userMap, "m.wilson", "Mike Wilson", "Risk");
+        AddMemberIfUserExists(committeeGroup2, userMap, "s.johnson", "Sarah Johnson", "Credit");
         AddMemberIfUserExists(committeeGroup2, userMap, "thitipornw", "Thitiporn W", "Appraisal");
 
         await _context.SaveChangesAsync();

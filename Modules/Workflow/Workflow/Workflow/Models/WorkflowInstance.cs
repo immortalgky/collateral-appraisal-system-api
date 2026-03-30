@@ -18,6 +18,9 @@ public class WorkflowInstance : Entity<Guid>
     public Dictionary<string, RuntimeOverride> RuntimeOverrides { get; private set; } = new();
     public string? ErrorMessage { get; private set; }
     public int RetryCount { get; private set; }
+    public DateTime? WorkflowDueAt { get; private set; }
+    public string? WorkflowSlaStatus { get; private set; }
+    public List<BranchActivityState> ActiveBranchActivities { get; private set; } = new();
 
     public WorkflowDefinition WorkflowDefinition { get; private set; } = default!;
     public List<WorkflowActivityExecution> ActivityExecutions { get; private set; } = new();
@@ -99,6 +102,68 @@ public class WorkflowInstance : Entity<Guid>
     {
         ActivityExecutions.Add(execution);
     }
+
+    public void SetWorkflowSla(DateTime dueAt)
+    {
+        WorkflowDueAt = dueAt;
+        WorkflowSlaStatus = "OnTime";
+    }
+
+    public void MarkWorkflowAtRisk()
+    {
+        if (WorkflowSlaStatus == "OnTime")
+            WorkflowSlaStatus = "AtRisk";
+    }
+
+    public void MarkWorkflowBreached()
+    {
+        if (WorkflowSlaStatus != "Breached")
+            WorkflowSlaStatus = "Breached";
+    }
+
+    // --- Branch tracking for fork/join ---
+
+    public void AddBranchActivity(BranchActivityState state)
+    {
+        ActiveBranchActivities.Add(state);
+    }
+
+    public void RemoveBranchActivity(string forkId, string branchId)
+    {
+        ActiveBranchActivities.RemoveAll(b => b.ForkId == forkId && b.BranchId == branchId);
+    }
+
+    public BranchActivityState? GetBranchActivity(string activityId)
+    {
+        return ActiveBranchActivities.FirstOrDefault(b => b.ActivityId == activityId);
+    }
+
+    public bool HasActiveBranches() => ActiveBranchActivities.Any();
+
+    public bool IsInParallelMode() => ActiveBranchActivities.Any();
+
+    public void UpdateBranchActivityId(string forkId, string branchId, string newActivityId)
+    {
+        var branch = ActiveBranchActivities.FirstOrDefault(b => b.ForkId == forkId && b.BranchId == branchId);
+        if (branch != null)
+        {
+            branch.ActivityId = newActivityId;
+        }
+    }
+
+    public void ClearBranchActivities(string forkId)
+    {
+        ActiveBranchActivities.RemoveAll(b => b.ForkId == forkId);
+    }
+}
+
+public class BranchActivityState
+{
+    public string ForkId { get; set; } = default!;
+    public string BranchId { get; set; } = default!;
+    public string ActivityId { get; set; } = default!;
+    public string? Assignee { get; set; }
+    public string Status { get; set; } = "Pending"; // Pending, Completed
 }
 
 public enum WorkflowStatus

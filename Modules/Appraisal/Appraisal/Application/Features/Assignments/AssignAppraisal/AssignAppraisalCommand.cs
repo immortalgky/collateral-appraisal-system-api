@@ -7,5 +7,6 @@ public record AssignAppraisalCommand(
     string? AssigneeCompanyId = null,
     string AssignmentMethod = "Manual",
     string? InternalAppraiserId = null,
+    string? InternalFollowupAssignmentMethod = null,
     string AssignedBy = default
 ) : ICommand<AssignAppraisalResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

@@ -1,13 +1,13 @@
 using Appraisal.Domain.Appraisals;
-using MassTransit;
 using Shared.CQRS;
+using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 
 namespace Appraisal.Application.Features.Appraisals.AddGalleryPhoto;
 
 public class AddGalleryPhotoCommandHandler(
     IAppraisalGalleryRepository galleryRepository,
-    IBus bus
+    IIntegrationEventOutbox outbox
 ) : ICommandHandler<AddGalleryPhotoCommand, AddGalleryPhotoResult>
 {
     public async Task<AddGalleryPhotoResult> Handle(
@@ -53,9 +53,9 @@ public class AddGalleryPhotoCommandHandler(
             }
         }
 
-        await bus.Publish(
+        outbox.Publish(
             new DocumentLinkedIntegrationEventV2(command.AppraisalId, command.DocumentId),
-            cancellationToken);
+            correlationId: command.AppraisalId.ToString());
 
         return new AddGalleryPhotoResult(photo.Id, photo.PhotoNumber);
     }

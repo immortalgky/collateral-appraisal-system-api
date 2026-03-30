@@ -8,5 +8,7 @@ public record CreateCompanyRequest(
     string? Street,
     string? City,
     string? Province,
-    string? PostalCode
+    string? PostalCode,
+    string? ContactPerson,
+    List<string>? LoanTypes = null
 );

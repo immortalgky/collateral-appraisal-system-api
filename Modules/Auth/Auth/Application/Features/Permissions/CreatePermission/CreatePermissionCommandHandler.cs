@@ -1,20 +1,21 @@
 using Auth.Services;
 
-namespace Auth.Domain.Permissions.Features.CreatePermission;
+namespace Auth.Application.Features.Permissions.CreatePermission;
 
 public class CreatePermissionCommandHandler(IPermissionService permissionService)
     : ICommandHandler<CreatePermissionCommand, CreatePermissionResult>
 {
     public async Task<CreatePermissionResult> Handle(
         CreatePermissionCommand command,
-        CancellationToken cancellationToken
-    )
+        CancellationToken cancellationToken)
     {
-        var permissionDto = command.Adapt<PermissionDto>();
-        var createdPermission = await permissionService.CreatePermission(
-            permissionDto,
-            cancellationToken
-        );
-        return new CreatePermissionResult(createdPermission.Id);
+        var permission = await permissionService.CreatePermission(
+            command.PermissionCode,
+            command.DisplayName,
+            command.Description,
+            command.Module,
+            cancellationToken);
+
+        return new CreatePermissionResult(permission.Id);
     }
 }

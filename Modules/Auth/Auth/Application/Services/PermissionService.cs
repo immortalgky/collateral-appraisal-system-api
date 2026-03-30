@@ -1,70 +1,71 @@
-using Auth.Infrastructure.Repository;
 using Auth.Domain.Identity;
+using Auth.Infrastructure.Repository;
 using Shared.Exceptions;
+using Shared.Pagination;
 
 namespace Auth.Services;
 
-public class PermissionService(
-    IPermissionRepository permissionRepository
-) : IPermissionService
+public class PermissionService(IPermissionRepository permissionRepository) : IPermissionService
 {
     public async Task<Permission> CreatePermission(
-        PermissionDto permissionDto,
-        CancellationToken cancellationToken = default
-    )
+        string permissionCode,
+        string displayName,
+        string description,
+        string module,
+        CancellationToken cancellationToken = default)
     {
-        var permission = new Permission
-        {
-            PermissionCode = permissionDto.PermissionCode,
-            Description = permissionDto.Description
-        };
+        var permission = Permission.Create(permissionCode, displayName, description, module);
         await permissionRepository.AddAsync(permission, cancellationToken);
         await permissionRepository.SaveChangesAsync(cancellationToken);
         return permission;
     }
 
     public async Task<PaginatedResult<Permission>> GetPermissions(
+        string? search,
         PaginationRequest paginationRequest,
-        CancellationToken cancellationToken = default
-    )
+        CancellationToken cancellationToken = default)
     {
-        var requests = await permissionRepository.GetPaginatedAsync(
-            paginationRequest,
-            cancellationToken
-        );
-
-        return requests;
+        return await permissionRepository.GetPaginatedAsync(search, paginationRequest, cancellationToken);
     }
 
-    public async Task<Permission?> GetPermissionById(
-        Guid id,
-        CancellationToken cancellationToken = default
-    )
+    public async Task<Permission?> GetPermissionById(Guid id, CancellationToken cancellationToken = default)
     {
-        var permission = await permissionRepository.GetByIdAsync(id, cancellationToken);
+        return await permissionRepository.GetByIdAsync(id, cancellationToken);
+    }
 
+    public async Task<Permission> UpdatePermission(
+        Guid id,
+        string displayName,
+        string description,
+        string module,
+        CancellationToken cancellationToken = default)
+    {
+        var permission = await permissionRepository.GetByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException("Permission", id);
+
+        permission.Update(displayName, description, module);
+        await permissionRepository.SaveChangesAsync(cancellationToken);
         return permission;
     }
 
     public async Task DeletePermission(Guid id, CancellationToken cancellationToken = default)
     {
-        await permissionRepository.DeleteAsync(id, cancellationToken);
+        var permission = await permissionRepository.GetByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException("Permission", id);
+
+        await permissionRepository.DeleteAsync(permission, cancellationToken);
         await permissionRepository.SaveChangesAsync(cancellationToken);
     }
 
     internal static async Task ValidatePermissionsExistAsync(
         List<Guid> permissionsIds,
         IPermissionRepository permissionRepository,
-        CancellationToken cancellationToken
-    )
+        CancellationToken cancellationToken)
     {
         foreach (var permissionId in permissionsIds)
         {
-            var isPermissionExisted = await permissionRepository.ExistsAsync(
-                permissionId,
-                cancellationToken
-            );
-            if (!isPermissionExisted) throw new NotFoundException("Permission", permissionId);
+            if (!await permissionRepository.ExistsAsync(permissionId, cancellationToken))
+                throw new NotFoundException("Permission", permissionId);
         }
     }
 }

@@ -20,6 +20,7 @@ public class AssignAppraisalEndpoint : ICarterModule
                         request.AssigneeCompanyId,
                         request.AssignmentMethod ?? "Manual",
                         request.InternalAppraiserId,
+                        request.InternalFollowupAssignmentMethod,
                         request.AssignedBy ?? string.Empty);
 
                     var result = await sender.Send(command, cancellationToken);

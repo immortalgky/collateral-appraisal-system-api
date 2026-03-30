@@ -42,6 +42,7 @@ public class WorkflowExecutionContext
         {
             WorkflowInstanceId = WorkflowInstance.Id,
             ActivityId = activityDefinition.Id,
+            ActivityName = activityDefinition.Name,
             Properties = activityDefinition.Properties,
             Variables = WorkflowInstance.Variables,
             InputData = new Dictionary<string, object>(),

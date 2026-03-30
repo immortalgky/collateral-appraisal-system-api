@@ -40,7 +40,17 @@ public enum AssigneeSelectionStrategy
     /// <summary>
     /// Assign to the user who originally started the workflow instance
     /// </summary>
-    StartedBy
+    StartedBy,
+
+    /// <summary>
+    /// Assign to a pool/group — all members can see and claim the task
+    /// </summary>
+    Pool,
+
+    /// <summary>
+    /// Assign to a user specified in a named workflow variable
+    /// </summary>
+    VariableAssignee
 }
 
 /// <summary>
@@ -63,6 +73,8 @@ public static class AssignmentStrategyExtensions
             AssigneeSelectionStrategy.Supervisor => "supervisor",
             AssigneeSelectionStrategy.TeamConstrained => "team_constrained",
             AssigneeSelectionStrategy.StartedBy => "started_by",
+            AssigneeSelectionStrategy.Pool => "pool",
+            AssigneeSelectionStrategy.VariableAssignee => "variable_assignee",
             _ => throw new ArgumentOutOfRangeException(nameof(strategy), strategy, "Unknown assignment strategy")
         };
     }
@@ -82,6 +94,8 @@ public static class AssignmentStrategyExtensions
             "supervisor" => AssigneeSelectionStrategy.Supervisor,
             "team_constrained" => AssigneeSelectionStrategy.TeamConstrained,
             "started_by" => AssigneeSelectionStrategy.StartedBy,
+            "pool" => AssigneeSelectionStrategy.Pool,
+            "variable_assignee" => AssigneeSelectionStrategy.VariableAssignee,
             _ => throw new ArgumentException($"Unknown assignment strategy: {strategyString}", nameof(strategyString))
         };
     }

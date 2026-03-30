@@ -42,6 +42,12 @@ public class GetTasksQueryHandler(
                 conditions.Add("TaskType = @TaskName");
                 parameters.Add("TaskName", filter.TaskName);
             }
+
+            if (!string.IsNullOrWhiteSpace(filter.ActivityId))
+            {
+                conditions.Add("ActivityId = @ActivityId");
+                parameters.Add("ActivityId", filter.ActivityId);
+            }
         }
 
         if (conditions.Count > 0)

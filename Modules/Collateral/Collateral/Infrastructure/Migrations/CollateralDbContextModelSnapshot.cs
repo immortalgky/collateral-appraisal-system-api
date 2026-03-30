@@ -506,6 +506,37 @@ namespace Collateral.Infrastructure.Migrations
                     b.ToTable("CollateralVessels", "collateral");
                 });
 
+            modelBuilder.Entity("Shared.Data.Outbox.InboxMessage", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConsumerType")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("MessageId", "ConsumerType");
+
+                    b.HasIndex("ProcessedAt")
+                        .HasDatabaseName("IX_InboxMessage_Cleanup");
+
+                    b.HasIndex("Status", "StartedAt")
+                        .HasDatabaseName("IX_InboxMessage_StaleProcessing");
+
+                    b.ToTable("InboxMessage", "collateral");
+                });
+
             modelBuilder.Entity("Collateral.CollateralEngagements.Models.CollateralEngagement", b =>
                 {
                     b.HasOne("Collateral.CollateralMasters.Models.CollateralMaster", null)

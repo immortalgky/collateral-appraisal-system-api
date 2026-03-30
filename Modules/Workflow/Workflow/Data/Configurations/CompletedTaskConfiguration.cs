@@ -9,11 +9,14 @@ public class CompletedTaskConfiguration : IEntityTypeConfiguration<CompletedTask
         builder.HasKey(p => p.Id);
 
         builder.Property(p => p.TaskName)
-            .HasConversion<string>()
             .HasMaxLength(100);
 
+        builder.Property(p => p.TaskDescription)
+            .HasMaxLength(200)
+            .IsRequired(false);
+
         builder.Property(p => p.AssignedTo)
-            .HasMaxLength(10);
+            .HasMaxLength(255);
 
         builder.Property(p => p.AssignedType)
             .HasMaxLength(10);
@@ -28,5 +31,15 @@ public class CompletedTaskConfiguration : IEntityTypeConfiguration<CompletedTask
                     .HasColumnName("TaskStatus")
                     .HasMaxLength(100);
             });
+
+        builder.Property(p => p.DueAt)
+            .IsRequired(false);
+
+        builder.Property(p => p.SlaStatus)
+            .HasMaxLength(20)
+            .IsRequired(false);
+
+        builder.Property(p => p.SlaBreachedAt)
+            .IsRequired(false);
     }
 }

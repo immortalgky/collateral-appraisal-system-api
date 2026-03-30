@@ -1,26 +1,27 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Shared.Data.Outbox;
 using Shared.DDD;
 
 namespace Shared.Data.Interceptors;
 
-public class DispatchDomainEventInterceptor(IMediator mediator) : SaveChangesInterceptor
+public class DispatchDomainEventInterceptor(IMediator mediator, IOutboxScope outboxScope) : SaveChangesInterceptor
 {
     public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
     {
-        DispatchDomainEvents(eventData.Context).GetAwaiter().GetResult();
+        DispatchDomainEventsAndDrainOutbox(eventData.Context).GetAwaiter().GetResult();
         return base.SavingChanges(eventData, result);
     }
 
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
         InterceptionResult<int> result, CancellationToken cancellationToken = default)
     {
-        await DispatchDomainEvents(eventData.Context);
+        await DispatchDomainEventsAndDrainOutbox(eventData.Context);
         return await base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
-    private async Task DispatchDomainEvents(DbContext? context)
+    private async Task DispatchDomainEventsAndDrainOutbox(DbContext? context)
     {
         if (context == null) return;
 
@@ -37,5 +38,10 @@ public class DispatchDomainEventInterceptor(IMediator mediator) : SaveChangesInt
 
         foreach (var domainEvent in domainEvents)
             await mediator.Publish(domainEvent);
+
+        // Drain outbox messages into the current DbContext for atomic commit
+        foreach (var outboxMessage in outboxScope.Messages)
+            context.Add(outboxMessage);
+        outboxScope.Clear();
     }
 }

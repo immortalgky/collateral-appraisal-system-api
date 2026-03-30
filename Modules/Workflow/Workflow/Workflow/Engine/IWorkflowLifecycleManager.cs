@@ -13,7 +13,7 @@ public interface IWorkflowLifecycleManager
     /// <summary>
     /// Initializes a new workflow instance and prepares it for execution
     /// </summary>
-    WorkflowInstance InitializeWorkflowAsync(
+    Task<WorkflowInstance> InitializeWorkflowAsync(
         Guid workflowDefinitionId,
         WorkflowSchema workflowSchema,
         string instanceName,

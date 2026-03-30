@@ -64,6 +64,8 @@ public class ParameterUnitOfWork : IParameterUnitOfWork
         }
     }
 
+    public IExecutionStrategy CreateExecutionStrategy() => _context.Database.CreateExecutionStrategy();
+
     public IRepository<T, TId> Repository<T, TId>() where T : class, IEntity<TId>
     {
         throw new NotImplementedException("Use dependency injection to resolve repositories.");

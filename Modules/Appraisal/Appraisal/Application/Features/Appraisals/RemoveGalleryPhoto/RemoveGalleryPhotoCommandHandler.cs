@@ -1,13 +1,13 @@
 using Appraisal.Domain.Appraisals;
-using MassTransit;
 using Shared.CQRS;
+using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 
 namespace Appraisal.Application.Features.Appraisals.RemoveGalleryPhoto;
 
 public class RemoveGalleryPhotoCommandHandler(
     IAppraisalGalleryRepository galleryRepository,
-    IBus bus
+    IIntegrationEventOutbox outbox
 ) : ICommandHandler<RemoveGalleryPhotoCommand, RemoveGalleryPhotoResult>
 {
     public async Task<RemoveGalleryPhotoResult> Handle(
@@ -48,9 +48,8 @@ public class RemoveGalleryPhotoCommandHandler(
 
         await galleryRepository.DeleteAsync(photo, cancellationToken);
 
-        await bus.Publish(
-            new DocumentUnlinkedIntegrationEvent(command.PhotoId, documentId),
-            cancellationToken);
+        outbox.Publish(
+            new DocumentUnlinkedIntegrationEvent(command.PhotoId, documentId));
 
         return new RemoveGalleryPhotoResult(true);
     }

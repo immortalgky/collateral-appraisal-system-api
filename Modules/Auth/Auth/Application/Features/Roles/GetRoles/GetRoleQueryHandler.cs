@@ -1,20 +1,19 @@
 using Auth.Services;
+using Shared.Pagination;
 
-namespace Auth.Domain.Roles.Features.GetRoles;
+namespace Auth.Application.Features.Roles.GetRoles;
 
 public class GetRoleQueryHandler(IRoleService roleService)
     : IQueryHandler<GetRoleQuery, GetRoleResult>
 {
     public async Task<GetRoleResult> Handle(GetRoleQuery query, CancellationToken cancellationToken)
     {
-        var pagination = await roleService.GetRoles(query.PaginationRequest, cancellationToken);
-        var paginationDto = new PaginatedResult<RoleDto>(
-            pagination.Items.Select(item => item.ToDto()),
-            pagination.Count,
-            pagination.PageNumber,
-            pagination.PageSize
-        );
+        var paginationRequest = new PaginationRequest(query.PageNumber - 1, query.PageSize);
+        var paginated = await roleService.GetRoles(query.Search, query.Scope, paginationRequest, cancellationToken);
 
-        return new GetRoleResult(paginationDto);
+        var items = paginated.Items.Select(r => new RoleListItemDto(
+            r.Id, r.Name ?? "", r.Description, r.Scope, r.Permissions.Count));
+
+        return new GetRoleResult(items, paginated.Count, paginated.PageNumber, paginated.PageSize);
     }
 }

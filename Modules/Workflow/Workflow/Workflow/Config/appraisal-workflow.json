@@ -1,12 +1,12 @@
 {
   "name": "Collateral Appraisal Workflow",
-  "description": "Complete appraisal workflow from request submission through verification",
+  "description": "Complete appraisal workflow from initiation check through approval",
   "category": "Appraisal",
   "createdBy": "system-admin",
   "workflowSchema": {
     "id": "appraisal-workflow",
     "name": "Collateral Appraisal Workflow",
-    "description": "Complete appraisal workflow from request submission through verification",
+    "description": "Complete appraisal workflow from initiation check through approval",
     "category": "Appraisal",
     "activities": [
       {
@@ -24,13 +24,91 @@
         "isEndActivity": false
       },
       {
+        "id": "appraisal-initiation-check",
+        "name": "Appraisal Initiation Check",
+        "type": "TaskActivity",
+        "description": "Request checker reviews the initiated appraisal request for completeness and accuracy",
+        "properties": {
+          "activityName": "InitiationCheck",
+          "assigneeRole": "RequestChecker",
+          "assigneeGroup": "RequestChecker",
+          "assignmentStrategies": "started_by",
+          "initialAssignmentStrategies": [
+            "started_by"
+          ],
+          "revisitAssignmentStrategies": [
+            "previous_owner"
+          ],
+          "timeoutDuration": "PT48H",
+          "decisionConditions": {
+            "proceed": "appraisal_initiation_check_decisionTaken == 'P'",
+            "route_back": "appraisal_initiation_check_decisionTaken == 'R'",
+            "cancel": "appraisal_initiation_check_decisionTaken == 'C'"
+          },
+          "actions": [
+            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
+            { "value": "R", "label": "Route Back", "assignmentMode": "system" },
+            { "value": "C", "label": "Cancel", "assignmentMode": "system" }
+          ]
+        },
+        "position": {
+          "x": 150,
+          "y": 100
+        },
+        "requiredRoles": [
+          "RequestChecker"
+        ],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
+        "id": "appraisal-initiation",
+        "name": "Appraisal Initiation",
+        "type": "TaskActivity",
+        "description": "Request maker provides additional information when routed back",
+        "properties": {
+          "activityName": "AppraisalInitiation",
+          "assigneeRole": "RequestMaker",
+          "assigneeGroup": "RequestMaker",
+          "assignmentStrategies": "started_by",
+          "initialAssignmentStrategies": [
+            "started_by"
+          ],
+          "revisitAssignmentStrategies": [
+            "previous_owner"
+          ],
+          "timeoutDuration": "PT48H",
+          "actions": [
+            { "value": "P", "label": "Proceed", "assignmentMode": "system" }
+          ],
+          "inputMappings": {
+            "isPma": "isPma",
+            "facilityLimit": "facilityLimit",
+            "priority": "priority",
+            "hasAppraisalBook": "hasAppraisalBook"
+          }
+        },
+        "position": {
+          "x": 150,
+          "y": 250
+        },
+        "requiredRoles": [
+          "RequestMaker"
+        ],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
         "id": "initial-routing",
         "name": "Initial Routing",
         "type": "RoutingActivity",
         "description": "Evaluates routing conditions to determine workflow path — auto-assign to external company or route to internal admin",
         "properties": {
           "routingConditions": {
-            "admin_review": "amount > 50000"
+            "auto_assign_external": "facilityLimit > 50000000",
+            "auto_assign_internal": "hasAppraisalBook == true",
+            "auto_assign_internal_pma": "isPma == true",
+            "admin_review": "priority == 'high'"
           },
           "defaultDecision": "auto_assign_external"
         },
@@ -43,12 +121,12 @@
         "isEndActivity": false
       },
       {
-        "id": "admin",
-        "name": "Admin",
+        "id": "appraisal-assignment",
+        "name": "Appraisal Assignment",
         "type": "TaskActivity",
-        "description": "Admin reviews the submitted request and decides next action",
+        "description": "Internal admin reviews the request and decides to assign to external company or internal appraisal",
         "properties": {
-          "activityName": "Admin",
+          "activityName": "AppraisalAssignment",
           "assigneeRole": "Admin",
           "assigneeGroup": "Admin",
           "assignmentStrategies": "started_by",
@@ -60,9 +138,23 @@
           ],
           "timeoutDuration": "PT72H",
           "decisionConditions": {
-            "proceed": "admin_decisionTaken == 'P'",
-            "reject": "admin_decisionTaken == 'REJ'",
-            "request_more_info": "admin_decisionTaken == 'R'"
+            "route_external": "appraisal_assignment_decisionTaken == 'EXT'",
+            "route_internal": "appraisal_assignment_decisionTaken == 'INT'",
+            "reject": "appraisal_assignment_decisionTaken == 'REJ'",
+            "request_more_info": "appraisal_assignment_decisionTaken == 'R'"
+          },
+          "actions": [
+            { "value": "EXT", "label": "Route to External", "assignmentMode": "user" },
+            { "value": "INT", "label": "Route to Internal", "assignmentMode": "user" },
+            { "value": "REJ", "label": "Reject", "assignmentMode": "system" },
+            { "value": "R", "label": "Request More Info", "assignmentMode": "system" }
+          ],
+          "inputMappings": {
+            "assignmentMethod": "assignmentMethod",
+            "selectedCompanyId": "selectedCompanyId",
+            "selectedCompanyName": "selectedCompanyName",
+            "internalFollowupStaffId": "internalFollowupStaffId",
+            "internalFollowupMethod": "internalFollowupMethod"
           }
         },
         "position": {
@@ -76,14 +168,70 @@
         "isEndActivity": false
       },
       {
-        "id": "ext-appraisal-staff",
-        "name": "External Appraisal Staff",
+        "id": "company-selection",
+        "name": "Company Selection",
+        "type": "CompanySelectionActivity",
+        "description": "Selects external company via round-robin or manual assignment",
+        "properties": {},
+        "position": {
+          "x": 300,
+          "y": 175
+        },
+        "requiredRoles": [],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
+        "id": "ext-appraisal-assignment",
+        "name": "External Appraisal Assignment",
         "type": "TaskActivity",
-        "description": "External appraisal staff conducts the property appraisal",
+        "description": "External company admin handles appointment, fee, and assigns to company appraiser",
         "properties": {
-          "activityName": "External Appraisal Staff",
+          "activityName": "ExtAppraisalAssignment",
+          "assigneeRole": "ExtAdmin",
+          "assigneeGroup": "ExtAdmin",
+          "teamIdVariable": "assignedCompanyId",
+          "assignmentRules": { "teamConstrained": true },
+          "assignmentStrategies": "round_robin",
+          "initialAssignmentStrategies": [
+            "round_robin"
+          ],
+          "revisitAssignmentStrategies": [
+            "previous_owner"
+          ],
+          "timeoutDuration": "PT48H",
+          "decisionConditions": {
+            "proceed": "ext_appraisal_assignment_decisionTaken == 'P'",
+            "cancel": "ext_appraisal_assignment_decisionTaken == 'C'",
+            "route_back": "ext_appraisal_assignment_decisionTaken == 'R'"
+          },
+          "actions": [
+            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
+            { "value": "C", "label": "Cancel", "assignmentMode": "system" },
+            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+          ]
+        },
+        "position": {
+          "x": 300,
+          "y": 212
+        },
+        "requiredRoles": [
+          "ExtAdmin"
+        ],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
+        "id": "ext-appraisal-execution",
+        "name": "External Appraisal Execution",
+        "type": "TaskActivity",
+        "description": "External appraiser conducts the property appraisal",
+        "properties": {
+          "activityName": "ExtAppraisalExecution",
           "assigneeRole": "ExtAppraisalStaff",
           "assigneeGroup": "ExtAppraisalStaff",
+          "teamIdVariable": "assignedCompanyId",
+          "assignmentRules": { "teamConstrained": true },
           "assignmentStrategies": "round_robin",
           "initialAssignmentStrategies": [
             "round_robin"
@@ -93,9 +241,13 @@
           ],
           "timeoutDuration": "PT72H",
           "decisionConditions": {
-            "proceed": "ext_appraisal_staff_decisionTaken == 'P'",
-            "route_back": "ext_appraisal_staff_decisionTaken == 'R'"
-          }
+            "proceed": "ext_appraisal_execution_decisionTaken == 'P'",
+            "route_back": "ext_appraisal_execution_decisionTaken == 'R'"
+          },
+          "actions": [
+            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
+            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+          ]
         },
         "position": {
           "x": 300,
@@ -108,14 +260,16 @@
         "isEndActivity": false
       },
       {
-        "id": "ext-appraisal-checker",
-        "name": "External Appraisal Checker",
+        "id": "ext-appraisal-check",
+        "name": "External Appraisal Check",
         "type": "TaskActivity",
         "description": "External checker reviews the appraisal work for accuracy and completeness",
         "properties": {
-          "activityName": "External Appraisal Checker",
+          "activityName": "ExtAppraisalCheck",
           "assigneeRole": "ExtAppraisalChecker",
           "assigneeGroup": "ExtAppraisalChecker",
+          "teamIdVariable": "assignedCompanyId",
+          "assignmentRules": { "teamConstrained": true },
           "assignmentStrategies": "round_robin",
           "initialAssignmentStrategies": [
             "round_robin"
@@ -125,9 +279,13 @@
           ],
           "timeoutDuration": "PT48H",
           "decisionConditions": {
-            "proceed": "ext_appraisal_checker_decisionTaken == 'P'",
-            "route_back": "ext_appraisal_checker_decisionTaken == 'R'"
-          }
+            "proceed": "ext_appraisal_check_decisionTaken == 'P'",
+            "route_back": "ext_appraisal_check_decisionTaken == 'R'"
+          },
+          "actions": [
+            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
+            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+          ]
         },
         "position": {
           "x": 300,
@@ -140,14 +298,16 @@
         "isEndActivity": false
       },
       {
-        "id": "ext-appraisal-verifier",
-        "name": "External Appraisal Verifier",
+        "id": "ext-appraisal-verification",
+        "name": "External Appraisal Verification",
         "type": "TaskActivity",
         "description": "External verifier performs final verification before handoff to internal",
         "properties": {
-          "activityName": "External Appraisal Verifier",
+          "activityName": "ExtAppraisalVerification",
           "assigneeRole": "ExtAppraisalVerifier",
           "assigneeGroup": "ExtAppraisalVerifier",
+          "teamIdVariable": "assignedCompanyId",
+          "assignmentRules": { "teamConstrained": true },
           "assignmentStrategies": "round_robin",
           "initialAssignmentStrategies": [
             "round_robin"
@@ -157,9 +317,13 @@
           ],
           "timeoutDuration": "PT24H",
           "decisionConditions": {
-            "proceed": "ext_appraisal_verifier_decisionTaken == 'P'",
-            "route_back": "ext_appraisal_verifier_decisionTaken == 'R'"
-          }
+            "proceed": "ext_appraisal_verification_decisionTaken == 'P'",
+            "route_back": "ext_appraisal_verification_decisionTaken == 'R'"
+          },
+          "actions": [
+            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
+            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+          ]
         },
         "position": {
           "x": 300,
@@ -172,12 +336,52 @@
         "isEndActivity": false
       },
       {
-        "id": "int-appraisal-staff",
-        "name": "Internal Appraisal Staff",
+        "id": "appraisal-book-verification",
+        "name": "Appraisal Book Verification",
         "type": "TaskActivity",
-        "description": "Internal appraisal staff reviews or conducts the property appraisal",
+        "description": "Internal appraisal staff verifies the external company appraisal book",
         "properties": {
-          "activityName": "Internal Appraisal Staff",
+          "activityName": "AppraisalBookVerification",
+          "assigneeRole": "IntAppraisalStaff",
+          "assigneeGroup": "IntAppraisalStaff",
+          "assignmentStrategies": "variable_assignee",
+          "initialAssignmentStrategies": [
+            "variable_assignee",
+            "round_robin"
+          ],
+          "revisitAssignmentStrategies": [
+            "previous_owner"
+          ],
+          "assigneeVariable": "internalFollowupStaffId",
+          "timeoutDuration": "PT72H",
+          "decisionConditions": {
+            "proceed": "appraisal_book_verification_decisionTaken == 'P'",
+            "route_back_ext_admin": "appraisal_book_verification_decisionTaken == 'R_EA'",
+            "route_back_ext_checker": "appraisal_book_verification_decisionTaken == 'R_EC'"
+          },
+          "actions": [
+            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
+            { "value": "R_EA", "label": "Route Back to External Admin", "assignmentMode": "system" },
+            { "value": "R_EC", "label": "Route Back to External Checker", "assignmentMode": "system" }
+          ]
+        },
+        "position": {
+          "x": 300,
+          "y": 650
+        },
+        "requiredRoles": [
+          "IntAppraisalStaff"
+        ],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
+        "id": "int-appraisal-execution",
+        "name": "Internal Appraisal Execution",
+        "type": "TaskActivity",
+        "description": "Internal appraisal staff conducts the property appraisal",
+        "properties": {
+          "activityName": "IntAppraisalExecution",
           "assigneeRole": "IntAppraisalStaff",
           "assigneeGroup": "IntAppraisalStaff",
           "assignmentStrategies": "round_robin",
@@ -189,13 +393,17 @@
           ],
           "timeoutDuration": "PT72H",
           "decisionConditions": {
-            "proceed": "int_appraisal_staff_decisionTaken == 'P'",
-            "route_back": "int_appraisal_staff_decisionTaken == 'R'"
-          }
+            "proceed": "int_appraisal_execution_decisionTaken == 'P'",
+            "route_back": "int_appraisal_execution_decisionTaken == 'R'"
+          },
+          "actions": [
+            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
+            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+          ]
         },
         "position": {
           "x": 300,
-          "y": 700
+          "y": 750
         },
         "requiredRoles": [
           "IntAppraisalStaff"
@@ -204,12 +412,12 @@
         "isEndActivity": false
       },
       {
-        "id": "int-appraisal-checker",
-        "name": "Internal Appraisal Checker",
+        "id": "int-appraisal-check",
+        "name": "Internal Appraisal Check",
         "type": "TaskActivity",
         "description": "Internal checker reviews the appraisal work for accuracy and completeness",
         "properties": {
-          "activityName": "Internal Appraisal Checker",
+          "activityName": "IntAppraisalCheck",
           "assigneeRole": "IntAppraisalChecker",
           "assigneeGroup": "IntAppraisalChecker",
           "assignmentStrategies": "round_robin",
@@ -221,9 +429,13 @@
           ],
           "timeoutDuration": "PT48H",
           "decisionConditions": {
-            "proceed": "int_appraisal_checker_decisionTaken == 'P'",
-            "route_back": "int_appraisal_checker_decisionTaken == 'R'"
-          }
+            "proceed": "int_appraisal_check_decisionTaken == 'P'",
+            "route_back": "int_appraisal_check_decisionTaken == 'R'"
+          },
+          "actions": [
+            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
+            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+          ]
         },
         "position": {
           "x": 300,
@@ -236,12 +448,12 @@
         "isEndActivity": false
       },
       {
-        "id": "int-appraisal-verifier",
-        "name": "Internal Appraisal Verifier",
+        "id": "int-appraisal-verification",
+        "name": "Internal Appraisal Verification",
         "type": "TaskActivity",
         "description": "Internal verifier performs final verification and sign-off",
         "properties": {
-          "activityName": "Internal Appraisal Verifier",
+          "activityName": "IntAppraisalVerification",
           "assigneeRole": "IntAppraisalVerifier",
           "assigneeGroup": "IntAppraisalVerifier",
           "assignmentStrategies": "round_robin",
@@ -253,9 +465,13 @@
           ],
           "timeoutDuration": "PT24H",
           "decisionConditions": {
-            "proceed": "int_appraisal_verifier_decisionTaken == 'P'",
-            "route_back": "int_appraisal_verifier_decisionTaken == 'R'"
-          }
+            "proceed": "int_appraisal_verification_decisionTaken == 'P'",
+            "route_back": "int_appraisal_verification_decisionTaken == 'R'"
+          },
+          "actions": [
+            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
+            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+          ]
         },
         "position": {
           "x": 300,
@@ -269,24 +485,24 @@
       },
       {
         "id": "pending-approval",
-        "name": "Pending Approval",
-        "type": "TaskActivity",
-        "description": "Appraisal committee reviews and approves or sends back for rework",
+        "name": "Committee Approval",
+        "type": "ApprovalActivity",
+        "description": "Appraisal committee reviews and votes — quorum and majority rules apply",
         "properties": {
-          "activityName": "Pending Approval",
-          "assigneeRole": "AppraisalCommittee",
-          "assigneeGroup": "AppraisalCommittee",
-          "assignmentStrategies": "round_robin",
-          "initialAssignmentStrategies": [
-            "round_robin"
-          ],
-          "revisitAssignmentStrategies": [
-            "previous_owner"
-          ],
-          "timeoutDuration": "PT48H",
+          "activityName": "PendingApproval",
+          "voteOptions": ["approve", "reject", "route_back"],
+          "memberSource": {
+            "type": "threshold",
+            "valueExpression": "estimatedValue",
+            "thresholds": [
+              { "maxValue": 50000000, "committeeCode": "SUB_COMMITTEE" },
+              { "maxValue": null, "committeeCode": "COMMITTEE_GROUP_2" }
+            ]
+          },
+          "timeoutDuration": "PT72H",
           "decisionConditions": {
-            "approve": "pending_approval_decisionTaken == 'APP'",
-            "route_back": "pending_approval_decisionTaken == 'R'"
+            "approve": "pending_approval_decision == 'approve'",
+            "route_back": "pending_approval_decision == 'route_back'"
           }
         },
         "position": {
@@ -295,34 +511,6 @@
         },
         "requiredRoles": [
           "AppraisalCommittee"
-        ],
-        "isStartActivity": false,
-        "isEndActivity": false
-      },
-      {
-        "id": "request-maker",
-        "name": "Request Maker",
-        "type": "TaskActivity",
-        "description": "Request maker submits appraisal request and may need to provide additional information",
-        "properties": {
-          "activityName": "Request Maker",
-          "assigneeRole": "RequestMaker",
-          "assigneeGroup": "RequestMaker",
-          "assignmentStrategies": "round_robin",
-          "initialAssignmentStrategies": [
-            "round_robin"
-          ],
-          "revisitAssignmentStrategies": [
-            "previous_owner"
-          ],
-          "timeoutDuration": "PT48H"
-        },
-        "position": {
-          "x": 700,
-          "y": 200
-        },
-        "requiredRoles": [
-          "RequestMaker"
         ],
         "isStartActivity": false,
         "isEndActivity": false
@@ -347,7 +535,7 @@
         "id": "workflow-rejected",
         "name": "Request Rejected",
         "type": "EndActivity",
-        "description": "Request has been rejected",
+        "description": "Request has been rejected or cancelled",
         "properties": {
           "completionMessage": "Request has been rejected and workflow terminated"
         },
@@ -362,9 +550,41 @@
     ],
     "transitions": [
       {
-        "id": "start-to-routing",
+        "id": "start-to-appraisal-initiation-check",
         "from": "start",
+        "to": "appraisal-initiation-check",
+        "condition": null,
+        "properties": {},
+        "type": "Normal"
+      },
+      {
+        "id": "appraisal-initiation-check-proceed",
+        "from": "appraisal-initiation-check",
         "to": "initial-routing",
+        "condition": "decision == 'proceed'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "appraisal-initiation-check-route-back",
+        "from": "appraisal-initiation-check",
+        "to": "appraisal-initiation",
+        "condition": "decision == 'route_back'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "appraisal-initiation-check-cancel",
+        "from": "appraisal-initiation-check",
+        "to": "workflow-rejected",
+        "condition": "decision == 'cancel'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "appraisal-initiation-to-appraisal-initiation-check",
+        "from": "appraisal-initiation",
+        "to": "appraisal-initiation-check",
         "condition": null,
         "properties": {},
         "type": "Normal"
@@ -372,38 +592,46 @@
       {
         "id": "routing-to-admin",
         "from": "initial-routing",
-        "to": "admin",
+        "to": "appraisal-assignment",
         "condition": "decision == 'admin_review'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "routing-to-admin-external",
+        "id": "routing-to-company-selection",
         "from": "initial-routing",
-        "to": "admin",
+        "to": "company-selection",
         "condition": "decision == 'auto_assign_external'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "admin-proceed-external",
-        "from": "admin",
-        "to": "ext-appraisal-staff",
-        "condition": "decision == 'proceed' && routingPath == 'external'",
+        "id": "routing-to-internal",
+        "from": "initial-routing",
+        "to": "int-appraisal-execution",
+        "condition": "decision == 'auto_assign_internal' || decision == 'auto_assign_internal_pma'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "admin-proceed-internal",
-        "from": "admin",
-        "to": "int-appraisal-staff",
-        "condition": "decision == 'proceed' && routingPath == 'internal'",
+        "id": "admin-route-external",
+        "from": "appraisal-assignment",
+        "to": "company-selection",
+        "condition": "decision == 'route_external'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "admin-route-internal",
+        "from": "appraisal-assignment",
+        "to": "int-appraisal-execution",
+        "condition": "decision == 'route_internal'",
         "properties": {},
         "type": "Conditional"
       },
       {
         "id": "admin-reject",
-        "from": "admin",
+        "from": "appraisal-assignment",
         "to": "workflow-rejected",
         "condition": "decision == 'reject'",
         "properties": {},
@@ -411,120 +639,176 @@
       },
       {
         "id": "admin-request-info",
-        "from": "admin",
-        "to": "request-maker",
+        "from": "appraisal-assignment",
+        "to": "appraisal-initiation",
         "condition": "decision == 'request_more_info'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "info-back-to-admin",
-        "from": "request-maker",
-        "to": "admin",
-        "condition": null,
+        "id": "company-selected",
+        "from": "company-selection",
+        "to": "ext-appraisal-assignment",
+        "condition": "decision == 'company_selected'",
         "properties": {},
-        "type": "Normal"
+        "type": "Conditional"
       },
       {
-        "id": "ext-staff-proceed",
-        "from": "ext-appraisal-staff",
-        "to": "ext-appraisal-checker",
+        "id": "company-no-match",
+        "from": "company-selection",
+        "to": "appraisal-assignment",
+        "condition": "decision == 'no_match'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "ext-assignment-proceed",
+        "from": "ext-appraisal-assignment",
+        "to": "ext-appraisal-execution",
         "condition": "decision == 'proceed'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "ext-staff-back-to-admin",
-        "from": "ext-appraisal-staff",
-        "to": "admin",
+        "id": "ext-assignment-cancel",
+        "from": "ext-appraisal-assignment",
+        "to": "appraisal-assignment",
+        "condition": "decision == 'cancel'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "ext-assignment-route-back",
+        "from": "ext-appraisal-assignment",
+        "to": "appraisal-initiation-check",
         "condition": "decision == 'route_back'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "ext-checker-proceed",
-        "from": "ext-appraisal-checker",
-        "to": "ext-appraisal-verifier",
+        "id": "ext-execution-proceed",
+        "from": "ext-appraisal-execution",
+        "to": "ext-appraisal-check",
         "condition": "decision == 'proceed'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "ext-checker-back-to-staff",
-        "from": "ext-appraisal-checker",
-        "to": "ext-appraisal-staff",
+        "id": "ext-execution-route-back",
+        "from": "ext-appraisal-execution",
+        "to": "ext-appraisal-assignment",
         "condition": "decision == 'route_back'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "ext-verifier-proceed",
-        "from": "ext-appraisal-verifier",
-        "to": "int-appraisal-staff",
+        "id": "ext-check-proceed",
+        "from": "ext-appraisal-check",
+        "to": "ext-appraisal-verification",
         "condition": "decision == 'proceed'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "ext-verifier-back-to-checker",
-        "from": "ext-appraisal-verifier",
-        "to": "ext-appraisal-checker",
+        "id": "ext-check-route-back",
+        "from": "ext-appraisal-check",
+        "to": "ext-appraisal-execution",
         "condition": "decision == 'route_back'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "int-staff-proceed",
-        "from": "int-appraisal-staff",
-        "to": "int-appraisal-checker",
+        "id": "ext-verification-proceed",
+        "from": "ext-appraisal-verification",
+        "to": "appraisal-book-verification",
         "condition": "decision == 'proceed'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "int-staff-back-to-ext-staff",
-        "from": "int-appraisal-staff",
-        "to": "ext-appraisal-staff",
+        "id": "ext-verification-route-back",
+        "from": "ext-appraisal-verification",
+        "to": "ext-appraisal-check",
+        "condition": "decision == 'route_back'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "book-verification-proceed",
+        "from": "appraisal-book-verification",
+        "to": "int-appraisal-check",
+        "condition": "decision == 'proceed'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "book-verification-back-to-ext-admin",
+        "from": "appraisal-book-verification",
+        "to": "ext-appraisal-assignment",
+        "condition": "decision == 'route_back_ext_admin'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "book-verification-back-to-ext-checker",
+        "from": "appraisal-book-verification",
+        "to": "ext-appraisal-check",
+        "condition": "decision == 'route_back_ext_checker'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "int-execution-proceed",
+        "from": "int-appraisal-execution",
+        "to": "int-appraisal-check",
+        "condition": "decision == 'proceed'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "int-execution-route-back",
+        "from": "int-appraisal-execution",
+        "to": "appraisal-assignment",
+        "condition": "decision == 'route_back'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "int-check-proceed",
+        "from": "int-appraisal-check",
+        "to": "int-appraisal-verification",
+        "condition": "decision == 'proceed'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "int-check-back-to-book-verification",
+        "from": "int-appraisal-check",
+        "to": "appraisal-book-verification",
         "condition": "decision == 'route_back' && routingPath == 'external'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "int-staff-back-to-admin",
-        "from": "int-appraisal-staff",
-        "to": "admin",
+        "id": "int-check-back-to-execution",
+        "from": "int-appraisal-check",
+        "to": "int-appraisal-execution",
         "condition": "decision == 'route_back' && routingPath == 'internal'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "int-checker-proceed",
-        "from": "int-appraisal-checker",
-        "to": "int-appraisal-verifier",
-        "condition": "decision == 'proceed'",
-        "properties": {},
-        "type": "Conditional"
-      },
-      {
-        "id": "int-checker-back-to-staff",
-        "from": "int-appraisal-checker",
-        "to": "int-appraisal-staff",
-        "condition": "decision == 'route_back'",
-        "properties": {},
-        "type": "Conditional"
-      },
-      {
-        "id": "int-verifier-proceed",
-        "from": "int-appraisal-verifier",
+        "id": "int-verification-proceed",
+        "from": "int-appraisal-verification",
         "to": "pending-approval",
         "condition": "decision == 'proceed'",
         "properties": {},
         "type": "Conditional"
       },
       {
-        "id": "int-verifier-back-to-checker",
-        "from": "int-appraisal-verifier",
-        "to": "int-appraisal-checker",
+        "id": "int-verification-route-back",
+        "from": "int-appraisal-verification",
+        "to": "int-appraisal-check",
         "condition": "decision == 'route_back'",
         "properties": {},
         "type": "Conditional"
@@ -538,10 +822,18 @@
         "type": "Conditional"
       },
       {
-        "id": "approval-back-to-int-staff",
+        "id": "approval-back-to-book-verification",
         "from": "pending-approval",
-        "to": "int-appraisal-staff",
-        "condition": "decision == 'route_back'",
+        "to": "appraisal-book-verification",
+        "condition": "decision == 'route_back' && routingPath == 'external'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "approval-back-to-execution",
+        "from": "pending-approval",
+        "to": "int-appraisal-execution",
+        "condition": "decision == 'route_back' && routingPath == 'internal'",
         "properties": {},
         "type": "Conditional"
       }
@@ -549,12 +841,24 @@
     "variables": {
       "decisionTaken": "",
       "routingPath": "",
-      "other_variable": "Other value"
+      "assignedCompanyId": "",
+      "assignedCompanyName": "",
+      "assignmentMethod": "",
+      "selectionMethod": "",
+      "loanType": "",
+      "selectedCompanyId": "",
+      "selectedCompanyName": "",
+      "internalFollowupStaffId": "",
+      "internalFollowupMethod": "",
+      "isPma": false,
+      "facilityLimit": 0,
+      "priority": "normal",
+      "hasAppraisalBook": false
     },
     "metadata": {
       "author": "System Admin",
       "createdDate": "2024-01-15T00:00:00Z",
-      "version": "2.0",
+      "version": "3.0",
       "tags": [
         "appraisal",
         "workflow"

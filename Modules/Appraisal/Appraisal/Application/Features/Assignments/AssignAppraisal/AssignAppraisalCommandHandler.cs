@@ -19,6 +19,7 @@ public class AssignAppraisalCommandHandler(IAppraisalRepository appraisalReposit
                 command.AssigneeCompanyId,
                 command.AssignmentMethod,
                 command.InternalAppraiserId,
+                command.InternalFollowupAssignmentMethod,
                 assignedBy: command.AssignedBy
             );
         else
@@ -28,6 +29,7 @@ public class AssignAppraisalCommandHandler(IAppraisalRepository appraisalReposit
                 command.AssigneeCompanyId,
                 command.AssignmentMethod,
                 command.InternalAppraiserId,
+                command.InternalFollowupAssignmentMethod,
                 assignedBy: command.AssignedBy);
 
         return new AssignAppraisalResult(assignment?.Id ?? Guid.Empty);

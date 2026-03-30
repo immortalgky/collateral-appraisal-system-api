@@ -24,6 +24,8 @@ public static class ParameterModule
         // Document Checklist Service (cross-module contract)
         services.AddScoped<Parameter.Contracts.DocumentRequirements.IDocumentChecklistService,
             DocumentRequirements.Services.DocumentChecklistService>();
+        services.Decorate<Parameter.Contracts.DocumentRequirements.IDocumentChecklistService,
+            DocumentRequirements.Services.CachedDocumentChecklistService>();
 
         services.AddDbContext<ParameterDbContext>((sp, options) =>
         {

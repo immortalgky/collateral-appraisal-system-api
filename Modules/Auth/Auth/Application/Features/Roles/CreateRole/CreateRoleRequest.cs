@@ -1,3 +1,3 @@
-namespace Auth.Domain.Roles.Features.CreateRole;
+namespace Auth.Application.Features.Roles.CreateRole;
 
-public record CreateRoleRequest(string Name, string Description, List<Guid> Permissions);
+public record CreateRoleRequest(string Name, string Description, string? Scope, List<Guid> PermissionIds);

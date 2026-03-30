@@ -1,5 +1,6 @@
 using Document.Domain.UploadSessions.Model;
 using Document.Domain.Documents.Models;
+using Shared.Data.Outbox;
 
 namespace Document.Data;
 
@@ -20,10 +21,8 @@ public class DocumentDbContext : DbContext
 
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
-        // Add MassTransit Outbox entities
-        modelBuilder.AddInboxStateEntity();
-        modelBuilder.AddOutboxStateEntity();
-        modelBuilder.AddOutboxMessageEntity();
+        // Integration event outbox for reliable messaging
+        modelBuilder.AddIntegrationEventOutbox();
 
         base.OnModelCreating(modelBuilder);
     }

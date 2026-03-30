@@ -1,3 +1,3 @@
-namespace Auth.Domain.Roles.Features.GetRoles;
+namespace Auth.Application.Features.Roles.GetRoles;
 
-public record GetRoleResponse(PaginatedResult<RoleDto> Result);
+public record GetRoleResponse(IEnumerable<RoleListItemDto> Items, long Count, int PageNumber, int PageSize);

@@ -14,7 +14,7 @@ public class GetUserNotificationsHandler : IQueryHandler<GetUserNotificationsQue
     public async Task<GetUserNotificationsResponse> Handle(GetUserNotificationsQuery request,
         CancellationToken cancellationToken)
     {
-        var notifications = await _notificationService.GetUserNotificationsAsync(request.UserId, request.UnreadOnly);
+        var notifications = await _notificationService.GetUserNotificationsAsync(request.Username, request.UnreadOnly);
 
         return new GetUserNotificationsResponse(notifications);
     }

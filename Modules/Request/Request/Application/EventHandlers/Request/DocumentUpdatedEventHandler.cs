@@ -1,17 +1,20 @@
-using MassTransit;
+using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 
 namespace Request.Application.EventHandlers.Request;
 
-public class DocumentUpdatedEventHandler(IBus bus, ILogger<DocumentUpdatedEventHandler> logger)
+public class DocumentUpdatedEventHandler(IIntegrationEventOutbox outbox, ILogger<DocumentUpdatedEventHandler> logger)
     : INotificationHandler<DocumentUpdatedEvent>
 {
-    public async Task Handle(DocumentUpdatedEvent notification, CancellationToken cancellationToken)
+    public Task Handle(DocumentUpdatedEvent notification, CancellationToken cancellationToken)
     {
         logger.LogInformation("DocumentUpdatedEvent handled for DocumentId: {DocumentId}", notification.DocumentId);
 
-        await bus.Publish(
+        outbox.Publish(
             new DocumentUpdatedIntegrationEvent(notification.RequestId, notification.PreviousDocumentId,
-                notification.DocumentId), cancellationToken);
+                notification.DocumentId),
+            correlationId: notification.RequestId.ToString());
+
+        return Task.CompletedTask;
     }
 }

@@ -1,4 +1,4 @@
-namespace Auth.Domain.Permissions.Features.DeletePermission;
+namespace Auth.Application.Features.Permissions.DeletePermission;
 
 public class DeletePermissionEndpoint : ICarterModule
 {
@@ -8,22 +8,16 @@ public class DeletePermissionEndpoint : ICarterModule
                 "/auth/permissions/{id:guid}",
                 async (Guid id, ISender sender, CancellationToken cancellationToken) =>
                 {
-                    var command = new DeletePermissionCommand(id);
-
-                    var result = await sender.Send(command, cancellationToken);
-
+                    var result = await sender.Send(new DeletePermissionCommand(id), cancellationToken);
                     var response = result.Adapt<DeletePermissionResponse>();
-
                     return Results.Ok(response);
-                }
-            )
+                })
             .WithName("DeletePermission")
             .Produces<DeletePermissionResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Delete permission by ID")
-            .WithDescription(
-                "Deletes a permission by its ID. If the permission does not exist, a 404 Not Found error is returned."
-            )
-            .WithTags("Permission");
+            .WithDescription("Deletes a permission by its ID.")
+            .WithTags("Permission")
+            .RequireAuthorization("CanManagePermissions");
     }
 }

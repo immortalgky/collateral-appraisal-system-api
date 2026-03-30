@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using Shared.Messaging.Services;
+using Appraisal.Contracts.Services;
 
 namespace Workflow.Workflow.Pipeline.Steps;
 

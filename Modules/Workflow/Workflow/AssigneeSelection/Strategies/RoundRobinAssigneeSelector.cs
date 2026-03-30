@@ -32,15 +32,36 @@ public class RoundRobinAssigneeSelector : IAssigneeSelector
             if (context.UserGroups == null || !context.UserGroups.Any())
                 return AssigneeSelectionResult.Failure("No user groups specified for round robin assignment");
 
-            // Generate group hash and list
-            var groupsHash = _groupHashService.GenerateGroupsHash(context.UserGroups);
-            var groupsList = _groupHashService.GenerateGroupsList(context.UserGroups);
-
-            // Get eligible users from groups
-            var eligibleUsers = await _userGroupService.GetUsersInGroupsAsync(context.UserGroups, cancellationToken);
+            // If pipeline already filtered candidates (e.g., team-constrained), use them
+            // Otherwise, query all users in the role groups
+            var useFilteredPool = context.CandidatePool?.Count > 0;
+            var eligibleUsers = useFilteredPool
+                ? context.CandidatePool!.Select(c => c.UserId).Distinct().ToList()
+                : await _userGroupService.GetUsersInGroupsAsync(context.UserGroups, cancellationToken);
 
             if (!eligibleUsers.Any())
                 return AssigneeSelectionResult.Failure("No eligible users found in specified groups");
+
+            // Only include team in group key when all candidates share the same team
+            // (i.e., TeamFilter actually scoped to a single team).
+            // When candidates span multiple teams, use role-only grouping.
+            var groupKey = context.UserGroups;
+            if (useFilteredPool)
+            {
+                var distinctTeams = context.CandidatePool!
+                    .Select(c => c.TeamId)
+                    .Where(t => !string.IsNullOrEmpty(t))
+                    .Distinct()
+                    .ToList();
+
+                if (distinctTeams.Count == 1)
+                {
+                    groupKey = context.UserGroups.Concat([$"Team_{distinctTeams[0]}"]).ToList();
+                }
+            }
+
+            var groupsHash = _groupHashService.GenerateGroupsHash(groupKey);
+            var groupsList = _groupHashService.GenerateGroupsList(groupKey);
 
             // Sync users for this activity and group combination
             await _assignmentRepository.SyncUsersForGroupCombinationAsync(

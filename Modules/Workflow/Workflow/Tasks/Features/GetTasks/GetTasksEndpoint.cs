@@ -15,6 +15,7 @@ public class GetTasksEndpoint : ICarterModule
                     [FromQuery] string? assigneeUserId,
                     [FromQuery] string? priority,
                     [FromQuery] string? taskName,
+                    [FromQuery] string? activityId,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
@@ -23,7 +24,8 @@ public class GetTasksEndpoint : ICarterModule
                         status,
                         assigneeUserId,
                         priority,
-                        taskName
+                        taskName,
+                        activityId
                     );
 
                     var query = new GetTasksQuery(pagination, filter);

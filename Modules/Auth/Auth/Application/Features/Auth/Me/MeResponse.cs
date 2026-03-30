@@ -11,5 +11,6 @@ public record MeResponse(
     string? Department,
     Guid? CompanyId,
     List<string> Roles,
-    List<string> Permissions
+    List<string> Permissions,
+    List<MeGroupDto> Groups
 );

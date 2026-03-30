@@ -3,7 +3,7 @@ namespace Request.Application.EventHandlers.Request;
 public class RequestSubmittedEventHandler(
     ILogger<RequestSubmittedEventHandler> logger,
     IRequestTitleRepository requestTitleRepository,
-    IBus bus) : INotificationHandler<RequestSubmittedEvent>
+    IIntegrationEventOutbox outbox) : INotificationHandler<RequestSubmittedEvent>
 {
     public async Task Handle(RequestSubmittedEvent notification, CancellationToken cancellationToken)
     {
@@ -53,7 +53,7 @@ public class RequestSubmittedEventHandler(
             CreatedBy = notification.Request.Requestor.UserId
         };
 
-        await bus.Publish(integrationEvent, cancellationToken);
+        outbox.Publish(integrationEvent, correlationId: notification.Request.Id.ToString());
 
         logger.LogInformation(
             "Published RequestSubmittedIntegrationEvent for RequestId: {RequestId} with {TitleCount} titles",

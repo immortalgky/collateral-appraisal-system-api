@@ -6,4 +6,5 @@ public interface IUserGroupService
 {
     Task<List<string>> GetUsersInGroupAsync(string groupName, CancellationToken cancellationToken = default);
     Task<List<string>> GetUsersInGroupsAsync(List<string> groupNames, CancellationToken cancellationToken = default);
+    Task<List<string>> GetGroupsForUserAsync(string username, CancellationToken cancellationToken = default);
 }

@@ -252,12 +252,69 @@ public class FlowControlManager : IFlowControlManager
         {
             if (EvaluateTransitionCondition(transition.Condition ?? "", variables))
             {
-                _logger.LogDebug("Conditional routing: condition '{Condition}' matched, selected transition to {NextActivity}", 
+                _logger.LogDebug("Conditional routing: condition '{Condition}' matched, selected transition to {NextActivity}",
                     transition.Condition, transition.To);
                 return transition.To;
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// For fork activities, determines all branch starting activities.
+    /// Maps branchIds from the fork result to target activities via transition properties.
+    /// </summary>
+    public List<(string BranchId, string ActivityId)> DetermineNextActivitiesForFork(
+        WorkflowSchema workflowSchema,
+        string forkActivityId,
+        ActivityResult activityResult)
+    {
+        var results = new List<(string BranchId, string ActivityId)>();
+
+        // Get branchIds from fork output
+        if (!activityResult.OutputData.TryGetValue("branchIds", out var branchIdsObj))
+        {
+            _logger.LogWarning("Fork activity {ForkId} has no branchIds in output", forkActivityId);
+            return results;
+        }
+
+        var branchIds = ConvertToBranchIdList(branchIdsObj);
+        var transitions = GetAvailableTransitions(workflowSchema, forkActivityId).ToList();
+
+        foreach (var branchId in branchIds)
+        {
+            // Find transition with matching branchId in properties
+            var transition = transitions.FirstOrDefault(t =>
+                t.Properties.TryGetValue("branchId", out var propVal) &&
+                string.Equals(propVal?.ToString(), branchId, StringComparison.OrdinalIgnoreCase));
+
+            if (transition != null)
+            {
+                results.Add((branchId, transition.To));
+                _logger.LogDebug("Fork routing: branch {BranchId} -> activity {ActivityId}", branchId, transition.To);
+            }
+            else
+            {
+                _logger.LogWarning("Fork activity {ForkId}: no transition found for branch {BranchId}",
+                    forkActivityId, branchId);
+            }
+        }
+
+        return results;
+    }
+
+    private static List<string> ConvertToBranchIdList(object branchIdsObj)
+    {
+        if (branchIdsObj is List<string> stringList)
+            return stringList;
+
+        if (branchIdsObj is IEnumerable<object> objectList)
+            return objectList.Select(o => o.ToString() ?? "").Where(s => !string.IsNullOrEmpty(s)).ToList();
+
+        if (branchIdsObj is System.Text.Json.JsonElement jsonElement && jsonElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            return jsonElement.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => !string.IsNullOrEmpty(s)).ToList();
+
+        return new List<string>();
     }
 }

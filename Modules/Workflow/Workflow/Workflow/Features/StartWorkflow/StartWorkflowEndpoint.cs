@@ -1,3 +1,4 @@
+using Shared.CQRS;
 using Workflow.Workflow.Services;
 using Workflow.Workflow.Activities.Core;
 
@@ -77,7 +78,7 @@ public record AssignmentOverrideRequest
     public Dictionary<string, object>? OverrideProperties { get; init; }
 }
 
-public record StartWorkflowCommand : ICommand<StartWorkflowResponse>
+public record StartWorkflowCommand : ICommand<StartWorkflowResponse>, ITransactionalCommand<IWorkflowUnitOfWork>
 {
     public Guid WorkflowDefinitionId { get; init; }
     public string InstanceName { get; init; } = default!;

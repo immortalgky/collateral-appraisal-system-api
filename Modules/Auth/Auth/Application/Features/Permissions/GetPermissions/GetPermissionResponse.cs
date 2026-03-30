@@ -1,3 +1,3 @@
-namespace Auth.Domain.Permissions.Features.GetPermissions;
+namespace Auth.Application.Features.Permissions.GetPermissions;
 
-public record GetPermissionResponse(PaginatedResult<PermissionDto> Result);
+public record GetPermissionResponse(IEnumerable<PermissionItemDto> Items, long Count, int PageNumber, int PageSize);

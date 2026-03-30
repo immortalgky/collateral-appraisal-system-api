@@ -6,4 +6,5 @@ public record AssignAppraisalRequest(
     string? AssigneeCompanyId = null,
     string? AssignmentMethod = null,
     string? InternalAppraiserId = null,
+    string? InternalFollowupAssignmentMethod = null,
     string? AssignedBy = null);

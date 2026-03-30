@@ -1,7 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Workflow.AssigneeSelection.Services;
 using Workflow.Workflow.Activities;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Models;
@@ -11,14 +10,12 @@ namespace Workflow.Tests.Workflow;
 
 public class RoutingActivityTests
 {
-    private readonly ICompanyRoundRobinService _companyRoundRobinService;
     private readonly RoutingActivity _sut;
 
     public RoutingActivityTests()
     {
-        _companyRoundRobinService = Substitute.For<ICompanyRoundRobinService>();
         var logger = Substitute.For<ILogger<RoutingActivity>>();
-        _sut = new RoutingActivity(_companyRoundRobinService, logger);
+        _sut = new RoutingActivity(logger);
     }
 
     private static ActivityContext CreateContext(
@@ -44,12 +41,7 @@ public class RoutingActivityTests
     [Fact]
     public async Task ExecuteAsync_AutoAssignExternal_SetsRoutingPathToExternal()
     {
-        // Arrange — default decision is auto_assign_external, company selection succeeds
-        var companyId = Guid.NewGuid();
-        _companyRoundRobinService
-            .SelectCompanyAsync(Arg.Any<CancellationToken>())
-            .Returns(CompanySelectionResult.Success(companyId, "Test Company"));
-
+        // Arrange — default decision is auto_assign_external
         var context = CreateContext(
             properties: new Dictionary<string, object>
             {
@@ -68,6 +60,7 @@ public class RoutingActivityTests
         result.OutputData.Should().ContainKey("routingPath");
         result.OutputData["routingPath"].Should().Be("external");
         result.OutputData["decision"].Should().Be("auto_assign_external");
+        result.OutputData["selectionMethod"].Should().Be("roundrobin");
     }
 
     [Fact]
@@ -99,13 +92,9 @@ public class RoutingActivityTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_CompanySelectionFails_FallsBackToInternalPath()
+    public async Task ExecuteAsync_AutoAssignExternal_SetsSelectionMethodToRoundRobin()
     {
-        // Arrange — auto_assign_external but company selection fails → fallback to admin_review
-        _companyRoundRobinService
-            .SelectCompanyAsync(Arg.Any<CancellationToken>())
-            .Returns(CompanySelectionResult.Failure("No companies available"));
-
+        // Arrange — auto_assign_external should set selectionMethod for CompanySelectionActivity
         var context = CreateContext(
             properties: new Dictionary<string, object>
             {
@@ -121,10 +110,8 @@ public class RoutingActivityTests
 
         // Assert
         result.Status.Should().Be(ActivityResultStatus.Completed);
-        result.OutputData["decision"].Should().Be("admin_review");
-        // Fallback changes decision to admin_review → routingPath should be "external"
-        // because routingPath is set BEFORE the fallback logic runs
-        result.OutputData["routingPath"].Should().Be("external");
+        result.OutputData.Should().ContainKey("selectionMethod");
+        result.OutputData["selectionMethod"].Should().Be("roundrobin");
     }
 
     [Fact]

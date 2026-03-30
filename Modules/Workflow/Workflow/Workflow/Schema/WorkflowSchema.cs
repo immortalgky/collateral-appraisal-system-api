@@ -62,7 +62,6 @@ public enum TransitionType
 public static class ActivityTypes
 {
     public const string TaskActivity = "TaskActivity";
-    public const string HumanTask = "HumanTask";
     public const string IfElseActivity = "IfElseActivity";
     public const string SwitchActivity = "SwitchActivity";
     public const string ServiceActivity = "ServiceActivity";
@@ -73,6 +72,8 @@ public static class ActivityTypes
     public const string ForkActivity = "ForkActivity";
     public const string JoinActivity = "JoinActivity";
     public const string RoutingActivity = "RoutingActivity";
+    public const string CompanySelectionActivity = "CompanySelectionActivity";
+    public const string ApprovalActivity = "ApprovalActivity";
 }
 
 public static class AppraisalActivityTypes

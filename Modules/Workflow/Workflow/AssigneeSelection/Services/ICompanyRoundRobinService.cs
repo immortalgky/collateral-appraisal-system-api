@@ -3,6 +3,7 @@ namespace Workflow.AssigneeSelection.Services;
 public interface ICompanyRoundRobinService
 {
     Task<CompanySelectionResult> SelectCompanyAsync(CancellationToken cancellationToken = default);
+    Task<CompanySelectionResult> SelectCompanyAsync(string loanType, CancellationToken cancellationToken = default);
 }
 
 public record CompanySelectionResult(bool IsSuccess, Guid? CompanyId, string? CompanyName, string? ErrorMessage)

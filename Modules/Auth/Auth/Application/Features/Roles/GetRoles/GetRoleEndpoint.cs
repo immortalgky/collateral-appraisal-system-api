@@ -1,4 +1,4 @@
-namespace Auth.Domain.Roles.Features.GetRoles;
+namespace Auth.Application.Features.Roles.GetRoles;
 
 public class GetRoleEndpoint : ICarterModule
 {
@@ -7,27 +7,18 @@ public class GetRoleEndpoint : ICarterModule
         app.MapGet(
                 "/auth/roles",
                 async (
-                    [AsParameters] PaginationRequest request,
+                    [AsParameters] GetRoleQuery query,
                     ISender sender,
-                    CancellationToken cancellationToken
-                ) =>
+                    CancellationToken cancellationToken) =>
                 {
-                    var query = new GetRoleQuery(request);
-
                     var result = await sender.Send(query, cancellationToken);
-
                     var response = result.Adapt<GetRoleResponse>();
-
                     return Results.Ok(response);
-                }
-            )
+                })
             .WithName("GetRoles")
-            .Produces<GetRoleResult>()
-            .ProducesProblem(StatusCodes.Status404NotFound)
+            .Produces<GetRoleResponse>()
             .WithSummary("Get all roles")
-            .WithDescription(
-                "Retrieves all roles from the system. This endpoint returns a list of roles with their details."
-            )
+            .WithDescription("Retrieves all roles with optional search and scope filter, paginated.")
             .WithTags("Role");
     }
 }

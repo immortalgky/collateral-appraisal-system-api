@@ -1,3 +1,5 @@
+using Shared.Data.Outbox;
+using Shared.Messaging.Events;
 using Workflow.Workflow.Engine;
 using Workflow.Workflow.Models;
 using Workflow.Workflow.Schema;
@@ -14,17 +16,23 @@ public class WorkflowService : IWorkflowService
     private readonly IWorkflowEngine _workflowEngine;
     private readonly IWorkflowPersistenceService _persistenceService;
     private readonly IWorkflowEventPublisher _eventPublisher;
+    private readonly IWorkflowUnitOfWork _unitOfWork;
+    private readonly IIntegrationEventOutbox _outbox;
     private readonly ILogger<WorkflowService> _logger;
 
     public WorkflowService(
         IWorkflowEngine workflowEngine,
         IWorkflowPersistenceService persistenceService,
         IWorkflowEventPublisher eventPublisher,
+        IWorkflowUnitOfWork unitOfWork,
+        IIntegrationEventOutbox outbox,
         ILogger<WorkflowService> logger)
     {
         _workflowEngine = workflowEngine;
         _persistenceService = persistenceService;
         _eventPublisher = eventPublisher;
+        _unitOfWork = unitOfWork;
+        _outbox = outbox;
         _logger = logger;
     }
 
@@ -37,12 +45,58 @@ public class WorkflowService : IWorkflowService
         Dictionary<string, RuntimeOverride>? assignmentOverrides = null,
         CancellationToken cancellationToken = default)
     {
+        // If already in a transaction (e.g., from MediatR TransactionalBehavior), run directly
+        // Note: integration events will be published by the caller after commit
+        if (_unitOfWork.HasActiveTransaction)
+        {
+            var instance = await ExecuteStartWorkflowAsync(workflowDefinitionId, instanceName, startedBy,
+                initialVariables, correlationId, assignmentOverrides, cancellationToken);
+            // TransactionalBehavior commits — we can't publish here (still in transaction)
+            // Integration events deferred to post-commit in the non-transaction path
+            return instance;
+        }
+
+        // Otherwise wrap in execution strategy + transaction (required for SqlServerRetryingExecutionStrategy)
+        WorkflowInstance? result = null;
+        var strategy = _unitOfWork.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                result = await ExecuteStartWorkflowAsync(workflowDefinitionId, instanceName, startedBy,
+                    initialVariables, correlationId, assignmentOverrides, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            }
+            catch
+            {
+                try { await _unitOfWork.RollbackTransactionAsync(cancellationToken); }
+                catch (Exception rollbackEx)
+                {
+                    _logger.LogError(rollbackEx, "SERVICE: Failed to rollback transaction");
+                }
+                throw;
+            }
+        });
+
+        // Publish integration events AFTER transaction committed successfully
+        await PublishPostCommitEventsAsync(result!, cancellationToken);
+
+        return result!;
+    }
+
+    private async Task<WorkflowInstance> ExecuteStartWorkflowAsync(
+        Guid workflowDefinitionId, string instanceName, string startedBy,
+        Dictionary<string, object>? initialVariables, string? correlationId,
+        Dictionary<string, RuntimeOverride>? assignmentOverrides,
+        CancellationToken cancellationToken)
+    {
         try
         {
             _logger.LogInformation("SERVICE: Starting workflow for definition {WorkflowDefinitionId}",
                 workflowDefinitionId);
 
-            // 1. DELEGATE ORCHESTRATION to WorkflowEngine
             var executionResult = await _workflowEngine.StartWorkflowAsync(
                 workflowDefinitionId, instanceName, startedBy, initialVariables, correlationId, assignmentOverrides,
                 cancellationToken);
@@ -53,15 +107,9 @@ public class WorkflowService : IWorkflowService
             if (executionResult.WorkflowInstance == null)
                 throw new InvalidOperationException("WorkflowEngine returned null instance");
 
-            // 2. PUBLISH EVENTS via EventPublisher
             await _eventPublisher.PublishWorkflowStartedAsync(
-                executionResult.WorkflowInstance.Id,
-                workflowDefinitionId,
-                instanceName,
-                startedBy,
-                executionResult.WorkflowInstance.StartedOn,
-                correlationId,
-                cancellationToken);
+                executionResult.WorkflowInstance.Id, workflowDefinitionId, instanceName, startedBy,
+                executionResult.WorkflowInstance.StartedOn, correlationId, cancellationToken);
 
             _logger.LogInformation("SERVICE: Successfully started workflow instance {WorkflowInstanceId}",
                 executionResult.WorkflowInstance.Id);
@@ -84,12 +132,56 @@ public class WorkflowService : IWorkflowService
         Dictionary<string, RuntimeOverride>? nextAssignmentOverrides = null,
         CancellationToken cancellationToken = default)
     {
+        // If already in a transaction (e.g., from MediatR TransactionalBehavior), run directly
+        if (_unitOfWork.HasActiveTransaction)
+        {
+            var instance = await ExecuteResumeWorkflowAsync(workflowInstanceId, activityId, completedBy,
+                input, nextAssignmentOverrides, cancellationToken);
+            // Integration events deferred to post-commit in the non-transaction path
+            await PublishPostCommitEventsAsync(instance, cancellationToken);
+            return instance;
+        }
+
+        // Otherwise wrap in execution strategy + transaction
+        WorkflowInstance? result = null;
+        var strategy = _unitOfWork.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                result = await ExecuteResumeWorkflowAsync(workflowInstanceId, activityId, completedBy,
+                    input, nextAssignmentOverrides, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            }
+            catch
+            {
+                try { await _unitOfWork.RollbackTransactionAsync(cancellationToken); }
+                catch (Exception rollbackEx)
+                {
+                    _logger.LogError(rollbackEx, "SERVICE: Failed to rollback transaction");
+                }
+                throw;
+            }
+        });
+
+        // Publish integration events AFTER transaction committed successfully
+        await PublishPostCommitEventsAsync(result!, cancellationToken);
+
+        return result!;
+    }
+
+    private async Task<WorkflowInstance> ExecuteResumeWorkflowAsync(
+        Guid workflowInstanceId, string activityId, string completedBy,
+        Dictionary<string, object>? input, Dictionary<string, RuntimeOverride>? nextAssignmentOverrides,
+        CancellationToken cancellationToken)
+    {
         try
         {
             _logger.LogInformation("SERVICE: Resuming workflow {WorkflowInstanceId} at activity {ActivityId}",
                 workflowInstanceId, activityId);
 
-            // 1. DELEGATE ORCHESTRATION to WorkflowEngine
             var executionResult = await _workflowEngine.ResumeWorkflowAsync(
                 workflowInstanceId, activityId, completedBy, input, nextAssignmentOverrides, cancellationToken);
 
@@ -99,23 +191,14 @@ public class WorkflowService : IWorkflowService
             if (executionResult.WorkflowInstance == null)
                 throw new InvalidOperationException("WorkflowEngine returned null instance");
 
-            // 2. PUBLISH EVENTS via EventPublisher
             await _eventPublisher.PublishActivityCompletedAsync(
-                workflowInstanceId,
-                activityId,
-                completedBy,
-                DateTime.Now,
-                input,
+                workflowInstanceId, activityId, completedBy, DateTime.Now, input,
                 input?.TryGetValue("comments", out var commentsValue) == true ? commentsValue?.ToString() : null,
                 cancellationToken);
 
-            // If workflow completed, publish the completion event
             if (executionResult.Status == WorkflowExecutionStatus.Completed)
                 await _eventPublisher.PublishWorkflowCompletedAsync(
-                    workflowInstanceId,
-                    completedBy,
-                    DateTime.Now,
-                    cancellationToken);
+                    workflowInstanceId, completedBy, DateTime.Now, cancellationToken);
 
             _logger.LogInformation("SERVICE: Successfully resumed workflow {WorkflowInstanceId} with status {Status}",
                 workflowInstanceId, executionResult.Status);
@@ -196,5 +279,38 @@ public class WorkflowService : IWorkflowService
         CancellationToken cancellationToken = default)
     {
         return await _workflowEngine.ValidateWorkflowDefinitionAsync(workflowSchema, cancellationToken);
+    }
+
+    /// <summary>
+    /// Publishes integration events AFTER the transaction has committed.
+    /// Only publishes CompanyAssignedIntegrationEvent when workflow lands on ext-admin with a company assigned.
+    /// </summary>
+    private async Task PublishPostCommitEventsAsync(WorkflowInstance instance, CancellationToken cancellationToken)
+    {
+        if (instance.CurrentActivityId != "ext-appraisal-assignment") return;
+
+        if (instance.Variables.TryGetValue("assignedCompanyId", out var cid)
+            && Guid.TryParse(cid?.ToString(), out var companyId))
+        {
+            var companyName = instance.Variables.TryGetValue("assignedCompanyName", out var cn)
+                ? cn?.ToString() ?? "" : "";
+            var method = instance.Variables.TryGetValue("assignmentMethod", out var am)
+                ? am?.ToString() ?? "Manual" : "Manual";
+
+            var correlationId = !string.IsNullOrEmpty(instance.CorrelationId)
+                && Guid.TryParse(instance.CorrelationId, out var parsed) ? parsed : instance.Id;
+
+            _outbox.Publish(new CompanyAssignedIntegrationEvent
+            {
+                AppraisalId = correlationId,
+                CompanyId = companyId,
+                CompanyName = companyName,
+                AssignmentMethod = method
+            }, correlationId: correlationId.ToString());
+
+            _logger.LogInformation(
+                "Published CompanyAssignedIntegrationEvent after commit: AppraisalId={AppraisalId}, CompanyId={CompanyId}",
+                correlationId, companyId);
+        }
     }
 }

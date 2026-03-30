@@ -15,6 +15,7 @@ public static class DtoExtensions
             domain.Id,
             domain.Name ?? "",
             domain.Description,
+            domain.Scope,
             [.. domain.Permissions.Select(rolePermission => rolePermission.Permission.ToDto())]
         );
     }

@@ -22,7 +22,9 @@ public class UpdateCompanyCommandHandler(ICompanyRepository companyRepository)
             command.City,
             command.Province,
             command.PostalCode,
-            command.IsActive);
+            command.ContactPerson,
+            command.IsActive,
+            command.LoanTypes);
 
         await companyRepository.SaveChangesAsync(cancellationToken);
 

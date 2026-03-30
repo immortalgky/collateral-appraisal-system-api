@@ -23,7 +23,7 @@ namespace Notification.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("Notification.Notification.Models.UserNotification", b =>
+            modelBuilder.Entity("Notification.Domain.Notifications.Models.UserNotification", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -59,26 +59,58 @@ namespace Notification.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<string>("UserId")
+                    b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("UserId");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("IX_UserNotifications_CreatedAt");
 
-                    b.HasIndex("UserId")
+                    b.HasIndex("Username")
                         .HasDatabaseName("IX_UserNotifications_UserId");
 
-                    b.HasIndex("UserId", "CreatedAt")
+                    b.HasIndex("Username", "CreatedAt")
                         .HasDatabaseName("IX_UserNotifications_UserId_CreatedAt");
 
-                    b.HasIndex("UserId", "IsRead")
+                    b.HasIndex("Username", "IsRead")
                         .HasDatabaseName("IX_UserNotifications_UserId_IsRead");
 
                     b.ToTable("UserNotifications", "notification");
+                });
+
+            modelBuilder.Entity("Shared.Data.Outbox.InboxMessage", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConsumerType")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("MessageId", "ConsumerType");
+
+                    b.HasIndex("ProcessedAt")
+                        .HasDatabaseName("IX_InboxMessage_Cleanup");
+
+                    b.HasIndex("Status", "StartedAt")
+                        .HasDatabaseName("IX_InboxMessage_StaleProcessing");
+
+                    b.ToTable("InboxMessage", "notification");
                 });
 #pragma warning restore 612, 618
         }

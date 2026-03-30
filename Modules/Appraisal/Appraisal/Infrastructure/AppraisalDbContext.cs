@@ -1,5 +1,5 @@
 using Appraisal.Domain.ComparativeAnalysis;
-using MassTransit;
+using Shared.Data.Outbox;
 
 namespace Appraisal.Infrastructure;
 
@@ -163,10 +163,8 @@ public class AppraisalDbContext : DbContext
         modelBuilder.Entity<MarketComparable>()
             .HasQueryFilter(m => !m.SoftDelete.IsDeleted);
 
-        // MassTransit Outbox for reliable messaging
-        modelBuilder.AddInboxStateEntity();
-        modelBuilder.AddOutboxStateEntity();
-        modelBuilder.AddOutboxMessageEntity();
+        // Integration event outbox for reliable messaging
+        modelBuilder.AddIntegrationEventOutbox();
 
         base.OnModelCreating(modelBuilder);
     }

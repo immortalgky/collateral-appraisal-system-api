@@ -1,11 +1,14 @@
+using Document.Data;
 using Shared.Data;
+using Shared.Messaging.Filters;
 
 namespace Document.EventHandlers;
 
 public class DocumentUpdatedIntegrationEventHandler(
     IDocumentUnitOfWork uow,
     IDateTimeProvider dateTimeProvider,
-    ILogger<DocumentUpdatedIntegrationEventHandler> logger)
+    ILogger<DocumentUpdatedIntegrationEventHandler> logger,
+    InboxGuard<DocumentDbContext> inboxGuard)
     : IConsumer<DocumentUpdatedIntegrationEvent>
 {
     private readonly IRepository<Domain.Documents.Models.Document, Guid> _documentRepository =
@@ -13,6 +16,9 @@ public class DocumentUpdatedIntegrationEventHandler(
 
     public async Task Consume(ConsumeContext<DocumentUpdatedIntegrationEvent> @event)
     {
+        if (await inboxGuard.TryClaimAsync(@event.MessageId, GetType().Name, @event.CancellationToken))
+            return;
+
         var message = @event.Message;
 
         // Unlink the previous document
@@ -44,5 +50,7 @@ public class DocumentUpdatedIntegrationEventHandler(
         }
 
         await uow.SaveChangesAsync(@event.CancellationToken);
+
+        await inboxGuard.MarkAsProcessedAsync(@event.MessageId, GetType().Name, @event.CancellationToken);
     }
 }

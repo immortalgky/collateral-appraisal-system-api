@@ -315,23 +315,26 @@ public class AssignmentPipelineTests
         var teamFilter = new TeamFilter(_teamService, Substitute.For<ILogger<TeamFilter>>());
         var members = new List<TeamMemberInfo>
         {
-            Member("u1", "team-A", "test-activity"),
-            Member("u2", "team-B", "test-activity")
+            Member("u1", "team-A", "TestRole"),
+            Member("u2", "team-B", "TestRole")
         };
 
-        _teamService.GetAllMembersForActivityAsync("test-activity", Arg.Any<CancellationToken>())
+        _teamService.GetAllMembersForActivityAsync("TestRole", Arg.Any<CancellationToken>())
             .Returns(members);
 
         var ctx = new AssignmentPipelineContext
         {
-            ActivityContext = CreateActivityContext(),
+            ActivityContext = CreateActivityContext(properties: new Dictionary<string, object>
+            {
+                ["assigneeRole"] = "TestRole"
+            }),
             Rules = new ActivityAssignmentRules(TeamConstrained: false, ExcludeAssigneesFrom: [])
         };
 
         var result = await teamFilter.FilterAsync(ctx, new List<TeamMemberInfo>());
 
         result.Should().HaveCount(2);
-        await _teamService.Received(1).GetAllMembersForActivityAsync("test-activity", Arg.Any<CancellationToken>());
+        await _teamService.Received(1).GetAllMembersForActivityAsync("TestRole", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -340,15 +343,18 @@ public class AssignmentPipelineTests
         var teamFilter = new TeamFilter(_teamService, Substitute.For<ILogger<TeamFilter>>());
         var teamMembers = new List<TeamMemberInfo>
         {
-            Member("u1", "team-A", "test-activity")
+            Member("u1", "team-A", "TestRole")
         };
 
-        _teamService.GetTeamMembersForActivityAsync("team-A", "test-activity", Arg.Any<CancellationToken>())
+        _teamService.GetTeamMembersForActivityAsync("team-A", "TestRole", Arg.Any<CancellationToken>())
             .Returns(teamMembers);
 
         var ctx = new AssignmentPipelineContext
         {
-            ActivityContext = CreateActivityContext(),
+            ActivityContext = CreateActivityContext(properties: new Dictionary<string, object>
+            {
+                ["assigneeRole"] = "TestRole"
+            }),
             Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []),
             TeamId = "team-A"
         };
@@ -365,16 +371,19 @@ public class AssignmentPipelineTests
         var teamFilter = new TeamFilter(_teamService, Substitute.For<ILogger<TeamFilter>>());
         var allMembers = new List<TeamMemberInfo>
         {
-            Member("u1", "team-A", "test-activity"),
-            Member("u2", "team-B", "test-activity")
+            Member("u1", "team-A", "TestRole"),
+            Member("u2", "team-B", "TestRole")
         };
 
-        _teamService.GetAllMembersForActivityAsync("test-activity", Arg.Any<CancellationToken>())
+        _teamService.GetAllMembersForActivityAsync("TestRole", Arg.Any<CancellationToken>())
             .Returns(allMembers);
 
         var ctx = new AssignmentPipelineContext
         {
-            ActivityContext = CreateActivityContext(),
+            ActivityContext = CreateActivityContext(properties: new Dictionary<string, object>
+            {
+                ["assigneeRole"] = "TestRole"
+            }),
             Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []),
             TeamId = null // Not set yet
         };
@@ -441,14 +450,17 @@ public class AssignmentPipelineTests
 
         var candidates = new List<TeamMemberInfo>
         {
-            Member("u1", "t", "admin", "test-activity"),
-            Member("u2", "t", "admin"),  // Does NOT have test-activity role
-            Member("u3", "t", "test-activity")
+            Member("u1", "t", "admin", "TestRole"),
+            Member("u2", "t", "admin"),  // Does NOT have TestRole
+            Member("u3", "t", "TestRole")
         };
 
         var ctx = new AssignmentPipelineContext
         {
-            ActivityContext = CreateActivityContext(activityId: "test-activity")
+            ActivityContext = CreateActivityContext(activityId: "test-activity", properties: new Dictionary<string, object>
+            {
+                ["assigneeRole"] = "TestRole"
+            })
         };
 
         var result = await roleFilter.FilterAsync(ctx, candidates);
@@ -730,12 +742,12 @@ public class AssignmentPipelineTests
         // Setup: team-constrained with exclusion
         var teamMembers = new List<TeamMemberInfo>
         {
-            Member("u1", "team-A", "checker-activity"),
-            Member("u2", "team-A", "checker-activity"),
-            Member("u3", "team-A", "other-activity") // Wrong role
+            Member("u1", "team-A", "CheckerRole"),
+            Member("u2", "team-A", "CheckerRole"),
+            Member("u3", "team-A", "OtherRole") // Wrong role
         };
 
-        _teamService.GetTeamMembersForActivityAsync("team-A", "checker-activity", Arg.Any<CancellationToken>())
+        _teamService.GetTeamMembersForActivityAsync("team-A", "CheckerRole", Arg.Any<CancellationToken>())
             .Returns(teamMembers);
 
         _contextBuilder.BuildAsync(Arg.Any<AssignmentPipelineContext>(), Arg.Any<CancellationToken>())
@@ -754,7 +766,10 @@ public class AssignmentPipelineTests
         SetupEngineSuccess("u2", "round_robin");
         SetupFinalizerPassthrough();
 
-        var context = CreateActivityContext(activityId: "checker-activity");
+        var context = CreateActivityContext(activityId: "checker-activity", properties: new Dictionary<string, object>
+        {
+            ["assigneeRole"] = "CheckerRole"
+        });
         var result = await pipeline.AssignAsync(context);
 
         result.IsSuccess.Should().BeTrue();

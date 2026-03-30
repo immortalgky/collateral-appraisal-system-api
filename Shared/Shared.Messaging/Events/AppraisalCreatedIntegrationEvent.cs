@@ -8,4 +8,8 @@ public record AppraisalCreatedIntegrationEvent : IntegrationEvent
     public string? AppraisalType { get; init; }
     public string? CreatedBy { get; init; }
     public DateTime CreatedAt { get; init; }
+    public bool IsPma { get; init; }
+    public decimal? FacilityLimit { get; init; }
+    public string? Priority { get; init; }
+    public bool HasAppraisalBook { get; init; }
 }
