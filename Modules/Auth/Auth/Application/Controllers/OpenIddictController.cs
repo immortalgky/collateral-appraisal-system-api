@@ -73,6 +73,7 @@ public class OpenIddictController(ITokenService tokenService) : Controller
         return SignIn(claimsPrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
+    [AllowAnonymous]
     [HttpGet("~/connect/logout")]
     [HttpPost("~/connect/logout")]
     public async Task<IActionResult> Logout()

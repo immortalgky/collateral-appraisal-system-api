@@ -1,3 +1,5 @@
+using Shared.CQRS;
+using Shared.Identity;
 using Workflow.Workflow.Pipeline;
 using Workflow.Workflow.Services;
 using Workflow.Workflow.Activities.Core;
@@ -13,13 +15,14 @@ public class CompleteActivityEndpoint : ICarterModule
                 string activityId,
                 CompleteActivityRequest request,
                 ISender sender,
+                ICurrentUserService currentUserService,
                 CancellationToken cancellationToken) =>
             {
                 var command = new CompleteActivityCommand
                 {
                     WorkflowInstanceId = workflowInstanceId,
                     ActivityId = activityId,
-                    CompletedBy = request.CompletedBy, // In real app, get from current user context
+                    CompletedBy = currentUserService.Username!,
                     Input = request.Input,
                     NextAssignmentOverrides = request.NextAssignmentOverrides
                 };
@@ -75,7 +78,7 @@ public record AssignmentOverrideRequest
     public Dictionary<string, object>? OverrideProperties { get; init; }
 }
 
-public record CompleteActivityCommand : ICommand<CompleteActivityResponse>
+public record CompleteActivityCommand : ICommand<CompleteActivityResponse>, ITransactionalCommand<IWorkflowUnitOfWork>
 {
     public Guid WorkflowInstanceId { get; init; }
     public string ActivityId { get; init; } = default!;

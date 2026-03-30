@@ -1,14 +1,13 @@
 using Auth.Services;
 
-namespace Auth.Domain.Permissions.Features.DeletePermission;
+namespace Auth.Application.Features.Permissions.DeletePermission;
 
 public class DeletePermissionCommandHandler(IPermissionService permissionService)
     : ICommandHandler<DeletePermissionCommand, DeletePermissionResult>
 {
     public async Task<DeletePermissionResult> Handle(
         DeletePermissionCommand command,
-        CancellationToken cancellationToken
-    )
+        CancellationToken cancellationToken)
     {
         await permissionService.DeletePermission(command.Id, cancellationToken);
         return new DeletePermissionResult(true);

@@ -1,3 +1,3 @@
-namespace Auth.Domain.Permissions.Features.CreatePermission;
+namespace Auth.Application.Features.Permissions.CreatePermission;
 
 public record CreatePermissionResponse(Guid Id);

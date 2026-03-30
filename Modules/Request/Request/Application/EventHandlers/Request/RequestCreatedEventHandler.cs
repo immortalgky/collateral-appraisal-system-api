@@ -1,21 +1,21 @@
-using MassTransit;
 using Microsoft.Extensions.Logging;
+using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 
 namespace Request.Application.EventHandlers.Request;
 
-public class RequestCreatedEventHandler(ILogger<RequestCreatedEventHandler> logger, IBus bus)
+public class RequestCreatedEventHandler(ILogger<RequestCreatedEventHandler> logger, IIntegrationEventOutbox outbox)
     : INotificationHandler<RequestCreatedEvent>
 {
-    public async Task Handle(RequestCreatedEvent notification, CancellationToken cancellationToken)
+    public Task Handle(RequestCreatedEvent notification, CancellationToken cancellationToken)
     {
         logger.LogInformation("Domain Event handled: {DomainEvent}", notification.GetType().Name);
 
-        var integrationEvent = new RequestCreatedIntegrationEvent
+        outbox.Publish(new RequestCreatedIntegrationEvent
         {
             RequestId = notification.Request.Id
-        };
+        }, correlationId: notification.Request.Id.ToString());
 
-        await bus.Publish(integrationEvent, cancellationToken);
+        return Task.CompletedTask;
     }
 }

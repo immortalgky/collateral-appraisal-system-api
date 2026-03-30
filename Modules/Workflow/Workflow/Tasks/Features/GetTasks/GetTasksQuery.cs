@@ -6,7 +6,8 @@ public record GetTasksFilterRequest(
     string? Status = null,
     string? AssigneeUserId = null,
     string? Priority = null,
-    string? TaskName = null
+    string? TaskName = null,
+    string? ActivityId = null
 );
 
 public record GetTasksQuery(

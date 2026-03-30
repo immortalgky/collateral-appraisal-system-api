@@ -1,4 +1,5 @@
 using Collateral.CollateralProperties.Models;
+using Shared.Data.Outbox;
 
 namespace Collateral.Data;
 
@@ -28,6 +29,8 @@ public class CollateralDbContext : DbContext
 
         // Apply configurations from the current assembly
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+
+        modelBuilder.AddIntegrationEventInbox();
 
         // Call the base method to ensure any additional configurations are applied
         base.OnModelCreating(modelBuilder);

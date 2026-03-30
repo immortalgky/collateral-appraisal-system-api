@@ -1,42 +1,41 @@
+using Dapper;
+using Shared.Data;
+
 namespace Workflow.Services.Groups;
 
 /// <summary>
-/// Service for managing user group memberships
+/// Queries real user IDs from ASP.NET Identity tables by role name.
+/// Group name = role name (e.g. "Admin", "IntAppraisalStaff").
 /// </summary>
 public class UserGroupService : IUserGroupService
 {
+    private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ILogger<UserGroupService> _logger;
-    private readonly Dictionary<string, List<string>> _groupMemberships;
 
-    public UserGroupService(ILogger<UserGroupService> logger)
+    public UserGroupService(ISqlConnectionFactory connectionFactory, ILogger<UserGroupService> logger)
     {
+        _connectionFactory = connectionFactory;
         _logger = logger;
-
-        // TODO: Replace with actual group membership data source (e.g., database, external service)
-        // Testing purposes only
-        _groupMemberships = new Dictionary<string, List<string>>
-        {
-            ["RequestMaker"] = new() { "maker_001", "maker_002", "maker_003" },
-            ["Admin"] = new() { "admin_001", "admin_002", "admin_003" },
-            ["AppraisalStaff"] = new() { "staff_001", "staff_002", "staff_003" },
-            ["AppraisalChecker"] = new() { "checker_001", "checker_002", "checker_003" },
-            ["AppraisalVerifier"] = new() { "verifier_001", "verifier_002", "verifier_003" }
-        };
     }
 
     public async Task<List<string>> GetUsersInGroupAsync(string groupName,
         CancellationToken cancellationToken = default)
     {
-        await Task.CompletedTask;
+        using var connection = _connectionFactory.GetOpenConnection();
 
-        if (_groupMemberships.TryGetValue(groupName, out var users))
-        {
-            _logger.LogDebug("Found {UserCount} users in group {GroupName}", users.Count, groupName);
-            return users;
-        }
+        var userIds = await connection.QueryAsync<string>(
+            """
+            SELECT u.UserName
+            FROM auth.AspNetUsers u
+            INNER JOIN auth.AspNetUserRoles ur ON ur.UserId = u.Id
+            INNER JOIN auth.AspNetRoles r ON r.Id = ur.RoleId
+            WHERE r.NormalizedName = @NormalizedRoleName
+            """,
+            new { NormalizedRoleName = groupName.ToUpperInvariant() });
 
-        _logger.LogWarning("Group {GroupName} not found, returning empty user list", groupName);
-        return new List<string>();
+        var result = userIds.ToList();
+        _logger.LogDebug("Found {UserCount} users in group {GroupName}", result.Count, groupName);
+        return result;
     }
 
     public async Task<List<string>> GetUsersInGroupsAsync(List<string> groupNames,
@@ -50,12 +49,31 @@ public class UserGroupService : IUserGroupService
             allUsers.AddRange(groupUsers);
         }
 
-        // Remove duplicates (user might be in multiple groups)
         var distinctUsers = allUsers.Distinct().ToList();
 
         _logger.LogDebug("Found {UserCount} unique users across {GroupCount} groups",
             distinctUsers.Count, groupNames.Count);
 
         return distinctUsers;
+    }
+
+    public async Task<List<string>> GetGroupsForUserAsync(string username,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = _connectionFactory.GetOpenConnection();
+
+        var roles = await connection.QueryAsync<string>(
+            """
+            SELECT r.Name
+            FROM auth.AspNetRoles r
+            INNER JOIN auth.AspNetUserRoles ur ON ur.RoleId = r.Id
+            INNER JOIN auth.AspNetUsers u ON u.Id = ur.UserId
+            WHERE u.NormalizedUserName = @NormalizedUserName
+            """,
+            new { NormalizedUserName = username.ToUpperInvariant() });
+
+        var result = roles.ToList();
+        _logger.LogDebug("Found {GroupCount} groups for user {Username}", result.Count, username);
+        return result;
     }
 }

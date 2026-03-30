@@ -26,12 +26,13 @@ public class CreateWorkflowDefinitionEndpoint : ICarterModule
                     Description = request.Description,
                     Category = request.Category,
                     WorkflowSchema = request.WorkflowSchema,
-                    CreatedBy = request.CreatedBy // In real app, get from current user context
+                    CreatedBy = request.CreatedBy
                 };
 
                 var result = await sender.Send(command, cancellationToken);
                 return Results.Created($"/api/workflows/definitions/{result.Id}", result);
             })
+            .AllowAnonymous()
             .WithName("CreateWorkflowDefinition")
             .WithTags("Workflows");
     }
@@ -58,6 +59,7 @@ public record CreateWorkflowDefinitionCommand : IRequest<CreateWorkflowDefinitio
 public record CreateWorkflowDefinitionResponse
 {
     public Guid Id { get; init; }
+    public Guid VersionId { get; init; }
     public string Name { get; init; } = default!;
     public int Version { get; init; }
     public bool IsValid { get; init; }
@@ -69,13 +71,16 @@ public class
     CreateWorkflowDefinitionResponse>
 {
     private readonly IWorkflowDefinitionRepository _repository;
+    private readonly IWorkflowDefinitionVersionRepository _versionRepository;
     private readonly IWorkflowService _workflowService;
 
     public CreateWorkflowDefinitionCommandHandler(
         IWorkflowDefinitionRepository repository,
+        IWorkflowDefinitionVersionRepository versionRepository,
         IWorkflowService workflowService)
     {
         _repository = repository;
+        _versionRepository = versionRepository;
         _workflowService = workflowService;
     }
 
@@ -93,15 +98,14 @@ public class
             };
         }
 
-        // Check if name already exists
+        // Serialize workflow schema with camelCase to match frontend expectations
+        var jsonDefinition = JsonSerializer.Serialize(request.WorkflowSchema, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+        });
 
-        var existingDefinition = await _repository.GetLatestVersion(request.Name, cancellationToken);
-        var version = existingDefinition?.Version + 1 ?? 1;
-
-        // Serialize workflow schema
-        var jsonDefinition = JsonSerializer.Serialize(request.WorkflowSchema);
-
-        // Create workflow definition
+        // Create workflow definition (header + execution copy)
         var workflowDefinition = WorkflowDefinition.Create(
             request.Name,
             request.Description,
@@ -110,11 +114,23 @@ public class
             request.CreatedBy);
 
         await _repository.AddAsync(workflowDefinition, cancellationToken);
-        await _repository.SaveChangesAsync(cancellationToken);
+
+        // Create v1 Draft version (source of truth for the builder)
+        var draftVersion = WorkflowDefinitionVersion.Create(
+            definitionId: workflowDefinition.Id,
+            version: 1,
+            name: request.Name,
+            description: request.Description,
+            jsonSchema: jsonDefinition,
+            category: request.Category,
+            createdBy: request.CreatedBy);
+
+        await _versionRepository.AddAsync(draftVersion, cancellationToken);
 
         return new CreateWorkflowDefinitionResponse
         {
             Id = workflowDefinition.Id,
+            VersionId = draftVersion.Id,
             Name = workflowDefinition.Name,
             Version = workflowDefinition.Version,
             IsValid = true

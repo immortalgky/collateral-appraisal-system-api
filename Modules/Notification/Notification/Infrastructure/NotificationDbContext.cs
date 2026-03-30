@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Notification.Domain.Notifications.Models;
+using Shared.Data.Outbox;
 
 namespace Notification.Data;
 
@@ -16,6 +17,8 @@ public class NotificationDbContext : DbContext
         modelBuilder.HasDefaultSchema("notification");
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(NotificationDbContext).Assembly);
+
+        modelBuilder.AddIntegrationEventInbox();
 
         base.OnModelCreating(modelBuilder);
     }

@@ -10,6 +10,7 @@ public record AssignmentDto(
     string? AssigneeUserId,
     string? AssigneeCompanyId,
     string? InternalAppraiserId,
+    string? InternalFollowupAssignmentMethod,
     string AssignmentMethod,
     int ReassignmentNumber,
     int ProgressPercent,

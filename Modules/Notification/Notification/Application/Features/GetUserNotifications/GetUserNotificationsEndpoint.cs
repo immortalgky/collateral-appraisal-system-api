@@ -9,37 +9,34 @@ public class GetUserNotificationsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/notifications/{userId}", GetUserNotifications)
+        app.MapGet("/notifications/{username}", GetUserNotifications)
             .WithName("GetUserNotifications")
             .WithSummary("Get user notifications")
             .WithDescription("Retrieves notifications for a specific user")
-            .Produces<GetUserNotificationsResponse>()
-            .RequireAuthorization("CanReadNotification");
+            .Produces<GetUserNotificationsResponse>();
 
-        app.MapGet("/api/notifications/{userId}/unread", GetUnreadNotifications)
+        app.MapGet("/notifications/{username}/unread", GetUnreadNotifications)
             .WithName("GetUnreadNotifications")
             .WithSummary("Get unread user notifications")
             .WithDescription("Retrieves unread notifications for a specific user")
-            .Produces<GetUserNotificationsResponse>()
-            .RequireAuthorization("CanReadNotification");
+            .Produces<GetUserNotificationsResponse>();
     }
 
     private static async Task<IResult> GetUserNotifications(
-        string userId,
-        [FromQuery] bool unreadOnly,
+        string username,
         ISender sender)
     {
-        var query = new GetUserNotificationsQuery(userId, unreadOnly);
+        var query = new GetUserNotificationsQuery(username);
         var result = await sender.Send(query);
 
         return Results.Ok(result);
     }
 
     private static async Task<IResult> GetUnreadNotifications(
-        string userId,
+        string username,
         ISender sender)
     {
-        var query = new GetUserNotificationsQuery(userId, true);
+        var query = new GetUserNotificationsQuery(username, true);
         var result = await sender.Send(query);
 
         return Results.Ok(result);

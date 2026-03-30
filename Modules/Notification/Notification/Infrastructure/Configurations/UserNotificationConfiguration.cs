@@ -16,9 +16,10 @@ public class UserNotificationConfiguration : IEntityTypeConfiguration<UserNotifi
         builder.Property(x => x.Id)
             .IsRequired();
 
-        builder.Property(x => x.UserId)
+        builder.Property(x => x.Username)
             .IsRequired()
-            .HasMaxLength(256);
+            .HasMaxLength(256)
+            .HasColumnName("UserId");
 
         builder.Property(x => x.Title)
             .IsRequired()
@@ -51,16 +52,16 @@ public class UserNotificationConfiguration : IEntityTypeConfiguration<UserNotifi
             .HasColumnType("nvarchar(max)");
 
         // Indexes for better query performance
-        builder.HasIndex(x => x.UserId)
+        builder.HasIndex(x => x.Username)
             .HasDatabaseName("IX_UserNotifications_UserId");
 
         builder.HasIndex(x => x.CreatedAt)
             .HasDatabaseName("IX_UserNotifications_CreatedAt");
 
-        builder.HasIndex(x => new { x.UserId, x.IsRead })
+        builder.HasIndex(x => new { x.Username, x.IsRead })
             .HasDatabaseName("IX_UserNotifications_UserId_IsRead");
 
-        builder.HasIndex(x => new { x.UserId, x.CreatedAt })
+        builder.HasIndex(x => new { x.Username, x.CreatedAt })
             .HasDatabaseName("IX_UserNotifications_UserId_CreatedAt");
     }
 }

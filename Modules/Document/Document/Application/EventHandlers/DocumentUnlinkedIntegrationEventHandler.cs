@@ -1,11 +1,14 @@
+using Document.Data;
 using Shared.Data;
+using Shared.Messaging.Filters;
 
 namespace Document.EventHandlers;
 
 public class DocumentUnlinkedIntegrationEventHandler(
     IDocumentUnitOfWork uow,
     IDateTimeProvider dateTimeProvider,
-    ILogger<DocumentUnlinkedIntegrationEventHandler> logger)
+    ILogger<DocumentUnlinkedIntegrationEventHandler> logger,
+    InboxGuard<DocumentDbContext> inboxGuard)
     : IConsumer<DocumentUnlinkedIntegrationEvent>
 {
     private readonly IRepository<Domain.Documents.Models.Document, Guid> _documentRepository =
@@ -13,6 +16,9 @@ public class DocumentUnlinkedIntegrationEventHandler(
 
     public async Task Consume(ConsumeContext<DocumentUnlinkedIntegrationEvent> @event)
     {
+        if (await inboxGuard.TryClaimAsync(@event.MessageId, GetType().Name, @event.CancellationToken))
+            return;
+
         var document =
             await _documentRepository.GetByIdAsync(@event.Message.DocumentId, @event.CancellationToken);
 
@@ -28,5 +34,7 @@ public class DocumentUnlinkedIntegrationEventHandler(
             @event.Message.DocumentId, document.ReferenceCount);
 
         await uow.SaveChangesAsync(@event.CancellationToken);
+
+        await inboxGuard.MarkAsProcessedAsync(@event.MessageId, GetType().Name, @event.CancellationToken);
     }
 }

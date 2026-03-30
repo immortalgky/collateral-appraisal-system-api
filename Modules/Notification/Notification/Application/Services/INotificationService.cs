@@ -9,9 +9,9 @@ public interface INotificationService
     Task SendTaskAssignedToOtherNotificationAsync(TaskAssignedNotificationDto notification);
     Task SendTaskCompletedNotificationAsync(TaskCompletedNotificationDto notification);
     Task SendWorkflowProgressNotificationAsync(WorkflowProgressNotificationDto notification);
-    Task SendNotificationToUserAsync(string userId, string title, string message, NotificationType type, string? actionUrl = null, Dictionary<string, object>? metadata = null);
+    Task SendNotificationToUserAsync(string username, string title, string message, NotificationType type, string? actionUrl = null, Dictionary<string, object>? metadata = null);
     Task SendNotificationToGroupAsync(string groupName, string title, string message, NotificationType type, string? actionUrl = null, Dictionary<string, object>? metadata = null);
-    Task<List<NotificationDto>> GetUserNotificationsAsync(string userId, bool unreadOnly = false);
+    Task<List<NotificationDto>> GetUserNotificationsAsync(string username, bool unreadOnly = false);
     Task MarkNotificationAsReadAsync(Guid notificationId);
-    Task MarkAllNotificationsAsReadAsync(string userId);
+    Task MarkAllNotificationsAsReadAsync(string username);
 }

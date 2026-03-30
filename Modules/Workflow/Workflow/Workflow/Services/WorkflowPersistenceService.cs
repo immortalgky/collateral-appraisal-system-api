@@ -489,7 +489,8 @@ public class WorkflowPersistenceService : IWorkflowPersistenceService
             AllowTrailingCommas = false,
             ReadCommentHandling = JsonCommentHandling.Disallow,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = JsonIgnoreCondition.Never
+            DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
         };
 
         try

@@ -25,6 +25,7 @@ public class AppraisalAssignment : Entity<Guid>
 
     // Assignment Method
     public string AssignmentMethod { get; private set; } = null!; // Manual, AutoRule, Quotation
+    public string? InternalFollowupAssignmentMethod { get; private set; } // Manual, RoundRobin
     public Guid? AutoRuleId { get; private set; }
     public Guid? QuotationRequestId { get; private set; }
 
@@ -59,6 +60,7 @@ public class AppraisalAssignment : Entity<Guid>
         string? assigneeCompanyId,
         string assignmentMethod,
         string? internalAppraiserId,
+        string? internalFollowupMethod,
         Guid? autoRuleId,
         Guid? previousAssignmentId,
         int reassignmentNumber,
@@ -71,6 +73,7 @@ public class AppraisalAssignment : Entity<Guid>
         AssigneeCompanyId = assigneeCompanyId;
         AssignmentMethod = assignmentMethod;
         InternalAppraiserId = internalAppraiserId;
+        InternalFollowupAssignmentMethod = internalFollowupMethod;
         AutoRuleId = autoRuleId;
         PreviousAssignmentId = previousAssignmentId;
         ReassignmentNumber = reassignmentNumber;
@@ -90,6 +93,7 @@ public class AppraisalAssignment : Entity<Guid>
         string? assigneeCompanyId = null,
         string assignmentMethod = "Manual",
         string? internalAppraiserId = null,
+        string? internalFollowupMethod = null,
         Guid? autoRuleId = null,
         Guid? previousAssignmentId = null,
         int reassignmentNumber = 1,
@@ -104,6 +108,7 @@ public class AppraisalAssignment : Entity<Guid>
             assigneeCompanyId,
             assignmentMethod,
             internalAppraiserId,
+            internalFollowupMethod,
             autoRuleId,
             previousAssignmentId,
             reassignmentNumber,
@@ -119,6 +124,7 @@ public class AppraisalAssignment : Entity<Guid>
         string? assigneeCompanyId = null,
         string assignmentMethod = "Manual",
         string? internalAppraiserId = null,
+        string? internalFollowupMethod = null,
         Guid? autoRuleId = null,
         Guid? previousAssignmentId = null,
         int reassignmentNumber = 1,
@@ -130,6 +136,7 @@ public class AppraisalAssignment : Entity<Guid>
         AssigneeCompanyId = assigneeCompanyId;
         AssignmentMethod = assignmentMethod;
         InternalAppraiserId = internalAppraiserId;
+        InternalFollowupAssignmentMethod = internalFollowupMethod;
         AutoRuleId = autoRuleId;
         PreviousAssignmentId = previousAssignmentId;
         ReassignmentNumber = reassignmentNumber;

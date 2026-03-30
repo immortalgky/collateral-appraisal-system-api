@@ -1,5 +1,7 @@
 namespace Auth.Domain.Auth.Features.Me;
 
+public record MeGroupDto(Guid GroupId, string GroupName, string Scope);
+
 public record MeResult(
     Guid Id,
     string Username,
@@ -11,5 +13,6 @@ public record MeResult(
     string? Department,
     Guid? CompanyId,
     List<string> Roles,
-    List<string> Permissions
+    List<string> Permissions,
+    List<MeGroupDto> Groups
 );

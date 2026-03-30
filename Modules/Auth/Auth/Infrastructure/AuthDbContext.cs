@@ -1,4 +1,5 @@
 using Auth.Domain.Companies;
+using Auth.Domain.Groups;
 
 namespace Auth.Infrastructure;
 
@@ -9,6 +10,9 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
     public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<Company> Companies => Set<Company>();
+    public DbSet<Group> Groups => Set<Group>();
+    public DbSet<GroupUser> GroupUsers => Set<GroupUser>();
+    public DbSet<GroupMonitoring> GroupMonitoring => Set<GroupMonitoring>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -26,5 +30,8 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
 
         // Global query filter for soft-deleted companies
         builder.Entity<Company>().HasQueryFilter(c => !c.IsDeleted);
+
+        // Global query filter for soft-deleted groups
+        builder.Entity<Group>().HasQueryFilter(g => !g.IsDeleted);
     }
 }

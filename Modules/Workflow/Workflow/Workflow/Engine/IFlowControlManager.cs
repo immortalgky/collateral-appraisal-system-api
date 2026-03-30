@@ -43,4 +43,13 @@ public interface IFlowControlManager
     /// Gets the initial activity for a workflow schema
     /// </summary>
     ActivityDefinition GetStartActivity(WorkflowSchema workflowSchema);
+
+    /// <summary>
+    /// Determines all next activities for fork activities (multiple branch targets).
+    /// Returns a list of (branchId, activityId) tuples.
+    /// </summary>
+    List<(string BranchId, string ActivityId)> DetermineNextActivitiesForFork(
+        WorkflowSchema workflowSchema,
+        string forkActivityId,
+        ActivityResult activityResult);
 }

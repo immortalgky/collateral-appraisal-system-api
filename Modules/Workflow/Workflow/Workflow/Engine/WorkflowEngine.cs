@@ -1,3 +1,4 @@
+using Workflow.Workflow.Activities;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Activities.Factories;
 using Workflow.Workflow.Engine.Core;
@@ -58,7 +59,7 @@ public class WorkflowEngine : IWorkflowEngine
                 return WorkflowExecutionResult.Failed(null, $"Workflow definition not found: {workflowDefinitionId}");
 
             // 2. Initialize a workflow instance via lifecycle manager
-            var workflowInstance = _lifecycleManager.InitializeWorkflowAsync(
+            var workflowInstance = await _lifecycleManager.InitializeWorkflowAsync(
                 workflowDefinitionId, workflowSchema, instanceName, startedBy, initialVariables, correlationId,
                 assignmentOverrides, cancellationToken);
 
@@ -168,10 +169,15 @@ public class WorkflowEngine : IWorkflowEngine
                     workflowInstanceId, nextAssignmentOverrides.Count);
             }
 
-            // 4. Resume the workflow execution using enhanced ExecuteWorkflowAsync
+            // 4. Ensure completedBy is available in resume input for activities
+            var resumeInput = input ?? new Dictionary<string, object>();
+            if (!resumeInput.ContainsKey("completedBy") && !string.IsNullOrEmpty(completedBy))
+                resumeInput["completedBy"] = completedBy;
+
+            // Resume the workflow execution using enhanced ExecuteWorkflowAsync
             var executionResult = await ExecuteWorkflowAsync(workflowSchema, workflowInstance,
                 currentActivity,
-                input ?? new Dictionary<string, object>(), true, cancellationToken);
+                resumeInput, true, cancellationToken);
 
             _logger.LogInformation("ORCHESTRATION: Complete workflow resume finished with status {Status}",
                 executionResult.Status);
@@ -266,28 +272,43 @@ public class WorkflowEngine : IWorkflowEngine
             switch (activityResult.Status)
             {
                 case ActivityResultStatus.Completed:
-                case ActivityResultStatus.Skipped: // Treat skipped the same as completed
+                case ActivityResultStatus.Skipped:
                     await _stateManager.CreateCheckpointAsync(workflowInstance, "Activity completed",
                         cancellationToken);
 
-                    // Determine the next activity
+                    // --- Fork handling: if a ForkActivity just completed, start parallel branches ---
+                    if (currentActivity.Type == ActivityTypes.ForkActivity)
+                    {
+                        var forkResult = await HandleForkCompletionAsync(
+                            context, currentActivity, activityResult, cancellationToken);
+                        if (forkResult != null)
+                            return forkResult;
+                        // If forkResult is null, no branches were created (e.g., 0 active branches) - fall through to normal next
+                    }
+
+                    // --- Branch completion: if in parallel mode and a branch activity completed ---
+                    if (workflowInstance.IsInParallelMode() && isResume)
+                    {
+                        var branchResult = await HandleBranchActivityCompletionAsync(
+                            context, currentActivity, activityResult, cancellationToken);
+                        if (branchResult != null)
+                            return branchResult;
+                    }
+
+                    // Determine the next activity (normal single-path flow)
                     var nextActivity = await DetermineNextWorkflowActivityAsync(
                         context, currentActivity, activityResult, cancellationToken);
 
                     if (nextActivity == null)
                     {
                         await _lifecycleManager.CompleteWorkflowAsync(workflowInstance, cancellationToken);
-
-                        // Checkpoint successful workflow completion
                         await _stateManager.CreateCheckpointAsync(workflowInstance,
                             "Workflow completed successfully", cancellationToken);
-
                         return WorkflowExecutionResult.Completed(workflowInstance);
                     }
 
                     // Continue to next activity
                     activitiesToExecute.Enqueue(nextActivity);
-
                     break;
 
                 case ActivityResultStatus.Failed:
@@ -302,7 +323,6 @@ public class WorkflowEngine : IWorkflowEngine
                         cancellationToken);
 
                     await _stateManager.CreateCheckpointAsync(workflowInstance, "Workflow failed", cancellationToken);
-
                     return WorkflowExecutionResult.Failed(workflowInstance, errorMessage);
 
                 case ActivityResultStatus.Pending:
@@ -311,9 +331,7 @@ public class WorkflowEngine : IWorkflowEngine
                         workflowInstance.Id, pauseReason);
 
                     await _lifecycleManager.PauseWorkflowAsync(workflowInstance, pauseReason, cancellationToken);
-
                     await _stateManager.CreateCheckpointAsync(workflowInstance, "Workflow paused", cancellationToken);
-
                     return WorkflowExecutionResult.Pending(workflowInstance, currentActivity.Id);
 
                 default:
@@ -328,7 +346,6 @@ public class WorkflowEngine : IWorkflowEngine
                         cancellationToken);
 
                     await _stateManager.CreateCheckpointAsync(workflowInstance, "Workflow failed", cancellationToken);
-
                     return WorkflowExecutionResult.Failed(workflowInstance, unknownStatusError);
             }
         }
@@ -503,6 +520,326 @@ public class WorkflowEngine : IWorkflowEngine
 
             throw;
         }
+    }
+
+    /// <summary>
+    /// Handles fork activity completion: creates branch activity states and starts first branch.
+    /// Returns a WorkflowExecutionResult if the engine should stop (e.g., pending), or null to continue normal flow.
+    /// </summary>
+    private async Task<WorkflowExecutionResult?> HandleForkCompletionAsync(
+        WorkflowExecutionContext context,
+        ActivityDefinition forkActivity,
+        ActivityResult activityResult,
+        CancellationToken cancellationToken)
+    {
+        var workflowInstance = context.WorkflowInstance;
+        var forkId = activityResult.OutputData.TryGetValue("forkId", out var fid) ? fid?.ToString() : null;
+
+        if (string.IsNullOrEmpty(forkId))
+            return null; // No fork context, fall through to normal routing
+
+        var branchTargets = _flowControlManager.DetermineNextActivitiesForFork(
+            context.Schema, forkActivity.Id, activityResult);
+
+        if (!branchTargets.Any())
+        {
+            _logger.LogDebug("ENGINE: Fork {ForkId} produced no branch targets, continuing normally", forkId);
+            return null;
+        }
+
+        _logger.LogInformation("ENGINE: Fork {ForkId} creating {Count} branch activities",
+            forkId, branchTargets.Count);
+
+        // Create BranchActivityState entries for all branches
+        foreach (var (branchId, activityId) in branchTargets)
+        {
+            workflowInstance.AddBranchActivity(new BranchActivityState
+            {
+                ForkId = forkId,
+                BranchId = branchId,
+                ActivityId = activityId,
+                Status = "Pending"
+            });
+        }
+
+        // Execute the first branch activity
+        var firstBranch = branchTargets.First();
+        var firstBranchActivityDef = context.Schema.Activities.FirstOrDefault(a => a.Id == firstBranch.ActivityId);
+
+        if (firstBranchActivityDef == null)
+        {
+            return WorkflowExecutionResult.Failed(workflowInstance,
+                $"Branch activity not found: {firstBranch.ActivityId}");
+        }
+
+        // Set current activity to first branch
+        await _lifecycleManager.AdvanceWorkflowAsync(workflowInstance, firstBranch.ActivityId,
+            cancellationToken: cancellationToken);
+
+        // Execute it
+        var branchResult = await ExecuteSingleActivityAsync(context, firstBranchActivityDef, null, false, cancellationToken);
+
+        switch (branchResult.Status)
+        {
+            case ActivityResultStatus.Pending:
+                var pauseReason = $"Branch activity {firstBranch.ActivityId} requires external completion (fork {forkId})";
+                await _lifecycleManager.PauseWorkflowAsync(workflowInstance, pauseReason, cancellationToken);
+                await _stateManager.CreateCheckpointAsync(workflowInstance, "Fork branch paused", cancellationToken);
+                return WorkflowExecutionResult.Pending(workflowInstance, firstBranch.ActivityId);
+
+            case ActivityResultStatus.Failed:
+                return WorkflowExecutionResult.Failed(workflowInstance,
+                    branchResult.ErrorMessage ?? "Branch activity failed");
+
+            case ActivityResultStatus.Completed:
+            case ActivityResultStatus.Skipped:
+                // Branch activity completed immediately (e.g., auto-activity).
+                // Mark this branch as completed and advance it.
+                await _stateManager.CreateCheckpointAsync(workflowInstance, "Branch activity completed immediately", cancellationToken);
+                // Delegate to branch completion handler
+                var completionResult = await HandleBranchActivityCompletionAsync(
+                    context, firstBranchActivityDef, branchResult, cancellationToken);
+                return completionResult;
+
+            default:
+                return WorkflowExecutionResult.Failed(workflowInstance,
+                    $"Unknown branch activity result: {branchResult.Status}");
+        }
+    }
+
+    /// <summary>
+    /// After a branch activity completes, advance the branch or evaluate join.
+    /// Returns a WorkflowExecutionResult, or null if the engine should continue normal flow.
+    /// </summary>
+    private async Task<WorkflowExecutionResult?> HandleBranchActivityCompletionAsync(
+        WorkflowExecutionContext context,
+        ActivityDefinition completedActivity,
+        ActivityResult activityResult,
+        CancellationToken cancellationToken)
+    {
+        var workflowInstance = context.WorkflowInstance;
+        var branchState = workflowInstance.GetBranchActivity(completedActivity.Id);
+
+        if (branchState == null)
+            return null; // Not a branch activity, fall through to normal flow
+
+        var forkId = branchState.ForkId;
+        var branchId = branchState.BranchId;
+
+        _logger.LogDebug("ENGINE: Branch activity {ActivityId} completed for fork {ForkId} branch {BranchId}",
+            completedActivity.Id, forkId, branchId);
+
+        // Determine next activity in this branch
+        var nextActivityId = await _flowControlManager.DetermineNextActivityAsync(
+            context.Schema, completedActivity.Id, activityResult,
+            workflowInstance.Variables, cancellationToken);
+
+        if (string.IsNullOrEmpty(nextActivityId))
+        {
+            // Branch has no next activity - mark completed and remove
+            workflowInstance.RemoveBranchActivity(forkId, branchId);
+            return await PickNextBranchOrComplete(context, forkId, cancellationToken);
+        }
+
+        var nextActivityDef = context.Schema.Activities.FirstOrDefault(a => a.Id == nextActivityId);
+        if (nextActivityDef == null)
+            return WorkflowExecutionResult.Failed(workflowInstance, $"Unknown activity: {nextActivityId}");
+
+        // Is the next activity a JoinActivity?
+        if (nextActivityDef.Type == ActivityTypes.JoinActivity)
+        {
+            // Record branch result in fork results variable
+            RecordBranchResult(workflowInstance, forkId, branchId, activityResult);
+            workflowInstance.RemoveBranchActivity(forkId, branchId);
+
+            // Try executing the join to see if condition is met
+            await _lifecycleManager.AdvanceWorkflowAsync(workflowInstance, nextActivityId,
+                cancellationToken: cancellationToken);
+            var joinResult = await ExecuteSingleActivityAsync(context, nextActivityDef, null, false, cancellationToken);
+
+            if (joinResult.Status == ActivityResultStatus.Completed)
+            {
+                // Join condition met - clear all branch state for this fork and continue past join
+                workflowInstance.ClearBranchActivities(forkId);
+                _logger.LogInformation("ENGINE: Join completed for fork {ForkId}, continuing workflow", forkId);
+
+                // Determine next activity after join
+                var afterJoinId = await _flowControlManager.DetermineNextActivityAsync(
+                    context.Schema, nextActivityDef.Id, joinResult,
+                    workflowInstance.Variables, cancellationToken);
+
+                if (string.IsNullOrEmpty(afterJoinId))
+                {
+                    await _lifecycleManager.CompleteWorkflowAsync(workflowInstance, cancellationToken);
+                    await _stateManager.CreateCheckpointAsync(workflowInstance, "Workflow completed after join", cancellationToken);
+                    return WorkflowExecutionResult.Completed(workflowInstance);
+                }
+
+                var afterJoinDef = context.Schema.Activities.FirstOrDefault(a => a.Id == afterJoinId);
+                if (afterJoinDef == null)
+                    return WorkflowExecutionResult.Failed(workflowInstance, $"Unknown activity: {afterJoinId}");
+
+                await _lifecycleManager.AdvanceWorkflowAsync(workflowInstance, afterJoinId,
+                    cancellationToken: cancellationToken);
+
+                // Execute the post-join activity
+                var postJoinResult = await ExecuteSingleActivityAsync(context, afterJoinDef, null, false, cancellationToken);
+                switch (postJoinResult.Status)
+                {
+                    case ActivityResultStatus.Pending:
+                        await _lifecycleManager.PauseWorkflowAsync(workflowInstance,
+                            $"Activity {afterJoinId} requires external completion", cancellationToken);
+                        await _stateManager.CreateCheckpointAsync(workflowInstance, "Paused after join", cancellationToken);
+                        return WorkflowExecutionResult.Pending(workflowInstance, afterJoinId);
+                    case ActivityResultStatus.Failed:
+                        return WorkflowExecutionResult.Failed(workflowInstance, postJoinResult.ErrorMessage ?? "Post-join activity failed");
+                    case ActivityResultStatus.Completed:
+                    case ActivityResultStatus.Skipped:
+                        // Continue normal execution - return null to let the main loop handle it
+                        return null;
+                    default:
+                        return WorkflowExecutionResult.Failed(workflowInstance, $"Unknown status: {postJoinResult.Status}");
+                }
+            }
+
+            if (joinResult.Status == ActivityResultStatus.Pending)
+            {
+                // Join not ready yet - pick next pending branch
+                return await PickNextBranchOrComplete(context, forkId, cancellationToken);
+            }
+
+            return WorkflowExecutionResult.Failed(workflowInstance,
+                joinResult.ErrorMessage ?? "Join activity failed");
+        }
+
+        // Next activity is another activity within the branch - update branch state and execute it
+        workflowInstance.UpdateBranchActivityId(forkId, branchId, nextActivityId);
+        await _lifecycleManager.AdvanceWorkflowAsync(workflowInstance, nextActivityId,
+            cancellationToken: cancellationToken);
+
+        var nextResult = await ExecuteSingleActivityAsync(context, nextActivityDef, null, false, cancellationToken);
+
+        switch (nextResult.Status)
+        {
+            case ActivityResultStatus.Pending:
+                await _lifecycleManager.PauseWorkflowAsync(workflowInstance,
+                    $"Branch activity {nextActivityId} requires external completion", cancellationToken);
+                await _stateManager.CreateCheckpointAsync(workflowInstance, "Branch activity paused", cancellationToken);
+                return WorkflowExecutionResult.Pending(workflowInstance, nextActivityId);
+
+            case ActivityResultStatus.Failed:
+                return WorkflowExecutionResult.Failed(workflowInstance, nextResult.ErrorMessage ?? "Branch activity failed");
+
+            case ActivityResultStatus.Completed:
+            case ActivityResultStatus.Skipped:
+                await _stateManager.CreateCheckpointAsync(workflowInstance, "Branch activity completed", cancellationToken);
+                return await HandleBranchActivityCompletionAsync(context, nextActivityDef, nextResult, cancellationToken);
+
+            default:
+                return WorkflowExecutionResult.Failed(workflowInstance, $"Unknown status: {nextResult.Status}");
+        }
+    }
+
+    /// <summary>
+    /// Picks the next pending branch activity to work on, or completes if no branches remain.
+    /// </summary>
+    private async Task<WorkflowExecutionResult> PickNextBranchOrComplete(
+        WorkflowExecutionContext context,
+        string forkId,
+        CancellationToken cancellationToken)
+    {
+        var workflowInstance = context.WorkflowInstance;
+        var remainingBranches = workflowInstance.ActiveBranchActivities
+            .Where(b => b.ForkId == forkId && b.Status == "Pending")
+            .ToList();
+
+        if (remainingBranches.Any())
+        {
+            // Pick next pending branch and execute it
+            var nextBranch = remainingBranches.First();
+            var nextBranchDef = context.Schema.Activities.FirstOrDefault(a => a.Id == nextBranch.ActivityId);
+
+            if (nextBranchDef == null)
+                return WorkflowExecutionResult.Failed(workflowInstance, $"Branch activity not found: {nextBranch.ActivityId}");
+
+            await _lifecycleManager.AdvanceWorkflowAsync(workflowInstance, nextBranch.ActivityId,
+                cancellationToken: cancellationToken);
+
+            var branchResult = await ExecuteSingleActivityAsync(context, nextBranchDef, null, false, cancellationToken);
+
+            switch (branchResult.Status)
+            {
+                case ActivityResultStatus.Pending:
+                    await _lifecycleManager.PauseWorkflowAsync(workflowInstance,
+                        $"Branch activity {nextBranch.ActivityId} requires external completion", cancellationToken);
+                    await _stateManager.CreateCheckpointAsync(workflowInstance, "Next branch paused", cancellationToken);
+                    return WorkflowExecutionResult.Pending(workflowInstance, nextBranch.ActivityId);
+
+                case ActivityResultStatus.Failed:
+                    return WorkflowExecutionResult.Failed(workflowInstance, branchResult.ErrorMessage ?? "Branch activity failed");
+
+                case ActivityResultStatus.Completed:
+                case ActivityResultStatus.Skipped:
+                    await _stateManager.CreateCheckpointAsync(workflowInstance, "Branch activity completed", cancellationToken);
+                    var completionResult = await HandleBranchActivityCompletionAsync(context, nextBranchDef, branchResult, cancellationToken);
+                    return completionResult ?? WorkflowExecutionResult.Completed(workflowInstance);
+
+                default:
+                    return WorkflowExecutionResult.Failed(workflowInstance, $"Unknown status: {branchResult.Status}");
+            }
+        }
+
+        // No more branches - all branches completed but join not ready yet
+        // This means we are waiting for external completions on other branches
+        _logger.LogDebug("ENGINE: No more pending branches for fork {ForkId}, waiting", forkId);
+
+        // Check if there are any branches left at all for this fork
+        var anyBranches = workflowInstance.ActiveBranchActivities.Any(b => b.ForkId == forkId);
+        if (!anyBranches)
+        {
+            // All branches completed but join returned Pending - this is unexpected
+            _logger.LogWarning("ENGINE: All branches for fork {ForkId} completed but join still pending", forkId);
+        }
+
+        await _lifecycleManager.PauseWorkflowAsync(workflowInstance,
+            "Waiting for remaining branches to complete", cancellationToken);
+        await _stateManager.CreateCheckpointAsync(workflowInstance, "Waiting for branches", cancellationToken);
+
+        // Return pending with current activity
+        return WorkflowExecutionResult.Pending(workflowInstance, workflowInstance.CurrentActivityId);
+    }
+
+    /// <summary>
+    /// Records a branch execution result into workflow variables for the join activity to read.
+    /// </summary>
+    private static void RecordBranchResult(
+        WorkflowInstance workflowInstance,
+        string forkId,
+        string branchId,
+        ActivityResult activityResult)
+    {
+        var resultsKey = $"fork_{forkId}_results";
+        Dictionary<string, BranchExecutionResult> results;
+
+        if (workflowInstance.Variables.TryGetValue(resultsKey, out var existingObj) &&
+            existingObj is Dictionary<string, BranchExecutionResult> existingResults)
+        {
+            results = existingResults;
+        }
+        else
+        {
+            results = new Dictionary<string, BranchExecutionResult>();
+        }
+
+        results[branchId] = new BranchExecutionResult
+        {
+            BranchId = branchId,
+            Status = BranchStatus.Completed,
+            OutputData = activityResult.OutputData,
+            CompletedAt = DateTime.UtcNow
+        };
+
+        workflowInstance.UpdateVariables(new Dictionary<string, object> { [resultsKey] = results });
     }
 
     public async Task<bool> ValidateWorkflowDefinitionAsync(

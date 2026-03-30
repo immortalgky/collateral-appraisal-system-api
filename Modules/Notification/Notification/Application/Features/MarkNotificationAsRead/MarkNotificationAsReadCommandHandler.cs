@@ -21,9 +21,9 @@ public class
             return new MarkNotificationAsReadResponse(true, "Notification marked as read");
         }
 
-        if (!string.IsNullOrEmpty(request.UserId))
+        if (!string.IsNullOrEmpty(request.Username))
         {
-            await _notificationService.MarkAllNotificationsAsReadAsync(request.UserId);
+            await _notificationService.MarkAllNotificationsAsReadAsync(request.Username);
             return new MarkNotificationAsReadResponse(true, "All notifications marked as read");
         }
 

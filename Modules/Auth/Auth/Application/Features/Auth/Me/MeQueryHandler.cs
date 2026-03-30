@@ -24,6 +24,13 @@ public class MeQueryHandler(
         var roles = await userManager.GetRolesAsync(user);
         var permissions = await CalculatePermissions(user, roles);
 
+        var groups = await (
+            from gu in dbContext.GroupUsers
+            join g in dbContext.Groups on gu.GroupId equals g.Id
+            where gu.UserId == query.UserId
+            select new MeGroupDto(g.Id, g.Name, g.Scope)
+        ).ToListAsync(cancellationToken);
+
         return new MeResult(
             user.Id,
             user.UserName ?? string.Empty,
@@ -35,7 +42,8 @@ public class MeQueryHandler(
             user.Department,
             user.CompanyId,
             roles.ToList(),
-            permissions
+            permissions,
+            groups
         );
     }
 

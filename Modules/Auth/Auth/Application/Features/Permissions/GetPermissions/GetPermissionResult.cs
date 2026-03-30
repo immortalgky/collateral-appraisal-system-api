@@ -1,3 +1,7 @@
-namespace Auth.Domain.Permissions.Features.GetPermissions;
+using Shared.Pagination;
 
-public record GetPermissionResult(PaginatedResult<PermissionDto> Result);
+namespace Auth.Application.Features.Permissions.GetPermissions;
+
+public record GetPermissionResult(IEnumerable<PermissionItemDto> Items, long Count, int PageNumber, int PageSize);
+
+public record PermissionItemDto(Guid Id, string PermissionCode, string DisplayName, string Description, string Module);

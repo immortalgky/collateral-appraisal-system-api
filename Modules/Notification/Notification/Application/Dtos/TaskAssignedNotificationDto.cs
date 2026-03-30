@@ -1,13 +1,11 @@
-using Shared.Messaging.Values;
-
 namespace Notification.Domain.Notifications.Dtos;
 
 public record TaskAssignedNotificationDto(
     Guid CorrelationId,
-    TaskName TaskName,
+    string TaskName,
     string AssignedTo,
     string AssignedType,
-    long RequestId,
+    string AppraisalNumber,
     string CurrentState,
     DateTime AssignedAt,
     string? NotifiedTo = default!

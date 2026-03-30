@@ -62,6 +62,7 @@ public class ActivityProcessPipeline(
                 ActivityName = activityId,
                 CompletedBy = completedBy,
                 Input = input,
+                Variables = workflowInstance.Variables,
                 Parameters = config.Parameters
             };
 

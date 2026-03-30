@@ -68,6 +68,10 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
 
         // Routing activities
         _activityTypes[ActivityTypes.RoutingActivity] = typeof(RoutingActivity);
+        _activityTypes[ActivityTypes.CompanySelectionActivity] = typeof(CompanySelectionActivity);
+
+        // Approval activity
+        _activityTypes[ActivityTypes.ApprovalActivity] = typeof(ApprovalActivity);
 
         // Appraisal-specific activities
         _activityTypes[AppraisalActivityTypes.RequestSubmission] = typeof(RequestSubmissionActivity);
@@ -235,6 +239,69 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
                     DefaultValue = "admin_review",
                     Description =
                         "Decision to use when no routing conditions match (e.g., 'admin_review', 'auto_assign_external')"
+                }
+            }
+        };
+
+        // Company Selection Activity Definition
+        _activityDefinitions[ActivityTypes.CompanySelectionActivity] = new ActivityTypeDefinition
+        {
+            Type = ActivityTypes.CompanySelectionActivity,
+            Name = "Company Selection Activity",
+            Description =
+                "Selects external company via round-robin or manual assignment, filtered by loan type.",
+            Category = "Flow Control",
+            Icon = "building-office",
+            Color = "#0ea5e9",
+            Properties = new List<ActivityPropertyDefinition>()
+        };
+
+        // Approval Activity Definition
+        _activityDefinitions[ActivityTypes.ApprovalActivity] = new ActivityTypeDefinition
+        {
+            Type = ActivityTypes.ApprovalActivity,
+            Name = "Approval Activity",
+            Description = "Multi-member committee approval with quorum and majority voting",
+            Category = "Approval",
+            Icon = "check-badge",
+            Color = "#7c3aed",
+            Properties = new List<ActivityPropertyDefinition>
+            {
+                new()
+                {
+                    Name = "activityName", DisplayName = "Activity Name", Type = "string", Required = false,
+                    Description = "Name of the approval activity"
+                },
+                new()
+                {
+                    Name = "memberSource", DisplayName = "Member Source", Type = "object", Required = true,
+                    Description = "Configuration for member resolution (inline, committee, threshold)"
+                },
+                new()
+                {
+                    Name = "voteOptions", DisplayName = "Vote Options", Type = "array", Required = false,
+                    Description = "Available vote options (default: approve, reject, route_back)"
+                },
+                new()
+                {
+                    Name = "quorum", DisplayName = "Quorum Config", Type = "object", Required = false,
+                    Description = "Quorum configuration (for inline mode)"
+                },
+                new()
+                {
+                    Name = "majority", DisplayName = "Majority Config", Type = "object", Required = false,
+                    Description = "Majority configuration (for inline mode)"
+                },
+                new()
+                {
+                    Name = "timeoutDuration", DisplayName = "Timeout Duration", Type = "string", Required = false,
+                    Description = "ISO 8601 duration for task timeout (e.g., PT72H)"
+                },
+                new()
+                {
+                    Name = "decisionConditions", DisplayName = "Decision Conditions", Type = "object",
+                    Required = false,
+                    Description = "Map of decision names to condition expressions for output routing"
                 }
             }
         };

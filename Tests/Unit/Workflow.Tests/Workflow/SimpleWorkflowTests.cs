@@ -5,6 +5,7 @@ using Workflow.AssigneeSelection.Pipeline;
 using Workflow.AssigneeSelection.Services;
 using Workflow.Services.Configuration;
 using Workflow.Services.Configuration.Models;
+using Workflow.Sla.Services;
 using Workflow.Workflow.Actions.Core;
 using Workflow.Workflow.Activities;
 using Workflow.Workflow.Activities.Core;
@@ -25,29 +26,30 @@ public class SimpleWorkflowTests
     public void TaskActivity_Constructor_ShouldCreateInstanceSuccessfully()
     {
         // Arrange
-        var assigneeSelectorFactory = Substitute.For<IAssigneeSelectorFactory>();
-        var cascadingAssignmentEngine = Substitute.For<ICascadingAssignmentEngine>();
+        var assignmentPipeline = Substitute.For<IAssignmentPipeline>();
         var configurationService = Substitute.For<ITaskConfigurationService>();
         var customAssignmentServiceFactory = Substitute.For<ICustomAssignmentServiceFactory>();
         var actionExecutor = Substitute.For<IWorkflowActionExecutor>();
         var auditService = Substitute.For<IWorkflowAuditService>();
-        var bookmarkService = Substitute.For<IWorkflowBookmarkService>();
-        var assignmentPipeline = Substitute.For<IAssignmentPipeline>();
-        var logger = Substitute.For<ILogger<HumanTaskActivity>>();
+        var publisher = Substitute.For<MediatR.IPublisher>();
+        var logger = Substitute.For<ILogger<TaskActivity>>();
 
         // Act
-        var publisher = Substitute.For<MediatR.IPublisher>();
-        var humanTaskActivity = new HumanTaskActivity(
-            bookmarkService,
-            auditService,
+        var slaCalculator = Substitute.For<ISlaCalculator>();
+        var taskActivity = new TaskActivity(
             assignmentPipeline,
+            configurationService,
+            customAssignmentServiceFactory,
+            actionExecutor,
+            auditService,
+            slaCalculator,
             publisher,
             logger);
 
         // Assert
-        humanTaskActivity.Should().NotBeNull();
-        humanTaskActivity.ActivityType.Should().Be("HumanTaskActivity");
-        humanTaskActivity.Name.Should().Be("Human Task");
+        taskActivity.Should().NotBeNull();
+        taskActivity.ActivityType.Should().Be("TaskActivity");
+        taskActivity.Name.Should().Be("Task Activity");
     }
 
     [Fact]

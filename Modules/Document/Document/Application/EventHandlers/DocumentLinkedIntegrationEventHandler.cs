@@ -1,12 +1,15 @@
+using Document.Data;
 using Document.Domain.UploadSessions.Model;
 using Shared.Data;
+using Shared.Messaging.Filters;
 
 namespace Document.EventHandlers;
 
 public class DocumentLinkedIntegrationEventHandler(
     IDocumentUnitOfWork uow,
     IDateTimeProvider dateTimeProvider,
-    ILogger<DocumentLinkedIntegrationEventHandler> logger)
+    ILogger<DocumentLinkedIntegrationEventHandler> logger,
+    InboxGuard<DocumentDbContext> inboxGuard)
     : IConsumer<DocumentLinkedIntegrationEventV2>
 {
     private readonly IRepository<Domain.Documents.Models.Document, Guid> _documentRepository =
@@ -14,6 +17,9 @@ public class DocumentLinkedIntegrationEventHandler(
 
     public async Task Consume(ConsumeContext<DocumentLinkedIntegrationEventV2> @event)
     {
+        if (await inboxGuard.TryClaimAsync(@event.MessageId, GetType().Name, @event.CancellationToken))
+            return;
+
         var document =
             await _documentRepository.GetByIdAsync(@event.Message.DocumentId, @event.CancellationToken);
 
@@ -28,6 +34,8 @@ public class DocumentLinkedIntegrationEventHandler(
         logger.LogInformation("Document {DocumentId} linked", @event.Message.DocumentId);
 
         await uow.SaveChangesAsync(@event.CancellationToken);
+
+        await inboxGuard.MarkAsProcessedAsync(@event.MessageId, GetType().Name, @event.CancellationToken);
     }
 }
 

@@ -1,11 +1,11 @@
 using FluentValidation;
 
-namespace Auth.Domain.Roles.Features.DeleteRole;
+namespace Auth.Application.Features.Roles.DeleteRole;
 
 public class DeleteRoleCommandValidator : AbstractValidator<DeleteRoleCommand>
 {
     public DeleteRoleCommandValidator()
     {
-        RuleFor(x => x.Id).NotEmpty().WithMessage("Id is required.");
+        RuleFor(x => x.Id).NotEmpty();
     }
 }

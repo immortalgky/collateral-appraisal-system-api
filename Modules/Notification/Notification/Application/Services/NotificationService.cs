@@ -30,19 +30,18 @@ public class NotificationService : INotificationService
     public async Task SendTaskAssignedNotificationAsync(TaskAssignedNotificationDto notification)
     {
         var title = $"New Task Assigned: {notification.TaskName}";
-        var message = $"You have been assigned a new task for Request #{notification.RequestId} in the {notification.CurrentState} stage.";
+        var message = $"You have been assigned a new task for Appraisal #{notification.AppraisalNumber} in the {notification.CurrentState} stage.";
 
         await SendNotificationToUserAsync(
             notification.AssignedTo,
             title,
             message,
             NotificationType.TaskAssigned,
-            $"/requests/{notification.RequestId}/tasks",
-            new Dictionary<string, object>
+            metadata: new Dictionary<string, object>
             {
                 { "correlationId", notification.CorrelationId },
                 { "taskName", notification.TaskName },
-                { "requestId", notification.RequestId },
+                { "appraisalNumber", notification.AppraisalNumber },
                 { "currentState", notification.CurrentState },
                 { "assignedType", notification.AssignedType }
             });
@@ -54,19 +53,18 @@ public class NotificationService : INotificationService
     public async Task SendTaskAssignedToOtherNotificationAsync(TaskAssignedNotificationDto notification)
     {
         var title = $"Task Assigned: {notification.TaskName}";
-        var message = $"#{notification.AssignedTo} has been assigned a new task for Request #{notification.RequestId} in the {notification.CurrentState} stage.";
+        var message = $"{notification.AssignedTo} has been assigned a new task for Appraisal #{notification.AppraisalNumber} in the {notification.CurrentState} stage.";
 
         await SendNotificationToUserAsync(
             notification.NotifiedTo ?? notification.AssignedTo,
             title,
             message,
             NotificationType.TaskAssigned,
-            $"/requests/{notification.RequestId}/tasks",
-            new Dictionary<string, object>
+            metadata: new Dictionary<string, object>
             {
                 { "correlationId", notification.CorrelationId },
                 { "taskName", notification.TaskName },
-                { "requestId", notification.RequestId },
+                { "appraisalNumber", notification.AppraisalNumber },
                 { "currentState", notification.CurrentState },
                 { "assignedType", notification.AssignedType }
             });
@@ -79,20 +77,19 @@ public class NotificationService : INotificationService
     {
         var title = $"Task Completed: {notification.TaskName}";
         var actionText = notification.ActionTaken == "P" ? "approved" : "returned for revision";
-        var message = $"Task {notification.TaskName} has been {actionText} by {notification.CompletedBy}. Request #{notification.RequestId} moved from {notification.PreviousState} to {notification.NextState}.";
+        var message = $"Task {notification.TaskName} has been {actionText} by {notification.CompletedBy}. Appraisal #{notification.AppraisalNumber} moved from {notification.PreviousState} to {notification.NextState}.";
 
         // Notify relevant users about the completion
         await SendNotificationToGroupAsync(
-            $"Request_{notification.RequestId}",
+            $"Appraisal_{notification.CorrelationId}",
             title,
             message,
             NotificationType.TaskCompleted,
-            $"/requests/{notification.RequestId}",
-            new Dictionary<string, object>
+            metadata: new Dictionary<string, object>
             {
                 { "correlationId", notification.CorrelationId },
                 { "taskName", notification.TaskName },
-                { "requestId", notification.RequestId },
+                { "appraisalNumber", notification.AppraisalNumber },
                 { "completedBy", notification.CompletedBy },
                 { "actionTaken", notification.ActionTaken },
                 { "previousState", notification.PreviousState },
@@ -133,12 +130,12 @@ public class NotificationService : INotificationService
             notification.RequestId, notification.CurrentState);
     }
 
-    public async Task SendNotificationToUserAsync(string userId, string title, string message, NotificationType type, string? actionUrl = null, Dictionary<string, object>? metadata = null)
+    public async Task SendNotificationToUserAsync(string username, string title, string message, NotificationType type, string? actionUrl = null, Dictionary<string, object>? metadata = null)
     {
         var notification = new UserNotification
         {
             Id = Guid.CreateVersion7(),
-            UserId = userId,
+            Username = username,
             Title = title,
             Message = message,
             Type = type,
@@ -152,7 +149,7 @@ public class NotificationService : INotificationService
         await _notificationRepository.AddNotificationAsync(notification);
 
         // Send real-time notification via SignalR
-        await _hubContext.Clients.Group($"User_{userId}")
+        await _hubContext.Clients.Group($"User_{username}")
             .SendAsync("ReceiveNotification", new NotificationDto(
                 notification.Id,
                 notification.Title,
@@ -163,7 +160,7 @@ public class NotificationService : INotificationService
                 notification.ActionUrl,
                 notification.Metadata));
 
-        _logger.LogInformation("Sent notification to user {UserId}: {Title}", userId, title);
+        _logger.LogInformation("Sent notification to user {Username}: {Title}", username, title);
     }
 
     public async Task SendNotificationToGroupAsync(string groupName, string title, string message, NotificationType type, string? actionUrl = null, Dictionary<string, object>? metadata = null)
@@ -182,9 +179,9 @@ public class NotificationService : INotificationService
         _logger.LogInformation("Sent group notification to {GroupName}: {Title}", groupName, title);
     }
 
-    public async Task<List<NotificationDto>> GetUserNotificationsAsync(string userId, bool unreadOnly = false)
+    public async Task<List<NotificationDto>> GetUserNotificationsAsync(string username, bool unreadOnly = false)
     {
-        var notifications = await _notificationRepository.GetUserNotificationsAsync(userId, unreadOnly);
+        var notifications = await _notificationRepository.GetUserNotificationsAsync(username, unreadOnly);
 
         return notifications.Select(n => new NotificationDto(
             n.Id,
@@ -204,9 +201,9 @@ public class NotificationService : INotificationService
         _logger.LogInformation("Marked notification {NotificationId} as read", notificationId);
     }
 
-    public async Task MarkAllNotificationsAsReadAsync(string userId)
+    public async Task MarkAllNotificationsAsReadAsync(string username)
     {
-        await _notificationRepository.MarkAllNotificationsAsReadAsync(userId);
-        _logger.LogInformation("Marked all notifications as read for user {UserId}", userId);
+        await _notificationRepository.MarkAllNotificationsAsReadAsync(username);
+        _logger.LogInformation("Marked all notifications as read for user {Username}", username);
     }
 }

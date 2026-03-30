@@ -35,6 +35,21 @@ public class CompanyRepository(AuthDbContext dbContext) : ICompanyRepository
         return await query.OrderBy(c => c.Name).ToListAsync(cancellationToken);
     }
 
+    public async Task<List<Company>> GetByLoanTypeAsync(string loanType, bool activeOnly = true, CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.Companies.Where(c => !c.IsDeleted);
+
+        if (activeOnly)
+            query = query.Where(c => c.IsActive);
+
+        var companies = await query.OrderBy(c => c.Name).ToListAsync(cancellationToken);
+
+        // Filter by LoanType in-memory since it's a JSON column
+        return companies
+            .Where(c => c.LoanTypes.Contains(loanType, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+    }
+
     public async Task AddAsync(Company company, CancellationToken cancellationToken = default)
     {
         await dbContext.Companies.AddAsync(company, cancellationToken);

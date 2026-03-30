@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Shared.CQRS;
 using Shared.Data;
@@ -16,7 +17,7 @@ public class TransactionalBehavior<TRequest, TResponse>(
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
     {
-        TResponse? response;
+        TResponse? response = default;
 
         // Get the UOW type from the command's marker interface
         var transactionalInterface = typeof(TRequest)
@@ -48,36 +49,40 @@ public class TransactionalBehavior<TRequest, TResponse>(
             return await next(cancellationToken);
         }
 
-        try
+        var strategy = unitOfWork.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            await unitOfWork.BeginTransactionAsync(cancellationToken);
-
-            response = await next(cancellationToken);
-
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-            await unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            logger.LogInformation("[TRANSACTION] Committed transaction for command {Command}",
-                typeof(TRequest).Name);
-        }
-        catch (Exception e)
-        {
-            logger.LogError(
-                "[TRANSACTION] Rolling back transaction for command {Command} due to error: {Error}",
-                typeof(TRequest).Name, e.Message);
             try
             {
-                await unitOfWork.RollbackTransactionAsync(cancellationToken);
-            }
-            catch (Exception rollbackException)
-            {
-                logger.LogError(
-                    "[TRANSACTION] Failed to rollback transaction for command {Command}: {Error}",
-                    typeof(TRequest).Name, rollbackException.Message);
-            }
+                await unitOfWork.BeginTransactionAsync(cancellationToken);
 
-            throw;
-        }
+                response = await next(cancellationToken);
+
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+                await unitOfWork.CommitTransactionAsync(cancellationToken);
+
+                logger.LogInformation("[TRANSACTION] Committed transaction for command {Command}",
+                    typeof(TRequest).Name);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e,
+                    "[TRANSACTION] Rolling back transaction for command {Command} due to error: {Error}",
+                    typeof(TRequest).Name, e.Message);
+                try
+                {
+                    await unitOfWork.RollbackTransactionAsync(cancellationToken);
+                }
+                catch (Exception rollbackException)
+                {
+                    logger.LogError(rollbackException,
+                        "[TRANSACTION] Failed to rollback transaction for command {Command}: {Error}",
+                        typeof(TRequest).Name, rollbackException.Message);
+                }
+
+                throw;
+            }
+        });
 
         return response!;
     }

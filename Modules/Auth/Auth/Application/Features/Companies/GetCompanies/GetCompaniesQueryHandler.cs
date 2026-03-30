@@ -15,7 +15,7 @@ public class GetCompaniesQueryHandler(ICompanyRepository companyRepository)
 
         var dtos = companies.Select(c => new CompanyDto(
             c.Id, c.Name, c.TaxId, c.Phone, c.Email,
-            c.Street, c.City, c.Province, c.PostalCode, c.IsActive
+            c.Street, c.City, c.Province, c.PostalCode, c.ContactPerson, c.IsActive, c.LoanTypes
         )).ToList();
 
         return new GetCompaniesResult(dtos);

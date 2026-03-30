@@ -1,11 +1,16 @@
-using Shared.Messaging.Values;
-
 namespace Workflow.Workflow.Events;
 
 public record TaskAssignedEvent(
     Guid CorrelationId,
-    TaskName TaskName,
+    string TaskName,
     string AssignedTo,
     string AssignedType,
-    DateTime AssignedAt
+    DateTime AssignedAt,
+    Guid WorkflowInstanceId,
+    string ActivityId,
+    DateTime? DueAt = null,
+    string? StartedBy = null,
+    string? WorkflowInstanceName = null,
+    string? TaskDescription = null,
+    string? CompletedBy = null
 ) : IDomainEvent;

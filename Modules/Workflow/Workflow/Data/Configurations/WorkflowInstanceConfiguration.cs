@@ -51,6 +51,12 @@ public class WorkflowInstanceConfiguration : IEntityTypeConfiguration<WorkflowIn
                 v => JsonSerializer.Deserialize<Dictionary<string, RuntimeOverride>>(v, SerializerOptions) ?? new Dictionary<string, RuntimeOverride>())
             .HasColumnType("nvarchar(max)");
         
+        builder.Property(x => x.ActiveBranchActivities)
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, SerializerOptions),
+                v => JsonSerializer.Deserialize<List<BranchActivityState>>(v, SerializerOptions) ?? new List<BranchActivityState>())
+            .HasColumnType("nvarchar(max)");
+
         builder.Property(x => x.ErrorMessage)
             .HasMaxLength(2000);
             

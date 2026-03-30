@@ -1,4 +1,4 @@
-﻿version: '3.9'
+version: '3.9'
 
 services:
   sqlserver:
@@ -20,20 +20,6 @@ services:
       - "6379:6379"
     restart: unless-stopped
 
-  seq:
-    image: datalust/seq:latest
-    container_name: seq
-    environment:
-      - ACCEPT_EULA=Y
-      - SEQ_FIRSTRUN_ADMINUSERNAME=admin
-      - SEQ_FIRSTRUN_ADMINPASSWORD=P@ssw0rd
-    ports:
-      - "5341:80"    # Web UI
-      - "5342:5341"  # Ingestion port
-    volumes:
-      - seq_data:/data
-    restart: unless-stopped
-  
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
@@ -48,7 +34,63 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     restart: unless-stopped
 
+  # Observability stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.4.2
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./observability/loki-config.yaml:/etc/loki/config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/config.yaml
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.7.2
+    container_name: tempo
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "3200:3200"   # Tempo query API
+    volumes:
+      - ./observability/tempo-config.yaml:/etc/tempo/config.yaml
+      - tempo_data:/var/tempo
+    command: -config.file=/etc/tempo/config.yaml
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    container_name: grafana
+    ports:
+      - "3050:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=P@ssw0rd
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
 volumes:
   sql_data:
-  seq_data:
   rabbitmq_data:
+  prometheus_data:
+  loki_data:
+  tempo_data:
+  grafana_data:

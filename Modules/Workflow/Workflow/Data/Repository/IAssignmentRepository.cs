@@ -1,12 +1,10 @@
-using Shared.Messaging.Values;
-
 namespace Workflow.Data.Repository;
 
 public interface IAssignmentRepository
 {
     Task<List<PendingTask>> GetPendingTaskAsync(string userCode, CancellationToken cancellationToken = default);
 
-    Task<PendingTask?> GetPendingTaskAsync(Guid correlationId, TaskName taskName,
+    Task<PendingTask?> GetPendingTaskAsync(Guid correlationId, string taskName,
         CancellationToken cancellationToken = default);
 
     Task<PendingTask?> GetPendingTaskByCorrelationIdAsync(Guid correlationId,
@@ -19,10 +17,10 @@ public interface IAssignmentRepository
     Task<CompletedTask?> GetLastCompletedTaskForIdAsync(Guid correlationId,
         CancellationToken cancellationToken = default);
 
-    Task<CompletedTask?> GetLastCompletedTaskForActivityAsync(TaskName activityName,
+    Task<CompletedTask?> GetLastCompletedTaskForActivityAsync(string activityName,
         CancellationToken cancellationToken = default);
 
-    Task<CompletedTask?> GetLastCompletedTaskForIdAndActivityAsync(Guid correlationId, TaskName activityName,
+    Task<CompletedTask?> GetLastCompletedTaskForIdAndActivityAsync(Guid correlationId, string activityName,
         CancellationToken cancellationToken = default);
 
     Task<int> GetActiveTaskCountForUserAsync(string userId, CancellationToken cancellationToken = default);
@@ -31,5 +29,8 @@ public interface IAssignmentRepository
         List<string> eligibleUsers, CancellationToken cancellationToken = default);
 
     Task<string?> SelectNextUserWithRoundResetAsync(string activityName, string groupsHash,
+        CancellationToken cancellationToken = default);
+
+    Task<List<PendingTask>> GetPendingTasksByCorrelationIdAsync(Guid correlationId,
         CancellationToken cancellationToken = default);
 }

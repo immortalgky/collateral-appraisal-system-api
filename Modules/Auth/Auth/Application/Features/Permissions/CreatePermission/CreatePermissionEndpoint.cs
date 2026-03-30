@@ -1,4 +1,4 @@
-namespace Auth.Domain.Permissions.Features.CreatePermission;
+namespace Auth.Application.Features.Permissions.CreatePermission;
 
 public class CreatePermissionEndpoint : ICarterModule
 {
@@ -9,24 +9,19 @@ public class CreatePermissionEndpoint : ICarterModule
                 async (
                     CreatePermissionRequest request,
                     ISender sender,
-                    CancellationToken cancellationToken
-                ) =>
+                    CancellationToken cancellationToken) =>
                 {
                     var command = request.Adapt<CreatePermissionCommand>();
-
                     var result = await sender.Send(command, cancellationToken);
-
                     var response = result.Adapt<CreatePermissionResponse>();
-
-                    return Results.Ok(response);
-                }
-            )
+                    return Results.Created($"/auth/permissions/{response.Id}", response);
+                })
             .WithName("CreatePermission")
-            .Produces<CreatePermissionResponse>(StatusCodes.Status200OK)
+            .Produces<CreatePermissionResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .WithSummary("Create new permission")
-            .WithDescription("Create new permission.")
-            .WithTags("Permission");
+            .WithSummary("Create a new permission")
+            .WithDescription("Create a new permission.")
+            .WithTags("Permission")
+            .RequireAuthorization("CanManagePermissions");
     }
 }

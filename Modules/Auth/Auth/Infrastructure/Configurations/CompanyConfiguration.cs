@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Auth.Domain.Companies;
 
 namespace Auth.Infrastructure.Configurations;
@@ -9,7 +10,6 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.ToTable("Companies", "auth");
 
         builder.HasKey(c => c.Id);
-        builder.Property(c => c.Id).HasColumnName("CompanyId");
 
         builder.Property(c => c.Name).IsRequired().HasMaxLength(200);
         builder.Property(c => c.TaxId).HasMaxLength(50);
@@ -19,6 +19,14 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(c => c.City).HasMaxLength(100);
         builder.Property(c => c.Province).HasMaxLength(100);
         builder.Property(c => c.PostalCode).HasMaxLength(20);
+        builder.Property(c => c.ContactPerson).HasMaxLength(200);
+
+        builder.Property(c => c.LoanTypes)
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new())
+            .HasColumnType("nvarchar(max)")
+            .HasDefaultValueSql("'[]'");
 
         builder.HasIndex(c => c.Name)
             .IsUnique()

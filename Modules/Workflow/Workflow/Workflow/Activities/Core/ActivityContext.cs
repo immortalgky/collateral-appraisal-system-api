@@ -6,6 +6,7 @@ public class ActivityContext
 {
     public Guid WorkflowInstanceId { get; init; }
     public string ActivityId { get; init; } = default!;
+    public string ActivityName { get; init; } = default!;
     public Dictionary<string, object> Properties { get; init; } = new();
     public Dictionary<string, object> Variables { get; init; } = new();
     public Dictionary<string, object> InputData { get; init; } = new();

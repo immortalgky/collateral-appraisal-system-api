@@ -1,4 +1,4 @@
-using MassTransit;
+using Shared.Data.Outbox;
 
 namespace Request.Infrastructure;
 
@@ -23,10 +23,8 @@ public class RequestDbContext(DbContextOptions<RequestDbContext> options) : DbCo
         modelBuilder.Entity<Domain.Requests.Request>()
             .HasQueryFilter(r => !r.SoftDelete.IsDeleted);
 
-        // Add MassTransit Outbox entities
-        modelBuilder.AddInboxStateEntity();
-        modelBuilder.AddOutboxStateEntity();
-        modelBuilder.AddOutboxMessageEntity();
+        // Integration event outbox for reliable messaging
+        modelBuilder.AddIntegrationEventOutbox();
 
         // Call the base method to ensure any additional configurations are applied
         base.OnModelCreating(modelBuilder);

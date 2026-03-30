@@ -1,3 +1,3 @@
-namespace Auth.Domain.Roles.Features.GetRoleById;
+namespace Auth.Application.Features.Roles.GetRoleById;
 
-public record GetRoleByIdResponse(Guid Id, string Name, List<PermissionDto> Permissions);
+public record GetRoleByIdResponse(Guid Id, string Name, string Description, string? Scope, List<PermissionDto> Permissions);

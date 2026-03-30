@@ -15,7 +15,7 @@ internal class SubmitRequestCommandHandler(
         if (request is null) throw new RequestNotFoundException(command.Id);
 
         // Validate document completeness before submission
-        //await ValidateDocumentCompleteness(request, cancellationToken);
+        await ValidateDocumentCompleteness(request, cancellationToken);
 
         request.Submit(dateTimeProvider.Now);
 
@@ -58,7 +58,7 @@ internal class SubmitRequestCommandHandler(
         var collateralReqLookup = collateralRequirements
             .ToDictionary(g => g.CollateralTypeCode, g => g.Documents, StringComparer.OrdinalIgnoreCase);
 
-        var missingTitleDocs = new List<object>();
+        var missingTitleDetails = new List<string>();
 
         foreach (var title in titles)
         {
@@ -72,30 +72,23 @@ internal class SubmitRequestCommandHandler(
 
             var missing = titleReqs
                 .Where(r => r.IsRequired && !uploadedTitleDocTypes.Contains(r.Code))
-                .Select(r => new { r.Code, r.Name })
                 .ToList();
 
-            if (missing.Count > 0)
-                missingTitleDocs.Add(new
-                {
-                    TitleId = title.Id,
-                    title.CollateralType,
-                    Missing = missing
-                });
+            foreach (var doc in missing)
+                missingTitleDetails.Add($"Title [{title.CollateralType}]: {doc.Name} ({doc.Code})");
         }
 
-        if (missingAppDocs.Count > 0 || missingTitleDocs.Count > 0)
+        if (missingAppDocs.Count > 0 || missingTitleDetails.Count > 0)
         {
             var details = new List<string>();
 
             foreach (var doc in missingAppDocs)
                 details.Add($"Application: {doc.Name} ({doc.Code})");
 
-            foreach (var titleGroup in missingTitleDocs)
-                details.Add($"Title: {titleGroup}");
+            details.AddRange(missingTitleDetails);
 
             throw new BadRequestException(
-                $"Cannot submit: {missingAppDocs.Count + missingTitleDocs.Count} required document(s) missing. " +
+                $"Cannot submit: {missingAppDocs.Count + missingTitleDetails.Count} required document(s) missing. " +
                 string.Join("; ", details));
         }
     }

@@ -61,6 +61,8 @@ public class AppraisalAssignmentConfiguration : IEntityTypeConfiguration<Apprais
         builder.Property(a => a.AssignmentMethod)
             .IsRequired()
             .HasMaxLength(30);
+        builder.Property(a => a.InternalFollowupAssignmentMethod)
+            .HasMaxLength(30);
         builder.Property(a => a.AutoRuleId);
         builder.Property(a => a.QuotationRequestId);
 

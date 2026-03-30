@@ -18,10 +18,10 @@ public class NotificationHub : Hub
     {
         // if (Context.User?.Identity?.IsAuthenticated == true)
         // {
-        var userId = Context.User.Identity.Name;
-        if (!string.IsNullOrEmpty(userId))
+        var username = Context.User.Identity.Name;
+        if (!string.IsNullOrEmpty(username))
         {
-            await Groups.AddToGroupAsync(Context.ConnectionId, $"User_{userId}");
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"User_{username}");
         }
         //}
 
@@ -32,10 +32,10 @@ public class NotificationHub : Hub
     {
         // if (Context.User?.Identity?.IsAuthenticated == true)
         // {
-        var userId = Context.User.Identity.Name;
-        if (!string.IsNullOrEmpty(userId))
+        var username = Context.User.Identity.Name;
+        if (!string.IsNullOrEmpty(username))
         {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"User_{userId}");
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"User_{username}");
         }
         //}
 

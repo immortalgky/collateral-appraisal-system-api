@@ -1,26 +1,20 @@
 using Auth.Services;
+using Shared.Pagination;
 
-namespace Auth.Domain.Permissions.Features.GetPermissions;
+namespace Auth.Application.Features.Permissions.GetPermissions;
 
 public class GetPermissionQueryHandler(IPermissionService permissionService)
     : IQueryHandler<GetPermissionQuery, GetPermissionResult>
 {
     public async Task<GetPermissionResult> Handle(
         GetPermissionQuery query,
-        CancellationToken cancellationToken
-    )
+        CancellationToken cancellationToken)
     {
-        var pagination = await permissionService.GetPermissions(
-            query.PaginationRequest,
-            cancellationToken
-        );
-        var paginationDto = new PaginatedResult<PermissionDto>(
-            pagination.Items.Select(item => item.ToDto()),
-            pagination.Count,
-            pagination.PageNumber,
-            pagination.PageSize
-        );
+        var paginationRequest = new PaginationRequest(query.PageNumber - 1, query.PageSize);
+        var paginated = await permissionService.GetPermissions(query.Search, paginationRequest, cancellationToken);
 
-        return new GetPermissionResult(paginationDto);
+        var items = paginated.Items.Select(p => new PermissionItemDto(p.Id, p.PermissionCode, p.DisplayName, p.Description, p.Module));
+
+        return new GetPermissionResult(items, paginated.Count, paginated.PageNumber, paginated.PageSize);
     }
 }

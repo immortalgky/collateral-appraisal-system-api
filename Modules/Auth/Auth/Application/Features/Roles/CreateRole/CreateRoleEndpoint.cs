@@ -1,4 +1,4 @@
-namespace Auth.Domain.Roles.Features.CreateRole;
+namespace Auth.Application.Features.Roles.CreateRole;
 
 public class CreateRoleEndpoint : ICarterModule
 {
@@ -6,27 +6,19 @@ public class CreateRoleEndpoint : ICarterModule
     {
         app.MapPost(
                 "/auth/roles",
-                async (
-                    CreateRoleRequest request,
-                    ISender sender,
-                    CancellationToken cancellationToken
-                ) =>
+                async (CreateRoleRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
                     var command = request.Adapt<CreateRoleCommand>();
-
                     var result = await sender.Send(command, cancellationToken);
-
                     var response = result.Adapt<CreateRoleResponse>();
-
-                    return Results.Ok(response);
-                }
-            )
+                    return Results.Created($"/auth/roles/{response.Id}", response);
+                })
             .WithName("CreateRole")
-            .Produces<CreateRoleResponse>(StatusCodes.Status200OK)
+            .Produces<CreateRoleResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .WithSummary("Create new role")
-            .WithDescription("Create new role.")
-            .WithTags("Role");
+            .WithSummary("Create a new role")
+            .WithDescription("Create a new role with optional permissions and scope (Bank/Company).")
+            .WithTags("Role")
+            .RequireAuthorization("CanManageRoles");
     }
 }

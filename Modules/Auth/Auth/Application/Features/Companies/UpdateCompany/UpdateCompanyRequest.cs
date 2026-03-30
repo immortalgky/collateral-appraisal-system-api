@@ -9,5 +9,7 @@ public record UpdateCompanyRequest(
     string? City,
     string? Province,
     string? PostalCode,
-    bool IsActive
+    string? ContactPerson,
+    bool IsActive,
+    List<string>? LoanTypes = null
 );

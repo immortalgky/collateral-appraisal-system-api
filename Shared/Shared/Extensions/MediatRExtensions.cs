@@ -13,9 +13,11 @@ public static class MediatRExtensions
         services.AddMediatR(config =>
         {
             config.RegisterServicesFromAssemblies(assemblies);
+            config.AddOpenBehavior(typeof(BusinessContextBehavior<,>));
             config.AddOpenBehavior(typeof(ValidationBehavior<,>));
             config.AddOpenBehavior(typeof(TransactionalBehavior<,>));
             config.AddOpenBehavior(typeof(LoggingBehavior<,>));
+            config.AddOpenBehavior(typeof(MetricsBehavior<,>));
         });
 
         services.AddValidatorsFromAssemblies(assemblies);

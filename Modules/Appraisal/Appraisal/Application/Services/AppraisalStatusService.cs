@@ -1,5 +1,5 @@
 using Appraisal.Domain.Appraisals;
-using Shared.Messaging.Services;
+using Appraisal.Contracts.Services;
 
 namespace Appraisal.Application.Services;
 

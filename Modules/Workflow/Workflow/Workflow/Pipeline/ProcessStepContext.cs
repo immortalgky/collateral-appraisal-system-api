@@ -10,5 +10,6 @@ public record ProcessStepContext
     public string ActivityName { get; init; } = default!;
     public string CompletedBy { get; init; } = default!;
     public Dictionary<string, object> Input { get; init; } = new();
+    public Dictionary<string, object>? Variables { get; init; }
     public string? Parameters { get; init; }
 }

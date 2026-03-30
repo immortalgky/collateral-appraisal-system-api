@@ -4,10 +4,12 @@ using Auth.Infrastructure.Repository;
 using Auth.Infrastructure.Seed;
 using Auth.Application.Services;
 using Auth.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Validation.AspNetCore;
+using Shared.Identity;
 using Shared.Security;
 
 namespace Auth;
@@ -65,6 +67,8 @@ public static class AuthModule
             .AddEntityFrameworkStores<AuthDbContext>()
             .AddDefaultTokenProviders();
 
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+
         // OpenIddict
         services.AddOpenIddict()
             .AddCore(options =>
@@ -87,7 +91,6 @@ public static class AuthModule
                 options.AllowPasswordFlow();
                 options.AllowRefreshTokenFlow();
 
-                var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
                 if (environment == "Development") options.AcceptAnonymousClients();
 
                 options.RegisterScopes(
@@ -131,13 +134,40 @@ public static class AuthModule
             });
 
         // Authentication scheme
-        services.AddAuthentication(options =>
+        var isDevelopment = environment == "Development";
+        if (isDevelopment)
         {
-            options.DefaultAuthenticateScheme =
-                OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
-            options.DefaultChallengeScheme =
-                OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
-        });
+            services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = "DevOrOpenIddict";
+                    options.DefaultChallengeScheme =
+                        OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
+                })
+                .AddScheme<AuthenticationSchemeOptions, DevAuthenticationHandler>(
+                    DevAuthenticationHandler.SchemeName, _ => { })
+                .AddPolicyScheme("DevOrOpenIddict", "Dev or OpenIddict", options =>
+                {
+                    options.ForwardDefaultSelector = context =>
+                    {
+                        if (context.Request.Headers.ContainsKey(DevAuthenticationHandler.DevHeaderName))
+                            return DevAuthenticationHandler.SchemeName;
+                        return OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
+                    };
+                });
+        }
+        else
+        {
+            services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme =
+                    OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme =
+                    OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
+            });
+        }
+
+        // Authorization policies
+        services.AddAuthorizationBuilder().AddPolicies(isDevelopment);
 
         // Data seeding
         services.AddScoped<IDataSeeder<AuthDbContext>, AuthDataSeed>();
@@ -151,11 +181,13 @@ public static class AuthModule
         services.AddScoped<IRegistrationService, RegistrationService>();
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IRoleService, RoleService>();
+        services.AddScoped<IGroupService, GroupService>();
 
         // Repositories
         services.AddScoped<IPermissionRepository, PermissionRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<ICompanyRepository, CompanyRepository>();
+        services.AddScoped<IGroupRepository, GroupRepository>();
 
         return services;
     }
@@ -167,7 +199,7 @@ public static class AuthModule
         return app;
     }
 
-    private static AuthorizationBuilder AddPolicies(this AuthorizationBuilder authorizationBuilder)
+    private static AuthorizationBuilder AddPolicies(this AuthorizationBuilder authorizationBuilder, bool isDevelopment)
     {
         authorizationBuilder
             .AddClientPermissionPolicy("CanReadAuth", ["auth:read"])
@@ -181,26 +213,54 @@ public static class AuthModule
             )
             .AddClientPermissionPolicy("CanReadRequest", ["request:read"])
             .AddClientPermissionPolicy("CanWriteRequest", ["request:read", "request:write"])
+            .AddUserPermissionPolicy("CanManagePermissions", "PERMISSION_MANAGE")
+            .AddUserPermissionPolicy("CanManageRoles", "ROLE_MANAGE")
+            .AddUserPermissionPolicy("CanManageGroups", "GROUP_MANAGE")
+            .AddUserPermissionPolicy("CanManageUsers", "USER_MANAGE")
+            .AddUserPermissionPolicy("CanChangeUserPassword", "USER_CHANGE_PASSWORD")
+            .AddUserPermissionPolicy("CanResetUserPassword", "USER_RESET_PASSWORD")
             .AddScopePolicy("ClsReadAppraisal", "appraisal.read")
             .AddScopePolicy("ClsWriteRequest", "request.write")
             .AddScopePolicy("ClsReadDocument", "document.read")
-            .AddScopePolicy("ClsWriteDocument", "document.write")
-            .SetDefaultPolicy(
-                new AuthorizationPolicyBuilder()
-                    .RequireAuthenticatedUser()
-                    .AddAuthenticationSchemes(
-                        OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
-                    )
-                    .Build()
-            )
-            .SetFallbackPolicy(
-                new AuthorizationPolicyBuilder()
-                    .RequireAuthenticatedUser()
-                    .AddAuthenticationSchemes(
-                        OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
-                    )
-                    .Build()
-            );
+            .AddScopePolicy("ClsWriteDocument", "document.write");
+
+        // In Development, don't pin policies to OpenIddict scheme so the
+        // PolicyScheme can route to either DevBypass or OpenIddict.
+        if (isDevelopment)
+        {
+            authorizationBuilder
+                .SetDefaultPolicy(
+                    new AuthorizationPolicyBuilder()
+                        .RequireAuthenticatedUser()
+                        .Build()
+                )
+                .SetFallbackPolicy(
+                    new AuthorizationPolicyBuilder()
+                        .RequireAuthenticatedUser()
+                        .Build()
+                );
+        }
+        else
+        {
+            authorizationBuilder
+                .SetDefaultPolicy(
+                    new AuthorizationPolicyBuilder()
+                        .RequireAuthenticatedUser()
+                        .AddAuthenticationSchemes(
+                            OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
+                        )
+                        .Build()
+                )
+                .SetFallbackPolicy(
+                    new AuthorizationPolicyBuilder()
+                        .RequireAuthenticatedUser()
+                        .AddAuthenticationSchemes(
+                            OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
+                        )
+                        .Build()
+                );
+        }
+
         return authorizationBuilder;
     }
 
@@ -227,6 +287,23 @@ public static class AuthModule
     )
     {
         policy.RequireClaim("permissions", allowedValues);
+    }
+
+    private static AuthorizationBuilder AddUserPermissionPolicy(
+        this AuthorizationBuilder authorizationBuilder,
+        string policyName,
+        string requiredPermission
+    )
+    {
+        authorizationBuilder.AddPolicy(
+            policyName,
+            policy =>
+            {
+                policy.RequireAuthenticatedUser();
+                policy.RequireClaim("permissions", requiredPermission);
+            }
+        );
+        return authorizationBuilder;
     }
 
     private static AuthorizationBuilder AddScopePolicy(

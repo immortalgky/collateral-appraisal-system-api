@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Workflow.AssigneeSelection.Core;
 using Workflow.AssigneeSelection.Engine;
 using Workflow.Workflow.Activities.Core;
@@ -166,22 +167,31 @@ public class AssignmentPipeline : IAssignmentPipeline
             };
         }
 
-        // Build AssignmentContext for the cascading engine
+        // Detect revisit (route-back) to choose correct strategy list
+        var isRevisit = await _engine.IsRouteBackScenarioAsync(
+            activityCtx.WorkflowInstance.Id, activityCtx.ActivityId, cancellationToken);
+
         var strategies = pipelineCtx.RuntimeOverride?.RuntimeAssignmentStrategies
-            ?? GetStrategiesFromProperties(activityCtx);
+            ?? GetStrategiesForScenario(activityCtx, isRevisit);
+
+        _logger.LogInformation(
+            "Strategy selection for {ActivityId}: IsRevisit={IsRevisit}, Strategies=[{Strategies}]",
+            activityCtx.ActivityId, isRevisit, string.Join(",", strategies));
 
         var userGroups = GetUserGroupsFromProperties(activityCtx);
 
         var assignmentContext = new AssignmentContext
         {
+            WorkflowInstanceId = activityCtx.WorkflowInstance.Id,
             ActivityName = activityCtx.ActivityId,
             AssignmentStrategies = strategies,
             UserGroups = userGroups,
-            UserCode = pipelineCtx.RuntimeOverride?.RuntimeAssignee ?? GetPropertyString(activityCtx, "assignee"),
+            UserCode = pipelineCtx.RuntimeOverride?.RuntimeAssignee ?? GetPropertyString(activityCtx.Properties, "assignee") ?? "",
             DueDate = DateTime.UtcNow.AddDays(7),
             Properties = activityCtx.Properties,
             StartedBy = activityCtx.WorkflowInstance.StartedBy,
-            CandidatePool = pipelineCtx.CandidatePool
+            CandidatePool = pipelineCtx.CandidatePool,
+            Variables = activityCtx.Variables
         };
 
         var engineResult = await _engine.ExecuteAsync(assignmentContext, cancellationToken);
@@ -196,30 +206,54 @@ public class AssignmentPipeline : IAssignmentPipeline
         };
     }
 
+    private static List<string> GetStrategiesForScenario(ActivityContext ctx, bool isRevisit)
+    {
+        var key = isRevisit ? "revisitAssignmentStrategies" : "initialAssignmentStrategies";
+        var strategies = GetPropertyStringList(ctx.Properties, key);
+        if (strategies.Count > 0) return strategies;
+
+        return GetStrategiesFromProperties(ctx);
+    }
+
     private static List<string> GetStrategiesFromProperties(ActivityContext ctx)
     {
-        if (ctx.Properties.TryGetValue("assignmentStrategies", out var val) && val is List<string> list)
-            return list;
+        var strategies = GetPropertyStringList(ctx.Properties, "assignmentStrategies");
+        if (strategies.Count > 0) return strategies;
 
-        if (ctx.Properties.TryGetValue("assignmentStrategy", out var single) && single is string s && !string.IsNullOrEmpty(s))
-            return [s];
+        var single = GetPropertyString(ctx.Properties, "assignmentStrategies");
+        if (!string.IsNullOrEmpty(single)) return [single];
+
+        single = GetPropertyString(ctx.Properties, "assignmentStrategy");
+        if (!string.IsNullOrEmpty(single)) return [single];
 
         return ["round_robin", "workload_based"];
     }
 
     private static List<string> GetUserGroupsFromProperties(ActivityContext ctx)
     {
-        if (ctx.Properties.TryGetValue("assigneeGroup", out var val))
-        {
-            if (val is List<string> list) return list;
-            if (val is string s && !string.IsNullOrEmpty(s)) return [s];
-        }
-
-        return [];
+        return GetPropertyStringList(ctx.Properties, "assigneeGroup");
     }
 
-    private static string GetPropertyString(ActivityContext ctx, string key)
+    private static string? GetPropertyString(Dictionary<string, object> props, string key)
     {
-        return ctx.Properties.TryGetValue(key, out var val) && val is string s ? s : "";
+        if (!props.TryGetValue(key, out var val)) return null;
+        if (val is string s) return s;
+        if (val is JsonElement { ValueKind: JsonValueKind.String } je) return je.GetString();
+        return val?.ToString();
+    }
+
+    private static List<string> GetPropertyStringList(Dictionary<string, object> props, string key)
+    {
+        if (!props.TryGetValue(key, out var val)) return [];
+        if (val is List<string> list) return list;
+        if (val is JsonElement je)
+        {
+            if (je.ValueKind == JsonValueKind.Array)
+                return je.EnumerateArray().Select(e => e.GetString()!).Where(s => !string.IsNullOrEmpty(s)).ToList();
+            if (je.ValueKind == JsonValueKind.String)
+                return [je.GetString()!];
+        }
+        if (val is string s && !string.IsNullOrEmpty(s)) return [s];
+        return [];
     }
 }

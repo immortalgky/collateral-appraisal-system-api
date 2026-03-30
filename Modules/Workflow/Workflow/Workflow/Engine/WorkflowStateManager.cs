@@ -148,8 +148,15 @@ public class WorkflowStateManager : IWorkflowStateManager
 
             if (!string.IsNullOrEmpty(expectedActivityId) &&
                 workflowInstance.CurrentActivityId != expectedActivityId)
-                validationErrors.Add(
-                    $"Expected activity {expectedActivityId}, but current activity is {workflowInstance.CurrentActivityId}");
+            {
+                // Also check if the activity exists in active branch activities (fork/join parallel mode)
+                var isInBranch = workflowInstance.IsInParallelMode() &&
+                                 workflowInstance.GetBranchActivity(expectedActivityId) != null;
+
+                if (!isInBranch)
+                    validationErrors.Add(
+                        $"Expected activity {expectedActivityId}, but current activity is {workflowInstance.CurrentActivityId}");
+            }
 
             var isValid = !validationErrors.Any();
 

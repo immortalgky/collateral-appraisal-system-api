@@ -27,12 +27,15 @@ namespace Auth.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasColumnName("CompanyId");
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("City")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ContactPerson")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -59,6 +62,12 @@ namespace Auth.Infrastructure.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
+
+                    b.Property<string>("LoanTypes")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValueSql("'[]'");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -104,6 +113,96 @@ namespace Auth.Infrastructure.Migrations
                     b.ToTable("Companies", "auth");
                 });
 
+            modelBuilder.Entity("Auth.Domain.Groups.Group", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("DeletedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name", "Scope")
+                        .IsUnique()
+                        .HasFilter("IsDeleted = 0");
+
+                    b.ToTable("Groups", "auth");
+                });
+
+            modelBuilder.Entity("Auth.Domain.Groups.GroupMonitoring", b =>
+                {
+                    b.Property<Guid>("MonitorGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("MonitoredGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("MonitorGroupId", "MonitoredGroupId");
+
+                    b.HasIndex("MonitoredGroupId");
+
+                    b.ToTable("GroupMonitoring", "auth");
+                });
+
+            modelBuilder.Entity("Auth.Domain.Groups.GroupUser", b =>
+                {
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("GroupId", "UserId");
+
+                    b.ToTable("GroupUsers", "auth");
+                });
+
             modelBuilder.Entity("Auth.Domain.Identity.ApplicationRole", b =>
                 {
                     b.Property<Guid>("Id")
@@ -116,7 +215,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Name")
                         .HasMaxLength(256)
@@ -125,6 +225,10 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<string>("NormalizedName")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Scope")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.HasKey("Id");
 
@@ -250,11 +354,23 @@ namespace Auth.Infrastructure.Migrations
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("PermissionCode")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -621,6 +737,36 @@ namespace Auth.Infrastructure.Migrations
                     b.ToTable("OpenIddictTokens", "auth");
                 });
 
+            modelBuilder.Entity("Auth.Domain.Groups.GroupMonitoring", b =>
+                {
+                    b.HasOne("Auth.Domain.Groups.Group", "MonitorGroup")
+                        .WithMany("MonitoredGroups")
+                        .HasForeignKey("MonitorGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Auth.Domain.Groups.Group", "MonitoredGroup")
+                        .WithMany()
+                        .HasForeignKey("MonitoredGroupId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("MonitorGroup");
+
+                    b.Navigation("MonitoredGroup");
+                });
+
+            modelBuilder.Entity("Auth.Domain.Groups.GroupUser", b =>
+                {
+                    b.HasOne("Auth.Domain.Groups.Group", "Group")
+                        .WithMany("Users")
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Group");
+                });
+
             modelBuilder.Entity("Auth.Domain.Identity.RolePermission", b =>
                 {
                     b.HasOne("Auth.Domain.Identity.Permission", "Permission")
@@ -732,6 +878,13 @@ namespace Auth.Infrastructure.Migrations
                     b.Navigation("Application");
 
                     b.Navigation("Authorization");
+                });
+
+            modelBuilder.Entity("Auth.Domain.Groups.Group", b =>
+                {
+                    b.Navigation("MonitoredGroups");
+
+                    b.Navigation("Users");
                 });
 
             modelBuilder.Entity("Auth.Domain.Identity.ApplicationRole", b =>

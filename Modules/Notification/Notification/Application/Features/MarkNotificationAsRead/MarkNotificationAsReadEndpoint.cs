@@ -8,19 +8,17 @@ public class MarkNotificationAsReadEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPatch("/api/notifications/{notificationId:guid}/read", MarkAsRead)
+        app.MapPatch("/notifications/{notificationId:guid}/read", MarkAsRead)
             .WithName("MarkNotificationAsRead")
             .WithSummary("Mark notification as read")
             .WithDescription("Marks a specific notification as read")
-            .Produces<MarkNotificationAsReadResponse>()
-            .RequireAuthorization("CanWriteNotification");
+            .Produces<MarkNotificationAsReadResponse>();
 
-        app.MapPatch("/api/notifications/users/{userId}/read-all", MarkAllAsRead)
+        app.MapPatch("/notifications/users/{username}/read-all", MarkAllAsRead)
             .WithName("MarkAllNotificationsAsRead")
             .WithSummary("Mark all notifications as read")
             .WithDescription("Marks all notifications for a user as read")
-            .Produces<MarkNotificationAsReadResponse>()
-            .RequireAuthorization("CanWriteNotification");
+            .Produces<MarkNotificationAsReadResponse>();
     }
 
     private static async Task<IResult> MarkAsRead(
@@ -34,10 +32,10 @@ public class MarkNotificationAsReadEndpoint : ICarterModule
     }
 
     private static async Task<IResult> MarkAllAsRead(
-        string userId,
+        string username,
         ISender sender)
     {
-        var command = new MarkNotificationAsReadCommand(null, userId);
+        var command = new MarkNotificationAsReadCommand(null, username);
         var result = await sender.Send(command);
 
         return Results.Ok(result);

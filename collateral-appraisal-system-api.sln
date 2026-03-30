@@ -83,7 +83,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Appraisal", "Modules\Apprai
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collateral.Contracts", "Modules\Collateral\Collateral.Contracts\Collateral.Contracts.csproj", "{A024E3E9-62BA-4960-8ADA-56FF76EC77B3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Appraisal.Contracts", "Modules\Appraisal\Appraisal.Contract\Appraisal.Contracts.csproj", "{85B2D8D6-C318-4C56-8A4A-5D1D9DA26E47}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Appraisal.Contracts", "Modules\Appraisal\Appraisal.Contracts\Appraisal.Contracts.csproj", "{85B2D8D6-C318-4C56-8A4A-5D1D9DA26E47}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Auth.Tests", "Tests\Unit\Auth.Tests\Auth.Tests.csproj", "{39324907-9F8E-4B7B-8198-17B7AE495D74}"
 EndProject

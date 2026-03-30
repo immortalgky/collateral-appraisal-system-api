@@ -16,7 +16,8 @@ public class GetCompanyByIdQueryHandler(ICompanyRepository companyRepository)
 
         var dto = new CompanyDto(
             company.Id, company.Name, company.TaxId, company.Phone, company.Email,
-            company.Street, company.City, company.Province, company.PostalCode, company.IsActive);
+            company.Street, company.City, company.Province, company.PostalCode,
+            company.ContactPerson, company.IsActive, company.LoanTypes);
 
         return new GetCompanyByIdResult(dto);
     }

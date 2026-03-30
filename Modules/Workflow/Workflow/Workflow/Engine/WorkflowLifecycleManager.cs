@@ -2,6 +2,7 @@ using Workflow.Workflow.Models;
 using Workflow.Workflow.Schema;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Services;
+using Workflow.Sla.Services;
 using System.Data;
 
 namespace Workflow.Workflow.Engine;
@@ -13,6 +14,7 @@ namespace Workflow.Workflow.Engine;
 public class WorkflowLifecycleManager : IWorkflowLifecycleManager
 {
     private readonly IWorkflowStateManager _stateManager;
+    private readonly ISlaCalculator _slaCalculator;
     private readonly ILogger<WorkflowLifecycleManager> _logger;
 
     // Define valid state transitions
@@ -37,13 +39,15 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
 
     public WorkflowLifecycleManager(
         IWorkflowStateManager stateManager,
+        ISlaCalculator slaCalculator,
         ILogger<WorkflowLifecycleManager> logger)
     {
         _stateManager = stateManager;
+        _slaCalculator = slaCalculator;
         _logger = logger;
     }
 
-    public WorkflowInstance InitializeWorkflowAsync(
+    public async Task<WorkflowInstance> InitializeWorkflowAsync(
         Guid workflowDefinitionId,
         WorkflowSchema workflowSchema,
         string instanceName,
@@ -63,7 +67,16 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
                 initialVariables,
                 runtimeOverrides);
 
-            _logger.LogDebug("Initialized workflow instance {InstanceName}", instanceName);
+            // Calculate workflow-level SLA
+            var loanType = initialVariables?.TryGetValue("loanType", out var lt) == true
+                ? lt?.ToString() : null;
+            var workflowDueAt = await _slaCalculator.CalculateWorkflowDueAtAsync(
+                workflowDefinitionId, loanType, workflowInstance.StartedOn, cancellationToken);
+            if (workflowDueAt.HasValue)
+                workflowInstance.SetWorkflowSla(workflowDueAt.Value);
+
+            _logger.LogDebug("Initialized workflow instance {InstanceName}, WorkflowDueAt={DueAt}",
+                instanceName, workflowDueAt);
 
             return workflowInstance;
         }

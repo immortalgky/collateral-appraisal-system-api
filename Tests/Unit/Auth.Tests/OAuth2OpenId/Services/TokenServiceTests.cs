@@ -9,7 +9,7 @@ public class TokenServiceTests
 {
     private static IRoleRepository RoleRepository => Substitute.For<IRoleRepository>();
 
-    private static Permission ReadPermission => new() { PermissionCode = "read" };
+    private static Permission ReadPermission => Permission.Create("read", "Read", "Read permission", "General");
 
     private static UserPermission GrantedReadUserPermission =>
         new() { Permission = ReadPermission, IsGranted = true };
@@ -18,7 +18,7 @@ public class TokenServiceTests
         new() { Permission = ReadPermission, IsGranted = false };
 
     private static RolePermission ReadRolePermission => new() { Permission = ReadPermission };
-    private static Permission WritePermission => new() { PermissionCode = "write" };
+    private static Permission WritePermission => Permission.Create("write", "Write", "Write permission", "General");
 
     private static UserPermission GrantedWriteUserPermission =>
         new() { Permission = WritePermission, IsGranted = true };

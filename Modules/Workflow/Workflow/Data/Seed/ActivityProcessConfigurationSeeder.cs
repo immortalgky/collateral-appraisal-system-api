@@ -43,6 +43,15 @@ public class ActivityProcessConfigurationSeeder(
                 "system",
                 """{"targetStatus": "Completed"}"""),
 
+            // appraisal-assignment: validate decision constraints before routing
+            ActivityProcessConfiguration.Create(
+                "appraisal-assignment",
+                "Validate Decision Constraints",
+                "ValidateDecisionConstraints",
+                1,
+                "system",
+                """{"decisionField":"decisionTaken","constraints":{"INT":"facilityLimit <= 50000000"}}"""),
+
             // admin-review: update appraisal to InProgress
             ActivityProcessConfiguration.Create(
                 "admin-review",

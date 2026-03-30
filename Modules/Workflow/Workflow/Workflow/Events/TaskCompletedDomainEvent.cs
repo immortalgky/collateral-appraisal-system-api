@@ -1,10 +1,10 @@
-using Shared.Messaging.Values;
-
 namespace Workflow.Workflow.Events;
 
 public record TaskCompletedDomainEvent(
     Guid CorrelationId,
-    TaskName TaskName,
+    string TaskName,
     string ActionTaken,
-    DateTime CompletedAt
+    DateTime CompletedAt,
+    string? CompletedBy = null,
+    string? WorkflowInstanceName = null
 ) : IDomainEvent;

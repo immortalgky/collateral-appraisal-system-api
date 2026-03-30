@@ -2,5 +2,5 @@ namespace Notification.Domain.Notifications.Features.MarkNotificationAsRead;
 
 public record MarkNotificationAsReadCommand(
     Guid? NotificationId,
-    string? UserId
+    string? Username
 ) : ICommand<MarkNotificationAsReadResponse>;

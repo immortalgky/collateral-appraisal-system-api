@@ -12,10 +12,10 @@ public class NotificationRepository : INotificationRepository
         _context = context;
     }
 
-    public async Task<List<UserNotification>> GetUserNotificationsAsync(string userId, bool unreadOnly = false, int limit = 50)
+    public async Task<List<UserNotification>> GetUserNotificationsAsync(string username, bool unreadOnly = false, int limit = 50)
     {
         var query = _context.UserNotifications
-            .Where(n => n.UserId == userId);
+            .Where(n => n.Username == username);
 
         if (unreadOnly)
         {
@@ -57,17 +57,17 @@ public class NotificationRepository : INotificationRepository
         }
     }
 
-    public async Task MarkAllNotificationsAsReadAsync(string userId)
+    public async Task MarkAllNotificationsAsReadAsync(string username)
     {
         await _context.UserNotifications
-            .Where(n => n.UserId == userId && !n.IsRead)
+            .Where(n => n.Username == username && !n.IsRead)
             .ExecuteUpdateAsync(n => n.SetProperty(x => x.IsRead, true));
     }
 
-    public async Task<int> GetUnreadCountAsync(string userId)
+    public async Task<int> GetUnreadCountAsync(string username)
     {
         return await _context.UserNotifications
-            .CountAsync(n => n.UserId == userId && !n.IsRead);
+            .CountAsync(n => n.Username == username && !n.IsRead);
     }
 
     public async Task DeleteOldNotificationsAsync(DateTime cutoffDate)

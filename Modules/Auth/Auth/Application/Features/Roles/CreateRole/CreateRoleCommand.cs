@@ -1,4 +1,4 @@
-namespace Auth.Domain.Roles.Features.CreateRole;
+namespace Auth.Application.Features.Roles.CreateRole;
 
-public record CreateRoleCommand(string Name, string Description, List<Guid> Permissions)
+public record CreateRoleCommand(string Name, string Description, string? Scope, List<Guid> PermissionIds)
     : ICommand<CreateRoleResult>;

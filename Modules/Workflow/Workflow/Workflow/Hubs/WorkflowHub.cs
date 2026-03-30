@@ -24,6 +24,16 @@ public class WorkflowHub : Hub
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user-{userId}");
     }
 
+    public async Task JoinPoolGroup(string groupName)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"pool-{groupName}");
+    }
+
+    public async Task LeavePoolGroup(string groupName)
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"pool-{groupName}");
+    }
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         // Clean up any group memberships on disconnect

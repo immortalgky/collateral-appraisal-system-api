@@ -1,17 +1,19 @@
-using MassTransit;
+using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 
 namespace Request.Application.EventHandlers.Request;
 
-public class DocumentUnlinkedEventHandler(IBus bus, ILogger<DocumentUnlinkedEventHandler> logger)
+public class DocumentUnlinkedEventHandler(IIntegrationEventOutbox outbox, ILogger<DocumentUnlinkedEventHandler> logger)
     : INotificationHandler<DocumentUnlinkedEvent>
 {
-    public async Task Handle(DocumentUnlinkedEvent notification, CancellationToken cancellationToken)
+    public Task Handle(DocumentUnlinkedEvent notification, CancellationToken cancellationToken)
     {
         logger.LogInformation("Document with ID {DocumentId} unlinked from Request with ID {RequestId}",
             notification.DocumentId, notification.RequestId);
 
-        await bus.Publish(new DocumentUnlinkedIntegrationEvent(notification.RequestId, notification.DocumentId),
-            cancellationToken);
+        outbox.Publish(new DocumentUnlinkedIntegrationEvent(notification.RequestId, notification.DocumentId),
+            correlationId: notification.RequestId.ToString());
+
+        return Task.CompletedTask;
     }
 }

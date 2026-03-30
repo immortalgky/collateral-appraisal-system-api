@@ -1,4 +1,6 @@
 using System.Linq;
+using Auth.Domain.Companies;
+using Auth.Infrastructure.Repository;
 using Microsoft.Extensions.Configuration;
 
 namespace Auth.Infrastructure.Seed;
@@ -6,13 +8,17 @@ namespace Auth.Infrastructure.Seed;
 public class AuthDataSeed(
     UserManager<ApplicationUser> userManager,
     IOpenIddictApplicationManager manager,
+    ICompanyRepository companyRepository,
+    IPermissionRepository permissionRepository,
     IConfiguration configuration)
     : IDataSeeder<AuthDbContext>
 {
     public async Task SeedAllAsync()
     {
+        await SeedPermissionsAsync();
         await SeedUsersAsync();
         await SeedClientsAsync();
+        await SeedCompaniesAsync();
     }
 
     private async Task SeedUsersAsync()
@@ -50,8 +56,8 @@ public class AuthDataSeed(
             {
                 ("john.doe", "john.doe@example.com", "John", "Doe", "Senior Appraiser", "Appraisal", "0891b2"),
                 ("jane.smith", "jane.smith@example.com", "Jane", "Smith", "Branch Manager", "Operations", "7c3aed"),
-                ("mike.wilson", "mike.wilson@example.com", "Mike", "Wilson", "Loan Officer", "Lending", "059669"),
-                ("sarah.johnson", "sarah.johnson@example.com", "Sarah", "Johnson", "Quality Analyst",
+                ("m.wilson", "m.wilson@example.com", "Mike", "Wilson", "Loan Officer", "Lending", "059669"),
+                ("s.johnson", "s.johnson@example.com", "Sarah", "Johnson", "Quality Analyst",
                     "Quality Assurance", "dc2626"),
                 ("thitipornw", "thitipornw@silverlakeaxis.com", "Thitiporn", "W", "Quality Analyst",
                     "Quality Assurance", "dc2626"),
@@ -194,4 +200,65 @@ public class AuthDataSeed(
                 }
             });
     }
+
+    private async Task SeedCompaniesAsync()
+    {
+        var seedCompanies = new List<(string Name, string? TaxId, string? Province, List<string> LoanTypes)>
+        {
+            ("Thai Appraisal Co., Ltd.", "0105550001234", "Bangkok", ["Retail", "IBG"]),
+            ("Siam Valuation Group", "0105550005678", "Bangkok", ["Retail"]),
+            ("Bangkok Property Appraisers", "0105550009012", "Bangkok", ["IBG"]),
+            ("Eastern Appraisal Services", "0205560003456", "Chonburi", ["Retail", "IBG"]),
+            ("Northern Valuation Partners", "0505570007890", "Chiang Mai", ["Retail"]),
+            ("Southern Property Consultants", "0905580001234", "Songkhla", ["IBG"])
+        };
+
+        foreach (var (name, taxId, province, loanTypes) in seedCompanies)
+        {
+            var existing = await companyRepository.GetByNameAsync(name);
+            if (existing is null)
+            {
+                var company = Company.Create(
+                    name,
+                    taxId: taxId,
+                    province: province,
+                    loanTypes: loanTypes);
+                await companyRepository.AddAsync(company);
+            }
+        }
+
+        await companyRepository.SaveChangesAsync();
+    }
+
+    private async Task SeedPermissionsAsync()
+    {
+        var seedPermissions = new List<(string Code, string DisplayName, string Description, string Module)>
+        {
+            ("DASHBOARD_VIEW", "View Dashboard", "Access the main dashboard", "Common"),
+            ("TASK_LIST_VIEW", "View Task List", "View and manage assigned tasks", "Workflow"),
+            ("APPRAISAL_VIEW", "View Appraisal", "View appraisal requests and details", "Appraisal"),
+            ("APPRAISAL_CREATE", "Create Appraisal", "Create new appraisal requests", "Appraisal"),
+            ("APPRAISAL_EDIT", "Edit Appraisal", "Edit existing appraisal requests", "Appraisal"),
+            ("APPRAISAL_DELETE", "Delete Appraisal", "Delete appraisal requests", "Appraisal"),
+            ("USER_MANAGE", "Manage Users", "Create, update, and deactivate user accounts", "Auth"),
+            ("ROLE_MANAGE", "Manage Roles", "Create, update, and delete roles and role permissions", "Auth"),
+            ("PERMISSION_MANAGE", "Manage Permissions", "Create, update, and delete permissions", "Auth"),
+            ("GROUP_MANAGE", "Manage Groups", "Create, update, and delete groups and group members", "Auth"),
+            ("USER_CHANGE_PASSWORD", "Change Any User Password", "Allow changing password for any local user", "Auth"),
+            ("USER_RESET_PASSWORD", "Reset User Password", "Allow resetting password for any local user without current password", "Auth"),
+        };
+
+        foreach (var (code, displayName, description, module) in seedPermissions)
+        {
+            var exists = await permissionRepository.CodeExistsAsync(code);
+            if (!exists)
+            {
+                var permission = Permission.Create(code, displayName, description, module);
+                await permissionRepository.AddAsync(permission);
+            }
+        }
+
+        await permissionRepository.SaveChangesAsync();
+    }
+
 }

@@ -3,7 +3,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
         <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj"/>
-        <ProjectReference Include="..\Appraisal.Contract\Appraisal.Contracts.csproj"/>
+        <ProjectReference Include="..\Appraisal.Contracts\Appraisal.Contracts.csproj"/>
         <ProjectReference Include="..\..\Request\Request.Contracts\Request.Contracts.csproj"/>
     </ItemGroup>
 

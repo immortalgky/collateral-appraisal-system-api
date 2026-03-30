@@ -1,6 +1,8 @@
 using Appraisal;
+using Appraisal.Infrastructure;
 using Document.Data;
 using Common;
+using Hangfire;
 using Integration.Infrastructure;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -8,7 +10,11 @@ using Microsoft.EntityFrameworkCore;
 using Request.Infrastructure;
 using Shared.Configurations;
 using Shared.Data;
-using Workflow.Telemetry;
+using Shared.Data.Outbox;
+using Shared.Messaging.Filters;
+using Shared.Messaging.Services;
+using Workflow.Data;
+using Shared.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,33 +59,27 @@ builder.Services.AddStackExchangeRedisCache(options =>
 builder.Services.AddScoped<ISqlConnectionFactory>(provider =>
     new SqlConnectionFactory(builder.Configuration.GetConnectionString("Database")!));
 
+// Integration event outbox (per-module persistent outbox)
+builder.Services.AddScoped<IOutboxScope, OutboxScope>();
+builder.Services.AddScoped<IIntegrationEventOutbox, IntegrationEventOutbox>();
+builder.Services.AddScoped(typeof(InboxGuard<>));
+builder.Services.AddHostedService<IntegrationEventDeliveryService<RequestDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<AppraisalDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<DocumentDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<WorkflowDbContext>>();
+
 builder.Services.AddMassTransit(config =>
 {
     config.SetKebabCaseEndpointNameFormatter();
 
     config.AddConsumers(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly,
-        collateralAssembly, appraisalAssembly, integrationAssembly);
+        collateralAssembly, appraisalAssembly, integrationAssembly, commonAssembly);
     config.AddSagaStateMachines(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly,
         collateralAssembly, appraisalAssembly, integrationAssembly);
     config.AddSagas(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly,
         collateralAssembly, appraisalAssembly, integrationAssembly);
     config.AddActivities(requestAssembly, authAssembly, notificationAssembly, workflowAssembly, documentAssembly,
         collateralAssembly, appraisalAssembly, integrationAssembly);
-
-    // TODO: later implement customer delivery service
-    // config.AddEntityFrameworkOutbox<RequestDbContext>(o =>
-    // {
-    //     o.QueryDelay = TimeSpan.FromSeconds(1);
-    //     o.UseSqlServer();
-    //     o.UseBusOutbox();
-    // });
-    //
-    // config.AddEntityFrameworkOutbox<DocumentDbContext>(o =>
-    // {
-    //     o.QueryDelay = TimeSpan.FromSeconds(1);
-    //     o.UseSqlServer();
-    //     o.UseBusOutbox();
-    // });
 
     config.UsingRabbitMq((context, configurator) =>
     {
@@ -96,8 +96,7 @@ builder.Services.AddMassTransit(config =>
             TimeSpan.FromSeconds(30),
             TimeSpan.FromSeconds(5)));
 
-        // TODO: later implement customer delivery service and disable in-memory outbox
-        configurator.UseInMemoryOutbox(context);
+        // In-memory outbox removed — using per-module persistent outbox via IntegrationEventDeliveryService
     });
 });
 
@@ -132,12 +131,21 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 
-// Add health checks with workflow telemetry
-builder.Services.AddHealthChecks();
-// TODO: .AddWorkflowTelemetry() - to be implemented
+// Observability: OpenTelemetry metrics + tracing
+builder.Services.AddObservability(builder.Configuration, builder.Environment);
 
-// TODO: Configure workflow telemetry (extension method to be implemented)
-// builder.Services.ConfigureWorkflowTelemetry(builder.Configuration, builder.Environment);
+builder.Services.AddHealthChecks()
+    .AddSqlServer(
+        builder.Configuration.GetConnectionString("Database")!,
+        name: "sqlserver",
+        tags: ["db", "ready"])
+    .AddRedis(
+        builder.Configuration.GetConnectionString("Redis")!,
+        name: "redis",
+        tags: ["cache", "ready"])
+    .AddRabbitMQ(
+        name: "rabbitmq",
+        tags: ["messaging", "ready"]);
 
 var corsConfig = builder.Configuration
     .GetSection(CorsConfiguration.SectionName)
@@ -200,6 +208,7 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseCors("SPAPolicy");
+app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseExceptionHandler(options => { });
 
@@ -224,7 +233,38 @@ app.MapHealthChecks("/health", new HealthCheckOptions
         };
         await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response));
     }
-});
+}).AllowAnonymous();
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+}).AllowAnonymous();
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var response = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(x => new
+            {
+                name = x.Key,
+                status = x.Value.Status.ToString(),
+                exception = x.Value.Exception?.Message,
+                duration = x.Value.Duration.ToString(),
+                data = x.Value.Data
+            }),
+            totalDuration = report.TotalDuration.ToString()
+        };
+        await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response));
+    }
+}).AllowAnonymous();
+
+// Prometheus metrics scrape endpoint
+app.MapPrometheusScrapingEndpoint("/metrics").AllowAnonymous();
 
 app.UseRouting();
 app.UseAuthentication();
@@ -234,6 +274,16 @@ app.MapControllers();
 app.MapCarter();
 
 app.UseHangfire();
+
+// Outbox cleanup: purge processed/dead-letter messages older than 7 days, daily at 2 AM UTC
+RecurringJob.AddOrUpdate<OutboxCleanupJob<RequestDbContext>>(
+    "outbox-cleanup-request", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
+RecurringJob.AddOrUpdate<OutboxCleanupJob<AppraisalDbContext>>(
+    "outbox-cleanup-appraisal", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
+RecurringJob.AddOrUpdate<OutboxCleanupJob<DocumentDbContext>>(
+    "outbox-cleanup-document", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
+RecurringJob.AddOrUpdate<OutboxCleanupJob<WorkflowDbContext>>(
+    "outbox-cleanup-workflow", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
 
 app
     .UseRequestModule()

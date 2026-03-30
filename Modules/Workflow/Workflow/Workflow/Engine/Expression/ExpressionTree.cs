@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Workflow.Workflow.Engine.Expression;
 
 public abstract class ExpressionNode
@@ -70,6 +72,10 @@ public class BinaryOperatorNode : ExpressionNode
 
     private int CompareValues(object? left, object? right)
     {
+        // Normalize JsonElement values (from deserialized workflow variables)
+        left = NormalizeJsonElement(left);
+        right = NormalizeJsonElement(right);
+
         if (left == null && right == null) return 0;
         if (left == null) return -1;
         if (right == null) return 1;
@@ -106,6 +112,7 @@ public class BinaryOperatorNode : ExpressionNode
 
     private bool IsTruthy(object? value)
     {
+        value = NormalizeJsonElement(value);
         if (value == null) return false;
         if (value is bool boolValue) return boolValue;
         if (IsNumeric(value)) return Convert.ToDecimal(value) != 0;
@@ -118,6 +125,20 @@ public class BinaryOperatorNode : ExpressionNode
         return value is byte || value is sbyte || value is short || value is ushort ||
                value is int || value is uint || value is long || value is ulong ||
                value is float || value is double || value is decimal;
+    }
+
+    private static object? NormalizeJsonElement(object? value)
+    {
+        if (value is not JsonElement je) return value;
+        return je.ValueKind switch
+        {
+            JsonValueKind.Number => je.TryGetDecimal(out var d) ? d : je.GetDouble(),
+            JsonValueKind.String => je.GetString(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            _ => je.ToString()
+        };
     }
 }
 
