@@ -32,6 +32,12 @@ public class RequestSubmittedIntegrationEventHandler(
                 message.Fee,
                 message.Contact,
                 message.CreatedBy,
+                message.Priority,
+                message.IsPma,
+                message.Purpose,
+                message.Channel,
+                message.BankingSegment,
+                message.FacilityLimit,
                 context.CancellationToken);
 
             logger.LogInformation(

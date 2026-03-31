@@ -19,6 +19,10 @@ public record AppraisalDto
     public string Status { get; init; } = null!;
     public string AppraisalType { get; init; } = null!;
     public string Priority { get; init; } = null!;
+    public bool IsPma { get; init; }
+    public string? Channel { get; init; }
+    public string? BankingSegment { get; init; }
+    public decimal? FacilityLimit { get; init; }
     public int? SLADays { get; init; }
     public DateTime? SLADueDate { get; init; }
     public string? SLAStatus { get; init; }

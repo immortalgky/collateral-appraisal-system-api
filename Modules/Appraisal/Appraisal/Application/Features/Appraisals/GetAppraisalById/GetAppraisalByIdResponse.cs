@@ -8,6 +8,11 @@ public record GetAppraisalByIdResponse
     public string Status { get; set; } = null!;
     public string AppraisalType { get; set; } = null!;
     public string Priority { get; set; } = null!;
+    public bool IsPma { get; set; }
+    public string? Purpose { get; set; }
+    public string? Channel { get; set; }
+    public string? BankingSegment { get; set; }
+    public decimal? FacilityLimit { get; set; }
     public int? SLADays { get; set; }
     public DateTime? SLADueDate { get; set; }
     public string? SLAStatus { get; set; }
