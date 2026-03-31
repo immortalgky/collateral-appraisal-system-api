@@ -21,6 +21,7 @@ public class PricingAnalysisMethod : Entity<Guid>
     // Method
     public string MethodType { get; private set; } =
         null!; // WQS, SaleGrid, DirectComparison, CostApproach, DCF, CapitalizationRate
+
     public decimal? MethodValue { get; private set; }
     public decimal? ValuePerUnit { get; private set; }
     public string? UnitType { get; private set; } // Sqm, Rai, Unit
@@ -42,7 +43,7 @@ public class PricingAnalysisMethod : Entity<Guid>
         string methodType,
         string status = "Selected")
     {
-        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "CostApproach", "DCF", "CapitalizationRate" };
+        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "Cost", "Income" };
         if (!validMethods.Contains(methodType))
             throw new ArgumentException($"MethodType must be one of: {string.Join(", ", validMethods)}");
 
@@ -197,7 +198,8 @@ public class PricingAnalysisMethod : Entity<Guid>
     {
         // Allow same factor for different comparables
         if (_factorScores.Any(f => f.FactorId == factorId && f.MarketComparableId == marketComparableId))
-            throw new InvalidOperationException($"Factor {factorId} for comparable {marketComparableId} already exists");
+            throw new InvalidOperationException(
+                $"Factor {factorId} for comparable {marketComparableId} already exists");
 
         var score = PricingFactorScore.Create(Id, factorId, factorWeight, displaySequence, marketComparableId);
         _factorScores.Add(score);
