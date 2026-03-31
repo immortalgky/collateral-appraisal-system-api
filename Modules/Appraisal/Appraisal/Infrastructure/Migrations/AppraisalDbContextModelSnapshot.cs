@@ -390,13 +390,33 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsPma")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<bool?>("IsWithinSLA")
                         .HasColumnType("bit");
+
+                    b.Property<string>("BankingSegment")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Channel")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal?>("FacilityLimit")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Priority")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");

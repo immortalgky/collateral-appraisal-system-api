@@ -50,7 +50,13 @@ public class RequestSubmittedEventHandler(
             Appointment = appointmentDto,
             Fee = feeDto,
             Contact = contactDto,
-            CreatedBy = notification.Request.Requestor.UserId
+            CreatedBy = notification.Request.Requestor.UserId,
+            Priority = notification.Request.Priority,
+            IsPma = notification.Request.IsPma,
+            Purpose = notification.Request.Purpose,
+            Channel = notification.Request.Channel,
+            BankingSegment = notification.Request.Detail?.LoanDetail?.BankingSegment,
+            FacilityLimit = notification.Request.Detail?.LoanDetail?.FacilityLimit
         };
 
         outbox.Publish(integrationEvent, correlationId: notification.Request.Id.ToString());

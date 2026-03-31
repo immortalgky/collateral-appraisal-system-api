@@ -29,6 +29,23 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
             .IsRequired()
             .HasMaxLength(20);
 
+        // Request-level properties for workflow routing
+        builder.Property(a => a.IsPma)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(a => a.Purpose)
+            .HasMaxLength(200);
+
+        builder.Property(a => a.Channel)
+            .HasMaxLength(100);
+
+        builder.Property(a => a.BankingSegment)
+            .HasMaxLength(100);
+
+        builder.Property(a => a.FacilityLimit)
+            .HasColumnType("decimal(18,2)");
+
         // Status Value Object (stored as string)
         builder.OwnsOne(a => a.Status, status =>
         {

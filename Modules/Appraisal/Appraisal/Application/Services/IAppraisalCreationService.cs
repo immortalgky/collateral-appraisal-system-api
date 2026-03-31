@@ -19,5 +19,11 @@ public interface IAppraisalCreationService
         FeeDto? fee = null,
         ContactDto? contact = null,
         string? createdBy = null,
+        string? priority = null,
+        bool isPma = false,
+        string? purpose = null,
+        string? channel = null,
+        string? bankingSegment = null,
+        decimal? facilityLimit = null,
         CancellationToken cancellationToken = default);
 }

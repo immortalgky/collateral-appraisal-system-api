@@ -23,6 +23,13 @@ public class Appraisal : Aggregate<Guid>
     public string AppraisalType { get; private set; } = null!; // Initial, Revaluation, Special
     public string Priority { get; private set; } = null!; // Normal, High
 
+    // Request-level properties for workflow routing
+    public bool IsPma { get; private set; }
+    public string? Purpose { get; private set; }
+    public string? Channel { get; private set; }
+    public string? BankingSegment { get; private set; }
+    public decimal? FacilityLimit { get; private set; }
+
     // SLA Tracking
     public int? SLADays { get; private set; }
     public DateTime? SLADueDate { get; private set; }
@@ -43,7 +50,12 @@ public class Appraisal : Aggregate<Guid>
         Guid requestId,
         string appraisalType,
         string priority,
-        int? slaDays)
+        int? slaDays,
+        bool isPma,
+        string? purpose,
+        string? channel,
+        string? bankingSegment,
+        decimal? facilityLimit)
     {
         Id = Guid.CreateVersion7();
         RequestId = requestId;
@@ -51,6 +63,11 @@ public class Appraisal : Aggregate<Guid>
         Priority = priority;
         Status = AppraisalStatus.Pending;
         SLADays = slaDays;
+        IsPma = isPma;
+        Purpose = purpose;
+        Channel = channel;
+        BankingSegment = bankingSegment;
+        FacilityLimit = facilityLimit;
 
         if (slaDays.HasValue)
         {
@@ -67,12 +84,18 @@ public class Appraisal : Aggregate<Guid>
         string appraisalType,
         string priority,
         int? slaDays = null,
-        string? requestedBy = null)
+        string? requestedBy = null,
+        bool isPma = false,
+        string? purpose = null,
+        string? channel = null,
+        string? bankingSegment = null,
+        decimal? facilityLimit = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appraisalType);
         ArgumentException.ThrowIfNullOrWhiteSpace(priority);
 
-        var appraisal = new Appraisal(requestId, appraisalType, priority, slaDays);
+        var appraisal = new Appraisal(requestId, appraisalType, priority, slaDays,
+            isPma, purpose, channel, bankingSegment, facilityLimit);
         appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal, requestedBy));
 
         return appraisal;
