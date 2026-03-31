@@ -674,8 +674,9 @@ public class TaskActivity : WorkflowActivityBase
                 ? parsed
                 : context.WorkflowInstance.Id;
 
-        var actionTaken = outputData.TryGetValue("decision", out var decision)
-            ? decision?.ToString() ?? "Completed"
+        var activityKey = $"{NormalizeActivityId(context.ActivityId)}_decisionTaken";
+        var actionTaken = outputData.TryGetValue(activityKey, out var decisionTaken)
+            ? decisionTaken?.ToString() ?? "Completed"
             : "Completed";
 
         // Pass CompletedBy for pool task implicit assignment
