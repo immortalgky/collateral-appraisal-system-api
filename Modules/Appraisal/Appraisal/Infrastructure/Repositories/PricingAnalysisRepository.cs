@@ -39,6 +39,9 @@ public class PricingAnalysisRepository(AppraisalDbContext dbContext)
             .Include(pa => pa.Approaches)
                 .ThenInclude(a => a.Methods)
                     .ThenInclude(m => m.RsqResult)
+            .Include(pa => pa.Approaches)
+                .ThenInclude(a => a.Methods)
+                    .ThenInclude(m => m.MachineCostItems)
             .AsSplitQuery()
             .FirstOrDefaultAsync(pa => pa.Id == id, cancellationToken);
     }

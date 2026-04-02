@@ -24,7 +24,7 @@ public class GetLandPropertyQueryHandler(
                     ?? throw new PropertyNotFoundException(query.PropertyId);
 
         // 3. Validate property type
-        if (property.PropertyType != PropertyType.Land)
+        if (property.PropertyType != PropertyType.Land && property.PropertyType != PropertyType.LeaseAgreementLand)
             throw new InvalidOperationException($"Property {query.PropertyId} is not a land property");
 
         var landDetail = property.LandDetail;

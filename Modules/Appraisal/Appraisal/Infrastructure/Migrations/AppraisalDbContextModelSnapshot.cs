@@ -1686,6 +1686,83 @@ namespace Appraisal.Infrastructure.Migrations
                     b.ToTable("LawAndRegulationImages", "appraisal");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.MachineCostItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<Guid>("AppraisalPropertyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("ConditionFactor")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DisplaySequence")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("EconomicObsolescence")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("FairMarketValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("FunctionalObsolescence")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("LifeSpanYears")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("decimal(5,1)");
+
+                    b.Property<bool>("MarketDemandAvailable")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("PricingMethodId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("RcnReplacementCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PricingMethodId");
+
+                    b.HasIndex("PricingMethodId", "AppraisalPropertyId")
+                        .IsUnique();
+
+                    b.ToTable("MachineCostItems", "appraisal");
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.MachineryAppraisalSummary", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1980,6 +2057,10 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<decimal?>("MethodValue")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Remark")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<string>("UnitType")
                         .HasMaxLength(20)
@@ -6033,6 +6114,113 @@ namespace Appraisal.Infrastructure.Migrations
                             b1.Navigation("Titles");
                         });
 
+                    b.OwnsOne("Appraisal.Domain.Appraisals.LeaseAgreementDetail", "LeaseAgreementDetail", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("uniqueidentifier")
+                                .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                            b1.Property<string>("AdditionalExpenses")
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
+
+                            b1.Property<Guid>("AppraisalPropertyId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Banking")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("ContractNo")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
+
+                            b1.Property<string>("ContractRenewal")
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
+
+                            b1.Property<DateTime?>("CreatedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("CreatedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("CreatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<DateTime?>("LeaseEndDate")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("LeasePeriodAsContract")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<decimal?>("LeaseRentFee")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("decimal(18,2)");
+
+                            b1.Property<DateTime?>("LeaseStartDate")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("LeaseTimestamp")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("LesseeName")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("RemainingLeaseAsAppraisalDate")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("Remark")
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
+
+                            b1.Property<decimal?>("RentAdjust")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("decimal(18,2)");
+
+                            b1.Property<string>("RentalTermsImpactingPropertyUse")
+                                .HasMaxLength(2000)
+                                .HasColumnType("nvarchar(2000)");
+
+                            b1.Property<string>("Sublease")
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
+
+                            b1.Property<string>("TenantName")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
+                            b1.Property<string>("TerminationOfLease")
+                                .HasMaxLength(2000)
+                                .HasColumnType("nvarchar(2000)");
+
+                            b1.Property<DateTime?>("UpdatedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("UpdatedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("UpdatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("AppraisalPropertyId")
+                                .IsUnique();
+
+                            b1.ToTable("LeaseAgreementDetails", "appraisal");
+
+                            b1.WithOwner()
+                                .HasForeignKey("AppraisalPropertyId");
+                        });
+
                     b.OwnsOne("Appraisal.Domain.Appraisals.MachineryAppraisalDetail", "MachineryDetail", b1 =>
                         {
                             b1.Property<Guid>("Id")
@@ -6230,6 +6418,301 @@ namespace Appraisal.Infrastructure.Migrations
 
                             b1.WithOwner()
                                 .HasForeignKey("AppraisalPropertyId");
+                        });
+
+                    b.OwnsOne("Appraisal.Domain.Appraisals.RentalInfo", "RentalInfo", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("uniqueidentifier")
+                                .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                            b1.Property<Guid>("AppraisalPropertyId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<decimal>("ContractRentalFeePerYear")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("decimal(18,2)");
+
+                            b1.Property<DateTime?>("CreatedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("CreatedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("CreatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.Property<DateTime?>("FirstYearStartDate")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<int>("GrowthIntervalYears")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal>("GrowthRatePercent")
+                                .HasPrecision(10, 4)
+                                .HasColumnType("decimal(10,4)");
+
+                            b1.Property<string>("GrowthRateType")
+                                .HasMaxLength(20)
+                                .HasColumnType("nvarchar(20)");
+
+                            b1.Property<int>("NumberOfYears")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal>("UpFrontTotalAmount")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("decimal(18,2)");
+
+                            b1.Property<DateTime?>("UpdatedAt")
+                                .HasColumnType("datetime2");
+
+                            b1.Property<string>("UpdatedBy")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("UpdatedWorkstation")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("AppraisalPropertyId")
+                                .IsUnique();
+
+                            b1.ToTable("RentalInfos", "appraisal");
+
+                            b1.WithOwner()
+                                .HasForeignKey("AppraisalPropertyId");
+
+                            b1.OwnsMany("Appraisal.Domain.Appraisals.RentalGrowthPeriodEntry", "GrowthPeriodEntries", b2 =>
+                                {
+                                    b2.Property<Guid>("Id")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("uniqueidentifier")
+                                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                                    b2.Property<DateTime?>("CreatedAt")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("CreatedBy")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)");
+
+                                    b2.Property<string>("CreatedWorkstation")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<int>("FromYear")
+                                        .HasColumnType("int");
+
+                                    b2.Property<decimal>("GrowthAmount")
+                                        .HasPrecision(18, 2)
+                                        .HasColumnType("decimal(18,2)");
+
+                                    b2.Property<decimal>("GrowthRate")
+                                        .HasPrecision(10, 4)
+                                        .HasColumnType("decimal(10,4)");
+
+                                    b2.Property<Guid>("RentalInfoId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<int>("ToYear")
+                                        .HasColumnType("int");
+
+                                    b2.Property<decimal>("TotalAmount")
+                                        .HasPrecision(18, 2)
+                                        .HasColumnType("decimal(18,2)");
+
+                                    b2.Property<DateTime?>("UpdatedAt")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("UpdatedBy")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)");
+
+                                    b2.Property<string>("UpdatedWorkstation")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.HasKey("Id");
+
+                                    b2.HasIndex("RentalInfoId");
+
+                                    b2.ToTable("RentalGrowthPeriodEntries", "appraisal");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RentalInfoId");
+                                });
+
+                            b1.OwnsMany("Appraisal.Domain.Appraisals.RentalScheduleEntry", "ScheduleEntries", b2 =>
+                                {
+                                    b2.Property<Guid>("Id")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("uniqueidentifier")
+                                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                                    b2.Property<DateTime>("ContractEnd")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<decimal>("ContractRentalFee")
+                                        .HasPrecision(18, 2)
+                                        .HasColumnType("decimal(18,2)");
+
+                                    b2.Property<decimal>("ContractRentalFeeGrowthRatePercent")
+                                        .HasPrecision(10, 4)
+                                        .HasColumnType("decimal(10,4)");
+
+                                    b2.Property<DateTime>("ContractStart")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<DateTime?>("CreatedAt")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("CreatedBy")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)");
+
+                                    b2.Property<string>("CreatedWorkstation")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<Guid>("RentalInfoId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<decimal>("TotalAmount")
+                                        .HasPrecision(18, 2)
+                                        .HasColumnType("decimal(18,2)");
+
+                                    b2.Property<decimal>("UpFront")
+                                        .HasPrecision(18, 2)
+                                        .HasColumnType("decimal(18,2)");
+
+                                    b2.Property<DateTime?>("UpdatedAt")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("UpdatedBy")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)");
+
+                                    b2.Property<string>("UpdatedWorkstation")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<int>("Year")
+                                        .HasColumnType("int");
+
+                                    b2.HasKey("Id");
+
+                                    b2.HasIndex("RentalInfoId");
+
+                                    b2.ToTable("RentalScheduleEntries", "appraisal");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RentalInfoId");
+                                });
+
+                            b1.OwnsMany("Appraisal.Domain.Appraisals.RentalScheduleOverride", "ScheduleOverrides", b2 =>
+                                {
+                                    b2.Property<Guid>("Id")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("uniqueidentifier")
+                                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                                    b2.Property<decimal?>("ContractRentalFee")
+                                        .HasPrecision(18, 2)
+                                        .HasColumnType("decimal(18,2)");
+
+                                    b2.Property<DateTime?>("CreatedAt")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("CreatedBy")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)");
+
+                                    b2.Property<string>("CreatedWorkstation")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<Guid>("RentalInfoId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<decimal?>("UpFront")
+                                        .HasPrecision(18, 2)
+                                        .HasColumnType("decimal(18,2)");
+
+                                    b2.Property<DateTime?>("UpdatedAt")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("UpdatedBy")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)");
+
+                                    b2.Property<string>("UpdatedWorkstation")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<int>("Year")
+                                        .HasColumnType("int");
+
+                                    b2.HasKey("Id");
+
+                                    b2.HasIndex("RentalInfoId");
+
+                                    b2.ToTable("RentalScheduleOverrides", "appraisal");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RentalInfoId");
+                                });
+
+                            b1.OwnsMany("Appraisal.Domain.Appraisals.RentalUpFrontEntry", "UpFrontEntries", b2 =>
+                                {
+                                    b2.Property<Guid>("Id")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("uniqueidentifier")
+                                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                                    b2.Property<int>("AtYear")
+                                        .HasColumnType("int");
+
+                                    b2.Property<DateTime?>("CreatedAt")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("CreatedBy")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)");
+
+                                    b2.Property<string>("CreatedWorkstation")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<Guid>("RentalInfoId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<decimal>("UpFrontAmount")
+                                        .HasPrecision(18, 2)
+                                        .HasColumnType("decimal(18,2)");
+
+                                    b2.Property<DateTime?>("UpdatedAt")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("UpdatedBy")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)");
+
+                                    b2.Property<string>("UpdatedWorkstation")
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.HasKey("Id");
+
+                                    b2.HasIndex("RentalInfoId");
+
+                                    b2.ToTable("RentalUpFrontEntries", "appraisal");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RentalInfoId");
+                                });
+
+                            b1.Navigation("GrowthPeriodEntries");
+
+                            b1.Navigation("ScheduleEntries");
+
+                            b1.Navigation("ScheduleOverrides");
+
+                            b1.Navigation("UpFrontEntries");
                         });
 
                     b.OwnsOne("Appraisal.Domain.Appraisals.VehicleAppraisalDetail", "VehicleDetail", b1 =>
@@ -6583,10 +7066,14 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Navigation("LandDetail");
 
+                    b.Navigation("LeaseAgreementDetail");
+
                     b.Navigation("MachineryDetail");
 
                     b.Navigation("PropertyType")
                         .IsRequired();
+
+                    b.Navigation("RentalInfo");
 
                     b.Navigation("VehicleDetail");
 
@@ -6657,6 +7144,15 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasOne("Appraisal.Domain.Appraisals.LawAndRegulation", null)
                         .WithMany("Images")
                         .HasForeignKey("LawAndRegulationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.MachineCostItem", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.PricingAnalysisMethod", null)
+                        .WithMany("MachineCostItems")
+                        .HasForeignKey("PricingMethodId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -6992,6 +7488,8 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Navigation("FactorScores");
 
                     b.Navigation("FinalValue");
+
+                    b.Navigation("MachineCostItems");
 
                     b.Navigation("RsqResult");
                 });

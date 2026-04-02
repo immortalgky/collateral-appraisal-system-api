@@ -20,6 +20,8 @@ public class AppraisalProperty : Entity<Guid>
     public VehicleAppraisalDetail? VehicleDetail { get; private set; }
     public VesselAppraisalDetail? VesselDetail { get; private set; }
     public MachineryAppraisalDetail? MachineryDetail { get; private set; }
+    public LeaseAgreementDetail? LeaseAgreementDetail { get; private set; }
+    public RentalInfo? RentalInfo { get; private set; }
 
     // Construction Inspection (1:1)
     public ConstructionInspection? ConstructionInspection { get; private set; }
@@ -79,7 +81,7 @@ public class AppraisalProperty : Entity<Guid>
     /// </summary>
     public void SetLandDetail(LandAppraisalDetail detail)
     {
-        if (PropertyType != PropertyType.Land && PropertyType != PropertyType.LandAndBuilding)
+        if (!PropertyType.HasLandDetail)
             throw new InvalidOperationException($"Cannot set land detail for property type '{PropertyType}'");
 
         LandDetail = detail;
@@ -90,7 +92,7 @@ public class AppraisalProperty : Entity<Guid>
     /// </summary>
     public void SetBuildingDetail(BuildingAppraisalDetail detail)
     {
-        if (PropertyType != PropertyType.Building && PropertyType != PropertyType.LandAndBuilding)
+        if (!PropertyType.HasBuildingDetail)
             throw new InvalidOperationException($"Cannot set building detail for property type '{PropertyType}'");
 
         BuildingDetail = detail;
@@ -112,7 +114,7 @@ public class AppraisalProperty : Entity<Guid>
     /// </summary>
     public void SetLandAndBuildingDetails(LandAppraisalDetail landDetail, BuildingAppraisalDetail buildingDetail)
     {
-        if (PropertyType != PropertyType.LandAndBuilding)
+        if (PropertyType != PropertyType.LandAndBuilding && PropertyType != PropertyType.LeaseAgreementLandAndBuilding)
             throw new InvalidOperationException(
                 $"Cannot set land and building details for property type '{PropertyType}'");
 
@@ -151,6 +153,28 @@ public class AppraisalProperty : Entity<Guid>
             throw new InvalidOperationException($"Cannot set machinery detail for property type '{PropertyType}'");
 
         MachineryDetail = detail;
+    }
+
+    /// <summary>
+    /// Set the lease agreement detail for this property (LSL, LSB, or LS)
+    /// </summary>
+    public void SetLeaseAgreementDetail(LeaseAgreementDetail detail)
+    {
+        if (!PropertyType.IsLeaseAgreement)
+            throw new InvalidOperationException($"Cannot set lease agreement detail for property type '{PropertyType}'");
+
+        LeaseAgreementDetail = detail;
+    }
+
+    /// <summary>
+    /// Set the rental info for this property (LSL, LSB, or LS)
+    /// </summary>
+    public void SetRentalInfo(RentalInfo info)
+    {
+        if (!PropertyType.IsLeaseAgreement)
+            throw new InvalidOperationException($"Cannot set rental info for property type '{PropertyType}'");
+
+        RentalInfo = info;
     }
 
     /// <summary>
