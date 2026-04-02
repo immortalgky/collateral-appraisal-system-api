@@ -23,7 +23,7 @@ public class GetLandAndBuildingPropertyQueryHandler(
                        ?? throw new PropertyNotFoundException(query.PropertyId);
 
         // 3. Validate property type
-        if (property.PropertyType != PropertyType.LandAndBuilding)
+        if (property.PropertyType != PropertyType.LandAndBuilding && property.PropertyType != PropertyType.LeaseAgreementLandAndBuilding)
             throw new InvalidOperationException($"Property {query.PropertyId} is not a land and building property");
 
         // 4. Get the detail records

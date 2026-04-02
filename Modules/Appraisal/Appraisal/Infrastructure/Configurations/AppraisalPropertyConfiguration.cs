@@ -47,6 +47,8 @@ public class
         builder.OwnsOne(p => p.VehicleDetail, new VehicleAppraisalDetailConfiguration().Configure);
         builder.OwnsOne(p => p.VesselDetail, new VesselAppraisalDetailConfiguration().Configure);
         builder.OwnsOne(p => p.MachineryDetail, new MachineryAppraisalDetailConfiguration().Configure);
+        builder.OwnsOne(p => p.LeaseAgreementDetail, new LeaseAgreementDetailConfiguration().Configure);
+        builder.OwnsOne(p => p.RentalInfo, new RentalInfoConfiguration().Configure);
 
         // Construction Inspection (1:1, stored in separate table)
         builder.OwnsOne(p => p.ConstructionInspection, new ConstructionInspectionConfiguration().Configure);

@@ -21,6 +21,14 @@ public class PropertyType : ValueObject
     public static PropertyType Vehicle => new("VEH");
     public static PropertyType Vessel => new("VES");
     public static PropertyType Machinery => new("MAC");
+    public static PropertyType LeaseAgreementLand => new("LSL");
+    public static PropertyType LeaseAgreementBuilding => new("LSB");
+    public static PropertyType LeaseAgreementLandAndBuilding => new("LS");
+
+    // Convenience helpers
+    public bool IsLeaseAgreement => Code is "LSL" or "LSB" or "LS";
+    public bool HasLandDetail => Code is "L" or "LB" or "LSL" or "LS";
+    public bool HasBuildingDetail => Code is "B" or "LB" or "LSB" or "LS";
 
     // Factory method from string
     public static PropertyType FromString(string code)
@@ -34,6 +42,9 @@ public class PropertyType : ValueObject
             "VEH" => Vehicle,
             "VES" => Vessel,
             "MAC" => Machinery,
+            "LSL" => LeaseAgreementLand,
+            "LSB" => LeaseAgreementBuilding,
+            "LS" => LeaseAgreementLandAndBuilding,
             _ => throw new ArgumentException($"Invalid property type: {code}")
         };
     }
@@ -49,7 +60,10 @@ public class PropertyType : ValueObject
         Condo,
         Vehicle,
         Vessel,
-        Machinery
+        Machinery,
+        LeaseAgreementLand,
+        LeaseAgreementBuilding,
+        LeaseAgreementLandAndBuilding
     ];
 
     // Implicit conversion to string

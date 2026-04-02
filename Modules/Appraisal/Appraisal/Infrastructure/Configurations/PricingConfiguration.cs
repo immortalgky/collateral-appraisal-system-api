@@ -63,6 +63,7 @@ public class PricingAnalysisMethodConfiguration : IEntityTypeConfiguration<Prici
         builder.Property(m => m.MethodValue).HasPrecision(18, 2);
         builder.Property(m => m.ValuePerUnit).HasPrecision(18, 2);
         builder.Property(m => m.UnitType).HasMaxLength(20);
+        builder.Property(m => m.Remark).HasMaxLength(4000);
 
         builder.HasMany(m => m.ComparableLinks)
             .WithOne()
@@ -96,6 +97,12 @@ public class PricingAnalysisMethodConfiguration : IEntityTypeConfiguration<Prici
         builder.HasOne(m => m.RsqResult)
             .WithOne()
             .HasForeignKey<PricingRsqResult>(r => r.PricingMethodId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Machine Cost Items (MachineryCost method)
+        builder.HasMany(m => m.MachineCostItems)
+            .WithOne()
+            .HasForeignKey(i => i.PricingMethodId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne<ComparativeAnalysisTemplate>()
@@ -262,5 +269,32 @@ public class PricingFinalValueConfiguration : IEntityTypeConfiguration<PricingFi
         builder.Property(f => f.BuildingCost).HasPrecision(18, 2);
         builder.Property(f => f.AppraisalPriceWithBuilding).HasPrecision(18, 2);
         builder.Property(f => f.AppraisalPriceWithBuildingRounded).HasPrecision(18, 2);
+    }
+}
+
+public class MachineCostItemConfiguration : IEntityTypeConfiguration<MachineCostItem>
+{
+    public void Configure(EntityTypeBuilder<MachineCostItem> builder)
+    {
+        builder.ToTable("MachineCostItems");
+
+        builder.HasKey(i => i.Id);
+        builder.Property(i => i.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+        builder.Property(i => i.PricingMethodId).IsRequired();
+        builder.Property(i => i.AppraisalPropertyId).IsRequired();
+        builder.Property(i => i.DisplaySequence).IsRequired();
+
+        builder.Property(i => i.RcnReplacementCost).HasPrecision(18, 2);
+        builder.Property(i => i.LifeSpanYears).HasPrecision(5, 1);
+        builder.Property(i => i.ConditionFactor).HasPrecision(5, 2);
+        builder.Property(i => i.FunctionalObsolescence).HasPrecision(5, 2);
+        builder.Property(i => i.EconomicObsolescence).HasPrecision(5, 2);
+        builder.Property(i => i.FairMarketValue).HasPrecision(18, 2);
+
+        builder.Property(i => i.Notes).HasMaxLength(1000);
+
+        builder.HasIndex(i => i.PricingMethodId);
+        builder.HasIndex(i => new { i.PricingMethodId, i.AppraisalPropertyId }).IsUnique();
     }
 }

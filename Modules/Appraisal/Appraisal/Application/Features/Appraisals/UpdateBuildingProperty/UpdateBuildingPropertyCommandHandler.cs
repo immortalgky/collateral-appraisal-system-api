@@ -20,7 +20,7 @@ public class UpdateBuildingPropertyCommandHandler(
         var property = appraisal.GetProperty(command.PropertyId)
             ?? throw new PropertyNotFoundException(command.PropertyId);
         
-        if (property.PropertyType != PropertyType.Building)
+        if (property.PropertyType != PropertyType.Building && property.PropertyType != PropertyType.LeaseAgreementBuilding)
             throw new InvalidOperationException($"Property {command.PropertyId} is not a building property");
         
         var detail = property.BuildingDetail

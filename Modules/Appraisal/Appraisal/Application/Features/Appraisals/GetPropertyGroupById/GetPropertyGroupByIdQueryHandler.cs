@@ -116,6 +116,11 @@ public record PropertyGroupItemDto
     public Guid? AppraisalDetailId { get; set; }
     public string? PropertyName { get; set; } = default!;
     public decimal? Area { get; set; }
+    public string? MachineName { get; set; }
+    public string? Brand { get; set; }
+    public string? Model { get; set; }
+    public string? RegistrationNo { get; set; }
+    public string? Dimension { get; set; }
     public string? Location { get; set; }
     public List<PropertyPhotoDto>? Photos { get; set; }
 }

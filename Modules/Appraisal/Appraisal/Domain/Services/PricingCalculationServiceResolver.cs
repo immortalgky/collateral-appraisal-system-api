@@ -8,6 +8,7 @@ public class PricingCalculationServiceResolver
     private readonly WqsCalculationService _wqs = new();
     private readonly SaleGridCalculationService _saleGrid = new();
     private readonly DirectComparisonCalculationService _directComparison = new();
+    private readonly MachineryCostCalculationService _machineryCost = new();
 
     public IPricingCalculationService? Resolve(string methodType)
     {
@@ -16,6 +17,7 @@ public class PricingCalculationServiceResolver
             "WQS" => _wqs,
             "SaleGrid" => _saleGrid,
             "DirectComparison" => _directComparison,
+            "MachineryCost" => _machineryCost,
             _ => null
         };
     }

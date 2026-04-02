@@ -18,7 +18,7 @@ public class GetBuildingPropertyQueryHandler(
         var property = appraisal.GetProperty(query.PropertyId)
                        ?? throw new PropertyNotFoundException(query.PropertyId);
 
-        if (property.PropertyType != PropertyType.Building)
+        if (property.PropertyType != PropertyType.Building && property.PropertyType != PropertyType.LeaseAgreementBuilding)
             throw new InvalidOperationException($"Property {query.PropertyId} is not a building property");
 
         var detail = property.BuildingDetail

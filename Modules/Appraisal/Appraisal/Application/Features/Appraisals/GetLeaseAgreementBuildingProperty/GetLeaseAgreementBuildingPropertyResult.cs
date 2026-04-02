@@ -1,0 +1,84 @@
+namespace Appraisal.Application.Features.Appraisals.GetLeaseAgreementBuildingProperty;
+
+/// <summary>
+/// Result of getting a lease agreement building property
+/// </summary>
+public record GetLeaseAgreementBuildingPropertyResult(
+    // Property
+    Guid PropertyId,
+    Guid AppraisalId,
+    int SequenceNumber,
+    string PropertyType,
+    string? Description,
+    // Detail
+    Guid DetailId,
+    // Property Identification
+    string? PropertyName,
+    string? BuildingNumber,
+    string? ModelName,
+    string? BuiltOnTitleNumber,
+    // Owner
+    string? OwnerName,
+    bool? IsOwnerVerified,
+    string? HouseNumber,
+    // Building Status
+    string? BuildingConditionType,
+    string? BuildingConditionTypeOther,
+    bool? IsUnderConstruction,
+    decimal? ConstructionCompletionPercent,
+    DateTime? ConstructionLicenseExpirationDate,
+    bool? IsAppraisable,
+    bool? HasObligation,
+    string? ObligationDetails,
+    // Building Info
+    string? BuildingType,
+    string? BuildingTypeOther,
+    decimal? NumberOfFloors,
+    string? DecorationType,
+    string? DecorationTypeOther,
+    bool? IsEncroachingOthers,
+    string? EncroachingOthersRemark,
+    decimal? EncroachingOthersArea,
+    // Construction Details
+    string? BuildingMaterialType,
+    string? BuildingStyleType,
+    bool IsResidential,
+    int? BuildingAge,
+    int? ConstructionYear,
+    string? ResidentialRemark,
+    string? ConstructionStyleType,
+    string? ConstructionStyleRemark,
+    // Structure Components
+    List<string>? StructureType,
+    string? StructureTypeOther,
+    List<string>? RoofFrameType,
+    string? RoofFrameTypeOther,
+    List<string>? RoofType,
+    string? RoofTypeOther,
+    List<string>? CeilingType,
+    string? CeilingTypeOther,
+    List<string>? InteriorWallType,
+    string? InteriorWallTypeOther,
+    List<string>? ExteriorWallType,
+    string? ExteriorWallTypeOther,
+    List<string>? FenceType,
+    string? FenceTypeOther,
+    string? ConstructionType,
+    string? ConstructionTypeOther,
+    // Utilization
+    string? UtilizationType,
+    string? UtilizationTypeOther,
+    // Area & Pricing
+    decimal? TotalBuildingArea,
+    decimal? BuildingInsurancePrice,
+    decimal? SellingPrice,
+    decimal? ForcedSalePrice,
+    // Other
+    string? Remark,
+    // Depreciation Details
+    IReadOnlyList<BuildingAppraisalDepreciationDetailDto> DepreciationDetails,
+    // Surfaces
+    IReadOnlyList<BuildingAppraisalSurfaceDto> Surfaces,
+    // Construction Inspection
+    ConstructionInspectionDto? ConstructionInspection
+);

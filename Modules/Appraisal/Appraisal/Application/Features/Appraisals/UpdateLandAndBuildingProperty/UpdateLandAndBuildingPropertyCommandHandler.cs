@@ -23,7 +23,7 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
                        ?? throw new PropertyNotFoundException(command.PropertyId);
 
         // 3. Validate property type
-        if (property.PropertyType != PropertyType.LandAndBuilding)
+        if (property.PropertyType != PropertyType.LandAndBuilding && property.PropertyType != PropertyType.LeaseAgreementLandAndBuilding)
             throw new InvalidOperationException($"Property {command.PropertyId} is not a land and building property");
 
         // 4. Get the detail records

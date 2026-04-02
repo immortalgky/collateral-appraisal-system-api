@@ -244,6 +244,56 @@ public class Appraisal : Aggregate<Guid>
     }
 
     /// <summary>
+    /// Add a lease agreement land property with land detail, lease agreement, and rental info
+    /// </summary>
+    public AppraisalProperty AddLeaseAgreementLandProperty()
+    {
+        var sequenceNumber = _properties.Count + 1;
+        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LeaseAgreementLand);
+
+        property.SetLandDetail(LandAppraisalDetail.Create(property.Id));
+        property.SetLeaseAgreementDetail(LeaseAgreementDetail.Create(property.Id));
+        property.SetRentalInfo(RentalInfo.Create(property.Id));
+
+        _properties.Add(property);
+        return property;
+    }
+
+    /// <summary>
+    /// Add a lease agreement building property with building detail, lease agreement, and rental info
+    /// </summary>
+    public AppraisalProperty AddLeaseAgreementBuildingProperty()
+    {
+        var sequenceNumber = _properties.Count + 1;
+        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LeaseAgreementBuilding);
+
+        property.SetBuildingDetail(BuildingAppraisalDetail.Create(property.Id));
+        property.SetLeaseAgreementDetail(LeaseAgreementDetail.Create(property.Id));
+        property.SetRentalInfo(RentalInfo.Create(property.Id));
+
+        _properties.Add(property);
+        return property;
+    }
+
+    /// <summary>
+    /// Add a lease agreement land and building property with both details, lease agreement, and rental info
+    /// </summary>
+    public AppraisalProperty AddLeaseAgreementLandAndBuildingProperty()
+    {
+        var sequenceNumber = _properties.Count + 1;
+        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LeaseAgreementLandAndBuilding);
+
+        property.SetLandAndBuildingDetails(
+            LandAppraisalDetail.Create(property.Id),
+            BuildingAppraisalDetail.Create(property.Id));
+        property.SetLeaseAgreementDetail(LeaseAgreementDetail.Create(property.Id));
+        property.SetRentalInfo(RentalInfo.Create(property.Id));
+
+        _properties.Add(property);
+        return property;
+    }
+
+    /// <summary>
     /// Deep-copy an existing property. Call SaveChanges to generate the ID,
     /// then use AddPropertyToGroup to assign it to a group.
     /// </summary>
@@ -284,6 +334,26 @@ public class Appraisal : Aggregate<Guid>
         else if (source.PropertyType == PropertyType.Machinery)
         {
             newProperty.SetMachineryDetail(MachineryAppraisalDetail.CopyFrom(source.MachineryDetail!, newProperty.Id));
+        }
+        else if (source.PropertyType == PropertyType.LeaseAgreementLand)
+        {
+            newProperty.SetLandDetail(LandAppraisalDetail.CopyFrom(source.LandDetail!, newProperty.Id));
+            newProperty.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail!, newProperty.Id));
+            newProperty.SetRentalInfo(RentalInfo.CopyFrom(source.RentalInfo!, newProperty.Id));
+        }
+        else if (source.PropertyType == PropertyType.LeaseAgreementBuilding)
+        {
+            newProperty.SetBuildingDetail(BuildingAppraisalDetail.CopyFrom(source.BuildingDetail!, newProperty.Id));
+            newProperty.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail!, newProperty.Id));
+            newProperty.SetRentalInfo(RentalInfo.CopyFrom(source.RentalInfo!, newProperty.Id));
+        }
+        else if (source.PropertyType == PropertyType.LeaseAgreementLandAndBuilding)
+        {
+            newProperty.SetLandAndBuildingDetails(
+                LandAppraisalDetail.CopyFrom(source.LandDetail!, newProperty.Id),
+                BuildingAppraisalDetail.CopyFrom(source.BuildingDetail!, newProperty.Id));
+            newProperty.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail!, newProperty.Id));
+            newProperty.SetRentalInfo(RentalInfo.CopyFrom(source.RentalInfo!, newProperty.Id));
         }
 
         _properties.Add(newProperty);

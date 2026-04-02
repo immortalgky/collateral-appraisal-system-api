@@ -9,11 +9,13 @@ public class PricingAnalysisMethod : Entity<Guid>
     private readonly List<PricingCalculation> _calculations = [];
     private readonly List<PricingComparativeFactor> _comparativeFactors = [];
     private readonly List<PricingFactorScore> _factorScores = [];
+    private readonly List<MachineCostItem> _machineCostItems = [];
 
     public IReadOnlyList<PricingComparableLink> ComparableLinks => _comparableLinks.AsReadOnly();
     public IReadOnlyList<PricingCalculation> Calculations => _calculations.AsReadOnly();
     public IReadOnlyList<PricingComparativeFactor> ComparativeFactors => _comparativeFactors.AsReadOnly();
     public IReadOnlyList<PricingFactorScore> FactorScores => _factorScores.AsReadOnly();
+    public IReadOnlyList<MachineCostItem> MachineCostItems => _machineCostItems.AsReadOnly();
 
     public Guid ApproachId { get; private set; }
     public Guid? ComparativeAnalysisTemplateId { get; private set; }
@@ -26,6 +28,7 @@ public class PricingAnalysisMethod : Entity<Guid>
     public decimal? ValuePerUnit { get; private set; }
     public string? UnitType { get; private set; } // Sqm, Rai, Unit
     public bool IsSelected { get; private set; }
+    public string? Remark { get; private set; }
 
     // Final Value (1:1)
     public PricingFinalValue? FinalValue { get; private set; }
@@ -43,7 +46,7 @@ public class PricingAnalysisMethod : Entity<Guid>
         string methodType,
         string status = "Selected")
     {
-        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "Cost", "Income" };
+        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "MachineryCost", "Income" };
         if (!validMethods.Contains(methodType))
             throw new ArgumentException($"MethodType must be one of: {string.Join(", ", validMethods)}");
 
@@ -86,6 +89,11 @@ public class PricingAnalysisMethod : Entity<Guid>
     public void SetComparativeAnalysisTemplate(Guid? templateId)
     {
         ComparativeAnalysisTemplateId = templateId;
+    }
+
+    public void SetRemark(string? remark)
+    {
+        Remark = remark;
     }
 
     public void SetAsSelected()
@@ -248,6 +256,32 @@ public class PricingAnalysisMethod : Entity<Guid>
         _comparableLinks.Clear();
     }
 
+    #region Machine Cost Item Methods
+
+    public MachineCostItem AddMachineCostItem(Guid appraisalPropertyId, int displaySequence)
+    {
+        if (_machineCostItems.Any(i => i.AppraisalPropertyId == appraisalPropertyId))
+            throw new InvalidOperationException("Machine cost item already exists for this property");
+
+        var item = MachineCostItem.Create(Id, appraisalPropertyId, displaySequence);
+        _machineCostItems.Add(item);
+        return item;
+    }
+
+    public void RemoveMachineCostItem(Guid itemId)
+    {
+        var item = _machineCostItems.FirstOrDefault(i => i.Id == itemId);
+        if (item is not null)
+            _machineCostItems.Remove(item);
+    }
+
+    public void ClearMachineCostItems()
+    {
+        _machineCostItems.Clear();
+    }
+
+    #endregion
+
     /// <summary>
     /// Resets all method data: factors, scores, calculations, links, final value, and RSQ result
     /// </summary>
@@ -257,6 +291,7 @@ public class PricingAnalysisMethod : Entity<Guid>
         ClearFactorScores();
         ClearCalculations();
         ClearComparableLinks();
+        ClearMachineCostItems();
         FinalValue = null;
         RsqResult = null;
         MethodValue = null;

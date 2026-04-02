@@ -113,6 +113,7 @@ public class AppraisalDbContext : DbContext
     public DbSet<PricingFinalValue> PricingFinalValues => Set<PricingFinalValue>();
     public DbSet<PricingComparativeFactor> PricingComparativeFactors => Set<PricingComparativeFactor>();
     public DbSet<PricingRsqResult> PricingRsqResults => Set<PricingRsqResult>();
+    public DbSet<MachineCostItem> MachineCostItems => Set<MachineCostItem>();
 
     // =====================================================
     // Comparative Analysis Templates
