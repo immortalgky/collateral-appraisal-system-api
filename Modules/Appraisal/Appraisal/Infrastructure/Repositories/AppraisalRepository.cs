@@ -67,6 +67,22 @@ public class AppraisalRepository(AppraisalDbContext dbContext)
     }
 
     /// <inheritdoc />
+    public async Task<Domain.Appraisals.Appraisal?> GetByIdWithCondoDataAsync(Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Appraisals
+            .Include(a => a.CondoProject)
+            .Include(a => a.CondoModels)
+            .ThenInclude(m => m.AreaDetails)
+            .Include(a => a.CondoTowers)
+            .Include(a => a.CondoUnits)
+            .Include(a => a.CondoUnitUploads)
+            .Include(a => a.CondoPricingAssumption)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IEnumerable<Domain.Appraisals.Appraisal>> GetAllAsync(
         CancellationToken cancellationToken = default)
     {

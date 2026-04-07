@@ -34,4 +34,9 @@ public interface IAppraisalRepository : IRepository<Appraisal, Guid>
     /// Get all appraisals
     /// </summary>
     Task<IEnumerable<Appraisal>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get appraisal by ID with block condo data (CondoProject, CondoModels, CondoTowers, etc.)
+    /// </summary>
+    Task<Appraisal?> GetByIdWithCondoDataAsync(Guid id, CancellationToken cancellationToken = default);
 }

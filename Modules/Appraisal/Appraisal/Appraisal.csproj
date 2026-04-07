@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <PackageReference Include="MassTransit.EntityFrameworkCore" Version="8.4.1"/>
+        <PackageReference Include="ClosedXML" Version="0.104.2"/>
     </ItemGroup>
 
     <ItemGroup>
