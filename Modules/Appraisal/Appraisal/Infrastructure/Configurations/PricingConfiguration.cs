@@ -111,6 +111,12 @@ public class PricingAnalysisMethodConfiguration : IEntityTypeConfiguration<Prici
             .HasForeignKey<LeaseholdAnalysis>(l => l.PricingMethodId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Profit Rent Analysis (1:1, ProfitRent method)
+        builder.HasOne(m => m.ProfitRentAnalysis)
+            .WithOne()
+            .HasForeignKey<ProfitRentAnalysis>(p => p.PricingMethodId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasOne<ComparativeAnalysisTemplate>()
             .WithMany()
             .HasForeignKey(m => m.ComparativeAnalysisTemplateId)
@@ -399,5 +405,88 @@ public class LeaseholdCalculationDetailConfiguration : IEntityTypeConfiguration<
         builder.Property(r => r.NetCurrentRentalIncome).HasPrecision(18, 2);
 
         builder.HasIndex(r => r.LeaseholdAnalysisId);
+    }
+}
+
+public class ProfitRentAnalysisConfiguration : IEntityTypeConfiguration<ProfitRentAnalysis>
+{
+    public void Configure(EntityTypeBuilder<ProfitRentAnalysis> builder)
+    {
+        builder.ToTable("ProfitRentAnalyses");
+
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+        builder.Property(p => p.PricingMethodId).IsRequired();
+        builder.HasIndex(p => p.PricingMethodId).IsUnique();
+
+        // Input fields
+        builder.Property(p => p.MarketRentalFeePerSqWa).HasPrecision(18, 2);
+        builder.Property(p => p.GrowthRateType).IsRequired().HasMaxLength(20);
+        builder.Property(p => p.GrowthRatePercent).HasPrecision(10, 4);
+        builder.Property(p => p.GrowthIntervalYears);
+        builder.Property(p => p.DiscountRate).HasPrecision(10, 4);
+        builder.Property(p => p.EstimatePriceRounded).HasPrecision(18, 2);
+
+        // Computed fields
+        builder.Property(p => p.TotalMarketRentalFee).HasPrecision(18, 2);
+        builder.Property(p => p.TotalContractRentalFee).HasPrecision(18, 2);
+        builder.Property(p => p.TotalReturnsFromLease).HasPrecision(18, 2);
+        builder.Property(p => p.TotalPresentValue).HasPrecision(18, 2);
+        builder.Property(p => p.FinalValueRounded).HasPrecision(18, 2);
+
+        builder.HasMany(p => p.GrowthPeriods)
+            .WithOne()
+            .HasForeignKey(g => g.ProfitRentAnalysisId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(p => p.TableRows)
+            .WithOne()
+            .HasForeignKey(r => r.ProfitRentAnalysisId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class ProfitRentGrowthPeriodConfiguration : IEntityTypeConfiguration<ProfitRentGrowthPeriod>
+{
+    public void Configure(EntityTypeBuilder<ProfitRentGrowthPeriod> builder)
+    {
+        builder.ToTable("ProfitRentGrowthPeriods");
+
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+        builder.Property(p => p.ProfitRentAnalysisId).IsRequired();
+        builder.Property(p => p.FromYear);
+        builder.Property(p => p.ToYear);
+        builder.Property(p => p.GrowthRatePercent).HasPrecision(10, 4);
+
+        builder.HasIndex(p => p.ProfitRentAnalysisId);
+    }
+}
+
+public class ProfitRentCalculationDetailConfiguration : IEntityTypeConfiguration<ProfitRentCalculationDetail>
+{
+    public void Configure(EntityTypeBuilder<ProfitRentCalculationDetail> builder)
+    {
+        builder.ToTable("ProfitRentCalculationDetails");
+
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+        builder.Property(r => r.ProfitRentAnalysisId).IsRequired();
+        builder.Property(r => r.DisplaySequence);
+        builder.Property(r => r.Year).HasPrecision(10, 2);
+        builder.Property(r => r.NumberOfMonths).HasPrecision(10, 2);
+        builder.Property(r => r.MarketRentalFeePerSqWa).HasPrecision(18, 2);
+        builder.Property(r => r.MarketRentalFeeGrowthPercent).HasPrecision(10, 4);
+        builder.Property(r => r.MarketRentalFeePerMonth).HasPrecision(18, 2);
+        builder.Property(r => r.MarketRentalFeePerYear).HasPrecision(18, 2);
+        builder.Property(r => r.ContractRentalFeePerYear).HasPrecision(18, 2);
+        builder.Property(r => r.ReturnsFromLease).HasPrecision(18, 2);
+        builder.Property(r => r.PvFactor).HasPrecision(18, 10);
+        builder.Property(r => r.PresentValue).HasPrecision(18, 2);
+
+        builder.HasIndex(r => r.ProfitRentAnalysisId);
     }
 }

@@ -117,6 +117,9 @@ public class AppraisalDbContext : DbContext
     public DbSet<LeaseholdAnalysis> LeaseholdAnalyses => Set<LeaseholdAnalysis>();
     public DbSet<LeaseholdLandGrowthPeriod> LeaseholdLandGrowthPeriods => Set<LeaseholdLandGrowthPeriod>();
     public DbSet<LeaseholdCalculationDetail> LeaseholdCalculationDetails => Set<LeaseholdCalculationDetail>();
+    public DbSet<ProfitRentAnalysis> ProfitRentAnalyses => Set<ProfitRentAnalysis>();
+    public DbSet<ProfitRentGrowthPeriod> ProfitRentGrowthPeriods => Set<ProfitRentGrowthPeriod>();
+    public DbSet<ProfitRentCalculationDetail> ProfitRentCalculationDetails => Set<ProfitRentCalculationDetail>();
 
     // =====================================================
     // Comparative Analysis Templates
