@@ -1,0 +1,31 @@
+namespace Appraisal.Application.Features.BlockVillage.SaveVillageProject;
+
+public record SaveVillageProjectCommand(
+    Guid AppraisalId,
+    string? ProjectName = null,
+    string? ProjectDescription = null,
+    string? Developer = null,
+    DateTime? ProjectSaleLaunchDate = null,
+    decimal? LandAreaRai = null,
+    decimal? LandAreaNgan = null,
+    decimal? LandAreaWa = null,
+    int? UnitForSaleCount = null,
+    int? NumberOfPhase = null,
+    string? LandOffice = null,
+    string? ProjectType = null,
+    DateTime? LicenseExpirationDate = null,
+    decimal? Latitude = null,
+    decimal? Longitude = null,
+    string? SubDistrict = null,
+    string? District = null,
+    string? Province = null,
+    string? Postcode = null,
+    string? LocationNumber = null,
+    string? Road = null,
+    string? Soi = null,
+    List<string>? Utilities = null,
+    string? UtilitiesOther = null,
+    List<string>? Facilities = null,
+    string? FacilitiesOther = null,
+    string? Remark = null
+) : ICommand<SaveVillageProjectResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

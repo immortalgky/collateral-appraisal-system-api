@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    [Migration("20260407033215_AddCondoUnitModelAndTowerForeignKeys")]
-    partial class AddCondoUnitModelAndTowerForeignKeys
+    [Migration("20260407040654_AddVillageUnitModelForeignKey")]
+    partial class AddVillageUnitModelForeignKey
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -4715,11 +4715,16 @@ namespace Appraisal.infrastructure.Migrations
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
 
+                    b.Property<Guid?>("VillageModelId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AppraisalId");
 
                     b.HasIndex("UploadBatchId");
+
+                    b.HasIndex("VillageModelId");
 
                     b.HasIndex("AppraisalId", "SequenceNumber");
 
@@ -10268,6 +10273,11 @@ namespace Appraisal.infrastructure.Migrations
                         .HasForeignKey("AppraisalId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("Appraisal.Domain.Appraisals.VillageModel", null)
+                        .WithMany()
+                        .HasForeignKey("VillageModelId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.VillageUnitPrice", b =>
