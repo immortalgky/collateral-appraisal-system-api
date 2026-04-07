@@ -73,6 +73,7 @@ public static class ActivityTypes
     public const string JoinActivity = "JoinActivity";
     public const string RoutingActivity = "RoutingActivity";
     public const string CompanySelectionActivity = "CompanySelectionActivity";
+    public const string InternalFollowupSelectionActivity = "InternalFollowupSelectionActivity";
     public const string ApprovalActivity = "ApprovalActivity";
 }
 

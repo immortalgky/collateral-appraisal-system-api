@@ -115,6 +115,7 @@ public static class WorkflowModule
         services.AddScoped<TaskActivity>();
         services.AddScoped<RoutingActivity>();
         services.AddScoped<CompanySelectionActivity>();
+        services.AddScoped<InternalFollowupSelectionActivity>();
         services.AddScoped<ApprovalActivity>();
 
         // Approval infrastructure
@@ -124,6 +125,9 @@ public static class WorkflowModule
 
         // Company routing
         services.AddScoped<ICompanyRoundRobinService, CompanyRoundRobinService>();
+
+        // Internal staff followup routing
+        services.AddScoped<IInternalStaffRoundRobinService, InternalStaffRoundRobinService>();
 
         // SLA services
         services.AddScoped<IBusinessTimeCalculator, BusinessTimeCalculator>();

@@ -6,19 +6,19 @@ using Shared.Messaging.Events;
 
 namespace Appraisal.Application.EventHandlers;
 
-public class CompanyAssignedIntegrationEventHandler(
+public class InternalAssignedIntegrationEventHandler(
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
-    ILogger<CompanyAssignedIntegrationEventHandler> logger
-) : IConsumer<CompanyAssignedIntegrationEvent>
+    ILogger<InternalAssignedIntegrationEventHandler> logger
+) : IConsumer<InternalAssignedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<CompanyAssignedIntegrationEvent> context)
+    public async Task Consume(ConsumeContext<InternalAssignedIntegrationEvent> context)
     {
         var message = context.Message;
 
         logger.LogInformation(
-            "Integration Event received: {IntegrationEvent} for AppraisalId: {AppraisalId}, CompanyId: {CompanyId}",
-            nameof(CompanyAssignedIntegrationEvent), message.AppraisalId, message.CompanyId);
+            "Integration Event received: {IntegrationEvent} for AppraisalId: {AppraisalId}, AssigneeUserId: {AssigneeUserId}",
+            nameof(InternalAssignedIntegrationEvent), message.AppraisalId, message.AssigneeUserId);
 
         var appraisal = await appraisalRepository.GetByIdWithAllDataAsync(
             message.AppraisalId, context.CancellationToken);
@@ -26,7 +26,7 @@ public class CompanyAssignedIntegrationEventHandler(
         if (appraisal is null)
         {
             logger.LogWarning(
-                "Appraisal {AppraisalId} not found for company assignment", message.AppraisalId);
+                "Appraisal {AppraisalId} not found for internal assignment", message.AppraisalId);
             return;
         }
 
@@ -44,10 +44,10 @@ public class CompanyAssignedIntegrationEventHandler(
         }
 
         assignment.Assign(
-            assignmentType: "External",
-            assigneeCompanyId: message.CompanyId.ToString(),
-            assignmentMethod: message.AssignmentMethod,
+            assignmentType: "Internal",
+            assigneeUserId: message.AssigneeUserId,
             internalAppraiserId: message.InternalAppraiserId,
+            assignmentMethod: message.AssignmentMethod,
             internalFollowupMethod: message.InternalFollowupAssignmentMethod,
             assignedBy: "System");
 
@@ -55,7 +55,7 @@ public class CompanyAssignedIntegrationEventHandler(
         await unitOfWork.SaveChangesAsync(context.CancellationToken);
 
         logger.LogInformation(
-            "Updated AppraisalAssignment for AppraisalId {AppraisalId}: CompanyId={CompanyId}, Method={Method}",
-            message.AppraisalId, message.CompanyId, message.AssignmentMethod);
+            "Updated AppraisalAssignment for AppraisalId {AppraisalId}: Internal, AssigneeUserId={UserId}, Method={Method}",
+            message.AppraisalId, message.AssigneeUserId, message.AssignmentMethod);
     }
 }

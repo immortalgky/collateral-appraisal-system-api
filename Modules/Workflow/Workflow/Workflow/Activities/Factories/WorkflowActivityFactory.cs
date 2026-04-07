@@ -69,6 +69,7 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
         // Routing activities
         _activityTypes[ActivityTypes.RoutingActivity] = typeof(RoutingActivity);
         _activityTypes[ActivityTypes.CompanySelectionActivity] = typeof(CompanySelectionActivity);
+        _activityTypes[ActivityTypes.InternalFollowupSelectionActivity] = typeof(InternalFollowupSelectionActivity);
 
         // Approval activity
         _activityTypes[ActivityTypes.ApprovalActivity] = typeof(ApprovalActivity);
@@ -253,6 +254,19 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
             Category = "Flow Control",
             Icon = "building-office",
             Color = "#0ea5e9",
+            Properties = new List<ActivityPropertyDefinition>()
+        };
+
+        // Internal Followup Selection Activity Definition
+        _activityDefinitions[ActivityTypes.InternalFollowupSelectionActivity] = new ActivityTypeDefinition
+        {
+            Type = ActivityTypes.InternalFollowupSelectionActivity,
+            Name = "Internal Followup Selection Activity",
+            Description =
+                "Selects internal followup staff via round-robin or uses admin-selected staff.",
+            Category = "Flow Control",
+            Icon = "user-group",
+            Color = "#14b8a6",
             Properties = new List<ActivityPropertyDefinition>()
         };
 
