@@ -8025,12 +8025,12 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasOne("Appraisal.Domain.Appraisals.CondoModel", null)
                         .WithMany()
                         .HasForeignKey("CondoModelId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Appraisal.Domain.Appraisals.CondoTower", null)
                         .WithMany()
                         .HasForeignKey("CondoTowerId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.CondoUnitPrice", b =>

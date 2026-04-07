@@ -44,8 +44,7 @@ namespace Appraisal.infrastructure.Migrations
                 column: "CondoModelId",
                 principalSchema: "appraisal",
                 principalTable: "CondoModels",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+                principalColumn: "Id");
 
             migrationBuilder.AddForeignKey(
                 name: "FK_CondoUnits_CondoTowers_CondoTowerId",
@@ -54,8 +53,7 @@ namespace Appraisal.infrastructure.Migrations
                 column: "CondoTowerId",
                 principalSchema: "appraisal",
                 principalTable: "CondoTowers",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+                principalColumn: "Id");
         }
 
         /// <inheritdoc />
