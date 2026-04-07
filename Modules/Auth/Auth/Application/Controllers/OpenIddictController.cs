@@ -3,6 +3,7 @@ using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using OpenIddict.Server.AspNetCore;
+using Auth.Application.Helpers;
 using Auth.Application.Services;
 
 namespace Auth.Application.Controllers;
@@ -47,7 +48,9 @@ public class OpenIddictController(ITokenService tokenService) : Controller
         if (request is null)
             return BadRequest(new { error = "Invalid request" });
 
-        if (!request.IsAuthorizationCodeGrantType() && !request.IsClientCredentialsGrantType())
+        if (!request.IsAuthorizationCodeGrantType()
+            && !request.IsClientCredentialsGrantType()
+            && !request.IsRefreshTokenGrantType())
             return BadRequest(new { error = "Unsupported grant_type" });
 
         var principal = (await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme))
@@ -55,6 +58,9 @@ public class OpenIddictController(ITokenService tokenService) : Controller
 
         if (request.IsClientCredentialsGrantType())
             return await HandleClientCredentialsGrant(request);
+
+        if (request.IsRefreshTokenGrantType())
+            return await HandleRefreshTokenGrant(request, principal);
 
         return await HandleAuthorizationCodeGrant(request, principal);
     }
@@ -73,12 +79,20 @@ public class OpenIddictController(ITokenService tokenService) : Controller
         return SignIn(claimsPrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
+    private async Task<IActionResult> HandleRefreshTokenGrant(OpenIddictRequest request, ClaimsPrincipal? principal)
+    {
+        if (principal == null) return BadRequest(new { error = "Invalid refresh token" });
+        var claimsPrincipal = await tokenService.CreateRefreshFlowAccessTokenPrincipal(request, principal);
+        return SignIn(claimsPrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
     [AllowAnonymous]
     [HttpGet("~/connect/logout")]
     [HttpPost("~/connect/logout")]
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync("Identity.Application");
+        RefreshTokenCookieHelper.ClearRefreshTokenCookie(HttpContext);
 
         return SignOut(
             authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,

@@ -11,4 +11,9 @@ public interface ITokenService
     public Task<ClaimsPrincipal> CreateClientCredFlowAccessTokenPrincipal(
         OpenIddictRequest request
     );
+
+    public Task<ClaimsPrincipal> CreateRefreshFlowAccessTokenPrincipal(
+        OpenIddictRequest request,
+        ClaimsPrincipal principal
+    );
 }
