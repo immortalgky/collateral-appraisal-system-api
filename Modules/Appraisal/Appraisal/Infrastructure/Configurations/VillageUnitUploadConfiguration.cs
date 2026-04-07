@@ -1,0 +1,22 @@
+namespace Appraisal.Infrastructure.Configurations;
+
+public class VillageUnitUploadConfiguration : IEntityTypeConfiguration<VillageUnitUpload>
+{
+    public void Configure(EntityTypeBuilder<VillageUnitUpload> builder)
+    {
+        builder.ToTable("VillageUnitUploads");
+
+        // Primary Key
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+        // Foreign Key
+        builder.Property(e => e.AppraisalId).IsRequired();
+        builder.HasIndex(e => e.AppraisalId);
+
+        // Core Properties
+        builder.Property(e => e.FileName).IsRequired().HasMaxLength(500);
+        builder.Property(e => e.UploadedAt).IsRequired();
+        builder.Property(e => e.IsUsed).IsRequired().HasDefaultValue(false);
+    }
+}
