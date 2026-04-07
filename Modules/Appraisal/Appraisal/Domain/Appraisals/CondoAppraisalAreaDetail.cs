@@ -24,7 +24,7 @@ public class CondoAppraisalAreaDetail : Entity<Guid>
 
         return new CondoAppraisalAreaDetail
         {
-            // Id = Guid.CreateVersion7(),
+            Id = Guid.CreateVersion7(),
             AreaDescription = areaDescription,
             AreaSize = areaSize
         };

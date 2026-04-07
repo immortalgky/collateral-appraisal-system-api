@@ -159,12 +159,51 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
             .HasForeignKey(a => a.AppraisalId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Block Condo navigations
+        builder.HasOne(a => a.CondoProject)
+            .WithOne()
+            .HasForeignKey<CondoProject>(p => p.AppraisalId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(a => a.CondoModels)
+            .WithOne()
+            .HasForeignKey(m => m.AppraisalId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(a => a.CondoTowers)
+            .WithOne()
+            .HasForeignKey(t => t.AppraisalId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(a => a.CondoUnits)
+            .WithOne()
+            .HasForeignKey(u => u.AppraisalId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(a => a.CondoUnitUploads)
+            .WithOne()
+            .HasForeignKey(u => u.AppraisalId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(a => a.CondoPricingAssumption)
+            .WithOne()
+            .HasForeignKey<CondoPricingAssumption>(p => p.AppraisalId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // Backing fields for collections
         builder.Navigation(a => a.Properties)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Navigation(a => a.Groups)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Navigation(a => a.Assignments)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Navigation(a => a.CondoModels)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Navigation(a => a.CondoTowers)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Navigation(a => a.CondoUnits)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Navigation(a => a.CondoUnitUploads)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         // Indexes

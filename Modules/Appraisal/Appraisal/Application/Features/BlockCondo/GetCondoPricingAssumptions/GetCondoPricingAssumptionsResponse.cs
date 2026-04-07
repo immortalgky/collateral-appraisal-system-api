@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.BlockCondo.GetCondoPricingAssumptions;
+
+public record GetCondoPricingAssumptionsResponse(CondoPricingAssumptionDto? Assumption);

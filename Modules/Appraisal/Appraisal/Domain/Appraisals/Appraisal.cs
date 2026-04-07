@@ -10,11 +10,21 @@ public class Appraisal : Aggregate<Guid>
     private readonly List<AppraisalProperty> _properties = [];
     private readonly List<PropertyGroup> _groups = [];
     private readonly List<AppraisalAssignment> _assignments = [];
+    private readonly List<CondoModel> _condoModels = [];
+    private readonly List<CondoTower> _condoTowers = [];
+    private readonly List<CondoUnit> _condoUnits = [];
+    private readonly List<CondoUnitUpload> _condoUnitUploads = [];
 
     // Read-only accessors
     public IReadOnlyList<AppraisalProperty> Properties => _properties.AsReadOnly();
     public IReadOnlyList<PropertyGroup> Groups => _groups.AsReadOnly();
     public IReadOnlyList<AppraisalAssignment> Assignments => _assignments.AsReadOnly();
+    public IReadOnlyList<CondoModel> CondoModels => _condoModels.AsReadOnly();
+    public IReadOnlyList<CondoTower> CondoTowers => _condoTowers.AsReadOnly();
+    public IReadOnlyList<CondoUnit> CondoUnits => _condoUnits.AsReadOnly();
+    public IReadOnlyList<CondoUnitUpload> CondoUnitUploads => _condoUnitUploads.AsReadOnly();
+    public CondoProject? CondoProject { get; private set; }
+    public CondoPricingAssumption? CondoPricingAssumption { get; private set; }
 
     // Core Properties
     public string? AppraisalNumber { get; private set; }
@@ -686,6 +696,169 @@ public class Appraisal : Aggregate<Guid>
     }
 
     #endregion
+
+    #region Block Condo Management
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    public CondoProject SetCondoProject(
+        // Project Info
+        string? projectName = null,
+        string? projectDescription = null,
+        string? developer = null,
+        DateTime? projectSaleLaunchDate = null,
+        // Land Area
+        decimal? landAreaRai = null,
+        decimal? landAreaNgan = null,
+        decimal? landAreaWa = null,
+        // Project Details
+        int? unitForSaleCount = null,
+        int? numberOfPhase = null,
+        string? landOffice = null,
+        string? projectType = null,
+        string? builtOnTitleDeedNumber = null,
+        // Location
+        GpsCoordinate? coordinates = null,
+        AdministrativeAddress? address = null,
+        string? postcode = null,
+        string? locationNumber = null,
+        string? road = null,
+        string? soi = null,
+        // Utilities & Facilities
+        List<string>? utilities = null,
+        string? utilitiesOther = null,
+        List<string>? facilities = null,
+        string? facilitiesOther = null,
+        // Other
+        string? remark = null)
+    {
+        if (CondoProject is null)
+        {
+            CondoProject = CondoProject.Create(Id);
+        }
+
+        CondoProject.Update(
+            projectName, projectDescription, developer, projectSaleLaunchDate,
+            landAreaRai, landAreaNgan, landAreaWa,
+            unitForSaleCount, numberOfPhase, landOffice, projectType, builtOnTitleDeedNumber,
+            coordinates, address, postcode, locationNumber, road, soi,
+            utilities, utilitiesOther, facilities, facilitiesOther,
+            remark);
+
+        return CondoProject;
+    }
+
+    public CondoModel AddCondoModel()
+    {
+        var model = CondoModel.Create(Id);
+        _condoModels.Add(model);
+        return model;
+    }
+
+    public void RemoveCondoModel(Guid modelId)
+    {
+        var model = _condoModels.FirstOrDefault(m => m.Id == modelId)
+                    ?? throw new InvalidOperationException($"Condo model {modelId} not found");
+        _condoModels.Remove(model);
+    }
+
+    public CondoTower AddCondoTower()
+    {
+        var tower = CondoTower.Create(Id);
+        _condoTowers.Add(tower);
+        return tower;
+    }
+
+    public void RemoveCondoTower(Guid towerId)
+    {
+        var tower = _condoTowers.FirstOrDefault(t => t.Id == towerId)
+                    ?? throw new InvalidOperationException($"Condo tower {towerId} not found");
+        _condoTowers.Remove(tower);
+    }
+
+    public CondoUnitUpload ImportCondoUnits(string fileName, Guid? documentId, List<CondoUnit> units)
+    {
+        var upload = CondoUnitUpload.Create(Id, fileName, documentId);
+        _condoUnitUploads.Add(upload);
+
+        // Mark previous uploads as unused
+        foreach (var existing in _condoUnitUploads.Where(u => u.IsUsed))
+            existing.MarkAsUnused();
+        upload.MarkAsUsed();
+
+        // Remove old units and add new ones, linking each unit to the upload
+        _condoUnits.Clear();
+        foreach (var unit in units)
+        {
+            unit.SetUploadBatchId(upload.Id);
+            _condoUnits.Add(unit);
+        }
+
+        // Auto-create placeholder towers and models from unique names
+        var towerNames = _condoUnits.Where(u => !string.IsNullOrWhiteSpace(u.TowerName))
+            .Select(u => u.TowerName!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        foreach (var name in towerNames)
+        {
+            if (!_condoTowers.Any(t => string.Equals(t.TowerName, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                _condoTowers.Add(CondoTower.Create(Id, name));
+            }
+        }
+
+        var modelTypes = _condoUnits.Where(u => !string.IsNullOrWhiteSpace(u.ModelType))
+            .Select(u => u.ModelType!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        foreach (var name in modelTypes)
+        {
+            if (!_condoModels.Any(m => string.Equals(m.ModelName, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                _condoModels.Add(CondoModel.Create(Id, name));
+            }
+        }
+
+        // Link units to towers and models by FK
+        foreach (var unit in _condoUnits)
+        {
+            if (!string.IsNullOrWhiteSpace(unit.TowerName))
+            {
+                var tower = _condoTowers.First(t => string.Equals(t.TowerName, unit.TowerName, StringComparison.OrdinalIgnoreCase));
+                unit.SetCondoTowerId(tower.Id);
+            }
+            if (!string.IsNullOrWhiteSpace(unit.ModelType))
+            {
+                var model = _condoModels.First(m => string.Equals(m.ModelName, unit.ModelType, StringComparison.OrdinalIgnoreCase));
+                unit.SetCondoModelId(model.Id);
+            }
+        }
+
+        return upload;
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    public CondoPricingAssumption SetCondoPricingAssumption(
+        string? locationMethod,
+        decimal? cornerAdjustment,
+        decimal? edgeAdjustment,
+        decimal? poolViewAdjustment,
+        decimal? southAdjustment,
+        decimal? otherAdjustment,
+        int? floorIncrementEveryXFloor,
+        decimal? floorIncrementAmount,
+        decimal? forceSalePercentage)
+    {
+        if (CondoPricingAssumption is null)
+        {
+            CondoPricingAssumption = CondoPricingAssumption.Create(Id);
+        }
+
+        CondoPricingAssumption.Update(
+            locationMethod, cornerAdjustment, edgeAdjustment,
+            poolViewAdjustment, southAdjustment, otherAdjustment,
+            floorIncrementEveryXFloor, floorIncrementAmount, forceSalePercentage);
+
+        return CondoPricingAssumption;
+    }
+
+    #endregion
+
 
     #region Soft Delete
 
