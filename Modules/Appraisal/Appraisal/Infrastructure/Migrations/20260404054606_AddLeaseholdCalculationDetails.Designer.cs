@@ -4,16 +4,19 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Appraisal.Infrastructure.Migrations
+namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260404054606_AddLeaseholdCalculationDetails")]
+    partial class AddLeaseholdCalculationDetails
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1846,15 +1849,9 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("AppraisalId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("CondoModelId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("CondoRegistrationNumber")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<Guid?>("CondoTowerId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -1908,10 +1905,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AppraisalId");
-
-                    b.HasIndex("CondoModelId");
-
-                    b.HasIndex("CondoTowerId");
 
                     b.HasIndex("UploadBatchId");
 
@@ -8279,16 +8272,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasForeignKey("AppraisalId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("Appraisal.Domain.Appraisals.CondoModel", null)
-                        .WithMany()
-                        .HasForeignKey("CondoModelId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.HasOne("Appraisal.Domain.Appraisals.CondoTower", null)
-                        .WithMany()
-                        .HasForeignKey("CondoTowerId")
-                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.CondoUnitPrice", b =>

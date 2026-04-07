@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+using Appraisal.Application.Features.Appraisals.Shared;
 using Shared.Dtos;
 
 namespace Appraisal.Application.Features.Appraisals.GetLeaseAgreementLandProperty;
@@ -151,7 +152,11 @@ public class GetLeaseAgreementLandPropertyQueryHandler(
                 title.GovernmentPricePerSqWa,
                 title.GovernmentPrice,
                 title.Remark
-            )).ToList()
+            )).ToList(),
+
+            // Lease Agreement & Rental Info
+            LeaseAgreement = LeaseAgreementMapper.MapLeaseAgreement(property.LeaseAgreementDetail),
+            RentalInfo = LeaseAgreementMapper.MapRentalInfo(property.RentalInfo),
         };
     }
 }
