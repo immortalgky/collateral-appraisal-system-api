@@ -121,4 +121,8 @@ public record GetLeaseAgreementLandPropertyResponse
 
     // Land Titles
     public List<LandTitleItemData>? Titles { get; init; }
+
+    // Lease Agreement & Rental Info
+    public Shared.LeaseAgreementDetailDto? LeaseAgreement { get; init; }
+    public Shared.RentalInfoDto? RentalInfo { get; init; }
 }

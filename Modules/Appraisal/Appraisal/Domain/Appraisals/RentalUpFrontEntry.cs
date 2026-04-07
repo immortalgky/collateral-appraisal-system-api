@@ -6,7 +6,7 @@ namespace Appraisal.Domain.Appraisals;
 public class RentalUpFrontEntry : Entity<Guid>
 {
     public Guid RentalInfoId { get; private set; }
-    public int AtYear { get; private set; }
+    public DateTime AtYear { get; private set; }
     public decimal UpFrontAmount { get; private set; }
 
     private RentalUpFrontEntry()
@@ -15,7 +15,7 @@ public class RentalUpFrontEntry : Entity<Guid>
 
     public static RentalUpFrontEntry Create(
         Guid rentalInfoId,
-        int atYear,
+        DateTime atYear,
         decimal upFrontAmount)
     {
         return new RentalUpFrontEntry

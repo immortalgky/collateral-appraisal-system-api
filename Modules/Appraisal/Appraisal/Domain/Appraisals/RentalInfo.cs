@@ -106,7 +106,7 @@ public class RentalInfo : Entity<Guid>
         if (growthIntervalYears.HasValue) GrowthIntervalYears = growthIntervalYears.Value;
     }
 
-    public void AddUpFrontEntry(int atYear, decimal upFrontAmount)
+    public void AddUpFrontEntry(DateTime atYear, decimal upFrontAmount)
     {
         _upFrontEntries.Add(RentalUpFrontEntry.Create(Id, atYear, upFrontAmount));
     }

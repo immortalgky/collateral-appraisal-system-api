@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+using Appraisal.Application.Features.Appraisals.Shared;
 
 namespace Appraisal.Application.Features.Appraisals.GetLeaseAgreementLandProperty;
 
@@ -122,4 +123,8 @@ public record GetLeaseAgreementLandPropertyResult
 
     // Land Titles
     public List<LandTitleItemData>? Titles { get; init; }
+
+    // Lease Agreement & Rental Info
+    public LeaseAgreementDetailDto? LeaseAgreement { get; init; }
+    public RentalInfoDto? RentalInfo { get; init; }
 }

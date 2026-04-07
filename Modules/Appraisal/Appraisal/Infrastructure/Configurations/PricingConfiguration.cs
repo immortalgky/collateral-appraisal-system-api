@@ -105,6 +105,12 @@ public class PricingAnalysisMethodConfiguration : IEntityTypeConfiguration<Prici
             .HasForeignKey(i => i.PricingMethodId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Leasehold Analysis (1:1, Leasehold method)
+        builder.HasOne(m => m.LeaseholdAnalysis)
+            .WithOne()
+            .HasForeignKey<LeaseholdAnalysis>(l => l.PricingMethodId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasOne<ComparativeAnalysisTemplate>()
             .WithMany()
             .HasForeignKey(m => m.ComparativeAnalysisTemplateId)
@@ -296,5 +302,102 @@ public class MachineCostItemConfiguration : IEntityTypeConfiguration<MachineCost
 
         builder.HasIndex(i => i.PricingMethodId);
         builder.HasIndex(i => new { i.PricingMethodId, i.AppraisalPropertyId }).IsUnique();
+    }
+}
+
+public class LeaseholdAnalysisConfiguration : IEntityTypeConfiguration<LeaseholdAnalysis>
+{
+    public void Configure(EntityTypeBuilder<LeaseholdAnalysis> builder)
+    {
+        builder.ToTable("LeaseholdAnalyses");
+
+        builder.HasKey(l => l.Id);
+        builder.Property(l => l.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+        builder.Property(l => l.PricingMethodId).IsRequired();
+        builder.HasIndex(l => l.PricingMethodId).IsUnique();
+
+        // Input fields
+        builder.Property(l => l.LandValuePerSqWa).HasPrecision(18, 2);
+        builder.Property(l => l.LandGrowthRateType).IsRequired().HasMaxLength(20);
+        builder.Property(l => l.LandGrowthRatePercent).HasPrecision(10, 4);
+        builder.Property(l => l.LandGrowthIntervalYears);
+        builder.Property(l => l.ConstructionCostIndex).HasPrecision(10, 4);
+        builder.Property(l => l.InitialBuildingValue).HasPrecision(18, 2);
+        builder.Property(l => l.DepreciationRate).HasPrecision(10, 4);
+        builder.Property(l => l.DepreciationIntervalYears);
+        builder.Property(l => l.BuildingCalcStartYear);
+        builder.Property(l => l.DiscountRate).HasPrecision(10, 4);
+
+        // Computed fields
+        builder.Property(l => l.TotalIncomeOverLeaseTerm).HasPrecision(18, 2);
+        builder.Property(l => l.ValueAtLeaseExpiry).HasPrecision(18, 2);
+        builder.Property(l => l.FinalValue).HasPrecision(18, 2);
+        builder.Property(l => l.FinalValueRounded).HasPrecision(18, 2);
+
+        // Partial usage fields
+        builder.Property(l => l.PartialRai).HasPrecision(18, 2);
+        builder.Property(l => l.PartialNgan).HasPrecision(18, 2);
+        builder.Property(l => l.PartialWa).HasPrecision(18, 2);
+        builder.Property(l => l.PartialLandArea).HasPrecision(18, 2);
+        builder.Property(l => l.PricePerSqWa).HasPrecision(18, 2);
+        builder.Property(l => l.PartialLandPrice).HasPrecision(18, 2);
+        builder.Property(l => l.EstimateNetPrice).HasPrecision(18, 2);
+        builder.Property(l => l.EstimatePriceRounded).HasPrecision(18, 2);
+
+        builder.HasMany(l => l.LandGrowthPeriods)
+            .WithOne()
+            .HasForeignKey(p => p.LeaseholdAnalysisId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(l => l.TableRows)
+            .WithOne()
+            .HasForeignKey(r => r.LeaseholdAnalysisId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class LeaseholdLandGrowthPeriodConfiguration : IEntityTypeConfiguration<LeaseholdLandGrowthPeriod>
+{
+    public void Configure(EntityTypeBuilder<LeaseholdLandGrowthPeriod> builder)
+    {
+        builder.ToTable("LeaseholdLandGrowthPeriods");
+
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+        builder.Property(p => p.LeaseholdAnalysisId).IsRequired();
+        builder.Property(p => p.FromYear);
+        builder.Property(p => p.ToYear);
+        builder.Property(p => p.GrowthRatePercent).HasPrecision(10, 4);
+
+        builder.HasIndex(p => p.LeaseholdAnalysisId);
+    }
+}
+
+public class LeaseholdCalculationDetailConfiguration : IEntityTypeConfiguration<LeaseholdCalculationDetail>
+{
+    public void Configure(EntityTypeBuilder<LeaseholdCalculationDetail> builder)
+    {
+        builder.ToTable("LeaseholdCalculationDetails");
+
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+        builder.Property(r => r.LeaseholdAnalysisId).IsRequired();
+        builder.Property(r => r.DisplaySequence);
+        builder.Property(r => r.Year).HasPrecision(10, 2);
+        builder.Property(r => r.LandValue).HasPrecision(18, 2);
+        builder.Property(r => r.LandGrowthPercent).HasPrecision(10, 4);
+        builder.Property(r => r.BuildingValue).HasPrecision(18, 2);
+        builder.Property(r => r.DepreciationAmount).HasPrecision(18, 2);
+        builder.Property(r => r.DepreciationPercent).HasPrecision(10, 4);
+        builder.Property(r => r.BuildingAfterDepreciation).HasPrecision(18, 2);
+        builder.Property(r => r.TotalLandAndBuilding).HasPrecision(18, 2);
+        builder.Property(r => r.RentalIncome).HasPrecision(18, 2);
+        builder.Property(r => r.PvFactor).HasPrecision(18, 10);
+        builder.Property(r => r.NetCurrentRentalIncome).HasPrecision(18, 2);
+
+        builder.HasIndex(r => r.LeaseholdAnalysisId);
     }
 }

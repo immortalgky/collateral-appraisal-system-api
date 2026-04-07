@@ -76,4 +76,12 @@ public class PricingFinalValue : Entity<Guid>
         FinalValueRounded = finalValueRounded;
     }
 
+    public void ClearBuildingCost()
+    {
+        HasBuildingCost = false;
+        BuildingCost = null;
+        AppraisalPriceWithBuilding = null;
+        AppraisalPriceWithBuildingRounded = null;
+    }
+
 }
