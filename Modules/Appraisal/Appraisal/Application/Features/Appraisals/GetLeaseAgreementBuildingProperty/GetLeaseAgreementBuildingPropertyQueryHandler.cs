@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.Shared;
+
 namespace Appraisal.Application.Features.Appraisals.GetLeaseAgreementBuildingProperty;
 
 /// <summary>
@@ -134,6 +136,9 @@ public class GetLeaseAgreementBuildingPropertyQueryHandler(
             Remark: detail.Remark,
             DepreciationDetails: depreciationDtos,
             Surfaces: surfaceDtos,
-            ConstructionInspection: constructionDto);
+            ConstructionInspection: constructionDto,
+            // Lease Agreement & Rental Info
+            LeaseAgreement: LeaseAgreementMapper.MapLeaseAgreement(property.LeaseAgreementDetail),
+            RentalInfo: LeaseAgreementMapper.MapRentalInfo(property.RentalInfo));
     }
 }

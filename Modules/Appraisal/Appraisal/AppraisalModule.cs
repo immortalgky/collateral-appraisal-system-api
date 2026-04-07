@@ -64,6 +64,9 @@ public static class AppraisalModule
         services.AddScoped<IAppraisalCreationService, AppraisalCreationService>();
         services.AddScoped<IAppraisalStatusService, AppraisalStatusService>();
 
+        // Register Application Services (pricing)
+        services.AddScoped<PricingPropertyDataService>();
+
         // Register Domain Services
         services.AddSingleton<PricingCalculationServiceResolver>();
 

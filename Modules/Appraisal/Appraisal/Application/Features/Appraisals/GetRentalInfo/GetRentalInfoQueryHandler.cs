@@ -31,9 +31,13 @@ public class GetRentalInfoQueryHandler(
             GrowthRateType: info.GrowthRateType,
             GrowthRatePercent: info.GrowthRatePercent,
             GrowthIntervalYears: info.GrowthIntervalYears,
-            UpFrontEntries: info.UpFrontEntries.Select(e =>
+            UpFrontEntries: info.UpFrontEntries.OrderBy(e => e.AtYear).Select(e =>
                 new UpFrontEntryDto(e.Id, e.AtYear, e.UpFrontAmount)).ToList(),
-            GrowthPeriodEntries: info.GrowthPeriodEntries.Select(e =>
-                new GrowthPeriodEntryDto(e.Id, e.FromYear, e.ToYear, e.GrowthRate, e.GrowthAmount, e.TotalAmount)).ToList());
+            GrowthPeriodEntries: info.GrowthPeriodEntries.OrderBy(e => e.FromYear).Select(e =>
+                new GrowthPeriodEntryDto(e.Id, e.FromYear, e.ToYear, e.GrowthRate, e.GrowthAmount, e.TotalAmount)).ToList(),
+            ScheduleEntries: info.ScheduleEntries.OrderBy(e => e.Year).Select(e =>
+                new ScheduleEntryDto(e.Year, e.ContractStart, e.ContractEnd, e.UpFront, e.ContractRentalFee, e.TotalAmount, e.ContractRentalFeeGrowthRatePercent)).ToList(),
+            ScheduleOverrides: info.ScheduleOverrides.Select(e =>
+                new ScheduleOverrideDto(e.Year, e.UpFront, e.ContractRentalFee)).ToList());
     }
 }

@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+using Appraisal.Application.Features.Appraisals.Shared;
 
 namespace Appraisal.Application.Features.Appraisals.GetLeaseAgreementLandAndBuildingProperty;
 
@@ -268,6 +269,9 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
             // Surfaces
             surfaceDtos,
             // Construction Inspection
-            constructionDto);
+            constructionDto,
+            // Lease Agreement & Rental Info
+            LeaseAgreementMapper.MapLeaseAgreement(property.LeaseAgreementDetail),
+            LeaseAgreementMapper.MapRentalInfo(property.RentalInfo));
     }
 }
