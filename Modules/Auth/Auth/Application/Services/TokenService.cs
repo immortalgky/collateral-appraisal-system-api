@@ -151,6 +151,15 @@ public class TokenService(
         return [OpenIddictConstants.Destinations.AccessToken];
     }
 
+    public async Task<ClaimsPrincipal> CreateRefreshFlowAccessTokenPrincipal(
+        OpenIddictRequest request,
+        ClaimsPrincipal principal
+    )
+    {
+        // Reuse the auth code flow logic — it already reloads user, permissions, and roles from DB
+        return await CreateAuthCodeFlowAccessTokenPrincipal(request, principal);
+    }
+
     internal async Task<ImmutableArray<string>> GetUserPermissions(ApplicationUser user)
     {
         var roleNames = await userManager.GetRolesAsync(user);

@@ -91,6 +91,10 @@ public static class AuthModule
                 options.AllowPasswordFlow();
                 options.AllowRefreshTokenFlow();
 
+                options.SetAccessTokenLifetime(TimeSpan.FromMinutes(15));
+                options.SetRefreshTokenLifetime(TimeSpan.FromDays(7));
+                options.SetIdentityTokenLifetime(TimeSpan.FromMinutes(15));
+
                 if (environment == "Development") options.AcceptAnonymousClients();
 
                 options.RegisterScopes(
