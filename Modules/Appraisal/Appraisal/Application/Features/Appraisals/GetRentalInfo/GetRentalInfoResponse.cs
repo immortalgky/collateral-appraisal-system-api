@@ -11,5 +11,7 @@ public record GetRentalInfoResponse(
     decimal GrowthRatePercent,
     int GrowthIntervalYears,
     List<UpFrontEntryDto> UpFrontEntries,
-    List<GrowthPeriodEntryDto> GrowthPeriodEntries
+    List<GrowthPeriodEntryDto> GrowthPeriodEntries,
+    List<ScheduleEntryDto> ScheduleEntries,
+    List<ScheduleOverrideDto> ScheduleOverrides
 );

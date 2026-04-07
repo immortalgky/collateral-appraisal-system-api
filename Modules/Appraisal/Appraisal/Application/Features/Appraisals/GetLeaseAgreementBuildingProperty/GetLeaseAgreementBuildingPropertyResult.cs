@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.Shared;
+
 namespace Appraisal.Application.Features.Appraisals.GetLeaseAgreementBuildingProperty;
 
 /// <summary>
@@ -80,5 +82,8 @@ public record GetLeaseAgreementBuildingPropertyResult(
     // Surfaces
     IReadOnlyList<BuildingAppraisalSurfaceDto> Surfaces,
     // Construction Inspection
-    ConstructionInspectionDto? ConstructionInspection
+    ConstructionInspectionDto? ConstructionInspection,
+    // Lease Agreement & Rental Info
+    LeaseAgreementDetailDto? LeaseAgreement,
+    RentalInfoDto? RentalInfo
 );

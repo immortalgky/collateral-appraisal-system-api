@@ -114,6 +114,9 @@ public class AppraisalDbContext : DbContext
     public DbSet<PricingComparativeFactor> PricingComparativeFactors => Set<PricingComparativeFactor>();
     public DbSet<PricingRsqResult> PricingRsqResults => Set<PricingRsqResult>();
     public DbSet<MachineCostItem> MachineCostItems => Set<MachineCostItem>();
+    public DbSet<LeaseholdAnalysis> LeaseholdAnalyses => Set<LeaseholdAnalysis>();
+    public DbSet<LeaseholdLandGrowthPeriod> LeaseholdLandGrowthPeriods => Set<LeaseholdLandGrowthPeriod>();
+    public DbSet<LeaseholdCalculationDetail> LeaseholdCalculationDetails => Set<LeaseholdCalculationDetail>();
 
     // =====================================================
     // Comparative Analysis Templates

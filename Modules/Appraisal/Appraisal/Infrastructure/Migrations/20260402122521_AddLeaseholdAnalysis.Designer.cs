@@ -9,12 +9,14 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Appraisal.Infrastructure.Migrations
+namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260402122521_AddLeaseholdAnalysis")]
+    partial class AddLeaseholdAnalysis
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2498,90 +2500,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("LeaseholdAnalyses", "appraisal");
-                });
-
-            modelBuilder.Entity("Appraisal.Domain.Appraisals.LeaseholdCalculationDetail", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
-
-                    b.Property<decimal>("BuildingAfterDepreciation")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("BuildingValue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("CreatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("DepreciationAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("DepreciationPercent")
-                        .HasPrecision(10, 4)
-                        .HasColumnType("decimal(10,4)");
-
-                    b.Property<int>("DisplaySequence")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("LandGrowthPercent")
-                        .HasPrecision(10, 4)
-                        .HasColumnType("decimal(10,4)");
-
-                    b.Property<decimal>("LandValue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid>("LeaseholdAnalysisId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("NetCurrentRentalIncome")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("PvFactor")
-                        .HasPrecision(18, 10)
-                        .HasColumnType("decimal(18,10)");
-
-                    b.Property<decimal>("RentalIncome")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("TotalLandAndBuilding")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("UpdatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("Year")
-                        .HasPrecision(10, 2)
-                        .HasColumnType("decimal(10,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LeaseholdAnalysisId");
-
-                    b.ToTable("LeaseholdCalculationDetails", "appraisal");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.LeaseholdLandGrowthPeriod", b =>
@@ -7611,8 +7529,8 @@ namespace Appraisal.Infrastructure.Migrations
                                         .HasColumnType("uniqueidentifier")
                                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
-                                    b2.Property<DateTime>("AtYear")
-                                        .HasColumnType("datetime2");
+                                    b2.Property<int>("AtYear")
+                                        .HasColumnType("int");
 
                                     b2.Property<DateTime?>("CreatedAt")
                                         .HasColumnType("datetime2");
@@ -8332,15 +8250,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Appraisal.Domain.Appraisals.LeaseholdCalculationDetail", b =>
-                {
-                    b.HasOne("Appraisal.Domain.Appraisals.LeaseholdAnalysis", null)
-                        .WithMany("TableRows")
-                        .HasForeignKey("LeaseholdAnalysisId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Appraisal.Domain.Appraisals.LeaseholdLandGrowthPeriod", b =>
                 {
                     b.HasOne("Appraisal.Domain.Appraisals.LeaseholdAnalysis", null)
@@ -8684,8 +8593,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.LeaseholdAnalysis", b =>
                 {
                     b.Navigation("LandGrowthPeriods");
-
-                    b.Navigation("TableRows");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingAnalysis", b =>

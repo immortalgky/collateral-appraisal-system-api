@@ -51,22 +51,8 @@ public class UpdateRentalInfoCommandHandler(
             }
         }
 
-        // Replace schedule entries if provided
-        if (command.ScheduleEntries is not null)
-        {
-            info.ClearScheduleEntries();
-            foreach (var entry in command.ScheduleEntries)
-                info.AddScheduleEntry(entry.Year, entry.ContractStart, entry.ContractEnd,
-                    entry.UpFront, entry.ContractRentalFee, entry.TotalAmount, entry.ContractRentalFeeGrowthRatePercent);
-        }
-
-        // Replace schedule overrides if provided
-        if (command.ScheduleOverrides is not null)
-        {
-            info.ClearScheduleOverrides();
-            foreach (var o in command.ScheduleOverrides)
-                info.SetScheduleOverride(o.Year, o.UpFront, o.ContractRentalFee);
-        }
+        // Compute schedule server-side from rental info fields, apply overrides
+        Appraisal.Application.Features.Appraisals.Shared.RentalScheduleComputer.ComputeAndSave(info, command.ScheduleOverrides);
 
         return MediatR.Unit.Value;
     }

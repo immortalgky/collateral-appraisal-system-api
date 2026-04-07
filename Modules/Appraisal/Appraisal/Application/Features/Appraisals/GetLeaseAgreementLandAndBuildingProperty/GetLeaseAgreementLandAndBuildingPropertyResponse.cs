@@ -167,5 +167,8 @@ public record GetLeaseAgreementLandAndBuildingPropertyResponse(
     // Surfaces
     IReadOnlyList<BuildingAppraisalSurfaceDto> Surfaces,
     // Construction Inspection
-    ConstructionInspectionDto? ConstructionInspection
+    ConstructionInspectionDto? ConstructionInspection,
+    // Lease Agreement & Rental Info
+    Shared.LeaseAgreementDetailDto? LeaseAgreement,
+    Shared.RentalInfoDto? RentalInfo
 );

@@ -186,20 +186,8 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
                     rentalInfo.AddGrowthPeriodEntry(entry.FromYear, entry.ToYear, entry.GrowthRate, entry.GrowthAmount, entry.TotalAmount);
             }
 
-            if (command.RentalInfo.ScheduleEntries is not null)
-            {
-                rentalInfo.ClearScheduleEntries();
-                foreach (var entry in command.RentalInfo.ScheduleEntries)
-                    rentalInfo.AddScheduleEntry(entry.Year, entry.ContractStart, entry.ContractEnd,
-                        entry.UpFront, entry.ContractRentalFee, entry.TotalAmount, entry.ContractRentalFeeGrowthRatePercent);
-            }
-
-            if (command.RentalInfo.ScheduleOverrides is not null)
-            {
-                rentalInfo.ClearScheduleOverrides();
-                foreach (var o in command.RentalInfo.ScheduleOverrides)
-                    rentalInfo.SetScheduleOverride(o.Year, o.UpFront, o.ContractRentalFee);
-            }
+            // Compute schedule server-side from rental info fields, apply overrides
+            Appraisal.Application.Features.Appraisals.Shared.RentalScheduleComputer.ComputeAndSave(rentalInfo, command.RentalInfo.ScheduleOverrides);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
