@@ -283,34 +283,88 @@ public class WorkflowService : IWorkflowService
 
     /// <summary>
     /// Publishes integration events AFTER the transaction has committed.
-    /// Only publishes CompanyAssignedIntegrationEvent when workflow lands on ext-admin with a company assigned.
+    /// Publishes CompanyAssignedIntegrationEvent for external path and
+    /// InternalAssignedIntegrationEvent for internal path.
     /// </summary>
     private async Task PublishPostCommitEventsAsync(WorkflowInstance instance, CancellationToken cancellationToken)
     {
-        if (instance.CurrentActivityId != "ext-appraisal-assignment") return;
+        var correlationId = ParseCorrelationId(instance);
 
-        if (instance.Variables.TryGetValue("assignedCompanyId", out var cid)
-            && Guid.TryParse(cid?.ToString(), out var companyId))
+        if (instance.CurrentActivityId == "ext-appraisal-assignment")
         {
-            var companyName = instance.Variables.TryGetValue("assignedCompanyName", out var cn)
-                ? cn?.ToString() ?? "" : "";
-            var method = instance.Variables.TryGetValue("assignmentMethod", out var am)
-                ? am?.ToString() ?? "Manual" : "Manual";
-
-            var correlationId = !string.IsNullOrEmpty(instance.CorrelationId)
-                && Guid.TryParse(instance.CorrelationId, out var parsed) ? parsed : instance.Id;
-
-            _outbox.Publish(new CompanyAssignedIntegrationEvent
-            {
-                AppraisalId = correlationId,
-                CompanyId = companyId,
-                CompanyName = companyName,
-                AssignmentMethod = method
-            }, correlationId: correlationId.ToString());
-
-            _logger.LogInformation(
-                "Published CompanyAssignedIntegrationEvent after commit: AppraisalId={AppraisalId}, CompanyId={CompanyId}",
-                correlationId, companyId);
+            PublishCompanyAssignedEvent(instance, correlationId);
         }
+        else if (instance.CurrentActivityId == "int-appraisal-execution")
+        {
+            PublishInternalAssignedEvent(instance, correlationId);
+        }
+    }
+
+    private void PublishCompanyAssignedEvent(WorkflowInstance instance, Guid correlationId)
+    {
+        if (!instance.Variables.TryGetValue("assignedCompanyId", out var cid)
+            || !Guid.TryParse(cid?.ToString(), out var companyId))
+            return;
+
+        var companyName = instance.Variables.TryGetValue("assignedCompanyName", out var cn)
+            ? cn?.ToString() ?? "" : "";
+        var method = instance.Variables.TryGetValue("assignmentMethod", out var am)
+            ? am?.ToString() ?? "Manual" : "Manual";
+        var internalStaffId = instance.Variables.TryGetValue("internalFollowupStaffId", out var ifs)
+            ? ifs?.ToString() : null;
+        var internalFollowupMethod = instance.Variables.TryGetValue("internalFollowupMethod", out var ifm)
+            ? ifm?.ToString() : null;
+
+        _outbox.Publish(new CompanyAssignedIntegrationEvent
+        {
+            AppraisalId = correlationId,
+            CompanyId = companyId,
+            CompanyName = companyName,
+            AssignmentMethod = method,
+            InternalAppraiserId = string.IsNullOrEmpty(internalStaffId) ? null : internalStaffId,
+            InternalFollowupAssignmentMethod = string.IsNullOrEmpty(internalFollowupMethod) ? null : internalFollowupMethod
+        }, correlationId: correlationId.ToString());
+
+        _logger.LogInformation(
+            "Published CompanyAssignedIntegrationEvent after commit: AppraisalId={AppraisalId}, CompanyId={CompanyId}, InternalStaff={InternalStaffId}",
+            correlationId, companyId, internalStaffId);
+    }
+
+    private void PublishInternalAssignedEvent(WorkflowInstance instance, Guid correlationId)
+    {
+        var assigneeUserId = instance.CurrentAssignee ?? "";
+        if (string.IsNullOrEmpty(assigneeUserId))
+        {
+            _logger.LogWarning(
+                "No assignee found for int-appraisal-execution, skipping InternalAssignedIntegrationEvent for {CorrelationId}",
+                correlationId);
+            return;
+        }
+
+        var method = instance.Variables.TryGetValue("assignmentMethod", out var am)
+            && !string.IsNullOrEmpty(am?.ToString()) ? am.ToString()! : "RoundRobin";
+        var followupMethod = instance.Variables.TryGetValue("internalFollowupMethod", out var ifm)
+            && !string.IsNullOrEmpty(ifm?.ToString()) ? ifm.ToString() : "RoundRobin";
+        var internalStaffId = instance.Variables.TryGetValue("internalFollowupStaffId", out var ifs)
+            && !string.IsNullOrEmpty(ifs?.ToString()) ? ifs.ToString() : assigneeUserId;
+
+        _outbox.Publish(new InternalAssignedIntegrationEvent
+        {
+            AppraisalId = correlationId,
+            AssigneeUserId = assigneeUserId,
+            InternalAppraiserId = internalStaffId,
+            AssignmentMethod = method,
+            InternalFollowupAssignmentMethod = followupMethod
+        }, correlationId: correlationId.ToString());
+
+        _logger.LogInformation(
+            "Published InternalAssignedIntegrationEvent after commit: AppraisalId={AppraisalId}, AssigneeUserId={UserId}, Method={Method}",
+            correlationId, assigneeUserId, method);
+    }
+
+    private Guid ParseCorrelationId(WorkflowInstance instance)
+    {
+        return !string.IsNullOrEmpty(instance.CorrelationId)
+            && Guid.TryParse(instance.CorrelationId, out var parsed) ? parsed : instance.Id;
     }
 }

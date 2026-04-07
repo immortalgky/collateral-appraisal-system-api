@@ -52,6 +52,7 @@ public class RoutingActivity : WorkflowActivityBase
         var outputData = new Dictionary<string, object>
         {
             ["decision"] = decision,
+            ["routingDecision"] = decision,
             ["routingPath"] = routingPath,
             ["routedAt"] = DateTime.UtcNow
         };

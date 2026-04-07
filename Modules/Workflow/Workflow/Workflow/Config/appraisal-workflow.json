@@ -182,6 +182,20 @@
         "isEndActivity": false
       },
       {
+        "id": "internal-followup-selection",
+        "name": "Internal Followup Selection",
+        "type": "InternalFollowupSelectionActivity",
+        "description": "Selects internal followup staff via round-robin or uses admin-selected staff",
+        "properties": {},
+        "position": {
+          "x": 300,
+          "y": 193
+        },
+        "requiredRoles": [],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
         "id": "ext-appraisal-assignment",
         "name": "External Appraisal Assignment",
         "type": "TaskActivity",
@@ -648,8 +662,24 @@
       {
         "id": "company-selected",
         "from": "company-selection",
-        "to": "ext-appraisal-assignment",
+        "to": "internal-followup-selection",
         "condition": "decision == 'company_selected'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "followup-staff-selected",
+        "from": "internal-followup-selection",
+        "to": "ext-appraisal-assignment",
+        "condition": "decision == 'staff_selected'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "followup-no-match",
+        "from": "internal-followup-selection",
+        "to": "ext-appraisal-assignment",
+        "condition": "decision == 'no_match'",
         "properties": {},
         "type": "Conditional"
       },
