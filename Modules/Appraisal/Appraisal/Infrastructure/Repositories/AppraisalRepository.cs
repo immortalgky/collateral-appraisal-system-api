@@ -25,6 +25,7 @@ public class AppraisalRepository(AppraisalDbContext dbContext)
                 .ThenInclude(p => p.VesselDetail)
             .Include(p => p.Properties)
                 .ThenInclude(p => p.MachineryDetail)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
     }
 
@@ -37,6 +38,7 @@ public class AppraisalRepository(AppraisalDbContext dbContext)
             .Include(a => a.Groups)
             .ThenInclude(g => g.Items)
             .Include(a => a.Assignments)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
     }
 
@@ -72,6 +74,7 @@ public class AppraisalRepository(AppraisalDbContext dbContext)
             .Include(a => a.Properties)
             .Include(a => a.Groups)
             .Include(a => a.Assignments)
+            .AsSplitQuery()
             .ToListAsync(cancellationToken);
     }
 }
