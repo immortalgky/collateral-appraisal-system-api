@@ -39,6 +39,9 @@ public class PricingAnalysisMethod : Entity<Guid>
     // Leasehold Analysis (1:1, Leasehold only)
     public LeaseholdAnalysis? LeaseholdAnalysis { get; private set; }
 
+    // Profit Rent Analysis (1:1, ProfitRent only)
+    public ProfitRentAnalysis? ProfitRentAnalysis { get; private set; }
+
     private PricingAnalysisMethod()
     {
         // For EF Core
@@ -49,7 +52,7 @@ public class PricingAnalysisMethod : Entity<Guid>
         string methodType,
         string status = "Selected")
     {
-        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "MachineryCost", "Income", "Leasehold" };
+        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "MachineryCost", "Income", "Leasehold", "ProfitRent" };
         if (!validMethods.Contains(methodType))
             throw new ArgumentException($"MethodType must be one of: {string.Join(", ", validMethods)}");
 
@@ -127,6 +130,16 @@ public class PricingAnalysisMethod : Entity<Guid>
     public void ClearLeaseholdAnalysis()
     {
         LeaseholdAnalysis = null;
+    }
+
+    public void SetProfitRentAnalysis(ProfitRentAnalysis analysis)
+    {
+        ProfitRentAnalysis = analysis;
+    }
+
+    public void ClearProfitRentAnalysis()
+    {
+        ProfitRentAnalysis = null;
     }
 
     /// <summary>
@@ -308,6 +321,7 @@ public class PricingAnalysisMethod : Entity<Guid>
         FinalValue = null;
         RsqResult = null;
         ClearLeaseholdAnalysis();
+        ClearProfitRentAnalysis();
         MethodValue = null;
         ValuePerUnit = null;
         UnitType = null;
