@@ -28,8 +28,8 @@ public class CondoUnitConfiguration : IEntityTypeConfiguration<CondoUnit>
         builder.Property(e => e.ModelType).HasMaxLength(200);
 
         // Optional FK to CondoTower and CondoModel
-        builder.HasOne<CondoTower>().WithMany().HasForeignKey(u => u.CondoTowerId).OnDelete(DeleteBehavior.SetNull);
-        builder.HasOne<CondoModel>().WithMany().HasForeignKey(u => u.CondoModelId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<CondoTower>().WithMany().HasForeignKey(u => u.CondoTowerId).OnDelete(DeleteBehavior.NoAction);
+        builder.HasOne<CondoModel>().WithMany().HasForeignKey(u => u.CondoModelId).OnDelete(DeleteBehavior.NoAction);
 
         // Precision
         builder.Property(e => e.UsableArea).HasPrecision(10, 2);
