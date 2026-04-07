@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.BlockVillage.GetVillagePricingAssumptions;
+
+public record GetVillagePricingAssumptionsResponse(VillagePricingAssumptionDto? Assumption);

@@ -143,6 +143,17 @@ public class AppraisalDbContext : DbContext
     public DbSet<CondoModelAssumption> CondoModelAssumptions => Set<CondoModelAssumption>();
 
     // =====================================================
+    // Block Village Entities (part of Appraisal aggregate)
+    // =====================================================
+    public DbSet<VillageProject> VillageProjects => Set<VillageProject>();
+    public DbSet<VillageProjectLand> VillageProjectLands => Set<VillageProjectLand>();
+    public DbSet<VillageModel> VillageModels => Set<VillageModel>();
+    public DbSet<VillageUnit> VillageUnits => Set<VillageUnit>();
+    public DbSet<VillageUnitUpload> VillageUnitUploads => Set<VillageUnitUpload>();
+    public DbSet<VillageUnitPrice> VillageUnitPrices => Set<VillageUnitPrice>();
+    public DbSet<VillagePricingAssumption> VillagePricingAssumptions => Set<VillagePricingAssumption>();
+
+    // =====================================================
     // Supporting Entities (part of Appraisal aggregate)
     // =====================================================
     public DbSet<LandTitle> LandTitles => Set<LandTitle>();

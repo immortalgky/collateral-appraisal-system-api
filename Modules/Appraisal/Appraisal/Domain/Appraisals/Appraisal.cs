@@ -14,6 +14,9 @@ public class Appraisal : Aggregate<Guid>
     private readonly List<CondoTower> _condoTowers = [];
     private readonly List<CondoUnit> _condoUnits = [];
     private readonly List<CondoUnitUpload> _condoUnitUploads = [];
+    private readonly List<VillageModel> _villageModels = [];
+    private readonly List<VillageUnit> _villageUnits = [];
+    private readonly List<VillageUnitUpload> _villageUnitUploads = [];
 
     // Read-only accessors
     public IReadOnlyList<AppraisalProperty> Properties => _properties.AsReadOnly();
@@ -25,6 +28,12 @@ public class Appraisal : Aggregate<Guid>
     public IReadOnlyList<CondoUnitUpload> CondoUnitUploads => _condoUnitUploads.AsReadOnly();
     public CondoProject? CondoProject { get; private set; }
     public CondoPricingAssumption? CondoPricingAssumption { get; private set; }
+    public IReadOnlyList<VillageModel> VillageModels => _villageModels.AsReadOnly();
+    public IReadOnlyList<VillageUnit> VillageUnits => _villageUnits.AsReadOnly();
+    public IReadOnlyList<VillageUnitUpload> VillageUnitUploads => _villageUnitUploads.AsReadOnly();
+    public VillageProject? VillageProject { get; private set; }
+    public VillageProjectLand? VillageProjectLand { get; private set; }
+    public VillagePricingAssumption? VillagePricingAssumption { get; private set; }
 
     // Core Properties
     public string? AppraisalNumber { get; private set; }
@@ -859,6 +868,141 @@ public class Appraisal : Aggregate<Guid>
 
     #endregion
 
+    #region Block Village Management
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    public VillageProject SetVillageProject(
+        // Project Info
+        string? projectName = null,
+        string? projectDescription = null,
+        string? developer = null,
+        DateTime? projectSaleLaunchDate = null,
+        // Land Area
+        decimal? landAreaRai = null,
+        decimal? landAreaNgan = null,
+        decimal? landAreaWa = null,
+        // Project Details
+        int? unitForSaleCount = null,
+        int? numberOfPhase = null,
+        string? landOffice = null,
+        string? projectType = null,
+        DateTime? licenseExpirationDate = null,
+        // Location
+        GpsCoordinate? coordinates = null,
+        AdministrativeAddress? address = null,
+        string? postcode = null,
+        string? locationNumber = null,
+        string? road = null,
+        string? soi = null,
+        // Utilities & Facilities
+        List<string>? utilities = null,
+        string? utilitiesOther = null,
+        List<string>? facilities = null,
+        string? facilitiesOther = null,
+        // Other
+        string? remark = null)
+    {
+        if (VillageProject is null)
+        {
+            VillageProject = VillageProject.Create(Id);
+        }
+
+        VillageProject.Update(
+            projectName, projectDescription, developer, projectSaleLaunchDate,
+            landAreaRai, landAreaNgan, landAreaWa,
+            unitForSaleCount, numberOfPhase, landOffice, projectType, licenseExpirationDate,
+            coordinates, address, postcode, locationNumber, road, soi,
+            utilities, utilitiesOther, facilities, facilitiesOther,
+            remark);
+
+        return VillageProject;
+    }
+
+    public VillageProjectLand SetVillageProjectLand(VillageProjectLand land)
+    {
+        VillageProjectLand = land;
+        return VillageProjectLand;
+    }
+
+    public VillageModel AddVillageModel()
+    {
+        var model = VillageModel.Create(Id);
+        _villageModels.Add(model);
+        return model;
+    }
+
+    public void RemoveVillageModel(Guid modelId)
+    {
+        var model = _villageModels.FirstOrDefault(m => m.Id == modelId)
+                    ?? throw new InvalidOperationException($"Village model {modelId} not found");
+        _villageModels.Remove(model);
+    }
+
+    public VillageUnitUpload ImportVillageUnits(string fileName, Guid? documentId, List<VillageUnit> units)
+    {
+        var upload = VillageUnitUpload.Create(Id, fileName, documentId);
+        _villageUnitUploads.Add(upload);
+
+        // Mark previous uploads as unused
+        foreach (var existing in _villageUnitUploads.Where(u => u.IsUsed))
+            existing.MarkAsUnused();
+        upload.MarkAsUsed();
+
+        // Remove old units and add new ones, linking each unit to the upload
+        _villageUnits.Clear();
+        foreach (var unit in units)
+        {
+            unit.SetUploadBatchId(upload.Id);
+            _villageUnits.Add(unit);
+        }
+
+        // Auto-create placeholder models from unique names
+        var modelNames = _villageUnits.Where(u => !string.IsNullOrWhiteSpace(u.ModelName))
+            .Select(u => u.ModelName!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        foreach (var name in modelNames)
+        {
+            if (!_villageModels.Any(m => string.Equals(m.ModelName, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                _villageModels.Add(VillageModel.Create(Id, name));
+            }
+        }
+
+        // Link units to models by FK
+        foreach (var unit in _villageUnits)
+        {
+            if (!string.IsNullOrWhiteSpace(unit.ModelName))
+            {
+                var model = _villageModels.First(m => string.Equals(m.ModelName, unit.ModelName, StringComparison.OrdinalIgnoreCase));
+                unit.SetVillageModelId(model.Id);
+            }
+        }
+
+        return upload;
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
+    public VillagePricingAssumption SetVillagePricingAssumption(
+        string? locationMethod,
+        decimal? cornerAdjustment,
+        decimal? edgeAdjustment,
+        decimal? nearGardenAdjustment,
+        decimal? otherAdjustment,
+        decimal? landIncreaseDecreaseRate,
+        decimal? forceSalePercentage)
+    {
+        if (VillagePricingAssumption is null)
+        {
+            VillagePricingAssumption = VillagePricingAssumption.Create(Id);
+        }
+
+        VillagePricingAssumption.Update(
+            locationMethod, cornerAdjustment, edgeAdjustment,
+            nearGardenAdjustment, otherAdjustment, landIncreaseDecreaseRate, forceSalePercentage);
+
+        return VillagePricingAssumption;
+    }
+
+    #endregion
 
     #region Soft Delete
 
