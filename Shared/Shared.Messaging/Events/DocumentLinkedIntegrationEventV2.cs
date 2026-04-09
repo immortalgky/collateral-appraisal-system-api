@@ -1,3 +1,3 @@
 namespace Shared.Messaging.Events;
 
-public record DocumentLinkedIntegrationEventV2(Guid RequestId, Guid DocumentId) : IntegrationEvent;
+public record DocumentLinkedIntegrationEventV2(Guid RequestId, Guid DocumentId, string? DocumentType = null) : IntegrationEvent;

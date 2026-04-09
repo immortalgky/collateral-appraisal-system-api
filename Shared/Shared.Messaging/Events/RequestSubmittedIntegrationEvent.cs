@@ -18,4 +18,9 @@ public record RequestSubmittedIntegrationEvent : IntegrationEvent
     public string? Channel { get; set; }
     public string? BankingSegment { get; set; }
     public decimal? FacilityLimit { get; set; }
+    public bool HasAppraisalBook { get; set; }
+
+    // Request metadata denormalized onto Appraisal
+    public string? RequestedBy { get; set; }
+    public DateTime? RequestedAt { get; set; }
 }
