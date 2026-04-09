@@ -31,6 +31,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
+        <ProjectReference Include="..\Auth.Contracts\Auth.Contracts.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

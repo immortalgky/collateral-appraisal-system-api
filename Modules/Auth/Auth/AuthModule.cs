@@ -3,6 +3,7 @@ using Auth.Domain.Companies;
 using Auth.Infrastructure.Repository;
 using Auth.Infrastructure.Seed;
 using Auth.Application.Services;
+using Auth.Contracts.Users;
 using Auth.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -186,6 +187,7 @@ public static class AuthModule
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IGroupService, GroupService>();
+        services.AddScoped<IUserLookupService, UserLookupService>();
 
         // Repositories
         services.AddScoped<IPermissionRepository, PermissionRepository>();
