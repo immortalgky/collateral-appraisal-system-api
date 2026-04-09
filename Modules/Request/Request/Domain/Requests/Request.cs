@@ -180,7 +180,7 @@ public class Request : Aggregate<Guid>
         _documents.Add(document);
 
         if (data.DocumentId.HasValue)
-            AddDomainEvent(new DocumentLinkedEvent(Id, data.DocumentId.Value));
+            AddDomainEvent(new DocumentLinkedEvent(Id, data.DocumentId.Value, data.DocumentType));
 
         return document;
     }
@@ -202,7 +202,7 @@ public class Request : Aggregate<Guid>
         if (previousDocId.HasValue && newDocId.HasValue)
             AddDomainEvent(new DocumentUpdatedEvent(Id, previousDocId.Value, newDocId.Value));
         else if (!previousDocId.HasValue && newDocId.HasValue)
-            AddDomainEvent(new DocumentLinkedEvent(Id, newDocId.Value));
+            AddDomainEvent(new DocumentLinkedEvent(Id, newDocId.Value, data.DocumentType));
         else if (previousDocId.HasValue && !newDocId.HasValue)
             AddDomainEvent(new DocumentUnlinkedEvent(Id, previousDocId.Value));
     }

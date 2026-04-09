@@ -38,6 +38,9 @@ public class RequestSubmittedIntegrationEventHandler(
                 message.Channel,
                 message.BankingSegment,
                 message.FacilityLimit,
+                message.HasAppraisalBook,
+                message.RequestedBy,
+                message.RequestedAt,
                 context.CancellationToken);
 
             logger.LogInformation(

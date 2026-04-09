@@ -1,5 +1,8 @@
+using Shared.Identity;
 using Workflow.Data.Repository;
 using Workflow.Domain;
+using Workflow.Domain.Committees;
+using Workflow.Meetings.Domain;
 using Workflow.Workflow.Activities.Approval;
 using Workflow.Workflow.Models;
 using Workflow.Workflow.Repositories;
@@ -35,19 +38,42 @@ public record GetApprovalListQuery(Guid WorkflowInstanceId, string ActivityId)
 public record GetApprovalListResponse(
     string ActivityId,
     string? CommitteeName,
+    string? CommitteeCode,
+    int? Tier,
     int TotalMembers,
     int VotesReceived,
     bool QuorumMet,
     bool MajorityMet,
-    List<ApprovalMemberStatus> Members);
+    List<ApprovalMemberStatus> Members,
+    List<ApprovalConditionStatus> Conditions,
+    MeetingReference? MeetingRef);
 
 public record ApprovalMemberStatus(
-    string Username, string? Role, string Status,
-    string? Vote, string? Comments, DateTime? VotedAt);
+    string Username,
+    string? Role,
+    string Status,
+    string? Vote,
+    string? Comments,
+    DateTime? VotedAt,
+    bool IsCurrentUser);
+
+public record ApprovalConditionStatus(
+    string ConditionType,
+    string? RoleRequired,
+    int? MinVotesRequired,
+    bool Met);
+
+public record MeetingReference(
+    Guid MeetingId,
+    string Title,
+    DateTime? ScheduledAt,
+    DateTime? EndedAt);
 
 public class GetApprovalListQueryHandler(
     IWorkflowInstanceRepository workflowInstanceRepository,
-    IApprovalVoteRepository voteRepository
+    IApprovalVoteRepository voteRepository,
+    WorkflowDbContext dbContext,
+    ICurrentUserService currentUser
 ) : IQueryHandler<GetApprovalListQuery, GetApprovalListResponse>
 {
     public async Task<GetApprovalListResponse> Handle(GetApprovalListQuery query, CancellationToken ct)
@@ -61,6 +87,9 @@ public class GetApprovalListQueryHandler(
         var members = GetVariableAs<List<ApprovalMemberInfo>>(instance.Variables, $"{normalizedId}_members")
             ?? new List<ApprovalMemberInfo>();
         var committeeName = GetVariableAs<string>(instance.Variables, $"{normalizedId}_committeeName");
+        var committeeCode = GetVariableAs<string>(instance.Variables, $"{normalizedId}_committeeCode");
+        var conditions = GetVariableAs<List<ApprovalConditionInfo>>(instance.Variables, $"{normalizedId}_conditions")
+            ?? new List<ApprovalConditionInfo>();
 
         // Find the current execution for this activity
         var execution = instance.ActivityExecutions
@@ -71,15 +100,21 @@ public class GetApprovalListQueryHandler(
         if (execution is not null)
             votes = await voteRepository.GetVotesForExecutionAsync(execution.Id, ct);
 
+        var currentUsername = currentUser.Username;
         var memberStatuses = members.Select(m =>
         {
             var memberVote = votes.FirstOrDefault(v =>
                 string.Equals(v.Member, m.Username, StringComparison.OrdinalIgnoreCase));
 
             return new ApprovalMemberStatus(
-                m.Username, m.Role,
+                m.Username,
+                m.Role,
                 memberVote is not null ? "Voted" : "Pending",
-                memberVote?.Vote, memberVote?.Comments, memberVote?.VotedAt);
+                memberVote?.Vote,
+                memberVote?.Comments,
+                memberVote?.VotedAt,
+                !string.IsNullOrEmpty(currentUsername)
+                    && string.Equals(currentUsername, m.Username, StringComparison.OrdinalIgnoreCase));
         }).ToList();
 
         var totalVotes = votes.Count;
@@ -99,9 +134,77 @@ public class GetApprovalListQueryHandler(
         var majorityMet = majorityConfig is not null
             ? CheckMajority(majorityConfig, targetCount, totalVotes, totalMembers) : false;
 
+        // Evaluate conditions against actual votes (per-condition met flag for UI)
+        var conditionStatuses = conditions.Select(c => new ApprovalConditionStatus(
+            c.ConditionType,
+            c.RoleRequired,
+            c.MinVotesRequired,
+            EvaluateCondition(c, members, votes))).ToList();
+
+        // Derive tier from committee code (1/2/3 for SUB_COMMITTEE/COMMITTEE/COMMITTEE_WITH_MEETING)
+        var tier = DeriveTier(committeeCode);
+
+        // Look up meeting reference: find a Meeting that contains this WorkflowInstance
+        // (most recent item). COMMITTEE_WITH_MEETING approvals run after the meeting ended.
+        MeetingReference? meetingRef = null;
+        var meeting = await (from mi in dbContext.MeetingItems
+                             join m in dbContext.Meetings on mi.MeetingId equals m.Id
+                             where mi.WorkflowInstanceId == query.WorkflowInstanceId
+                             orderby mi.AddedAt descending
+                             select new { m.Id, m.Title, m.ScheduledAt, m.EndedAt, m.Status })
+                           .FirstOrDefaultAsync(ct);
+        if (meeting is not null)
+        {
+            meetingRef = new MeetingReference(meeting.Id, meeting.Title, meeting.ScheduledAt, meeting.EndedAt);
+        }
+
         return new GetApprovalListResponse(
-            query.ActivityId, committeeName, totalMembers, totalVotes,
-            quorumMet, majorityMet, memberStatuses);
+            query.ActivityId,
+            committeeName,
+            committeeCode,
+            tier,
+            totalMembers,
+            totalVotes,
+            quorumMet,
+            majorityMet,
+            memberStatuses,
+            conditionStatuses,
+            meetingRef);
+    }
+
+    private static int? DeriveTier(string? committeeCode) => committeeCode switch
+    {
+        "SUB_COMMITTEE" => 1,
+        "COMMITTEE" => 2,
+        "COMMITTEE_WITH_MEETING" => 3,
+        _ => null
+    };
+
+    private static bool EvaluateCondition(
+        ApprovalConditionInfo condition,
+        List<ApprovalMemberInfo> members,
+        List<ApprovalVote> votes)
+    {
+        switch (condition.ConditionType)
+        {
+            case nameof(ConditionType.RoleRequired):
+                if (string.IsNullOrEmpty(condition.RoleRequired)) return true;
+                // Requires a member holding the given role to have cast an "approve" vote.
+                var memberWithRole = members
+                    .Where(m => string.Equals(m.Role, condition.RoleRequired, StringComparison.OrdinalIgnoreCase))
+                    .Select(m => m.Username)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                return votes.Any(v =>
+                    memberWithRole.Contains(v.Member) &&
+                    string.Equals(v.Vote, "approve", StringComparison.OrdinalIgnoreCase));
+
+            case nameof(ConditionType.MinVotes):
+                var required = condition.MinVotesRequired ?? 0;
+                return votes.Count(v => string.Equals(v.Vote, "approve", StringComparison.OrdinalIgnoreCase)) >= required;
+
+            default:
+                return false;
+        }
     }
 
     private static T? GetVariableAs<T>(Dictionary<string, object> variables, string key)

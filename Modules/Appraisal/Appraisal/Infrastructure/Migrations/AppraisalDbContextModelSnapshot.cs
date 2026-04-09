@@ -401,6 +401,11 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<decimal?>("FacilityLimit")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<bool>("HasAppraisalBook")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsPma")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -420,6 +425,13 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("RequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RequestedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int?>("SLADays")
                         .HasColumnType("int");

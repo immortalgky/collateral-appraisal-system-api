@@ -14,6 +14,14 @@ public class GetMyTasksEndpoint : ICarterModule
                     [FromQuery] string? status,
                     [FromQuery] string? priority,
                     [FromQuery] string? taskName,
+                    [FromQuery] string? appraisalNumber,
+                    [FromQuery] string? customerName,
+                    [FromQuery] string? taskStatus,
+                    [FromQuery] string? taskType,
+                    [FromQuery] DateTime? dateFrom,
+                    [FromQuery] DateTime? dateTo,
+                    [FromQuery] string? sortBy,
+                    [FromQuery] string? sortDir,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
@@ -21,7 +29,15 @@ public class GetMyTasksEndpoint : ICarterModule
                     var filter = new GetMyTasksFilterRequest(
                         status,
                         priority,
-                        taskName
+                        taskName,
+                        appraisalNumber,
+                        customerName,
+                        taskStatus,
+                        taskType,
+                        dateFrom,
+                        dateTo,
+                        sortBy,
+                        sortDir
                     );
 
                     var query = new GetMyTasksQuery(pagination, filter);

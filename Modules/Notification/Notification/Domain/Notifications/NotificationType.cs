@@ -5,5 +5,9 @@ public enum NotificationType
     TaskAssigned,
     TaskCompleted,
     WorkflowTransition,
-    SystemNotification
+    SystemNotification,
+    DocumentFollowupRaised,
+    DocumentFollowupResolved,
+    DocumentFollowupCancelled,
+    DocumentLineItemDeclined
 }

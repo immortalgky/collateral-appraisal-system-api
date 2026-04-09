@@ -75,6 +75,7 @@ public static class ActivityTypes
     public const string CompanySelectionActivity = "CompanySelectionActivity";
     public const string InternalFollowupSelectionActivity = "InternalFollowupSelectionActivity";
     public const string ApprovalActivity = "ApprovalActivity";
+    public const string MeetingActivity = "MeetingActivity";
 }
 
 public static class AppraisalActivityTypes

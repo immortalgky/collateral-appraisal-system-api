@@ -6,11 +6,13 @@ namespace Workflow.Workflow.Models;
 public class WorkflowInstance : Entity<Guid>
 {
     public Guid WorkflowDefinitionId { get; private set; }
+    public Guid WorkflowDefinitionVersionId { get; private set; }
     public string Name { get; private set; } = default!;
     public string? CorrelationId { get; private set; }
     public WorkflowStatus Status { get; private set; }
     public string CurrentActivityId { get; private set; } = default!;
     public string? CurrentAssignee { get; private set; }
+    public string? LastCompletedBy { get; private set; }
     public DateTime StartedOn { get; private set; }
     public DateTime? CompletedOn { get; private set; }
     public string StartedBy { get; private set; } = default!;
@@ -30,8 +32,23 @@ public class WorkflowInstance : Entity<Guid>
         // For EF Core
     }
 
+    /// <summary>
+    /// Test/back-compat overload that synthesizes a version id. Production code MUST use the
+    /// overload taking an explicit workflowDefinitionVersionId.
+    /// </summary>
     public static WorkflowInstance Create(
         Guid workflowDefinitionId,
+        string name,
+        string? correlationId,
+        string startedBy,
+        Dictionary<string, object>? initialVariables = null,
+        Dictionary<string, RuntimeOverride>? runtimeOverrides = null)
+        => Create(workflowDefinitionId, Guid.NewGuid(), name, correlationId, startedBy, initialVariables,
+            runtimeOverrides);
+
+    public static WorkflowInstance Create(
+        Guid workflowDefinitionId,
+        Guid workflowDefinitionVersionId,
         string name,
         string? correlationId,
         string startedBy,
@@ -42,6 +59,7 @@ public class WorkflowInstance : Entity<Guid>
         {
             Id = Guid.CreateVersion7(),
             WorkflowDefinitionId = workflowDefinitionId,
+            WorkflowDefinitionVersionId = workflowDefinitionVersionId,
             Name = name,
             CorrelationId = correlationId,
             Status = WorkflowStatus.Running,
@@ -53,10 +71,35 @@ public class WorkflowInstance : Entity<Guid>
         };
     }
 
+    /// <summary>
+    /// Migrates this instance to a new workflow definition version, optionally remapping the current activity id.
+    /// Only valid for Running instances. Fork/join branch remap is not supported in this method.
+    /// </summary>
+    public void MigrateToVersion(Guid newVersionId, string? remappedCurrentActivityId)
+    {
+        if (Status != WorkflowStatus.Running)
+            throw new InvalidOperationException(
+                $"Cannot migrate workflow instance {Id} in status {Status}; only Running instances can be migrated.");
+
+        WorkflowDefinitionVersionId = newVersionId;
+
+        if (!string.IsNullOrWhiteSpace(remappedCurrentActivityId))
+        {
+            CurrentActivityId = remappedCurrentActivityId;
+        }
+    }
+
     public void SetCurrentActivity(string activityId, string? assignee = null)
     {
         CurrentActivityId = activityId;
         CurrentAssignee = assignee;
+    }
+
+    public void SetLastCompletedBy(string? completedBy)
+    {
+        if (string.IsNullOrWhiteSpace(completedBy)) return;
+        if (string.Equals(completedBy, "system", StringComparison.OrdinalIgnoreCase)) return;
+        LastCompletedBy = completedBy;
     }
 
     public void UpdateStatus(WorkflowStatus status, string? errorMessage = null)

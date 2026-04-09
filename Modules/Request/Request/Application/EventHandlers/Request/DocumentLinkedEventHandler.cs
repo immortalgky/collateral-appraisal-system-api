@@ -11,7 +11,9 @@ public class DocumentLinkedEventHandler(IIntegrationEventOutbox outbox, ILogger<
         logger.LogInformation("Document with ID {DocumentId} linked to Request with ID {RequestId}",
             notification.DocumentId, notification.RequestId);
 
-        outbox.Publish(new DocumentLinkedIntegrationEventV2(notification.RequestId, notification.DocumentId),
+        outbox.Publish(
+            new DocumentLinkedIntegrationEventV2(
+                notification.RequestId, notification.DocumentId, notification.DocumentType),
             correlationId: notification.RequestId.ToString());
 
         return Task.CompletedTask;

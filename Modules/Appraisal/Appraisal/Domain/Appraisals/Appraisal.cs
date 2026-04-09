@@ -48,6 +48,11 @@ public class Appraisal : Aggregate<Guid>
     public string? Channel { get; private set; }
     public string? BankingSegment { get; private set; }
     public decimal? FacilityLimit { get; private set; }
+    public bool HasAppraisalBook { get; private set; }
+
+    // Request metadata (denormalized from Request aggregate at creation time)
+    public string? RequestedBy { get; private set; }
+    public DateTime? RequestedAt { get; private set; }
 
     // SLA Tracking
     public int? SLADays { get; private set; }
@@ -74,7 +79,10 @@ public class Appraisal : Aggregate<Guid>
         string? purpose,
         string? channel,
         string? bankingSegment,
-        decimal? facilityLimit)
+        decimal? facilityLimit,
+        bool hasAppraisalBook,
+        string? requestedBy,
+        DateTime? requestedAt)
     {
         Id = Guid.CreateVersion7();
         RequestId = requestId;
@@ -87,6 +95,9 @@ public class Appraisal : Aggregate<Guid>
         Channel = channel;
         BankingSegment = bankingSegment;
         FacilityLimit = facilityLimit;
+        HasAppraisalBook = hasAppraisalBook;
+        RequestedBy = requestedBy;
+        RequestedAt = requestedAt;
 
         if (slaDays.HasValue)
         {
@@ -108,13 +119,16 @@ public class Appraisal : Aggregate<Guid>
         string? purpose = null,
         string? channel = null,
         string? bankingSegment = null,
-        decimal? facilityLimit = null)
+        decimal? facilityLimit = null,
+        bool hasAppraisalBook = false,
+        DateTime? requestedAt = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appraisalType);
         ArgumentException.ThrowIfNullOrWhiteSpace(priority);
 
         var appraisal = new Appraisal(requestId, appraisalType, priority, slaDays,
-            isPma, purpose, channel, bankingSegment, facilityLimit);
+            isPma, purpose, channel, bankingSegment, facilityLimit, hasAppraisalBook,
+            requestedBy, requestedAt);
         appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal, requestedBy));
 
         return appraisal;

@@ -21,14 +21,20 @@ public class WorkflowPersistenceService : IWorkflowPersistenceService
     private readonly IWorkflowDefinitionRepository _definitionRepository;
     private readonly IWorkflowInstanceRepository _instanceRepository;
     private readonly IWorkflowActivityExecutionRepository _executionRepository;
+    private readonly IWorkflowDefinitionVersionRepository _versionRepository;
     private readonly WorkflowDbContext _dbContext;
     private readonly ISqlConnectionFactory _sqlConnectionFactory;
     private readonly ILogger<WorkflowPersistenceService> _logger;
+
+    // Per-scope cache of immutable Published-version schemas, keyed by version id.
+    // Safe because: (a) the service is registered scoped, (b) Published versions cannot mutate.
+    private readonly Dictionary<Guid, WorkflowSchema> _versionSchemaCache = new();
 
     public WorkflowPersistenceService(
         IWorkflowDefinitionRepository definitionRepository,
         IWorkflowInstanceRepository instanceRepository,
         IWorkflowActivityExecutionRepository executionRepository,
+        IWorkflowDefinitionVersionRepository versionRepository,
         WorkflowDbContext dbContext,
         ISqlConnectionFactory sqlConnectionFactory,
         ILogger<WorkflowPersistenceService> logger)
@@ -36,6 +42,7 @@ public class WorkflowPersistenceService : IWorkflowPersistenceService
         _definitionRepository = definitionRepository;
         _instanceRepository = instanceRepository;
         _executionRepository = executionRepository;
+        _versionRepository = versionRepository;
         _dbContext = dbContext;
         _sqlConnectionFactory = sqlConnectionFactory;
         _logger = logger;
@@ -68,6 +75,34 @@ public class WorkflowPersistenceService : IWorkflowPersistenceService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to deserialize workflow schema for definition {DefinitionId}", definitionId);
+            return null;
+        }
+    }
+
+    public async Task<WorkflowSchema?> GetSchemaByVersionIdAsync(Guid versionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_versionSchemaCache.TryGetValue(versionId, out var cached))
+            return cached;
+
+        try
+        {
+            var version = await _versionRepository.GetByIdAsync(versionId, cancellationToken);
+            if (version is null)
+            {
+                _logger.LogWarning("Workflow definition version {VersionId} not found", versionId);
+                return null;
+            }
+
+            var schema = DeserializeWorkflowSchemaSecurely(version.JsonSchema, version.DefinitionId);
+            if (schema != null)
+                _versionSchemaCache[versionId] = schema;
+
+            return schema;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load workflow schema for version {VersionId}", versionId);
             return null;
         }
     }

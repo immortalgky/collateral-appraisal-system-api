@@ -59,11 +59,13 @@ public class AppraisalCreatedIntegrationEventConsumer(
             {
                 ["requestId"] = message.RequestId,
                 ["appraisalId"] = message.AppraisalId,
+                ["appraisalNumber"] = message.AppraisalNumber ?? string.Empty,
                 ["appraisalType"] = message.AppraisalType ?? "Initial",
                 ["isPma"] = message.IsPma,
                 ["facilityLimit"] = message.FacilityLimit ?? 0m,
                 ["priority"] = message.Priority ?? "normal",
-                ["hasAppraisalBook"] = message.HasAppraisalBook
+                ["hasAppraisalBook"] = message.HasAppraisalBook,
+                ["channel"] = message.Channel ?? string.Empty
             };
 
             var instance = await workflowService.StartWorkflowAsync(

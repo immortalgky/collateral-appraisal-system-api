@@ -15,6 +15,17 @@ public interface IWorkflowLifecycleManager
     /// </summary>
     Task<WorkflowInstance> InitializeWorkflowAsync(
         Guid workflowDefinitionId,
+        Guid workflowDefinitionVersionId,
+        WorkflowSchema workflowSchema,
+        string instanceName,
+        string startedBy,
+        Dictionary<string, object>? initialVariables = null,
+        string? correlationId = null,
+        Dictionary<string, RuntimeOverride>? runtimeOverrides = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkflowInstance> InitializeWorkflowAsync(
+        Guid workflowDefinitionId,
         WorkflowSchema workflowSchema,
         string instanceName,
         string startedBy,

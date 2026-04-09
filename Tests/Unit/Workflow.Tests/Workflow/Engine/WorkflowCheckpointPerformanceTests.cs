@@ -45,12 +45,25 @@ public class WorkflowCheckpointPerformanceTests
                 Arg.Any<WorkflowInstance>(), Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>())
             .Returns(StateUpdateResult.Success());
 
+        var versionRepository =
+            Substitute.For<global::Workflow.Workflow.Repositories.IWorkflowDefinitionVersionRepository>();
+        versionRepository
+            .GetCurrentPublishedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var definitionId = ci.Arg<Guid>();
+                return Task.FromResult<global::Workflow.Workflow.Models.WorkflowDefinitionVersion?>(
+                    global::Workflow.Workflow.Models.WorkflowDefinitionVersion.Create(
+                        definitionId, 1, "t", "t", "{}", "c", "tester"));
+            });
+
         _workflowEngine = new WorkflowEngine(
             _activityFactory,
             _flowControlManager,
             _lifecycleManager,
             _persistenceService,
             _stateManager,
+            versionRepository,
             _logger);
     }
 
@@ -261,7 +274,7 @@ public class WorkflowCheckpointPerformanceTests
         _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
             .Returns(workflowInstance);
 
-        _persistenceService.GetWorkflowSchemaAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        _persistenceService.GetSchemaByVersionIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(workflowSchema);
 
         _stateManager.ValidateWorkflowState(

@@ -1,5 +1,7 @@
 using Shared.CQRS;
 using Shared.Identity;
+using Workflow.Data.Repository;
+using Workflow.DocumentFollowups.Application;
 using Workflow.Workflow.Pipeline;
 using Workflow.Workflow.Services;
 using Workflow.Workflow.Activities.Core;
@@ -100,7 +102,9 @@ public record CompleteActivityResponse
 
 public class CompleteActivityCommandHandler(
     IWorkflowService workflowService,
-    IActivityProcessPipeline processPipeline) : ICommandHandler<CompleteActivityCommand, CompleteActivityResponse>
+    IActivityProcessPipeline processPipeline,
+    IDocumentFollowupGate documentFollowupGate,
+    IAssignmentRepository assignmentRepository) : ICommandHandler<CompleteActivityCommand, CompleteActivityResponse>
 {
     public async Task<CompleteActivityResponse> Handle(CompleteActivityCommand request,
         CancellationToken cancellationToken)
@@ -127,6 +131,37 @@ public class CompleteActivityCommandHandler(
         var currentWorkflowInstance =
             await workflowService.GetWorkflowInstanceAsync(request.WorkflowInstanceId, cancellationToken);
         var currentAssignee = currentWorkflowInstance?.CurrentAssignee;
+
+        // Document followup gate: if this activity opted in via canRaiseFollowup,
+        // block submission while open followups exist for the corresponding pending task.
+        if (currentWorkflowInstance is not null &&
+            ActivityFollowupHelpers.ActivityCanRaiseFollowup(currentWorkflowInstance, request.ActivityId))
+        {
+            var correlationGuid = !string.IsNullOrEmpty(currentWorkflowInstance.CorrelationId) &&
+                                  Guid.TryParse(currentWorkflowInstance.CorrelationId, out var parsed)
+                ? parsed
+                : currentWorkflowInstance.Id;
+
+            var taskName = ActivityFollowupHelpers.ResolveActivityName(currentWorkflowInstance, request.ActivityId)
+                           ?? request.ActivityId;
+
+            var pendingTask = await assignmentRepository.GetPendingTaskAsync(
+                correlationGuid, taskName, cancellationToken);
+
+            if (pendingTask is not null &&
+                await documentFollowupGate.HasOpenFollowupAsync(pendingTask.Id, cancellationToken))
+            {
+                return new CompleteActivityResponse
+                {
+                    WorkflowInstanceId = request.WorkflowInstanceId,
+                    Status = "ValidationFailed",
+                    ValidationErrors = new List<string>
+                    {
+                        "This task has open document followups. Resolve or cancel them before submitting."
+                    }
+                };
+            }
+        }
 
         // Convert assignment override requests to runtime override objects
         Dictionary<string, RuntimeOverride>? nextRuntimeOverrides = null;

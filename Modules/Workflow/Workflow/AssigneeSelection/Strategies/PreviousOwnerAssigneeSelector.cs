@@ -36,9 +36,11 @@ public class PreviousOwnerAssigneeSelector : IAssigneeSelector
                 .Where(ae => ae.WorkflowInstanceId == context.WorkflowInstanceId
                              && ae.ActivityId == context.ActivityName
                              && ae.Status == ActivityExecutionStatus.Completed
-                             && !string.IsNullOrEmpty(ae.AssignedTo))
+                             && ae.CompletedBy != null
+                             && ae.CompletedBy != ""
+                             && ae.CompletedBy != "system")
                 .OrderByDescending(ae => ae.CompletedOn)
-                .Select(ae => ae.AssignedTo)
+                .Select(ae => ae.CompletedBy)
                 .FirstOrDefaultAsync(cancellationToken);
 
             if (string.IsNullOrEmpty(previousOwner))

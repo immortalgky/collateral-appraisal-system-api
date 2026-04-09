@@ -137,6 +137,22 @@ public class WorkflowInstanceRepository(WorkflowDbContext dbContext) : IWorkflow
         }
     }
 
+    public async Task<List<WorkflowInstance>> ListRunningByDefinitionIdAsync(Guid definitionId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.WorkflowInstances
+            .Where(x => x.WorkflowDefinitionId == definitionId && x.Status == WorkflowStatus.Running)
+            .OrderBy(x => x.StartedOn)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<WorkflowInstance>> ListRunningByVersionIdAsync(Guid versionId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.WorkflowInstances
+            .Where(x => x.WorkflowDefinitionVersionId == versionId && x.Status == WorkflowStatus.Running)
+            .OrderBy(x => x.StartedOn)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IEnumerable<WorkflowInstance>> GetLongRunningWorkflowsAsync(
         TimeSpan timeout,
         int maxResults,

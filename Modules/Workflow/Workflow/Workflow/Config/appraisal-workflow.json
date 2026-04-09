@@ -30,6 +30,7 @@
         "description": "Request checker reviews the initiated appraisal request for completeness and accuracy",
         "properties": {
           "activityName": "InitiationCheck",
+          "canRaiseFollowup": true,
           "assigneeRole": "RequestChecker",
           "assigneeGroup": "RequestChecker",
           "assignmentStrategies": "started_by",
@@ -46,9 +47,21 @@
             "cancel": "appraisal_initiation_check_decisionTaken == 'C'"
           },
           "actions": [
-            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
-            { "value": "R", "label": "Route Back", "assignmentMode": "system" },
-            { "value": "C", "label": "Cancel", "assignmentMode": "system" }
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "R",
+              "label": "Route Back",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "C",
+              "label": "Cancel",
+              "assignmentMode": "system"
+            }
           ]
         },
         "position": {
@@ -79,7 +92,11 @@
           ],
           "timeoutDuration": "PT48H",
           "actions": [
-            { "value": "P", "label": "Proceed", "assignmentMode": "system" }
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system"
+            }
           ],
           "inputMappings": {
             "isPma": "isPma",
@@ -106,8 +123,7 @@
         "properties": {
           "routingConditions": {
             "auto_assign_external": "facilityLimit > 50000000",
-            "auto_assign_internal": "hasAppraisalBook == true",
-            "auto_assign_internal_pma": "isPma == true",
+            "auto_assign_internal": "hasAppraisalBook == true || isPma == true",
             "admin_review": "priority == 'high'"
           },
           "defaultDecision": "auto_assign_external"
@@ -144,10 +160,26 @@
             "request_more_info": "appraisal_assignment_decisionTaken == 'R'"
           },
           "actions": [
-            { "value": "EXT", "label": "Route to External", "assignmentMode": "user" },
-            { "value": "INT", "label": "Route to Internal", "assignmentMode": "user" },
-            { "value": "REJ", "label": "Reject", "assignmentMode": "system" },
-            { "value": "R", "label": "Request More Info", "assignmentMode": "system" }
+            {
+              "value": "EXT",
+              "label": "Route to External",
+              "assignmentMode": "user"
+            },
+            {
+              "value": "INT",
+              "label": "Route to Internal",
+              "assignmentMode": "user"
+            },
+            {
+              "value": "REJ",
+              "label": "Reject",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "R",
+              "label": "Request More Info",
+              "assignmentMode": "system"
+            }
           ],
           "inputMappings": {
             "assignmentMethod": "assignmentMethod",
@@ -205,7 +237,9 @@
           "assigneeRole": "ExtAdmin",
           "assigneeGroup": "ExtAdmin",
           "teamIdVariable": "assignedCompanyId",
-          "assignmentRules": { "teamConstrained": true },
+          "assignmentRules": {
+            "teamConstrained": true
+          },
           "assignmentStrategies": "round_robin",
           "initialAssignmentStrategies": [
             "round_robin"
@@ -220,9 +254,21 @@
             "route_back": "ext_appraisal_assignment_decisionTaken == 'R'"
           },
           "actions": [
-            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
-            { "value": "C", "label": "Cancel", "assignmentMode": "system" },
-            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "C",
+              "label": "Cancel",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "R",
+              "label": "Route Back",
+              "assignmentMode": "system"
+            }
           ]
         },
         "position": {
@@ -245,7 +291,9 @@
           "assigneeRole": "ExtAppraisalStaff",
           "assigneeGroup": "ExtAppraisalStaff",
           "teamIdVariable": "assignedCompanyId",
-          "assignmentRules": { "teamConstrained": true },
+          "assignmentRules": {
+            "teamConstrained": true
+          },
           "assignmentStrategies": "round_robin",
           "initialAssignmentStrategies": [
             "round_robin"
@@ -259,8 +307,16 @@
             "route_back": "ext_appraisal_execution_decisionTaken == 'R'"
           },
           "actions": [
-            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
-            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "R",
+              "label": "Route Back",
+              "assignmentMode": "system"
+            }
           ]
         },
         "position": {
@@ -283,7 +339,9 @@
           "assigneeRole": "ExtAppraisalChecker",
           "assigneeGroup": "ExtAppraisalChecker",
           "teamIdVariable": "assignedCompanyId",
-          "assignmentRules": { "teamConstrained": true },
+          "assignmentRules": {
+            "teamConstrained": true
+          },
           "assignmentStrategies": "round_robin",
           "initialAssignmentStrategies": [
             "round_robin"
@@ -297,8 +355,16 @@
             "route_back": "ext_appraisal_check_decisionTaken == 'R'"
           },
           "actions": [
-            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
-            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "R",
+              "label": "Route Back",
+              "assignmentMode": "system"
+            }
           ]
         },
         "position": {
@@ -321,7 +387,9 @@
           "assigneeRole": "ExtAppraisalVerifier",
           "assigneeGroup": "ExtAppraisalVerifier",
           "teamIdVariable": "assignedCompanyId",
-          "assignmentRules": { "teamConstrained": true },
+          "assignmentRules": {
+            "teamConstrained": true
+          },
           "assignmentStrategies": "round_robin",
           "initialAssignmentStrategies": [
             "round_robin"
@@ -335,8 +403,16 @@
             "route_back": "ext_appraisal_verification_decisionTaken == 'R'"
           },
           "actions": [
-            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
-            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "R",
+              "label": "Route Back",
+              "assignmentMode": "system"
+            }
           ]
         },
         "position": {
@@ -374,9 +450,21 @@
             "route_back_ext_checker": "appraisal_book_verification_decisionTaken == 'R_EC'"
           },
           "actions": [
-            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
-            { "value": "R_EA", "label": "Route Back to External Admin", "assignmentMode": "system" },
-            { "value": "R_EC", "label": "Route Back to External Checker", "assignmentMode": "system" }
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "R_EA",
+              "label": "Route Back to External Admin",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "R_EC",
+              "label": "Route Back to External Checker",
+              "assignmentMode": "system"
+            }
           ]
         },
         "position": {
@@ -411,8 +499,16 @@
             "route_back": "int_appraisal_execution_decisionTaken == 'R'"
           },
           "actions": [
-            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
-            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "R",
+              "label": "Route Back",
+              "assignmentMode": "system"
+            }
           ]
         },
         "position": {
@@ -434,6 +530,9 @@
           "activityName": "IntAppraisalCheck",
           "assigneeRole": "IntAppraisalChecker",
           "assigneeGroup": "IntAppraisalChecker",
+          "assignmentRules": {
+            "teamConstrained": true
+          },
           "assignmentStrategies": "round_robin",
           "initialAssignmentStrategies": [
             "round_robin"
@@ -447,8 +546,16 @@
             "route_back": "int_appraisal_check_decisionTaken == 'R'"
           },
           "actions": [
-            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
-            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "R",
+              "label": "Route Back",
+              "assignmentMode": "system"
+            }
           ]
         },
         "position": {
@@ -470,6 +577,9 @@
           "activityName": "IntAppraisalVerification",
           "assigneeRole": "IntAppraisalVerifier",
           "assigneeGroup": "IntAppraisalVerifier",
+          "assignmentRules": {
+            "teamConstrained": true
+          },
           "assignmentStrategies": "round_robin",
           "initialAssignmentStrategies": [
             "round_robin"
@@ -483,8 +593,16 @@
             "route_back": "int_appraisal_verification_decisionTaken == 'R'"
           },
           "actions": [
-            { "value": "P", "label": "Proceed", "assignmentMode": "system" },
-            { "value": "R", "label": "Route Back", "assignmentMode": "system" }
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system"
+            },
+            {
+              "value": "R",
+              "label": "Route Back",
+              "assignmentMode": "system"
+            }
           ]
         },
         "position": {
@@ -498,19 +616,69 @@
         "isEndActivity": false
       },
       {
+        "id": "approval-tier-switch",
+        "name": "Approval Tier Routing",
+        "type": "SwitchActivity",
+        "description": "Routes appraisal to a meeting (>30M) or directly to committee approval based on facility limit",
+        "properties": {
+          "expression": "facilityLimit",
+          "cases": [
+            "<= 30000000",
+            "> 30000000"
+          ]
+        },
+        "position": {
+          "x": 300,
+          "y": 1050
+        },
+        "requiredRoles": [],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
+        "id": "pending-meeting",
+        "name": "Pending Meeting",
+        "type": "MeetingActivity",
+        "description": "Waits for the Meeting Secretary to schedule and end an approval meeting for this appraisal",
+        "properties": {},
+        "position": {
+          "x": 500,
+          "y": 1100
+        },
+        "requiredRoles": [
+          "MeetingSecretary"
+        ],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
         "id": "pending-approval",
         "name": "Committee Approval",
         "type": "ApprovalActivity",
         "description": "Appraisal committee reviews and votes — quorum and majority rules apply",
         "properties": {
           "activityName": "PendingApproval",
-          "voteOptions": ["approve", "reject", "route_back"],
+          "voteOptions": [
+            "approve",
+            "reject",
+            "route_back"
+          ],
           "memberSource": {
             "type": "threshold",
-            "valueExpression": "estimatedValue",
+            "valueExpression": "facilityLimit",
             "thresholds": [
-              { "maxValue": 50000000, "committeeCode": "SUB_COMMITTEE" },
-              { "maxValue": null, "committeeCode": "COMMITTEE_GROUP_2" }
+              {
+                "maxValue": 10000000,
+                "committeeCode": "SUB_COMMITTEE"
+              },
+              {
+                "maxValue": 30000000,
+                "committeeCode": "COMMITTEE"
+              },
+              {
+                "maxValue": null,
+                "committeeCode": "COMMITTEE_WITH_MEETING"
+              }
             ]
           },
           "timeoutDuration": "PT72H",
@@ -623,7 +791,7 @@
         "id": "routing-to-internal",
         "from": "initial-routing",
         "to": "int-appraisal-execution",
-        "condition": "decision == 'auto_assign_internal' || decision == 'auto_assign_internal_pma'",
+        "condition": "decision == 'auto_assign_internal'",
         "properties": {},
         "type": "Conditional"
       },
@@ -830,8 +998,32 @@
       {
         "id": "int-verification-proceed",
         "from": "int-appraisal-verification",
-        "to": "pending-approval",
+        "to": "approval-tier-switch",
         "condition": "decision == 'proceed'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "approval-switch-direct",
+        "from": "approval-tier-switch",
+        "to": "pending-approval",
+        "condition": "case == '<= 30000000'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "approval-switch-via-meeting",
+        "from": "approval-tier-switch",
+        "to": "pending-meeting",
+        "condition": "case == '> 30000000'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "meeting-to-approval",
+        "from": "pending-meeting",
+        "to": "pending-approval",
+        "condition": "meetingOutcome == 'ended'",
         "properties": {},
         "type": "Conditional"
       },

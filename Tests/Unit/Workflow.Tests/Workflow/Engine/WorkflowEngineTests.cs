@@ -24,6 +24,7 @@ public class WorkflowEngineTests
     private readonly IWorkflowLifecycleManager _lifecycleManager;
     private readonly IWorkflowPersistenceService _persistenceService;
     private readonly IWorkflowStateManager _stateManager;
+    private readonly global::Workflow.Workflow.Repositories.IWorkflowDefinitionVersionRepository _versionRepository;
     private readonly ILogger<WorkflowEngine> _logger;
     private readonly WorkflowEngine _workflowEngine;
     private readonly IWorkflowActivity _mockActivity;
@@ -35,7 +36,22 @@ public class WorkflowEngineTests
         _lifecycleManager = Substitute.For<IWorkflowLifecycleManager>();
         _persistenceService = Substitute.For<IWorkflowPersistenceService>();
         _stateManager = Substitute.For<IWorkflowStateManager>();
+        _versionRepository =
+            Substitute.For<global::Workflow.Workflow.Repositories.IWorkflowDefinitionVersionRepository>();
         _logger = Substitute.For<ILogger<WorkflowEngine>>();
+
+        // Default: any GetCurrentPublishedAsync returns a fresh Draft-then-Published version wrapper;
+        // tests that need missing-definition semantics override this call.
+        _versionRepository
+            .GetCurrentPublishedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var definitionId = ci.Arg<Guid>();
+                return Task.FromResult<global::Workflow.Workflow.Models.WorkflowDefinitionVersion?>(
+                    global::Workflow.Workflow.Models.WorkflowDefinitionVersion.Create(
+                        definitionId, 1, "t", "t", "{}", "c", "tester"));
+            });
+
 
         _mockActivity = Substitute.For<IWorkflowActivity>();
 
@@ -50,6 +66,7 @@ public class WorkflowEngineTests
             _lifecycleManager,
             _persistenceService,
             _stateManager,
+            _versionRepository,
             _logger);
     }
 
@@ -417,10 +434,10 @@ public class WorkflowEngineTests
         var workflowInstance = CreateTestWorkflowInstance();
         var startActivity = workflowSchema.Activities.First();
 
-        _persistenceService.GetWorkflowSchemaAsync(workflowDefinitionId, Arg.Any<CancellationToken>())
+        _persistenceService.GetSchemaByVersionIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(workflowSchema);
         _lifecycleManager.InitializeWorkflowAsync(
-                workflowDefinitionId, workflowSchema, instanceName, startedBy,
+                workflowDefinitionId, Arg.Any<Guid>(), workflowSchema, instanceName, startedBy,
                 initialVariables, Arg.Any<string?>(), Arg.Any<Dictionary<string, RuntimeOverride>?>(),
                 Arg.Any<CancellationToken>())
             .Returns(workflowInstance);
@@ -447,9 +464,9 @@ public class WorkflowEngineTests
 
         // Verify workflow initialization and execution
         await _persistenceService.Received(1)
-            .GetWorkflowSchemaAsync(workflowDefinitionId, Arg.Any<CancellationToken>());
+            .GetSchemaByVersionIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         _lifecycleManager.Received(1).InitializeWorkflowAsync(
-            workflowDefinitionId, workflowSchema, instanceName, startedBy,
+            workflowDefinitionId, Arg.Any<Guid>(), workflowSchema, instanceName, startedBy,
             initialVariables, null, null, Arg.Any<CancellationToken>());
     }
 
@@ -459,7 +476,7 @@ public class WorkflowEngineTests
         // Arrange
         var workflowDefinitionId = Guid.NewGuid();
 
-        _persistenceService.GetWorkflowSchemaAsync(workflowDefinitionId, Arg.Any<CancellationToken>())
+        _persistenceService.GetSchemaByVersionIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<WorkflowSchema?>(null));
 
         // Act
@@ -490,7 +507,7 @@ public class WorkflowEngineTests
 
         _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
             .Returns(workflowInstance);
-        _persistenceService.GetWorkflowSchemaAsync(workflowInstance.WorkflowDefinitionId, Arg.Any<CancellationToken>())
+        _persistenceService.GetSchemaByVersionIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(workflowSchema);
 
         // Validation must pass for the resume to proceed
@@ -519,7 +536,7 @@ public class WorkflowEngineTests
         await _persistenceService.Received(1)
             .GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>());
         await _persistenceService.Received(1)
-            .GetWorkflowSchemaAsync(workflowInstance.WorkflowDefinitionId, Arg.Any<CancellationToken>());
+            .GetSchemaByVersionIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -557,7 +574,7 @@ public class WorkflowEngineTests
 
         _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
             .Returns(workflowInstance);
-        _persistenceService.GetWorkflowSchemaAsync(workflowInstance.WorkflowDefinitionId, Arg.Any<CancellationToken>())
+        _persistenceService.GetSchemaByVersionIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(workflowSchema);
 
         // Validation fails because activity ID doesn't match current activity
@@ -755,13 +772,13 @@ public class WorkflowEngineTests
         var workflowSchema = CreateTestWorkflowSchema();
         var startActivity = CreateTestActivityDefinition("start", "StartActivity");
 
-        _persistenceService.GetWorkflowSchemaAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        _persistenceService.GetSchemaByVersionIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(workflowSchema);
 
         _flowControlManager.GetStartActivity(workflowSchema).Returns(startActivity);
 
         var workflowInstance = CreateTestWorkflowInstance();
-        _lifecycleManager.InitializeWorkflowAsync(Arg.Any<Guid>(), Arg.Any<WorkflowSchema>(),
+        _lifecycleManager.InitializeWorkflowAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<WorkflowSchema>(),
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Dictionary<string, object>>(),
                 Arg.Any<string>(), Arg.Any<Dictionary<string, RuntimeOverride>>(), Arg.Any<CancellationToken>())
             .Returns(workflowInstance);
@@ -802,7 +819,7 @@ public class WorkflowEngineTests
         // Arrange
         var workflowDefinitionId = Guid.NewGuid();
 
-        _persistenceService.GetWorkflowSchemaAsync(workflowDefinitionId, Arg.Any<CancellationToken>())
+        _persistenceService.GetSchemaByVersionIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns((WorkflowSchema?)null); // Schema not found - terminal failure
 
         // Act
@@ -969,7 +986,7 @@ public class WorkflowEngineTests
         _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
             .Returns(workflowInstance);
 
-        _persistenceService.GetWorkflowSchemaAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        _persistenceService.GetSchemaByVersionIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(workflowSchema);
 
         _stateManager.ValidateWorkflowState(

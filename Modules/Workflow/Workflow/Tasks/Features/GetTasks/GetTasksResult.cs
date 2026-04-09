@@ -17,14 +17,15 @@ public record TaskDto
     public string? Purpose { get; init; }
     public string? PropertyType { get; init; }
     public string? Status { get; init; }
+    public string? PendingTaskStatus { get; init; }
     public DateTime? AppointmentDateTime { get; init; }
     public string? AssigneeUserId { get; init; }
-    public DateTime? RequestedAt { get; init; }
-    public DateTime? ReceivedDate { get; init; }
+    public string? RequestedBy { get; init; }
+    public DateTime? RequestReceivedDate { get; init; }
+    public DateTime? AssignedDate { get; init; }
     public string? Movement { get; init; }
-    public int? SLADays { get; init; }
-    public int? OLAActual { get; init; }
-    public int? OLADiff { get; init; }
+    public string? InternalFollowupStaff { get; init; }
+    public string? Appraiser { get; init; }
     public string? Priority { get; init; }
     public DateTime? DueAt { get; init; }
     public string? SlaStatus { get; init; }

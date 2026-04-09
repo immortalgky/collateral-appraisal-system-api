@@ -12,4 +12,5 @@ public record AppraisalCreatedIntegrationEvent : IntegrationEvent
     public decimal? FacilityLimit { get; init; }
     public string? Priority { get; init; }
     public bool HasAppraisalBook { get; init; }
+    public string? Channel { get; init; }
 }

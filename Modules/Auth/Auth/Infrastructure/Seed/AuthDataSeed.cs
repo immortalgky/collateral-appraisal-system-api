@@ -7,18 +7,63 @@ namespace Auth.Infrastructure.Seed;
 
 public class AuthDataSeed(
     UserManager<ApplicationUser> userManager,
+    RoleManager<ApplicationRole> roleManager,
+    AuthDbContext dbContext,
     IOpenIddictApplicationManager manager,
     ICompanyRepository companyRepository,
     IPermissionRepository permissionRepository,
     IConfiguration configuration)
     : IDataSeeder<AuthDbContext>
 {
+    private const string AdminRoleName = "Admin";
+    private const string MeetingSecretaryRoleName = "MeetingSecretary";
+
     public async Task SeedAllAsync()
     {
         await SeedPermissionsAsync();
+        await SeedAdminRoleAsync();
+        await SeedMeetingSecretaryRoleAsync();
         await SeedUsersAsync();
         await SeedClientsAsync();
         await SeedCompaniesAsync();
+    }
+
+    private async Task SeedMeetingSecretaryRoleAsync()
+    {
+        var role = await roleManager.FindByNameAsync(MeetingSecretaryRoleName);
+        if (role is null)
+        {
+            role = new ApplicationRole
+            {
+                Name = MeetingSecretaryRoleName,
+                Description = "Meeting Secretary — creates, schedules, updates, and ends approval meetings."
+            };
+
+            var createResult = await roleManager.CreateAsync(role);
+            if (!createResult.Succeeded)
+                throw new InvalidOperationException(
+                    $"Failed to create MeetingSecretary role: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
+        }
+
+        var meetingPermission = await dbContext.Permissions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.PermissionCode == "MEETING_MANAGE");
+        if (meetingPermission is null)
+            return;
+
+        var alreadyLinked = await dbContext.Set<RolePermission>()
+            .AsNoTracking()
+            .AnyAsync(rp => rp.RoleId == role.Id && rp.PermissionId == meetingPermission.Id);
+
+        if (alreadyLinked)
+            return;
+
+        await dbContext.Set<RolePermission>().AddAsync(new RolePermission
+        {
+            RoleId = role.Id,
+            PermissionId = meetingPermission.Id
+        });
+        await dbContext.SaveChangesAsync();
     }
 
     private async Task SeedUsersAsync()
@@ -29,6 +74,7 @@ public class AuthDataSeed(
         var adminPassword = adminConfig["Password"];
 
         if (!string.IsNullOrEmpty(adminUsername) && !string.IsNullOrEmpty(adminPassword))
+        {
             if (await userManager.FindByNameAsync(adminUsername) is null)
             {
                 var admin = new ApplicationUser
@@ -48,6 +94,11 @@ public class AuthDataSeed(
                     throw new InvalidOperationException(
                         $"Failed to create admin user: {string.Join(", ", result.Errors.Select(e => e.Description))}");
             }
+
+            var adminUser = await userManager.FindByNameAsync(adminUsername);
+            if (adminUser is not null && !await userManager.IsInRoleAsync(adminUser, AdminRoleName))
+                await userManager.AddToRoleAsync(adminUser, AdminRoleName);
+        }
 
         // Seed additional test users
         var testUsers =
@@ -246,6 +297,7 @@ public class AuthDataSeed(
             ("GROUP_MANAGE", "Manage Groups", "Create, update, and delete groups and group members", "Auth"),
             ("USER_CHANGE_PASSWORD", "Change Any User Password", "Allow changing password for any local user", "Auth"),
             ("USER_RESET_PASSWORD", "Reset User Password", "Allow resetting password for any local user without current password", "Auth"),
+            ("MEETING_MANAGE", "Manage Meetings", "Create, schedule, update, cancel, and end approval meetings", "Workflow"),
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)
@@ -261,4 +313,42 @@ public class AuthDataSeed(
         await permissionRepository.SaveChangesAsync();
     }
 
+    private async Task SeedAdminRoleAsync()
+    {
+        var adminRole = await roleManager.FindByNameAsync(AdminRoleName);
+        if (adminRole is null)
+        {
+            adminRole = new ApplicationRole
+            {
+                Name = AdminRoleName,
+                Description = "Full system access — auto-granted every permission by the seeder."
+            };
+
+            var createResult = await roleManager.CreateAsync(adminRole);
+            if (!createResult.Succeeded)
+                throw new InvalidOperationException(
+                    $"Failed to create Admin role: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
+        }
+
+        var allPermissionIds = await dbContext.Permissions
+            .AsNoTracking()
+            .Select(p => p.Id)
+            .ToListAsync();
+
+        var existingLinkedIds = await dbContext.Set<RolePermission>()
+            .AsNoTracking()
+            .Where(rp => rp.RoleId == adminRole.Id)
+            .Select(rp => rp.PermissionId)
+            .ToListAsync();
+
+        var missingIds = allPermissionIds.Except(existingLinkedIds).ToList();
+        if (missingIds.Count == 0) return;
+
+        var newLinks = missingIds
+            .Select(pid => new RolePermission { RoleId = adminRole.Id, PermissionId = pid })
+            .ToList();
+
+        await dbContext.Set<RolePermission>().AddRangeAsync(newLinks);
+        await dbContext.SaveChangesAsync();
+    }
 }

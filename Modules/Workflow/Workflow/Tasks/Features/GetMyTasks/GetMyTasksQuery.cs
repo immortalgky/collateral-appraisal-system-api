@@ -6,7 +6,15 @@ namespace Workflow.Tasks.Features.GetMyTasks;
 public record GetMyTasksFilterRequest(
     string? Status = null,
     string? Priority = null,
-    string? TaskName = null
+    string? TaskName = null,
+    string? AppraisalNumber = null,
+    string? CustomerName = null,
+    string? TaskStatus = null,
+    string? TaskType = null,
+    DateTime? DateFrom = null,
+    DateTime? DateTo = null,
+    string? SortBy = null,
+    string? SortDir = null
 );
 
 public record GetMyTasksQuery(

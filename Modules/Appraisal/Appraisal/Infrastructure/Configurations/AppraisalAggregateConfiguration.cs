@@ -46,6 +46,16 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
         builder.Property(a => a.FacilityLimit)
             .HasColumnType("decimal(18,2)");
 
+        builder.Property(a => a.HasAppraisalBook)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        // Request metadata denormalized from Request aggregate
+        builder.Property(a => a.RequestedBy)
+            .HasMaxLength(200);
+
+        builder.Property(a => a.RequestedAt);
+
         // Status Value Object (stored as string)
         builder.OwnsOne(a => a.Status, status =>
         {

@@ -34,6 +34,9 @@ public class WorkflowInstanceConfiguration : IEntityTypeConfiguration<WorkflowIn
             
         builder.Property(x => x.CurrentAssignee)
             .HasMaxLength(100);
+
+        builder.Property(x => x.LastCompletedBy)
+            .HasMaxLength(100);
             
         builder.Property(x => x.StartedBy)
             .IsRequired()
@@ -64,15 +67,24 @@ public class WorkflowInstanceConfiguration : IEntityTypeConfiguration<WorkflowIn
             .WithMany()
             .HasForeignKey(x => x.WorkflowDefinitionId)
             .OnDelete(DeleteBehavior.Restrict);
-            
+
+        builder.Property(x => x.WorkflowDefinitionVersionId)
+            .IsRequired();
+
+        builder.HasOne<WorkflowDefinitionVersion>()
+            .WithMany()
+            .HasForeignKey(x => x.WorkflowDefinitionVersionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasMany(x => x.ActivityExecutions)
             .WithOne(x => x.WorkflowInstance)
             .HasForeignKey(x => x.WorkflowInstanceId)
             .OnDelete(DeleteBehavior.Cascade);
-            
+
         builder.HasIndex(x => x.CorrelationId);
         builder.HasIndex(x => x.Status);
         builder.HasIndex(x => x.CurrentAssignee);
         builder.HasIndex(x => x.StartedOn);
+        builder.HasIndex(x => x.WorkflowDefinitionVersionId);
     }
 }

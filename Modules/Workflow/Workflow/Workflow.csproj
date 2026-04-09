@@ -11,15 +11,16 @@
         <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
         <ProjectReference Include="..\..\Appraisal\Appraisal.Contracts\Appraisal.Contracts.csproj"/>
         <ProjectReference Include="..\..\Auth\Auth\Auth.csproj"/>
+        <ProjectReference Include="..\..\Auth\Auth.Contracts\Auth.Contracts.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Data\Migrations\Assignment\"/>
-        <Folder Include="Infrastructure\Seed\" />
+        <Folder Include="Infrastructure\Seed\"/>
     </ItemGroup>
 
     <ItemGroup>
-        <EmbeddedResource Include="Workflow\Config\appraisal-workflow.json" />
+        <EmbeddedResource Include="Workflow\Config\appraisal-workflow.json"/>
+        <EmbeddedResource Include="Workflow\Config\document-followup-workflow.json"/>
     </ItemGroup>
 
     <ItemGroup>

@@ -1,3 +1,4 @@
+using Workflow.Meetings.Activities;
 using Workflow.Workflow.Activities.AppraisalActivities;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Schema;
@@ -25,19 +26,21 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
         if (!_activityTypes.TryGetValue(activityType, out var type))
             throw new ArgumentException($"Unknown activity type: {activityType}");
 
-        // Use service provider for dependency injection when available
+        // Prefer explicit DI registration when present (scoped lifetime, etc.)
         var serviceInstance = _serviceProvider.GetService(type) as IWorkflowActivity;
         if (serviceInstance != null) return serviceInstance;
 
-        // Fallback to activator for types without dependencies
+        // Otherwise construct via ActivatorUtilities so constructor dependencies
+        // (e.g. ILogger<T>) are resolved from DI without requiring the activity
+        // type itself to be registered.
         try
         {
-            return (IWorkflowActivity)Activator.CreateInstance(type)!;
+            return (IWorkflowActivity)ActivatorUtilities.CreateInstance(_serviceProvider, type);
         }
         catch (Exception ex)
         {
             throw new InvalidOperationException(
-                $"Failed to create instance of activity type '{activityType}'. Ensure the type has a parameterless constructor or is registered in DI.",
+                $"Failed to create instance of activity type '{activityType}'. Ensure the type's constructor dependencies are resolvable from DI, or register the type explicitly.",
                 ex);
         }
     }
@@ -73,6 +76,9 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
 
         // Approval activity
         _activityTypes[ActivityTypes.ApprovalActivity] = typeof(ApprovalActivity);
+
+        // Meeting activity
+        _activityTypes[ActivityTypes.MeetingActivity] = typeof(MeetingActivity);
 
         // Appraisal-specific activities
         _activityTypes[AppraisalActivityTypes.RequestSubmission] = typeof(RequestSubmissionActivity);
@@ -318,6 +324,18 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
                     Description = "Map of decision names to condition expressions for output routing"
                 }
             }
+        };
+
+        // Meeting Activity Definition
+        _activityDefinitions[ActivityTypes.MeetingActivity] = new ActivityTypeDefinition
+        {
+            Type = ActivityTypes.MeetingActivity,
+            Name = "Meeting Activity",
+            Description = "Pauses workflow execution until a Meeting Secretary schedules and ends an approval meeting for this appraisal",
+            Category = "Approval",
+            Icon = "calendar-days",
+            Color = "#0ea5e9",
+            Properties = new List<ActivityPropertyDefinition>()
         };
 
         // Request Submission Activity Definition

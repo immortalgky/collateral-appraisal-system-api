@@ -30,7 +30,7 @@ public class TaskCompletedDomainEventHandler(
         // Implicit assignment: if pool task completed without claiming, assign to the completer
         if (pendingTask.AssignedType == "2" && !string.IsNullOrEmpty(notification.CompletedBy))
         {
-            pendingTask.Reassign(notification.CompletedBy, "1", DateTime.UtcNow);
+            pendingTask.Reassign(notification.CompletedBy, "1");
             logger.LogInformation(
                 "Implicit assignment: pool task {TaskId} assigned to completer {CompletedBy}",
                 pendingTask.Id, notification.CompletedBy);
@@ -39,7 +39,7 @@ public class TaskCompletedDomainEventHandler(
         var completedBy = notification.CompletedBy ?? pendingTask.AssignedTo;
 
         var completedTask = CompletedTask.CreateFromPendingTask(
-            pendingTask, notification.ActionTaken, notification.CompletedAt);
+            pendingTask, notification.ActionTaken, notification.CompletedAt, notification.Remark);
 
         await assignmentRepository.AddCompletedTaskAsync(completedTask, cancellationToken);
         await assignmentRepository.RemovePendingTaskAsync(pendingTask, cancellationToken);

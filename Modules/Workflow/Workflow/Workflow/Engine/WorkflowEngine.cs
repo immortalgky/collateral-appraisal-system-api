@@ -3,6 +3,7 @@ using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Activities.Factories;
 using Workflow.Workflow.Engine.Core;
 using Workflow.Workflow.Models;
+using Workflow.Workflow.Repositories;
 using Workflow.Workflow.Schema;
 using Workflow.Workflow.Services;
 
@@ -19,6 +20,7 @@ public class WorkflowEngine : IWorkflowEngine
     private readonly IWorkflowLifecycleManager _lifecycleManager;
     private readonly IWorkflowPersistenceService _persistenceService;
     private readonly IWorkflowStateManager _stateManager;
+    private readonly IWorkflowDefinitionVersionRepository _versionRepository;
     private readonly ILogger<WorkflowEngine> _logger;
 
     public WorkflowEngine(
@@ -27,6 +29,7 @@ public class WorkflowEngine : IWorkflowEngine
         IWorkflowLifecycleManager lifecycleManager,
         IWorkflowPersistenceService persistenceService,
         IWorkflowStateManager stateManager,
+        IWorkflowDefinitionVersionRepository versionRepository,
         ILogger<WorkflowEngine> logger)
     {
         _activityFactory = activityFactory;
@@ -34,6 +37,7 @@ public class WorkflowEngine : IWorkflowEngine
         _lifecycleManager = lifecycleManager;
         _persistenceService = persistenceService;
         _stateManager = stateManager;
+        _versionRepository = versionRepository;
         _logger = logger;
     }
 
@@ -52,15 +56,26 @@ public class WorkflowEngine : IWorkflowEngine
                 "ORCHESTRATION: Starting workflow for definition {WorkflowDefinitionId}, correlationId {CorrelationId}",
                 workflowDefinitionId, correlationId ?? "N/A");
 
-            // 1. Load workflow schema via persistence service
+            // 1. Resolve the currently Published version for this definition (pin the instance to it)
+            var publishedVersion =
+                await _versionRepository.GetCurrentPublishedAsync(workflowDefinitionId, cancellationToken);
+            if (publishedVersion == null)
+                return WorkflowExecutionResult.Failed(null,
+                    $"No Published workflow version exists for definition {workflowDefinitionId}");
+            if (publishedVersion.Status == VersionStatus.Deprecated)
+                return WorkflowExecutionResult.Failed(null,
+                    $"Workflow definition {workflowDefinitionId} has only a Deprecated version; cannot start new instances");
+
+            // 2. Load workflow schema from the resolved version (never by definition id)
             var workflowSchema =
-                await _persistenceService.GetWorkflowSchemaAsync(workflowDefinitionId, cancellationToken);
+                await _persistenceService.GetSchemaByVersionIdAsync(publishedVersion.Id, cancellationToken);
             if (workflowSchema == null)
                 return WorkflowExecutionResult.Failed(null, $"Workflow definition not found: {workflowDefinitionId}");
 
-            // 2. Initialize a workflow instance via lifecycle manager
+            // 3. Initialize a workflow instance via lifecycle manager, pinning it to this version
             var workflowInstance = await _lifecycleManager.InitializeWorkflowAsync(
-                workflowDefinitionId, workflowSchema, instanceName, startedBy, initialVariables, correlationId,
+                workflowDefinitionId, publishedVersion.Id, workflowSchema, instanceName, startedBy, initialVariables,
+                correlationId,
                 assignmentOverrides, cancellationToken);
 
             // 3. Get start activity or 1st activity if none is specified
@@ -132,11 +147,11 @@ public class WorkflowEngine : IWorkflowEngine
             if (workflowInstance == null)
                 return WorkflowExecutionResult.Failed(null, $"Workflow instance not found: {workflowInstanceId}");
 
-            var workflowSchema = await _persistenceService.GetWorkflowSchemaAsync(
-                workflowInstance.WorkflowDefinitionId, cancellationToken);
+            var workflowSchema = await _persistenceService.GetSchemaByVersionIdAsync(
+                workflowInstance.WorkflowDefinitionVersionId, cancellationToken);
             if (workflowSchema == null)
                 return WorkflowExecutionResult.Failed(workflowInstance,
-                    $"Workflow definition not found: {workflowInstance.WorkflowDefinitionId}");
+                    $"Workflow version not found: {workflowInstance.WorkflowDefinitionVersionId}");
 
             // 2. Validate current activity and workflow state
             var validationResult = _stateManager.ValidateWorkflowState(
@@ -872,6 +887,7 @@ public class WorkflowEngine : IWorkflowEngine
 
             // Validate each activity using a coordinated approach
             var dummyWorkflowInstance = WorkflowInstance.Create(
+                Guid.NewGuid(),
                 Guid.NewGuid(),
                 "ValidationInstance",
                 null,
