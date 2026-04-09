@@ -10,11 +10,11 @@ public class LeaseAgreementDetail : Entity<Guid>
 
     // Information
     public string? LesseeName { get; private set; }
-    public string? TenantName { get; private set; }
+    public string? LessorName { get; private set; }
 
     // Contract
-    public string? LeasePeriodAsContract { get; private set; }
-    public string? RemainingLeaseAsAppraisalDate { get; private set; }
+    public decimal? LeasePeriodAsContract { get; private set; }
+    public decimal? RemainingLeaseAsAppraisalDate { get; private set; }
     public string? ContractNo { get; private set; }
 
     // Dates & Fees
@@ -25,8 +25,8 @@ public class LeaseAgreementDetail : Entity<Guid>
 
     // Terms
     public string? Sublease { get; private set; }
-    public string? AdditionalExpenses { get; private set; }
-    public string? LeaseTimestamp { get; private set; }
+    public decimal? AdditionalExpenses { get; private set; }
+    public string? LeaseTerminate { get; private set; }
     public string? ContractRenewal { get; private set; }
 
     // Long text
@@ -35,7 +35,6 @@ public class LeaseAgreementDetail : Entity<Guid>
 
     // Other
     public string? Remark { get; private set; }
-    public string? Banking { get; private set; }
 
     private LeaseAgreementDetail()
     {
@@ -55,7 +54,7 @@ public class LeaseAgreementDetail : Entity<Guid>
         {
             AppraisalPropertyId = newPropertyId,
             LesseeName = source.LesseeName,
-            TenantName = source.TenantName,
+            LessorName = source.LessorName,
             LeasePeriodAsContract = source.LeasePeriodAsContract,
             RemainingLeaseAsAppraisalDate = source.RemainingLeaseAsAppraisalDate,
             ContractNo = source.ContractNo,
@@ -65,36 +64,34 @@ public class LeaseAgreementDetail : Entity<Guid>
             RentAdjust = source.RentAdjust,
             Sublease = source.Sublease,
             AdditionalExpenses = source.AdditionalExpenses,
-            LeaseTimestamp = source.LeaseTimestamp,
+            LeaseTerminate = source.LeaseTerminate,
             ContractRenewal = source.ContractRenewal,
             RentalTermsImpactingPropertyUse = source.RentalTermsImpactingPropertyUse,
             TerminationOfLease = source.TerminationOfLease,
             Remark = source.Remark,
-            Banking = source.Banking
         };
     }
 
     public void Update(
         string? lesseeName = null,
-        string? tenantName = null,
-        string? leasePeriodAsContract = null,
-        string? remainingLeaseAsAppraisalDate = null,
+        string? lessorName = null,
+        decimal? leasePeriodAsContract = null,
+        decimal? remainingLeaseAsAppraisalDate = null,
         string? contractNo = null,
         DateTime? leaseStartDate = null,
         DateTime? leaseEndDate = null,
         decimal? leaseRentFee = null,
         decimal? rentAdjust = null,
         string? sublease = null,
-        string? additionalExpenses = null,
-        string? leaseTimestamp = null,
+        decimal? additionalExpenses = null,
+        string? leaseTerminate = null,
         string? contractRenewal = null,
         string? rentalTermsImpactingPropertyUse = null,
         string? terminationOfLease = null,
-        string? remark = null,
-        string? banking = null)
+        string? remark = null)
     {
         if (lesseeName is not null) LesseeName = lesseeName;
-        if (tenantName is not null) TenantName = tenantName;
+        if (lessorName is not null) LessorName = lessorName;
         if (leasePeriodAsContract is not null) LeasePeriodAsContract = leasePeriodAsContract;
         if (remainingLeaseAsAppraisalDate is not null) RemainingLeaseAsAppraisalDate = remainingLeaseAsAppraisalDate;
         if (contractNo is not null) ContractNo = contractNo;
@@ -104,11 +101,10 @@ public class LeaseAgreementDetail : Entity<Guid>
         if (rentAdjust.HasValue) RentAdjust = rentAdjust.Value;
         if (sublease is not null) Sublease = sublease;
         if (additionalExpenses is not null) AdditionalExpenses = additionalExpenses;
-        if (leaseTimestamp is not null) LeaseTimestamp = leaseTimestamp;
+        if (leaseTerminate is not null) LeaseTerminate = leaseTerminate;
         if (contractRenewal is not null) ContractRenewal = contractRenewal;
         if (rentalTermsImpactingPropertyUse is not null) RentalTermsImpactingPropertyUse = rentalTermsImpactingPropertyUse;
         if (terminationOfLease is not null) TerminationOfLease = terminationOfLease;
         if (remark is not null) Remark = remark;
-        if (banking is not null) Banking = banking;
     }
 }

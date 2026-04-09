@@ -25,7 +25,7 @@ public class GetLeaseAgreementQueryHandler(
             DetailId: detail.Id,
             AppraisalPropertyId: detail.AppraisalPropertyId,
             LesseeName: detail.LesseeName,
-            TenantName: detail.TenantName,
+            LessorName: detail.LessorName,
             LeasePeriodAsContract: detail.LeasePeriodAsContract,
             RemainingLeaseAsAppraisalDate: detail.RemainingLeaseAsAppraisalDate,
             ContractNo: detail.ContractNo,
@@ -35,11 +35,10 @@ public class GetLeaseAgreementQueryHandler(
             RentAdjust: detail.RentAdjust,
             Sublease: detail.Sublease,
             AdditionalExpenses: detail.AdditionalExpenses,
-            LeaseTimestamp: detail.LeaseTimestamp,
+            LeaseTerminate: detail.LeaseTerminate,
             ContractRenewal: detail.ContractRenewal,
             RentalTermsImpactingPropertyUse: detail.RentalTermsImpactingPropertyUse,
             TerminationOfLease: detail.TerminationOfLease,
-            Remark: detail.Remark,
-            Banking: detail.Banking);
+            Remark: detail.Remark);
     }
 }

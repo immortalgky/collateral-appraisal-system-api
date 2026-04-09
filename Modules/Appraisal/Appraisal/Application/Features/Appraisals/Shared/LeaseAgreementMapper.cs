@@ -15,7 +15,7 @@ public static class LeaseAgreementMapper
             detail.Id,
             detail.AppraisalPropertyId,
             detail.LesseeName,
-            detail.TenantName,
+            detail.LessorName,
             detail.LeasePeriodAsContract,
             detail.RemainingLeaseAsAppraisalDate,
             detail.ContractNo,
@@ -25,12 +25,11 @@ public static class LeaseAgreementMapper
             detail.RentAdjust,
             detail.Sublease,
             detail.AdditionalExpenses,
-            detail.LeaseTimestamp,
+            detail.LeaseTerminate,
             detail.ContractRenewal,
             detail.RentalTermsImpactingPropertyUse,
             detail.TerminationOfLease,
-            detail.Remark,
-            detail.Banking
+            detail.Remark
         );
     }
 

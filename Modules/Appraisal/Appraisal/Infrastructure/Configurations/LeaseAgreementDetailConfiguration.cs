@@ -14,11 +14,11 @@ public class LeaseAgreementDetailConfiguration : IOwnedEntityConfiguration<Appra
 
         // Information
         builder.Property(e => e.LesseeName).HasMaxLength(200);
-        builder.Property(e => e.TenantName).HasMaxLength(200);
+        builder.Property(e => e.LessorName).HasMaxLength(200);
 
         // Contract
-        builder.Property(e => e.LeasePeriodAsContract).HasMaxLength(200);
-        builder.Property(e => e.RemainingLeaseAsAppraisalDate).HasMaxLength(200);
+        builder.Property(e => e.LeasePeriodAsContract).HasPrecision(5, 0);
+        builder.Property(e => e.RemainingLeaseAsAppraisalDate).HasPrecision(5,0);
         builder.Property(e => e.ContractNo).HasMaxLength(100);
 
         // Fees
@@ -27,8 +27,8 @@ public class LeaseAgreementDetailConfiguration : IOwnedEntityConfiguration<Appra
 
         // Terms
         builder.Property(e => e.Sublease).HasMaxLength(500);
-        builder.Property(e => e.AdditionalExpenses).HasMaxLength(500);
-        builder.Property(e => e.LeaseTimestamp).HasMaxLength(200);
+        builder.Property(e => e.AdditionalExpenses).HasPrecision(18, 2);
+        builder.Property(e => e.LeaseTerminate).HasMaxLength(200);
         builder.Property(e => e.ContractRenewal).HasMaxLength(500);
 
         // Long text
@@ -36,8 +36,7 @@ public class LeaseAgreementDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.TerminationOfLease).HasMaxLength(2000);
 
         // Other
-        builder.Property(e => e.Remark).HasMaxLength(1000);
-        builder.Property(e => e.Banking).HasMaxLength(200);
+        builder.Property(e => e.Remark).HasMaxLength(4000);
 
         builder.Property(e => e.AppraisalPropertyId).IsRequired();
     }

@@ -764,7 +764,7 @@ VALUES
     (N'CheckBy', N'TH', N'TH', N'02', N'ระวาง', 1, 2),
     (N'CheckBy', N'TH', N'EN', N'99', N'Other', 1, 3),
     (N'CheckBy', N'TH', N'TH', N'99', N'อื่นๆ', 1, 3),
-    (N'CheckBy', N'TH', N'EN', N'04', N'04', 1, 4),
+    (N'CheckBy', N'TH', N'EN', N'04', N'Shape, size, and surroundings match the title deed.', 1, 4),
     (N'CheckBy', N'TH', N'TH', N'04', N'รูปร่าง ขนาด ทิศทาง และสภาพแวดล้อมตรงตามโฉนด', 1, 4);
 GO
 
@@ -830,10 +830,10 @@ VALUES
     (N'CollateralType', N'TH', N'TH', N'15', N'Land lease rights (land)', 1, 12),
     (N'CollateralType', N'TH', N'EN', N'16', N'Land lease rights (building)', 1, 13),
     (N'CollateralType', N'TH', N'TH', N'16', N'Land lease rights (building)', 1, 13),
-    (N'CollateralType', N'TH', N'EN', N'31', N'Land with buildings (BlockLand)', 1, 14),
-    (N'CollateralType', N'TH', N'TH', N'31', N'Land with buildings (BlockLand)', 1, 14),
-    (N'CollateralType', N'TH', N'EN', N'32', N'Condominium (BlockCondo)', 1, 15),
-    (N'CollateralType', N'TH', N'TH', N'32', N'Condominium (BlockCondo)', 1, 15),
+    (N'CollateralType', N'TH', N'EN', N'32', N'Land with buildings (BlockLand)', 1, 14),
+    (N'CollateralType', N'TH', N'TH', N'32', N'Land with buildings (BlockLand)', 1, 14),
+    (N'CollateralType', N'TH', N'EN', N'33', N'Condominium (BlockCondo)', 1, 15),
+    (N'CollateralType', N'TH', N'TH', N'33', N'Condominium (BlockCondo)', 1, 15),
     (N'CollateralType', N'TH', N'EN', N'10', N'car', 1, 16),
     (N'CollateralType', N'TH', N'TH', N'10', N'car', 1, 16),
     (N'CollateralType', N'TH', N'EN', N'11', N'machinery', 1, 17),

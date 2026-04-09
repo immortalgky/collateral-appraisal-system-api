@@ -5,22 +5,21 @@ namespace Appraisal.Application.Features.Appraisals.Shared;
 /// </summary>
 public record LeaseAgreementData(
     string? LesseeName = null,
-    string? TenantName = null,
-    string? LeasePeriodAsContract = null,
-    string? RemainingLeaseAsAppraisalDate = null,
+    string? LessorName = null,
+    decimal? LeasePeriodAsContract = null,
+    decimal? RemainingLeaseAsAppraisalDate = null,
     string? ContractNo = null,
     DateTime? LeaseStartDate = null,
     DateTime? LeaseEndDate = null,
     decimal? LeaseRentFee = null,
     decimal? RentAdjust = null,
     string? Sublease = null,
-    string? AdditionalExpenses = null,
-    string? LeaseTimestamp = null,
+    decimal? AdditionalExpenses = null,
+    string? LeaseTerminate = null,
     string? ContractRenewal = null,
     string? RentalTermsImpactingPropertyUse = null,
     string? TerminationOfLease = null,
-    string? Remark = null,
-    string? Banking = null
+    string? Remark = null
 );
 
 /// <summary>
@@ -52,22 +51,21 @@ public record LeaseAgreementDetailDto(
     Guid DetailId,
     Guid AppraisalPropertyId,
     string? LesseeName,
-    string? TenantName,
-    string? LeasePeriodAsContract,
-    string? RemainingLeaseAsAppraisalDate,
+    string? LessorName,
+    decimal? LeasePeriodAsContract,
+    decimal? RemainingLeaseAsAppraisalDate,
     string? ContractNo,
     DateTime? LeaseStartDate,
     DateTime? LeaseEndDate,
     decimal? LeaseRentFee,
     decimal? RentAdjust,
     string? Sublease,
-    string? AdditionalExpenses,
-    string? LeaseTimestamp,
+    decimal? AdditionalExpenses,
+    string? LeaseTerminate,
     string? ContractRenewal,
     string? RentalTermsImpactingPropertyUse,
     string? TerminationOfLease,
-    string? Remark,
-    string? Banking
+    string? Remark
 );
 
 public record RentalInfoDto(
