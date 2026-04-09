@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Document.Data.Migrations
 {
     [DbContext(typeof(DocumentDbContext))]
-    [Migration("20260121030400_AddUploadSessionExternalReference")]
+    [Migration("20260210030400_AddUploadSessionExternalReference")]
     partial class AddUploadSessionExternalReference
     {
         /// <inheritdoc />
