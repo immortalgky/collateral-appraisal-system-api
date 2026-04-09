@@ -1,12 +1,9 @@
-using Appraisal;
 using Appraisal.Infrastructure;
-using Document.Data;
 using Common;
+using Document.Data;
 using Hangfire;
-using Integration.Infrastructure;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.EntityFrameworkCore;
 using Request.Infrastructure;
 using Shared.Configurations;
 using Shared.Data;
@@ -141,7 +138,7 @@ builder.Services.AddHealthChecks()
         tags: ["db", "ready"])
     .AddRedis(
         builder.Configuration.GetConnectionString("Redis")!,
-        name: "redis",
+        "redis",
         tags: ["cache", "ready"])
     .AddRabbitMQ(
         name: "rabbitmq",
@@ -191,7 +188,8 @@ if (fileStorageConfig?.Mode == StorageMode.Nas
     }
     else
     {
-        Log.Warning("NAS path is not accessible: {NasBasePath}. Falling back to local storage.", fileStorageConfig.NasBasePath);
+        Log.Warning("NAS path is not accessible: {NasBasePath}. Falling back to local storage.",
+            fileStorageConfig.NasBasePath);
         app.UseStaticFiles();
     }
 }
@@ -273,18 +271,6 @@ app.MapRazorPages();
 app.MapControllers();
 app.MapCarter();
 
-app.UseHangfire();
-
-// Outbox cleanup: purge processed/dead-letter messages older than 7 days, daily at 2 AM UTC
-RecurringJob.AddOrUpdate<OutboxCleanupJob<RequestDbContext>>(
-    "outbox-cleanup-request", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
-RecurringJob.AddOrUpdate<OutboxCleanupJob<AppraisalDbContext>>(
-    "outbox-cleanup-appraisal", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
-RecurringJob.AddOrUpdate<OutboxCleanupJob<DocumentDbContext>>(
-    "outbox-cleanup-document", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
-RecurringJob.AddOrUpdate<OutboxCleanupJob<WorkflowDbContext>>(
-    "outbox-cleanup-workflow", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
-
 app
     .UseRequestModule()
     .UseAuthModule()
@@ -296,6 +282,18 @@ app
     .UseAppraisalModule()
     .UseIntegrationModule()
     .UseCommonModule();
+
+app.UseHangfire();
+
+// Outbox cleanup: purge processed/dead-letter messages older than 7 days, daily at 2 AM UTC
+RecurringJob.AddOrUpdate<OutboxCleanupJob<RequestDbContext>>(
+    "outbox-cleanup-request", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
+RecurringJob.AddOrUpdate<OutboxCleanupJob<AppraisalDbContext>>(
+    "outbox-cleanup-appraisal", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
+RecurringJob.AddOrUpdate<OutboxCleanupJob<DocumentDbContext>>(
+    "outbox-cleanup-document", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
+RecurringJob.AddOrUpdate<OutboxCleanupJob<WorkflowDbContext>>(
+    "outbox-cleanup-workflow", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
 
 await app.RunAsync();
 

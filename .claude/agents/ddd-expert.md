@@ -6,7 +6,7 @@ description: >
   architecture. Invoke for domain modeling, command/query implementation, persistence
   layer, and audit trail work.
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: opus
+model: sonnet
 memory: user
 skills:
   - clean-ddd-hexagonal
