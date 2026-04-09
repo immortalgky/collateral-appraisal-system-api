@@ -25,5 +25,8 @@ public interface IAppraisalCreationService
         string? channel = null,
         string? bankingSegment = null,
         decimal? facilityLimit = null,
+        bool hasAppraisalBook = false,
+        string? requestedBy = null,
+        DateTime? requestedAt = null,
         CancellationToken cancellationToken = default);
 }
