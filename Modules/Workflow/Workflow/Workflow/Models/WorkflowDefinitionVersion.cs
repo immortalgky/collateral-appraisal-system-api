@@ -54,6 +54,16 @@ public class WorkflowDefinitionVersion : Entity<Guid>
         };
     }
 
+    /// <summary>
+    /// Sets the breaking-change list before publishing. Rejected once the version is Published (immutability).
+    /// </summary>
+    public void SetBreakingChanges(List<BreakingChange> breakingChanges)
+    {
+        if (Status == VersionStatus.Published)
+            throw new InvalidOperationException("Cannot modify breaking changes on a published version");
+        BreakingChanges = breakingChanges ?? new List<BreakingChange>();
+    }
+
     public void Publish(string publishedBy, List<BreakingChange>? breakingChanges = null,
         string? migrationInstructions = null)
     {

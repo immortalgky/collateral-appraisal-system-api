@@ -8,9 +8,11 @@ using Workflow.Domain.Committees;
 namespace Workflow.Data.Seed;
 
 /// <summary>
-/// Seeds committees, members, and thresholds for committee approval voting.
-/// Sub Committee (3 members): 0 - 50M
-/// Committee Group 2 (5 members): 50M+
+/// Seeds committees, members, thresholds and conditions for committee approval voting.
+/// 3-tier approval routing by facilityLimit:
+///   - Sub Committee (SUB_COMMITTEE):          0 - 10M
+///   - Committee (COMMITTEE):                 10M - 30M
+///   - Committee With Meeting (COMMITTEE_WITH_MEETING): >30M, UW role vote required
 /// </summary>
 public class CommitteeDataSeed(
     WorkflowDbContext context,
@@ -22,13 +24,34 @@ public class CommitteeDataSeed(
         await SeedCommitteesAsync();
         await SeedMembersAsync();
         await SeedThresholdsAsync();
+        await SeedConditionsAsync();
     }
 
     private async Task SeedCommitteesAsync()
     {
-        if (await context.Committees.AnyAsync())
+        // Guard: skip only when all three expected committees exist.
+        // A partial seed (e.g., an older deployment that only inserted SUB_COMMITTEE/COMMITTEE)
+        // must be allowed to top up with COMMITTEE_WITH_MEETING — otherwise the tier-3 routing
+        // introduced by the meeting-approval feature silently fails because the committee the
+        // workflow expects is missing.
+        var existingCodes = await context.Committees
+            .Select(c => c.Code)
+            .ToListAsync();
+
+        var requiredCodes = new[] { "SUB_COMMITTEE", "COMMITTEE", "COMMITTEE_WITH_MEETING" };
+        if (requiredCodes.All(existingCodes.Contains))
         {
             logger.LogInformation("Workflow committees already seeded, skipping...");
+            return;
+        }
+
+        if (existingCodes.Count > 0)
+        {
+            logger.LogWarning(
+                "Partial committee seed detected (existing: {Existing}). Skipping top-up to avoid duplicating members/thresholds. " +
+                "Manually add the missing committees: {Missing}",
+                string.Join(",", existingCodes),
+                string.Join(",", requiredCodes.Except(existingCodes)));
             return;
         }
 
@@ -37,24 +60,33 @@ public class CommitteeDataSeed(
         var subCommittee = Committee.Create(
             "Sub Committee",
             "SUB_COMMITTEE",
-            "Sub committee for appraisals up to 50M",
+            "Sub committee for appraisals up to 10M",
             QuorumType.Fixed,
             2,
             MajorityType.Unanimous);
 
-        var committeeGroup2 = Committee.Create(
-            "Committee Group 2",
-            "COMMITTEE_GROUP_2",
-            "Committee for appraisals above 50M",
+        var committee = Committee.Create(
+            "Committee",
+            "COMMITTEE",
+            "Committee for appraisals between 10M and 30M",
+            QuorumType.Fixed,
+            3,
+            MajorityType.Unanimous);
+
+        var committeeWithMeeting = Committee.Create(
+            "Committee With Meeting",
+            "COMMITTEE_WITH_MEETING",
+            "Committee for appraisals above 30M — requires a meeting and UW vote",
             QuorumType.Fixed,
             3,
             MajorityType.Unanimous);
 
         context.Committees.Add(subCommittee);
-        context.Committees.Add(committeeGroup2);
+        context.Committees.Add(committee);
+        context.Committees.Add(committeeWithMeeting);
         await context.SaveChangesAsync();
 
-        logger.LogInformation("Seeded 2 workflow committees");
+        logger.LogInformation("Seeded 3 workflow committees");
     }
 
     private async Task SeedMembersAsync()
@@ -65,14 +97,14 @@ public class CommitteeDataSeed(
             return;
         }
 
-        var subCommittee = await context.Committees
-            .Include(c => c.Members)
+        var subCommittee = await context.Committees.Include(c => c.Members)
             .FirstOrDefaultAsync(c => c.Code == "SUB_COMMITTEE");
-        var committeeGroup2 = await context.Committees
-            .Include(c => c.Members)
-            .FirstOrDefaultAsync(c => c.Code == "COMMITTEE_GROUP_2");
+        var committee = await context.Committees.Include(c => c.Members)
+            .FirstOrDefaultAsync(c => c.Code == "COMMITTEE");
+        var committeeWithMeeting = await context.Committees.Include(c => c.Members)
+            .FirstOrDefaultAsync(c => c.Code == "COMMITTEE_WITH_MEETING");
 
-        if (subCommittee == null || committeeGroup2 == null)
+        if (subCommittee is null || committee is null || committeeWithMeeting is null)
         {
             logger.LogWarning("Workflow committees not found. Skipping member seeding.");
             return;
@@ -87,23 +119,30 @@ public class CommitteeDataSeed(
 
         logger.LogInformation("Seeding workflow committee members...");
 
-        // Sub Committee: 3 members
+        // Sub Committee: 3 members (tier 1: 0-10M)
         AddMemberIfUserExists(subCommittee, userMap, "john.doe", "John Doe", CommitteeMemberRole.Chairman);
         AddMemberIfUserExists(subCommittee, userMap, "jane.smith", "Jane Smith", CommitteeMemberRole.UW);
         AddMemberIfUserExists(subCommittee, userMap, "m.wilson", "Mike Wilson", CommitteeMemberRole.Risk);
 
-        // Committee Group 2: 5 members (all Sub Committee members + 2 more)
-        AddMemberIfUserExists(committeeGroup2, userMap, "john.doe", "John Doe", CommitteeMemberRole.Chairman);
-        AddMemberIfUserExists(committeeGroup2, userMap, "jane.smith", "Jane Smith", CommitteeMemberRole.UW);
-        AddMemberIfUserExists(committeeGroup2, userMap, "m.wilson", "Mike Wilson", CommitteeMemberRole.Risk);
-        AddMemberIfUserExists(committeeGroup2, userMap, "s.johnson", "Sarah Johnson", CommitteeMemberRole.Credit);
-        AddMemberIfUserExists(committeeGroup2, userMap, "thitipornw", "Thitiporn W", CommitteeMemberRole.Appraisal);
+        // Committee: 5 members (tier 2: 10-30M)
+        AddMemberIfUserExists(committee, userMap, "john.doe", "John Doe", CommitteeMemberRole.Chairman);
+        AddMemberIfUserExists(committee, userMap, "jane.smith", "Jane Smith", CommitteeMemberRole.UW);
+        AddMemberIfUserExists(committee, userMap, "m.wilson", "Mike Wilson", CommitteeMemberRole.Risk);
+        AddMemberIfUserExists(committee, userMap, "s.johnson", "Sarah Johnson", CommitteeMemberRole.Credit);
+        AddMemberIfUserExists(committee, userMap, "thitipornw", "Thitiporn W", CommitteeMemberRole.Appraisal);
+
+        // Committee With Meeting: 5 members (tier 3: >30M) — UW vote mandatory
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "john.doe", "John Doe", CommitteeMemberRole.Chairman);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "jane.smith", "Jane Smith", CommitteeMemberRole.UW);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "m.wilson", "Mike Wilson", CommitteeMemberRole.Risk);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "s.johnson", "Sarah Johnson", CommitteeMemberRole.Credit);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "thitipornw", "Thitiporn W", CommitteeMemberRole.Appraisal);
 
         await context.SaveChangesAsync();
 
         logger.LogInformation(
-            "Seeded workflow committee members: Sub Committee={SubCount}, Group 2={Group2Count}",
-            subCommittee.Members.Count, committeeGroup2.Members.Count);
+            "Seeded committee members: Sub={Sub}, Committee={C}, WithMeeting={WM}",
+            subCommittee.Members.Count, committee.Members.Count, committeeWithMeeting.Members.Count);
     }
 
     private async Task SeedThresholdsAsync()
@@ -114,12 +153,11 @@ public class CommitteeDataSeed(
             return;
         }
 
-        var subCommittee = await context.Committees
-            .FirstOrDefaultAsync(c => c.Code == "SUB_COMMITTEE");
-        var committeeGroup2 = await context.Committees
-            .FirstOrDefaultAsync(c => c.Code == "COMMITTEE_GROUP_2");
+        var subCommittee = await context.Committees.FirstOrDefaultAsync(c => c.Code == "SUB_COMMITTEE");
+        var committee = await context.Committees.FirstOrDefaultAsync(c => c.Code == "COMMITTEE");
+        var committeeWithMeeting = await context.Committees.FirstOrDefaultAsync(c => c.Code == "COMMITTEE_WITH_MEETING");
 
-        if (subCommittee == null || committeeGroup2 == null)
+        if (subCommittee is null || committee is null || committeeWithMeeting is null)
         {
             logger.LogWarning("Workflow committees not found. Skipping threshold seeding.");
             return;
@@ -127,12 +165,37 @@ public class CommitteeDataSeed(
 
         logger.LogInformation("Seeding workflow committee thresholds...");
 
-        subCommittee.AddThreshold(0m, 50_000_000m, 1);
-        committeeGroup2.AddThreshold(50_000_000m, null, 2);
+        subCommittee.AddThreshold(0m, 10_000_000m, 1);
+        committee.AddThreshold(10_000_000m, 30_000_000m, 2);
+        committeeWithMeeting.AddThreshold(30_000_000m, null, 3);
 
         await context.SaveChangesAsync();
 
-        logger.LogInformation("Seeded 2 workflow committee thresholds");
+        logger.LogInformation("Seeded 3 workflow committee thresholds");
+    }
+
+    private async Task SeedConditionsAsync()
+    {
+        var committeeWithMeeting = await context.Committees
+            .Include(c => c.Conditions)
+            .FirstOrDefaultAsync(c => c.Code == "COMMITTEE_WITH_MEETING");
+
+        if (committeeWithMeeting is null)
+            return;
+
+        if (committeeWithMeeting.Conditions.Any())
+            return;
+
+        logger.LogInformation("Seeding COMMITTEE_WITH_MEETING approval condition (UW role required)...");
+
+        committeeWithMeeting.AddCondition(
+            ConditionType.RoleRequired,
+            roleRequired: nameof(CommitteeMemberRole.UW),
+            minVotesRequired: null,
+            priority: 1,
+            description: "Underwriter (UW) must cast an approve vote for tier-3 appraisals");
+
+        await context.SaveChangesAsync();
     }
 
     private async Task<Dictionary<string, Guid>> GetUserMapAsync()

@@ -3,6 +3,9 @@ using Workflow.AssigneeSelection.Engine;
 using Workflow.AssigneeSelection.Configuration;
 using Workflow.AssigneeSelection.Pipeline;
 using Workflow.AssigneeSelection.Services;
+using Workflow.Meetings.Activities;
+using Workflow.Meetings.Domain;
+using Workflow.Meetings.Infrastructure;
 using Workflow.Workflow.Activities;
 using Workflow.Workflow.Activities.Approval;
 using Workflow.AssigneeSelection.Teams;
@@ -19,6 +22,8 @@ using Workflow.Workflow.Services;
 using Workflow.Infrastructure;
 using Workflow.Sla.Services;
 using Workflow.Workflow.Hubs;
+using Workflow.DocumentFollowups.Application;
+using Workflow.DocumentFollowups.Infrastructure;
 
 namespace Workflow;
 
@@ -79,6 +84,12 @@ public static class WorkflowModule
         // Version repository
         services.AddScoped<IWorkflowDefinitionVersionRepository, WorkflowDefinitionVersionRepository>();
 
+        // Versioning: schema diff + instance impact analysis
+        services.AddScoped<global::Workflow.Workflow.Versioning.SchemaDiffing.IWorkflowSchemaDiffer,
+            global::Workflow.Workflow.Versioning.SchemaDiffing.WorkflowSchemaDiffer>();
+        services.AddScoped<global::Workflow.Workflow.Versioning.IInstanceImpactAnalyzer,
+            global::Workflow.Workflow.Versioning.InstanceImpactAnalyzer>();
+
         // Additional repositories
         services.AddScoped<IWorkflowOutboxRepository, WorkflowOutboxRepository>();
         services.AddScoped<IWorkflowBookmarkRepository, WorkflowBookmarkRepository>();
@@ -117,6 +128,16 @@ public static class WorkflowModule
         services.AddScoped<CompanySelectionActivity>();
         services.AddScoped<InternalFollowupSelectionActivity>();
         services.AddScoped<ApprovalActivity>();
+        services.AddScoped<MeetingActivity>();
+        services.AddScoped<SwitchActivity>();
+        services.AddScoped<IfElseActivity>();
+        services.AddScoped<ForkActivity>();
+        services.AddScoped<JoinActivity>();
+        services.AddScoped<StartActivity>();
+        services.AddScoped<EndActivity>();
+
+        // Meeting infrastructure
+        services.AddScoped<IMeetingRepository, MeetingRepository>();
 
         // Approval infrastructure
         services.AddScoped<IApprovalMemberResolver, ApprovalMemberResolver>();
@@ -143,9 +164,13 @@ public static class WorkflowModule
         services.AddScoped<ProcessStepResolver>();
         services.AddScoped<IActivityProcessPipeline, ActivityProcessPipeline>();
 
+        // Document followup services
+        services.AddScoped<IDocumentFollowupGate, DocumentFollowupGate>();
+
         // Data seeders
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Data.Seed.ActivityProcessConfigurationSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Data.Seed.CommitteeDataSeed>();
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, DocumentFollowupWorkflowDefinitionSeeder>();
 
         // Workflow DbContext with its own migration assembly and history table
         services.AddDbContext<WorkflowDbContext>((sp, options) =>

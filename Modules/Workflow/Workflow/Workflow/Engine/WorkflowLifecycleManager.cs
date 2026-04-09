@@ -47,8 +47,22 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
         _logger = logger;
     }
 
+    // Back-compat overload used by existing unit tests — synthesizes a version id.
+    public Task<WorkflowInstance> InitializeWorkflowAsync(
+        Guid workflowDefinitionId,
+        WorkflowSchema workflowSchema,
+        string instanceName,
+        string startedBy,
+        Dictionary<string, object>? initialVariables = null,
+        string? correlationId = null,
+        Dictionary<string, RuntimeOverride>? runtimeOverrides = null,
+        CancellationToken cancellationToken = default)
+        => InitializeWorkflowAsync(workflowDefinitionId, Guid.NewGuid(), workflowSchema, instanceName, startedBy,
+            initialVariables, correlationId, runtimeOverrides, cancellationToken);
+
     public async Task<WorkflowInstance> InitializeWorkflowAsync(
         Guid workflowDefinitionId,
+        Guid workflowDefinitionVersionId,
         WorkflowSchema workflowSchema,
         string instanceName,
         string startedBy,
@@ -61,6 +75,7 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
         {
             var workflowInstance = WorkflowInstance.Create(
                 workflowDefinitionId,
+                workflowDefinitionVersionId,
                 instanceName,
                 correlationId,
                 startedBy,

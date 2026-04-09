@@ -103,8 +103,10 @@ public class TaskActivity : WorkflowActivityBase
                 return ActivityResult.Failed(assignmentResult.ErrorMessage ?? "Assignment failed");
             }
 
-            // Capture previous assignee before overwriting (for completer notification)
-            var previousAssignee = context.WorkflowInstance.CurrentAssignee;
+            // Capture prior human completer for completer notification.
+            // LastCompletedBy is updated only on human completions and survives
+            // intervening system activities (CurrentAssignee would be cleared/SYSTEM here).
+            var previousAssignee = context.WorkflowInstance.LastCompletedBy;
 
             // Set assignee on workflow instance
             SetActivityAssignee(context, assignmentResult.AssigneeId);
@@ -178,6 +180,14 @@ public class TaskActivity : WorkflowActivityBase
             {
                 outputData[$"{NormalizeActivityId(context.ActivityId)}_decisionTaken"] = decisionTaken;
                 outputData["decision"] = decisionTaken; // For transition evaluation
+            }
+
+            // Capture optional free-text comment so PublishTaskCompletedEventAsync can persist it
+            // onto CompletedTask.Remark. `comments` is on the reserved-key denylist below, so the
+            // generic input-passthrough loop will skip it — we have to handle it explicitly here.
+            if (resumeInput.TryGetValue("comments", out var commentsValue))
+            {
+                outputData[$"{NormalizeActivityId(context.ActivityId)}_comments"] = commentsValue;
             }
 
             // Process all input data using inputMappings (unified approach)
@@ -679,12 +689,21 @@ public class TaskActivity : WorkflowActivityBase
             ? decisionTaken?.ToString() ?? "Completed"
             : "Completed";
 
+        var commentsKey = $"{NormalizeActivityId(context.ActivityId)}_comments";
+        var remark = outputData.TryGetValue(commentsKey, out var commentsValue)
+            ? commentsValue?.ToString()
+            : null;
+        if (string.IsNullOrWhiteSpace(remark))
+        {
+            remark = null;
+        }
+
         // Pass CompletedBy for pool task implicit assignment
         var completedBy = context.WorkflowInstance.CurrentAssignee;
 
         await _publisher.Publish(
             new TaskCompletedDomainEvent(correlationGuid, taskName, actionTaken, DateTime.UtcNow, completedBy,
-                context.WorkflowInstance.Name),
+                context.WorkflowInstance.Name, remark),
             cancellationToken);
     }
 

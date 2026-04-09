@@ -14,6 +14,8 @@ public class CompletedTask : Aggregate<Guid>
     public DateTime? DueAt { get; private set; }
     public string? SlaStatus { get; private set; }
     public DateTime? SlaBreachedAt { get; private set; }
+    public string? Remark { get; private set; }
+    public string Movement { get; private set; } = "Forward";
 
     private CompletedTask()
     {
@@ -23,7 +25,7 @@ public class CompletedTask : Aggregate<Guid>
     private CompletedTask(Guid id, Guid correlationId, string taskName, string assignedTo,
         string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt,
         DateTime? dueAt = null, string? slaStatus = null, DateTime? slaBreachedAt = null,
-        string? taskDescription = null)
+        string? taskDescription = null, string? remark = null, string movement = "Forward")
     {
         Id = id;
         CorrelationId = correlationId;
@@ -38,16 +40,20 @@ public class CompletedTask : Aggregate<Guid>
         DueAt = dueAt;
         SlaStatus = slaStatus;
         SlaBreachedAt = slaBreachedAt;
+        Remark = remark;
+        Movement = movement;
     }
 
     public static CompletedTask Create(Guid id, Guid correlationId, string taskName, string assignedTo,
-        string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt)
+        string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt,
+        string? remark = null, string movement = "Forward")
     {
         return new CompletedTask(id, correlationId, taskName, assignedTo, assignedType, assignedAt,
-            actionTaken, completedAt);
+            actionTaken, completedAt, remark: remark, movement: movement);
     }
 
-    public static CompletedTask CreateFromPendingTask(PendingTask pendingTask, string actionTaken, DateTime completedAt)
+    public static CompletedTask CreateFromPendingTask(PendingTask pendingTask, string actionTaken,
+        DateTime completedAt, string? remark = null)
     {
         return new CompletedTask(
             pendingTask.Id,
@@ -61,7 +67,9 @@ public class CompletedTask : Aggregate<Guid>
             pendingTask.DueAt,
             pendingTask.SlaStatus,
             pendingTask.SlaBreachedAt,
-            pendingTask.TaskDescription
+            pendingTask.TaskDescription,
+            remark,
+            pendingTask.Movement
         );
     }
 }

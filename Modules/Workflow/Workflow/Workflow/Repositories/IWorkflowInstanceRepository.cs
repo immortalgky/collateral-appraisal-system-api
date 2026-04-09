@@ -39,4 +39,14 @@ public interface IWorkflowInstanceRepository
     /// Gets workflows that have been running longer than the specified duration
     /// </summary>
     Task<IEnumerable<WorkflowInstance>> GetLongRunningWorkflowsAsync(TimeSpan timeout, int maxResults, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists Running instances for a specific workflow definition.
+    /// </summary>
+    Task<List<WorkflowInstance>> ListRunningByDefinitionIdAsync(Guid definitionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists Running instances currently pinned to a specific WorkflowDefinitionVersion.
+    /// </summary>
+    Task<List<WorkflowInstance>> ListRunningByVersionIdAsync(Guid versionId, CancellationToken cancellationToken = default);
 }

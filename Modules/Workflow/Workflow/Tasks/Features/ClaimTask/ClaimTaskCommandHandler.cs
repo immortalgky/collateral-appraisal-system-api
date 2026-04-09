@@ -28,7 +28,7 @@ public class ClaimTaskCommandHandler(
         var poolGroup = task.AssignedTo;
 
         // Claim: reassign from pool to specific person
-        task.Reassign(username, "1", DateTime.UtcNow);
+        task.Reassign(username, "1");
         await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation("User {Username} claimed pool task {TaskId} from pool {PoolGroup}",

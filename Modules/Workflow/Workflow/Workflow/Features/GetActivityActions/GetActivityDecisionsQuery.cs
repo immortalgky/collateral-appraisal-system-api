@@ -8,6 +8,13 @@ public record GetActivityActionsResponse
     public string ActivityId { get; init; } = default!;
     public string ActivityName { get; init; } = default!;
     public List<ActionDto> Actions { get; init; } = [];
+
+    /// <summary>
+    /// True when the activity definition opts in to the document followup feature
+    /// (workflow JSON has properties.canRaiseFollowup == true). Frontend uses this
+    /// to render the "Request Additional Documents" button.
+    /// </summary>
+    public bool CanRaiseFollowup { get; init; }
 }
 
 public record ActionDto

@@ -1,9 +1,12 @@
 using Shared.Data.Outbox;
 using Workflow.Domain;
 using Workflow.Domain.Committees;
+using Workflow.Meetings.Domain;
+using Workflow.Meetings.ReadModels;
 using Workflow.Workflow.Models;
 using Workflow.Data.Entities;
 using Workflow.Sla.Models;
+using Workflow.DocumentFollowups.Domain;
 
 namespace Workflow.Data;
 
@@ -41,6 +44,14 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
     public DbSet<Holiday> Holidays => Set<Holiday>();
     public DbSet<BusinessHoursConfig> BusinessHoursConfigs => Set<BusinessHoursConfig>();
     public DbSet<SlaBreachLog> SlaBreachLogs => Set<SlaBreachLog>();
+
+    // Document followup entities
+    public DbSet<DocumentFollowup> DocumentFollowups => Set<DocumentFollowup>();
+
+    // Meeting entities
+    public DbSet<Meeting> Meetings => Set<Meeting>();
+    public DbSet<MeetingItem> MeetingItems => Set<MeetingItem>();
+    public DbSet<MeetingQueueItem> MeetingQueueItems => Set<MeetingQueueItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -67,7 +67,14 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
 
             // Update execution based on a result
             if (result.Status == ActivityResultStatus.Completed)
-                execution.Complete(GetCompletedBy(resumeInput), result.OutputData, result.Comments);
+            {
+                var completedBy = GetCompletedBy(resumeInput);
+                execution.Complete(completedBy, result.OutputData, result.Comments);
+                // Track last human completer on the workflow instance so subsequent
+                // task activities can notify the prior human even after intervening
+                // system activities. SetLastCompletedBy filters out "system".
+                context.WorkflowInstance.SetLastCompletedBy(completedBy);
+            }
             else if (result.Status == ActivityResultStatus.Failed)
                 execution.Fail(result.ErrorMessage ?? "Activity resume failed");
 
@@ -93,6 +100,12 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
         {
             outputData[$"{NormalizeActivityId(context.ActivityId)}_decisionTaken"] = decision;
             outputData["decision"] = decision; // Also keep for transition evaluation
+        }
+
+        // Capture optional free-text comment so it can be persisted onto CompletedTask.Remark
+        if (resumeInput.TryGetValue("comments", out var comments))
+        {
+            outputData[$"{NormalizeActivityId(context.ActivityId)}_comments"] = comments;
         }
 
         return Task.FromResult(ActivityResult.Success(outputData));

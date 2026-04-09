@@ -41,5 +41,14 @@ public class CompletedTaskConfiguration : IEntityTypeConfiguration<CompletedTask
 
         builder.Property(p => p.SlaBreachedAt)
             .IsRequired(false);
+
+        builder.Property(p => p.Remark)
+            .HasMaxLength(1000)
+            .IsRequired(false);
+
+        builder.Property(p => p.Movement)
+            .HasMaxLength(16)
+            .IsRequired()
+            .HasDefaultValue("Forward");
     }
 }

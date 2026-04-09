@@ -22,6 +22,12 @@ public interface IWorkflowPersistenceService
     Task<WorkflowSchema?> GetWorkflowSchemaAsync(Guid definitionId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Loads and deserializes the schema associated with a specific WorkflowDefinitionVersion.
+    /// Published versions are immutable so the result is cached per-scope.
+    /// </summary>
+    Task<WorkflowSchema?> GetSchemaByVersionIdAsync(Guid versionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Persists a new workflow instance with transaction management
     /// </summary>
     Task SaveWorkflowInstanceAsync(WorkflowInstance workflowInstance,

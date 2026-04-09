@@ -49,6 +49,11 @@ public class GetActivityActionsQueryHandler
                 ActivityName = activityName
             };
 
+        var canRaiseFollowup = properties.TryGetProperty("canRaiseFollowup", out var crf) &&
+                               (crf.ValueKind == JsonValueKind.True ||
+                                (crf.ValueKind == JsonValueKind.String &&
+                                 bool.TryParse(crf.GetString(), out var b) && b));
+
         // Read actions array from properties, or voteOptions for ApprovalActivity
         var actions = ReadActions(properties);
         if (actions.Count == 0)
@@ -74,7 +79,8 @@ public class GetActivityActionsQueryHandler
         {
             ActivityId = request.ActivityId,
             ActivityName = activityName,
-            Actions = actions
+            Actions = actions,
+            CanRaiseFollowup = canRaiseFollowup
         };
     }
 

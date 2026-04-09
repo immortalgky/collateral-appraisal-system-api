@@ -55,6 +55,15 @@ public class WorkflowDefinitionVersionRepository : IWorkflowDefinitionVersionRep
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<WorkflowDefinitionVersion?> GetCurrentPublishedAsync(
+        Guid definitionId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Where(v => v.DefinitionId == definitionId && v.Status == VersionStatus.Published)
+            .OrderByDescending(v => v.Version)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<List<WorkflowDefinitionVersion>> GetAllVersionsAsync(
         Guid definitionId, CancellationToken cancellationToken = default)
     {

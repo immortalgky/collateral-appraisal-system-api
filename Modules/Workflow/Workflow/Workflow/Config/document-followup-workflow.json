@@ -1,0 +1,93 @@
+{
+  "name": "Document Followup Workflow",
+  "description": "Out-of-band workflow that asks the parent appraisal's request maker for additional documents while the raising checker continues working",
+  "category": "Appraisal",
+  "createdBy": "system-admin",
+  "workflowSchema": {
+    "id": "document-followup-workflow",
+    "name": "Document Followup Workflow",
+    "description": "Out-of-band workflow that asks the parent appraisal's request maker for additional documents while the raising checker continues working",
+    "category": "Appraisal",
+    "activities": [
+      {
+        "id": "start",
+        "name": "Workflow Start",
+        "type": "StartActivity",
+        "description": "Initial workflow entry point",
+        "properties": {},
+        "position": { "x": 100, "y": 100 },
+        "requiredRoles": [],
+        "isStartActivity": true,
+        "isEndActivity": false
+      },
+      {
+        "id": "provide-additional-documents",
+        "name": "Provide Additional Documents",
+        "type": "TaskActivity",
+        "description": "Request maker uploads or declines each requested document",
+        "properties": {
+          "activityName": "ProvideAdditionalDocuments",
+          "assigneeRole": "RequestMaker",
+          "assigneeGroup": "RequestMaker",
+          "assignmentStrategies": "started_by",
+          "initialAssignmentStrategies": [ "started_by" ],
+          "revisitAssignmentStrategies": [ "previous_owner" ],
+          "timeoutDuration": "PT72H",
+          "actions": [
+            { "value": "P", "label": "Submit", "assignmentMode": "system" }
+          ]
+        },
+        "position": { "x": 250, "y": 100 },
+        "requiredRoles": [ "RequestMaker" ],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
+        "id": "workflow-completed",
+        "name": "Followup Completed",
+        "type": "EndActivity",
+        "description": "Document followup successfully completed",
+        "properties": {
+          "completionMessage": "Document followup resolved"
+        },
+        "position": { "x": 400, "y": 100 },
+        "requiredRoles": [],
+        "isStartActivity": false,
+        "isEndActivity": true
+      }
+    ],
+    "transitions": [
+      {
+        "id": "start-to-provide",
+        "from": "start",
+        "to": "provide-additional-documents",
+        "condition": null,
+        "properties": {},
+        "type": "Normal"
+      },
+      {
+        "id": "provide-to-end",
+        "from": "provide-additional-documents",
+        "to": "workflow-completed",
+        "condition": null,
+        "properties": {},
+        "type": "Normal"
+      }
+    ],
+    "variables": {
+      "documentFollowupId": "",
+      "parentAppraisalId": "",
+      "raisingWorkflowInstanceId": "",
+      "raisingPendingTaskId": "",
+      "raisingActivityId": "",
+      "raisingUserId": ""
+    },
+    "metadata": {
+      "author": "System Admin",
+      "createdDate": "2026-04-08T00:00:00Z",
+      "version": "1.0",
+      "tags": [ "appraisal", "followup", "documents" ],
+      "customProperties": {}
+    }
+  }
+}

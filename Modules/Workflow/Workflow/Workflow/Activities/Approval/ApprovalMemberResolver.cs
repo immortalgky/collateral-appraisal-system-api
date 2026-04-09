@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Workflow.Domain.Committees;
 using Workflow.Workflow.Engine.Expression;
 
@@ -74,7 +75,14 @@ public class ApprovalMemberResolver(
         decimal value;
         if (variables.TryGetValue(config.ValueExpression, out var rawValue))
         {
-            value = Convert.ToDecimal(rawValue);
+            // Workflow variables round-trip through JSON persistence, so primitive
+            // values often come back as JsonElement. Convert.ToDecimal cannot handle
+            // JsonElement directly (no IConvertible), so normalize first.
+            if (!TryConvertToDecimal(rawValue, out value))
+            {
+                throw new InvalidOperationException(
+                    $"Could not convert value of '{config.ValueExpression}' (type {rawValue?.GetType().Name}) to decimal");
+            }
         }
         else
         {
@@ -82,12 +90,16 @@ public class ApprovalMemberResolver(
             try
             {
                 var result = _expressionEvaluator.EvaluateExpression(config.ValueExpression, variables);
-                value = Convert.ToDecimal(result);
+                if (!TryConvertToDecimal(result, out value))
+                {
+                    throw new InvalidOperationException(
+                        $"Could not convert expression result of '{config.ValueExpression}' to decimal");
+                }
             }
-            catch
+            catch (Exception ex) when (ex is not InvalidOperationException)
             {
                 throw new InvalidOperationException(
-                    $"Could not evaluate valueExpression '{config.ValueExpression}' from workflow variables");
+                    $"Could not evaluate valueExpression '{config.ValueExpression}' from workflow variables", ex);
             }
         }
 
@@ -111,6 +123,30 @@ public class ApprovalMemberResolver(
             committee.Code, value);
 
         return MapCommitteeToGroupInfo(committee);
+    }
+
+    private static bool TryConvertToDecimal(object? value, out decimal result)
+    {
+        result = 0m;
+        if (value is null) return false;
+
+        if (value is JsonElement je)
+        {
+            return je.ValueKind switch
+            {
+                JsonValueKind.Number => je.TryGetDecimal(out result),
+                JsonValueKind.String => decimal.TryParse(je.GetString(), out result),
+                _ => false
+            };
+        }
+
+        if (value is IConvertible)
+        {
+            try { result = Convert.ToDecimal(value); return true; }
+            catch { return false; }
+        }
+
+        return decimal.TryParse(value.ToString(), out result);
     }
 
     private static ApprovalGroupInfo MapCommitteeToGroupInfo(Committee committee)

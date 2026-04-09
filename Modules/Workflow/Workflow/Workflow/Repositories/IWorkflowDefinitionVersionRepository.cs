@@ -33,6 +33,12 @@ public interface IWorkflowDefinitionVersionRepository
     Task<WorkflowDefinitionVersion?> GetLatestPublishedVersionAsync(Guid definitionId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets the currently Published version for a definition ID (single active live version).
+    /// Returns null if no Published version exists.
+    /// </summary>
+    Task<WorkflowDefinitionVersion?> GetCurrentPublishedAsync(Guid definitionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets all versions for a definition ID, ordered by version number
     /// </summary>
     Task<List<WorkflowDefinitionVersion>> GetAllVersionsAsync(Guid definitionId, CancellationToken cancellationToken = default);

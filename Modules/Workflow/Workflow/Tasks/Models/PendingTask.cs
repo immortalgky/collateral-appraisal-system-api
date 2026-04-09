@@ -15,6 +15,7 @@ public class PendingTask : Aggregate<Guid>
     public DateTime? DueAt { get; private set; }
     public string? SlaStatus { get; private set; }
     public DateTime? SlaBreachedAt { get; private set; }
+    public string Movement { get; private set; } = "Forward";
 
     private PendingTask()
     {
@@ -22,7 +23,8 @@ public class PendingTask : Aggregate<Guid>
     }
 
     private PendingTask(Guid correlationId, string taskName, string assignedTo, string assignedType,
-        DateTime assignedAt, Guid workflowInstanceId, string activityId, string? taskDescription = null)
+        DateTime assignedAt, Guid workflowInstanceId, string activityId, string? taskDescription = null,
+        string movement = "Forward")
     {
         Id = Guid.CreateVersion7();
         CorrelationId = correlationId;
@@ -34,32 +36,28 @@ public class PendingTask : Aggregate<Guid>
         AssignedAt = assignedAt;
         WorkflowInstanceId = workflowInstanceId;
         ActivityId = activityId;
+        Movement = movement;
     }
 
     public static PendingTask Create(Guid correlationId, string taskName, string assignedTo,
         string assignedType, DateTime assignedAt, Guid workflowInstanceId, string activityId,
-        DateTime? dueAt = null, string? taskDescription = null)
+        DateTime? dueAt = null, string? taskDescription = null, string movement = "Forward")
     {
         var task = new PendingTask(correlationId, taskName, assignedTo, assignedType, assignedAt,
-            workflowInstanceId, activityId, taskDescription);
+            workflowInstanceId, activityId, taskDescription, movement);
         task.DueAt = dueAt;
         task.SlaStatus = dueAt.HasValue ? "OnTime" : null;
         return task;
     }
 
-    public void Reassign(string newAssignedTo, string newAssignedType, DateTime assignedAt, DateTime? dueAt = null)
+    public void Reassign(string newAssignedTo, string newAssignedType)
     {
         AssignedTo = newAssignedTo;
         AssignedType = newAssignedType;
         TaskStatus = TaskStatus.Assigned;
-        AssignedAt = assignedAt;
         WorkingBy = null;
-        if (dueAt.HasValue)
-        {
-            DueAt = dueAt;
-            SlaStatus = "OnTime";
-            SlaBreachedAt = null;
-        }
+        // AssignedAt, DueAt, SlaStatus, SlaBreachedAt intentionally preserved —
+        // reassignment must not reset the SLA clock.
     }
 
     public void StartWorking(string username)
