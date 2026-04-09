@@ -10,7 +10,9 @@ public class CommitteeApprovalCondition : Entity<Guid>
     public bool IsActive { get; private set; }
     public string? Description { get; private set; }
 
-    private CommitteeApprovalCondition() { }
+    private CommitteeApprovalCondition()
+    {
+    }
 
     internal static CommitteeApprovalCondition Create(
         Guid committeeId, ConditionType conditionType, string? roleRequired,
@@ -18,7 +20,7 @@ public class CommitteeApprovalCondition : Entity<Guid>
     {
         return new CommitteeApprovalCondition
         {
-            Id = Guid.CreateVersion7(),
+            //Id = Guid.CreateVersion7(),
             CommitteeId = committeeId,
             ConditionType = conditionType,
             RoleRequired = roleRequired,
@@ -29,7 +31,10 @@ public class CommitteeApprovalCondition : Entity<Guid>
         };
     }
 
-    public void Deactivate() => IsActive = false;
+    public void Deactivate()
+    {
+        IsActive = false;
+    }
 }
 
 public enum ConditionType
