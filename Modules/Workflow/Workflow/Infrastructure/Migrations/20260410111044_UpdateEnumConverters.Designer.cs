@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Workflow.Data;
 
@@ -11,9 +12,11 @@ using Workflow.Data;
 namespace Workflow.Infrastructure.Migrations
 {
     [DbContext(typeof(WorkflowDbContext))]
-    partial class WorkflowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260410111044_UpdateEnumConverters")]
+    partial class UpdateEnumConverters
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1248,9 +1251,6 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("DueAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("LockedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Movement")
