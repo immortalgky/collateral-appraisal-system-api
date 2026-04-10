@@ -57,7 +57,7 @@ public class Appraisal : Aggregate<Guid>
     // SLA Tracking
     public int? SLADays { get; private set; }
     public DateTime? SLADueDate { get; private set; }
-    public string? SLAStatus { get; private set; } // OnTrack, AtRisk, Breached
+    public SlaStatus? SLAStatus { get; private set; }
     public int? ActualDaysToComplete { get; private set; }
     public bool? IsWithinSLA { get; private set; }
 
@@ -102,7 +102,7 @@ public class Appraisal : Aggregate<Guid>
         if (slaDays.HasValue)
         {
             SLADueDate = DateTime.UtcNow.AddDays(slaDays.Value);
-            SLAStatus = "OnTrack";
+            SLAStatus = SlaStatus.OnTrack;
         }
     }
 
@@ -530,7 +530,7 @@ public class Appraisal : Aggregate<Guid>
         string assignmentType,
         string? assigneeUserId = null,
         string? assigneeCompanyId = null,
-        string assignmentMethod = "Manual",
+        string assignmentMethod = "MANUAL",
         string? internalAppraiserId = null,
         string? internalFollowupAssignmentMethod = null,
         Guid? autoRuleId = null,
@@ -712,9 +712,9 @@ public class Appraisal : Aggregate<Guid>
         var daysRemaining = (SLADueDate.Value - DateTime.UtcNow).Days;
         SLAStatus = daysRemaining switch
         {
-            < 0 => "Breached",
-            < 2 => "AtRisk",
-            _ => "OnTrack"
+            < 0 => SlaStatus.Breached,
+            < 2 => SlaStatus.AtRisk,
+            _ => SlaStatus.OnTrack
         };
     }
 

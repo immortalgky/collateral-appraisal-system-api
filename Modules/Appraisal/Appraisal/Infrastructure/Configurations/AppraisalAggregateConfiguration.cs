@@ -69,6 +69,9 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
         builder.Property(a => a.SLADays);
         builder.Property(a => a.SLADueDate);
         builder.Property(a => a.SLAStatus)
+            .HasConversion(
+                v => v != null ? v.Code : null,
+                v => v != null ? SlaStatus.FromString(v) : null)
             .HasMaxLength(20);
         builder.Property(a => a.ActualDaysToComplete);
         builder.Property(a => a.IsWithinSLA);

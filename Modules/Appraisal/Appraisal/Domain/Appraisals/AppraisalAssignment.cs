@@ -24,8 +24,8 @@ public class AppraisalAssignment : Entity<Guid>
     public string? InternalAppraiserName { get; private set; }
 
     // Assignment Method
-    public string AssignmentMethod { get; private set; } = null!; // Manual, AutoRule, Quotation
-    public string? InternalFollowupAssignmentMethod { get; private set; } // Manual, RoundRobin
+    public AssignmentMethod AssignmentMethod { get; private set; } = null!;
+    public AssignmentMethod? InternalFollowupAssignmentMethod { get; private set; }
     public Guid? AutoRuleId { get; private set; }
     public Guid? QuotationRequestId { get; private set; }
 
@@ -71,9 +71,11 @@ public class AppraisalAssignment : Entity<Guid>
         AssignmentType = assignmentType;
         AssigneeUserId = assigneeUserId;
         AssigneeCompanyId = assigneeCompanyId;
-        AssignmentMethod = assignmentMethod;
+        AssignmentMethod = Appraisals.AssignmentMethod.FromString(assignmentMethod);
         InternalAppraiserId = internalAppraiserId;
-        InternalFollowupAssignmentMethod = internalFollowupMethod;
+        InternalFollowupAssignmentMethod = internalFollowupMethod != null
+            ? Appraisals.AssignmentMethod.FromString(internalFollowupMethod)
+            : null;
         AutoRuleId = autoRuleId;
         PreviousAssignmentId = previousAssignmentId;
         ReassignmentNumber = reassignmentNumber;
@@ -91,7 +93,7 @@ public class AppraisalAssignment : Entity<Guid>
         string assignmentType,
         string? assigneeUserId = null,
         string? assigneeCompanyId = null,
-        string assignmentMethod = "Manual",
+        string assignmentMethod = "MANUAL",
         string? internalAppraiserId = null,
         string? internalFollowupMethod = null,
         Guid? autoRuleId = null,
@@ -122,7 +124,7 @@ public class AppraisalAssignment : Entity<Guid>
         string assignmentType,
         string? assigneeUserId = null,
         string? assigneeCompanyId = null,
-        string assignmentMethod = "Manual",
+        string assignmentMethod = "MANUAL",
         string? internalAppraiserId = null,
         string? internalFollowupMethod = null,
         Guid? autoRuleId = null,
@@ -134,9 +136,11 @@ public class AppraisalAssignment : Entity<Guid>
         AssignmentType = AssignmentType.FromString(assignmentType);
         AssigneeUserId = assigneeUserId;
         AssigneeCompanyId = assigneeCompanyId;
-        AssignmentMethod = assignmentMethod;
+        AssignmentMethod = Appraisals.AssignmentMethod.FromString(assignmentMethod);
         InternalAppraiserId = internalAppraiserId;
-        InternalFollowupAssignmentMethod = internalFollowupMethod;
+        InternalFollowupAssignmentMethod = internalFollowupMethod != null
+            ? Appraisals.AssignmentMethod.FromString(internalFollowupMethod)
+            : null;
         AutoRuleId = autoRuleId;
         PreviousAssignmentId = previousAssignmentId;
         ReassignmentNumber = reassignmentNumber;

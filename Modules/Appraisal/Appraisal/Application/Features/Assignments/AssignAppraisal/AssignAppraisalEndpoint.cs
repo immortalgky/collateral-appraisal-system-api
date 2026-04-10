@@ -18,7 +18,7 @@ public class AssignAppraisalEndpoint : ICarterModule
                         request.AssignmentType,
                         request.AssigneeUserId,
                         request.AssigneeCompanyId,
-                        request.AssignmentMethod ?? "Manual",
+                        request.AssignmentMethod ?? "MANUAL",
                         request.InternalAppraiserId,
                         request.InternalFollowupAssignmentMethod,
                         request.AssignedBy ?? string.Empty);

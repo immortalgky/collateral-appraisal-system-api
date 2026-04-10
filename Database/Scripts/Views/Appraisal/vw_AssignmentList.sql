@@ -19,4 +19,4 @@ SELECT a.Id,
        a.CancellationReason,
        a.CreatedAt
 FROM appraisal.AppraisalAssignments a
-WHERE a.AssignmentStatus != 'Rejected' AND a.AssignmentStatus != 'Cancelled'
+WHERE a.AssignmentStatus != 'REJECTED' AND a.AssignmentStatus != 'CANCELLED'
