@@ -1,5 +1,6 @@
 using System.Linq;
 using Auth.Domain.Companies;
+using Auth.Domain.Menu;
 using Auth.Infrastructure.Repository;
 using Microsoft.Extensions.Configuration;
 
@@ -17,52 +18,126 @@ public class AuthDataSeed(
 {
     private const string AdminRoleName = "Admin";
     private const string MeetingSecretaryRoleName = "MeetingSecretary";
+    private const string IntAdminRoleName = "IntAdmin";
+    private const string ExtAdminRoleName = "ExtAdmin";
+    private const string RequestMakerRoleName = "RequestMaker";
+    private const string RequestCheckerRoleName = "RequestChecker";
+    private const string IntAppraisalStaffRoleName = "IntAppraisalStaff";
+    private const string IntAppraisalCheckerRoleName = "IntAppraisalChecker";
+    private const string IntAppraisalVerifierRoleName = "IntAppraisalVerifier";
+    private const string ExtAppraisalStaffRoleName = "ExtAppraisalStaff";
+    private const string ExtAppraisalCheckerRoleName = "ExtAppraisalChecker";
+    private const string ExtAppraisalVerifierRoleName = "ExtAppraisalVerifier";
+    private const string AppraisalCommitteeRoleName = "AppraisalCommittee";
 
     public async Task SeedAllAsync()
     {
         await SeedPermissionsAsync();
+        await SeedMenuItemsAsync();
         await SeedAdminRoleAsync();
-        await SeedMeetingSecretaryRoleAsync();
+        await SeedRoleWithPermissionsAsync(MeetingSecretaryRoleName,
+            "Meeting Secretary — creates, schedules, updates, and ends approval meetings.",
+            scope: "Bank",
+            ["MEETING_MANAGE"]);
+        await SeedRoleWithPermissionsAsync(IntAdminRoleName,
+            "Internal Admin — manages workflow assignments, appraisals, meetings, and internal staff.",
+            scope: "Bank",
+            ["DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
+             "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW",
+             "MEETING_MANAGE", "WORKFLOW_MANAGE", "USER_MANAGE"]);
+        await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
+            "External Company Admin — manages external company users and external appraisal assignments.",
+            scope: "Company",
+            ["DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
+             "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE"]);
+        await SeedRoleWithPermissionsAsync(RequestMakerRoleName,
+            "Request Maker — creates appraisal requests and handles initiation tasks.",
+            scope: "Bank",
+            ["DASHBOARD_VIEW", "REQUEST_VIEW", "REQUEST_CREATE", "TASK_LIST_VIEW",
+             "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION"]);
+        await SeedRoleWithPermissionsAsync(RequestCheckerRoleName,
+            "Request Checker — reviews and approves incoming appraisal requests.",
+            scope: "Bank",
+            ["DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_INITIATION_CHECK"]);
+        await SeedRoleWithPermissionsAsync(IntAppraisalStaffRoleName,
+            "Internal Appraisal Staff — executes internal appraisals and verifies appraisal books.",
+            scope: "Bank",
+            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
+             "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "STANDALONE_USE"]);
+        await SeedRoleWithPermissionsAsync(IntAppraisalCheckerRoleName,
+            "Internal Appraisal Checker — checks and validates internal appraisal reports.",
+            scope: "Bank",
+            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+             "TASK_INT_APPR_CHECK"]);
+        await SeedRoleWithPermissionsAsync(IntAppraisalVerifierRoleName,
+            "Internal Appraisal Verifier — final verification of internal appraisal reports.",
+            scope: "Bank",
+            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+             "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW"]);
+        await SeedRoleWithPermissionsAsync(ExtAppraisalStaffRoleName,
+            "External Appraisal Staff — field appraisers from external companies who execute appraisals.",
+            scope: "Company",
+            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
+             "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE"]);
+        await SeedRoleWithPermissionsAsync(ExtAppraisalCheckerRoleName,
+            "External Appraisal Checker — checks external appraisal reports before verification.",
+            scope: "Company",
+            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+             "TASK_EXT_APPR_CHECK"]);
+        await SeedRoleWithPermissionsAsync(ExtAppraisalVerifierRoleName,
+            "External Appraisal Verifier — final verification of external appraisal reports.",
+            scope: "Company",
+            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+             "TASK_EXT_APPR_VERIFICATION"]);
+        await SeedRoleWithPermissionsAsync(AppraisalCommitteeRoleName,
+            "Appraisal Committee — approves appraisals in committee meetings.",
+            scope: "Bank",
+            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+             "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "MEETING_MANAGE"]);
         await SeedUsersAsync();
         await SeedClientsAsync();
         await SeedCompaniesAsync();
     }
 
-    private async Task SeedMeetingSecretaryRoleAsync()
+    private async Task SeedRoleWithPermissionsAsync(
+        string roleName, string description, string scope, string[] permissionCodes)
     {
-        var role = await roleManager.FindByNameAsync(MeetingSecretaryRoleName);
+        var role = await roleManager.FindByNameAsync(roleName);
         if (role is null)
         {
             role = new ApplicationRole
             {
-                Name = MeetingSecretaryRoleName,
-                Description = "Meeting Secretary — creates, schedules, updates, and ends approval meetings."
+                Name = roleName,
+                Description = description,
+                Scope = scope
             };
 
             var createResult = await roleManager.CreateAsync(role);
             if (!createResult.Succeeded)
                 throw new InvalidOperationException(
-                    $"Failed to create MeetingSecretary role: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
+                    $"Failed to create {roleName} role: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
         }
 
-        var meetingPermission = await dbContext.Permissions
+        var permissionIds = await dbContext.Permissions
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.PermissionCode == "MEETING_MANAGE");
-        if (meetingPermission is null)
-            return;
+            .Where(p => permissionCodes.Contains(p.PermissionCode))
+            .Select(p => p.Id)
+            .ToListAsync();
 
-        var alreadyLinked = await dbContext.Set<RolePermission>()
+        var existingLinkedIds = await dbContext.Set<RolePermission>()
             .AsNoTracking()
-            .AnyAsync(rp => rp.RoleId == role.Id && rp.PermissionId == meetingPermission.Id);
+            .Where(rp => rp.RoleId == role.Id)
+            .Select(rp => rp.PermissionId)
+            .ToListAsync();
 
-        if (alreadyLinked)
-            return;
+        var missingIds = permissionIds.Except(existingLinkedIds).ToList();
+        if (missingIds.Count == 0) return;
 
-        await dbContext.Set<RolePermission>().AddAsync(new RolePermission
-        {
-            RoleId = role.Id,
-            PermissionId = meetingPermission.Id
-        });
+        var newLinks = missingIds
+            .Select(pid => new RolePermission { RoleId = role.Id, PermissionId = pid })
+            .ToList();
+
+        await dbContext.Set<RolePermission>().AddRangeAsync(newLinks);
         await dbContext.SaveChangesAsync();
     }
 
@@ -298,6 +373,30 @@ public class AuthDataSeed(
             ("USER_CHANGE_PASSWORD", "Change Any User Password", "Allow changing password for any local user", "Auth"),
             ("USER_RESET_PASSWORD", "Reset User Password", "Allow resetting password for any local user without current password", "Auth"),
             ("MEETING_MANAGE", "Manage Meetings", "Create, schedule, update, cancel, and end approval meetings", "Workflow"),
+            // --- DB-driven navigation menu feature ---
+            ("MENU_MANAGE", "Manage Menus", "Create, update, and delete navigation menu items", "Auth"),
+            ("REQUEST_VIEW", "View Requests", "View appraisal requests", "Request"),
+            ("REQUEST_CREATE", "Create Requests", "Create new appraisal requests", "Request"),
+            ("APPRAISAL_REVIEW", "Review Appraisals", "Review appraisals pending checker/verifier action", "Appraisal"),
+            ("REPORT_VIEW", "View Reports", "View completed reports", "Common"),
+            ("REPORT_STATISTICS_VIEW", "View Report Statistics", "View report statistics dashboards", "Common"),
+            ("STANDALONE_USE", "Use Standalone Tools", "Access standalone appraisal tools", "Common"),
+            ("PARAMETER_MANAGE", "Manage Parameters", "Manage system parameters", "Common"),
+            ("WORKFLOW_MANAGE", "Manage Workflows", "Manage workflow definitions", "Workflow"),
+            ("TEMPLATE_MANAGE", "Manage Templates", "Manage MC/comparative templates", "Appraisal"),
+            // Per-activity task gating (Module = Workflow)
+            ("TASK_APPR_INITIATION_CHECK", "Task: Appraisal Initiation Check", "Access appraisal initiation check tasks", "Workflow"),
+            ("TASK_APPR_INITIATION", "Task: Appraisal Initiation", "Access appraisal initiation tasks", "Workflow"),
+            ("TASK_APPR_ASSIGNMENT", "Task: Appraisal Assignment", "Access internal appraisal assignment tasks", "Workflow"),
+            ("TASK_EXT_APPR_ASSIGNMENT", "Task: External Appraisal Assignment", "Access external appraisal assignment tasks", "Workflow"),
+            ("TASK_EXT_APPR_EXECUTION", "Task: External Appraisal Execution", "Access external appraisal execution tasks", "Workflow"),
+            ("TASK_EXT_APPR_CHECK", "Task: External Appraisal Check", "Access external appraisal check tasks", "Workflow"),
+            ("TASK_EXT_APPR_VERIFICATION", "Task: External Appraisal Verification", "Access external appraisal verification tasks", "Workflow"),
+            ("TASK_APPR_BOOK_VERIFICATION", "Task: Appraisal Book Verification", "Access appraisal book verification tasks", "Workflow"),
+            ("TASK_INT_APPR_EXECUTION", "Task: Internal Appraisal Execution", "Access internal appraisal execution tasks", "Workflow"),
+            ("TASK_INT_APPR_CHECK", "Task: Internal Appraisal Check", "Access internal appraisal check tasks", "Workflow"),
+            ("TASK_INT_APPR_VERIFICATION", "Task: Internal Appraisal Verification", "Access internal appraisal verification tasks", "Workflow"),
+            ("TASK_PENDING_APPROVAL", "Task: Pending Approval", "Access pending approval tasks", "Workflow"),
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)
@@ -312,6 +411,73 @@ public class AuthDataSeed(
 
         await permissionRepository.SaveChangesAsync();
     }
+
+    private async Task SeedMenuItemsAsync()
+    {
+        var mainRoots = MenuSeedData.GetMainMenuSeed();
+        var appraisalRoots = MenuSeedData.GetAppraisalMenuSeed();
+
+        var existingByKey = await dbContext.MenuItems
+            .Include(m => m.Translations)
+            .ToDictionaryAsync(m => m.ItemKey);
+
+        await UpsertTreeAsync(mainRoots, MenuScope.Main, parentId: null, existingByKey);
+        await UpsertTreeAsync(appraisalRoots, MenuScope.Appraisal, parentId: null, existingByKey);
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    private async Task UpsertTreeAsync(
+        List<MenuSeedData.MenuSeedNode> nodes,
+        MenuScope scope,
+        Guid? parentId,
+        Dictionary<string, MenuItem> existingByKey)
+    {
+        var sortOrder = 10;
+        foreach (var node in nodes)
+        {
+            MenuItem item;
+
+            // INSERT-ONLY: if the ItemKey already exists, do NOT overwrite admin edits.
+            // The seeder runs on every boot via UseMigration<AuthDbContext>, so any Update/
+            // Reparent/ReplaceTranslations here would roll back label/icon/permission changes
+            // made via /admin/menus. For intentional shape changes to seeded items, write a
+            // one-off migration script rather than touching the seeder.
+            if (existingByKey.TryGetValue(node.ItemKey, out var existing))
+            {
+                item = existing;
+            }
+            else
+            {
+                item = MenuItem.Create(
+                    node.ItemKey,
+                    scope,
+                    parentId,
+                    node.Path,
+                    MenuIcon.Create(node.IconName, node.IconStyle),
+                    node.IconColor,
+                    sortOrder,
+                    node.ViewPermissionCode,
+                    node.EditPermissionCode,
+                    BuildTranslations(node.LabelEn),
+                    isSystem: true);
+                dbContext.MenuItems.Add(item);
+                existingByKey[node.ItemKey] = item;
+            }
+
+            sortOrder += 10;
+
+            if (node.Children is { Count: > 0 })
+                await UpsertTreeAsync(node.Children, scope, item.Id, existingByKey);
+        }
+    }
+
+    private static List<MenuItemTranslation> BuildTranslations(string labelEn) => new()
+    {
+        MenuItemTranslation.Create("en", labelEn),
+        MenuItemTranslation.Create("th", labelEn),
+        MenuItemTranslation.Create("zh", labelEn),
+    };
 
     private async Task SeedAdminRoleAsync()
     {
