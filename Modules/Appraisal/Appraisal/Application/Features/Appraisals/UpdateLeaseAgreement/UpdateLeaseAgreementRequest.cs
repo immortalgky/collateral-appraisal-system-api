@@ -2,7 +2,7 @@ namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreement;
 
 public record UpdateLeaseAgreementRequest(
     string? LesseeName = null,
-    string? TenantName = null,
+    string? LessorName = null,
     decimal? LeasePeriodAsContract = null,
     decimal? RemainingLeaseAsAppraisalDate = null,
     string? ContractNo = null,
