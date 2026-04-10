@@ -58,7 +58,7 @@ public class GetTaskByIdQueryHandler(
 
     private sealed record TaskDetailDto(
         Guid TaskId,
-        Guid AppraisalId,
+        Guid? AppraisalId,
         Guid WorkflowInstanceId,
         string ActivityId,
         string AssigneeUserId,

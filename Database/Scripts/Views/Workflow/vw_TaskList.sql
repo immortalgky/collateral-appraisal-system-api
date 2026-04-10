@@ -31,12 +31,12 @@ SELECT a.Id,
        DATEDIFF(HOUR, pt.AssignedAt, GETUTCDATE())                                     AS ElapsedHours,
        CASE WHEN pt.DueAt IS NOT NULL THEN DATEDIFF(HOUR, GETUTCDATE(), pt.DueAt) END  AS RemainingHours
 FROM workflow.PendingTasks pt
-         JOIN appraisal.Appraisals a ON a.RequestId = pt.CorrelationId
-         JOIN request.Requests r ON a.RequestId = r.Id
-    CROSS APPLY (SELECT TOP 1 Name
+         LEFT JOIN appraisal.Appraisals a ON a.RequestId = pt.CorrelationId
+         LEFT JOIN request.Requests r ON r.Id = pt.CorrelationId
+         OUTER APPLY (SELECT TOP 1 Name
                       FROM request.RequestCustomers
                       WHERE RequestId = r.Id) C
-         CROSS APPLY (SELECT STRING_AGG(PropertyType, ',') AS PropertyType
+         OUTER APPLY (SELECT STRING_AGG(PropertyType, ',') AS PropertyType
                       FROM request.RequestProperties
                       WHERE RequestId = r.Id
                       GROUP BY RequestId) P
