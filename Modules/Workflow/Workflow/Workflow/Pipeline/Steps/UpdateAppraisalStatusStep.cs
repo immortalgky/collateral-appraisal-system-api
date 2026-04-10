@@ -16,6 +16,9 @@ public class UpdateAppraisalStatusStep(
 
     public async Task<ProcessStepResult> ExecuteAsync(ProcessStepContext context, CancellationToken ct)
     {
+        if (context.AppraisalId is null)
+            return ProcessStepResult.Fail("Appraisal not yet created");
+
         var targetStatus = GetTargetStatus(context.Parameters);
         if (targetStatus is null)
             return ProcessStepResult.Fail("Missing 'targetStatus' in step parameters");
@@ -23,7 +26,7 @@ public class UpdateAppraisalStatusStep(
         try
         {
             await appraisalStatusService.UpdateStatusAsync(
-                context.AppraisalId, targetStatus, context.CompletedBy, ct);
+                context.AppraisalId.Value, targetStatus, context.CompletedBy, ct);
 
             logger.LogInformation(
                 "Updated appraisal {AppraisalId} status to {TargetStatus}",

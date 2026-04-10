@@ -79,6 +79,7 @@ public class ValidateTaskOwnershipStepTests
 
         var ctx = new ProcessStepContext
         {
+            CorrelationId = appraisalId,
             AppraisalId = appraisalId,
             WorkflowInstanceId = workflowInstanceId,
             ActivityName = "int-appraisal-staff",
@@ -86,6 +87,7 @@ public class ValidateTaskOwnershipStepTests
             Input = new Dictionary<string, object> { ["key"] = "value" }
         };
 
+        ctx.CorrelationId.Should().Be(appraisalId);
         ctx.AppraisalId.Should().Be(appraisalId);
         ctx.WorkflowInstanceId.Should().Be(workflowInstanceId);
         ctx.ActivityName.Should().Be("int-appraisal-staff");
@@ -194,10 +196,11 @@ public class ValidateTaskOwnershipStepTests
 
     // ── Helpers ──
 
-    private static ProcessStepContext BuildContext(Guid appraisalId) =>
+    private static ProcessStepContext BuildContext(Guid correlationId) =>
         new()
         {
-            AppraisalId = appraisalId,
+            CorrelationId = correlationId,
+            AppraisalId = correlationId,
             WorkflowInstanceId = Guid.NewGuid(),
             ActivityName = "int-appraisal-staff",
             CompletedBy = "john.doe",

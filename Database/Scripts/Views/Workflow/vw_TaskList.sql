@@ -31,7 +31,7 @@ SELECT a.Id,
        DATEDIFF(HOUR, pt.AssignedAt, GETUTCDATE())                                     AS ElapsedHours,
        CASE WHEN pt.DueAt IS NOT NULL THEN DATEDIFF(HOUR, GETUTCDATE(), pt.DueAt) END  AS RemainingHours
 FROM workflow.PendingTasks pt
-         JOIN appraisal.Appraisals a ON a.Id = pt.CorrelationId
+         JOIN appraisal.Appraisals a ON a.RequestId = pt.CorrelationId
          JOIN request.Requests r ON a.RequestId = r.Id
     CROSS APPLY (SELECT TOP 1 Name
                       FROM request.RequestCustomers

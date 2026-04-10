@@ -60,6 +60,24 @@ public class ActivityProcessConfigurationSeeder(
                 1,
                 "system",
                 """{"targetStatus": "InProgress"}"""),
+
+            // __on_workflow_start__: trigger immediate appraisal creation for non-manual channels
+            ActivityProcessConfiguration.Create(
+                "__on_workflow_start__",
+                "Emit appraisal creation (non-manual)",
+                "EmitAppraisalCreationRequested",
+                1,
+                "system",
+                """{"condition": "channel != 'MANUAL'"}"""),
+
+            // appraisal-initiation-check: trigger deferred appraisal creation for manual channels
+            ActivityProcessConfiguration.Create(
+                "appraisal-initiation-check",
+                "Emit appraisal creation (manual)",
+                "EmitAppraisalCreationRequested",
+                1,
+                "system",
+                """{"condition": "channel == 'MANUAL'", "requireDecision": "P"}"""),
         };
 
         await context.ActivityProcessConfigurations.AddRangeAsync(configs);
