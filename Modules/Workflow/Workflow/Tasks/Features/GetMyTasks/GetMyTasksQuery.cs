@@ -4,9 +4,11 @@ using Workflow.Tasks.Features.GetTasks;
 namespace Workflow.Tasks.Features.GetMyTasks;
 
 public record GetMyTasksFilterRequest(
+    string? ActivityId = null,
     string? Status = null,
     string? Priority = null,
     string? TaskName = null,
+    string? Search = null,
     string? AppraisalNumber = null,
     string? CustomerName = null,
     string? TaskStatus = null,

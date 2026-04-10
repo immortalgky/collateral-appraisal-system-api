@@ -8,7 +8,8 @@ public record GetPoolTasksFilterRequest(
     string? Priority = null,
     string? TaskName = null,
     string? SortBy = null,
-    string? SortDir = null
+    string? SortDir = null,
+    Guid? ActivityId = null
 );
 
 public record GetPoolTasksQuery(
@@ -47,4 +48,6 @@ public record PoolTaskDto
     public string? SlaStatus { get; init; }
     public int? ElapsedHours { get; init; }
     public int? RemainingHours { get; init; }
+    public string? WorkingBy { get; init; }
+    public DateTime? LockedAt { get; init; }
 }

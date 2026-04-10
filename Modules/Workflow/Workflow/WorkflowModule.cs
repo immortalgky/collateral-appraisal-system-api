@@ -24,6 +24,7 @@ using Workflow.Sla.Services;
 using Workflow.Workflow.Hubs;
 using Workflow.DocumentFollowups.Application;
 using Workflow.DocumentFollowups.Infrastructure;
+using Workflow.Tasks.Services;
 
 namespace Workflow;
 
@@ -154,6 +155,9 @@ public static class WorkflowModule
         services.AddScoped<IBusinessTimeCalculator, BusinessTimeCalculator>();
         services.AddScoped<ISlaCalculator, SlaCalculator>();
         services.AddHostedService<SlaMonitorService>();
+
+        // Task lock expiry — releases stale pool task locks every 5 minutes
+        services.AddHostedService<TaskLockExpiryService>();
 
         // Activity process pipeline (submission pipeline)
         services.AddScoped<IActivityProcessStep, UpdateAppraisalStatusStep>();

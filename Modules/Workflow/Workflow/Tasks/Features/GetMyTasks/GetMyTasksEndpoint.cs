@@ -11,9 +11,11 @@ public class GetMyTasksEndpoint : ICarterModule
                 "/tasks/me",
                 async (
                     [AsParameters] PaginationRequest pagination,
+                    [FromQuery] string? activityId,
                     [FromQuery] string? status,
                     [FromQuery] string? priority,
                     [FromQuery] string? taskName,
+                    [FromQuery] string? search,
                     [FromQuery] string? appraisalNumber,
                     [FromQuery] string? customerName,
                     [FromQuery] string? taskStatus,
@@ -27,9 +29,11 @@ public class GetMyTasksEndpoint : ICarterModule
                 ) =>
                 {
                     var filter = new GetMyTasksFilterRequest(
+                        activityId,
                         status,
                         priority,
                         taskName,
+                        search,
                         appraisalNumber,
                         customerName,
                         taskStatus,

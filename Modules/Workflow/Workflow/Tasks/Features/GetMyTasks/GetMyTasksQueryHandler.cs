@@ -34,6 +34,12 @@ public class GetMyTasksQueryHandler(
         var filter = query.Filter;
         if (filter is not null)
         {
+            if (!string.IsNullOrWhiteSpace(filter.ActivityId))
+            {
+                conditions.Add("ActivityId = @ActivityId");
+                parameters.Add("ActivityId", filter.ActivityId);
+            }
+
             if (!string.IsNullOrWhiteSpace(filter.Status))
             {
                 conditions.Add("Status = @Status");
@@ -52,9 +58,15 @@ public class GetMyTasksQueryHandler(
                 parameters.Add("TaskName", filter.TaskName);
             }
 
+            if (!string.IsNullOrWhiteSpace(filter.Search))
+            {
+                conditions.Add("(AppraisalNumber LIKE '%' + @Search + '%' OR CustomerName LIKE '%' + @Search + '%')");
+                parameters.Add("Search", filter.Search);
+            }
+
             if (!string.IsNullOrWhiteSpace(filter.AppraisalNumber))
             {
-                conditions.Add("AppraisalNumber LIKE @AppraisalNumber + '%'");
+                conditions.Add("AppraisalNumber LIKE '%' + @AppraisalNumber + '%'");
                 parameters.Add("AppraisalNumber", filter.AppraisalNumber);
             }
 

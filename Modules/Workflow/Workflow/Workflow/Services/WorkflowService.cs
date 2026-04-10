@@ -309,7 +309,7 @@ public class WorkflowService : IWorkflowService
         var companyName = instance.Variables.TryGetValue("assignedCompanyName", out var cn)
             ? cn?.ToString() ?? "" : "";
         var method = instance.Variables.TryGetValue("assignmentMethod", out var am)
-            ? am?.ToString() ?? "Manual" : "Manual";
+            ? am?.ToString() ?? "MANUAL" : "MANUAL";
         var internalStaffId = instance.Variables.TryGetValue("internalFollowupStaffId", out var ifs)
             ? ifs?.ToString() : null;
         var internalFollowupMethod = instance.Variables.TryGetValue("internalFollowupMethod", out var ifm)
@@ -342,9 +342,9 @@ public class WorkflowService : IWorkflowService
         }
 
         var method = instance.Variables.TryGetValue("assignmentMethod", out var am)
-            && !string.IsNullOrEmpty(am?.ToString()) ? am.ToString()! : "RoundRobin";
+            && !string.IsNullOrEmpty(am?.ToString()) ? am.ToString()! : "ROUND_ROBIN";
         var followupMethod = instance.Variables.TryGetValue("internalFollowupMethod", out var ifm)
-            && !string.IsNullOrEmpty(ifm?.ToString()) ? ifm.ToString() : "RoundRobin";
+            && !string.IsNullOrEmpty(ifm?.ToString()) ? ifm.ToString() : "ROUND_ROBIN";
         var internalStaffId = instance.Variables.TryGetValue("internalFollowupStaffId", out var ifs)
             && !string.IsNullOrEmpty(ifs?.ToString()) ? ifs.ToString() : assigneeUserId;
 

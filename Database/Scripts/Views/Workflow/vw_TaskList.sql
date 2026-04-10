@@ -17,19 +17,22 @@ SELECT a.Id,
        ap.AppointmentDateTime,
        pt.AssignedTo                                                                   AS AssigneeUserId,
        a.RequestedBy,
+       ISNULL(CONCAT(u.FirstName, ' ', u.LastName), a.RequestedBy)                    AS RequestedByName,
        COALESCE(a.RequestedAt, r.RequestedAt)                                          AS RequestReceivedDate,
        pt.AssignedAt                                                                   AS AssignedDate,
        pt.Movement,
        AA.InternalAppraiserName                                                        AS InternalFollowupStaff,
        CASE
-           WHEN AA.AssignmentType = 'Internal' THEN AA.InternalAppraiserName
-           WHEN AA.AssignmentType = 'External' THEN comp.Name
+           WHEN AA.AssignmentType = 'INTERNAL' THEN AA.InternalAppraiserName
+           WHEN AA.AssignmentType = 'EXTERNAL' THEN comp.Name
        END                                                                             AS Appraiser,
        a.Priority,
        pt.DueAt,
        pt.SlaStatus,
        DATEDIFF(HOUR, pt.AssignedAt, GETUTCDATE())                                     AS ElapsedHours,
-       CASE WHEN pt.DueAt IS NOT NULL THEN DATEDIFF(HOUR, GETUTCDATE(), pt.DueAt) END  AS RemainingHours
+       CASE WHEN pt.DueAt IS NOT NULL THEN DATEDIFF(HOUR, GETUTCDATE(), pt.DueAt) END  AS RemainingHours,
+       pt.WorkingBy,
+       pt.LockedAt
 FROM workflow.PendingTasks pt
          JOIN appraisal.Appraisals a ON a.Id = pt.CorrelationId
          JOIN request.Requests r ON a.RequestId = r.Id
@@ -43,10 +46,11 @@ FROM workflow.PendingTasks pt
          OUTER APPLY (SELECT TOP 1 Id, AssignmentType, InternalAppraiserName, AssigneeCompanyId
                       FROM appraisal.AppraisalAssignments
                       WHERE AppraisalId = a.Id
-                        AND AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+                        AND AssignmentStatus NOT IN ('REJECTED', 'CANCELLED')
                       ORDER BY AssignedAt DESC) AA
          OUTER APPLY (SELECT TOP 1 AppointmentDateTime
                       FROM appraisal.Appointments
                       WHERE AssignmentId = AA.Id
                         AND Status != 'Cancelled') ap
          LEFT JOIN auth.Companies comp ON comp.Id = TRY_CAST(AA.AssigneeCompanyId AS uniqueidentifier)
+         LEFT JOIN auth.AspNetUsers u ON u.UserName = a.RequestedBy

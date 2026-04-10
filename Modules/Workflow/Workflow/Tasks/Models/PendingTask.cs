@@ -10,6 +10,7 @@ public class PendingTask : Aggregate<Guid>
     public string AssignedType { get; private set; } = default!;
     public DateTime AssignedAt { get; private set; }
     public string? WorkingBy { get; private set; }
+    public DateTime? LockedAt { get; private set; }
     public Guid WorkflowInstanceId { get; private set; }
     public string ActivityId { get; private set; } = default!;
     public DateTime? DueAt { get; private set; }
@@ -46,7 +47,7 @@ public class PendingTask : Aggregate<Guid>
         var task = new PendingTask(correlationId, taskName, assignedTo, assignedType, assignedAt,
             workflowInstanceId, activityId, taskDescription, movement);
         task.DueAt = dueAt;
-        task.SlaStatus = dueAt.HasValue ? "OnTime" : null;
+        task.SlaStatus = dueAt.HasValue ? "ON_TIME" : null;
         return task;
     }
 
@@ -66,17 +67,37 @@ public class PendingTask : Aggregate<Guid>
         TaskStatus = TaskStatus.InProgress;
     }
 
+    public void Lock(string username)
+    {
+        if (WorkingBy != null && WorkingBy != username)
+            throw new InvalidOperationException($"Task is already locked by {WorkingBy}");
+
+        WorkingBy = username;
+        LockedAt = DateTime.UtcNow;
+    }
+
+    public void ReleaseLock()
+    {
+        WorkingBy = null;
+        LockedAt = null;
+    }
+
+    public bool IsLockedBy(string username) => WorkingBy == username;
+
+    public bool IsLockExpired(TimeSpan timeout) =>
+        LockedAt.HasValue && LockedAt.Value.Add(timeout) < DateTime.UtcNow;
+
     public void MarkAtRisk()
     {
-        if (SlaStatus == "OnTime")
-            SlaStatus = "AtRisk";
+        if (SlaStatus == "ON_TIME")
+            SlaStatus = "AT_RISK";
     }
 
     public void MarkBreached(DateTime breachedAt)
     {
-        if (SlaStatus != "Breached")
+        if (SlaStatus != "BREACHED")
         {
-            SlaStatus = "Breached";
+            SlaStatus = "BREACHED";
             SlaBreachedAt = breachedAt;
         }
     }

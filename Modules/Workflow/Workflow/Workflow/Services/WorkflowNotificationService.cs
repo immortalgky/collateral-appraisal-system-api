@@ -167,4 +167,34 @@ public class WorkflowNotificationService : IWorkflowNotificationService
         await _hubContext.Clients.Group($"pool-{poolGroup}")
             .SendAsync("PoolTaskUpdate", notification);
     }
+
+    public async Task NotifyPoolTaskLocked(string poolGroup, Guid taskId, string lockedBy)
+    {
+        var notification = new
+        {
+            Type = "PoolTaskLocked",
+            TaskId = taskId,
+            LockedBy = lockedBy,
+            PoolGroup = poolGroup,
+            Timestamp = DateTime.UtcNow
+        };
+
+        await _hubContext.Clients.Group($"pool-{poolGroup}")
+            .SendAsync("PoolTaskUpdate", notification);
+    }
+
+    public async Task NotifyPoolTaskUnlocked(string poolGroup, Guid taskId, string releasedBy)
+    {
+        var notification = new
+        {
+            Type = "PoolTaskUnlocked",
+            TaskId = taskId,
+            ReleasedBy = releasedBy,
+            PoolGroup = poolGroup,
+            Timestamp = DateTime.UtcNow
+        };
+
+        await _hubContext.Clients.Group($"pool-{poolGroup}")
+            .SendAsync("PoolTaskUpdate", notification);
+    }
 }
