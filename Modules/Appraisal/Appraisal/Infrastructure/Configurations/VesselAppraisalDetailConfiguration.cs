@@ -38,7 +38,7 @@ public class VesselAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appr
 
         // Energy
         builder.Property(e => e.EnergyUse).HasMaxLength(100);
-        builder.Property(e => e.EnergyUseRemark).HasMaxLength(200);
+        builder.Property(e => e.EnergyUseRemark).HasMaxLength(4000);
 
         // Owner
         builder.Property(e => e.OwnerName).HasMaxLength(200);
@@ -54,12 +54,12 @@ public class VesselAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appr
         builder.Property(e => e.VesselEfficiency).HasMaxLength(100);
         builder.Property(e => e.VesselTechnology).HasMaxLength(100);
         builder.Property(e => e.UsePurpose).HasMaxLength(200);
-        builder.Property(e => e.VesselPart).HasMaxLength(500);
+        builder.Property(e => e.VesselPart).HasMaxLength(4000);
 
         // Appraiser Notes
-        builder.Property(e => e.Remark).HasMaxLength(1000);
-        builder.Property(e => e.Other).HasMaxLength(500);
-        builder.Property(e => e.AppraiserOpinion).HasMaxLength(1000);
+        builder.Property(e => e.Remark).HasMaxLength(4000);
+        builder.Property(e => e.Other).HasMaxLength(4000);
+        builder.Property(e => e.AppraiserOpinion).HasMaxLength(4000);
 
         // Relationship - FK to AppraisalProperty (1:1)
         builder.Property(e => e.AppraisalPropertyId).IsRequired();

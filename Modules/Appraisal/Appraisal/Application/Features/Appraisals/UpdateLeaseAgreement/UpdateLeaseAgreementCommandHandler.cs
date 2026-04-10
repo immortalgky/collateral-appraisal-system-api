@@ -23,7 +23,7 @@ public class UpdateLeaseAgreementCommandHandler(
 
         detail.Update(
             lesseeName: command.LesseeName,
-            tenantName: command.TenantName,
+            lessorName: command.LessorName,
             leasePeriodAsContract: command.LeasePeriodAsContract,
             remainingLeaseAsAppraisalDate: command.RemainingLeaseAsAppraisalDate,
             contractNo: command.ContractNo,
@@ -33,12 +33,11 @@ public class UpdateLeaseAgreementCommandHandler(
             rentAdjust: command.RentAdjust,
             sublease: command.Sublease,
             additionalExpenses: command.AdditionalExpenses,
-            leaseTimestamp: command.LeaseTimestamp,
+            leaseTerminate: command.LeaseTerminate,
             contractRenewal: command.ContractRenewal,
             rentalTermsImpactingPropertyUse: command.RentalTermsImpactingPropertyUse,
             terminationOfLease: command.TerminationOfLease,
-            remark: command.Remark,
-            banking: command.Banking);
+            remark: command.Remark);
 
         return MediatR.Unit.Value;
     }

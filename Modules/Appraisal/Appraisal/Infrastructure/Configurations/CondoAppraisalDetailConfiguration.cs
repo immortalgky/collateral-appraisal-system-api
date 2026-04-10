@@ -44,8 +44,8 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         // Owner
         builder.Property(e => e.OwnerName).IsRequired().HasMaxLength(200);
         builder.Property(e => e.BuildingConditionType).HasMaxLength(50);
-        builder.Property(e => e.BuildingConditionTypeOther).HasMaxLength(200);
-        builder.Property(e => e.ObligationDetails).HasMaxLength(500);
+        builder.Property(e => e.BuildingConditionTypeOther).HasMaxLength(4000);
+        builder.Property(e => e.ObligationDetails).HasMaxLength(4000);
 
         // Location Details
         builder.Property(e => e.LocationType).HasMaxLength(500);
@@ -55,41 +55,41 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.AccessRoadWidth).HasPrecision(10, 2);
         // RightOfWay is short (smallint) - no string config needed
         builder.Property(e => e.RoadSurfaceType).HasMaxLength(100);
-        builder.Property(e => e.RoadSurfaceTypeOther).HasMaxLength(200);
+        builder.Property(e => e.RoadSurfaceTypeOther).HasMaxLength(4000);
         builder.Property(e => e.PublicUtilityType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.PublicUtilityTypeOther).HasMaxLength(200);
+        builder.Property(e => e.PublicUtilityTypeOther).HasMaxLength(4000);
 
         // Building Info
         builder.Property(e => e.NumberOfFloors).HasPrecision(5, 2);
         builder.Property(e => e.DecorationType).HasMaxLength(100);
-        builder.Property(e => e.DecorationTypeOther).HasMaxLength(200);
+        builder.Property(e => e.DecorationTypeOther).HasMaxLength(4000);
         builder.Property(e => e.BuildingFormType).HasMaxLength(100);
         builder.Property(e => e.ConstructionMaterialType).HasMaxLength(100);
 
         // Layout & Materials
         builder.Property(e => e.RoomLayoutType).HasMaxLength(100);
-        builder.Property(e => e.RoomLayoutTypeOther).HasMaxLength(200);
+        builder.Property(e => e.RoomLayoutTypeOther).HasMaxLength(4000);
         builder.Property(e => e.LocationViewType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.GroundFloorMaterialType).HasMaxLength(100);
-        builder.Property(e => e.GroundFloorMaterialTypeOther).HasMaxLength(200);
+        builder.Property(e => e.GroundFloorMaterialTypeOther).HasMaxLength(4000);
         builder.Property(e => e.UpperFloorMaterialType).HasMaxLength(100);
-        builder.Property(e => e.UpperFloorMaterialTypeOther).HasMaxLength(200);
+        builder.Property(e => e.UpperFloorMaterialTypeOther).HasMaxLength(4000);
         builder.Property(e => e.BathroomFloorMaterialType).HasMaxLength(100);
-        builder.Property(e => e.BathroomFloorMaterialTypeOther).HasMaxLength(200);
+        builder.Property(e => e.BathroomFloorMaterialTypeOther).HasMaxLength(4000);
         builder.Property(e => e.RoofType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.RoofTypeOther).HasMaxLength(200);
+        builder.Property(e => e.RoofTypeOther).HasMaxLength(4000);
 
         // Area
         builder.OwnsMany(e => e.AreaDetails, areaDetail =>
@@ -105,10 +105,10 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.TotalBuildingArea).HasPrecision(18, 4);
 
         // Legal Restrictions
-        builder.Property(e => e.ExpropriationRemark).HasMaxLength(500);
-        builder.Property(e => e.ExpropriationLineRemark).HasMaxLength(500);
+        builder.Property(e => e.ExpropriationRemark).HasMaxLength(4000);
+        builder.Property(e => e.ExpropriationLineRemark).HasMaxLength(4000);
         builder.Property(e => e.RoyalDecree).HasMaxLength(500);
-        builder.Property(e => e.ForestBoundaryRemark).HasMaxLength(500);
+        builder.Property(e => e.ForestBoundaryRemark).HasMaxLength(4000);
 
         // Facilities & Environment
         builder.Property(e => e.FacilityType)
@@ -116,7 +116,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.FacilityTypeOther).HasMaxLength(200);
+        builder.Property(e => e.FacilityTypeOther).HasMaxLength(4000);
         builder.Property(e => e.EnvironmentType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
@@ -129,7 +129,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.ForcedSalePrice).HasPrecision(18, 2);
 
         // Other
-        builder.Property(e => e.Remark).HasMaxLength(1000);
+        builder.Property(e => e.Remark).HasMaxLength(4000);
 
         // Relationship - FK to AppraisalProperty (1:1)
         builder.Property(e => e.AppraisalPropertyId).IsRequired();

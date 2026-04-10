@@ -152,14 +152,14 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
         if (command.LeaseAgreement is not null)
         {
             property.LeaseAgreementDetail!.Update(
-                command.LeaseAgreement.LesseeName, command.LeaseAgreement.TenantName,
+                command.LeaseAgreement.LesseeName, command.LeaseAgreement.LessorName,
                 command.LeaseAgreement.LeasePeriodAsContract, command.LeaseAgreement.RemainingLeaseAsAppraisalDate,
                 command.LeaseAgreement.ContractNo, command.LeaseAgreement.LeaseStartDate, command.LeaseAgreement.LeaseEndDate,
                 command.LeaseAgreement.LeaseRentFee, command.LeaseAgreement.RentAdjust,
                 command.LeaseAgreement.Sublease, command.LeaseAgreement.AdditionalExpenses,
-                command.LeaseAgreement.LeaseTimestamp, command.LeaseAgreement.ContractRenewal,
+                command.LeaseAgreement.LeaseTerminate, command.LeaseAgreement.ContractRenewal,
                 command.LeaseAgreement.RentalTermsImpactingPropertyUse, command.LeaseAgreement.TerminationOfLease,
-                command.LeaseAgreement.Remark, command.LeaseAgreement.Banking);
+                command.LeaseAgreement.Remark);
         }
 
         // Update rental info if provided

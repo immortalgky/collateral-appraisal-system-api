@@ -63,10 +63,10 @@ public class VillageProjectConfiguration : IEntityTypeConfiguration<VillageProje
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(1000)");
 
-        builder.Property(e => e.UtilitiesOther).HasMaxLength(500);
-        builder.Property(e => e.FacilitiesOther).HasMaxLength(500);
+        builder.Property(e => e.UtilitiesOther).HasMaxLength(4000);
+        builder.Property(e => e.FacilitiesOther).HasMaxLength(4000);
 
         // Other
-        builder.Property(e => e.Remark).HasMaxLength(1000);
+        builder.Property(e => e.Remark).HasMaxLength(4000);
     }
 }
