@@ -14,7 +14,7 @@ public class MeetingConfiguration : IEntityTypeConfiguration<Meeting>
         builder.Property(m => m.Location).HasMaxLength(500);
         builder.Property(m => m.Notes).HasMaxLength(2000);
         builder.Property(m => m.CancelReason).HasMaxLength(1000);
-        builder.Property(m => m.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(m => m.Status).HasConversion(new ScreamingSnakeEnumConverter<MeetingStatus>()).HasMaxLength(20).IsRequired();
         builder.Property(m => m.ScheduledAt);
         builder.Property(m => m.EndedAt);
         builder.Property(m => m.CancelledAt);

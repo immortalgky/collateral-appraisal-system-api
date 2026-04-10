@@ -58,13 +58,13 @@ public class SlaMonitorService(
         var breachedIds = (await conn.QueryAsync<Guid>(
             """
             SELECT Id FROM workflow.PendingTasks
-            WHERE DueAt IS NOT NULL AND DueAt <= @Now AND SlaStatus != 'Breached'
+            WHERE DueAt IS NOT NULL AND DueAt <= @Now AND SlaStatus != 'BREACHED'
             """, new { Now = now })).ToList();
 
         var atRiskIds = (await conn.QueryAsync<Guid>(
             """
             SELECT Id FROM workflow.PendingTasks
-            WHERE DueAt IS NOT NULL AND SlaStatus = 'OnTime'
+            WHERE DueAt IS NOT NULL AND SlaStatus = 'ON_TIME'
               AND DATEADD(SECOND, DATEDIFF(SECOND, AssignedAt, DueAt) * 0.75, AssignedAt) <= @Now
             """, new { Now = now })).ToList();
 
@@ -84,7 +84,7 @@ public class SlaMonitorService(
                 task.MarkBreached(now);
                 breachLogs.Add(SlaBreachLog.Create(
                     task.Id, task.CorrelationId, task.TaskName,
-                    task.AssignedTo, task.DueAt!.Value, now, "Breached"));
+                    task.AssignedTo, task.DueAt!.Value, now, "BREACHED"));
 
                 await publishEndpoint.Publish(new SlaBreachIntegrationEvent
                 {
@@ -92,7 +92,7 @@ public class SlaMonitorService(
                     PendingTaskId = task.Id,
                     TaskName = task.TaskName,
                     AssignedTo = task.AssignedTo,
-                    SlaStatus = "Breached",
+                    SlaStatus = "BREACHED",
                     DueAt = task.DueAt.Value,
                     DetectedAt = now
                 }, ct);
@@ -115,7 +115,7 @@ public class SlaMonitorService(
                 task.MarkAtRisk();
                 breachLogs.Add(SlaBreachLog.Create(
                     task.Id, task.CorrelationId, task.TaskName,
-                    task.AssignedTo, task.DueAt!.Value, now, "AtRisk"));
+                    task.AssignedTo, task.DueAt!.Value, now, "AT_RISK"));
 
                 await publishEndpoint.Publish(new SlaBreachIntegrationEvent
                 {
@@ -123,7 +123,7 @@ public class SlaMonitorService(
                     PendingTaskId = task.Id,
                     TaskName = task.TaskName,
                     AssignedTo = task.AssignedTo,
-                    SlaStatus = "AtRisk",
+                    SlaStatus = "AT_RISK",
                     DueAt = task.DueAt.Value,
                     DetectedAt = now
                 }, ct);
@@ -150,17 +150,17 @@ public class SlaMonitorService(
         var breachedIds = (await conn.QueryAsync<Guid>(
             """
             SELECT Id FROM workflow.WorkflowInstances
-            WHERE Status = @Running AND WorkflowDueAt IS NOT NULL
-              AND WorkflowDueAt <= @Now AND WorkflowSlaStatus != 'Breached'
-            """, new { Now = now, Running = (int)WorkflowStatus.Running })).ToList();
+            WHERE Status = 'RUNNING' AND WorkflowDueAt IS NOT NULL
+              AND WorkflowDueAt <= @Now AND WorkflowSlaStatus != 'BREACHED'
+            """, new { Now = now })).ToList();
 
         var atRiskIds = (await conn.QueryAsync<Guid>(
             """
             SELECT Id FROM workflow.WorkflowInstances
-            WHERE Status = @Running AND WorkflowDueAt IS NOT NULL
-              AND WorkflowSlaStatus = 'OnTime'
+            WHERE Status = 'RUNNING' AND WorkflowDueAt IS NOT NULL
+              AND WorkflowSlaStatus = 'ON_TIME'
               AND DATEADD(SECOND, DATEDIFF(SECOND, StartedOn, WorkflowDueAt) * 0.75, StartedOn) <= @Now
-            """, new { Now = now, Running = (int)WorkflowStatus.Running })).ToList();
+            """, new { Now = now })).ToList();
 
         if (breachedIds.Count == 0 && atRiskIds.Count == 0) return;
 

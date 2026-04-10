@@ -31,7 +31,7 @@ public class UserNotificationConfiguration : IEntityTypeConfiguration<UserNotifi
 
         builder.Property(x => x.Type)
             .IsRequired()
-            .HasConversion<string>()
+            .HasConversion(new ScreamingSnakeEnumConverter<NotificationType>())
             .HasMaxLength(50);
 
         builder.Property(x => x.CreatedAt)

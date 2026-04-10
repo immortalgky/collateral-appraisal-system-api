@@ -26,7 +26,8 @@ public class WorkflowInstanceConfiguration : IEntityTypeConfiguration<WorkflowIn
             
         builder.Property(x => x.Status)
             .IsRequired()
-            .HasConversion<string>();
+            .HasConversion(new ScreamingSnakeEnumConverter<WorkflowStatus>())
+            .HasMaxLength(20);
             
         builder.Property(x => x.CurrentActivityId)
             .IsRequired()

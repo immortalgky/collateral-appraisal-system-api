@@ -32,7 +32,7 @@ public class DocumentFollowupConfiguration : IEntityTypeConfiguration<DocumentFo
 
         builder.Property(x => x.Status)
             .IsRequired()
-            .HasConversion<string>()
+            .HasConversion(new ScreamingSnakeEnumConverter<DocumentFollowupStatus>())
             .HasMaxLength(20);
 
         builder.Property(x => x.CancellationReason)
@@ -65,7 +65,7 @@ public class DocumentFollowupConfiguration : IEntityTypeConfiguration<DocumentFo
         builder.HasIndex(x => x.RaisingPendingTaskId)
             .HasDatabaseName("UX_DocumentFollowups_RaisingPendingTaskId_Open")
             .IsUnique()
-            .HasFilter("[Status] = 'Open'");
+            .HasFilter("[Status] = 'OPEN'");
 
         builder.HasIndex(x => x.RaisingWorkflowInstanceId)
             .HasDatabaseName("IX_DocumentFollowups_RaisingWorkflowInstanceId");

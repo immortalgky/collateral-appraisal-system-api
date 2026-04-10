@@ -58,11 +58,11 @@ public class RequestSubmittedEventHandler(
             BankingSegment = notification.Request.Detail?.LoanDetail?.BankingSegment,
             FacilityLimit = notification.Request.Detail?.LoanDetail?.FacilityLimit,
             HasAppraisalBook = notification.Request.Detail?.HasAppraisalBook ?? false,
-            RequestedBy = notification.Request.Requestor.Username,
+            RequestedBy = notification.Request.Requestor.UserId,
             RequestedAt = notification.Request.RequestedAt
         };
 
-        outbox.Publish(integrationEvent, correlationId: notification.Request.Id.ToString());
+        outbox.Publish(integrationEvent, notification.Request.Id.ToString());
 
         logger.LogInformation(
             "Published RequestSubmittedIntegrationEvent for RequestId: {RequestId} with {TitleCount} titles",

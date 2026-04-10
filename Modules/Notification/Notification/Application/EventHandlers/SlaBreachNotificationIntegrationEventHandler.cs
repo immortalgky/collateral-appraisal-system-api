@@ -24,13 +24,13 @@ public class SlaBreachNotificationIntegrationEventHandler : IConsumer<SlaBreachI
         {
             // TODO: Wire up to INotificationService to send actual notifications
             // For now, log the breach event for monitoring
-            if (breach.SlaStatus == "Breached")
+            if (breach.SlaStatus == "BREACHED")
             {
                 _logger.LogWarning(
                     "SLA BREACH NOTIFICATION: Task {TaskName} (CorrelationId={CorrelationId}) assigned to {AssignedTo} has exceeded its deadline of {DueAt}",
                     breach.TaskName, breach.CorrelationId, breach.AssignedTo, breach.DueAt);
             }
-            else if (breach.SlaStatus == "AtRisk")
+            else if (breach.SlaStatus == "AT_RISK")
             {
                 _logger.LogWarning(
                     "SLA AT-RISK NOTIFICATION: Task {TaskName} (CorrelationId={CorrelationId}) assigned to {AssignedTo} is approaching its deadline of {DueAt}",

@@ -34,14 +34,14 @@ public class ActivityProcessConfigurationSeeder(
                 "UpdateAppraisalStatus",
                 2,
                 "system",
-                """{"targetStatus": "UnderReview"}"""),
+                """{"targetStatus": "UNDER_REVIEW"}"""),
             ActivityProcessConfiguration.Create(
                 "site-inspection",
                 "Complete assignment",
                 "UpdateAssignmentStatus",
                 3,
                 "system",
-                """{"targetStatus": "Completed"}"""),
+                """{"targetStatus": "COMPLETED"}"""),
 
             // appraisal-assignment: validate decision constraints before routing
             ActivityProcessConfiguration.Create(
@@ -59,7 +59,7 @@ public class ActivityProcessConfigurationSeeder(
                 "UpdateAppraisalStatus",
                 1,
                 "system",
-                """{"targetStatus": "InProgress"}"""),
+                """{"targetStatus": "IN_PROGRESS"}"""),
         };
 
         await context.ActivityProcessConfigurations.AddRangeAsync(configs);

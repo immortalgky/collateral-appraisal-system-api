@@ -149,19 +149,19 @@ public class WorkflowInstance : Entity<Guid>
     public void SetWorkflowSla(DateTime dueAt)
     {
         WorkflowDueAt = dueAt;
-        WorkflowSlaStatus = "OnTime";
+        WorkflowSlaStatus = "ON_TIME";
     }
 
     public void MarkWorkflowAtRisk()
     {
-        if (WorkflowSlaStatus == "OnTime")
-            WorkflowSlaStatus = "AtRisk";
+        if (WorkflowSlaStatus == "ON_TIME")
+            WorkflowSlaStatus = "AT_RISK";
     }
 
     public void MarkWorkflowBreached()
     {
-        if (WorkflowSlaStatus != "Breached")
-            WorkflowSlaStatus = "Breached";
+        if (WorkflowSlaStatus != "BREACHED")
+            WorkflowSlaStatus = "BREACHED";
     }
 
     // --- Branch tracking for fork/join ---

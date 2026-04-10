@@ -132,20 +132,20 @@ public class SlaEndpoints : ICarterModule
         var taskCounts = await connection.QueryFirstOrDefaultAsync<DashboardTaskCounts>("""
             SELECT
                 COUNT(*) AS TotalActiveTasks,
-                SUM(CASE WHEN SlaStatus = 'OnTime' THEN 1 ELSE 0 END) AS OnTimeCount,
-                SUM(CASE WHEN SlaStatus = 'AtRisk' THEN 1 ELSE 0 END) AS AtRiskCount,
-                SUM(CASE WHEN SlaStatus = 'Breached' THEN 1 ELSE 0 END) AS BreachedCount
+                SUM(CASE WHEN SlaStatus = 'ON_TIME' THEN 1 ELSE 0 END) AS OnTimeCount,
+                SUM(CASE WHEN SlaStatus = 'AT_RISK' THEN 1 ELSE 0 END) AS AtRiskCount,
+                SUM(CASE WHEN SlaStatus = 'BREACHED' THEN 1 ELSE 0 END) AS BreachedCount
             FROM workflow.vw_SlaTaskList
             """);
 
         var workflowCounts = await connection.QueryFirstOrDefaultAsync<DashboardWorkflowCounts>("""
             SELECT
                 COUNT(*) AS TotalRunningWorkflows,
-                SUM(CASE WHEN WorkflowSlaStatus = 'OnTime' THEN 1 ELSE 0 END) AS OnTimeCount,
-                SUM(CASE WHEN WorkflowSlaStatus = 'AtRisk' THEN 1 ELSE 0 END) AS AtRiskCount,
-                SUM(CASE WHEN WorkflowSlaStatus = 'Breached' THEN 1 ELSE 0 END) AS BreachedCount
+                SUM(CASE WHEN WorkflowSlaStatus = 'ON_TIME' THEN 1 ELSE 0 END) AS OnTimeCount,
+                SUM(CASE WHEN WorkflowSlaStatus = 'AT_RISK' THEN 1 ELSE 0 END) AS AtRiskCount,
+                SUM(CASE WHEN WorkflowSlaStatus = 'BREACHED' THEN 1 ELSE 0 END) AS BreachedCount
             FROM workflow.vw_WorkflowSlaSummary
-            WHERE Status = 0
+            WHERE Status = 'RUNNING'
             """);
 
         return Results.Ok(new DashboardResult(taskCounts, workflowCounts));

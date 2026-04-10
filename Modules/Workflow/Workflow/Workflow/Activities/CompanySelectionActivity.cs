@@ -53,7 +53,7 @@ public class CompanySelectionActivity : WorkflowActivityBase
 
             outputData["assignedCompanyId"] = companyId;
             outputData["assignedCompanyName"] = companyName;
-            outputData["assignmentMethod"] = "Manual";
+            outputData["assignmentMethod"] = "MANUAL";
             outputData["decision"] = "company_selected";
 
             _logger.LogInformation(
@@ -72,7 +72,7 @@ public class CompanySelectionActivity : WorkflowActivityBase
         {
             outputData["assignedCompanyId"] = result.CompanyId!.Value.ToString();
             outputData["assignedCompanyName"] = result.CompanyName!;
-            outputData["assignmentMethod"] = "RoundRobin";
+            outputData["assignmentMethod"] = "ROUND_ROBIN";
             outputData["decision"] = "company_selected";
 
             _logger.LogInformation(

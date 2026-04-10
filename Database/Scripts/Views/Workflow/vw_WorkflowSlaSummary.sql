@@ -22,14 +22,14 @@ SELECT
         SELECT COUNT(*)
         FROM workflow.PendingTasks pt
         WHERE pt.CorrelationId = CAST(wi.CorrelationId AS uniqueidentifier)
-          AND pt.SlaStatus = 'Breached'
+          AND pt.SlaStatus = 'BREACHED'
     ) AS BreachedActivityCount,
     -- Count of at-risk activities
     (
         SELECT COUNT(*)
         FROM workflow.PendingTasks pt
         WHERE pt.CorrelationId = CAST(wi.CorrelationId AS uniqueidentifier)
-          AND pt.SlaStatus = 'AtRisk'
+          AND pt.SlaStatus = 'AT_RISK'
     ) AS AtRiskActivityCount
 FROM workflow.WorkflowInstances wi
 WHERE wi.WorkflowDueAt IS NOT NULL

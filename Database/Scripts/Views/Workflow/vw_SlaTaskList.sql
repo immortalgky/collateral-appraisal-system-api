@@ -34,13 +34,13 @@ FROM workflow.PendingTasks pt
          LEFT JOIN request.Requests r ON a.RequestId = r.Id
          LEFT JOIN workflow.WorkflowInstances wi
                    ON wi.CorrelationId = CAST(pt.CorrelationId AS nvarchar(450))
-                       AND wi.Status = 0 -- Running
+                       AND wi.Status = 'RUNNING'
          LEFT JOIN (
     SELECT
         AppraisalId,
         AssigneeCompanyId,
         ROW_NUMBER() OVER (PARTITION BY AppraisalId ORDER BY CreatedAt DESC) AS rn
     FROM appraisal.AppraisalAssignments
-    WHERE AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+    WHERE AssignmentStatus NOT IN ('REJECTED', 'CANCELLED')
 ) aa ON aa.AppraisalId = a.Id AND aa.rn = 1
 WHERE pt.DueAt IS NOT NULL
