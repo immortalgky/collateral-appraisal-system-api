@@ -38,7 +38,7 @@ public class
 
         // Energy
         builder.Property(e => e.EnergyUse).HasMaxLength(100);
-        builder.Property(e => e.EnergyUseRemark).HasMaxLength(200);
+        builder.Property(e => e.EnergyUseRemark).HasMaxLength(4000);
 
         // Owner
         builder.Property(e => e.OwnerName).HasMaxLength(200);
@@ -50,16 +50,16 @@ public class
         builder.Property(e => e.MachineEfficiency).HasMaxLength(100);
         builder.Property(e => e.MachineTechnology).HasMaxLength(100);
         builder.Property(e => e.UsagePurpose).HasMaxLength(200);
-        builder.Property(e => e.MachineParts).HasMaxLength(500);
+        builder.Property(e => e.MachineParts).HasMaxLength(4000);
 
         // Valuation
         builder.Property(e => e.ReplacementValue).HasPrecision(18, 2);
         builder.Property(e => e.ConditionValue).HasPrecision(18, 2);
 
         // Appraiser Notes
-        builder.Property(e => e.Remark).HasMaxLength(1000);
-        builder.Property(e => e.Other).HasMaxLength(500);
-        builder.Property(e => e.AppraiserOpinion).HasMaxLength(1000);
+        builder.Property(e => e.Remark).HasMaxLength(4000);
+        builder.Property(e => e.Other).HasMaxLength(4000);
+        builder.Property(e => e.AppraiserOpinion).HasMaxLength(4000);
 
         // Relationship - FK to AppraisalProperty (1:1)
         builder.Property(e => e.AppraisalPropertyId).IsRequired();

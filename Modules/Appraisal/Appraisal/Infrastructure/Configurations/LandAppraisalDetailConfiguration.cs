@@ -40,7 +40,7 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
 
         // Document Verification
         builder.Property(e => e.LandCheckMethodType).HasMaxLength(100);
-        builder.Property(e => e.LandCheckMethodTypeOther).HasMaxLength(200);
+        builder.Property(e => e.LandCheckMethodTypeOther).HasMaxLength(4000);
 
         // Location Details
         builder.Property(e => e.Street).HasMaxLength(200);
@@ -57,7 +57,7 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.LandZoneTypeOther).HasMaxLength(200);
+        builder.Property(e => e.LandZoneTypeOther).HasMaxLength(4000);
 
 
         builder.Property(e => e.PlotLocationType)
@@ -65,10 +65,10 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.PlotLocationTypeOther).HasMaxLength(200);
+        builder.Property(e => e.PlotLocationTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.LandFillType).HasMaxLength(100);
-        builder.Property(e => e.LandFillTypeOther).HasMaxLength(200);
+        builder.Property(e => e.LandFillTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.LandFillPercent).HasPrecision(5, 2);
         builder.Property(e => e.SoilLevel).HasPrecision(10, 2);
@@ -80,10 +80,10 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
         builder.Property(e => e.RoadPassInFrontOfLand).HasMaxLength(200);
 
         builder.Property(e => e.LandAccessibilityType).HasMaxLength(100);
-        builder.Property(e => e.LandAccessibilityRemark).HasMaxLength(500);
+        builder.Property(e => e.LandAccessibilityRemark).HasMaxLength(4000);
 
         builder.Property(e => e.RoadSurfaceType).HasMaxLength(100);
-        builder.Property(e => e.RoadSurfaceTypeOther).HasMaxLength(200);
+        builder.Property(e => e.RoadSurfaceTypeOther).HasMaxLength(4000);
 
         // Utilities - Multi-select fields with JSON conversion
         builder.Property(e => e.PublicUtilityType)
@@ -91,48 +91,48 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.PublicUtilityTypeOther).HasMaxLength(200);
+        builder.Property(e => e.PublicUtilityTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.LandUseType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.LandUseTypeOther).HasMaxLength(200);
+        builder.Property(e => e.LandUseTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.LandEntranceExitType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.LandEntranceExitTypeOther).HasMaxLength(200);
+        builder.Property(e => e.LandEntranceExitTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.TransportationAccessType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.TransportationAccessTypeOther).HasMaxLength(200);
+        builder.Property(e => e.TransportationAccessTypeOther).HasMaxLength(4000);
         builder.Property(e => e.PropertyAnticipationType).HasMaxLength(100);
-        builder.Property(e => e.PropertyAnticipationTypeOther).HasMaxLength(200);
+        builder.Property(e => e.PropertyAnticipationTypeOther).HasMaxLength(4000);
 
         // Legal Restrictions
-        builder.Property(e => e.ExpropriationRemark).HasMaxLength(500);
-        builder.Property(e => e.ExpropriationLineRemark).HasMaxLength(500);
+        builder.Property(e => e.ExpropriationRemark).HasMaxLength(4000);
+        builder.Property(e => e.ExpropriationLineRemark).HasMaxLength(4000);
         builder.Property(e => e.RoyalDecree).HasMaxLength(500);
-        builder.Property(e => e.EncroachmentRemark).HasMaxLength(500);
+        builder.Property(e => e.EncroachmentRemark).HasMaxLength(4000);
         builder.Property(e => e.EncroachmentArea).HasPrecision(18, 4);
         builder.Property(e => e.ElectricityDistance).HasPrecision(10, 2);
-        builder.Property(e => e.LandlockedRemark).HasMaxLength(500);
-        builder.Property(e => e.ForestBoundaryRemark).HasMaxLength(500);
-        builder.Property(e => e.OtherLegalLimitations).HasMaxLength(1000);
+        builder.Property(e => e.LandlockedRemark).HasMaxLength(4000);
+        builder.Property(e => e.ForestBoundaryRemark).HasMaxLength(4000);
+        builder.Property(e => e.OtherLegalLimitations).HasMaxLength(4000);
 
         builder.Property(e => e.EvictionType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.EvictionTypeOther).HasMaxLength(200);
+        builder.Property(e => e.EvictionTypeOther).HasMaxLength(4000);
         builder.Property(e => e.AllocationType).HasMaxLength(100);
 
         // Adjacent Boundaries
@@ -148,8 +148,8 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
         // Other Features
         builder.Property(e => e.PondArea).HasPrecision(18, 4);
         builder.Property(e => e.PondDepth).HasPrecision(10, 2);
-        builder.Property(e => e.HasBuildingOther).HasMaxLength(200);
-        builder.Property(e => e.Remark).HasMaxLength(1000);
+        builder.Property(e => e.HasBuildingOther).HasMaxLength(4000);
+        builder.Property(e => e.Remark).HasMaxLength(4000);
 
         // Relationship - FK to AppraisalProperty (1:1)
         builder.Property(e => e.AppraisalPropertyId).IsRequired();
@@ -183,8 +183,8 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
             });
 
             // Boundary & Validation
-            title.Property(t => t.BoundaryMarkerRemark).HasMaxLength(500);
-            title.Property(t => t.Remark).HasMaxLength(1000);
+            title.Property(t => t.BoundaryMarkerRemark).HasMaxLength(4000);
+            title.Property(t => t.Remark).HasMaxLength(4000);
 
             // Pricing
             title.Property(t => t.GovernmentPricePerSqWa).HasPrecision(18, 2);

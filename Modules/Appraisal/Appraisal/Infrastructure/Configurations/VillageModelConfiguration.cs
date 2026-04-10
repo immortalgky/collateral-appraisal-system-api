@@ -37,19 +37,19 @@ public class VillageModelConfiguration : IEntityTypeConfiguration<VillageModel>
 
         // Building Info
         builder.Property(e => e.BuildingType).HasMaxLength(100);
-        builder.Property(e => e.BuildingTypeOther).HasMaxLength(200);
+        builder.Property(e => e.BuildingTypeOther).HasMaxLength(4000);
         builder.Property(e => e.NumberOfFloors).HasPrecision(5, 1);
         builder.Property(e => e.DecorationType).HasMaxLength(100);
-        builder.Property(e => e.DecorationTypeOther).HasMaxLength(200);
-        builder.Property(e => e.EncroachingOthersRemark).HasMaxLength(500);
+        builder.Property(e => e.DecorationTypeOther).HasMaxLength(4000);
+        builder.Property(e => e.EncroachingOthersRemark).HasMaxLength(4000);
         builder.Property(e => e.EncroachingOthersArea).HasPrecision(18, 4);
 
         // Construction Details
         builder.Property(e => e.BuildingMaterialType).HasMaxLength(100);
         builder.Property(e => e.BuildingStyleType).HasMaxLength(100);
-        builder.Property(e => e.ResidentialRemark).HasMaxLength(500);
+        builder.Property(e => e.ResidentialRemark).HasMaxLength(4000);
         builder.Property(e => e.ConstructionStyleType).HasMaxLength(100);
-        builder.Property(e => e.ConstructionStyleRemark).HasMaxLength(500);
+        builder.Property(e => e.ConstructionStyleRemark).HasMaxLength(4000);
 
         // Structure Components (JSON arrays)
         builder.Property(e => e.StructureType)
@@ -57,57 +57,56 @@ public class VillageModelConfiguration : IEntityTypeConfiguration<VillageModel>
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.StructureTypeOther).HasMaxLength(200);
+        builder.Property(e => e.StructureTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.RoofFrameType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.RoofFrameTypeOther).HasMaxLength(200);
+        builder.Property(e => e.RoofFrameTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.RoofType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.RoofTypeOther).HasMaxLength(200);
+        builder.Property(e => e.RoofTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.CeilingType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.CeilingTypeOther).HasMaxLength(200);
+        builder.Property(e => e.CeilingTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.InteriorWallType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.InteriorWallTypeOther).HasMaxLength(200);
+        builder.Property(e => e.InteriorWallTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.ExteriorWallType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.ExteriorWallTypeOther).HasMaxLength(200);
+        builder.Property(e => e.ExteriorWallTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.FenceType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-        builder.Property(e => e.FenceTypeOther).HasMaxLength(200);
+        builder.Property(e => e.FenceTypeOther).HasMaxLength(4000);
 
         builder.Property(e => e.ConstructionType).HasMaxLength(100);
-        builder.Property(e => e.ConstructionTypeOther).HasMaxLength(200);
+        builder.Property(e => e.ConstructionTypeOther).HasMaxLength(4000);
 
         // Utilization
         builder.Property(e => e.UtilizationType).HasMaxLength(100);
-        builder.Property(e => e.UtilizationTypeOther).HasMaxLength(200);
-
+        builder.Property(e => e.UtilizationTypeOther).HasMaxLength(4000);
         // Documents (JSON)
         builder.Property(e => e.ImageDocumentIds)
             .HasConversion(
@@ -116,7 +115,7 @@ public class VillageModelConfiguration : IEntityTypeConfiguration<VillageModel>
             .HasColumnType("nvarchar(2000)");
 
         // Other
-        builder.Property(e => e.Remark).HasMaxLength(500);
+        builder.Property(e => e.Remark).HasMaxLength(4000);
 
         // Area Details (owned collection)
         builder.OwnsMany(e => e.AreaDetails, areaDetail =>

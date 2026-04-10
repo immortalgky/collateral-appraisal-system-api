@@ -35,7 +35,7 @@ public class VehicleAppraisalDetailConfiguration : IOwnedEntityConfiguration<App
 
         // Energy
         builder.Property(e => e.EnergyUse).HasMaxLength(100);
-        builder.Property(e => e.EnergyUseRemark).HasMaxLength(200);
+        builder.Property(e => e.EnergyUseRemark).HasMaxLength(4000);
 
         // Owner
         builder.Property(e => e.OwnerName).HasMaxLength(200);
@@ -47,12 +47,12 @@ public class VehicleAppraisalDetailConfiguration : IOwnedEntityConfiguration<App
         builder.Property(e => e.VehicleEfficiency).HasMaxLength(100);
         builder.Property(e => e.VehicleTechnology).HasMaxLength(100);
         builder.Property(e => e.UsePurpose).HasMaxLength(200);
-        builder.Property(e => e.VehiclePart).HasMaxLength(500);
+        builder.Property(e => e.VehiclePart).HasMaxLength(4000);
 
         // Appraiser Notes
-        builder.Property(e => e.Remark).HasMaxLength(1000);
-        builder.Property(e => e.Other).HasMaxLength(500);
-        builder.Property(e => e.AppraiserOpinion).HasMaxLength(1000);
+        builder.Property(e => e.Remark).HasMaxLength(4000);
+        builder.Property(e => e.Other).HasMaxLength(4000);
+        builder.Property(e => e.AppraiserOpinion).HasMaxLength(4000);
 
         // Relationship - FK to AppraisalProperty (1:1)
         builder.Property(e => e.AppraisalPropertyId).IsRequired();

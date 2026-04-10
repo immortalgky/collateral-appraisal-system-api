@@ -20,7 +20,7 @@ public class MarketComparableConfiguration : IEntityTypeConfiguration<MarketComp
         builder.Property(m => m.SalePrice).HasPrecision(18, 2);
         builder.Property(m => m.OfferPriceUnit).HasMaxLength(50);
         builder.Property(m => m.SalePriceUnit).HasMaxLength(50);
-        builder.Property(m => m.Notes).HasMaxLength(2000);
+        builder.Property(m => m.Notes).HasMaxLength(4000);
 
         builder.Property(m => m.CreatedAt).IsRequired();
         builder.Property(m => m.CreatedBy).IsRequired();
@@ -84,7 +84,7 @@ public class AppraisalComparableConfiguration : IEntityTypeConfiguration<Apprais
         builder.Property(a => a.WeightedValue).HasPrecision(18, 2);
 
         builder.Property(a => a.SelectionReason).HasMaxLength(500);
-        builder.Property(a => a.Notes).HasMaxLength(1000);
+        builder.Property(a => a.Notes).HasMaxLength(4000);
 
         builder.Property(a => a.CreatedAt).IsRequired();
         builder.Property(a => a.CreatedBy).IsRequired();

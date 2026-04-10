@@ -39,12 +39,11 @@ public class CondoModelConfiguration : IEntityTypeConfiguration<CondoModel>
 
         // Materials
         builder.Property(e => e.GroundFloorMaterialType).HasMaxLength(100);
-        builder.Property(e => e.GroundFloorMaterialTypeOther).HasMaxLength(200);
+        builder.Property(e => e.GroundFloorMaterialTypeOther).HasMaxLength(4000);
         builder.Property(e => e.UpperFloorMaterialType).HasMaxLength(100);
-        builder.Property(e => e.UpperFloorMaterialTypeOther).HasMaxLength(200);
+        builder.Property(e => e.UpperFloorMaterialTypeOther).HasMaxLength(4000);
         builder.Property(e => e.BathroomFloorMaterialType).HasMaxLength(100);
-        builder.Property(e => e.BathroomFloorMaterialTypeOther).HasMaxLength(200);
-
+        builder.Property(e => e.BathroomFloorMaterialTypeOther).HasMaxLength(4000);
         // JSON columns
         builder.Property(e => e.ImageDocumentIds)
             .HasConversion(

@@ -18,7 +18,7 @@ public class MachineryAppraisalSummaryConfiguration : IEntityTypeConfiguration<M
         builder.Property(e => e.Maintenance).HasMaxLength(500);
         builder.Property(e => e.Exterior).HasMaxLength(500);
         builder.Property(e => e.Performance).HasMaxLength(500);
-        builder.Property(e => e.MarketDemand).HasMaxLength(2000);
+        builder.Property(e => e.MarketDemand).HasMaxLength(4000);
 
         // Section 3.3 — Rights & Legal
         builder.Property(e => e.Proprietor).HasMaxLength(500);
@@ -27,6 +27,6 @@ public class MachineryAppraisalSummaryConfiguration : IEntityTypeConfiguration<M
         builder.Property(e => e.Latitude).HasPrecision(11, 8);
         builder.Property(e => e.Longitude).HasPrecision(11, 8);
         builder.Property(e => e.Obligation).HasMaxLength(2000);
-        builder.Property(e => e.Other).HasMaxLength(2000);
+        builder.Property(e => e.Other).HasMaxLength(4000);
     }
 }

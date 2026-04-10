@@ -27,7 +27,7 @@ public class
         builder.Property(e => e.SummaryPreviousValue).HasPrecision(18, 2);
         builder.Property(e => e.SummaryCurrentProgressPct).HasPrecision(7, 4);
         builder.Property(e => e.SummaryCurrentValue).HasPrecision(18, 2);
-        builder.Property(e => e.Remark).HasMaxLength(2000);
+        builder.Property(e => e.Remark).HasMaxLength(4000);
 
         // Document reference
         builder.Property(e => e.FileName).HasMaxLength(500);
