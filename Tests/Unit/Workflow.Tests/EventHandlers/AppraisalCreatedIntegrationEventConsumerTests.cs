@@ -1,5 +1,6 @@
 using FluentAssertions;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shared.Messaging.Events;
@@ -14,37 +15,30 @@ namespace Workflow.Tests.EventHandlers;
 
 public class AppraisalCreatedIntegrationEventConsumerTests
 {
-    private readonly IWorkflowInstanceRepository _instanceRepository;
-    private readonly IWorkflowUnitOfWork _unitOfWork;
-    private readonly AppraisalCreatedIntegrationEventConsumer _sut;
-
-    public AppraisalCreatedIntegrationEventConsumerTests()
-    {
-        var logger = Substitute.For<ILogger<AppraisalCreatedIntegrationEventConsumer>>();
-        _instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
-        _unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
-        var inboxGuard = Substitute.For<InboxGuard<WorkflowDbContext>>(
-            Substitute.For<WorkflowDbContext>(),
-            Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>());
-
-        // InboxGuard returns false (= proceed with processing)
-        inboxGuard.TryClaimAsync(Arg.Any<Guid?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(false);
-
-        _sut = new AppraisalCreatedIntegrationEventConsumer(
-            logger, _instanceRepository, _unitOfWork, inboxGuard);
-    }
+    private static WorkflowDbContext NewDb() =>
+        new(new DbContextOptionsBuilder<WorkflowDbContext>()
+            .UseInMemoryDatabase($"ac-link-{Guid.NewGuid()}").Options);
 
     [Fact]
     public async Task Consume_WorkflowExists_SetsAppraisalIdInVariables()
     {
+        await using var db = NewDb();
+        var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
+        var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var inboxGuard = new InboxGuard<WorkflowDbContext>(
+            db, Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>());
+
         var requestId = Guid.NewGuid();
         var appraisalId = Guid.NewGuid();
         var instance = WorkflowInstance.Create(
             Guid.NewGuid(), "test-workflow", requestId.ToString(), "system");
 
-        _instanceRepository.GetByCorrelationId(requestId.ToString(), Arg.Any<CancellationToken>())
+        instanceRepository.GetByCorrelationId(requestId.ToString(), Arg.Any<CancellationToken>())
             .Returns(instance);
+
+        var consumer = new AppraisalCreatedIntegrationEventConsumer(
+            Substitute.For<ILogger<AppraisalCreatedIntegrationEventConsumer>>(),
+            instanceRepository, unitOfWork, inboxGuard);
 
         var ctx = BuildContext(new AppraisalCreatedIntegrationEvent
         {
@@ -56,21 +50,31 @@ public class AppraisalCreatedIntegrationEventConsumerTests
             CreatedAt = DateTime.UtcNow
         });
 
-        await _sut.Consume(ctx);
+        await consumer.Consume(ctx);
 
         instance.Variables["appraisalId"].Should().Be(appraisalId);
         instance.Variables["appraisalNumber"].Should().Be("APR-001");
         instance.Variables["appraisalType"].Should().Be("Initial");
-        await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Consume_NoWorkflowFound_DoesNotThrow()
+    public async Task Consume_NoWorkflowFound_MarksProcessedAndDoesNotSave()
     {
+        await using var db = NewDb();
+        var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
+        var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var inboxGuard = new InboxGuard<WorkflowDbContext>(
+            db, Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>());
+
         var requestId = Guid.NewGuid();
 
-        _instanceRepository.GetByCorrelationId(requestId.ToString(), Arg.Any<CancellationToken>())
+        instanceRepository.GetByCorrelationId(requestId.ToString(), Arg.Any<CancellationToken>())
             .Returns((WorkflowInstance?)null);
+
+        var consumer = new AppraisalCreatedIntegrationEventConsumer(
+            Substitute.For<ILogger<AppraisalCreatedIntegrationEventConsumer>>(),
+            instanceRepository, unitOfWork, inboxGuard);
 
         var ctx = BuildContext(new AppraisalCreatedIntegrationEvent
         {
@@ -80,9 +84,9 @@ public class AppraisalCreatedIntegrationEventConsumerTests
             CreatedAt = DateTime.UtcNow
         });
 
-        await _sut.Consume(ctx);
+        await consumer.Consume(ctx);
 
-        await _unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        await unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     // ── Helpers ──

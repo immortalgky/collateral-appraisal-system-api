@@ -13,7 +13,9 @@ public class GetTaskByIdQueryHandler(
     private const string Sql = """
         SELECT
             pt.Id                              AS TaskId,
-            (SELECT TOP 1 Id FROM appraisal.Appraisals WHERE RequestId = pt.CorrelationId) AS AppraisalId,
+            (SELECT TOP 1 Id FROM appraisal.Appraisals
+              WHERE RequestId = pt.CorrelationId
+              ORDER BY CreatedAt DESC) AS AppraisalId,
             pt.WorkflowInstanceId,
             pt.ActivityId,
             pt.AssignedTo                      AS AssigneeUserId,

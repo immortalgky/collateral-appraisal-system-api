@@ -59,7 +59,10 @@ public class RaiseDocumentFollowupCommandHandler(
                 "An open document followup already exists for this task. Resolve or cancel it first.");
 
         var requestId = pendingTask.CorrelationId;
-        var appraisalId = ReadGuidFromVariables(parentInstance.Variables, "appraisalId");
+        var appraisalId = ReadGuidFromVariables(parentInstance.Variables, "appraisalId")
+            ?? throw new InvalidOperationException(
+                $"Cannot raise document followup for workflow {command.RaisingWorkflowInstanceId}: " +
+                "appraisalId is not set in workflow variables. Document followups require an existing appraisal.");
 
         // 3. Resolve followup workflow definition up front so we fail fast before any writes
         var followupDefinition = await definitionRepository.GetLatestVersion(

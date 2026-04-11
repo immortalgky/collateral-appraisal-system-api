@@ -31,7 +31,7 @@ SELECT
     NULL AS LoanType -- Can be derived from workflow variables if needed
 FROM workflow.PendingTasks pt
          LEFT JOIN appraisal.Appraisals a ON a.RequestId = pt.CorrelationId
-         LEFT JOIN request.Requests r ON a.RequestId = r.Id
+         LEFT JOIN request.Requests r ON r.Id = pt.CorrelationId
          LEFT JOIN workflow.WorkflowInstances wi
                    ON wi.CorrelationId = CAST(pt.CorrelationId AS nvarchar(450))
                        AND wi.Status = 'RUNNING'
