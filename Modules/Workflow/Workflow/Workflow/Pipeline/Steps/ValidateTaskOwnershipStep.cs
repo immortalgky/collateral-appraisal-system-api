@@ -36,7 +36,7 @@ public class ValidateTaskOwnershipStep(
             {
                 logger.LogWarning(
                     "No pending task found for correlation {CorrelationId}", context.CorrelationId);
-                return ProcessStepResult.Fail("No pending task found for this appraisal");
+                return ProcessStepResult.Fail("No pending task found for this request");
             }
 
             var username = currentUserService.Username;

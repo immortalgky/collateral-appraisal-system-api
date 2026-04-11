@@ -40,8 +40,10 @@ public class ActivityProcessPipeline(
                                ?? throw new InvalidOperationException(
                                    $"Workflow instance {workflowInstanceId} not found");
 
-        // CorrelationId (requestId) — always available
-        var correlationId = Guid.TryParse(workflowInstance.CorrelationId, out var cid) ? cid : Guid.Empty;
+        // CorrelationId (requestId) — fail fast if missing/invalid rather than silently using Guid.Empty
+        if (!Guid.TryParse(workflowInstance.CorrelationId, out var correlationId))
+            throw new InvalidOperationException(
+                $"Workflow instance {workflowInstanceId} has invalid CorrelationId '{workflowInstance.CorrelationId}'");
 
         // AppraisalId from Variables — null before appraisal creation
         Guid? appraisalId = ResolveAppraisalId(workflowInstance.Variables);

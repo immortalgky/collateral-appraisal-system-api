@@ -19,7 +19,10 @@ public class EmitAppraisalCreationRequestedStep(
 
     public Task<ProcessStepResult> ExecuteAsync(ProcessStepContext context, CancellationToken ct)
     {
-        var variables = context.Variables ?? new Dictionary<string, object>();
+        if (context.Variables is null)
+            return Task.FromResult(ProcessStepResult.Fail("Workflow variables are null"));
+
+        var variables = context.Variables;
 
         // Idempotent guard: skip if already triggered
         if (variables.TryGetValue("appraisalCreationRequested", out var flagObj) && IsTruthy(flagObj))

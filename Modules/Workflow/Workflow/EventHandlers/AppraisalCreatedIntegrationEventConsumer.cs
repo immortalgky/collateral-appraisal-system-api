@@ -40,6 +40,9 @@ public class AppraisalCreatedIntegrationEventConsumer(
                 logger.LogWarning(
                     "No workflow found for RequestId: {RequestId}. AppraisalId {AppraisalId} will not be linked.",
                     message.RequestId, message.AppraisalId);
+                // Mark processed so the inbox row doesn't remain 'Processing' forever.
+                // No workflow exists, so there's nothing to retry against.
+                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
                 return;
             }
 
