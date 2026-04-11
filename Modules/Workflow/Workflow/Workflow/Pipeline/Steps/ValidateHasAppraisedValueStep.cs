@@ -16,6 +16,9 @@ public class ValidateHasAppraisedValueStep(
 
     public async Task<ProcessStepResult> ExecuteAsync(ProcessStepContext context, CancellationToken ct)
     {
+        if (context.AppraisalId is null)
+            return ProcessStepResult.Fail("Appraisal not yet created");
+
         try
         {
             using var connection = connectionFactory.GetOpenConnection();
@@ -28,7 +31,7 @@ public class ValidateHasAppraisedValueStep(
                       AND AppraisedValue > 0
                 ) THEN 1 ELSE 0 END
                 """,
-                new { context.AppraisalId });
+                new { AppraisalId = context.AppraisalId.Value });
 
             if (!hasValue)
             {

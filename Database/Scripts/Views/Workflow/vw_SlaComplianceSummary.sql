@@ -18,7 +18,7 @@ SELECT
     -- User dimension
     ct.AssignedTo
 FROM workflow.CompletedTasks ct
-         LEFT JOIN appraisal.Appraisals a ON a.Id = ct.CorrelationId
+         LEFT JOIN appraisal.Appraisals a ON a.RequestId = ct.CorrelationId
          LEFT JOIN (
     SELECT
         AppraisalId,

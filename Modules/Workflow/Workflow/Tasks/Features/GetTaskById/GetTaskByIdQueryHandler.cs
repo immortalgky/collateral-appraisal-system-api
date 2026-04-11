@@ -12,16 +12,16 @@ public class GetTaskByIdQueryHandler(
 {
     private const string Sql = """
         SELECT
-            Id                              AS TaskId,
-            CorrelationId                   AS AppraisalId,
-            WorkflowInstanceId,
-            ActivityId,
-            AssignedTo                      AS AssigneeUserId,
-            AssignedType,
-            CAST(TaskName AS nvarchar(100)) AS TaskName,
-            TaskDescription
-        FROM workflow.PendingTasks
-        WHERE Id = @TaskId
+            pt.Id                              AS TaskId,
+            (SELECT TOP 1 Id FROM appraisal.Appraisals WHERE RequestId = pt.CorrelationId) AS AppraisalId,
+            pt.WorkflowInstanceId,
+            pt.ActivityId,
+            pt.AssignedTo                      AS AssigneeUserId,
+            pt.AssignedType,
+            CAST(pt.TaskName AS nvarchar(100)) AS TaskName,
+            pt.TaskDescription
+        FROM workflow.PendingTasks pt
+        WHERE pt.Id = @TaskId
         """;
 
     public async Task<TaskDetailResult> Handle(
@@ -58,7 +58,7 @@ public class GetTaskByIdQueryHandler(
 
     private sealed record TaskDetailDto(
         Guid TaskId,
-        Guid AppraisalId,
+        Guid? AppraisalId,
         Guid WorkflowInstanceId,
         string ActivityId,
         string AssigneeUserId,
