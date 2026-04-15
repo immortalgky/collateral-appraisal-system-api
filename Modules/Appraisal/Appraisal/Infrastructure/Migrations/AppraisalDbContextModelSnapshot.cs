@@ -2296,6 +2296,261 @@ namespace Appraisal.Infrastructure.Migrations
                     b.ToTable("GroupValuations", "appraisal");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeAnalysis", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<decimal>("CapitalizeRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("DiscountedRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("FinalValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("FinalValueRounded")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("PricingAnalysisMethodId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TemplateCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TemplateName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("TotalNumberOfDayInYear")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(365);
+
+                    b.Property<int>("TotalNumberOfYears")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PricingAnalysisMethodId")
+                        .IsUnique();
+
+                    b.ToTable("IncomeAnalyses", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeAssumption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("AssumptionName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("AssumptionType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DisplaySeq")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Identifier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("IncomeCategoryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TotalAssumptionValuesJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("[]");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncomeCategoryId");
+
+                    b.ToTable("IncomeAssumptions", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CategoryName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CategoryType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DisplaySeq")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Identifier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("IncomeSectionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TotalCategoryValuesJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("[]");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncomeSectionId");
+
+                    b.ToTable("IncomeCategories", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeSection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DisplaySeq")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Identifier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("IncomeAnalysisId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SectionName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SectionType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TotalSectionValuesJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("[]");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncomeAnalysisId");
+
+                    b.ToTable("IncomeSections", "appraisal");
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.LawAndRegulation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9480,6 +9735,145 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeAnalysis", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.PricingAnalysisMethod", null)
+                        .WithOne("IncomeAnalysis")
+                        .HasForeignKey("Appraisal.Domain.Appraisals.Income.IncomeAnalysis", "PricingAnalysisMethodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Appraisal.Domain.Appraisals.Income.IncomeSummary", "Summary", b1 =>
+                        {
+                            b1.Property<Guid>("IncomeAnalysisId")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("ContractRentalFeeJson")
+                                .IsRequired()
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("nvarchar(max)")
+                                .HasDefaultValue("[]")
+                                .HasColumnName("Summary_ContractRentalFeeJson");
+
+                            b1.Property<string>("DiscountJson")
+                                .IsRequired()
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("nvarchar(max)")
+                                .HasDefaultValue("[]")
+                                .HasColumnName("Summary_DiscountJson");
+
+                            b1.Property<string>("GrossRevenueJson")
+                                .IsRequired()
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("nvarchar(max)")
+                                .HasDefaultValue("[]")
+                                .HasColumnName("Summary_GrossRevenueJson");
+
+                            b1.Property<string>("GrossRevenueProportionalJson")
+                                .IsRequired()
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("nvarchar(max)")
+                                .HasDefaultValue("[]")
+                                .HasColumnName("Summary_GrossRevenueProportionalJson");
+
+                            b1.Property<string>("PresentValueJson")
+                                .IsRequired()
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("nvarchar(max)")
+                                .HasDefaultValue("[]")
+                                .HasColumnName("Summary_PresentValueJson");
+
+                            b1.Property<string>("TerminalRevenueJson")
+                                .IsRequired()
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("nvarchar(max)")
+                                .HasDefaultValue("[]")
+                                .HasColumnName("Summary_TerminalRevenueJson");
+
+                            b1.Property<string>("TotalNetJson")
+                                .IsRequired()
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("nvarchar(max)")
+                                .HasDefaultValue("[]")
+                                .HasColumnName("Summary_TotalNetJson");
+
+                            b1.HasKey("IncomeAnalysisId");
+
+                            b1.ToTable("IncomeAnalyses", "appraisal");
+
+                            b1.WithOwner()
+                                .HasForeignKey("IncomeAnalysisId");
+                        });
+
+                    b.Navigation("Summary")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeAssumption", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.Income.IncomeCategory", null)
+                        .WithMany("Assumptions")
+                        .HasForeignKey("IncomeCategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Appraisal.Domain.Appraisals.Income.IncomeMethod", "Method", b1 =>
+                        {
+                            b1.Property<Guid>("IncomeAssumptionId")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("DetailJson")
+                                .IsRequired()
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("nvarchar(max)")
+                                .HasDefaultValue("{}")
+                                .HasColumnName("Method_DetailJson");
+
+                            b1.Property<string>("MethodTypeCode")
+                                .IsRequired()
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("Method_MethodTypeCode");
+
+                            b1.Property<string>("TotalMethodValuesJson")
+                                .IsRequired()
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("nvarchar(max)")
+                                .HasDefaultValue("[]")
+                                .HasColumnName("Method_TotalMethodValuesJson");
+
+                            b1.HasKey("IncomeAssumptionId");
+
+                            b1.ToTable("IncomeAssumptions", "appraisal");
+
+                            b1.WithOwner()
+                                .HasForeignKey("IncomeAssumptionId");
+                        });
+
+                    b.Navigation("Method")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeCategory", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.Income.IncomeSection", null)
+                        .WithMany("Categories")
+                        .HasForeignKey("IncomeSectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeSection", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.Income.IncomeAnalysis", null)
+                        .WithMany("Sections")
+                        .HasForeignKey("IncomeAnalysisId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.LawAndRegulationImage", b =>
                 {
                     b.HasOne("Appraisal.Domain.Appraisals.LawAndRegulation", null)
@@ -10541,6 +10935,21 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Navigation("PaymentHistory");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeAnalysis", b =>
+                {
+                    b.Navigation("Sections");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeCategory", b =>
+                {
+                    b.Navigation("Assumptions");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeSection", b =>
+                {
+                    b.Navigation("Categories");
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.LawAndRegulation", b =>
                 {
                     b.Navigation("Images");
@@ -10574,6 +10983,8 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Navigation("FactorScores");
 
                     b.Navigation("FinalValue");
+
+                    b.Navigation("IncomeAnalysis");
 
                     b.Navigation("LeaseholdAnalysis");
 

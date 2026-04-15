@@ -62,7 +62,7 @@ public class RequestSubmittedEventHandler(
             RequestedAt = notification.Request.RequestedAt
         };
 
-        outbox.Publish(integrationEvent, notification.Request.Id.ToString());
+        outbox.Publish(integrationEvent, correlationId: notification.Request.Id.ToString());
 
         logger.LogInformation(
             "Published RequestSubmittedIntegrationEvent for RequestId: {RequestId} with {TitleCount} titles",

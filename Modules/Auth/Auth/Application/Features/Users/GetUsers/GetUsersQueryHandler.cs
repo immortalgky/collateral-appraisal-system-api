@@ -23,6 +23,12 @@ public class GetUsersQueryHandler(UserManager<ApplicationUser> userManager, Auth
         else if (query.Scope == "Company")
             q = q.Where(u => u.CompanyId != null);
 
+        // Role filter: restrict to users who have a role with the given name
+        if (!string.IsNullOrWhiteSpace(query.Role))
+            q = q.Where(u => dbContext.UserRoles
+                .Any(ur => ur.UserId == u.Id &&
+                           dbContext.Roles.Any(r => r.Id == ur.RoleId && r.Name == query.Role)));
+
         var total = await q.LongCountAsync(cancellationToken);
 
         var pageSize = query.PageSize;

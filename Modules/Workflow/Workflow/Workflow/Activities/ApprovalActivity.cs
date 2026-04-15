@@ -97,6 +97,10 @@ public class ApprovalActivity : WorkflowActivityBase
                     ? parsed
                     : context.WorkflowInstance.Id;
 
+            var appraisalNumber = context.WorkflowInstance.Variables.TryGetValue("appraisalNumber", out var appraisalNumObj)
+                ? appraisalNumObj?.ToString()
+                : null;
+
             // Publish event to create PendingTasks for all members
             await _publisher.Publish(new ApprovalTasksAssignedEvent(
                 correlationGuid,
@@ -107,7 +111,8 @@ public class ApprovalActivity : WorkflowActivityBase
                 context.ActivityId,
                 dueAt,
                 context.WorkflowInstance.StartedBy,
-                context.WorkflowInstance.Name), cancellationToken);
+                context.WorkflowInstance.Name,
+                appraisalNumber), cancellationToken);
 
             _logger.LogInformation(
                 "ApprovalActivity {ActivityId} started with {MemberCount} members, committee={CommitteeCode}",

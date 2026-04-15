@@ -1,3 +1,4 @@
+using Appraisal.Domain.Appraisals;
 using Request.Contracts.Requests.Dtos;
 using Shared.Identity;
 
@@ -60,7 +61,7 @@ public class AppraisalCreationService(
         // Step 3: Create Appraisal aggregate
         var appraisal = Domain.Appraisals.Appraisal.Create(
             requestId,
-            "Initial",
+            AppraisalTypes.New,
             priority ?? "Normal",
             30, // TODO: Default SLA of 30 days
             requestedBy ?? createdBy,

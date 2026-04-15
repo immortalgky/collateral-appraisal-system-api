@@ -50,7 +50,7 @@ public class GetCommitteeByIdQueryHandler(
             committee.IsActive, committee.QuorumType.ToString(), committee.QuorumValue,
             committee.MajorityType.ToString(),
             committee.Members.Select(m => new CommitteeMemberDto(
-                m.Id, m.UserId, m.MemberName, m.Role.ToString(), m.IsActive)).ToList(),
+                m.Id, m.UserId, m.MemberName, m.Position.ToString(), m.IsActive)).ToList(),
             committee.Thresholds.Select(t => new CommitteeThresholdDto(
                 t.Id, t.MinValue, t.MaxValue, t.Priority, t.IsActive)).ToList(),
             committee.Conditions.Select(c => new CommitteeConditionDto(

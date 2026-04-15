@@ -113,6 +113,20 @@ public class MeetingActivity : WorkflowActivityBase
         if (resumeInput.TryGetValue("cancelReason", out var reason))
             outputData[$"{normalized}_cancelReason"] = reason;
 
+        // Propagate meeting member user IDs so downstream ApprovalActivity can consume
+        // them as its approver list (released items only).
+        if (resumeInput.TryGetValue("meetingMemberUserIds", out var memberIds))
+        {
+            outputData[$"{normalized}_meetingMemberUserIds"] = memberIds;
+            outputData["meetingMemberUserIds"] = memberIds;
+        }
+
+        if (resumeInput.TryGetValue("routeBackReason", out var routeBackReason))
+            outputData[$"{normalized}_routeBackReason"] = routeBackReason;
+
+        if (resumeInput.TryGetValue("completedBy", out var completedBy))
+            outputData[$"{normalized}_completedBy"] = completedBy;
+
         return Task.FromResult(ActivityResult.Success(outputData));
     }
 }

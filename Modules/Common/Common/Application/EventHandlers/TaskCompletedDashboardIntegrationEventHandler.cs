@@ -26,35 +26,31 @@ public class TaskCompletedDashboardIntegrationEventHandler(
 
         var completedBy = message.CompletedBy;
         if (string.IsNullOrEmpty(completedBy))
+        {
+            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
             return;
+        }
+
+        // Decrement the bucket the task previously occupied on the original assignee.
+        var originalAssignedTo = string.IsNullOrEmpty(message.OriginalAssignedTo)
+            ? completedBy
+            : message.OriginalAssignedTo;
 
         var connection = connectionFactory.GetOpenConnection();
-        var today = DateTime.UtcNow.Date;
-
-        // Update DailyTaskSummary — decrement InProgress, increment Completed
-        await connection.ExecuteAsync("""
-            MERGE common.DailyTaskSummaries AS target
-            USING (SELECT @Date AS Date, @Username AS Username) AS source
-            ON target.Date = source.Date AND target.Username = source.Username
-            WHEN MATCHED THEN
-                UPDATE SET InProgress = CASE WHEN InProgress > 0 THEN InProgress - 1 ELSE 0 END,
-                           Completed = Completed + 1,
-                           LastUpdatedAt = @Now
-            WHEN NOT MATCHED THEN
-                INSERT (Date, Username, NotStarted, InProgress, Overdue, Completed, LastUpdatedAt)
-                VALUES (@Date, @Username, 0, 0, 0, 1, @Now);
-            """,
-            new { Date = today, Username = completedBy, Now = DateTime.UtcNow });
-
-        // Update TeamWorkloadSummary
         await connection.ExecuteAsync("""
             UPDATE common.TeamWorkloadSummaries
-            SET InProgress = CASE WHEN InProgress > 0 THEN InProgress - 1 ELSE 0 END,
-                Completed = Completed + 1,
+            SET
+                NotStarted = CASE WHEN @WasStarted = 0 AND NotStarted > 0 THEN NotStarted - 1 ELSE NotStarted END,
+                InProgress = CASE WHEN @WasStarted = 1 AND InProgress > 0 THEN InProgress - 1 ELSE InProgress END,
                 LastUpdatedAt = @Now
             WHERE Username = @Username
             """,
-            new { Username = completedBy, Now = DateTime.UtcNow });
+            new
+            {
+                Username = originalAssignedTo,
+                WasStarted = message.WasStarted ? 1 : 0,
+                Now = DateTime.UtcNow
+            });
 
         await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }

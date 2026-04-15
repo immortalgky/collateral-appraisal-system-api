@@ -14,6 +14,7 @@ public sealed class CancelWorkflowCommandHandler : IRequestHandler<CancelWorkflo
     private readonly IWorkflowOutboxRepository _outboxRepository;
     private readonly IWorkflowResilienceService _resilienceService;
     private readonly IWorkflowFaultHandler _faultHandler;
+    private readonly IWorkflowBookmarkRepository _bookmarkRepository;
     private readonly ILogger<CancelWorkflowCommandHandler> _logger;
 
     public CancelWorkflowCommandHandler(
@@ -21,12 +22,14 @@ public sealed class CancelWorkflowCommandHandler : IRequestHandler<CancelWorkflo
         IWorkflowOutboxRepository outboxRepository,
         IWorkflowResilienceService resilienceService,
         IWorkflowFaultHandler faultHandler,
+        IWorkflowBookmarkRepository bookmarkRepository,
         ILogger<CancelWorkflowCommandHandler> logger)
     {
         _workflowInstanceRepository = workflowInstanceRepository;
         _outboxRepository = outboxRepository;
         _resilienceService = resilienceService;
         _faultHandler = faultHandler;
+        _bookmarkRepository = bookmarkRepository;
         _logger = logger;
     }
 
@@ -59,8 +62,9 @@ public sealed class CancelWorkflowCommandHandler : IRequestHandler<CancelWorkflo
                         $"Cannot cancel workflow in {workflowInstance.Status} status");
                 }
 
-                // 3. Update workflow status with cancellation details
+                // 3. Update workflow status and consume pending bookmarks
                 workflowInstance.UpdateStatus(WorkflowStatus.Cancelled, request.Reason ?? "Workflow cancelled");
+                await ConsumeWorkflowBookmarksAsync(request.WorkflowInstanceId, request.CancelledBy, ct);
 
                 // 4. Attempt optimistic concurrency update
                 var maxRetries = 3;
@@ -98,6 +102,9 @@ public sealed class CancelWorkflowCommandHandler : IRequestHandler<CancelWorkflo
 
                                 latestInstance.UpdateStatus(WorkflowStatus.Cancelled, request.Reason ?? "Workflow cancelled");
                                 workflowInstance = latestInstance;
+
+                                // Re-fetch and consume bookmarks on retry
+                                await ConsumeWorkflowBookmarksAsync(request.WorkflowInstanceId, request.CancelledBy, ct);
 
                                 await Task.Delay(TimeSpan.FromMilliseconds(100 * attemptCount), ct);
                             }
@@ -174,5 +181,20 @@ public sealed class CancelWorkflowCommandHandler : IRequestHandler<CancelWorkflo
 
         _logger.LogDebug("COMMAND: Queued WorkflowCancelled event for workflow {WorkflowId}",
             workflowInstance.Id);
+    }
+
+    private async Task ConsumeWorkflowBookmarksAsync(
+        Guid workflowInstanceId,
+        string cancelledBy,
+        CancellationToken cancellationToken)
+    {
+        var pendingBookmarks = await _bookmarkRepository.GetByWorkflowInstanceAsync(
+            workflowInstanceId, onlyUnconsumed: true, cancellationToken);
+
+        foreach (var bookmark in pendingBookmarks)
+        {
+            if (!bookmark.IsConsumed)
+                bookmark.Consume(cancelledBy);
+        }
     }
 }

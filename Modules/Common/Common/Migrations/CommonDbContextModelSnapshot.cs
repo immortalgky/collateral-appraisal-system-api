@@ -67,35 +67,6 @@ namespace Common.Migrations
                     b.ToTable("DailyAppraisalCounts", "common");
                 });
 
-            modelBuilder.Entity("Common.Domain.ReadModels.DailyTaskSummary", b =>
-                {
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Username")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<int>("Completed")
-                        .HasColumnType("int");
-
-                    b.Property<int>("InProgress")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("LastUpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("NotStarted")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Overdue")
-                        .HasColumnType("int");
-
-                    b.HasKey("Date", "Username");
-
-                    b.ToTable("DailyTaskSummaries", "common");
-                });
-
             modelBuilder.Entity("Common.Domain.ReadModels.RequestStatusSummary", b =>
                 {
                     b.Property<string>("Status")

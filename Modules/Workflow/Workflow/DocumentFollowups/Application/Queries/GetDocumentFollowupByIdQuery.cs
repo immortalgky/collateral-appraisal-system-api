@@ -1,3 +1,4 @@
+using Auth.Contracts.Users;
 using Shared.Identity;
 using Workflow.DocumentFollowups.Domain;
 
@@ -7,7 +8,8 @@ public record GetDocumentFollowupByIdQuery(Guid FollowupId) : IRequest<DocumentF
 
 public class GetDocumentFollowupByIdQueryHandler(
     WorkflowDbContext dbContext,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser,
+    IUserLookupService userLookupService)
     : IRequestHandler<GetDocumentFollowupByIdQuery, DocumentFollowupDto?>
 {
     public async Task<DocumentFollowupDto?> Handle(GetDocumentFollowupByIdQuery request, CancellationToken cancellationToken)
@@ -41,19 +43,22 @@ public class GetDocumentFollowupByIdQueryHandler(
         if (!isRaisingUser && !isFollowupAssignee)
             throw new UnauthorizedAccessException("Not authorized to view this document followup");
 
-        return Map(followup);
+        var userMap = await userLookupService.GetByUsernamesAsync(
+            new[] { followup.RaisingUserId }, cancellationToken);
+
+        return Map(followup, userMap);
     }
 
-    internal static DocumentFollowupDto Map(DocumentFollowup f) => new(
+    internal static DocumentFollowupDto Map(
+        DocumentFollowup f,
+        IReadOnlyDictionary<string, UserLookupDto> userMap) => new(
         Id: f.Id,
         ParentAppraisalId: f.AppraisalId,
         RequestId: f.RequestId,
         RaisingWorkflowInstanceId: f.RaisingWorkflowInstanceId,
         RaisingTaskId: f.RaisingPendingTaskId,
         RaisingActivityId: f.RaisingActivityId,
-        // DisplayName is best-effort: no user-lookup service exists yet in this module.
-        // Frontend must tolerate a null DisplayName until one is wired up.
-        RaisedBy: new DocumentFollowupUserRef(f.RaisingUserId, DisplayName: null),
+        RaisedBy: BuildUserRef(f.RaisingUserId, userMap),
         FollowupWorkflowInstanceId: f.FollowupWorkflowInstanceId,
         Status: f.Status.ToString(),
         CancellationReason: f.CancellationReason,
@@ -63,18 +68,37 @@ public class GetDocumentFollowupByIdQueryHandler(
             li.Id, li.DocumentType, li.Notes, li.Status.ToString(),
             li.Reason, li.DocumentId, li.ResolvedAt)).ToList());
 
-    internal static DocumentFollowupSummaryDto MapSummary(DocumentFollowup f) => new(
+    internal static DocumentFollowupSummaryDto MapSummary(
+        DocumentFollowup f,
+        IReadOnlyDictionary<string, UserLookupDto> userMap) => new(
         Id: f.Id,
         ParentAppraisalId: f.AppraisalId,
         RequestId: f.RequestId,
         RaisingWorkflowInstanceId: f.RaisingWorkflowInstanceId,
         RaisingTaskId: f.RaisingPendingTaskId,
         RaisingActivityId: f.RaisingActivityId,
-        RaisedBy: new DocumentFollowupUserRef(f.RaisingUserId, DisplayName: null),
+        RaisedBy: BuildUserRef(f.RaisingUserId, userMap),
         FollowupWorkflowInstanceId: f.FollowupWorkflowInstanceId,
         Status: f.Status.ToString(),
         RaisedAt: f.RaisedAt,
         ResolvedAt: f.ResolvedAt,
         LineItemCount: f.LineItems.Count,
         PendingCount: f.LineItems.Count(li => li.Status == DocumentFollowupLineItemStatus.Pending));
+
+    internal static DocumentFollowupUserRef BuildUserRef(
+        string? userId,
+        IReadOnlyDictionary<string, UserLookupDto> userMap)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            return new DocumentFollowupUserRef(string.Empty, string.Empty);
+
+        if (userMap.TryGetValue(userId, out var user))
+        {
+            var displayName = $"{user.FirstName} {user.LastName}".Trim();
+            if (string.IsNullOrWhiteSpace(displayName))
+                displayName = userId;
+            return new DocumentFollowupUserRef(userId, displayName);
+        }
+        return new DocumentFollowupUserRef(userId, userId);
+    }
 }

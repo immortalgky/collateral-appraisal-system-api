@@ -3,10 +3,10 @@ namespace Workflow.Tasks.ValueObjects;
 public record TaskStatus
 {
     public string Code { get; }
-    public static TaskStatus Assigned => new("ASSIGNED"); // Created by saga
-    public static TaskStatus InProgress => new("IN_PROGRESS"); // User started working
-    public static TaskStatus Completing => new("COMPLETING"); // User submitted completion
-    public static TaskStatus Completed => new("COMPLETED"); // Moved to CompletedTask
+    public static TaskStatus Assigned => new("Assigned"); // Created by saga
+    public static TaskStatus InProgress => new("InProgress"); // User started working
+    public static TaskStatus Completing => new("Completing"); // User submitted completion
+    public static TaskStatus Completed => new("Completed"); // Moved to CompletedTask
 
     private TaskStatus(string code)
     {

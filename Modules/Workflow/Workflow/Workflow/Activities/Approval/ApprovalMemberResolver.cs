@@ -156,7 +156,7 @@ public class ApprovalMemberResolver(
             throw new InvalidOperationException($"Committee '{committee.Code}' has no active members");
 
         var members = activeMembers
-            .Select(m => new ApprovalMemberInfo(m.UserId, m.Role.ToString()))
+            .Select(m => new ApprovalMemberInfo(m.UserId, m.Position.ToString()))
             .ToList();
 
         var quorum = new QuorumConfig(committee.QuorumType.ToString(), committee.QuorumValue);

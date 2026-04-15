@@ -9,12 +9,13 @@ public class GetUsersEndpoint : ICarterModule
                 async (
                     string? search,
                     string? scope,
+                    string? role,
                     int pageNumber = 1,
                     int pageSize = 20,
                     ISender sender = default!,
                     CancellationToken cancellationToken = default) =>
                 {
-                    var query = new GetUsersQuery(search, scope, pageNumber, pageSize);
+                    var query = new GetUsersQuery(search, scope, role, pageNumber, pageSize);
                     var result = await sender.Send(query, cancellationToken);
                     var response = result.Adapt<GetUsersResponse>();
                     return Results.Ok(response);

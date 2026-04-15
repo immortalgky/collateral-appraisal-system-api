@@ -7,6 +7,7 @@ public record GetTasksResult(PaginatedResult<TaskDto> Result);
 public record TaskDto
 {
     public Guid Id { get; init; }
+    public Guid? AppraisalId { get; init; }
     public Guid TaskId { get; init; }
     public Guid WorkflowInstanceId { get; init; }
     public string? ActivityId { get; init; }

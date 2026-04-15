@@ -65,7 +65,7 @@ public class GetMyTasksQueryHandlerTests
     public void GetMyTasksFilterRequest_ShouldNotHaveAssigneeUserId()
     {
         // Verify the filter request doesn't expose AssigneeUserId
-        var filter = new GetMyTasksFilterRequest("Active", "High", "Appraisal");
+        var filter = new GetMyTasksFilterRequest(null, "Active", "High", "Appraisal");
 
         filter.Status.Should().Be("Active");
         filter.Priority.Should().Be("High");

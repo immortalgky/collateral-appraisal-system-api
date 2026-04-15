@@ -38,13 +38,13 @@ public class AuthDataSeed(
         await SeedRoleWithPermissionsAsync(MeetingSecretaryRoleName,
             "Meeting Secretary — creates, schedules, updates, and ends approval meetings.",
             scope: "Bank",
-            ["MEETING_MANAGE"]);
+            ["MEETING_MANAGE", "MEETING_SECRETARY"]);
         await SeedRoleWithPermissionsAsync(IntAdminRoleName,
             "Internal Admin — manages workflow assignments, appraisals, meetings, and internal staff.",
             scope: "Bank",
             ["DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
              "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW",
-             "MEETING_MANAGE", "WORKFLOW_MANAGE", "USER_MANAGE"]);
+             "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE"]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
             "External Company Admin — manages external company users and external appraisal assignments.",
             scope: "Company",
@@ -54,7 +54,7 @@ public class AuthDataSeed(
             "Request Maker — creates appraisal requests and handles initiation tasks.",
             scope: "Bank",
             ["DASHBOARD_VIEW", "REQUEST_VIEW", "REQUEST_CREATE", "TASK_LIST_VIEW",
-             "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION"]);
+             "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION", "TASK_PROVIDE_ADDITIONAL_DOCS"]);
         await SeedRoleWithPermissionsAsync(RequestCheckerRoleName,
             "Request Checker — reviews and approves incoming appraisal requests.",
             scope: "Bank",
@@ -93,7 +93,7 @@ public class AuthDataSeed(
             "Appraisal Committee — approves appraisals in committee meetings.",
             scope: "Bank",
             ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "MEETING_MANAGE"]);
+             "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "MEETING_MANAGE", "COMMITTEE_MEMBER"]);
         await SeedUsersAsync();
         await SeedClientsAsync();
         await SeedCompaniesAsync();
@@ -373,6 +373,9 @@ public class AuthDataSeed(
             ("USER_CHANGE_PASSWORD", "Change Any User Password", "Allow changing password for any local user", "Auth"),
             ("USER_RESET_PASSWORD", "Reset User Password", "Allow resetting password for any local user without current password", "Auth"),
             ("MEETING_MANAGE", "Manage Meetings", "Create, schedule, update, cancel, and end approval meetings", "Workflow"),
+            ("MEETING_ADMIN", "Meeting Admin", "Create, schedule, cut-off, cancel, and end approval meetings", "Workflow"),
+            ("MEETING_SECRETARY", "Meeting Secretary", "After meeting ends, release each appraisal to approvers or route back to appraisal team", "Workflow"),
+            ("COMMITTEE_MEMBER", "Committee Member", "Participate in committee meetings — view meeting details, agenda, and appraisal items", "Workflow"),
             // --- DB-driven navigation menu feature ---
             ("MENU_MANAGE", "Manage Menus", "Create, update, and delete navigation menu items", "Auth"),
             ("REQUEST_VIEW", "View Requests", "View appraisal requests", "Request"),
@@ -397,6 +400,7 @@ public class AuthDataSeed(
             ("TASK_INT_APPR_CHECK", "Task: Internal Appraisal Check", "Access internal appraisal check tasks", "Workflow"),
             ("TASK_INT_APPR_VERIFICATION", "Task: Internal Appraisal Verification", "Access internal appraisal verification tasks", "Workflow"),
             ("TASK_PENDING_APPROVAL", "Task: Pending Approval", "Access pending approval tasks", "Workflow"),
+            ("TASK_PROVIDE_ADDITIONAL_DOCS", "Task: Provide Additional Documents", "Access document followup tasks raised by checkers", "Workflow"),
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)

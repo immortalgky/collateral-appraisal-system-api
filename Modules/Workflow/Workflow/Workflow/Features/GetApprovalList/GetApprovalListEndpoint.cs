@@ -66,7 +66,7 @@ public record ApprovalConditionStatus(
 public record MeetingReference(
     Guid MeetingId,
     string Title,
-    DateTime? ScheduledAt,
+    DateTime? StartAt,
     DateTime? EndedAt);
 
 public class GetApprovalListQueryHandler(
@@ -151,11 +151,11 @@ public class GetApprovalListQueryHandler(
                              join m in dbContext.Meetings on mi.MeetingId equals m.Id
                              where mi.WorkflowInstanceId == query.WorkflowInstanceId
                              orderby mi.AddedAt descending
-                             select new { m.Id, m.Title, m.ScheduledAt, m.EndedAt, m.Status })
+                             select new { m.Id, m.Title, m.StartAt, m.EndedAt, m.Status })
                            .FirstOrDefaultAsync(ct);
         if (meeting is not null)
         {
-            meetingRef = new MeetingReference(meeting.Id, meeting.Title, meeting.ScheduledAt, meeting.EndedAt);
+            meetingRef = new MeetingReference(meeting.Id, meeting.Title, meeting.StartAt, meeting.EndedAt);
         }
 
         return new GetApprovalListResponse(

@@ -28,14 +28,14 @@ public class RequestCreatedDashboardEventHandler(
 
         // Increment count for the initial status (NEW/DRAFT depending on flow)
         await connection.ExecuteAsync("""
-            MERGE common.RequestStatusSummaries AS target
-            USING (SELECT 'DRAFT' AS Status) AS source
+            MERGE common.RequestStatusSummaries WITH (HOLDLOCK) AS target
+            USING (SELECT 'Draft' AS Status) AS source
             ON target.Status = source.Status
             WHEN MATCHED THEN
                 UPDATE SET Count = Count + 1, LastUpdatedAt = @Now
             WHEN NOT MATCHED THEN
                 INSERT (Status, Count, LastUpdatedAt)
-                VALUES ('DRAFT', 1, @Now);
+                VALUES ('Draft', 1, @Now);
             """,
             new { Now = DateTime.UtcNow });
 

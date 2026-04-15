@@ -9,6 +9,7 @@ using Workflow.Data;
 using Workflow.EventHandlers;
 using Workflow.Workflow.Models;
 using Workflow.Workflow.Repositories;
+using Workflow.Workflow.Services;
 using Xunit;
 
 namespace Workflow.Tests.EventHandlers;
@@ -36,9 +37,11 @@ public class AppraisalCreatedIntegrationEventConsumerTests
         instanceRepository.GetByCorrelationId(requestId.ToString(), Arg.Any<CancellationToken>())
             .Returns(instance);
 
+        var signalDispatcher = Substitute.For<IWorkflowSignalDispatcher>();
+
         var consumer = new AppraisalCreatedIntegrationEventConsumer(
             Substitute.For<ILogger<AppraisalCreatedIntegrationEventConsumer>>(),
-            instanceRepository, unitOfWork, inboxGuard);
+            instanceRepository, signalDispatcher, unitOfWork, inboxGuard);
 
         var ctx = BuildContext(new AppraisalCreatedIntegrationEvent
         {
@@ -55,7 +58,14 @@ public class AppraisalCreatedIntegrationEventConsumerTests
         instance.Variables["appraisalId"].Should().Be(appraisalId);
         instance.Variables["appraisalNumber"].Should().Be("APR-001");
         instance.Variables["appraisalType"].Should().Be("Initial");
+        await unitOfWork.Received(1).BeginTransactionAsync(Arg.Any<CancellationToken>());
+        await signalDispatcher.Received(1).DispatchAsync(
+            WorkflowSignals.AppraisalCreated,
+            requestId.ToString(),
+            Arg.Is<Dictionary<string, object>>(d => (Guid)d["appraisalId"] == appraisalId),
+            Arg.Any<CancellationToken>());
         await unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await unitOfWork.Received(1).CommitTransactionAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -72,9 +82,11 @@ public class AppraisalCreatedIntegrationEventConsumerTests
         instanceRepository.GetByCorrelationId(requestId.ToString(), Arg.Any<CancellationToken>())
             .Returns((WorkflowInstance?)null);
 
+        var signalDispatcher = Substitute.For<IWorkflowSignalDispatcher>();
+
         var consumer = new AppraisalCreatedIntegrationEventConsumer(
             Substitute.For<ILogger<AppraisalCreatedIntegrationEventConsumer>>(),
-            instanceRepository, unitOfWork, inboxGuard);
+            instanceRepository, signalDispatcher, unitOfWork, inboxGuard);
 
         var ctx = BuildContext(new AppraisalCreatedIntegrationEvent
         {
@@ -87,6 +99,9 @@ public class AppraisalCreatedIntegrationEventConsumerTests
         await consumer.Consume(ctx);
 
         await unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        await signalDispatcher.DidNotReceive().DispatchAsync(
+            Arg.Any<string>(), Arg.Any<string>(),
+            Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>());
     }
 
     // ── Helpers ──

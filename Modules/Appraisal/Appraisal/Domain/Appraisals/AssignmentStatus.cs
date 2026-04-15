@@ -14,29 +14,23 @@ public class AssignmentStatus : ValueObject
     }
 
     // Predefined statuses
-    public static AssignmentStatus Pending => new("PENDING");
-    public static AssignmentStatus Assigned => new("ASSIGNED");
-    public static AssignmentStatus InProgress => new("IN_PROGRESS");
-    public static AssignmentStatus Completed => new("COMPLETED");
-    public static AssignmentStatus Rejected => new("REJECTED");
-    public static AssignmentStatus Cancelled => new("CANCELLED");
+    public static AssignmentStatus Pending => new("Pending");
+    public static AssignmentStatus Assigned => new("Assigned");
+    public static AssignmentStatus InProgress => new("InProgress");
+    public static AssignmentStatus Completed => new("Completed");
+    public static AssignmentStatus Rejected => new("Rejected");
+    public static AssignmentStatus Cancelled => new("Cancelled");
 
     // Factory method from string
     public static AssignmentStatus FromString(string code)
     {
         return code switch
         {
-            "PENDING" => Pending,
             "Pending" => Pending,
-            "ASSIGNED" => Assigned,
             "Assigned" => Assigned,
-            "IN_PROGRESS" => InProgress,
             "InProgress" => InProgress,
-            "COMPLETED" => Completed,
             "Completed" => Completed,
-            "REJECTED" => Rejected,
             "Rejected" => Rejected,
-            "CANCELLED" => Cancelled,
             "Cancelled" => Cancelled,
             _ => throw new ArgumentException($"Invalid assignment status: {code}")
         };

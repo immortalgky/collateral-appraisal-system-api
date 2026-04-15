@@ -47,6 +47,7 @@ public static class MenuSeedData
                 new("main.task.int-appraisal-check", "Internal Appraisal Check", "magnifying-glass-check", IconStyle.Solid, "text-purple-500", "/tasks?activityId=int-appraisal-check", "TASK_INT_APPR_CHECK", null),
                 new("main.task.int-appraisal-verification", "Internal Appraisal Verification", "badge-check", IconStyle.Solid, "text-purple-500", "/tasks?activityId=int-appraisal-verification", "TASK_INT_APPR_VERIFICATION", null),
                 new("main.task.pending-approval", "Pending Approval", "hourglass-half", IconStyle.Solid, "text-purple-500", "/tasks?activityId=pending-approval", "TASK_PENDING_APPROVAL", null),
+                new("main.task.provide-additional-documents", "Provide Additional Documents", "file-circle-plus", IconStyle.Solid, "text-purple-500", "/tasks?activityId=provide-additional-documents", "TASK_PROVIDE_ADDITIONAL_DOCS", null),
             }),
         new("main.appraisal", "Appraisal", "magnifying-glass-chart", IconStyle.Solid, "text-cyan-500", "/appraisals", "APPRAISAL_VIEW", null,
             new List<MenuSeedNode>

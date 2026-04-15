@@ -16,7 +16,7 @@ public class MeetingQueueItemConfiguration : IEntityTypeConfiguration<MeetingQue
         builder.Property(q => q.WorkflowInstanceId).IsRequired();
         builder.Property(q => q.ActivityId).HasMaxLength(200).IsRequired();
         builder.Property(q => q.MeetingId);
-        builder.Property(q => q.Status).HasConversion(new ScreamingSnakeEnumConverter<MeetingQueueItemStatus>()).HasMaxLength(20).IsRequired();
+        builder.Property(q => q.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(q => q.EnqueuedAt).IsRequired();
 
         builder.HasIndex(q => q.Status);
@@ -25,6 +25,6 @@ public class MeetingQueueItemConfiguration : IEntityTypeConfiguration<MeetingQue
         // Filtered unique index: an appraisal can only be actively Assigned to one meeting.
         builder.HasIndex(q => q.AppraisalId)
             .IsUnique()
-            .HasFilter("[Status] = 'ASSIGNED'");
+            .HasFilter("[Status] = 'Assigned'");
     }
 }

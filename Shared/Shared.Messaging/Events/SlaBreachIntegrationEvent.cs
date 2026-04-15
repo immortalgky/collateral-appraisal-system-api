@@ -9,4 +9,5 @@ public record SlaBreachIntegrationEvent : IntegrationEvent
     public string SlaStatus { get; init; } = default!;
     public DateTime DueAt { get; init; }
     public DateTime DetectedAt { get; init; }
+    public DateTime AssignedAt { get; init; }
 }

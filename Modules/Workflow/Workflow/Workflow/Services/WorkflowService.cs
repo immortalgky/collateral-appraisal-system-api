@@ -316,11 +316,13 @@ public class WorkflowService : IWorkflowService
         var companyName = instance.Variables.TryGetValue("assignedCompanyName", out var cn)
             ? cn?.ToString() ?? "" : "";
         var method = instance.Variables.TryGetValue("assignmentMethod", out var am)
-            ? am?.ToString() ?? "MANUAL" : "MANUAL";
+            ? am?.ToString() ?? "Manual" : "Manual";
         var internalStaffId = instance.Variables.TryGetValue("internalFollowupStaffId", out var ifs)
             ? ifs?.ToString() : null;
         var internalFollowupMethod = instance.Variables.TryGetValue("internalFollowupMethod", out var ifm)
             ? ifm?.ToString() : null;
+
+        var appraisalNumber = instance.Variables.TryGetValue("appraisalNumber", out var an) ? an?.ToString() : null;
 
         _outbox.Publish(new CompanyAssignedIntegrationEvent
         {
@@ -329,7 +331,9 @@ public class WorkflowService : IWorkflowService
             CompanyName = companyName,
             AssignmentMethod = method,
             InternalAppraiserId = string.IsNullOrEmpty(internalStaffId) ? null : internalStaffId,
-            InternalFollowupAssignmentMethod = string.IsNullOrEmpty(internalFollowupMethod) ? null : internalFollowupMethod
+            InternalFollowupAssignmentMethod = string.IsNullOrEmpty(internalFollowupMethod) ? null : internalFollowupMethod,
+            CompletedBy = instance.LastCompletedBy,
+            AppraisalNumber = appraisalNumber
         }, correlationId: correlationId.ToString());
 
         _logger.LogInformation(
@@ -349,11 +353,13 @@ public class WorkflowService : IWorkflowService
         }
 
         var method = instance.Variables.TryGetValue("assignmentMethod", out var am)
-            && !string.IsNullOrEmpty(am?.ToString()) ? am.ToString()! : "ROUND_ROBIN";
+            && !string.IsNullOrEmpty(am?.ToString()) ? am.ToString()! : "RoundRobin";
         var followupMethod = instance.Variables.TryGetValue("internalFollowupMethod", out var ifm)
-            && !string.IsNullOrEmpty(ifm?.ToString()) ? ifm.ToString() : "ROUND_ROBIN";
+            && !string.IsNullOrEmpty(ifm?.ToString()) ? ifm.ToString() : "RoundRobin";
         var internalStaffId = instance.Variables.TryGetValue("internalFollowupStaffId", out var ifs)
             && !string.IsNullOrEmpty(ifs?.ToString()) ? ifs.ToString() : assigneeUserId;
+
+        var appraisalNumber = instance.Variables.TryGetValue("appraisalNumber", out var an) ? an?.ToString() : null;
 
         _outbox.Publish(new InternalAssignedIntegrationEvent
         {
@@ -361,7 +367,9 @@ public class WorkflowService : IWorkflowService
             AssigneeUserId = assigneeUserId,
             InternalAppraiserId = internalStaffId,
             AssignmentMethod = method,
-            InternalFollowupAssignmentMethod = followupMethod
+            InternalFollowupAssignmentMethod = followupMethod,
+            CompletedBy = instance.LastCompletedBy,
+            AppraisalNumber = appraisalNumber
         }, correlationId: correlationId.ToString());
 
         _logger.LogInformation(

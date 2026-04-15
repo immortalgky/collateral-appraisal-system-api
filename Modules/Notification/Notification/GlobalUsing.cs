@@ -6,4 +6,3 @@ global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Logging;
 global using Shared.Messaging.Events;
 global using Shared.CQRS;
-global using Shared.Data.Extensions;

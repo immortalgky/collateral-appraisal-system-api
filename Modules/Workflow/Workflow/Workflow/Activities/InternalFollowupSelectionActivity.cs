@@ -43,7 +43,7 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
         if (!string.IsNullOrEmpty(existingStaffId))
         {
             outputData["internalFollowupStaffId"] = existingStaffId;
-            outputData["internalFollowupMethod"] = string.IsNullOrEmpty(existingMethod) ? "MANUAL" : existingMethod;
+            outputData["internalFollowupMethod"] = string.IsNullOrEmpty(existingMethod) ? "Manual" : existingMethod;
             outputData["decision"] = "staff_selected";
 
             _logger.LogInformation(
@@ -59,7 +59,7 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
         if (result.IsSuccess)
         {
             outputData["internalFollowupStaffId"] = result.UserId!;
-            outputData["internalFollowupMethod"] = "ROUND_ROBIN";
+            outputData["internalFollowupMethod"] = "RoundRobin";
             outputData["decision"] = "staff_selected";
 
             _logger.LogInformation(

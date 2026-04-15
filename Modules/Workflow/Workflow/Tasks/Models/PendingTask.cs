@@ -1,8 +1,10 @@
+using Workflow.Workflow.Events;
+
 namespace Workflow.Tasks.Models;
 
 public class PendingTask : Aggregate<Guid>
 {
-    public Guid CorrelationId { get; private set; } = Guid.Empty!;
+    public Guid CorrelationId { get; private set; } = Guid.Empty;
     public string TaskName { get; private set; } = default!;
     public string? TaskDescription { get; private set; }
     public TaskStatus TaskStatus { get; private set; } = default!;
@@ -47,7 +49,7 @@ public class PendingTask : Aggregate<Guid>
         var task = new PendingTask(correlationId, taskName, assignedTo, assignedType, assignedAt,
             workflowInstanceId, activityId, taskDescription, movement);
         task.DueAt = dueAt;
-        task.SlaStatus = dueAt.HasValue ? "ON_TIME" : null;
+        task.SlaStatus = dueAt.HasValue ? "OnTime" : null;
         return task;
     }
 
@@ -57,19 +59,21 @@ public class PendingTask : Aggregate<Guid>
         AssignedType = newAssignedType;
         TaskStatus = TaskStatus.Assigned;
         WorkingBy = null;
+        LockedAt = null;
         // AssignedAt, DueAt, SlaStatus, SlaBreachedAt intentionally preserved —
         // reassignment must not reset the SLA clock.
     }
 
-    public void StartWorking(string username)
+    public void StartWorking(string username, string? previousAssignedTo = null)
     {
         WorkingBy = username;
         TaskStatus = TaskStatus.InProgress;
+        AddDomainEvent(new TaskStartedDomainEvent(CorrelationId, AssignedTo, AssignedAt, previousAssignedTo));
     }
 
     public void Lock(string username)
     {
-        if (WorkingBy != null && WorkingBy != username)
+        if (WorkingBy != null && !string.Equals(WorkingBy, username, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"Task is already locked by {WorkingBy}");
 
         WorkingBy = username;
@@ -82,22 +86,23 @@ public class PendingTask : Aggregate<Guid>
         LockedAt = null;
     }
 
-    public bool IsLockedBy(string username) => WorkingBy == username;
+    public bool IsLockedBy(string username) =>
+        string.Equals(WorkingBy, username, StringComparison.OrdinalIgnoreCase);
 
     public bool IsLockExpired(TimeSpan timeout) =>
         LockedAt.HasValue && LockedAt.Value.Add(timeout) < DateTime.UtcNow;
 
     public void MarkAtRisk()
     {
-        if (SlaStatus == "ON_TIME")
-            SlaStatus = "AT_RISK";
+        if (SlaStatus == "OnTime")
+            SlaStatus = "AtRisk";
     }
 
     public void MarkBreached(DateTime breachedAt)
     {
-        if (SlaStatus != "BREACHED")
+        if (SlaStatus != "Breached")
         {
-            SlaStatus = "BREACHED";
+            SlaStatus = "Breached";
             SlaBreachedAt = breachedAt;
         }
     }

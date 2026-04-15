@@ -65,8 +65,8 @@ public class CreateCommitteeCommandHandler(
         {
             foreach (var m in req.Members)
             {
-                var role = Enum.Parse<CommitteeMemberRole>(m.Role, ignoreCase: true);
-                committee.AddMember(m.UserId, m.MemberName, role);
+                var position = Enum.Parse<CommitteeMemberPosition>(m.Role, ignoreCase: true);
+                committee.AddMember(m.UserId, m.MemberName, position);
             }
         }
 

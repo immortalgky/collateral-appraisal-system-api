@@ -25,7 +25,12 @@ public class LockTaskCommandHandler(
         if (task.AssignedType != "2")
             return new LockTaskResult(false, ErrorMessage: "Only pool tasks can be locked");
 
-        if (task.WorkingBy != null && task.WorkingBy != username)
+        var isPoolMember = currentUserService.Roles.Any(r =>
+            string.Equals(r, task.AssignedTo, StringComparison.OrdinalIgnoreCase));
+        if (!isPoolMember)
+            return new LockTaskResult(false, ErrorMessage: "You are not a member of this pool");
+
+        if (task.WorkingBy != null && !string.Equals(task.WorkingBy, username, StringComparison.OrdinalIgnoreCase))
             return new LockTaskResult(false, ErrorMessage: $"Task is locked by {task.WorkingBy}");
 
         var poolGroup = task.AssignedTo;

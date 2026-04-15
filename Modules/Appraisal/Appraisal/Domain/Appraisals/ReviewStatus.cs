@@ -8,9 +8,9 @@ public class ReviewStatus : ValueObject
 {
     public string Code { get; private set; } = null!;
 
-    public static readonly ReviewStatus Pending = new("PENDING");
-    public static readonly ReviewStatus Approved = new("APPROVED");
-    public static readonly ReviewStatus Returned = new("RETURNED");
+    public static readonly ReviewStatus Pending = new("Pending");
+    public static readonly ReviewStatus Approved = new("Approved");
+    public static readonly ReviewStatus Returned = new("Returned");
 
     private ReviewStatus()
     {
@@ -25,11 +25,8 @@ public class ReviewStatus : ValueObject
     {
         return code switch
         {
-            "PENDING" => Pending,
             "Pending" => Pending,
-            "APPROVED" => Approved,
             "Approved" => Approved,
-            "RETURNED" => Returned,
             "Returned" => Returned,
             _ => throw new ArgumentException($"Invalid review status: {code}")
         };

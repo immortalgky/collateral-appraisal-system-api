@@ -25,33 +25,19 @@ public class TaskAssignedDashboardIntegrationEventHandler(
             message.CorrelationId, message.AssignedTo);
 
         var connection = connectionFactory.GetOpenConnection();
-        var today = DateTime.UtcNow.Date;
+        var now = DateTime.UtcNow;
 
-        // Upsert DailyTaskSummary — increment InProgress for the assignee
         await connection.ExecuteAsync("""
-            MERGE common.DailyTaskSummaries AS target
-            USING (SELECT @Date AS Date, @Username AS Username) AS source
-            ON target.Date = source.Date AND target.Username = source.Username
-            WHEN MATCHED THEN
-                UPDATE SET InProgress = InProgress + 1, LastUpdatedAt = @Now
-            WHEN NOT MATCHED THEN
-                INSERT (Date, Username, NotStarted, InProgress, Overdue, Completed, LastUpdatedAt)
-                VALUES (@Date, @Username, 0, 1, 0, 0, @Now);
-            """,
-            new { Date = today, Username = message.AssignedTo, Now = DateTime.UtcNow });
-
-        // Upsert TeamWorkloadSummary
-        await connection.ExecuteAsync("""
-            MERGE common.TeamWorkloadSummaries AS target
+            MERGE common.TeamWorkloadSummaries WITH (HOLDLOCK) AS target
             USING (SELECT @Username AS Username) AS source
             ON target.Username = source.Username
             WHEN MATCHED THEN
-                UPDATE SET InProgress = InProgress + 1, LastUpdatedAt = @Now
+                UPDATE SET NotStarted = NotStarted + 1, LastUpdatedAt = @Now
             WHEN NOT MATCHED THEN
                 INSERT (Username, TeamId, NotStarted, InProgress, Completed, LastUpdatedAt)
-                VALUES (@Username, NULL, 0, 1, 0, @Now);
+                VALUES (@Username, NULL, 1, 0, 0, @Now);
             """,
-            new { Username = message.AssignedTo, Now = DateTime.UtcNow });
+            new { Username = message.AssignedTo, Now = now });
 
         await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }

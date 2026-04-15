@@ -5,6 +5,7 @@
         <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj"/>
         <ProjectReference Include="..\Appraisal.Contracts\Appraisal.Contracts.csproj"/>
         <ProjectReference Include="..\..\Request\Request.Contracts\Request.Contracts.csproj"/>
+        <ProjectReference Include="..\..\Parameter\Parameter.Contracts\Parameter.Contracts.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

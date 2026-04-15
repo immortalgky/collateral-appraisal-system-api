@@ -10,6 +10,20 @@ public class GetTaskSummaryQueryHandler(
     ICurrentUserService currentUserService
 ) : IQueryHandler<GetTaskSummaryQuery, GetTaskSummaryResult>
 {
+    // Static SQL fragments per granularity — no user input reaches the SQL string.
+    // Runtime values (Username, From, To) are passed via DynamicParameters.
+    private static readonly Dictionary<string, (string GroupBy, string SelectPeriod)> PeriodFragments = new()
+    {
+        ["daily"]   = ("CAST(EventAt AS date)",
+                       "CONVERT(varchar, CAST(EventAt AS date), 23)"),
+        ["weekly"]  = ("DATEPART(iso_week, EventAt), YEAR(EventAt)",
+                       "CONCAT(YEAR(EventAt), '-W', RIGHT('0' + CAST(DATEPART(iso_week, EventAt) AS varchar), 2))"),
+        ["monthly"] = ("YEAR(EventAt), MONTH(EventAt)",
+                       "CONCAT(YEAR(EventAt), '-', RIGHT('0' + CAST(MONTH(EventAt) AS varchar), 2))"),
+        ["yearly"]  = ("YEAR(EventAt)",
+                       "CAST(YEAR(EventAt) AS varchar)")
+    };
+
     public async Task<GetTaskSummaryResult> Handle(
         GetTaskSummaryQuery query,
         CancellationToken cancellationToken)
@@ -19,33 +33,61 @@ public class GetTaskSummaryQueryHandler(
             return new GetTaskSummaryResult([]);
 
         var connection = connectionFactory.GetOpenConnection();
+        var period = query.Period?.ToLower() ?? "monthly";
+
+        if (period == "all")
+        {
+            var row = await QueryAllAsync(connection, username);
+            return new GetTaskSummaryResult([row]);
+        }
+
+        var fragments = PeriodFragments.TryGetValue(period, out var f)
+            ? f : PeriodFragments["monthly"];
+
         var from = query.From ?? DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-1));
         var to = query.To ?? DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var (groupBy, selectPeriod) = query.Period?.ToLower() switch
-        {
-            "daily" => ("Date", "CONVERT(varchar, Date, 23)"),
-            "yearly" => ("YEAR(Date)", "CAST(YEAR(Date) AS varchar)"),
-            _ => ("YEAR(Date), MONTH(Date)", "CONCAT(YEAR(Date), '-', RIGHT('0' + CAST(MONTH(Date) AS varchar), 2))")
-        };
-
         var sql = $"""
-            SELECT
-                {selectPeriod} AS Period,
-                SUM(NotStarted) AS NotStarted,
-                SUM(InProgress) AS InProgress,
-                SUM(Overdue) AS Overdue,
-                SUM(Completed) AS Completed
-            FROM common.DailyTaskSummaries
-            WHERE Username = @Username AND Date >= @From AND Date <= @To
-            GROUP BY {groupBy}
-            ORDER BY {groupBy}
+            SELECT {fragments.SelectPeriod} AS Period,
+                   SUM(CASE WHEN Bucket = 'NotStarted' THEN 1 ELSE 0 END) AS NotStarted,
+                   SUM(CASE WHEN Bucket = 'InProgress' THEN 1 ELSE 0 END) AS InProgress,
+                   SUM(CASE WHEN Bucket = 'Overdue'    THEN 1 ELSE 0 END) AS Overdue,
+                   SUM(CASE WHEN Bucket = 'Completed'  THEN 1 ELSE 0 END) AS Completed
+            FROM workflow.vw_UserTaskSummary
+            WHERE Username = @Username
+              AND EventAt >= @From
+              AND EventAt <  @ToExclusive
+            GROUP BY {fragments.GroupBy}
+            ORDER BY {fragments.GroupBy}
             """;
 
-        // Dapper doesn't support DateOnly — convert to DateTime
-        var items = await connection.QueryAsync<TaskSummaryDto>(sql,
-            new { Username = username, From = from.ToDateTime(TimeOnly.MinValue), To = to.ToDateTime(TimeOnly.MinValue) });
+        var parameters = new DynamicParameters();
+        parameters.Add("Username", username);
+        parameters.Add("From", from.ToDateTime(TimeOnly.MinValue));
+        parameters.Add("ToExclusive", to.AddDays(1).ToDateTime(TimeOnly.MinValue));
 
-        return new GetTaskSummaryResult(items.ToList());
+        var rows = await connection.QueryAsync<TaskSummaryDto>(sql, parameters);
+        return new GetTaskSummaryResult(rows.ToList());
+    }
+
+    private static async Task<TaskSummaryDto> QueryAllAsync(
+        System.Data.IDbConnection connection, string username)
+    {
+        const string sql = """
+            SELECT SUM(CASE WHEN Bucket = 'NotStarted' THEN 1 ELSE 0 END) AS NotStarted,
+                   SUM(CASE WHEN Bucket = 'InProgress' THEN 1 ELSE 0 END) AS InProgress,
+                   SUM(CASE WHEN Bucket = 'Overdue'    THEN 1 ELSE 0 END) AS Overdue,
+                   SUM(CASE WHEN Bucket = 'Completed'  THEN 1 ELSE 0 END) AS Completed
+            FROM workflow.vw_UserTaskSummary
+            WHERE Username = @Username
+            """;
+
+        var parameters = new DynamicParameters();
+        parameters.Add("Username", username);
+
+        var row = await connection.QuerySingleOrDefaultAsync<TaskSummaryDto>(sql, parameters);
+        return row is null
+            ? new TaskSummaryDto { Period = "All" }
+            : row with { Period = "All" };
     }
 }

@@ -16,7 +16,7 @@ public class EndMeetingEndpoint : ICarterModule
             })
             .WithName("EndMeeting")
             .WithTags("Meetings")
-            .RequireAuthorization()
+            .RequireAuthorization("MeetingAdmin")
             .Produces(StatusCodes.Status204NoContent);
     }
 }
@@ -32,7 +32,7 @@ public class EndMeetingCommandHandler(IMeetingRepository meetingRepository)
         var meeting = await meetingRepository.GetByIdWithItemsAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
-        meeting.End();
+        meeting.End(DateTime.UtcNow);
         return Unit.Value;
     }
 }

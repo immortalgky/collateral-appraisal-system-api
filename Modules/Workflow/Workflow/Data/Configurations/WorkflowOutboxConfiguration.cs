@@ -40,8 +40,7 @@ public class WorkflowOutboxConfiguration : IEntityTypeConfiguration<WorkflowOutb
 
         builder.Property(x => x.Status)
             .IsRequired()
-            .HasConversion(new ScreamingSnakeEnumConverter<OutboxStatus>())
-            .HasMaxLength(20);
+            .HasConversion<string>();
 
         builder.Property(x => x.ErrorMessage)
             .HasMaxLength(2000);

@@ -7,5 +7,6 @@ public record TaskCompletedDomainEvent(
     DateTime CompletedAt,
     string? CompletedBy = null,
     string? WorkflowInstanceName = null,
-    string? Remark = null
+    string? Remark = null,
+    string? AppraisalNumber = null
 ) : IDomainEvent;

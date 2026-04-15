@@ -76,6 +76,7 @@ public static class ActivityTypes
     public const string InternalFollowupSelectionActivity = "InternalFollowupSelectionActivity";
     public const string ApprovalActivity = "ApprovalActivity";
     public const string MeetingActivity = "MeetingActivity";
+    public const string AwaitSignalActivity = "AwaitSignalActivity";
 }
 
 public static class AppraisalActivityTypes

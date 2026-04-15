@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.PricingAnalysis.InitializeIncomeAnalysis;
+
+public record InitializeIncomeAnalysisRequest(string TemplateCode);

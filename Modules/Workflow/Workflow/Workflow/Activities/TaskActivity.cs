@@ -58,14 +58,14 @@ public class TaskActivity : WorkflowActivityBase
         {
             var workflowDefinitionId = context.WorkflowInstance.WorkflowDefinitionId.ToString();
             var activityName = GetProperty(context, "activityName", context.ActivityId);
-            var assigneeRole = GetProperty<string>(context, "assigneeRole");
-            var assigneeGroup = GetProperty<string>(context, "assigneeGroup");
+            var assigneeGroup = GetProperty<string>(context, "assigneeGroup")
+                                ?? GetProperty<string>(context, "assigneeRole"); // backwards compat for in-flight workflows
 
             // System task: skip assignment pipeline, assign to "SYSTEM" sentinel
             var taskType = GetProperty(context, "taskType", "human");
             if (taskType.Equals("system", StringComparison.OrdinalIgnoreCase))
             {
-                return await ExecuteSystemTaskAsync(context, activityName, assigneeRole, assigneeGroup, cancellationToken);
+                return await ExecuteSystemTaskAsync(context, activityName, assigneeGroup, cancellationToken);
             }
 
             // Pre-pipeline Step 1: Try custom assignment service (highest priority)
@@ -129,7 +129,6 @@ public class TaskActivity : WorkflowActivityBase
 
             var outputData = new Dictionary<string, object>
             {
-                ["assigneeRole"] = assigneeRole ?? "",
                 ["assignee"] = assignmentResult.AssigneeId ?? "",
                 ["assignee_group"] = assigneeGroup ?? "",
                 ["assignmentStrategy"] = assignmentResult.Strategy ?? "Pipeline",
@@ -291,11 +290,11 @@ public class TaskActivity : WorkflowActivityBase
         if (taskType.Equals("system", StringComparison.OrdinalIgnoreCase))
             return Task.FromResult(Core.ValidationResult.Success());
 
-        var assigneeRole = GetProperty<string>(context, "assigneeRole");
-        if (string.IsNullOrEmpty(assigneeRole)) errors.Add("AssigneeRole is required for TaskActivity");
+        var assigneeGroup = GetProperty<string>(context, "assigneeGroup")
+                            ?? GetProperty<string>(context, "assigneeRole"); // backwards compat
+        if (string.IsNullOrEmpty(assigneeGroup)) errors.Add("AssigneeGroup is required for TaskActivity");
 
         var assignee = GetProperty<string>(context, "assignee");
-        var assigneeGroup = GetProperty<string>(context, "assigneeGroup");
         var assignmentStrategies = GetProperty<List<string>>(context, "assignmentStrategies", ["Manual"]);
 
         // For Manual strategy, validate that either assignee or assignee_group is provided
@@ -371,8 +370,8 @@ public class TaskActivity : WorkflowActivityBase
                 var prevAssignee = context.WorkflowInstance.CurrentAssignee;
                 SetActivityAssignee(context, customResult.SpecificAssignee);
 
-                var assigneeRole = GetProperty<string>(context, "assigneeRole");
-                var assigneeGroup = GetProperty<string>(context, "assigneeGroup");
+                var assigneeGroup = GetProperty<string>(context, "assigneeGroup")
+                                    ?? GetProperty<string>(context, "assigneeRole"); // backwards compat
 
                 await _auditService.LogAssignmentChangeAsync(
                     context, null, customResult.SpecificAssignee,
@@ -385,7 +384,6 @@ public class TaskActivity : WorkflowActivityBase
 
                 var outputData = new Dictionary<string, object>
                 {
-                    ["assigneeRole"] = assigneeRole ?? "",
                     ["assignee"] = customResult.SpecificAssignee,
                     ["assignee_group"] = assigneeGroup ?? "",
                     ["assignmentStrategy"] = "CustomService",
@@ -421,7 +419,6 @@ public class TaskActivity : WorkflowActivityBase
     private async Task<ActivityResult> ExecuteSystemTaskAsync(
         ActivityContext context,
         string activityName,
-        string? assigneeRole,
         string? assigneeGroup,
         CancellationToken cancellationToken)
     {
@@ -438,7 +435,6 @@ public class TaskActivity : WorkflowActivityBase
 
         var outputData = new Dictionary<string, object>
         {
-            ["assigneeRole"] = assigneeRole ?? "",
             ["assignee"] = SystemAssignee,
             ["assignee_group"] = assigneeGroup ?? "",
             ["assignmentStrategy"] = "System",
@@ -622,7 +618,7 @@ public class TaskActivity : WorkflowActivityBase
     // ── Event publishing ──
 
     private async Task PublishTaskAssignedEventAsync(
-        ActivityContext context, string? assigneeId, string? assigneeRole,
+        ActivityContext context, string? assigneeId, string? assignedType,
         CancellationToken cancellationToken, string? completedBy = null)
     {
         var taskName = GetStringProperty(context.Properties, "activityName") ?? context.ActivityId;
@@ -660,15 +656,19 @@ public class TaskActivity : WorkflowActivityBase
             context.WorkflowInstance.WorkflowDueAt,
             cancellationToken);
 
+        var appraisalNumber = context.WorkflowInstance.Variables.TryGetValue("appraisalNumber", out var appraisalNumObj)
+            ? appraisalNumObj?.ToString()
+            : null;
+
         _logger.LogInformation(
             "Publishing TaskAssignedEvent for {ActivityId}: CorrelationId={CorrelationId}, TaskName={TaskName}, AssignedTo={AssignedTo}, DueAt={DueAt}",
             context.ActivityId, correlationGuid, taskName, assigneeId, dueAt);
 
         await _publisher.Publish(
-            new TaskAssignedEvent(correlationGuid, taskName, assigneeId ?? "", assigneeRole ?? "",
+            new TaskAssignedEvent(correlationGuid, taskName, assigneeId ?? "", assignedType ?? "",
                 DateTime.UtcNow, context.WorkflowInstanceId, context.ActivityId, dueAt,
                 context.WorkflowInstance.StartedBy, context.WorkflowInstance.Name,
-                context.ActivityName, completedBy),
+                context.ActivityName, completedBy, appraisalNumber),
             cancellationToken);
     }
 
@@ -701,9 +701,13 @@ public class TaskActivity : WorkflowActivityBase
         // Pass CompletedBy for pool task implicit assignment
         var completedBy = context.WorkflowInstance.CurrentAssignee;
 
+        var appraisalNumber = context.WorkflowInstance.Variables.TryGetValue("appraisalNumber", out var appraisalNumObj)
+            ? appraisalNumObj?.ToString()
+            : null;
+
         await _publisher.Publish(
             new TaskCompletedDomainEvent(correlationGuid, taskName, actionTaken, DateTime.UtcNow, completedBy,
-                context.WorkflowInstance.Name, remark),
+                context.WorkflowInstance.Name, remark, appraisalNumber),
             cancellationToken);
     }
 

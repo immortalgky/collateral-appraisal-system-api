@@ -55,7 +55,8 @@ public class ApprovalTasksAssignedEventHandler(
                 AssignedTo = member.Username,
                 AssignedType = "1",
                 StartedBy = notification.StartedBy,
-                WorkflowInstanceName = notification.WorkflowInstanceName
+                WorkflowInstanceName = notification.WorkflowInstanceName,
+                AppraisalNumber = notification.AppraisalNumber
             }, cancellationToken);
         }
     }

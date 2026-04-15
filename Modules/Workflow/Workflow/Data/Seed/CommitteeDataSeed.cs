@@ -120,23 +120,23 @@ public class CommitteeDataSeed(
         logger.LogInformation("Seeding workflow committee members...");
 
         // Sub Committee: 3 members (tier 1: 0-10M)
-        AddMemberIfUserExists(subCommittee, userMap, "john.doe", "John Doe", CommitteeMemberRole.Chairman);
-        AddMemberIfUserExists(subCommittee, userMap, "jane.smith", "Jane Smith", CommitteeMemberRole.UW);
-        AddMemberIfUserExists(subCommittee, userMap, "m.wilson", "Mike Wilson", CommitteeMemberRole.Risk);
+        AddMemberIfUserExists(subCommittee, userMap, "john.doe", "John Doe", CommitteeMemberPosition.Chairman);
+        AddMemberIfUserExists(subCommittee, userMap, "jane.smith", "Jane Smith", CommitteeMemberPosition.UW);
+        AddMemberIfUserExists(subCommittee, userMap, "m.wilson", "Mike Wilson", CommitteeMemberPosition.Risk);
 
         // Committee: 5 members (tier 2: 10-30M)
-        AddMemberIfUserExists(committee, userMap, "john.doe", "John Doe", CommitteeMemberRole.Chairman);
-        AddMemberIfUserExists(committee, userMap, "jane.smith", "Jane Smith", CommitteeMemberRole.UW);
-        AddMemberIfUserExists(committee, userMap, "m.wilson", "Mike Wilson", CommitteeMemberRole.Risk);
-        AddMemberIfUserExists(committee, userMap, "s.johnson", "Sarah Johnson", CommitteeMemberRole.Credit);
-        AddMemberIfUserExists(committee, userMap, "thitipornw", "Thitiporn W", CommitteeMemberRole.Appraisal);
+        AddMemberIfUserExists(committee, userMap, "john.doe", "John Doe", CommitteeMemberPosition.Chairman);
+        AddMemberIfUserExists(committee, userMap, "jane.smith", "Jane Smith", CommitteeMemberPosition.UW);
+        AddMemberIfUserExists(committee, userMap, "m.wilson", "Mike Wilson", CommitteeMemberPosition.Risk);
+        AddMemberIfUserExists(committee, userMap, "s.johnson", "Sarah Johnson", CommitteeMemberPosition.Credit);
+        AddMemberIfUserExists(committee, userMap, "thitipornw", "Thitiporn W", CommitteeMemberPosition.Appraisal);
 
         // Committee With Meeting: 5 members (tier 3: >30M) — UW vote mandatory
-        AddMemberIfUserExists(committeeWithMeeting, userMap, "john.doe", "John Doe", CommitteeMemberRole.Chairman);
-        AddMemberIfUserExists(committeeWithMeeting, userMap, "jane.smith", "Jane Smith", CommitteeMemberRole.UW);
-        AddMemberIfUserExists(committeeWithMeeting, userMap, "m.wilson", "Mike Wilson", CommitteeMemberRole.Risk);
-        AddMemberIfUserExists(committeeWithMeeting, userMap, "s.johnson", "Sarah Johnson", CommitteeMemberRole.Credit);
-        AddMemberIfUserExists(committeeWithMeeting, userMap, "thitipornw", "Thitiporn W", CommitteeMemberRole.Appraisal);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "john.doe", "John Doe", CommitteeMemberPosition.Chairman);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "jane.smith", "Jane Smith", CommitteeMemberPosition.UW);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "m.wilson", "Mike Wilson", CommitteeMemberPosition.Risk);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "s.johnson", "Sarah Johnson", CommitteeMemberPosition.Credit);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "thitipornw", "Thitiporn W", CommitteeMemberPosition.Appraisal);
 
         await context.SaveChangesAsync();
 
@@ -190,7 +190,7 @@ public class CommitteeDataSeed(
 
         committeeWithMeeting.AddCondition(
             ConditionType.RoleRequired,
-            roleRequired: nameof(CommitteeMemberRole.UW),
+            roleRequired: nameof(CommitteeMemberPosition.UW),
             minVotesRequired: null,
             priority: 1,
             description: "Underwriter (UW) must cast an approve vote for tier-3 appraisals");
@@ -211,11 +211,11 @@ public class CommitteeDataSeed(
         Dictionary<string, Guid> userMap,
         string username,
         string displayName,
-        CommitteeMemberRole role)
+        CommitteeMemberPosition position)
     {
         if (userMap.TryGetValue(username, out _))
         {
-            committee.AddMember(username, displayName, role);
+            committee.AddMember(username, displayName, position);
         }
     }
 }

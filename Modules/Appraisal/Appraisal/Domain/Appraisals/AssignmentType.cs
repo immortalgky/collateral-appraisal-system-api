@@ -13,17 +13,15 @@ public class AssignmentType : ValueObject
     }
 
     // Predefined types
-    public static AssignmentType Internal => new("INTERNAL");
-    public static AssignmentType External => new("EXTERNAL");
+    public static AssignmentType Internal => new("Internal");
+    public static AssignmentType External => new("External");
 
     // Factory method from string
     public static AssignmentType FromString(string code)
     {
         return code switch
         {
-            "INTERNAL" => Internal,
             "Internal" => Internal,
-            "EXTERNAL" => External,
             "External" => External,
             _ => throw new ArgumentException($"Invalid assignment type: {code}")
         };

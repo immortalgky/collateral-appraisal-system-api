@@ -30,7 +30,7 @@ public class CompanySelectionActivity : WorkflowActivityBase
         ActivityContext context,
         CancellationToken cancellationToken = default)
     {
-        var selectionMethod = GetVariable<string>(context, "assignmentMethod", "roundrobin");
+        var selectionMethod = GetVariable<string>(context, "assignmentMethod", "round_robin");
         var loanType = GetVariable<string>(context, "loanType", "");
 
         var outputData = new Dictionary<string, object>
@@ -53,12 +53,32 @@ public class CompanySelectionActivity : WorkflowActivityBase
 
             outputData["assignedCompanyId"] = companyId;
             outputData["assignedCompanyName"] = companyName;
-            outputData["assignmentMethod"] = "MANUAL";
+            outputData["assignmentMethod"] = "Manual";
             outputData["decision"] = "company_selected";
 
             _logger.LogInformation(
                 "CompanySelectionActivity {ActivityId}: manually selected company {CompanyName} ({CompanyId})",
                 context.ActivityId, companyName, companyId);
+
+            return ActivityResult.Success(outputData);
+        }
+
+        // Replay guard: reuse previously selected company if the selection condition (loanType) has not changed
+        var existingCompanyId = GetVariable<string>(context, "assignedCompanyId", "");
+        var existingCompanyName = GetVariable<string>(context, "assignedCompanyName", "");
+        var existingLoanType = GetVariable<string>(context, "assignedCompanyLoanType", "");
+
+        if (!string.IsNullOrEmpty(existingCompanyId) && existingLoanType == loanType)
+        {
+            outputData["assignedCompanyId"] = existingCompanyId;
+            outputData["assignedCompanyName"] = existingCompanyName;
+            outputData["assignmentMethod"] = selectionMethod;
+            outputData["assignedCompanyLoanType"] = loanType;
+            outputData["decision"] = "company_selected";
+
+            _logger.LogInformation(
+                "CompanySelectionActivity {ActivityId}: replaying — reusing previously selected company {CompanyName} ({CompanyId})",
+                context.ActivityId, existingCompanyName, existingCompanyId);
 
             return ActivityResult.Success(outputData);
         }
@@ -72,7 +92,8 @@ public class CompanySelectionActivity : WorkflowActivityBase
         {
             outputData["assignedCompanyId"] = result.CompanyId!.Value.ToString();
             outputData["assignedCompanyName"] = result.CompanyName!;
-            outputData["assignmentMethod"] = "ROUND_ROBIN";
+            outputData["assignmentMethod"] = "RoundRobin";
+            outputData["assignedCompanyLoanType"] = loanType;
             outputData["decision"] = "company_selected";
 
             _logger.LogInformation(

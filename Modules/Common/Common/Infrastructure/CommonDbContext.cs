@@ -7,7 +7,6 @@ namespace Common.Infrastructure;
 
 public class CommonDbContext(DbContextOptions<CommonDbContext> options) : DbContext(options)
 {
-    public DbSet<DailyTaskSummary> DailyTaskSummaries => Set<DailyTaskSummary>();
     public DbSet<DailyAppraisalCount> DailyAppraisalCounts => Set<DailyAppraisalCount>();
     public DbSet<RequestStatusSummary> RequestStatusSummaries => Set<RequestStatusSummary>();
     public DbSet<TeamWorkloadSummary> TeamWorkloadSummaries => Set<TeamWorkloadSummary>();

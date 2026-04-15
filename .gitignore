@@ -72,3 +72,14 @@ Database/Backups/
 
 # Optional: ignore generated Docker volume folders (if any)
 docker-volumes/
+
+# -------------------------------------
+# Runtime user uploads (local-only; never commit)
+# -------------------------------------
+Bootstrapper/Api/wwwroot/uploads/documents/
+
+# -------------------------------------
+# Local Claude artifacts (local-only)
+# -------------------------------------
+.claude/worktrees/
+.claude/docs/

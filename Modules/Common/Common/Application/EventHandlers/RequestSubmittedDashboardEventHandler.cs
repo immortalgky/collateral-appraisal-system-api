@@ -25,28 +25,43 @@ public class RequestSubmittedDashboardEventHandler(
             message.RequestId);
 
         var connection = connectionFactory.GetOpenConnection();
+        var now = DateTime.UtcNow;
 
-        // Decrement DRAFT, increment SUBMITTED
-        await connection.ExecuteAsync("""
-            MERGE common.RequestStatusSummaries AS target
-            USING (SELECT 'DRAFT' AS Status) AS source
-            ON target.Status = source.Status
-            WHEN MATCHED THEN
-                UPDATE SET Count = CASE WHEN Count > 0 THEN Count - 1 ELSE 0 END, LastUpdatedAt = @Now
-            WHEN NOT MATCHED THEN
-                INSERT (Status, Count, LastUpdatedAt)
-                VALUES ('DRAFT', 0, @Now);
+        // Decrement DRAFT, increment SUBMITTED — both in a transaction to keep counts consistent
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            await connection.ExecuteAsync("""
+                MERGE common.RequestStatusSummaries WITH (HOLDLOCK) AS target
+                USING (SELECT 'Draft' AS Status) AS source
+                ON target.Status = source.Status
+                WHEN MATCHED THEN
+                    UPDATE SET Count = CASE WHEN Count > 0 THEN Count - 1 ELSE 0 END, LastUpdatedAt = @Now
+                WHEN NOT MATCHED THEN
+                    INSERT (Status, Count, LastUpdatedAt)
+                    VALUES ('Draft', 0, @Now);
+                """,
+                new { Now = now }, transaction: transaction);
 
-            MERGE common.RequestStatusSummaries AS target
-            USING (SELECT 'SUBMITTED' AS Status) AS source
-            ON target.Status = source.Status
-            WHEN MATCHED THEN
-                UPDATE SET Count = Count + 1, LastUpdatedAt = @Now
-            WHEN NOT MATCHED THEN
-                INSERT (Status, Count, LastUpdatedAt)
-                VALUES ('SUBMITTED', 1, @Now);
-            """,
-            new { Now = DateTime.UtcNow });
+            await connection.ExecuteAsync("""
+                MERGE common.RequestStatusSummaries WITH (HOLDLOCK) AS target
+                USING (SELECT 'Submitted' AS Status) AS source
+                ON target.Status = source.Status
+                WHEN MATCHED THEN
+                    UPDATE SET Count = Count + 1, LastUpdatedAt = @Now
+                WHEN NOT MATCHED THEN
+                    INSERT (Status, Count, LastUpdatedAt)
+                    VALUES ('Submitted', 1, @Now);
+                """,
+                new { Now = now }, transaction: transaction);
+
+            transaction.Commit();
+        }
+        catch
+        {
+            transaction.Rollback();
+            throw;
+        }
 
         await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }

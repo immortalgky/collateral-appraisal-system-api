@@ -1,41 +1,30 @@
 using Workflow.Meetings.Domain;
+using Workflow.Meetings.Features.SendInvitation;
 
 namespace Workflow.Meetings.Features.ScheduleMeeting;
 
+/// <summary>
+/// DEPRECATED — kept as a compatibility alias for one release.
+/// Clients should migrate to POST /meetings/{id}/send-invitation.
+/// </summary>
+[Obsolete("Use POST /meetings/{id}/send-invitation instead. This endpoint will be removed in a future release.")]
 public class ScheduleMeetingEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPost("/meetings/{id:guid}/schedule", async (
                 Guid id,
-                ScheduleMeetingRequest request,
                 ISender sender,
                 CancellationToken ct) =>
             {
-                await sender.Send(new ScheduleMeetingCommand(id, request), ct);
-                return Results.NoContent();
+                // Delegate to SendInvitation — sets StartAt/EndAt separately via UpdateMeeting
+                var result = await sender.Send(new SendInvitationCommand(id), ct);
+                return Results.Ok(result);
             })
             .WithName("ScheduleMeeting")
             .WithTags("Meetings")
-            .RequireAuthorization()
-            .Produces(StatusCodes.Status204NoContent);
-    }
-}
-
-public record ScheduleMeetingRequest(DateTime ScheduledAt, string? Location);
-
-public record ScheduleMeetingCommand(Guid MeetingId, ScheduleMeetingRequest Request)
-    : ICommand, ITransactionalCommand<IWorkflowUnitOfWork>;
-
-public class ScheduleMeetingCommandHandler(IMeetingRepository meetingRepository)
-    : ICommandHandler<ScheduleMeetingCommand>
-{
-    public async Task<Unit> Handle(ScheduleMeetingCommand command, CancellationToken ct)
-    {
-        var meeting = await meetingRepository.GetByIdWithItemsAsync(command.MeetingId, ct)
-            ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
-
-        meeting.Schedule(command.Request.ScheduledAt, command.Request.Location);
-        return Unit.Value;
+            .RequireAuthorization("MeetingAdmin")
+            .Produces<SendInvitationResponse>()
+            .WithDescription("DEPRECATED: use POST /meetings/{id}/send-invitation instead");
     }
 }

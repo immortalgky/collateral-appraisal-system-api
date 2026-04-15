@@ -8,4 +8,6 @@ public record CompanyAssignedIntegrationEvent : IntegrationEvent
     public string AssignmentMethod { get; init; } = default!;
     public string? InternalAppraiserId { get; init; }
     public string? InternalFollowupAssignmentMethod { get; init; }
+    public string? CompletedBy { get; init; }
+    public string? AppraisalNumber { get; init; }
 }

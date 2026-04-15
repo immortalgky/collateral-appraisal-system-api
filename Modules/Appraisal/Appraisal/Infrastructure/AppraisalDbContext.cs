@@ -1,3 +1,4 @@
+using Appraisal.Domain.Appraisals.Income;
 using Appraisal.Domain.ComparativeAnalysis;
 using Shared.Data.Outbox;
 
@@ -120,6 +121,10 @@ public class AppraisalDbContext : DbContext
     public DbSet<ProfitRentAnalysis> ProfitRentAnalyses => Set<ProfitRentAnalysis>();
     public DbSet<ProfitRentGrowthPeriod> ProfitRentGrowthPeriods => Set<ProfitRentGrowthPeriod>();
     public DbSet<ProfitRentCalculationDetail> ProfitRentCalculationDetails => Set<ProfitRentCalculationDetail>();
+    public DbSet<IncomeAnalysis> IncomeAnalyses => Set<IncomeAnalysis>();
+    public DbSet<IncomeSection> IncomeSections => Set<IncomeSection>();
+    public DbSet<IncomeCategory> IncomeCategories => Set<IncomeCategory>();
+    public DbSet<IncomeAssumption> IncomeAssumptions => Set<IncomeAssumption>();
 
     // =====================================================
     // Comparative Analysis Templates

@@ -76,19 +76,20 @@ public class DocumentFollowup : Aggregate<Guid>
 
     /// <summary>
     /// Marks a single line item as fulfilled by an uploaded document.
-    /// Returns true if the followup is now fully resolved.
+    /// Does NOT auto-resolve: the request maker must explicitly Submit.
     /// </summary>
-    public bool FulfillByUpload(Guid lineItemId, Guid documentId)
+    public void FulfillByUpload(Guid lineItemId, Guid documentId)
     {
         var item = RequireOpenLineItem(lineItemId);
         item.MarkUploaded(documentId);
-        return TryAutoResolve();
+        // Do NOT auto-resolve: Submit is the only path back.
     }
 
     /// <summary>
     /// Marks the FIRST open line item that matches the given document type as fulfilled.
     /// Used by the auto-fulfill handler when a document is uploaded against the request.
     /// Returns the line item id if matched, otherwise null.
+    /// NOTE: Does NOT auto-resolve the followup. The request maker must explicitly Submit.
     /// </summary>
     public Guid? FulfillFirstMatchingByType(string documentType, Guid documentId)
     {
@@ -100,8 +101,27 @@ public class DocumentFollowup : Aggregate<Guid>
         if (item is null) return null;
 
         item.MarkUploaded(documentId);
-        TryAutoResolve();
         return item.Id;
+    }
+
+    /// <summary>
+    /// Explicitly submitted by the request maker once all items are Uploaded or Declined.
+    /// Transitions Open → Resolved and fires DocumentFollowupResolvedDomainEvent.
+    /// </summary>
+    public void Submit(string submittedByUserId)
+    {
+        if (string.IsNullOrWhiteSpace(submittedByUserId))
+            throw new ArgumentException("SubmittedByUserId is required", nameof(submittedByUserId));
+        if (Status == DocumentFollowupStatus.Resolved)
+            throw new InvalidOperationException("Followup is already resolved");
+        if (Status == DocumentFollowupStatus.Cancelled)
+            throw new InvalidOperationException("Followup is cancelled");
+        if (LineItems.Any(li => li.Status == DocumentFollowupLineItemStatus.Pending))
+            throw new InvalidOperationException("All line items must be Uploaded or Declined before submitting");
+
+        Status = DocumentFollowupStatus.Resolved;
+        ResolvedAt = DateTime.UtcNow;
+        AddDomainEvent(new DocumentFollowupResolvedDomainEvent(Id, RaisingPendingTaskId));
     }
 
     public void DeclineLineItem(Guid lineItemId, string reason)
@@ -110,7 +130,7 @@ public class DocumentFollowup : Aggregate<Guid>
             throw new ArgumentException("Reason is required to decline a line item", nameof(reason));
         var item = RequireOpenLineItem(lineItemId);
         item.MarkDeclined(reason);
-        TryAutoResolve();
+        // Do NOT auto-resolve: the request maker must explicitly Submit.
     }
 
     public void CancelLineItem(Guid lineItemId, string reason)
@@ -119,7 +139,7 @@ public class DocumentFollowup : Aggregate<Guid>
             throw new ArgumentException("Reason is required to cancel a line item", nameof(reason));
         var item = RequireOpenLineItem(lineItemId);
         item.MarkCancelled(reason);
-        TryAutoResolve();
+        // Do NOT auto-resolve: the request maker must explicitly Submit.
     }
 
     public void Cancel(string reason)
@@ -150,16 +170,6 @@ public class DocumentFollowup : Aggregate<Guid>
         return item;
     }
 
-    private bool TryAutoResolve()
-    {
-        if (Status != DocumentFollowupStatus.Open) return true;
-        if (LineItems.Any(li => li.Status == DocumentFollowupLineItemStatus.Pending)) return false;
-
-        Status = DocumentFollowupStatus.Resolved;
-        ResolvedAt = DateTime.UtcNow;
-        AddDomainEvent(new DocumentFollowupResolvedDomainEvent(Id, RaisingPendingTaskId));
-        return true;
-    }
 }
 
 public enum DocumentFollowupStatus

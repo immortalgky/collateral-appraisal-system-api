@@ -18,15 +18,12 @@ public class AppraisalStatusService(
 
         switch (targetStatus)
         {
-            case "IN_PROGRESS":
             case "InProgress":
                 appraisal.StartWork();
                 break;
-            case "UNDER_REVIEW":
             case "UnderReview":
                 appraisal.SubmitForReview();
                 break;
-            case "COMPLETED":
             case "Completed":
                 appraisal.Complete();
                 break;
@@ -53,11 +50,9 @@ public class AppraisalStatusService(
 
         switch (targetStatus)
         {
-            case "IN_PROGRESS":
             case "InProgress":
                 activeAssignment.StartWork();
                 break;
-            case "COMPLETED":
             case "Completed":
                 activeAssignment.Complete();
                 break;

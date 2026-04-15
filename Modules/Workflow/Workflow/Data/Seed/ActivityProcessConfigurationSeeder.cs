@@ -34,14 +34,14 @@ public class ActivityProcessConfigurationSeeder(
                 "UpdateAppraisalStatus",
                 2,
                 "system",
-                """{"targetStatus": "UNDER_REVIEW"}"""),
+                """{"targetStatus": "UnderReview"}"""),
             ActivityProcessConfiguration.Create(
                 "site-inspection",
                 "Complete assignment",
                 "UpdateAssignmentStatus",
                 3,
                 "system",
-                """{"targetStatus": "COMPLETED"}"""),
+                """{"targetStatus": "Completed"}"""),
 
             // appraisal-assignment: validate decision constraints before routing
             ActivityProcessConfiguration.Create(
@@ -59,25 +59,7 @@ public class ActivityProcessConfigurationSeeder(
                 "UpdateAppraisalStatus",
                 1,
                 "system",
-                """{"targetStatus": "IN_PROGRESS"}"""),
-
-            // __on_workflow_start__: trigger immediate appraisal creation for non-manual channels
-            ActivityProcessConfiguration.Create(
-                "__on_workflow_start__",
-                "Emit appraisal creation (non-manual)",
-                "EmitAppraisalCreationRequested",
-                1,
-                "system",
-                """{"condition": "channel != 'MANUAL'"}"""),
-
-            // appraisal-initiation-check: trigger deferred appraisal creation for manual channels
-            ActivityProcessConfiguration.Create(
-                "appraisal-initiation-check",
-                "Emit appraisal creation (manual)",
-                "EmitAppraisalCreationRequested",
-                1,
-                "system",
-                """{"condition": "channel == 'MANUAL'", "requireDecision": "P"}"""),
+                """{"targetStatus": "InProgress"}"""),
         };
 
         await context.ActivityProcessConfigurations.AddRangeAsync(configs);

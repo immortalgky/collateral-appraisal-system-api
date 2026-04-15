@@ -1,5 +1,7 @@
 using Parameter.ConstructionWork.Models;
 using Parameter.DocumentRequirements.Models;
+using Parameter.PricingParameters.Models;
+using Parameter.PricingTemplates.Models;
 
 namespace Parameter.Data;
 
@@ -25,6 +27,19 @@ public class ParameterDbContext : DbContext
     // Construction Work Lookups
     public DbSet<ConstructionWorkGroup> ConstructionWorkGroups => Set<ConstructionWorkGroup>();
     public DbSet<ConstructionWorkItem> ConstructionWorkItems => Set<ConstructionWorkItem>();
+
+    // Pricing Templates
+    public DbSet<PricingTemplate> PricingTemplates => Set<PricingTemplate>();
+    public DbSet<PricingTemplateSection> PricingTemplateSections => Set<PricingTemplateSection>();
+    public DbSet<PricingTemplateCategory> PricingTemplateCategories => Set<PricingTemplateCategory>();
+    public DbSet<PricingTemplateAssumption> PricingTemplateAssumptions => Set<PricingTemplateAssumption>();
+
+    // Pricing Parameters (reference lookups)
+    public DbSet<PricingParameterRoomType> PricingParameterRoomTypes => Set<PricingParameterRoomType>();
+    public DbSet<PricingParameterJobPosition> PricingParameterJobPositions => Set<PricingParameterJobPosition>();
+    public DbSet<PricingParameterTaxBracket> PricingParameterTaxBrackets => Set<PricingParameterTaxBracket>();
+    public DbSet<PricingParameterAssumptionType> PricingParameterAssumptionTypes => Set<PricingParameterAssumptionType>();
+    public DbSet<PricingParameterAssumptionMethod> PricingParameterAssumptionMethods => Set<PricingParameterAssumptionMethod>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

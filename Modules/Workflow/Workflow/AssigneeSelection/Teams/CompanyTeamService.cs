@@ -6,7 +6,8 @@ namespace Workflow.AssigneeSelection.Teams;
 /// <summary>
 /// Real ITeamService implementation that queries both auth.Teams/TeamMembers
 /// (internal teams) and auth.Companies/CompanyId (external teams).
-/// Role names are now passed directly from the workflow schema's "assigneeRole" property.
+/// Group names are passed from the workflow schema's "assigneeGroup" property
+/// and resolved via auth.Groups/auth.GroupUsers tables.
 /// </summary>
 public class CompanyTeamService : ITeamService
 {
@@ -67,11 +68,11 @@ public class CompanyTeamService : ITeamService
     }
 
     public async Task<List<TeamMemberInfo>> GetTeamMembersForActivityAsync(
-        string teamId, string roleName, CancellationToken cancellationToken = default)
+        string teamId, string groupName, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(roleName))
+        if (string.IsNullOrEmpty(groupName))
         {
-            _logger.LogWarning("No role name provided for team {TeamId}", teamId);
+            _logger.LogWarning("No group name provided for team {TeamId}", teamId);
             return [];
         }
 
@@ -89,38 +90,40 @@ public class CompanyTeamService : ITeamService
             SELECT u.UserName, u.FirstName, u.LastName
             FROM auth.AspNetUsers u
             INNER JOIN auth.TeamMembers tm ON tm.UserId = u.Id
-            INNER JOIN auth.AspNetUserRoles ur ON ur.UserId = u.Id
-            INNER JOIN auth.AspNetRoles r ON r.Id = ur.RoleId
+            INNER JOIN auth.GroupUsers gu ON gu.UserId = u.Id
+            INNER JOIN auth.Groups g ON g.Id = gu.GroupId
             WHERE tm.TeamId = @TeamId
-              AND r.NormalizedName = @NormalizedRoleName
+              AND g.Name = @GroupName
+              AND g.IsDeleted = 0
 
             UNION
 
             SELECT u.UserName, u.FirstName, u.LastName
             FROM auth.AspNetUsers u
-            INNER JOIN auth.AspNetUserRoles ur ON ur.UserId = u.Id
-            INNER JOIN auth.AspNetRoles r ON r.Id = ur.RoleId
+            INNER JOIN auth.GroupUsers gu ON gu.UserId = u.Id
+            INNER JOIN auth.Groups g ON g.Id = gu.GroupId
             WHERE u.CompanyId = @TeamId
-              AND r.NormalizedName = @NormalizedRoleName
+              AND g.Name = @GroupName
+              AND g.IsDeleted = 0
             """,
-            new { TeamId = teamGuid, NormalizedRoleName = roleName.ToUpperInvariant() });
+            new { TeamId = teamGuid, GroupName = groupName });
 
         var result = members.Select(m => new TeamMemberInfo(
             m.UserName,
             $"{m.FirstName} {m.LastName}".Trim(),
             teamId,
-            [roleName]
+            [groupName]
         )).ToList();
 
         return result;
     }
 
     public async Task<List<TeamMemberInfo>> GetAllMembersForActivityAsync(
-        string roleName, CancellationToken cancellationToken = default)
+        string groupName, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(roleName))
+        if (string.IsNullOrEmpty(groupName))
         {
-            _logger.LogWarning("No role name provided for GetAllMembersForActivityAsync");
+            _logger.LogWarning("No group name provided for GetAllMembersForActivityAsync");
             return [];
         }
 
@@ -131,26 +134,28 @@ public class CompanyTeamService : ITeamService
             SELECT u.UserName, u.FirstName, u.LastName, tm.TeamId AS TeamId
             FROM auth.AspNetUsers u
             INNER JOIN auth.TeamMembers tm ON tm.UserId = u.Id
-            INNER JOIN auth.AspNetUserRoles ur ON ur.UserId = u.Id
-            INNER JOIN auth.AspNetRoles r ON r.Id = ur.RoleId
-            WHERE r.NormalizedName = @NormalizedRoleName
+            INNER JOIN auth.GroupUsers gu ON gu.UserId = u.Id
+            INNER JOIN auth.Groups g ON g.Id = gu.GroupId
+            WHERE g.Name = @GroupName
+              AND g.IsDeleted = 0
 
             UNION
 
             SELECT u.UserName, u.FirstName, u.LastName, u.CompanyId AS TeamId
             FROM auth.AspNetUsers u
-            INNER JOIN auth.AspNetUserRoles ur ON ur.UserId = u.Id
-            INNER JOIN auth.AspNetRoles r ON r.Id = ur.RoleId
-            WHERE r.NormalizedName = @NormalizedRoleName
+            INNER JOIN auth.GroupUsers gu ON gu.UserId = u.Id
+            INNER JOIN auth.Groups g ON g.Id = gu.GroupId
+            WHERE g.Name = @GroupName
+              AND g.IsDeleted = 0
               AND u.CompanyId IS NOT NULL
             """,
-            new { NormalizedRoleName = roleName.ToUpperInvariant() });
+            new { GroupName = groupName });
 
         return members.Select(m => new TeamMemberInfo(
             m.UserName,
             $"{m.FirstName} {m.LastName}".Trim(),
             m.TeamId?.ToString() ?? string.Empty,
-            [roleName]
+            [groupName]
         )).ToList();
     }
 

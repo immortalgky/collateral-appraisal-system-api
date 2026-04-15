@@ -5,7 +5,7 @@ public record AssignAppraisalCommand(
     string AssignmentType,
     string? AssigneeUserId = null,
     string? AssigneeCompanyId = null,
-    string AssignmentMethod = "MANUAL",
+    string AssignmentMethod = "Manual",
     string? InternalAppraiserId = null,
     string? InternalFollowupAssignmentMethod = null,
     string AssignedBy = default

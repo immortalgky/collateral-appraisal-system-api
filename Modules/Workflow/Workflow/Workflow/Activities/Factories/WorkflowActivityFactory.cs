@@ -80,6 +80,9 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
         // Meeting activity
         _activityTypes[ActivityTypes.MeetingActivity] = typeof(MeetingActivity);
 
+        // Signal activities
+        _activityTypes[ActivityTypes.AwaitSignalActivity] = typeof(AwaitSignalActivity);
+
         // Appraisal-specific activities
         _activityTypes[AppraisalActivityTypes.RequestSubmission] = typeof(RequestSubmissionActivity);
         _activityTypes[AppraisalActivityTypes.AdminReview] = typeof(AdminReviewActivity);
@@ -124,19 +127,14 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
             {
                 new()
                 {
-                    Name = "assigneeRole", DisplayName = "Assignee Role", Type = "string", Required = true,
-                    Description = "Role or user to assign the task to"
+                    Name = "assigneeGroup", DisplayName = "Assignee Group", Type = "string", Required = true,
+                    Description = "Group to assign the task to"
                 },
                 new()
                 {
                     Name = "assignmentStrategy", DisplayName = "Assignment Strategy", Type = "string", Required = false,
                     DefaultValue = "Manual", Description = "Strategy for assigning tasks",
                     Options = new List<string> { "Manual", "RoundRobin", "Random", "WorkloadBased" }
-                },
-                new()
-                {
-                    Name = "userGroups", DisplayName = "User Groups", Type = "array", Required = false,
-                    Description = "List of user groups eligible for assignment"
                 },
                 new()
                 {
@@ -336,6 +334,36 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
             Icon = "calendar-days",
             Color = "#0ea5e9",
             Properties = new List<ActivityPropertyDefinition>()
+        };
+
+        // Await Signal Activity Definition
+        _activityDefinitions[ActivityTypes.AwaitSignalActivity] = new ActivityTypeDefinition
+        {
+            Type = ActivityTypes.AwaitSignalActivity,
+            Name = "Await Signal Activity",
+            Description = "Suspends workflow until a named signal arrives from an external event",
+            Category = "Control Flow",
+            Icon = "clock",
+            Color = "#6366f1",
+            Properties = new List<ActivityPropertyDefinition>
+            {
+                new()
+                {
+                    Name = "signalName", DisplayName = "Signal Name", Type = "string", Required = true,
+                    Description = "Logical name of the signal to wait for (e.g., 'AppraisalCreated')"
+                },
+                new()
+                {
+                    Name = "correlationKey", DisplayName = "Correlation Key", Type = "string", Required = true,
+                    Description = "Name of the workflow variable whose value is used for signal correlation"
+                },
+                new()
+                {
+                    Name = "completionVariable", DisplayName = "Completion Variable", Type = "string",
+                    Required = false,
+                    Description = "If this workflow variable is already set, skip the suspend (early-exit guard)"
+                }
+            }
         };
 
         // Request Submission Activity Definition

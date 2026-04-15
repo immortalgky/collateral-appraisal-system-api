@@ -13,29 +13,23 @@ public class AppraisalStatus : ValueObject
     }
 
     // Predefined statuses
-    public static AppraisalStatus Pending => new("PENDING");
-    public static AppraisalStatus Assigned => new("ASSIGNED");
-    public static AppraisalStatus InProgress => new("IN_PROGRESS");
-    public static AppraisalStatus UnderReview => new("UNDER_REVIEW");
-    public static AppraisalStatus Completed => new("COMPLETED");
-    public static AppraisalStatus Cancelled => new("CANCELLED");
+    public static AppraisalStatus Pending => new("Pending");
+    public static AppraisalStatus Assigned => new("Assigned");
+    public static AppraisalStatus InProgress => new("InProgress");
+    public static AppraisalStatus UnderReview => new("UnderReview");
+    public static AppraisalStatus Completed => new("Completed");
+    public static AppraisalStatus Cancelled => new("Cancelled");
 
     // Factory method from string
     public static AppraisalStatus FromString(string code)
     {
         return code switch
         {
-            "PENDING" => Pending,
             "Pending" => Pending,
-            "ASSIGNED" => Assigned,
             "Assigned" => Assigned,
-            "IN_PROGRESS" => InProgress,
             "InProgress" => InProgress,
-            "UNDER_REVIEW" => UnderReview,
             "UnderReview" => UnderReview,
-            "COMPLETED" => Completed,
             "Completed" => Completed,
-            "CANCELLED" => Cancelled,
             "Cancelled" => Cancelled,
             _ => throw new ArgumentException($"Invalid appraisal status: {code}")
         };

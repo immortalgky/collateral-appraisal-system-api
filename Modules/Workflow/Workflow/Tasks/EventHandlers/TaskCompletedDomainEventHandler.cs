@@ -27,6 +27,12 @@ public class TaskCompletedDomainEventHandler(
             return;
         }
 
+        // Capture before potential reassign (Reassign() clears WorkingBy and changes AssignedTo)
+        var wasStarted = pendingTask.WorkingBy is not null;
+        var wasOverdue = pendingTask.SlaStatus == "Breached";
+        var assignedAt = pendingTask.AssignedAt;
+        var originalAssignedTo = pendingTask.AssignedTo;
+
         // Implicit assignment: if pool task completed without claiming, assign to the completer
         if (pendingTask.AssignedType == "2" && !string.IsNullOrEmpty(notification.CompletedBy))
         {
@@ -48,14 +54,18 @@ public class TaskCompletedDomainEventHandler(
             "Moved PendingTask {TaskId} to CompletedTask for CorrelationId {CorrelationId}",
             pendingTask.Id, notification.CorrelationId);
 
-        // Publish integration event so Notification module can send real-time notifications
         await publishEndpoint.Publish(new TaskCompletedIntegrationEvent
         {
             CorrelationId = notification.CorrelationId,
             TaskName = notification.TaskName,
             ActionTaken = notification.ActionTaken,
             CompletedBy = completedBy,
-            WorkflowInstanceName = notification.WorkflowInstanceName
+            WorkflowInstanceName = notification.WorkflowInstanceName,
+            AppraisalNumber = notification.AppraisalNumber,
+            AssignedAt = assignedAt,
+            WasStarted = wasStarted,
+            WasOverdue = wasOverdue,
+            OriginalAssignedTo = originalAssignedTo
         }, cancellationToken);
     }
 }

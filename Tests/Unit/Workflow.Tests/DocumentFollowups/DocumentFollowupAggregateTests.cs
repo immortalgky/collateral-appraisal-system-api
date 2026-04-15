@@ -58,15 +58,15 @@ public class DocumentFollowupAggregateTests
     }
 
     [Fact]
-    public void FulfillFirstMatchingByType_AllResolved_TransitionsToResolved()
+    public void FulfillFirstMatchingByType_AllItemsFulfilled_StaysOpenUntilExplicitSubmit()
     {
         var followup = CreateOpenFollowup(1);
         followup.ClearDomainEvents();
 
         followup.FulfillFirstMatchingByType("DocType1", Guid.NewGuid());
 
-        followup.Status.Should().Be(DocumentFollowupStatus.Resolved);
-        followup.DomainEvents.Should().ContainSingle(e => e is DocumentFollowupResolvedDomainEvent);
+        followup.Status.Should().Be(DocumentFollowupStatus.Open);
+        followup.DomainEvents.Should().NotContain(e => e is DocumentFollowupResolvedDomainEvent);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class DocumentFollowupAggregateTests
     }
 
     [Fact]
-    public void CancelLineItem_LastPendingResolvesFollowup()
+    public void CancelLineItem_LastPendingStillOpen_AwaitsExplicitSubmit()
     {
         var followup = CreateOpenFollowup(2);
         followup.DeclineLineItem(followup.LineItems[0].Id, "no");
@@ -125,7 +125,7 @@ public class DocumentFollowupAggregateTests
 
         followup.CancelLineItem(followup.LineItems[1].Id, "obsolete");
 
-        followup.Status.Should().Be(DocumentFollowupStatus.Resolved);
-        followup.DomainEvents.Should().ContainSingle(e => e is DocumentFollowupResolvedDomainEvent);
+        followup.Status.Should().Be(DocumentFollowupStatus.Open);
+        followup.DomainEvents.Should().NotContain(e => e is DocumentFollowupResolvedDomainEvent);
     }
 }

@@ -21,6 +21,7 @@ public class AppraisalCreatedEventHandler(
             AppraisalNumber = appraisal.AppraisalNumber,
             AppraisalType = appraisal.AppraisalType,
             CreatedBy = notification.RequestedBy ?? appraisal.CreatedBy,
+            RequestedBy = notification.RequestedBy,
             CreatedAt = DateTime.UtcNow,
             IsPma = appraisal.IsPma,
             FacilityLimit = appraisal.FacilityLimit,

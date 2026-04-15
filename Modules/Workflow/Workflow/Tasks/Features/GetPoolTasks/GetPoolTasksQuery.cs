@@ -24,6 +24,7 @@ public record GetPoolTasksResponse(PaginatedResult<PoolTaskDto> Result);
 public record PoolTaskDto
 {
     public Guid Id { get; init; }
+    public Guid? AppraisalId { get; init; }
     public Guid TaskId { get; init; }
     public Guid WorkflowInstanceId { get; init; }
     public string? ActivityId { get; init; }

@@ -1,3 +1,5 @@
+using Appraisal.Domain.Appraisals.Income;
+
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
@@ -41,6 +43,9 @@ public class PricingAnalysisMethod : Entity<Guid>
 
     // Profit Rent Analysis (1:1, ProfitRent only)
     public ProfitRentAnalysis? ProfitRentAnalysis { get; private set; }
+
+    // Income Analysis (1:1, Income only)
+    public IncomeAnalysis? IncomeAnalysis { get; private set; }
 
     private PricingAnalysisMethod()
     {
@@ -140,6 +145,16 @@ public class PricingAnalysisMethod : Entity<Guid>
     public void ClearProfitRentAnalysis()
     {
         ProfitRentAnalysis = null;
+    }
+
+    public void SetIncomeAnalysis(IncomeAnalysis analysis)
+    {
+        IncomeAnalysis = analysis;
+    }
+
+    public void ClearIncomeAnalysis()
+    {
+        IncomeAnalysis = null;
     }
 
     /// <summary>
@@ -322,6 +337,7 @@ public class PricingAnalysisMethod : Entity<Guid>
         RsqResult = null;
         ClearLeaseholdAnalysis();
         ClearProfitRentAnalysis();
+        ClearIncomeAnalysis();
         MethodValue = null;
         ValuePerUnit = null;
         UnitType = null;

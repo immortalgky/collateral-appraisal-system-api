@@ -2,17 +2,15 @@ using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
 using Workflow.Data;
 using Workflow.Workflow.Repositories;
+using Workflow.Workflow.Services;
+using static Workflow.Workflow.Services.WorkflowSignals;
 
 namespace Workflow.EventHandlers;
 
-/// <summary>
-/// Handles AppraisalCreatedIntegrationEvent by recording the appraisalId
-/// in the workflow instance's Variables. The workflow was already started
-/// by RequestSubmittedIntegrationEventConsumer with correlationId = requestId.
-/// </summary>
 public class AppraisalCreatedIntegrationEventConsumer(
     ILogger<AppraisalCreatedIntegrationEventConsumer> logger,
     IWorkflowInstanceRepository workflowInstanceRepository,
+    IWorkflowSignalDispatcher signalDispatcher,
     IWorkflowUnitOfWork unitOfWork,
     InboxGuard<WorkflowDbContext> inboxGuard) : IConsumer<AppraisalCreatedIntegrationEvent>
 {
@@ -31,7 +29,6 @@ public class AppraisalCreatedIntegrationEventConsumer(
 
         try
         {
-            // Find workflow by correlationId = requestId
             var instance = await workflowInstanceRepository.GetByCorrelationId(
                 message.RequestId.ToString(), context.CancellationToken);
 
@@ -40,24 +37,53 @@ public class AppraisalCreatedIntegrationEventConsumer(
                 logger.LogWarning(
                     "No workflow found for RequestId: {RequestId}. AppraisalId {AppraisalId} will not be linked.",
                     message.RequestId, message.AppraisalId);
-                // Mark processed so the inbox row doesn't remain 'Processing' forever.
-                // No workflow exists, so there's nothing to retry against.
                 await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
                 return;
             }
 
-            // Record appraisal details in workflow variables
-            instance.UpdateVariables(new Dictionary<string, object>
+            var appraisalPayload = new Dictionary<string, object>
             {
                 ["appraisalId"] = message.AppraisalId,
                 ["appraisalNumber"] = message.AppraisalNumber ?? string.Empty,
-                ["appraisalType"] = message.AppraisalType ?? "Initial"
+                ["appraisalType"] = message.AppraisalType ?? "New"
+            };
+
+            // Wrap in execution strategy + transaction so that
+            // SqlServerRetryingExecutionStrategy allows DB operations inside
+            // the user-initiated transaction, and ResumeWorkflowAsync takes
+            // the HasActiveTransaction branch to defer commit.
+            var strategy = unitOfWork.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
+                await unitOfWork.BeginTransactionAsync(context.CancellationToken);
+                try
+                {
+                    instance.UpdateVariables(appraisalPayload);
+
+                    await signalDispatcher.DispatchAsync(
+                        signalName: AppraisalCreated,
+                        correlationValue: message.RequestId.ToString(),
+                        payload: appraisalPayload,
+                        context.CancellationToken);
+
+                    await unitOfWork.SaveChangesAsync(context.CancellationToken);
+                    await unitOfWork.CommitTransactionAsync(context.CancellationToken);
+                }
+                catch
+                {
+                    try { await unitOfWork.RollbackTransactionAsync(context.CancellationToken); }
+                    catch (Exception rollbackEx)
+                    {
+                        logger.LogError(rollbackEx, "Failed to rollback transaction for RequestId: {RequestId}",
+                            message.RequestId);
+                    }
+
+                    throw;
+                }
             });
 
-            await unitOfWork.SaveChangesAsync(context.CancellationToken);
-
             logger.LogInformation(
-                "Linked AppraisalId {AppraisalId} to workflow {WorkflowInstanceId} for RequestId: {RequestId}",
+                "Linked AppraisalId {AppraisalId} to workflow {WorkflowInstanceId} and dispatched signal for RequestId: {RequestId}",
                 message.AppraisalId, instance.Id, message.RequestId);
 
             await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);

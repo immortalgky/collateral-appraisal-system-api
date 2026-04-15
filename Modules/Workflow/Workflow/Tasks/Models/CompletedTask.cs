@@ -3,6 +3,7 @@ namespace Workflow.Tasks.Models;
 public class CompletedTask : Aggregate<Guid>
 {
     public Guid CorrelationId { get; private set; } = Guid.Empty!;
+    public string? ActivityId { get; private set; }
     public string TaskName { get; private set; } = default!;
     public string? TaskDescription { get; private set; }
     public TaskStatus TaskStatus { get; private set; } = default!;
@@ -25,10 +26,12 @@ public class CompletedTask : Aggregate<Guid>
     private CompletedTask(Guid id, Guid correlationId, string taskName, string assignedTo,
         string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt,
         DateTime? dueAt = null, string? slaStatus = null, DateTime? slaBreachedAt = null,
-        string? taskDescription = null, string? remark = null, string movement = "Forward")
+        string? taskDescription = null, string? remark = null, string movement = "Forward",
+        string? activityId = null)
     {
         Id = id;
         CorrelationId = correlationId;
+        ActivityId = activityId;
         TaskName = taskName;
         TaskDescription = taskDescription;
         TaskStatus = TaskStatus.Completed;
@@ -69,7 +72,8 @@ public class CompletedTask : Aggregate<Guid>
             pendingTask.SlaBreachedAt,
             pendingTask.TaskDescription,
             remark,
-            pendingTask.Movement
+            pendingTask.Movement,
+            pendingTask.ActivityId
         );
     }
 }

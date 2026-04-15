@@ -68,6 +68,16 @@ public class DocumentFollowupEndpoints : ICarterModule
             .WithTags("DocumentFollowups")
             .RequireAuthorization();
 
+        app.MapPost($"{Base}/{{id:guid}}/submit", async (
+                Guid id, ISender sender, CancellationToken ct) =>
+            {
+                await sender.Send(new SubmitDocumentFollowupCommand(id), ct);
+                return Results.NoContent();
+            })
+            .WithName("SubmitDocumentFollowup")
+            .WithTags("DocumentFollowups")
+            .RequireAuthorization();
+
         app.MapGet(Base, async (
                 Guid? raisingTaskId,
                 string? status,

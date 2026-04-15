@@ -10,8 +10,8 @@ public record DocumentFollowupLineItemDto(
     DateTime? ResolvedAt);
 
 /// <summary>
-/// Minimal user reference used in followup DTOs. DisplayName is best-effort; callers must
-/// tolerate a null name until a user-lookup service is wired up.
+/// Minimal user reference used in followup DTOs. DisplayName falls back to UserId when the
+/// user cannot be resolved via <see cref="Auth.Contracts.Users.IUserLookupService"/>.
 /// </summary>
 public record DocumentFollowupUserRef(string UserId, string? DisplayName);
 

@@ -58,6 +58,12 @@ public class PricingAnalysisRepository(AppraisalDbContext dbContext)
                 .ThenInclude(a => a.Methods)
                     .ThenInclude(m => m.ProfitRentAnalysis!)
                         .ThenInclude(p => p.TableRows)
+            .Include(pa => pa.Approaches)
+                .ThenInclude(a => a.Methods)
+                    .ThenInclude(m => m.IncomeAnalysis!)
+                        .ThenInclude(ia => ia.Sections)
+                            .ThenInclude(s => s.Categories)
+                                .ThenInclude(c => c.Assumptions)
             .AsSplitQuery()
             .FirstOrDefaultAsync(pa => pa.Id == id, cancellationToken);
     }

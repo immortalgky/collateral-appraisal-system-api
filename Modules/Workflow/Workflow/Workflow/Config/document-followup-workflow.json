@@ -27,7 +27,6 @@
         "description": "Request maker uploads or declines each requested document",
         "properties": {
           "activityName": "ProvideAdditionalDocuments",
-          "assigneeRole": "RequestMaker",
           "assigneeGroup": "RequestMaker",
           "assignmentStrategies": "started_by",
           "initialAssignmentStrategies": [ "started_by" ],
