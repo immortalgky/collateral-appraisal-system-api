@@ -188,8 +188,11 @@ public class SaveIncomeAnalysisCommandHandler(
             allAssumptionPairs.AddRange(asmPairs);
         }
 
-        foreach (var orphan in analysis.Sections.Where(s => !processedIds.Contains(s.Id)).ToList())
-            analysis.RemoveSection(orphan);
+        // Only remove sections that existed BEFORE this sync started and were not matched.
+        // Newly-added sections (Id = Guid.Empty) are not in existingById, so they're safe.
+        foreach (var (id, section) in existingById)
+            if (!processedIds.Contains(id))
+                analysis.RemoveSection(section);
 
         return (sectionPairs, allCategoryPairs, allAssumptionPairs);
     }
@@ -229,8 +232,10 @@ public class SaveIncomeAnalysisCommandHandler(
             allAssumptionPairs.AddRange(asmPairs);
         }
 
-        foreach (var orphan in section.Categories.Where(c => !processedIds.Contains(c.Id)).ToList())
-            section.RemoveCategory(orphan);
+        // Only remove categories that existed BEFORE this sync started.
+        foreach (var (id, category) in existingById)
+            if (!processedIds.Contains(id))
+                section.RemoveCategory(category);
 
         return (categoryPairs, allAssumptionPairs);
     }
@@ -265,8 +270,10 @@ public class SaveIncomeAnalysisCommandHandler(
             pairs.Add((aInput, assumption));
         }
 
-        foreach (var orphan in category.Assumptions.Where(a => !processedIds.Contains(a.Id)).ToList())
-            category.RemoveAssumption(orphan);
+        // Only remove assumptions that existed BEFORE this sync started.
+        foreach (var (id, assumption) in existingById)
+            if (!processedIds.Contains(id))
+                category.RemoveAssumption(assumption);
 
         return pairs;
     }
