@@ -20,7 +20,7 @@ public class GetCalendarEndpoint : ICarterModule
                         return Results.BadRequest("The 'month' query parameter is required (format: YYYY-MM).");
 
                     // Validate format before dispatching to handler
-                    if (!System.Text.RegularExpressions.Regex.IsMatch(month, @"^\d{4}-(?:0[1-9]|1[0-2])$"))
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(month, @"^\d{4}-(?:0[1-9]|1[0-2])$", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)))
                         return Results.BadRequest("Invalid month format. Expected YYYY-MM (e.g. 2026-04).");
 
                     var result = await sender.Send(new GetCalendarQuery(month), cancellationToken);
