@@ -7,10 +7,12 @@ public record GetTasksResult(PaginatedResult<TaskDto> Result);
 public record TaskDto
 {
     public Guid Id { get; init; }
+    public Guid? AppraisalId { get; init; }
     public Guid TaskId { get; init; }
     public Guid WorkflowInstanceId { get; init; }
     public string? ActivityId { get; init; }
     public string? AppraisalNumber { get; init; }
+    public string? RequestNumber { get; init; }
     public string? CustomerName { get; init; }
     public string? TaskType { get; init; }
     public string? TaskDescription { get; init; }
@@ -21,6 +23,7 @@ public record TaskDto
     public DateTime? AppointmentDateTime { get; init; }
     public string? AssigneeUserId { get; init; }
     public string? RequestedBy { get; init; }
+    public string? RequestedByName { get; init; }
     public DateTime? RequestReceivedDate { get; init; }
     public DateTime? AssignedDate { get; init; }
     public string? Movement { get; init; }

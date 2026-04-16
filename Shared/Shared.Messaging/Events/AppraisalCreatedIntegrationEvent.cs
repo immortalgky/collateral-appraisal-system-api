@@ -7,6 +7,7 @@ public record AppraisalCreatedIntegrationEvent : IntegrationEvent
     public string? AppraisalNumber { get; init; }
     public string? AppraisalType { get; init; }
     public string? CreatedBy { get; init; }
+    public string? RequestedBy { get; init; }
     public DateTime CreatedAt { get; init; }
     public bool IsPma { get; init; }
     public decimal? FacilityLimit { get; init; }

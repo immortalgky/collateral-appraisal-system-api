@@ -58,7 +58,7 @@ public class RequestSubmittedEventHandler(
             BankingSegment = notification.Request.Detail?.LoanDetail?.BankingSegment,
             FacilityLimit = notification.Request.Detail?.LoanDetail?.FacilityLimit,
             HasAppraisalBook = notification.Request.Detail?.HasAppraisalBook ?? false,
-            RequestedBy = notification.Request.Requestor.Username,
+            RequestedBy = notification.Request.Requestor.UserId,
             RequestedAt = notification.Request.RequestedAt
         };
 

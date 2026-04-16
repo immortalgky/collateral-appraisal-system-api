@@ -188,6 +188,11 @@ public static class AuthModule
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IGroupService, GroupService>();
         services.AddScoped<IUserLookupService, UserLookupService>();
+        services.AddScoped<PermissionResolver>();
+
+        // Menu tree cache (single-instance in-memory)
+        services.AddMemoryCache();
+        services.AddScoped<IMenuTreeCache, MenuTreeCache>();
 
         // Repositories
         services.AddScoped<IPermissionRepository, PermissionRepository>();
@@ -223,8 +228,14 @@ public static class AuthModule
             .AddUserPermissionPolicy("CanManageRoles", "ROLE_MANAGE")
             .AddUserPermissionPolicy("CanManageGroups", "GROUP_MANAGE")
             .AddUserPermissionPolicy("CanManageUsers", "USER_MANAGE")
+            .AddUserPermissionPolicy("CanManageMenus", "MENU_MANAGE")
             .AddUserPermissionPolicy("CanChangeUserPassword", "USER_CHANGE_PASSWORD")
             .AddUserPermissionPolicy("CanResetUserPassword", "USER_RESET_PASSWORD")
+            .AddUserPermissionPolicy("CanReleaseTaskLocks", "TASK_LOCK_MANAGE")
+            // Meeting policies — TODO: replace with real role claims once role infrastructure is complete
+            .AddUserPermissionPolicy("MeetingAdmin", "MEETING_ADMIN")
+            .AddUserPermissionPolicy("MeetingSecretary", "MEETING_SECRETARY")
+            .AddUserPermissionPolicy("CommitteeMember", "COMMITTEE_MEMBER")
             .AddScopePolicy("ClsReadAppraisal", "appraisal.read")
             .AddScopePolicy("ClsWriteRequest", "request.write")
             .AddScopePolicy("ClsReadDocument", "document.read")

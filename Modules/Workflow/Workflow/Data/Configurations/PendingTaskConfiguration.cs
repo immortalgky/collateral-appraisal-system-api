@@ -23,6 +23,10 @@ public class PendingTaskConfiguration : IEntityTypeConfiguration<PendingTask>
 
         builder.Property(p => p.WorkingBy)
             .HasMaxLength(255)
+            .IsRequired(false)
+            .IsConcurrencyToken();
+
+        builder.Property(p => p.LockedAt)
             .IsRequired(false);
 
         builder.Property(p => p.WorkflowInstanceId);

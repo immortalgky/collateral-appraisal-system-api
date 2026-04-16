@@ -5,13 +5,13 @@ public class CommitteeMember : Entity<Guid>
     public Guid CommitteeId { get; private set; }
     public string UserId { get; private set; } = default!;
     public string MemberName { get; private set; } = default!;
-    public CommitteeMemberRole Role { get; private set; }
+    public CommitteeMemberPosition Position { get; private set; }
     public bool IsActive { get; private set; }
 
     private CommitteeMember() { }
 
     internal static CommitteeMember Create(Guid committeeId, string userId, string memberName,
-        CommitteeMemberRole role)
+        CommitteeMemberPosition position)
     {
         return new CommitteeMember
         {
@@ -19,7 +19,7 @@ public class CommitteeMember : Entity<Guid>
             CommitteeId = committeeId,
             UserId = userId,
             MemberName = memberName,
-            Role = role,
+            Position = position,
             IsActive = true
         };
     }
@@ -27,18 +27,28 @@ public class CommitteeMember : Entity<Guid>
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
 
-    public void UpdateRole(CommitteeMemberRole role)
+    public void UpdatePosition(CommitteeMemberPosition position)
     {
-        Role = role;
+        Position = position;
     }
 }
 
-public enum CommitteeMemberRole
+public enum CommitteeMemberPosition
 {
+    /// <summary>Committee Chairman.</summary>
     Chairman,
+    /// <summary>Director-level member.</summary>
+    Director,
+    /// <summary>Committee Secretary.</summary>
+    Secretary,
+    /// <summary>Underwriter representative.</summary>
     UW,
+    /// <summary>Risk representative.</summary>
     Risk,
+    /// <summary>Appraisal representative.</summary>
     Appraisal,
+    /// <summary>Credit representative.</summary>
     Credit,
+    /// <summary>General committee member.</summary>
     Member
 }

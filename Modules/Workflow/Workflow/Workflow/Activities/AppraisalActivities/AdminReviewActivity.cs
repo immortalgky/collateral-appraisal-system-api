@@ -22,7 +22,7 @@ public class AdminReviewActivity : WorkflowActivityBase
         var outputData = new Dictionary<string, object>
         {
             ["assignedAt"] = DateTime.Now,
-            ["assigneeRole"] = "Admin",
+            ["assigneeGroup"] = "Admin",
             ["estimatedValue"] = estimatedValue
         };
 

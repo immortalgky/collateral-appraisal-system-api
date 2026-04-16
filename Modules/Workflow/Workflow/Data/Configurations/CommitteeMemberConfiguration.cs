@@ -12,7 +12,7 @@ public class CommitteeMemberConfiguration : IEntityTypeConfiguration<CommitteeMe
 
         builder.Property(m => m.UserId).HasMaxLength(255).IsRequired();
         builder.Property(m => m.MemberName).HasMaxLength(255).IsRequired();
-        builder.Property(m => m.Role).HasConversion<string>().HasMaxLength(50);
+        builder.Property(m => m.Position).HasConversion<string>().HasMaxLength(50);
 
         builder.HasIndex(m => new { m.CommitteeId, m.UserId })
             .HasFilter("[IsActive] = 1")

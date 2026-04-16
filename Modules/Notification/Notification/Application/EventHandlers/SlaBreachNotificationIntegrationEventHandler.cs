@@ -23,6 +23,8 @@ public class SlaBreachNotificationIntegrationEventHandler : IConsumer<SlaBreachI
         try
         {
             // TODO: Wire up to INotificationService to send actual notifications
+            // TODO: Add InboxGuard<NotificationDbContext> idempotency guard to prevent duplicate
+            //       notifications on message retry (same pattern as TaskAssignedNotificationIntegrationEventHandler)
             // For now, log the breach event for monitoring
             if (breach.SlaStatus == "Breached")
             {

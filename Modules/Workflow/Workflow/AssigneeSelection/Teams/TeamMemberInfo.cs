@@ -4,4 +4,4 @@ public record TeamMemberInfo(
     string UserId,
     string DisplayName,
     string TeamId,
-    List<string> ActivityRoles);
+    List<string> ActivityGroups);

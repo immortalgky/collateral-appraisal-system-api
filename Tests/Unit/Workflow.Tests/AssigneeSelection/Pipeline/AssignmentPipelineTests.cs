@@ -76,8 +76,8 @@ public class AssignmentPipelineTests
         };
     }
 
-    private static TeamMemberInfo Member(string userId, string teamId, params string[] activityRoles)
-        => new(userId, $"User {userId}", teamId, activityRoles.ToList());
+    private static TeamMemberInfo Member(string userId, string teamId, params string[] activityGroups)
+        => new(userId, $"User {userId}", teamId, activityGroups.ToList());
 
     private void SetupDefaultContextBuilder(AssignmentPipelineContext? overrideCtx = null)
     {
@@ -326,7 +326,7 @@ public class AssignmentPipelineTests
         {
             ActivityContext = CreateActivityContext(properties: new Dictionary<string, object>
             {
-                ["assigneeRole"] = "TestRole"
+                ["assigneeGroup"] = "TestRole"
             }),
             Rules = new ActivityAssignmentRules(TeamConstrained: false, ExcludeAssigneesFrom: [])
         };
@@ -353,7 +353,7 @@ public class AssignmentPipelineTests
         {
             ActivityContext = CreateActivityContext(properties: new Dictionary<string, object>
             {
-                ["assigneeRole"] = "TestRole"
+                ["assigneeGroup"] = "TestRole"
             }),
             Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []),
             TeamId = "team-A"
@@ -382,7 +382,7 @@ public class AssignmentPipelineTests
         {
             ActivityContext = CreateActivityContext(properties: new Dictionary<string, object>
             {
-                ["assigneeRole"] = "TestRole"
+                ["assigneeGroup"] = "TestRole"
             }),
             Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []),
             TeamId = null // Not set yet
@@ -443,31 +443,8 @@ public class AssignmentPipelineTests
         result.Should().HaveCount(2);
     }
 
-    [Fact]
-    public async Task ActivityRoleFilter_KeepsOnlyCandidatesWithMatchingRole()
-    {
-        var roleFilter = new ActivityRoleFilter(Substitute.For<ILogger<ActivityRoleFilter>>());
-
-        var candidates = new List<TeamMemberInfo>
-        {
-            Member("u1", "t", "admin", "TestRole"),
-            Member("u2", "t", "admin"),  // Does NOT have TestRole
-            Member("u3", "t", "TestRole")
-        };
-
-        var ctx = new AssignmentPipelineContext
-        {
-            ActivityContext = CreateActivityContext(activityId: "test-activity", properties: new Dictionary<string, object>
-            {
-                ["assigneeRole"] = "TestRole"
-            })
-        };
-
-        var result = await roleFilter.FilterAsync(ctx, candidates);
-
-        result.Should().HaveCount(2);
-        result.Select(c => c.UserId).Should().BeEquivalentTo(["u1", "u3"]);
-    }
+    // ActivityRoleFilter removed — group membership filtering is now handled by
+    // CompanyTeamService SQL queries (auth.Groups/auth.GroupUsers joins).
 
     // ═══════════════════════════════════════════════════════════════
     // 5. VALIDATORS
@@ -728,23 +705,22 @@ public class AssignmentPipelineTests
     [Fact]
     public async Task AssignAsync_WithRealFilters_FiltersCorrectly()
     {
-        // Build pipeline with real filters
+        // Build pipeline with real filters (ActivityRoleFilter removed — group filtering is in SQL)
         var teamFilter = new TeamFilter(_teamService, Substitute.For<ILogger<TeamFilter>>());
         var exclusionFilter = new ExclusionFilter(Substitute.For<ILogger<ExclusionFilter>>());
-        var roleFilter = new ActivityRoleFilter(Substitute.For<ILogger<ActivityRoleFilter>>());
 
-        var filters = new List<IAssignmentFilter> { teamFilter, exclusionFilter, roleFilter };
+        var filters = new List<IAssignmentFilter> { teamFilter, exclusionFilter };
         var logger = Substitute.For<ILogger<AssignmentPipeline>>();
 
         var pipeline = new AssignmentPipeline(
             _contextBuilder, filters, _engine, _validators, _finalizer, logger);
 
         // Setup: team-constrained with exclusion
+        // DB query only returns members in the target group (no wrong-group members)
         var teamMembers = new List<TeamMemberInfo>
         {
             Member("u1", "team-A", "CheckerRole"),
-            Member("u2", "team-A", "CheckerRole"),
-            Member("u3", "team-A", "OtherRole") // Wrong role
+            Member("u2", "team-A", "CheckerRole")
         };
 
         _teamService.GetTeamMembersForActivityAsync("team-A", "CheckerRole", Arg.Any<CancellationToken>())
@@ -768,14 +744,14 @@ public class AssignmentPipelineTests
 
         var context = CreateActivityContext(activityId: "checker-activity", properties: new Dictionary<string, object>
         {
-            ["assigneeRole"] = "CheckerRole"
+            ["assigneeGroup"] = "CheckerRole"
         });
         var result = await pipeline.AssignAsync(context);
 
         result.IsSuccess.Should().BeTrue();
 
         // Verify engine received filtered pool: only u2 should remain
-        // (u1 excluded, u3 wrong role)
+        // (u1 excluded by ExclusionFilter)
         await _engine.Received(1).ExecuteAsync(
             Arg.Is<AssignmentContext>(c => c.CandidatePool != null && c.CandidatePool.Count == 1),
             Arg.Any<CancellationToken>());

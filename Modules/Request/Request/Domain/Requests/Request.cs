@@ -38,7 +38,7 @@ public class Request : Aggregate<Guid>
     {
         Id = Guid.CreateVersion7();
         Status = RequestStatus.Draft;
-        Priority = "NORMAL";
+        Priority = "Normal";
         CreatedAt = createdAt;
         SoftDelete = SoftDelete.NotDeleted;
     }

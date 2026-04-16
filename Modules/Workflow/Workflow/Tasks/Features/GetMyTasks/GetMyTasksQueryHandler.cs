@@ -13,7 +13,7 @@ public class GetMyTasksQueryHandler(
 {
     private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
     {
-        "AppraisalNumber", "CustomerName", "TaskType", "Purpose", "PropertyType",
+        "AppraisalNumber", "RequestNumber", "CustomerName", "TaskType", "Purpose", "PropertyType",
         "Status", "AppointmentDateTime", "RequestedBy", "RequestReceivedDate",
         "AssignedDate", "Movement", "InternalFollowupStaff", "Appraiser",
         "Priority", "DueAt", "SlaStatus", "ElapsedHours", "RemainingHours"
@@ -34,6 +34,12 @@ public class GetMyTasksQueryHandler(
         var filter = query.Filter;
         if (filter is not null)
         {
+            if (!string.IsNullOrWhiteSpace(filter.ActivityId))
+            {
+                conditions.Add("ActivityId = @ActivityId");
+                parameters.Add("ActivityId", filter.ActivityId);
+            }
+
             if (!string.IsNullOrWhiteSpace(filter.Status))
             {
                 conditions.Add("Status = @Status");
@@ -52,9 +58,15 @@ public class GetMyTasksQueryHandler(
                 parameters.Add("TaskName", filter.TaskName);
             }
 
+            if (!string.IsNullOrWhiteSpace(filter.Search))
+            {
+                conditions.Add("(AppraisalNumber LIKE '%' + @Search + '%' OR CustomerName LIKE '%' + @Search + '%')");
+                parameters.Add("Search", filter.Search);
+            }
+
             if (!string.IsNullOrWhiteSpace(filter.AppraisalNumber))
             {
-                conditions.Add("AppraisalNumber LIKE @AppraisalNumber + '%'");
+                conditions.Add("AppraisalNumber LIKE '%' + @AppraisalNumber + '%'");
                 parameters.Add("AppraisalNumber", filter.AppraisalNumber);
             }
 
@@ -86,6 +98,30 @@ public class GetMyTasksQueryHandler(
             {
                 conditions.Add("AssignedDate < DATEADD(day, 1, @DateTo)");
                 parameters.Add("DateTo", filter.DateTo.Value);
+            }
+
+            if (filter.AppointmentDateFrom.HasValue)
+            {
+                conditions.Add("AppointmentDateTime >= @AppointmentDateFrom");
+                parameters.Add("AppointmentDateFrom", filter.AppointmentDateFrom.Value);
+            }
+
+            if (filter.AppointmentDateTo.HasValue)
+            {
+                conditions.Add("AppointmentDateTime < DATEADD(day, 1, @AppointmentDateTo)");
+                parameters.Add("AppointmentDateTo", filter.AppointmentDateTo.Value);
+            }
+
+            if (filter.RequestedAtFrom.HasValue)
+            {
+                conditions.Add("RequestReceivedDate >= @RequestedAtFrom");
+                parameters.Add("RequestedAtFrom", filter.RequestedAtFrom.Value);
+            }
+
+            if (filter.RequestedAtTo.HasValue)
+            {
+                conditions.Add("RequestReceivedDate < DATEADD(day, 1, @RequestedAtTo)");
+                parameters.Add("RequestedAtTo", filter.RequestedAtTo.Value);
             }
         }
 

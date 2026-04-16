@@ -94,7 +94,8 @@ public class SlaMonitorService(
                     AssignedTo = task.AssignedTo,
                     SlaStatus = "Breached",
                     DueAt = task.DueAt.Value,
-                    DetectedAt = now
+                    DetectedAt = now,
+                    AssignedAt = task.AssignedAt
                 }, ct);
 
                 logger.LogWarning(
@@ -125,7 +126,8 @@ public class SlaMonitorService(
                     AssignedTo = task.AssignedTo,
                     SlaStatus = "AtRisk",
                     DueAt = task.DueAt.Value,
-                    DetectedAt = now
+                    DetectedAt = now,
+                    AssignedAt = task.AssignedAt
                 }, ct);
 
                 logger.LogWarning(
@@ -152,7 +154,7 @@ public class SlaMonitorService(
             SELECT Id FROM workflow.WorkflowInstances
             WHERE Status = @Running AND WorkflowDueAt IS NOT NULL
               AND WorkflowDueAt <= @Now AND WorkflowSlaStatus != 'Breached'
-            """, new { Now = now, Running = (int)WorkflowStatus.Running })).ToList();
+            """, new { Now = now, Running = "Running" })).ToList();
 
         var atRiskIds = (await conn.QueryAsync<Guid>(
             """
@@ -160,7 +162,7 @@ public class SlaMonitorService(
             WHERE Status = @Running AND WorkflowDueAt IS NOT NULL
               AND WorkflowSlaStatus = 'OnTime'
               AND DATEADD(SECOND, DATEDIFF(SECOND, StartedOn, WorkflowDueAt) * 0.75, StartedOn) <= @Now
-            """, new { Now = now, Running = (int)WorkflowStatus.Running })).ToList();
+            """, new { Now = now, Running = "Running" })).ToList();
 
         if (breachedIds.Count == 0 && atRiskIds.Count == 0) return;
 

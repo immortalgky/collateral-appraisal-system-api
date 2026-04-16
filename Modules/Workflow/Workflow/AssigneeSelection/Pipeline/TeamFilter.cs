@@ -23,27 +23,27 @@ public class TeamFilter : IAssignmentFilter
     {
         var activityId = context.ActivityContext.ActivityId;
 
-        // Read the role name from the schema's assigneeRole property
+        // Read the group name from the schema's assigneeGroup property
         // Values from JSON deserialization may be JsonElement, so handle both types
-        var roleName = "";
-        if (context.ActivityContext.Properties?.TryGetValue("assigneeRole", out var role) == true && role is not null)
+        var groupName = "";
+        if (context.ActivityContext.Properties?.TryGetValue("assigneeGroup", out var group) == true && group is not null)
         {
-            roleName = role is JsonElement je ? je.GetString() ?? "" : role.ToString() ?? "";
+            groupName = group is JsonElement je ? je.GetString() ?? "" : group.ToString() ?? "";
         }
 
-        if (string.IsNullOrEmpty(roleName))
+        if (string.IsNullOrEmpty(groupName))
         {
-            _logger.LogWarning("No assigneeRole in properties for activity {ActivityId}", activityId);
+            _logger.LogWarning("No assigneeGroup in properties for activity {ActivityId}", activityId);
             return candidates;
         }
 
         if (!context.Rules.TeamConstrained)
         {
-            // Not team-constrained: load all members for this role if pool is empty
+            // Not team-constrained: load all members for this group if pool is empty
             if (candidates.Count == 0)
             {
-                candidates = await _teamService.GetAllMembersForActivityAsync(roleName, cancellationToken);
-                _logger.LogDebug("TeamFilter: Loaded {Count} members for {ActivityId} role {RoleName} (no team constraint)", candidates.Count, activityId, roleName);
+                candidates = await _teamService.GetAllMembersForActivityAsync(groupName, cancellationToken);
+                _logger.LogDebug("TeamFilter: Loaded {Count} members for {ActivityId} group {GroupName} (no team constraint)", candidates.Count, activityId, groupName);
             }
             return candidates;
         }
@@ -54,13 +54,13 @@ public class TeamFilter : IAssignmentFilter
         if (string.IsNullOrEmpty(teamId))
         {
             // No team set yet -- load all members so first assignment can establish the team
-            candidates = await _teamService.GetAllMembersForActivityAsync(roleName, cancellationToken);
-            _logger.LogDebug("TeamFilter: No TeamId set, loaded {Count} members for {ActivityId} role {RoleName}", candidates.Count, activityId, roleName);
+            candidates = await _teamService.GetAllMembersForActivityAsync(groupName, cancellationToken);
+            _logger.LogDebug("TeamFilter: No TeamId set, loaded {Count} members for {ActivityId} group {GroupName}", candidates.Count, activityId, groupName);
             return candidates;
         }
 
-        candidates = await _teamService.GetTeamMembersForActivityAsync(teamId, roleName, cancellationToken);
-        _logger.LogDebug("TeamFilter: Scoped to team {TeamId}, {Count} members for {ActivityId} role {RoleName}", teamId, candidates.Count, activityId, roleName);
+        candidates = await _teamService.GetTeamMembersForActivityAsync(teamId, groupName, cancellationToken);
+        _logger.LogDebug("TeamFilter: Scoped to team {TeamId}, {Count} members for {ActivityId} group {GroupName}", teamId, candidates.Count, activityId, groupName);
 
         return candidates;
     }

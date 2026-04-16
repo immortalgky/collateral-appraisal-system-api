@@ -27,16 +27,16 @@ public class ValidateTaskOwnershipStep(
                 """
                 SELECT AssignedTo, AssignedType, WorkingBy
                 FROM workflow.PendingTasks
-                WHERE CorrelationId = @AppraisalId
+                WHERE CorrelationId = @CorrelationId
                 """,
-                new { context.AppraisalId });
+                new { context.CorrelationId });
 
             var taskList = tasks.ToList();
             if (taskList.Count == 0)
             {
                 logger.LogWarning(
-                    "No pending task found for appraisal {AppraisalId}", context.AppraisalId);
-                return ProcessStepResult.Fail("No pending task found for this appraisal");
+                    "No pending task found for correlation {CorrelationId}", context.CorrelationId);
+                return ProcessStepResult.Fail("No pending task found for this request");
             }
 
             var username = currentUserService.Username;
@@ -49,9 +49,9 @@ public class ValidateTaskOwnershipStep(
             if (!isOwner)
             {
                 logger.LogWarning(
-                    "User {Username} attempted to complete task for appraisal {AppraisalId} but is not assigned to any of {TaskCount} pending tasks",
+                    "User {Username} attempted to complete task for correlation {CorrelationId} but is not assigned to any of {TaskCount} pending tasks",
                     username,
-                    context.AppraisalId,
+                    context.CorrelationId,
                     taskList.Count);
                 return ProcessStepResult.Fail("You are not authorized to complete this task");
             }
@@ -61,7 +61,7 @@ public class ValidateTaskOwnershipStep(
         catch (Exception ex)
         {
             logger.LogError(ex,
-                "Failed to validate task ownership for appraisal {AppraisalId}", context.AppraisalId);
+                "Failed to validate task ownership for correlation {CorrelationId}", context.CorrelationId);
             return ProcessStepResult.Fail(ex.Message);
         }
     }

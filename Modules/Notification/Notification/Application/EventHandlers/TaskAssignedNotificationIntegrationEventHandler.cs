@@ -9,6 +9,9 @@ namespace Notification.Domain.Notifications.EventHandlers;
 
 public class TaskAssignedNotificationIntegrationEventHandler : IConsumer<TaskAssignedIntegrationEvent>
 {
+    private static readonly HashSet<string> _rmNotifiableStages =
+        ["ExtAppraisalAssignment", "IntAppraisalExecution", "PendingApproval"];
+
     private readonly INotificationService _notificationService;
     private readonly ILogger<TaskAssignedNotificationIntegrationEventHandler> _logger;
     private readonly InboxGuard<NotificationDbContext> _inboxGuard;
@@ -35,8 +38,7 @@ public class TaskAssignedNotificationIntegrationEventHandler : IConsumer<TaskAss
 
         try
         {
-            var appraisalNumber = taskAssigned.WorkflowInstanceName?
-                .Replace("Appraisal-", "") ?? "N/A";
+            var appraisalNumber = taskAssigned.AppraisalNumber ?? "N/A";
 
             var notification = new TaskAssignedNotificationDto(
                 taskAssigned.CorrelationId,
@@ -75,26 +77,26 @@ public class TaskAssignedNotificationIntegrationEventHandler : IConsumer<TaskAss
                     taskAssigned.CompletedBy);
             }
 
-            // Notify the requestor on first task assignment with appraisal number + assignee
-            if (string.IsNullOrEmpty(taskAssigned.CompletedBy) &&
-                !string.IsNullOrEmpty(taskAssigned.StartedBy))
+            // Notify RM (requestor) only at key milestone stages
+            if (!string.IsNullOrEmpty(taskAssigned.StartedBy) &&
+                taskAssigned.StartedBy != taskAssigned.AssignedTo &&
+                taskAssigned.StartedBy != taskAssigned.CompletedBy &&
+                _rmNotifiableStages.Contains(taskAssigned.TaskName))
             {
                 await _notificationService.SendNotificationToUserAsync(
                     taskAssigned.StartedBy,
-                    $"Request Submitted: Appraisal #{appraisalNumber}",
-                    $"Your request has been submitted successfully. Appraisal #{appraisalNumber} has been assigned to {taskAssigned.AssignedTo} for {taskAssigned.TaskName}.",
+                    $"Request Progressed: {taskAssigned.TaskName}",
+                    $"Your appraisal request (#{appraisalNumber}) has moved to the {taskAssigned.TaskName} stage.",
                     NotificationType.WorkflowTransition,
                     metadata: new Dictionary<string, object>
                     {
                         { "correlationId", taskAssigned.CorrelationId },
                         { "appraisalNumber", appraisalNumber },
-                        { "assignedTo", taskAssigned.AssignedTo },
-                        { "taskName", taskAssigned.TaskName }
+                        { "stage", taskAssigned.TaskName }
                     });
 
-                _logger.LogInformation(
-                    "Sent requestor notification to {StartedBy} for appraisal {AppraisalNumber}",
-                    taskAssigned.StartedBy, appraisalNumber);
+                _logger.LogInformation("Successfully sent request-progressed notification to RM {StartedBy}",
+                    taskAssigned.StartedBy);
             }
 
             await _inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);

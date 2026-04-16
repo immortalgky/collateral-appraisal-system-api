@@ -8,6 +8,10 @@ public class CompletedTaskConfiguration : IEntityTypeConfiguration<CompletedTask
     {
         builder.HasKey(p => p.Id);
 
+        builder.Property(p => p.ActivityId)
+            .HasMaxLength(100)
+            .IsRequired(false);
+
         builder.Property(p => p.TaskName)
             .HasMaxLength(100);
 

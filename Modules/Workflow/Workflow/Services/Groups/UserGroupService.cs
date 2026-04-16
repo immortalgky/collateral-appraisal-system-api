@@ -4,8 +4,7 @@ using Shared.Data;
 namespace Workflow.Services.Groups;
 
 /// <summary>
-/// Queries real user IDs from ASP.NET Identity tables by role name.
-/// Group name = role name (e.g. "Admin", "IntAppraisalStaff").
+/// Queries user IDs from auth.Groups/auth.GroupUsers tables by group name.
 /// </summary>
 public class UserGroupService : IUserGroupService
 {
@@ -27,11 +26,12 @@ public class UserGroupService : IUserGroupService
             """
             SELECT u.UserName
             FROM auth.AspNetUsers u
-            INNER JOIN auth.AspNetUserRoles ur ON ur.UserId = u.Id
-            INNER JOIN auth.AspNetRoles r ON r.Id = ur.RoleId
-            WHERE r.NormalizedName = @NormalizedRoleName
+            INNER JOIN auth.GroupUsers gu ON gu.UserId = u.Id
+            INNER JOIN auth.Groups g ON g.Id = gu.GroupId
+            WHERE g.Name = @GroupName
+              AND g.IsDeleted = 0
             """,
-            new { NormalizedRoleName = groupName.ToUpperInvariant() });
+            new { GroupName = groupName });
 
         var result = userIds.ToList();
         _logger.LogDebug("Found {UserCount} users in group {GroupName}", result.Count, groupName);
@@ -41,20 +41,28 @@ public class UserGroupService : IUserGroupService
     public async Task<List<string>> GetUsersInGroupsAsync(List<string> groupNames,
         CancellationToken cancellationToken = default)
     {
-        var allUsers = new List<string>();
+        if (groupNames.Count == 0)
+            return [];
 
-        foreach (var groupName in groupNames)
-        {
-            var groupUsers = await GetUsersInGroupAsync(groupName, cancellationToken);
-            allUsers.AddRange(groupUsers);
-        }
+        using var connection = _connectionFactory.GetOpenConnection();
 
-        var distinctUsers = allUsers.Distinct().ToList();
+        var users = await connection.QueryAsync<string>(
+            """
+            SELECT DISTINCT u.UserName
+            FROM auth.AspNetUsers u
+            INNER JOIN auth.GroupUsers gu ON gu.UserId = u.Id
+            INNER JOIN auth.Groups g ON g.Id = gu.GroupId
+            WHERE g.Name IN @GroupNames
+              AND g.IsDeleted = 0
+            """,
+            new { GroupNames = groupNames });
+
+        var result = users.ToList();
 
         _logger.LogDebug("Found {UserCount} unique users across {GroupCount} groups",
-            distinctUsers.Count, groupNames.Count);
+            result.Count, groupNames.Count);
 
-        return distinctUsers;
+        return result;
     }
 
     public async Task<List<string>> GetGroupsForUserAsync(string username,
@@ -62,17 +70,18 @@ public class UserGroupService : IUserGroupService
     {
         using var connection = _connectionFactory.GetOpenConnection();
 
-        var roles = await connection.QueryAsync<string>(
+        var groups = await connection.QueryAsync<string>(
             """
-            SELECT r.Name
-            FROM auth.AspNetRoles r
-            INNER JOIN auth.AspNetUserRoles ur ON ur.RoleId = r.Id
-            INNER JOIN auth.AspNetUsers u ON u.Id = ur.UserId
+            SELECT g.Name
+            FROM auth.Groups g
+            INNER JOIN auth.GroupUsers gu ON gu.GroupId = g.Id
+            INNER JOIN auth.AspNetUsers u ON u.Id = gu.UserId
             WHERE u.NormalizedUserName = @NormalizedUserName
+              AND g.IsDeleted = 0
             """,
             new { NormalizedUserName = username.ToUpperInvariant() });
 
-        var result = roles.ToList();
+        var result = groups.ToList();
         _logger.LogDebug("Found {GroupCount} groups for user {Username}", result.Count, username);
         return result;
     }

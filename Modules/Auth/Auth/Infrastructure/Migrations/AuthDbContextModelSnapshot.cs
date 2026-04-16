@@ -423,6 +423,121 @@ namespace Auth.Infrastructure.Migrations
                     b.ToTable("UserPermissions", "auth");
                 });
 
+            modelBuilder.Entity("Auth.Domain.Menu.MenuItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("MenuItemId");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EditPermissionCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("IconColor")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ItemKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Path")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Scope")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ViewPermissionCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemKey")
+                        .IsUnique();
+
+                    b.HasIndex("ParentId");
+
+                    b.HasIndex("Scope", "Path")
+                        .HasFilter("[Path] IS NOT NULL");
+
+                    b.HasIndex("Scope", "ParentId", "SortOrder");
+
+                    b.ToTable("MenuItems", "auth");
+                });
+
+            modelBuilder.Entity("Auth.Domain.Menu.MenuItemTranslation", b =>
+                {
+                    b.Property<Guid>("MenuItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("LanguageCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("MenuItemId", "LanguageCode");
+
+                    b.ToTable("MenuItemTranslations", "auth");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.Property<int>("Id")
@@ -805,6 +920,49 @@ namespace Auth.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Auth.Domain.Menu.MenuItem", b =>
+                {
+                    b.HasOne("Auth.Domain.Menu.MenuItem", null)
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.OwnsOne("Auth.Domain.Menu.MenuIcon", "Icon", b1 =>
+                        {
+                            b1.Property<Guid>("MenuItemId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Name")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("IconName");
+
+                            b1.Property<int>("Style")
+                                .HasColumnType("int")
+                                .HasColumnName("IconStyle");
+
+                            b1.HasKey("MenuItemId");
+
+                            b1.ToTable("MenuItems", "auth");
+
+                            b1.WithOwner()
+                                .HasForeignKey("MenuItemId");
+                        });
+
+                    b.Navigation("Icon")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Auth.Domain.Menu.MenuItemTranslation", b =>
+                {
+                    b.HasOne("Auth.Domain.Menu.MenuItem", null)
+                        .WithMany("Translations")
+                        .HasForeignKey("MenuItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Auth.Domain.Identity.ApplicationRole", null)
@@ -895,6 +1053,11 @@ namespace Auth.Infrastructure.Migrations
             modelBuilder.Entity("Auth.Domain.Identity.ApplicationUser", b =>
                 {
                     b.Navigation("Permissions");
+                });
+
+            modelBuilder.Entity("Auth.Domain.Menu.MenuItem", b =>
+                {
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", b =>

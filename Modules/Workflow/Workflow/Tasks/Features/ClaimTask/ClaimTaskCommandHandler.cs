@@ -1,4 +1,7 @@
+using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Shared.Identity;
+using Shared.Messaging.Events;
 using Workflow.Data;
 using Workflow.Workflow.Services;
 
@@ -8,6 +11,7 @@ public class ClaimTaskCommandHandler(
     WorkflowDbContext dbContext,
     ICurrentUserService currentUserService,
     IWorkflowNotificationService notificationService,
+    IPublishEndpoint publishEndpoint,
     ILogger<ClaimTaskCommandHandler> logger
 ) : ICommandHandler<ClaimTaskCommand, ClaimTaskResult>
 {
@@ -24,18 +28,41 @@ public class ClaimTaskCommandHandler(
         if (task.AssignedType != "2")
             return new ClaimTaskResult(false, ErrorMessage: "Only pool tasks can be claimed");
 
+        var isPoolMember = currentUserService.Roles.Any(r =>
+            string.Equals(r, task.AssignedTo, StringComparison.OrdinalIgnoreCase));
+        if (!isPoolMember)
+            return new ClaimTaskResult(false, ErrorMessage: "You are not a member of this pool");
+
         // Capture pool group before reassignment for notification
         var poolGroup = task.AssignedTo;
 
         // Claim: reassign from pool to specific person
         task.Reassign(username, "1");
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another user claimed this task at the same moment
+            return new ClaimTaskResult(false, ErrorMessage: "Task was already claimed by another user");
+        }
 
         logger.LogInformation("User {Username} claimed pool task {TaskId} from pool {PoolGroup}",
             username, command.TaskId, poolGroup);
 
         // Push real-time notification to pool members
         await notificationService.NotifyPoolTaskClaimed(poolGroup, command.TaskId, username);
+
+        // Publish integration event so dashboard counters transfer from pool group to individual
+        await publishEndpoint.Publish(new TaskClaimedIntegrationEvent
+        {
+            CorrelationId = task.CorrelationId,
+            PoolGroup = poolGroup,
+            ClaimedBy = username,
+            AssignedAt = task.AssignedAt
+        }, cancellationToken);
 
         return new ClaimTaskResult(true, AssignedTo: username);
     }

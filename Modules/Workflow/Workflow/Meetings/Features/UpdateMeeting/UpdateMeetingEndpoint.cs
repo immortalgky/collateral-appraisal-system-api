@@ -17,12 +17,17 @@ public class UpdateMeetingEndpoint : ICarterModule
             })
             .WithName("UpdateMeeting")
             .WithTags("Meetings")
-            .RequireAuthorization()
+            .RequireAuthorization("MeetingAdmin")
             .Produces(StatusCodes.Status204NoContent);
     }
 }
 
-public record UpdateMeetingRequest(string Title, string? Location, string? Notes);
+public record UpdateMeetingRequest(
+    string Title,
+    string? Location,
+    string? Notes,
+    DateTime? StartAt,
+    DateTime? EndAt);
 
 public record UpdateMeetingCommand(Guid MeetingId, UpdateMeetingRequest Request)
     : ICommand, ITransactionalCommand<IWorkflowUnitOfWork>;
@@ -36,6 +41,10 @@ public class UpdateMeetingCommandHandler(IMeetingRepository meetingRepository)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
         meeting.UpdateDetails(command.Request.Title, command.Request.Location, command.Request.Notes);
+
+        if (command.Request.StartAt.HasValue && command.Request.EndAt.HasValue)
+            meeting.SetSchedule(command.Request.StartAt.Value, command.Request.EndAt.Value, command.Request.Location);
+
         return Unit.Value;
     }
 }

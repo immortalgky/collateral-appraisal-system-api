@@ -16,6 +16,7 @@ public class GetPoolTasksEndpoint : ICarterModule
                     [FromQuery] string? taskName,
                     [FromQuery] string? sortBy,
                     [FromQuery] string? sortDir,
+                    [FromQuery] Guid? activityId,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
@@ -25,7 +26,8 @@ public class GetPoolTasksEndpoint : ICarterModule
                         priority,
                         taskName,
                         sortBy,
-                        sortDir
+                        sortDir,
+                        activityId
                     );
 
                     var query = new GetPoolTasksQuery(pagination, filter);

@@ -68,7 +68,10 @@ public static class AppraisalModule
         services.AddScoped<PricingPropertyDataService>();
 
         // Register Domain Services
-        services.AddSingleton<PricingCalculationServiceResolver>();
+        // IncomeCalculationService is scoped so it can carry ILogger (injected by DI).
+        // PricingCalculationServiceResolver is also scoped because it holds a scoped dependency.
+        services.AddScoped<IncomeCalculationService>();
+        services.AddScoped<PricingCalculationServiceResolver>();
 
         // Register Data Seeders
         services.AddScoped<IDataSeeder<AppraisalDbContext>, AppendixTypeDataSeed>();

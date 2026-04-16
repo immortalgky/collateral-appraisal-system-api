@@ -17,7 +17,7 @@ public class GetMeetingsEndpoint : ICarterModule
             })
             .WithName("GetMeetings")
             .WithTags("Meetings")
-            .RequireAuthorization();
+            .RequireAuthorization("CommitteeMember");
     }
 }
 
@@ -30,9 +30,13 @@ public record MeetingListItemDto(
     Guid Id,
     string Title,
     string Status,
-    DateTime? ScheduledAt,
+    string? MeetingNo,
+    DateTime? StartAt,
+    DateTime? EndAt,
     string? Location,
-    int ItemCount);
+    int ItemCount,
+    DateTime? CutOffAt,
+    DateTime? InvitationSentAt);
 
 public class GetMeetingsQueryHandler(ISqlConnectionFactory connectionFactory)
     : IQueryHandler<GetMeetingsQuery, PaginatedResult<MeetingListItemDto>>
@@ -42,9 +46,13 @@ public class GetMeetingsQueryHandler(ISqlConnectionFactory connectionFactory)
             m.Id,
             m.Title,
             m.Status,
-            m.ScheduledAt,
+            m.MeetingNo,
+            m.StartAt,
+            m.EndAt,
             m.Location,
-            (SELECT COUNT(1) FROM workflow.MeetingItems i WHERE i.MeetingId = m.Id) AS ItemCount
+            (SELECT COUNT(1) FROM workflow.MeetingItems i WHERE i.MeetingId = m.Id) AS ItemCount,
+            m.CutOffAt,
+            m.InvitationSentAt
         FROM workflow.Meetings m
         WHERE (@Status IS NULL OR m.Status = @Status)
         """;
@@ -55,7 +63,7 @@ public class GetMeetingsQueryHandler(ISqlConnectionFactory connectionFactory)
         var request = new PaginationRequest(query.PageNumber, query.PageSize);
         return await connectionFactory.QueryPaginatedAsync<MeetingListItemDto>(
             Sql,
-            orderBy: "ScheduledAt DESC, Id DESC",
+            orderBy: "m.StartAt DESC, m.Id DESC",
             request,
             param: new { Status = query.Status });
     }

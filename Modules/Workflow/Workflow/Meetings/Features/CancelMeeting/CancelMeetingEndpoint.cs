@@ -1,3 +1,4 @@
+using FluentValidation;
 using Workflow.Meetings.Domain;
 
 namespace Workflow.Meetings.Features.CancelMeeting;
@@ -17,15 +18,25 @@ public class CancelMeetingEndpoint : ICarterModule
             })
             .WithName("CancelMeeting")
             .WithTags("Meetings")
-            .RequireAuthorization()
+            .RequireAuthorization("MeetingAdmin")
             .Produces(StatusCodes.Status204NoContent);
     }
 }
 
-public record CancelMeetingRequest(string? Reason);
+public record CancelMeetingRequest(string Reason);
 
-public record CancelMeetingCommand(Guid MeetingId, string? Reason)
+public record CancelMeetingCommand(Guid MeetingId, string Reason)
     : ICommand, ITransactionalCommand<IWorkflowUnitOfWork>;
+
+public class CancelMeetingCommandValidator : AbstractValidator<CancelMeetingCommand>
+{
+    public CancelMeetingCommandValidator()
+    {
+        RuleFor(x => x.Reason)
+            .NotEmpty().WithMessage("Reason is required.")
+            .MaximumLength(1000).WithMessage("Reason must not exceed 1000 characters.");
+    }
+}
 
 public class CancelMeetingCommandHandler(IMeetingRepository meetingRepository)
     : ICommandHandler<CancelMeetingCommand>

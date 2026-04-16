@@ -35,8 +35,7 @@ public class TaskCompletedNotificationIntegrationEventHandler : IConsumer<TaskCo
         try
         {
             var completedBy = taskCompleted.CompletedBy ?? "System";
-            var appraisalNumber = taskCompleted.WorkflowInstanceName?
-                .Replace("Appraisal-", "") ?? "N/A";
+            var appraisalNumber = taskCompleted.AppraisalNumber ?? "N/A";
 
             var notification = new TaskCompletedNotificationDto(
                 taskCompleted.CorrelationId,

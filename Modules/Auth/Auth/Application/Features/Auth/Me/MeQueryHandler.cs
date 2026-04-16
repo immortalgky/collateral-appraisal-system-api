@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Auth.Application.Services;
 using Auth.Infrastructure;
-using Auth.Infrastructure.Repository;
 using Auth.Domain.Identity;
 using Shared.Exceptions;
 
@@ -10,7 +10,7 @@ namespace Auth.Domain.Auth.Features.Me;
 public class MeQueryHandler(
     AuthDbContext dbContext,
     UserManager<ApplicationUser> userManager,
-    IRoleRepository roleRepository
+    PermissionResolver permissionResolver
 ) : IQueryHandler<MeQuery, MeResult>
 {
     public async Task<MeResult> Handle(MeQuery query, CancellationToken cancellationToken)
@@ -22,7 +22,7 @@ public class MeQueryHandler(
                    ?? throw new NotFoundException("User", query.UserId);
 
         var roles = await userManager.GetRolesAsync(user);
-        var permissions = await CalculatePermissions(user, roles);
+        var permissions = (await permissionResolver.CalculateAsync(user, roles)).ToList();
 
         var groups = await (
             from gu in dbContext.GroupUsers
@@ -45,33 +45,5 @@ public class MeQueryHandler(
             permissions,
             groups
         );
-    }
-
-    private async Task<List<string>> CalculatePermissions(ApplicationUser user, IList<string> roleNames)
-    {
-        var permissions = new HashSet<string>();
-        var deniedPermissions = new HashSet<string>();
-
-        // Collect user-level permissions
-        foreach (var userPermission in user.Permissions)
-            if (userPermission.IsGranted)
-                permissions.Add(userPermission.Permission.PermissionCode);
-            else
-                deniedPermissions.Add(userPermission.Permission.PermissionCode);
-
-        // Add role-level permissions (excluding explicitly denied ones)
-        foreach (var roleName in roleNames)
-        {
-            var role = await roleRepository.GetRoleByName(roleName)
-                       ?? throw new NotFoundException("Role", roleName);
-
-            var rolePermissionCodes = role.Permissions
-                .Select(rp => rp.Permission.PermissionCode)
-                .Where(code => !deniedPermissions.Contains(code));
-
-            foreach (var code in rolePermissionCodes) permissions.Add(code);
-        }
-
-        return permissions.ToList();
     }
 }

@@ -31,7 +31,6 @@
         "properties": {
           "activityName": "InitiationCheck",
           "canRaiseFollowup": true,
-          "assigneeRole": "RequestChecker",
           "assigneeGroup": "RequestChecker",
           "assignmentStrategies": "started_by",
           "initialAssignmentStrategies": [
@@ -81,7 +80,6 @@
         "description": "Request maker provides additional information when routed back",
         "properties": {
           "activityName": "AppraisalInitiation",
-          "assigneeRole": "RequestMaker",
           "assigneeGroup": "RequestMaker",
           "assignmentStrategies": "started_by",
           "initialAssignmentStrategies": [
@@ -116,6 +114,24 @@
         "isEndActivity": false
       },
       {
+        "id": "await-appraisal-created",
+        "name": "Await Appraisal Created",
+        "type": "AwaitSignalActivity",
+        "description": "Suspends workflow until the Appraisal aggregate is created by the async handler",
+        "properties": {
+          "signalName": "AppraisalCreated",
+          "correlationKey": "requestId",
+          "completionVariable": "appraisalId"
+        },
+        "position": {
+          "x": 175,
+          "y": 100
+        },
+        "requiredRoles": [],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
         "id": "initial-routing",
         "name": "Initial Routing",
         "type": "RoutingActivity",
@@ -143,11 +159,10 @@
         "description": "Internal admin reviews the request and decides to assign to external company or internal appraisal",
         "properties": {
           "activityName": "AppraisalAssignment",
-          "assigneeRole": "Admin",
           "assigneeGroup": "Admin",
-          "assignmentStrategies": "started_by",
+          "assignmentStrategies": "pool",
           "initialAssignmentStrategies": [
-            "started_by"
+            "pool"
           ],
           "revisitAssignmentStrategies": [
             "previous_owner"
@@ -234,7 +249,6 @@
         "description": "External company admin handles appointment, fee, and assigns to company appraiser",
         "properties": {
           "activityName": "ExtAppraisalAssignment",
-          "assigneeRole": "ExtAdmin",
           "assigneeGroup": "ExtAdmin",
           "teamIdVariable": "assignedCompanyId",
           "assignmentRules": {
@@ -288,7 +302,6 @@
         "description": "External appraiser conducts the property appraisal",
         "properties": {
           "activityName": "ExtAppraisalExecution",
-          "assigneeRole": "ExtAppraisalStaff",
           "assigneeGroup": "ExtAppraisalStaff",
           "teamIdVariable": "assignedCompanyId",
           "assignmentRules": {
@@ -336,7 +349,6 @@
         "description": "External checker reviews the appraisal work for accuracy and completeness",
         "properties": {
           "activityName": "ExtAppraisalCheck",
-          "assigneeRole": "ExtAppraisalChecker",
           "assigneeGroup": "ExtAppraisalChecker",
           "teamIdVariable": "assignedCompanyId",
           "assignmentRules": {
@@ -384,7 +396,6 @@
         "description": "External verifier performs final verification before handoff to internal",
         "properties": {
           "activityName": "ExtAppraisalVerification",
-          "assigneeRole": "ExtAppraisalVerifier",
           "assigneeGroup": "ExtAppraisalVerifier",
           "teamIdVariable": "assignedCompanyId",
           "assignmentRules": {
@@ -432,7 +443,6 @@
         "description": "Internal appraisal staff verifies the external company appraisal book",
         "properties": {
           "activityName": "AppraisalBookVerification",
-          "assigneeRole": "IntAppraisalStaff",
           "assigneeGroup": "IntAppraisalStaff",
           "assignmentStrategies": "variable_assignee",
           "initialAssignmentStrategies": [
@@ -484,7 +494,6 @@
         "description": "Internal appraisal staff conducts the property appraisal",
         "properties": {
           "activityName": "IntAppraisalExecution",
-          "assigneeRole": "IntAppraisalStaff",
           "assigneeGroup": "IntAppraisalStaff",
           "assignmentStrategies": "round_robin",
           "initialAssignmentStrategies": [
@@ -528,7 +537,6 @@
         "description": "Internal checker reviews the appraisal work for accuracy and completeness",
         "properties": {
           "activityName": "IntAppraisalCheck",
-          "assigneeRole": "IntAppraisalChecker",
           "assigneeGroup": "IntAppraisalChecker",
           "assignmentRules": {
             "teamConstrained": true
@@ -575,7 +583,6 @@
         "description": "Internal verifier performs final verification and sign-off",
         "properties": {
           "activityName": "IntAppraisalVerification",
-          "assigneeRole": "IntAppraisalVerifier",
           "assigneeGroup": "IntAppraisalVerifier",
           "assignmentRules": {
             "teamConstrained": true
@@ -735,17 +742,33 @@
         "id": "start-to-appraisal-initiation-check",
         "from": "start",
         "to": "appraisal-initiation-check",
-        "condition": null,
+        "condition": "channel == 'MANUAL'",
         "properties": {},
-        "type": "Normal"
+        "type": "Conditional"
+      },
+      {
+        "id": "start-to-await-appraisal-created",
+        "from": "start",
+        "to": "await-appraisal-created",
+        "condition": "channel != 'MANUAL'",
+        "properties": {},
+        "type": "Conditional"
       },
       {
         "id": "appraisal-initiation-check-proceed",
         "from": "appraisal-initiation-check",
-        "to": "initial-routing",
+        "to": "await-appraisal-created",
         "condition": "decision == 'proceed'",
         "properties": {},
         "type": "Conditional"
+      },
+      {
+        "id": "await-appraisal-created-to-routing",
+        "from": "await-appraisal-created",
+        "to": "initial-routing",
+        "condition": null,
+        "properties": {},
+        "type": "Normal"
       },
       {
         "id": "appraisal-initiation-check-route-back",

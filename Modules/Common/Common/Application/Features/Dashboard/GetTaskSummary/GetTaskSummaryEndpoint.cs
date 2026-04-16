@@ -12,19 +12,15 @@ public class GetTaskSummaryEndpoint : ICarterModule
     {
         app.MapGet("/dashboard/task-summary",
                 async (
-                    string? period,
-                    DateOnly? from,
-                    DateOnly? to,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var query = new GetTaskSummaryQuery(period ?? "monthly", from, to);
-                    var result = await sender.Send(query, cancellationToken);
+                    var result = await sender.Send(new GetTaskSummaryQuery(), cancellationToken);
                     return Results.Ok(result);
                 })
             .WithName("GetTaskSummary")
             .Produces<GetTaskSummaryResult>()
-            .WithSummary("Get task status summary for current user")
+            .WithSummary("Get task status counts for current user")
             .WithTags("Dashboard")
             .RequireAuthorization();
     }

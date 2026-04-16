@@ -9,7 +9,8 @@ public record ApprovalTasksAssignedEvent(
     string ActivityId,
     DateTime? DueAt,
     string? StartedBy,
-    string? WorkflowInstanceName
+    string? WorkflowInstanceName,
+    string? AppraisalNumber = null
 ) : IDomainEvent;
 
 public record ApprovalMemberAssignment(string Username, string TaskName, string? TaskDescription = null);

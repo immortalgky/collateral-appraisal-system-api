@@ -1,5 +1,6 @@
 using Auth.Domain.Companies;
 using Auth.Domain.Groups;
+using Auth.Domain.Menu;
 
 namespace Auth.Infrastructure;
 
@@ -13,6 +14,7 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
     public DbSet<Group> Groups => Set<Group>();
     public DbSet<GroupUser> GroupUsers => Set<GroupUser>();
     public DbSet<GroupMonitoring> GroupMonitoring => Set<GroupMonitoring>();
+    public DbSet<MenuItem> MenuItems => Set<MenuItem>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

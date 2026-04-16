@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Workflow.Data;
@@ -34,14 +35,18 @@ public class ActivityProcessPipeline(
             return ProcessStepResult.Ok();
         }
 
-        // Get AppraisalId from workflow instance's CorrelationId
+        // Load workflow instance for CorrelationId + Variables
         var workflowInstance = await workflowInstanceRepository.GetByIdAsync(workflowInstanceId, ct)
                                ?? throw new InvalidOperationException(
                                    $"Workflow instance {workflowInstanceId} not found");
 
-        if (!Guid.TryParse(workflowInstance.CorrelationId, out var appraisalId))
+        // CorrelationId (requestId) — fail fast if missing/invalid rather than silently using Guid.Empty
+        if (!Guid.TryParse(workflowInstance.CorrelationId, out var correlationId))
             throw new InvalidOperationException(
-                $"Cannot parse CorrelationId '{workflowInstance.CorrelationId}' as AppraisalId");
+                $"Workflow instance {workflowInstanceId} has invalid CorrelationId '{workflowInstance.CorrelationId}'");
+
+        // AppraisalId from Variables — null before appraisal creation
+        Guid? appraisalId = ResolveAppraisalId(workflowInstance.Variables);
 
         // Run each step sequentially
         foreach (var config in configs)
@@ -57,6 +62,7 @@ public class ActivityProcessPipeline(
 
             var context = new ProcessStepContext
             {
+                CorrelationId = correlationId,
                 AppraisalId = appraisalId,
                 WorkflowInstanceId = workflowInstanceId,
                 ActivityName = activityId,
@@ -82,5 +88,20 @@ public class ActivityProcessPipeline(
         }
 
         return ProcessStepResult.Ok();
+    }
+
+    private static Guid? ResolveAppraisalId(Dictionary<string, object>? variables)
+    {
+        if (variables is null || !variables.TryGetValue("appraisalId", out var aidObj))
+            return null;
+
+        return aidObj switch
+        {
+            Guid g => g,
+            string s when Guid.TryParse(s, out var parsed) => parsed,
+            JsonElement je when je.ValueKind == JsonValueKind.String
+                && Guid.TryParse(je.GetString(), out var jp) => jp,
+            _ => null
+        };
     }
 }

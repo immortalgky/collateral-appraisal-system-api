@@ -57,14 +57,14 @@ public class Committee : Aggregate<Guid>
         IsActive = isActive;
     }
 
-    public CommitteeMember AddMember(string userId, string memberName, CommitteeMemberRole role)
+    public CommitteeMember AddMember(string userId, string memberName, CommitteeMemberPosition position)
     {
         var existing = _members.FirstOrDefault(m =>
             m.UserId == userId && m.IsActive);
         if (existing is not null)
             throw new InvalidOperationException($"User {userId} is already an active member of this committee");
 
-        var member = CommitteeMember.Create(Id, userId, memberName, role);
+        var member = CommitteeMember.Create(Id, userId, memberName, position);
         _members.Add(member);
         return member;
     }

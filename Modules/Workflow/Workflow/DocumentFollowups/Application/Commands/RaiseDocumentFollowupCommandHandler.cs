@@ -41,7 +41,7 @@ public class RaiseDocumentFollowupCommandHandler(
             ?? throw new InvalidOperationException(
                 $"Raising workflow instance {command.RaisingWorkflowInstanceId} not found");
 
-        // 2. Resolve the pending task to capture activityId + correlationId (= appraisalId)
+        // 2. Resolve the pending task to capture activityId + correlationId (= requestId)
         var pendingTask = await dbContext.PendingTasks
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == command.RaisingPendingTaskId, cancellationToken)
@@ -58,8 +58,11 @@ public class RaiseDocumentFollowupCommandHandler(
             throw new InvalidOperationException(
                 "An open document followup already exists for this task. Resolve or cancel it first.");
 
-        var appraisalId = pendingTask.CorrelationId;
-        var requestId = ReadGuidFromVariables(parentInstance.Variables, "requestId");
+        var requestId = pendingTask.CorrelationId;
+        var appraisalId = ReadGuidFromVariables(parentInstance.Variables, "appraisalId")
+            ?? throw new InvalidOperationException(
+                $"Cannot raise document followup for workflow {command.RaisingWorkflowInstanceId}: " +
+                "appraisalId is not set in workflow variables. Document followups require an existing appraisal.");
 
         // 3. Resolve followup workflow definition up front so we fail fast before any writes
         var followupDefinition = await definitionRepository.GetLatestVersion(

@@ -24,6 +24,8 @@ using Workflow.Sla.Services;
 using Workflow.Workflow.Hubs;
 using Workflow.DocumentFollowups.Application;
 using Workflow.DocumentFollowups.Infrastructure;
+using Workflow.Meetings.Configuration;
+using Workflow.Tasks.Services;
 
 namespace Workflow;
 
@@ -31,6 +33,10 @@ public static class WorkflowModule
 {
     public static IServiceCollection AddWorkflowModule(this IServiceCollection services, IConfiguration configuration)
     {
+        // Acknowledgement group settings (maps committee code → ack group name)
+        services.Configure<AcknowledgementGroupSettings>(
+            configuration.GetSection(AcknowledgementGroupSettings.SectionName));
+
         services.AddScoped<IWorkflowUnitOfWork, WorkflowUnitOfWork>();
         services.AddScoped<IAssignmentRepository, AssignmentRepository>();
 
@@ -52,14 +58,13 @@ public static class WorkflowModule
         services.AddScoped<VariableAssigneeSelector>();
         services.AddScoped<ICascadingAssignmentEngine, CascadingAssignmentEngine>();
 
-        // Team service — queries auth schema (Company = Team, Role = ActivityRole)
+        // Team service — queries auth schema (Company = Team, Group = assignment group)
         services.AddScoped<ITeamService, CompanyTeamService>();
 
         // Assignment pipeline — 5-stage orchestrator
         services.AddScoped<IAssignmentContextBuilder, AssignmentContextBuilder>();
         services.AddScoped<IAssignmentFilter, TeamFilter>();
         services.AddScoped<IAssignmentFilter, ExclusionFilter>();
-        services.AddScoped<IAssignmentFilter, ActivityRoleFilter>();
         services.AddScoped<IAssignmentValidator, TeamMembershipValidator>();
         services.AddScoped<IAssignmentValidator, ExclusionRuleValidator>();
         services.AddScoped<IAssignmentFinalizer, AssignmentFinalizer>();
@@ -112,6 +117,8 @@ public static class WorkflowModule
         // Service layer - thin coordination layer 
         services.AddScoped<IWorkflowService, WorkflowService>();
 
+        services.AddScoped<IWorkflowSignalDispatcher, WorkflowSignalDispatcher>();
+
         services.AddScoped<IWorkflowNotificationService, WorkflowNotificationService>();
         services.AddScoped<IWorkflowAuditService, WorkflowAuditService>();
         services.AddScoped<IWorkflowResilienceService, WorkflowResilienceService>();
@@ -129,6 +136,7 @@ public static class WorkflowModule
         services.AddScoped<InternalFollowupSelectionActivity>();
         services.AddScoped<ApprovalActivity>();
         services.AddScoped<MeetingActivity>();
+        services.AddScoped<AwaitSignalActivity>();
         services.AddScoped<SwitchActivity>();
         services.AddScoped<IfElseActivity>();
         services.AddScoped<ForkActivity>();
@@ -138,6 +146,7 @@ public static class WorkflowModule
 
         // Meeting infrastructure
         services.AddScoped<IMeetingRepository, MeetingRepository>();
+        services.AddScoped<IMeetingNoGenerator, MeetingNoGenerator>();
 
         // Approval infrastructure
         services.AddScoped<IApprovalMemberResolver, ApprovalMemberResolver>();
@@ -155,14 +164,19 @@ public static class WorkflowModule
         services.AddScoped<ISlaCalculator, SlaCalculator>();
         services.AddHostedService<SlaMonitorService>();
 
+        // Task lock expiry — releases stale pool task locks every 5 minutes
+        services.AddHostedService<TaskLockExpiryService>();
+
         // Activity process pipeline (submission pipeline)
         services.AddScoped<IActivityProcessStep, UpdateAppraisalStatusStep>();
         services.AddScoped<IActivityProcessStep, UpdateAssignmentStatusStep>();
         services.AddScoped<IActivityProcessStep, ValidateHasAppraisedValueStep>();
         services.AddScoped<IActivityProcessStep, ValidateTaskOwnershipStep>();
         services.AddScoped<IActivityProcessStep, ValidateDecisionConstraintsStep>();
+        services.AddScoped<IActivityProcessStep, EmitAppraisalCreationRequestedStep>();
         services.AddScoped<ProcessStepResolver>();
         services.AddScoped<IActivityProcessPipeline, ActivityProcessPipeline>();
+        services.AddScoped<AppraisalCreationTriggerEvaluator>();
 
         // Document followup services
         services.AddScoped<IDocumentFollowupGate, DocumentFollowupGate>();

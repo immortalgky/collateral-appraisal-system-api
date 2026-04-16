@@ -61,22 +61,22 @@ public class MockTeamService : ITeamService
     }
 
     public Task<List<TeamMemberInfo>> GetTeamMembersForActivityAsync(
-        string teamId, string roleName, CancellationToken cancellationToken = default)
+        string teamId, string groupName, CancellationToken cancellationToken = default)
     {
         var result = Members
-            .Where(m => m.TeamId == teamId && m.ActivityRoles.Contains(roleName))
+            .Where(m => m.TeamId == teamId && m.ActivityGroups.Contains(groupName))
             .ToList();
 
         return Task.FromResult(result);
     }
 
     public Task<List<TeamMemberInfo>> GetAllMembersForActivityAsync(
-        string roleName, CancellationToken cancellationToken = default)
+        string groupName, CancellationToken cancellationToken = default)
     {
         var activeTeamIds = Teams.Where(t => t.IsActive).Select(t => t.TeamId).ToHashSet();
 
         var result = Members
-            .Where(m => activeTeamIds.Contains(m.TeamId) && m.ActivityRoles.Contains(roleName))
+            .Where(m => activeTeamIds.Contains(m.TeamId) && m.ActivityGroups.Contains(groupName))
             .ToList();
 
         return Task.FromResult(result);

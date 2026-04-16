@@ -61,6 +61,7 @@ public class DocumentFollowupGateTests
         var taskId = Guid.NewGuid();
         var followup = MakeFollowup(taskId);
         followup.FulfillFirstMatchingByType("PassportCopy", Guid.NewGuid());
+        followup.Submit("requestmaker");
         db.DocumentFollowups.Add(followup);
         await db.SaveChangesAsync();
 

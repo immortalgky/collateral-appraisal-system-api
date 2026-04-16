@@ -1,18 +1,16 @@
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
 using Workflow.DocumentFollowups.Domain;
-using Workflow.Workflow.Services;
 
 namespace Workflow.DocumentFollowups.EventHandlers;
 
 /// <summary>
-/// Listens for document uploads against a Request and auto-fulfills the first matching
-/// open document followup line item. When all line items resolve, the followup workflow
-/// is auto-resumed and ends.
+/// Listens for document uploads against a Request and fulfills the first matching
+/// open document followup line item (flips it to Uploaded).
+/// Does NOT resolve the followup — the request maker must explicitly Submit.
 /// </summary>
 public class RequestDocumentLinkedConsumer(
     WorkflowDbContext dbContext,
-    IWorkflowService workflowService,
     IPublisher publisher,
     InboxGuard<WorkflowDbContext> inboxGuard,
     ILogger<RequestDocumentLinkedConsumer> logger)
@@ -47,46 +45,14 @@ public class RequestDocumentLinkedConsumer(
                 await publisher.Publish(ev, context.CancellationToken);
 
             logger.LogInformation(
-                "Auto-fulfilled line item {LineItemId} on followup {FollowupId} via document {DocumentId}",
+                "Fulfilled line item {LineItemId} on followup {FollowupId} via document {DocumentId}. " +
+                "Followup stays Open until request maker submits.",
                 matchedLineItemId, followup.Id, msg.DocumentId);
-
-            // If the followup is now resolved, advance the followup workflow.
-            if (followup.Status == DocumentFollowupStatus.Resolved &&
-                followup.FollowupWorkflowInstanceId.HasValue)
-            {
-                try
-                {
-                    await AdvanceFollowupWorkflowAsync(followup.FollowupWorkflowInstanceId.Value, context.CancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex,
-                        "Failed to advance followup workflow {InstanceId} after auto-fulfill",
-                        followup.FollowupWorkflowInstanceId);
-                }
-            }
 
             // First match wins per upload — stop scanning further followups.
             break;
         }
 
         await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
-    }
-
-    private async Task AdvanceFollowupWorkflowAsync(Guid followupWorkflowInstanceId, CancellationToken ct)
-    {
-        // Resume the ProvideAdditionalDocuments task; the system NotifyRaisingChecker task that
-        // follows is auto-resumable too. We delegate to WorkflowService.
-        var instance = await dbContext.WorkflowInstances
-            .AsNoTracking()
-            .FirstOrDefaultAsync(w => w.Id == followupWorkflowInstanceId, ct);
-        if (instance is null) return;
-
-        await workflowService.ResumeWorkflowAsync(
-            workflowInstanceId: followupWorkflowInstanceId,
-            activityId: instance.CurrentActivityId,
-            completedBy: "system",
-            input: new Dictionary<string, object> { ["decisionTaken"] = "P" },
-            cancellationToken: ct);
     }
 }

@@ -41,6 +41,12 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status404NotFound
             ),
+            ConflictException =>
+            (
+                exception.Message,
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status409Conflict
+            ),
             UnauthorizedAccessException =>
             (
                 "Access is denied",

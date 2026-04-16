@@ -3,18 +3,17 @@ using Shared.Messaging.Filters;
 using Workflow.Data;
 using Workflow.Workflow.Repositories;
 using Workflow.Workflow.Services;
+using static Workflow.Workflow.Services.WorkflowSignals;
 
 namespace Workflow.EventHandlers;
 
 public class AppraisalCreatedIntegrationEventConsumer(
     ILogger<AppraisalCreatedIntegrationEventConsumer> logger,
-    IWorkflowDefinitionRepository workflowDefinitionRepository,
     IWorkflowInstanceRepository workflowInstanceRepository,
-    IWorkflowService workflowService,
+    IWorkflowSignalDispatcher signalDispatcher,
+    IWorkflowUnitOfWork unitOfWork,
     InboxGuard<WorkflowDbContext> inboxGuard) : IConsumer<AppraisalCreatedIntegrationEvent>
 {
-    private const string WorkflowName = "Collateral Appraisal Workflow";
-
     public async Task Consume(ConsumeContext<AppraisalCreatedIntegrationEvent> context)
     {
         if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
@@ -30,65 +29,70 @@ public class AppraisalCreatedIntegrationEventConsumer(
 
         try
         {
-            // Idempotency guard: skip if workflow already exists for this appraisal
-            var existing = await workflowInstanceRepository.GetByCorrelationId(
-                message.AppraisalId.ToString(), context.CancellationToken);
-            if (existing is not null)
+            var instance = await workflowInstanceRepository.GetByCorrelationId(
+                message.RequestId.ToString(), context.CancellationToken);
+
+            if (instance is null)
             {
-                logger.LogInformation(
-                    "Workflow already exists for AppraisalId: {AppraisalId} (InstanceId: {InstanceId}), skipping",
-                    message.AppraisalId, existing.Id);
+                logger.LogWarning(
+                    "No workflow found for RequestId: {RequestId}. AppraisalId {AppraisalId} will not be linked.",
+                    message.RequestId, message.AppraisalId);
+                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
                 return;
             }
 
-            var definition = await workflowDefinitionRepository.GetLatestVersion(
-                WorkflowName, context.CancellationToken);
-
-            if (definition is null)
+            var appraisalPayload = new Dictionary<string, object>
             {
-                logger.LogError(
-                    "Workflow definition '{WorkflowName}' not found. Cannot start workflow for AppraisalId: {AppraisalId}",
-                    WorkflowName, message.AppraisalId);
-                throw new InvalidOperationException(
-                    $"Workflow definition '{WorkflowName}' not found.");
-            }
-
-            var instanceName = $"Appraisal-{message.AppraisalNumber ?? message.AppraisalId.ToString()}";
-
-            var initialVariables = new Dictionary<string, object>
-            {
-                ["requestId"] = message.RequestId,
                 ["appraisalId"] = message.AppraisalId,
                 ["appraisalNumber"] = message.AppraisalNumber ?? string.Empty,
-                ["appraisalType"] = message.AppraisalType ?? "Initial",
-                ["isPma"] = message.IsPma,
-                ["facilityLimit"] = message.FacilityLimit ?? 0m,
-                ["priority"] = message.Priority ?? "normal",
-                ["hasAppraisalBook"] = message.HasAppraisalBook,
-                ["channel"] = message.Channel ?? string.Empty
+                ["appraisalType"] = message.AppraisalType ?? "New"
             };
 
-            var instance = await workflowService.StartWorkflowAsync(
-                workflowDefinitionId: definition.Id,
-                instanceName: instanceName,
-                startedBy: message.CreatedBy ?? "system",
-                initialVariables: initialVariables,
-                correlationId: message.AppraisalId.ToString(),
-                cancellationToken: context.CancellationToken);
+            // Wrap in execution strategy + transaction so that
+            // SqlServerRetryingExecutionStrategy allows DB operations inside
+            // the user-initiated transaction, and ResumeWorkflowAsync takes
+            // the HasActiveTransaction branch to defer commit.
+            var strategy = unitOfWork.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
+                await unitOfWork.BeginTransactionAsync(context.CancellationToken);
+                try
+                {
+                    instance.UpdateVariables(appraisalPayload);
+
+                    await signalDispatcher.DispatchAsync(
+                        signalName: AppraisalCreated,
+                        correlationValue: message.RequestId.ToString(),
+                        payload: appraisalPayload,
+                        context.CancellationToken);
+
+                    await unitOfWork.SaveChangesAsync(context.CancellationToken);
+                    await unitOfWork.CommitTransactionAsync(context.CancellationToken);
+                }
+                catch
+                {
+                    try { await unitOfWork.RollbackTransactionAsync(context.CancellationToken); }
+                    catch (Exception rollbackEx)
+                    {
+                        logger.LogError(rollbackEx, "Failed to rollback transaction for RequestId: {RequestId}",
+                            message.RequestId);
+                    }
+
+                    throw;
+                }
+            });
 
             logger.LogInformation(
-                "Successfully started workflow instance {WorkflowInstanceId} for AppraisalId: {AppraisalId}",
-                instance.Id, message.AppraisalId);
+                "Linked AppraisalId {AppraisalId} to workflow {WorkflowInstanceId} and dispatched signal for RequestId: {RequestId}",
+                message.AppraisalId, instance.Id, message.RequestId);
 
             await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
         }
         catch (Exception ex)
         {
             logger.LogError(ex,
-                "Error starting workflow for AppraisalId: {AppraisalId}",
-                message.AppraisalId);
-
-            // Let exception propagate for MassTransit retry/error handling
+                "Error linking AppraisalId {AppraisalId} to workflow for RequestId: {RequestId}",
+                message.AppraisalId, message.RequestId);
             throw;
         }
     }

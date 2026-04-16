@@ -288,15 +288,22 @@ public class WorkflowService : IWorkflowService
     /// </summary>
     private async Task PublishPostCommitEventsAsync(WorkflowInstance instance, CancellationToken cancellationToken)
     {
-        var correlationId = ParseCorrelationId(instance);
+        var appraisalId = ResolveAppraisalIdFromVariables(instance);
+        if (appraisalId is null)
+        {
+            _logger.LogWarning(
+                "AppraisalId not yet available in Variables for workflow {WorkflowInstanceId}, skipping post-commit events",
+                instance.Id);
+            return;
+        }
 
         if (instance.CurrentActivityId == "ext-appraisal-assignment")
         {
-            PublishCompanyAssignedEvent(instance, correlationId);
+            PublishCompanyAssignedEvent(instance, appraisalId.Value);
         }
         else if (instance.CurrentActivityId == "int-appraisal-execution")
         {
-            PublishInternalAssignedEvent(instance, correlationId);
+            PublishInternalAssignedEvent(instance, appraisalId.Value);
         }
     }
 
@@ -315,6 +322,8 @@ public class WorkflowService : IWorkflowService
         var internalFollowupMethod = instance.Variables.TryGetValue("internalFollowupMethod", out var ifm)
             ? ifm?.ToString() : null;
 
+        var appraisalNumber = instance.Variables.TryGetValue("appraisalNumber", out var an) ? an?.ToString() : null;
+
         _outbox.Publish(new CompanyAssignedIntegrationEvent
         {
             AppraisalId = correlationId,
@@ -322,7 +331,9 @@ public class WorkflowService : IWorkflowService
             CompanyName = companyName,
             AssignmentMethod = method,
             InternalAppraiserId = string.IsNullOrEmpty(internalStaffId) ? null : internalStaffId,
-            InternalFollowupAssignmentMethod = string.IsNullOrEmpty(internalFollowupMethod) ? null : internalFollowupMethod
+            InternalFollowupAssignmentMethod = string.IsNullOrEmpty(internalFollowupMethod) ? null : internalFollowupMethod,
+            CompletedBy = instance.LastCompletedBy,
+            AppraisalNumber = appraisalNumber
         }, correlationId: correlationId.ToString());
 
         _logger.LogInformation(
@@ -348,13 +359,17 @@ public class WorkflowService : IWorkflowService
         var internalStaffId = instance.Variables.TryGetValue("internalFollowupStaffId", out var ifs)
             && !string.IsNullOrEmpty(ifs?.ToString()) ? ifs.ToString() : assigneeUserId;
 
+        var appraisalNumber = instance.Variables.TryGetValue("appraisalNumber", out var an) ? an?.ToString() : null;
+
         _outbox.Publish(new InternalAssignedIntegrationEvent
         {
             AppraisalId = correlationId,
             AssigneeUserId = assigneeUserId,
             InternalAppraiserId = internalStaffId,
             AssignmentMethod = method,
-            InternalFollowupAssignmentMethod = followupMethod
+            InternalFollowupAssignmentMethod = followupMethod,
+            CompletedBy = instance.LastCompletedBy,
+            AppraisalNumber = appraisalNumber
         }, correlationId: correlationId.ToString());
 
         _logger.LogInformation(
@@ -362,9 +377,18 @@ public class WorkflowService : IWorkflowService
             correlationId, assigneeUserId, method);
     }
 
-    private Guid ParseCorrelationId(WorkflowInstance instance)
+    private static Guid? ResolveAppraisalIdFromVariables(WorkflowInstance instance)
     {
-        return !string.IsNullOrEmpty(instance.CorrelationId)
-            && Guid.TryParse(instance.CorrelationId, out var parsed) ? parsed : instance.Id;
+        if (!instance.Variables.TryGetValue("appraisalId", out var aidObj))
+            return null;
+
+        return aidObj switch
+        {
+            Guid g => g,
+            string s when Guid.TryParse(s, out var parsed) => parsed,
+            JsonElement je when je.ValueKind == JsonValueKind.String
+                && Guid.TryParse(je.GetString(), out var jp) => jp,
+            _ => null
+        };
     }
 }

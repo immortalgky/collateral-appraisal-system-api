@@ -1,3 +1,4 @@
+using Auth.Contracts.Users;
 using Shared.Identity;
 using Workflow.DocumentFollowups.Domain;
 
@@ -10,7 +11,8 @@ public record ListDocumentFollowupsQuery(
 
 public class ListDocumentFollowupsQueryHandler(
     WorkflowDbContext dbContext,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser,
+    IUserLookupService userLookupService)
     : IRequestHandler<ListDocumentFollowupsQuery, IReadOnlyList<DocumentFollowupSummaryDto>>
 {
     public async Task<IReadOnlyList<DocumentFollowupSummaryDto>> Handle(
@@ -62,8 +64,18 @@ public class ListDocumentFollowupsQueryHandler(
                 string.Equals(startedBy, actor, StringComparison.OrdinalIgnoreCase))
                 return true;
             return false;
-        });
+        }).ToList();
 
-        return visible.Select(GetDocumentFollowupByIdQueryHandler.MapSummary).ToList();
+        var distinctUserIds = visible
+            .Select(f => f.RaisingUserId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var userMap = distinctUserIds.Length == 0
+            ? (IReadOnlyDictionary<string, UserLookupDto>)new Dictionary<string, UserLookupDto>(StringComparer.OrdinalIgnoreCase)
+            : await userLookupService.GetByUsernamesAsync(distinctUserIds, cancellationToken);
+
+        return visible.Select(f => GetDocumentFollowupByIdQueryHandler.MapSummary(f, userMap)).ToList();
     }
 }

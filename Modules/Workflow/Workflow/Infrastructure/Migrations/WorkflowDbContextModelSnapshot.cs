@@ -593,7 +593,7 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
-                    b.Property<string>("Role")
+                    b.Property<string>("Position")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -678,6 +678,18 @@ namespace Workflow.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AgendaCertifyMinutes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("AgendaChairmanInformed")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("AgendaOthers")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<string>("CancelReason")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -695,18 +707,47 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("CutOffAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EndAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FromText")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("InvitationSentAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Location")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("MeetingNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("MeetingNoSeq")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MeetingNoYear")
+                        .HasColumnType("int");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
-                    b.Property<DateTime?>("ScheduledAt")
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime?>("StartAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Status")
@@ -716,6 +757,10 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.Property<string>("Title")
                         .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ToText")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -731,6 +776,10 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("MeetingNo")
+                        .IsUnique()
+                        .HasFilter("[MeetingNo] IS NOT NULL");
+
                     b.HasIndex("Status");
 
                     b.ToTable("Meetings", "workflow");
@@ -742,8 +791,11 @@ namespace Workflow.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AcknowledgementGroup")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("ActivityId")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -757,6 +809,10 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("AppraisalType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -767,10 +823,38 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("DecisionAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DecisionBy")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("DecisionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<decimal>("FacilityLimit")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("ItemDecision")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Pending");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Decision");
+
                     b.Property<Guid>("MeetingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("SourceAppraisalDecisionId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -783,7 +867,7 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<string>("UpdatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("WorkflowInstanceId")
+                    b.Property<Guid?>("WorkflowInstanceId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
@@ -792,6 +876,136 @@ namespace Workflow.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("MeetingItems", "workflow");
+                });
+
+            modelBuilder.Entity("Workflow.Meetings.Domain.MeetingMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("MeetingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MemberName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid?>("SourceCommitteeMemberId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MeetingId");
+
+                    b.ToTable("MeetingMembers", "workflow");
+                });
+
+            modelBuilder.Entity("Workflow.Meetings.ReadModels.AppraisalAcknowledgementQueueItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AcknowledgementGroup")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("AppraisalDecisionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppraisalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AppraisalNo")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CommitteeCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("CommitteeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("EnqueuedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("MeetingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppraisalDecisionId")
+                        .IsUnique()
+                        .HasFilter("[Status] IN ('PendingAcknowledgement', 'Included')");
+
+                    b.HasIndex("MeetingId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("AppraisalAcknowledgementQueueItems", "workflow");
                 });
 
             modelBuilder.Entity("Workflow.Meetings.ReadModels.MeetingQueueItem", b =>
@@ -1136,6 +1350,10 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<string>("ActivityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTime>("AssignedAt")
                         .HasColumnType("datetime2");
 
@@ -1250,6 +1468,9 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<DateTime?>("DueAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("LockedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Movement")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1287,6 +1508,7 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("WorkingBy")
+                        .IsConcurrencyToken()
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
@@ -2197,6 +2419,15 @@ namespace Workflow.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Workflow.Meetings.Domain.MeetingMember", b =>
+                {
+                    b.HasOne("Workflow.Meetings.Domain.Meeting", null)
+                        .WithMany("Members")
+                        .HasForeignKey("MeetingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Workflow.Tasks.Models.CompletedTask", b =>
                 {
                     b.OwnsOne("Workflow.Tasks.ValueObjects.TaskStatus", "TaskStatus", b1 =>
@@ -2330,6 +2561,8 @@ namespace Workflow.Infrastructure.Migrations
             modelBuilder.Entity("Workflow.Meetings.Domain.Meeting", b =>
                 {
                     b.Navigation("Items");
+
+                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("Workflow.Workflow.Models.WorkflowInstance", b =>

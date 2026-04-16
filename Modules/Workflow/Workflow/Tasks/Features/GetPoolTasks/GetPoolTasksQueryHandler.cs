@@ -67,6 +67,12 @@ public class GetPoolTasksQueryHandler(
                 conditions.Add("TaskType = @TaskName");
                 parameters.Add("TaskName", filter.TaskName);
             }
+
+            if (filter.ActivityId.HasValue)
+            {
+                conditions.Add("ActivityId = @ActivityId");
+                parameters.Add("ActivityId", filter.ActivityId.Value);
+            }
         }
 
         if (conditions.Count > 0)
