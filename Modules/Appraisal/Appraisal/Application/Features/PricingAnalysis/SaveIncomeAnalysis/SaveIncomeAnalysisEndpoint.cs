@@ -24,7 +24,8 @@ public class SaveIncomeAnalysisEndpoint : ICarterModule
                         request.TotalNumberOfDayInYear,
                         request.CapitalizeRate,
                         request.DiscountedRate,
-                        request.Sections
+                        request.Sections,
+                        request.FinalValueRounded
                     );
 
                     var result = await sender.Send(command, cancellationToken);

@@ -1,4 +1,5 @@
 using System.Reflection;
+using Common.Domain.Notes;
 using Common.Domain.ReadModels;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data.Outbox;
@@ -8,9 +9,9 @@ namespace Common.Infrastructure;
 public class CommonDbContext(DbContextOptions<CommonDbContext> options) : DbContext(options)
 {
     public DbSet<DailyAppraisalCount> DailyAppraisalCounts => Set<DailyAppraisalCount>();
-    public DbSet<RequestStatusSummary> RequestStatusSummaries => Set<RequestStatusSummary>();
-    public DbSet<TeamWorkloadSummary> TeamWorkloadSummaries => Set<TeamWorkloadSummary>();
+    public DbSet<AppraisalStatusSummary> AppraisalStatusSummaries => Set<AppraisalStatusSummary>();
     public DbSet<CompanyAppraisalSummary> CompanyAppraisalSummaries => Set<CompanyAppraisalSummary>();
+    public DbSet<DashboardNote> DashboardNotes => Set<DashboardNote>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

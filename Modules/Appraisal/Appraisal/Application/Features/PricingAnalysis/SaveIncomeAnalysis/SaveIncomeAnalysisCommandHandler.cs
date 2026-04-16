@@ -1,9 +1,10 @@
-using System.Text.Json;
+using Appraisal.Application.Configurations;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Appraisals.Income;
 using Appraisal.Domain.Appraisals.Income.MethodDetails;
 using Appraisal.Domain.Services;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Parameter.Contracts.PricingParameters;
 using Shared.CQRS;
 
@@ -11,16 +12,12 @@ namespace Appraisal.Application.Features.PricingAnalysis.SaveIncomeAnalysis;
 
 public class SaveIncomeAnalysisCommandHandler(
     IPricingAnalysisRepository repository,
+    IAppraisalUnitOfWork unitOfWork,
     IncomeCalculationService calcService,
-    ISender mediator
+    ISender mediator,
+    ILogger<SaveIncomeAnalysisCommandHandler> logger
 ) : ICommandHandler<SaveIncomeAnalysisCommand, SaveIncomeAnalysisResult>
 {
-
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
 
     public async Task<SaveIncomeAnalysisResult> Handle(
         SaveIncomeAnalysisCommand command,
@@ -46,7 +43,7 @@ public class SaveIncomeAnalysisCommandHandler(
         // 3. Validate all DetailJson before touching the aggregate
         ValidateDetailJsons(command.Sections);
 
-        // 4. Rebuild IncomeAnalysis from scratch (full-replace semantics)
+        // 4. Create IncomeAnalysis on first save or update parameters on re-save
         var analysis = method.IncomeAnalysis;
         if (analysis is null)
         {
@@ -71,16 +68,32 @@ public class SaveIncomeAnalysisCommandHandler(
                 command.DiscountedRate);
         }
 
-        // Build the new section tree
-        var newSections = BuildSections(analysis.Id, command.Sections);
-        analysis.ReplaceSections(newSections);
+        var (sectionPairs, categoryPairs, assumptionPairs) = SyncSections(analysis, command.Sections);
 
-        // 5. Load tax brackets for Method-10 server-side derivation, then recalculate.
+        // Flush INSERTs so EF populates entity Ids from NEWSEQUENTIALID() before the M13 rewriter builds idMap.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // 5. Build clientId → dbId map from the (input, entity) pairs produced by SyncXxx.
+        // Using pairs avoids Zip-order misalignment when the user reorders sections or interleaves new + existing rows.
+        var idMap = new Dictionary<Guid, Guid>();
+        foreach (var (sInput, section) in sectionPairs)
+            if (Guid.TryParse(sInput.ClientId, out var sCid)) idMap[sCid] = section.Id;
+        foreach (var (cInput, category) in categoryPairs)
+            if (Guid.TryParse(cInput.ClientId, out var cCid)) idMap[cCid] = category.Id;
+        foreach (var (aInput, assumption) in assumptionPairs)
+            if (Guid.TryParse(aInput.ClientId, out var aCid)) idMap[aCid] = assumption.Id;
+
+        // Rewrite Method-13 refTarget.clientId → dbId for fresh trees (first save).
+        // On re-save the rewriter skips nodes whose dbId is already populated.
+        IncomeRefTargetRewriter.Rewrite(analysis, idMap, logger);
+
+        // 6. Load tax brackets for Method-10 server-side derivation, then recalculate.
+        // Pass user-supplied FinalValueRounded override (null = recompute).
         var bracketsResult = await mediator.Send(new GetPricingTaxBracketsQuery(), cancellationToken);
-        var result = calcService.Calculate(analysis, bracketsResult.Brackets);
+        var result = calcService.Calculate(analysis, bracketsResult.Brackets, command.FinalValueRounded);
         analysis.ApplyCalculationResult(result);
 
-        // 6. Propagate final value to the method (always — zero is a valid result)
+        // 7. Propagate final value to the method (always — zero is a valid result)
         method.SetValue(result.FinalValueRounded);
 
         // Propagate up the approach/analysis chain if this method is selected
@@ -127,68 +140,134 @@ public class SaveIncomeAnalysisCommandHandler(
         }
     }
 
-    // ── Domain tree builder ───────────────────────────────────────────────
+    // ── Selective upsert: UPDATE existing, INSERT new, DELETE orphans ────────
+    // clientId == entity.Id for rows the frontend received from a previous save.
+    // New rows carry a fresh frontend-generated Guid that won't match any existing Id.
+    // Pass 1 (upserts) runs before Pass 2 (deletes) so EF's cascade never deletes a row
+    // we just updated.
+    //
+    // Each Sync method returns (input, entity) pairs in input order.
+    // The handler walks these pairs after SaveChangesAsync to build the clientId→dbId map,
+    // avoiding Zip-order misalignment when users reorder or interleave new + existing rows.
 
-    private static List<IncomeSection> BuildSections(
-        Guid analysisId,
-        IReadOnlyList<IncomeSectionInput> inputs)
+    private static (
+        IReadOnlyList<(IncomeSectionInput, IncomeSection)> SectionPairs,
+        IReadOnlyList<(IncomeCategoryInput, IncomeCategory)> CategoryPairs,
+        IReadOnlyList<(IncomeAssumptionInput, IncomeAssumption)> AssumptionPairs)
+        SyncSections(
+            IncomeAnalysis analysis,
+            IReadOnlyList<IncomeSectionInput> inputs)
     {
-        var sections = new List<IncomeSection>();
+        var existingById = analysis.Sections.ToDictionary(s => s.Id);
+        var processedIds = new HashSet<Guid>();
+
+        var sectionPairs     = new List<(IncomeSectionInput, IncomeSection)>();
+        var allCategoryPairs = new List<(IncomeCategoryInput, IncomeCategory)>();
+        var allAssumptionPairs = new List<(IncomeAssumptionInput, IncomeAssumption)>();
+
         foreach (var sInput in inputs)
         {
-            var section = IncomeSection.Create(
-                analysisId,
-                sInput.SectionType,
-                sInput.SectionName,
-                sInput.Identifier,
-                sInput.DisplaySeq);
+            IncomeSection section;
+            if (Guid.TryParse(sInput.ClientId, out var sId) && existingById.TryGetValue(sId, out var found))
+            {
+                found.Update(sInput.SectionType, sInput.SectionName, sInput.Identifier, sInput.DisplaySeq);
+                section = found;
+                processedIds.Add(sId);
+            }
+            else
+            {
+                section = IncomeSection.Create(
+                    analysis.Id, sInput.SectionType, sInput.SectionName,
+                    sInput.Identifier, sInput.DisplaySeq);
+                analysis.AddSection(section);
+            }
+            sectionPairs.Add((sInput, section));
 
-            var categories = BuildCategories(section.Id, sInput.Categories);
-            section.ReplaceCategories(categories);
-            sections.Add(section);
+            var (catPairs, asmPairs) = SyncCategories(section, sInput.Categories);
+            allCategoryPairs.AddRange(catPairs);
+            allAssumptionPairs.AddRange(asmPairs);
         }
-        return sections;
+
+        foreach (var orphan in analysis.Sections.Where(s => !processedIds.Contains(s.Id)).ToList())
+            analysis.RemoveSection(orphan);
+
+        return (sectionPairs, allCategoryPairs, allAssumptionPairs);
     }
 
-    private static List<IncomeCategory> BuildCategories(
-        Guid sectionId,
-        IReadOnlyList<IncomeCategoryInput> inputs)
+    private static (
+        IReadOnlyList<(IncomeCategoryInput, IncomeCategory)> CategoryPairs,
+        IReadOnlyList<(IncomeAssumptionInput, IncomeAssumption)> AssumptionPairs)
+        SyncCategories(
+            IncomeSection section,
+            IReadOnlyList<IncomeCategoryInput> inputs)
     {
-        var categories = new List<IncomeCategory>();
+        var existingById = section.Categories.ToDictionary(c => c.Id);
+        var processedIds = new HashSet<Guid>();
+
+        var categoryPairs    = new List<(IncomeCategoryInput, IncomeCategory)>();
+        var allAssumptionPairs = new List<(IncomeAssumptionInput, IncomeAssumption)>();
+
         foreach (var cInput in inputs)
         {
-            var category = IncomeCategory.Create(
-                sectionId,
-                cInput.CategoryType,
-                cInput.CategoryName,
-                cInput.Identifier,
-                cInput.DisplaySeq);
+            IncomeCategory category;
+            if (Guid.TryParse(cInput.ClientId, out var cId) && existingById.TryGetValue(cId, out var found))
+            {
+                found.Update(cInput.CategoryType, cInput.CategoryName, cInput.Identifier, cInput.DisplaySeq);
+                category = found;
+                processedIds.Add(cId);
+            }
+            else
+            {
+                category = IncomeCategory.Create(
+                    section.Id, cInput.CategoryType, cInput.CategoryName,
+                    cInput.Identifier, cInput.DisplaySeq);
+                section.AttachCategory(category);
+            }
+            categoryPairs.Add((cInput, category));
 
-            var assumptions = BuildAssumptions(category.Id, cInput.Assumptions);
-            category.ReplaceAssumptions(assumptions);
-            categories.Add(category);
+            var asmPairs = SyncAssumptions(category, cInput.Assumptions);
+            allAssumptionPairs.AddRange(asmPairs);
         }
-        return categories;
+
+        foreach (var orphan in section.Categories.Where(c => !processedIds.Contains(c.Id)).ToList())
+            section.RemoveCategory(orphan);
+
+        return (categoryPairs, allAssumptionPairs);
     }
 
-    private static List<IncomeAssumption> BuildAssumptions(
-        Guid categoryId,
+    private static IReadOnlyList<(IncomeAssumptionInput, IncomeAssumption)> SyncAssumptions(
+        IncomeCategory category,
         IReadOnlyList<IncomeAssumptionInput> inputs)
     {
-        var assumptions = new List<IncomeAssumption>();
+        var existingById = category.Assumptions.ToDictionary(a => a.Id);
+        var processedIds = new HashSet<Guid>();
+
+        var pairs = new List<(IncomeAssumptionInput, IncomeAssumption)>();
+
         foreach (var aInput in inputs)
         {
             var detailJson = aInput.Detail.GetRawText();
-            var assumption = IncomeAssumption.Create(
-                categoryId,
-                aInput.AssumptionType,
-                aInput.AssumptionName,
-                aInput.Identifier,
-                aInput.DisplaySeq,
-                aInput.MethodTypeCode,
-                detailJson);
-            assumptions.Add(assumption);
+            IncomeAssumption assumption;
+            if (Guid.TryParse(aInput.ClientId, out var aId) && existingById.TryGetValue(aId, out var found))
+            {
+                found.Update(aInput.AssumptionType, aInput.AssumptionName,
+                    aInput.Identifier, aInput.DisplaySeq, aInput.MethodTypeCode, detailJson);
+                assumption = found;
+                processedIds.Add(aId);
+            }
+            else
+            {
+                assumption = IncomeAssumption.Create(
+                    category.Id, aInput.AssumptionType, aInput.AssumptionName,
+                    aInput.Identifier, aInput.DisplaySeq, aInput.MethodTypeCode, detailJson);
+                category.AttachAssumption(assumption);
+            }
+            pairs.Add((aInput, assumption));
         }
-        return assumptions;
+
+        foreach (var orphan in category.Assumptions.Where(a => !processedIds.Contains(a.Id)).ToList())
+            category.RemoveAssumption(orphan);
+
+        return pairs;
     }
 }

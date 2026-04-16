@@ -22,6 +22,10 @@ public class GetMyTasksEndpoint : ICarterModule
                     [FromQuery] string? taskType,
                     [FromQuery] DateTime? dateFrom,
                     [FromQuery] DateTime? dateTo,
+                    [FromQuery] DateTime? appointmentDateFrom,
+                    [FromQuery] DateTime? appointmentDateTo,
+                    [FromQuery] DateTime? requestedAtFrom,
+                    [FromQuery] DateTime? requestedAtTo,
                     [FromQuery] string? sortBy,
                     [FromQuery] string? sortDir,
                     ISender sender,
@@ -40,6 +44,10 @@ public class GetMyTasksEndpoint : ICarterModule
                         taskType,
                         dateFrom,
                         dateTo,
+                        appointmentDateFrom,
+                        appointmentDateTo,
+                        requestedAtFrom,
+                        requestedAtTo,
                         sortBy,
                         sortDir
                     );

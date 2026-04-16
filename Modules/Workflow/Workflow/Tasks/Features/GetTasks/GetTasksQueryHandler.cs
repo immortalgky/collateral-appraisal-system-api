@@ -10,7 +10,7 @@ public class GetTasksQueryHandler(
 {
     private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
     {
-        "AppraisalNumber", "CustomerName", "TaskType", "Purpose", "PropertyType",
+        "AppraisalNumber", "RequestNumber", "CustomerName", "TaskType", "Purpose", "PropertyType",
         "Status", "AppointmentDateTime", "RequestedBy", "RequestReceivedDate",
         "AssignedDate", "Movement", "InternalFollowupStaff", "Appraiser",
         "Priority", "DueAt", "SlaStatus", "ElapsedHours", "RemainingHours"

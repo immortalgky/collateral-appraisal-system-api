@@ -23,6 +23,34 @@ namespace Common.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Common.Domain.Notes.DashboardNote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_DashboardNotes_UserId");
+
+                    b.ToTable("DashboardNotes", "common");
+                });
+
             modelBuilder.Entity("Common.Domain.ReadModels.CompanyAppraisalSummary", b =>
                 {
                     b.Property<Guid>("CompanyId")
@@ -67,7 +95,7 @@ namespace Common.Migrations
                     b.ToTable("DailyAppraisalCounts", "common");
                 });
 
-            modelBuilder.Entity("Common.Domain.ReadModels.RequestStatusSummary", b =>
+            modelBuilder.Entity("Common.Domain.ReadModels.AppraisalStatusSummary", b =>
                 {
                     b.Property<string>("Status")
                         .HasMaxLength(50)
@@ -76,39 +104,12 @@ namespace Common.Migrations
                     b.Property<int>("Count")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("LastUpdatedAt")
-                        .HasColumnType("datetime2");
+                    b.Property<DateTimeOffset>("LastUpdatedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.HasKey("Status");
 
-                    b.ToTable("RequestStatusSummaries", "common");
-                });
-
-            modelBuilder.Entity("Common.Domain.ReadModels.TeamWorkloadSummary", b =>
-                {
-                    b.Property<string>("Username")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<int>("Completed")
-                        .HasColumnType("int");
-
-                    b.Property<int>("InProgress")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("LastUpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("NotStarted")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TeamId")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.HasKey("Username");
-
-                    b.ToTable("TeamWorkloadSummaries", "common");
+                    b.ToTable("AppraisalStatusSummaries", "common");
                 });
 
             modelBuilder.Entity("Shared.Data.Outbox.InboxMessage", b =>

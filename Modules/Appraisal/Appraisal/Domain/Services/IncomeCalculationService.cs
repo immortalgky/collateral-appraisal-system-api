@@ -56,8 +56,18 @@ public class IncomeCalculationService : IPricingCalculationService
     /// lookup: find the matching bracket, multiply entire price by that bracket's rate).
     /// When null or empty the client-supplied <c>TotalPropertyTax</c> array is used as-is
     /// (backward-compatible path; a warning is logged).
+    /// <para>
+    /// When <paramref name="userFinalValueRoundedOverride"/> is non-null and &gt; 0, it is used
+    /// as <c>FinalValueRounded</c> in the result instead of the server-computed value.
+    /// Pass null (default) to recompute — existing callers are unaffected.
+    /// Contract: 0 is treated as "no override" (same as null) to avoid storing a meaningless zero
+    /// when the frontend sends an empty field.
+    /// </para>
     /// </summary>
-    public IncomeCalculationResult Calculate(IncomeAnalysis analysis, IReadOnlyList<TaxBracketDto>? taxBrackets)
+    public IncomeCalculationResult Calculate(
+        IncomeAnalysis analysis,
+        IReadOnlyList<TaxBracketDto>? taxBrackets,
+        decimal? userFinalValueRoundedOverride = null)
     {
         var years = analysis.TotalNumberOfYears;
         var daysInYear = analysis.TotalNumberOfDayInYear;
@@ -105,33 +115,48 @@ public class IncomeCalculationService : IPricingCalculationService
             }
         }
 
-        // ── Pass 2: resolve method 13 (proportional) ──────────────────────
-        // Build lookup: id string → resolved year array (section / category / assumption).
-        // We use the section/category totals we will compute next, so we do a mini-aggregation
-        // first, then resolve method-13 entries.
+        // ── Pass 2: resolve method 13 (proportional) — iterative to convergence ──
+        // Each iteration: aggregate categories/sections using current values, then
+        // re-resolve every M13 against those aggregates. When an M13 references an
+        // aggregate that itself contains other M13s (e.g. Admin Fee = 5% of GOP, and
+        // GOP = Income − Expenses where Expenses contains multiple M13s), a single
+        // pass uses stale (pre-M13) aggregates and produces wrong values.
+        // A fixed-point iteration converges in ≤3 passes for any non-circular ref graph.
 
-        // Build assumption totals (= method values) for the cross-ref lookup.
         var assumptionValues = new Dictionary<Guid, decimal[]>(methodValues);
-
-        // First pass category/section aggregation (excluding method-13 assumptions for now).
         var categoryValues = AggregateCategoryValues(analysis, assumptionValues, years);
         var sectionValues = AggregateSectionValues(analysis, categoryValues, assumptionValues, years);
 
-        // Now resolve deferred method-13 entries.
-        foreach (var (assumption, detail) in deferred13)
+        const int MaxIterations = 5;
+        bool didNotConverge = false;
+        for (int iter = 0; iter < MaxIterations; iter++)
         {
-            var refValues = ResolveRefTarget(detail, sectionValues, categoryValues, assumptionValues, years);
-            decimal[] values = new decimal[years];
-            for (int y = 0; y < years; y++)
-                values[y] = (detail.ProportionPct / 100m) * (refValues != null ? refValues[y] : 0m);
+            bool anyChanged = false;
+            foreach (var (assumption, detail) in deferred13)
+            {
+                var refValues = ResolveRefTarget(detail, sectionValues, categoryValues, assumptionValues, years);
+                decimal[] values = new decimal[years];
+                for (int y = 0; y < years; y++)
+                    values[y] = (detail.ProportionPct / 100m) * (refValues != null ? refValues[y] : 0m);
 
-            methodValues[assumption.Id] = values;
-            assumptionValues[assumption.Id] = values;
+                if (!assumptionValues.TryGetValue(assumption.Id, out var prev) || !ArraysEqual(prev, values))
+                    anyChanged = true;
+
+                methodValues[assumption.Id] = values;
+                assumptionValues[assumption.Id] = values;
+            }
+
+            categoryValues = AggregateCategoryValues(analysis, assumptionValues, years);
+            sectionValues = AggregateSectionValues(analysis, categoryValues, assumptionValues, years);
+
+            if (!anyChanged) break;
+            didNotConverge = iter == MaxIterations - 1;
         }
 
-        // ── Re-aggregate categories/sections after method-13 resolution ───
-        categoryValues = AggregateCategoryValues(analysis, assumptionValues, years);
-        sectionValues = AggregateSectionValues(analysis, categoryValues, assumptionValues, years);
+        if (didNotConverge)
+            _logger.LogWarning(
+                "Method-13 iteration did not converge after {MaxIterations} passes — possible circular reference or proportion >= 100%. Result may be inaccurate. AnalysisId={AnalysisId}.",
+                MaxIterations, analysis.Id);
 
         // ── Summary (DCF pipeline) ─────────────────────────────────────────
         var contractRentalFee = ParseJsonArray(analysis.Summary.ContractRentalFeeJson, years);
@@ -141,8 +166,11 @@ public class IncomeCalculationService : IPricingCalculationService
         var (terminalRevenue, totalNet, discount, presentValue, finalValue) =
             ComputeDcfSummary(analysis, grossRevenue);
 
-        var finalValueRounded = analysis.FinalValueRounded.HasValue && analysis.FinalValueRounded.Value != 0
-            ? analysis.FinalValueRounded.Value
+        // Use user override when non-null and > 0; otherwise recompute from finalValue.
+        // 0 is treated as "no override" so a frontend that sends an empty numeric field
+        // (which serialises as 0) does not replace a real computed value with zero.
+        var finalValueRounded = userFinalValueRoundedOverride.HasValue && userFinalValueRoundedOverride.Value > 0
+            ? userFinalValueRoundedOverride.Value
             : finalValue;
 
         return new IncomeCalculationResult
@@ -684,6 +712,14 @@ public class IncomeCalculationService : IPricingCalculationService
     }
 
     // ── Method 13 reference resolution ───────────────────────────────────
+
+    private static bool ArraysEqual(decimal[] a, decimal[] b)
+    {
+        if (a.Length != b.Length) return false;
+        for (int i = 0; i < a.Length; i++)
+            if (a[i] != b[i]) return false;
+        return true;
+    }
 
     private static decimal[]? ResolveRefTarget(
         Method13Detail detail,

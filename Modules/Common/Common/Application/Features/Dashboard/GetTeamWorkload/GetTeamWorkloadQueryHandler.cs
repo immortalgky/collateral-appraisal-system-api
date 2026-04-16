@@ -16,21 +16,39 @@ public class GetTeamWorkloadQueryHandler(
     {
         var connection = connectionFactory.GetOpenConnection();
         var parameters = new DynamicParameters();
+        parameters.Add("CurrentUsername", currentUserService.Username);
 
-        // If user has a company, scope to their company team
-        var companyFilter = "";
-        var companyId = currentUserService.CompanyId;
-        if (companyId.HasValue)
-        {
-            companyFilter = "WHERE TeamId = @TeamId";
-            parameters.Add("TeamId", companyId.Value.ToString());
-        }
-
-        var sql = $"""
-            SELECT Username, NotStarted, InProgress, Completed
-            FROM common.TeamWorkloadSummaries
-            {companyFilter}
-            ORDER BY (NotStarted + InProgress + Completed) DESC
+        const string sql = """
+            WITH CurrentUserTeam AS (
+                SELECT tm.TeamId
+                FROM auth.TeamMembers tm
+                INNER JOIN auth.AspNetUsers u ON u.Id = tm.UserId
+                WHERE u.UserName = @CurrentUsername
+            ),
+            TeamUsers AS (
+                -- Internal team: all members sharing a TeamId with the current user
+                SELECT u.UserName
+                FROM auth.TeamMembers tm
+                INNER JOIN auth.AspNetUsers u ON u.Id = tm.UserId
+                WHERE tm.TeamId IN (SELECT TeamId FROM CurrentUserTeam)
+                UNION
+                -- Same-company fallback: external users matched by CompanyId
+                SELECT u.UserName
+                FROM auth.AspNetUsers u
+                INNER JOIN auth.AspNetUsers cu ON cu.UserName = @CurrentUsername
+                WHERE u.CompanyId IS NOT NULL AND u.CompanyId = cu.CompanyId
+            )
+            SELECT
+                v.Username,
+                COUNT(CASE WHEN v.Bucket = 'NotStarted' THEN 1 END) AS NotStarted,
+                COUNT(CASE WHEN v.Bucket = 'InProgress'  THEN 1 END) AS InProgress,
+                COUNT(CASE WHEN v.Bucket = 'Completed'   THEN 1 END) AS Completed
+            FROM workflow.vw_UserTaskSummary v
+            INNER JOIN TeamUsers tu ON tu.UserName = v.Username
+            GROUP BY v.Username
+            ORDER BY (COUNT(CASE WHEN v.Bucket = 'NotStarted' THEN 1 END)
+                    + COUNT(CASE WHEN v.Bucket = 'InProgress'  THEN 1 END)
+                    + COUNT(CASE WHEN v.Bucket = 'Completed'   THEN 1 END)) DESC;
             """;
 
         var items = await connection.QueryAsync<TeamWorkloadDto>(sql, parameters);

@@ -12,6 +12,7 @@ public record TaskDto
     public Guid WorkflowInstanceId { get; init; }
     public string? ActivityId { get; init; }
     public string? AppraisalNumber { get; init; }
+    public string? RequestNumber { get; init; }
     public string? CustomerName { get; init; }
     public string? TaskType { get; init; }
     public string? TaskDescription { get; init; }

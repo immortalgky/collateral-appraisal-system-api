@@ -15,6 +15,10 @@ public record GetMyTasksFilterRequest(
     string? TaskType = null,
     DateTime? DateFrom = null,
     DateTime? DateTo = null,
+    DateTime? AppointmentDateFrom = null,
+    DateTime? AppointmentDateTo = null,
+    DateTime? RequestedAtFrom = null,
+    DateTime? RequestedAtTo = null,
     string? SortBy = null,
     string? SortDir = null
 );

@@ -36,17 +36,25 @@ public class IncomeCategory : Entity<Guid>
         string categoryType,
         string categoryName,
         string identifier,
-        int displaySeq)
+        int displaySeq,
+        // Preview handler passes a pre-assigned Guid so the in-memory graph has real Ids
+        // without going through EF. Save path omits this parameter; EF assigns via NEWSEQUENTIALID().
+        Guid? id = null)
     {
-        return new IncomeCategory
+        var entity = new IncomeCategory
         {
-            //Id = Guid.CreateVersion7(),
+            // Id intentionally omitted — EF assigns it via HasDefaultValueSql("NEWSEQUENTIALID()") on insert.
             IncomeSectionId = incomeSectionId,
             CategoryType = categoryType,
             CategoryName = categoryName,
             Identifier = identifier,
             DisplaySeq = displaySeq
         };
+
+        if (id.HasValue)
+            entity.Id = id.Value;
+
+        return entity;
     }
 
     public void Update(
@@ -85,4 +93,8 @@ public class IncomeCategory : Entity<Guid>
         _assumptions.Clear();
         _assumptions.AddRange(assumptions);
     }
+
+    public void AttachAssumption(IncomeAssumption assumption) => _assumptions.Add(assumption);
+
+    public void RemoveAssumption(IncomeAssumption assumption) => _assumptions.Remove(assumption);
 }

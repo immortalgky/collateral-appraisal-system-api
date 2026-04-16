@@ -12,5 +12,6 @@ public record SaveIncomeAnalysisCommand(
     int TotalNumberOfDayInYear,
     decimal CapitalizeRate,
     decimal DiscountedRate,
-    IReadOnlyList<IncomeSectionInput> Sections
+    IReadOnlyList<IncomeSectionInput> Sections,
+    decimal? FinalValueRounded = null
 ) : ICommand<SaveIncomeAnalysisResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

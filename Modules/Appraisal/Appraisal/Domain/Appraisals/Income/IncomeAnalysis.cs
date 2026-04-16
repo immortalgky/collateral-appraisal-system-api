@@ -50,14 +50,17 @@ public class IncomeAnalysis : Entity<Guid>
         int totalNumberOfYears,
         int totalNumberOfDayInYear,
         decimal capitalizeRate,
-        decimal discountedRate)
+        decimal discountedRate,
+        // Preview handler passes a pre-assigned Guid so the in-memory graph has real Ids
+        // without going through EF. Save path omits this parameter; EF assigns via NEWSEQUENTIALID().
+        Guid? id = null)
     {
         if (totalNumberOfYears < 1)
             throw new ArgumentException("TotalNumberOfYears must be at least 1", nameof(totalNumberOfYears));
 
-        return new IncomeAnalysis
+        var entity = new IncomeAnalysis
         {
-            //Id = Guid.CreateVersion7(),
+            // Id intentionally omitted — EF assigns it via HasDefaultValueSql("NEWSEQUENTIALID()") on insert.
             PricingAnalysisMethodId = pricingAnalysisMethodId,
             TemplateCode = templateCode,
             TemplateName = templateName,
@@ -66,6 +69,11 @@ public class IncomeAnalysis : Entity<Guid>
             CapitalizeRate = capitalizeRate,
             DiscountedRate = discountedRate
         };
+
+        if (id.HasValue)
+            entity.Id = id.Value;
+
+        return entity;
     }
 
     public void UpdateParameters(
@@ -92,6 +100,10 @@ public class IncomeAnalysis : Entity<Guid>
         _sections.Clear();
         _sections.AddRange(sections);
     }
+
+    public void AddSection(IncomeSection section) => _sections.Add(section);
+
+    public void RemoveSection(IncomeSection section) => _sections.Remove(section);
 
     public void SetComputedValues(
         decimal finalValue,
