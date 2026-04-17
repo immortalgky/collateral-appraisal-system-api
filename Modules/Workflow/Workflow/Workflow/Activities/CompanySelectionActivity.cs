@@ -36,7 +36,8 @@ public class CompanySelectionActivity : WorkflowActivityBase
         var outputData = new Dictionary<string, object>
         {
             ["selectionMethod"] = selectionMethod,
-            ["selectedAt"] = DateTime.UtcNow
+            ["selectedAt"] = DateTime.UtcNow,
+            ["assignmentType"] = "External"
         };
 
         if (selectionMethod == "manual")

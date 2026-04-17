@@ -4,16 +4,19 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Appraisal.Infrastructure.Migrations
+namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260416183759_AddAppraisalCommitteeApprovalFields")]
+    partial class AddAppraisalCommitteeApprovalFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -687,8 +690,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Notes")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<decimal>("OriginalPricePerUnit")
                         .HasPrecision(18, 2)
@@ -1392,8 +1395,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("BathroomFloorMaterialTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("BuildingNumber")
                         .HasMaxLength(50)
@@ -1418,8 +1421,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("GroundFloorMaterialTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<bool?>("HasMezzanine")
                         .HasColumnType("bit");
@@ -1474,8 +1477,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("UpperFloorMaterialTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<decimal?>("UsableAreaMax")
                         .HasPrecision(10, 2)
@@ -1697,8 +1700,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("BathroomFloorMaterialTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("BuildingFormType")
                         .HasMaxLength(100)
@@ -1734,8 +1737,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("DecorationTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<decimal?>("Distance")
                         .HasPrecision(10, 2)
@@ -1746,20 +1749,20 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("ExpropriationRemark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("ForestBoundaryRemark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("GroundFloorMaterialType")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("GroundFloorMaterialTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<bool?>("HasObligation")
                         .HasColumnType("bit");
@@ -1793,8 +1796,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Remark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<decimal?>("RightOfWay")
                         .HasPrecision(10, 2)
@@ -1805,8 +1808,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("RoadSurfaceTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<decimal?>("RoadWidth")
                         .HasPrecision(10, 2)
@@ -1816,8 +1819,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("RoofTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("RoyalDecree")
                         .HasMaxLength(500)
@@ -1845,8 +1848,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("UpperFloorMaterialTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.HasKey("Id");
 
@@ -2283,8 +2286,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ValuationNotes")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<decimal?>("ValuationWeight")
                         .HasPrecision(5, 2)
@@ -3048,8 +3051,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("MarketDemand")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<bool?>("MarketDemandAvailable")
                         .HasColumnType("bit");
@@ -3062,8 +3065,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("Other")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("Owner")
                         .HasMaxLength(500)
@@ -4149,8 +4152,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("AppraiserOpinion")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -4199,8 +4202,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("ValuationNotes")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.HasKey("Id");
 
@@ -4236,19 +4239,19 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("BuildingTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("CeilingType")
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("CeilingTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("ConstructionStyleRemark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("ConstructionStyleType")
                         .HasMaxLength(100)
@@ -4259,8 +4262,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("ConstructionTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int?>("ConstructionYear")
                         .HasColumnType("int");
@@ -4280,30 +4283,30 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("DecorationTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<decimal?>("EncroachingOthersArea")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("EncroachingOthersRemark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("ExteriorWallType")
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("ExteriorWallTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("FenceType")
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("FenceTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("FireInsuranceCondition")
                         .HasMaxLength(200)
@@ -4316,8 +4319,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("InteriorWallTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<bool?>("IsEncroachingOthers")
                         .HasColumnType("bit");
@@ -4353,26 +4356,26 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Remark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("ResidentialRemark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("RoofFrameType")
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("RoofFrameTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("RoofType")
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("RoofTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<decimal?>("StandardLandArea")
                         .HasPrecision(10, 4)
@@ -4390,8 +4393,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("StructureTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -4416,8 +4419,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("UtilizationTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.HasKey("Id");
 
@@ -4520,8 +4523,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("FacilitiesOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<decimal?>("LandAreaNgan")
                         .HasPrecision(10, 4)
@@ -4569,8 +4572,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Remark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("Road")
                         .HasMaxLength(200)
@@ -4597,8 +4600,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("UtilitiesOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.HasKey("Id");
 
@@ -4661,34 +4664,34 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("EncroachmentRemark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("EvictionType")
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("EvictionTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("ExpropriationLineRemark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("ExpropriationRemark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("ForestBoundaryRemark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<bool?>("HasBuilding")
                         .HasColumnType("bit");
 
                     b.Property<string>("HasBuildingOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<bool?>("HasElectricity")
                         .HasColumnType("bit");
@@ -4718,8 +4721,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("LandAccessibilityRemark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("LandAccessibilityType")
                         .HasMaxLength(100)
@@ -4730,8 +4733,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("LandCheckMethodTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("LandDescription")
                         .HasMaxLength(500)
@@ -4741,8 +4744,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("LandEntranceExitTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<decimal?>("LandFillPercent")
                         .HasPrecision(5, 2)
@@ -4753,8 +4756,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("LandFillTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("LandShapeType")
                         .HasMaxLength(100)
@@ -4764,19 +4767,19 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("LandUseTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("LandZoneType")
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("LandZoneTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("LandlockedRemark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("NorthAdjacentArea")
                         .HasMaxLength(200)
@@ -4794,8 +4797,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("OtherLegalLimitations")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("OwnerName")
                         .HasMaxLength(200)
@@ -4805,8 +4808,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("PlotLocationTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<decimal?>("PondArea")
                         .HasPrecision(18, 4)
@@ -4821,8 +4824,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("PropertyAnticipationTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("PropertyName")
                         .HasMaxLength(200)
@@ -4832,12 +4835,12 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("PublicUtilityTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Remark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<short?>("RightOfWay")
                         .HasColumnType("smallint");
@@ -4855,8 +4858,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("RoadSurfaceTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("RoyalDecree")
                         .HasMaxLength(500)
@@ -4886,8 +4889,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("TransportationAccessTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -5583,8 +5586,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Notes")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<decimal?>("OfferPrice")
                         .HasPrecision(18, 2)
@@ -5678,8 +5681,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("OtherRemarks")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -7416,8 +7419,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("BathroomFloorMaterialTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<int?>("BuildingAge")
                                 .HasColumnType("int");
@@ -7427,8 +7430,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(50)");
 
                             b1.Property<string>("BuildingConditionTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("BuildingFormType")
                                 .HasMaxLength(100)
@@ -7476,8 +7479,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("DecorationTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<decimal?>("DistanceFromMainRoad")
                                 .HasPrecision(10, 2)
@@ -7490,19 +7493,19 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("ExpropriationLineRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("ExpropriationRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("FacilityType")
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("FacilityTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("FloorNumber")
                                 .HasMaxLength(50)
@@ -7513,16 +7516,16 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("decimal(18,2)");
 
                             b1.Property<string>("ForestBoundaryRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("GroundFloorMaterialType")
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("GroundFloorMaterialTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<bool?>("HasObligation")
                                 .HasColumnType("bit");
@@ -7555,8 +7558,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("decimal(5,2)");
 
                             b1.Property<string>("ObligationDetails")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("OwnerName")
                                 .IsRequired()
@@ -7574,12 +7577,12 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("PublicUtilityTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("Remark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
 
                             b1.Property<short?>("RightOfWay")
                                 .HasColumnType("smallint");
@@ -7589,23 +7592,23 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("RoadSurfaceTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("RoofType")
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("RoofTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("RoomLayoutType")
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("RoomLayoutTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("RoomNumber")
                                 .HasMaxLength(50)
@@ -7646,8 +7649,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("UpperFloorMaterialTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<decimal?>("UsableArea")
                                 .HasPrecision(18, 4)
@@ -7823,8 +7826,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("Remark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(2000)
+                                .HasColumnType("nvarchar(2000)");
 
                             b1.Property<decimal?>("SummaryCurrentProgressPct")
                                 .HasPrecision(7, 4)
@@ -8010,34 +8013,34 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("decimal(18,4)");
 
                             b1.Property<string>("EncroachmentRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("EvictionType")
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("EvictionTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("ExpropriationLineRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("ExpropriationRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("ForestBoundaryRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<bool?>("HasBuilding")
                                 .HasColumnType("bit");
 
                             b1.Property<string>("HasBuildingOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<bool?>("HasElectricity")
                                 .HasColumnType("bit");
@@ -8067,8 +8070,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("bit");
 
                             b1.Property<string>("LandAccessibilityRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("LandAccessibilityType")
                                 .HasMaxLength(100)
@@ -8079,8 +8082,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("LandCheckMethodTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("LandDescription")
                                 .HasMaxLength(500)
@@ -8090,8 +8093,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("LandEntranceExitTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<decimal?>("LandFillPercent")
                                 .HasPrecision(5, 2)
@@ -8102,8 +8105,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("LandFillTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("LandShapeType")
                                 .HasMaxLength(100)
@@ -8113,19 +8116,19 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("LandUseTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("LandZoneType")
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("LandZoneTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("LandlockedRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("NorthAdjacentArea")
                                 .HasMaxLength(200)
@@ -8143,8 +8146,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("OtherLegalLimitations")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
 
                             b1.Property<string>("OwnerName")
                                 .HasMaxLength(200)
@@ -8154,8 +8157,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("PlotLocationTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<decimal?>("PondArea")
                                 .HasPrecision(18, 4)
@@ -8170,8 +8173,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("PropertyAnticipationTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("PropertyName")
                                 .HasMaxLength(200)
@@ -8181,12 +8184,12 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("PublicUtilityTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("Remark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
 
                             b1.Property<short?>("RightOfWay")
                                 .HasColumnType("smallint");
@@ -8204,8 +8207,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("RoadSurfaceTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("RoyalDecree")
                                 .HasMaxLength(500)
@@ -8235,8 +8238,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("TransportationAccessTypeOther")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<DateTime?>("UpdatedAt")
                                 .HasColumnType("datetime2");
@@ -8352,8 +8355,8 @@ namespace Appraisal.Infrastructure.Migrations
                                         .HasColumnType("nvarchar(50)");
 
                                     b2.Property<string>("BoundaryMarkerRemark")
-                                        .HasMaxLength(4000)
-                                        .HasColumnType("nvarchar(4000)");
+                                        .HasMaxLength(500)
+                                        .HasColumnType("nvarchar(500)");
 
                                     b2.Property<string>("BoundaryMarkerType")
                                         .HasColumnType("nvarchar(max)");
@@ -8402,8 +8405,8 @@ namespace Appraisal.Infrastructure.Migrations
                                         .HasColumnType("nvarchar(100)");
 
                                     b2.Property<string>("Remark")
-                                        .HasMaxLength(4000)
-                                        .HasColumnType("nvarchar(4000)");
+                                        .HasMaxLength(1000)
+                                        .HasColumnType("nvarchar(1000)");
 
                                     b2.Property<string>("SurveyNumber")
                                         .HasMaxLength(50)
@@ -8484,12 +8487,16 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("uniqueidentifier")
                                 .HasDefaultValueSql("NEWSEQUENTIALID()");
 
-                            b1.Property<decimal?>("AdditionalExpenses")
-                                .HasPrecision(18, 2)
-                                .HasColumnType("decimal(18,2)");
+                            b1.Property<string>("AdditionalExpenses")
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<Guid>("AppraisalPropertyId")
                                 .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Banking")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("ContractNo")
                                 .HasMaxLength(100)
@@ -8512,9 +8519,9 @@ namespace Appraisal.Infrastructure.Migrations
                             b1.Property<DateTime?>("LeaseEndDate")
                                 .HasColumnType("datetime2");
 
-                            b1.Property<decimal?>("LeasePeriodAsContract")
-                                .HasPrecision(5)
-                                .HasColumnType("decimal(5,0)");
+                            b1.Property<string>("LeasePeriodAsContract")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<decimal?>("LeaseRentFee")
                                 .HasPrecision(18, 2)
@@ -8523,7 +8530,7 @@ namespace Appraisal.Infrastructure.Migrations
                             b1.Property<DateTime?>("LeaseStartDate")
                                 .HasColumnType("datetime2");
 
-                            b1.Property<string>("LeaseTerminate")
+                            b1.Property<string>("LeaseTimestamp")
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
@@ -8531,17 +8538,13 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
-                            b1.Property<string>("LessorName")
+                            b1.Property<string>("RemainingLeaseAsAppraisalDate")
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
-                            b1.Property<decimal?>("RemainingLeaseAsAppraisalDate")
-                                .HasPrecision(5)
-                                .HasColumnType("decimal(5,0)");
-
                             b1.Property<string>("Remark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
 
                             b1.Property<decimal?>("RentAdjust")
                                 .HasPrecision(18, 2)
@@ -8554,6 +8557,10 @@ namespace Appraisal.Infrastructure.Migrations
                             b1.Property<string>("Sublease")
                                 .HasMaxLength(500)
                                 .HasColumnType("nvarchar(500)");
+
+                            b1.Property<string>("TenantName")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("TerminationOfLease")
                                 .HasMaxLength(2000)
@@ -8591,8 +8598,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("AppraiserOpinion")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
 
                             b1.Property<string>("Brand")
                                 .HasMaxLength(100)
@@ -8629,8 +8636,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("EnergyUseRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("EngineNo")
                                 .HasMaxLength(100)
@@ -8674,8 +8681,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("MachineParts")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("MachineTechnology")
                                 .HasMaxLength(100)
@@ -8690,8 +8697,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("Other")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("OwnerName")
                                 .HasMaxLength(200)
@@ -8716,8 +8723,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(50)");
 
                             b1.Property<string>("Remark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
 
                             b1.Property<decimal?>("ReplacementValue")
                                 .HasPrecision(18, 2)
@@ -9085,8 +9092,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("AppraiserOpinion")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
 
                             b1.Property<string>("Brand")
                                 .HasMaxLength(100)
@@ -9126,8 +9133,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("EnergyUseRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("EngineNo")
                                 .HasMaxLength(100)
@@ -9153,8 +9160,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("Other")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("OwnerName")
                                 .HasMaxLength(200)
@@ -9176,8 +9183,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(50)");
 
                             b1.Property<string>("Remark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
 
                             b1.Property<DateTime?>("UpdatedAt")
                                 .HasColumnType("datetime2");
@@ -9209,8 +9216,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("VehiclePart")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("VehicleTechnology")
                                 .HasMaxLength(100)
@@ -9245,8 +9252,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("AppraiserOpinion")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
 
                             b1.Property<string>("Brand")
                                 .HasMaxLength(100)
@@ -9278,8 +9285,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("EnergyUseRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("EngineCapacity")
                                 .HasMaxLength(100)
@@ -9321,8 +9328,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("decimal(18,4)");
 
                             b1.Property<string>("Other")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("OwnerName")
                                 .HasMaxLength(200)
@@ -9351,8 +9358,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(50)");
 
                             b1.Property<string>("Remark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
 
                             b1.Property<DateTime?>("UpdatedAt")
                                 .HasColumnType("datetime2");
@@ -9388,8 +9395,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("VesselPart")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("VesselTechnology")
                                 .HasMaxLength(100)
@@ -10594,8 +10601,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("Remark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(1000)
+                                .HasColumnType("nvarchar(1000)");
 
                             b1.Property<string>("SurveyNumber")
                                 .HasMaxLength(50)

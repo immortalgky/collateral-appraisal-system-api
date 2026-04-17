@@ -37,6 +37,10 @@ public class GetPoolTasksQueryHandler(
         var conditions = new List<string>();
         var parameters = new DynamicParameters();
 
+        // Restrict to pool-assigned tasks (AssignedType = '2'); individual assignments are excluded
+        conditions.Add("AssignedType = @PoolAssignedType");
+        parameters.Add("PoolAssignedType", "2");
+
         // Pool tasks are assigned to a group (AssigneeUserId contains a group name)
         var groupConditions = new List<string>();
         for (var i = 0; i < userGroups.Count; i++)

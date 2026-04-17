@@ -14,10 +14,18 @@ SELECT pt.Id                                                                    
        pt.TaskDescription,
        r.Purpose,
        p.PropertyType                                                                     AS PropertyType,
-       COALESCE(a.Status, r.Status)                                                       AS Status,
+       -- Derive appraisal status: CompletedAt trumps all; then workflow activity; fallback to request status
+       CASE
+           WHEN a.CompletedAt IS NOT NULL THEN 'Completed'
+           WHEN pt.ActivityId IN ('appraisal-initiation-check', 'appraisal-assignment') THEN 'Pending'
+           WHEN pt.ActivityId IN ('appraisal-book-verification', 'int-appraisal-check', 'int-appraisal-verification', 'pending-approval') THEN 'UnderReview'
+           WHEN a.Id IS NOT NULL THEN 'InProgress'
+           ELSE r.Status
+       END AS Status,
        pt.TaskStatus                                                                      AS PendingTaskStatus,
        ap.AppointmentDateTime,
        pt.AssignedTo                                                                      AS AssigneeUserId,
+       pt.AssignedType                                                                    AS AssignedType,
        COALESCE(a.RequestedBy, r.Requestor)                                               AS RequestedBy,
        COALESCE(CONCAT(u.FirstName, ' ', u.LastName), ISNULL(a.RequestedBy, r.Requestor)) AS RequestedByName,
        COALESCE(a.RequestedAt, r.RequestedAt)                                             AS RequestReceivedDate,

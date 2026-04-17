@@ -1,20 +1,19 @@
+using Appraisal.Application.Features.Appraisals.GetAppraisals;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using Shared.Pagination;
 
-namespace Appraisal.Application.Features.Appraisals.GetAppraisals;
+namespace Appraisal.Application.Features.Appraisals.ExportAppraisals;
 
-public class GetAppraisalsEndpoint : ICarterModule
+public class ExportAppraisalsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapGet(
-                "/appraisals",
+                "/appraisals/export",
                 async (
-                    [AsParameters] PaginationRequest pagination,
                     // Text search
                     [FromQuery] string? search,
                     // Multi-value filters
@@ -23,7 +22,7 @@ public class GetAppraisalsEndpoint : ICarterModule
                     [FromQuery] string? appraisalType,
                     [FromQuery] string? slaStatus,
                     [FromQuery] string? assignmentType,
-                    // Assignment (username like "P5229", not GUID)
+                    // Assignment (username like "P5229")
                     [FromQuery] string? assigneeUserId,
                     [FromQuery] string? assigneeCompanyId,
                     // Request metadata
@@ -45,6 +44,8 @@ public class GetAppraisalsEndpoint : ICarterModule
                     // Sorting
                     [FromQuery] string? sortBy,
                     [FromQuery] string? sortDir,
+                    // Export format: "xlsx" (default) or "csv"
+                    [FromQuery] string? format,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
@@ -75,22 +76,19 @@ public class GetAppraisalsEndpoint : ICarterModule
                         SortDir: sortDir
                     );
 
-                    var query = new GetAppraisalsQuery(pagination, filter);
-
+                    var query = new ExportAppraisalsQuery(filter, format ?? "xlsx");
                     var result = await sender.Send(query, cancellationToken);
 
-                    return Results.Ok(new GetAppraisalsResponse(result.Result, result.Facets));
+                    return Results.File(result.FileBytes, result.ContentType, result.FileName);
                 }
             )
-            .WithName("GetAppraisals")
-            .Produces<GetAppraisalsResponse>()
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .WithSummary("Get all appraisals")
+            .WithName("ExportAppraisals")
+            .Produces(StatusCodes.Status200OK)
+            .WithSummary("Export appraisals to file")
             .WithDescription(
-                "Retrieves all appraisals with pagination, filtering, sorting, and facet counts. " +
-                "Supports text search (search), multi-value filters (comma-separated status, priority, appraisalType, slaStatus, assignmentType), " +
-                "date ranges (createdFrom/To, slaDueDateFrom/To, assignedDateFrom/To, appointmentDateFrom/To), " +
-                "geographic filters (province, district), and sorting (sortBy, sortDir).")
+                "Exports all matching appraisals (up to 10,000 rows) as a file download. " +
+                "Accepts the same filter parameters as GET /appraisals. " +
+                "Use format=xlsx (default) for Excel or format=csv for CSV with UTF-8 BOM.")
             .WithTags("Appraisal");
     }
 }

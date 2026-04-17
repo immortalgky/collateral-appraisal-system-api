@@ -29,21 +29,20 @@ public class GetRemindersQueryHandler(
             FROM (
                 -- Source 1: tasks assigned to me that are overdue or due within 24 h
                 SELECT
-                    pt.Id                                       AS Id,
+                    tl.Id                                       AS Id,
                     'task_due'                                  AS Type,
                     COALESCE(
-                        pt.TaskDescription,
-                        CAST(pt.TaskName AS nvarchar(200))
+                        tl.TaskDescription,
+                        CAST(tl.TaskType AS nvarchar(200))
                     )                                           AS Title,
-                    a.AppraisalNumber                           AS AppraisalNumber,
-                    CAST(pt.DueAt AS datetimeoffset)            AS DueAt,
-                    CASE WHEN pt.DueAt < GETUTCDATE() THEN 1 ELSE 0 END AS Overdue
-                FROM workflow.PendingTasks pt
-                LEFT JOIN appraisal.Appraisals a ON a.Id = pt.AppraisalId
-                WHERE pt.AssignedTo    = @Username
-                  AND pt.TaskStatus   != 'Completed'
-                  AND pt.DueAt        IS NOT NULL
-                  AND pt.DueAt        <= DATEADD(HOUR, 24, GETUTCDATE())
+                    COALESCE(tl.AppraisalNumber, tl.RequestNumber, CONCAT('REQ-', LEFT(CAST(tl.RequestId AS nvarchar(36)), 8))) AS AppraisalNumber,
+                    CAST(tl.DueAt AS datetimeoffset)            AS DueAt,
+                    CASE WHEN tl.DueAt < GETUTCDATE() THEN 1 ELSE 0 END AS Overdue
+                FROM workflow.vw_TaskList tl
+                WHERE tl.AssigneeUserId = @Username
+                  AND tl.PendingTaskStatus != 'Completed'
+                  AND tl.DueAt         IS NOT NULL
+                  AND tl.DueAt         <= DATEADD(HOUR, 24, GETUTCDATE())
 
                 UNION ALL
 

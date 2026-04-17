@@ -30,7 +30,6 @@
         "description": "Request checker reviews the initiated appraisal request for completeness and accuracy",
         "properties": {
           "activityName": "InitiationCheck",
-          "canRaiseFollowup": true,
           "assigneeGroup": "RequestChecker",
           "assignmentStrategies": "started_by",
           "initialAssignmentStrategies": [
@@ -172,7 +171,8 @@
             "route_external": "appraisal_assignment_decisionTaken == 'EXT'",
             "route_internal": "appraisal_assignment_decisionTaken == 'INT'",
             "reject": "appraisal_assignment_decisionTaken == 'REJ'",
-            "request_more_info": "appraisal_assignment_decisionTaken == 'R'"
+            "request_more_info": "appraisal_assignment_decisionTaken == 'R'",
+            "proceed": "appraisal_assignment_decisionTaken == 'P'"
           },
           "actions": [
             {
@@ -194,6 +194,12 @@
               "value": "R",
               "label": "Request More Info",
               "assignmentMode": "system"
+            },
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system",
+              "condition": "assignmentType == 'External' || assignmentType == 'Internal'"
             }
           ],
           "inputMappings": {
@@ -271,7 +277,7 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "system"
+              "assignmentMode": "user"
             },
             {
               "value": "C",
@@ -323,7 +329,7 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "system"
+              "assignmentMode": "user"
             },
             {
               "value": "R",
@@ -370,7 +376,7 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "system"
+              "assignmentMode": "user"
             },
             {
               "value": "R",
@@ -851,6 +857,22 @@
         "type": "Conditional"
       },
       {
+        "id": "admin-proceed-external",
+        "from": "appraisal-assignment",
+        "to": "company-selection",
+        "condition": "decision == 'proceed' && assignmentType == 'External'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "admin-proceed-internal",
+        "from": "appraisal-assignment",
+        "to": "int-appraisal-execution",
+        "condition": "decision == 'proceed' && assignmentType == 'Internal'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
         "id": "company-selected",
         "from": "company-selection",
         "to": "internal-followup-selection",
@@ -1006,7 +1028,7 @@
         "id": "int-check-back-to-book-verification",
         "from": "int-appraisal-check",
         "to": "appraisal-book-verification",
-        "condition": "decision == 'route_back' && routingPath == 'external'",
+        "condition": "decision == 'route_back' && assignmentType == 'External'",
         "properties": {},
         "type": "Conditional"
       },
@@ -1014,7 +1036,7 @@
         "id": "int-check-back-to-execution",
         "from": "int-appraisal-check",
         "to": "int-appraisal-execution",
-        "condition": "decision == 'route_back' && routingPath == 'internal'",
+        "condition": "decision == 'route_back' && assignmentType == 'Internal'",
         "properties": {},
         "type": "Conditional"
       },
@@ -1070,7 +1092,7 @@
         "id": "approval-back-to-book-verification",
         "from": "pending-approval",
         "to": "appraisal-book-verification",
-        "condition": "decision == 'route_back' && routingPath == 'external'",
+        "condition": "decision == 'route_back' && assignmentType == 'External'",
         "properties": {},
         "type": "Conditional"
       },
@@ -1078,7 +1100,7 @@
         "id": "approval-back-to-execution",
         "from": "pending-approval",
         "to": "int-appraisal-execution",
-        "condition": "decision == 'route_back' && routingPath == 'internal'",
+        "condition": "decision == 'route_back' && assignmentType == 'Internal'",
         "properties": {},
         "type": "Conditional"
       }

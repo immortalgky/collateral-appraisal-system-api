@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Workflow.Workflow.Engine.Expression;
 using Workflow.Workflow.Repositories;
 
 namespace Workflow.Workflow.Features.GetActivityFormSchema;
@@ -7,10 +8,14 @@ public class GetActivityFormSchemaQueryHandler
     : IRequestHandler<GetActivityFormSchemaQuery, GetActivityFormSchemaResponse>
 {
     private readonly IWorkflowInstanceRepository _instanceRepository;
+    private readonly IExpressionEvaluator _expressionEvaluator;
 
-    public GetActivityFormSchemaQueryHandler(IWorkflowInstanceRepository instanceRepository)
+    public GetActivityFormSchemaQueryHandler(
+        IWorkflowInstanceRepository instanceRepository,
+        IExpressionEvaluator expressionEvaluator)
     {
         _instanceRepository = instanceRepository;
+        _expressionEvaluator = expressionEvaluator;
     }
 
     public async Task<GetActivityFormSchemaResponse> Handle(
@@ -53,7 +58,7 @@ public class GetActivityFormSchemaQueryHandler
 
         if (activity.Value.TryGetProperty("properties", out var properties))
         {
-            actions = ReadActions(properties);
+            actions = ReadActions(properties, instance.Variables);
             formFields = ReadFormFields(properties);
 
             // Resolve targetActivityId for actions (same logic as GetActivityActions)
@@ -104,7 +109,7 @@ public class GetActivityFormSchemaQueryHandler
         return null;
     }
 
-    private static List<ActionDto> ReadActions(JsonElement properties)
+    private List<ActionDto> ReadActions(JsonElement properties, Dictionary<string, object> variables)
     {
         var actions = new List<ActionDto>();
 
@@ -117,6 +122,20 @@ public class GetActivityFormSchemaQueryHandler
             var value = item.TryGetProperty("value", out var v) ? v.GetString() : null;
             var label = item.TryGetProperty("label", out var l) ? l.GetString() : null;
             var mode = item.TryGetProperty("assignmentMode", out var m) ? m.GetString() : "system";
+            var condition = item.TryGetProperty("condition", out var cond) ? cond.GetString() : null;
+
+            if (!string.IsNullOrEmpty(condition))
+            {
+                try
+                {
+                    if (!_expressionEvaluator.EvaluateExpression(condition, variables))
+                        continue;
+                }
+                catch
+                {
+                    continue; // fail closed — hide action if evaluation throws
+                }
+            }
 
             if (!string.IsNullOrEmpty(value))
             {
