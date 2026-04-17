@@ -1,6 +1,7 @@
 using System.Reflection;
 using Common.Domain.Notes;
 using Common.Domain.ReadModels;
+using Common.Domain.SavedSearches;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data.Outbox;
 
@@ -12,6 +13,7 @@ public class CommonDbContext(DbContextOptions<CommonDbContext> options) : DbCont
     public DbSet<AppraisalStatusSummary> AppraisalStatusSummaries => Set<AppraisalStatusSummary>();
     public DbSet<CompanyAppraisalSummary> CompanyAppraisalSummaries => Set<CompanyAppraisalSummary>();
     public DbSet<DashboardNote> DashboardNotes => Set<DashboardNote>();
+    public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

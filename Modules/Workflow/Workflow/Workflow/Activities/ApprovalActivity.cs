@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Shared.Data.Outbox;
+using Shared.Messaging.Events;
 using Workflow.Data.Repository;
 using Workflow.Domain;
 using Workflow.Domain.Committees;
@@ -17,6 +19,7 @@ public class ApprovalActivity : WorkflowActivityBase
     private readonly IApprovalMemberResolver _memberResolver;
     private readonly IApprovalVoteRepository _voteRepository;
     private readonly IPublisher _publisher;
+    private readonly IIntegrationEventOutbox _outbox;
     private readonly ExpressionEvaluator _expressionEvaluator;
     private readonly ILogger<ApprovalActivity> _logger;
 
@@ -24,11 +27,13 @@ public class ApprovalActivity : WorkflowActivityBase
         IApprovalMemberResolver memberResolver,
         IApprovalVoteRepository voteRepository,
         IPublisher publisher,
+        IIntegrationEventOutbox outbox,
         ILogger<ApprovalActivity> logger)
     {
         _memberResolver = memberResolver;
         _voteRepository = voteRepository;
         _publisher = publisher;
+        _outbox = outbox;
         _expressionEvaluator = new ExpressionEvaluator();
         _logger = logger;
     }
@@ -297,6 +302,38 @@ public class ApprovalActivity : WorkflowActivityBase
                     "ApprovalActivity {ActivityId}: Decision reached - {Decision}. Votes: {Approve}/{Reject}/{RouteBack}",
                     context.ActivityId, successOutput["decision"], approveCount, rejectCount, routeBackCount);
 
+                // Emit committee approval event when decision == "approve".
+                // Consumer in Appraisal module stamps CompletedAt + ApprovedByCommittee on the aggregate.
+                if (successOutput["decision"] is string finalDecision &&
+                    string.Equals(finalDecision, "approve", StringComparison.OrdinalIgnoreCase))
+                {
+                    var appraisalId = ResolveAppraisalId(context.Variables);
+                    if (appraisalId is not null)
+                    {
+                        var committeeCode = GetVariable<string>(context, $"{normalizedId}_committeeCode") ?? string.Empty;
+                        var committeeName = GetVariable<string>(context, $"{normalizedId}_committeeName");
+
+                        _outbox.Publish(new AppraisalApprovedByCommitteeIntegrationEvent
+                        {
+                            AppraisalId = appraisalId.Value,
+                            CommitteeCode = committeeCode,
+                            CommitteeName = committeeName,
+                            ApprovedAt = DateTime.UtcNow,
+                            ApprovedBy = voter
+                        }, appraisalId.Value.ToString());
+
+                        _logger.LogInformation(
+                            "ApprovalActivity {ActivityId}: Published AppraisalApprovedByCommitteeIntegrationEvent for AppraisalId {AppraisalId} CommitteeCode {CommitteeCode}",
+                            context.ActivityId, appraisalId.Value, committeeCode);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "ApprovalActivity {ActivityId}: Decision=approve but no appraisalId in workflow variables; skipping committee approval emit",
+                            context.ActivityId);
+                    }
+                }
+
                 return ActivityResult.Success(successOutput);
             }
 
@@ -417,5 +454,20 @@ public class ApprovalActivity : WorkflowActivityBase
         }
 
         return output;
+    }
+
+    private static Guid? ResolveAppraisalId(Dictionary<string, object>? variables)
+    {
+        if (variables is null || !variables.TryGetValue("appraisalId", out var raw))
+            return null;
+
+        return raw switch
+        {
+            Guid g => g,
+            string s when Guid.TryParse(s, out var parsed) => parsed,
+            JsonElement je when je.ValueKind == JsonValueKind.String
+                                && Guid.TryParse(je.GetString(), out var jp) => jp,
+            _ => null
+        };
     }
 }

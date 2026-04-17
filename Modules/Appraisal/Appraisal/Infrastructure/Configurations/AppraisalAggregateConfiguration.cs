@@ -65,6 +65,11 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
                 .HasMaxLength(30);
         });
 
+        // Committee approval evidence
+        builder.Property(a => a.CompletedAt);
+        builder.Property(a => a.ApprovedByCommittee)
+            .HasMaxLength(50);
+
         // SLA Tracking
         builder.Property(a => a.SLADays);
         builder.Property(a => a.SLADueDate);

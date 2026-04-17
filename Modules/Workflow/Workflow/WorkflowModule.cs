@@ -174,6 +174,7 @@ public static class WorkflowModule
         services.AddScoped<IActivityProcessStep, ValidateTaskOwnershipStep>();
         services.AddScoped<IActivityProcessStep, ValidateDecisionConstraintsStep>();
         services.AddScoped<IActivityProcessStep, EmitAppraisalCreationRequestedStep>();
+        services.AddScoped<IActivityProcessStep, SetVariableStep>();
         services.AddScoped<ProcessStepResolver>();
         services.AddScoped<IActivityProcessPipeline, ActivityProcessPipeline>();
         services.AddScoped<AppraisalCreationTriggerEvaluator>();

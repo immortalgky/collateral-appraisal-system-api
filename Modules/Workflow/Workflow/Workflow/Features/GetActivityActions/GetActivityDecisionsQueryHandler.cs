@@ -1,4 +1,4 @@
-using System.Text.Json;
+using Workflow.Workflow.Engine.Expression;
 using Workflow.Workflow.Repositories;
 
 namespace Workflow.Workflow.Features.GetActivityActions;
@@ -7,17 +7,22 @@ public class GetActivityActionsQueryHandler
     : IRequestHandler<GetActivityActionsQuery, GetActivityActionsResponse>
 {
     private readonly IWorkflowInstanceRepository _instanceRepository;
+    private readonly IExpressionEvaluator _expressionEvaluator;
 
-    public GetActivityActionsQueryHandler(IWorkflowInstanceRepository instanceRepository)
+    public GetActivityActionsQueryHandler(
+        IWorkflowInstanceRepository instanceRepository,
+        IExpressionEvaluator expressionEvaluator)
     {
         _instanceRepository = instanceRepository;
+        _expressionEvaluator = expressionEvaluator;
     }
 
     public async Task<GetActivityActionsResponse> Handle(
         GetActivityActionsQuery request, CancellationToken cancellationToken)
     {
         var instance = await _instanceRepository.GetByIdAsync(request.WorkflowInstanceId, cancellationToken)
-            ?? throw new InvalidOperationException($"Workflow instance {request.WorkflowInstanceId} not found");
+                       ?? throw new InvalidOperationException(
+                           $"Workflow instance {request.WorkflowInstanceId} not found");
 
         var definition = instance.WorkflowDefinition;
         if (definition is null || string.IsNullOrEmpty(definition.JsonDefinition))
@@ -55,7 +60,7 @@ public class GetActivityActionsQueryHandler
                                  bool.TryParse(crf.GetString(), out var b) && b));
 
         // Read actions array from properties, or voteOptions for ApprovalActivity
-        var actions = ReadActions(properties);
+        var actions = ReadActions(properties, instance.Variables);
         if (actions.Count == 0)
             actions = ReadVoteOptions(properties);
 
@@ -67,13 +72,9 @@ public class GetActivityActionsQueryHandler
 
         // Resolve targetActivityId for each action
         foreach (var action in actions)
-        {
             if (valueToConditionKey.TryGetValue(action.Value, out var conditionKey)
                 && conditionKeyToTarget.TryGetValue(conditionKey, out var targetId))
-            {
                 action.TargetActivityId = targetId;
-            }
-        }
 
         return new GetActivityActionsResponse
         {
@@ -91,10 +92,8 @@ public class GetActivityActionsQueryHandler
             return null;
 
         foreach (var activity in activities.EnumerateArray())
-        {
             if (activity.TryGetProperty("id", out var idProp) && idProp.GetString() == activityId)
                 return activity;
-        }
 
         return null;
     }
@@ -111,20 +110,18 @@ public class GetActivityActionsQueryHandler
         {
             var value = item.GetString();
             if (!string.IsNullOrEmpty(value))
-            {
                 actions.Add(new ActionDto
                 {
                     Value = value,
                     Label = value.Replace("_", " "),
                     AssignmentMode = "system"
                 });
-            }
         }
 
         return actions;
     }
 
-    private static List<ActionDto> ReadActions(JsonElement properties)
+    private List<ActionDto> ReadActions(JsonElement properties, Dictionary<string, object> variables)
     {
         var actions = new List<ActionDto>();
 
@@ -137,16 +134,26 @@ public class GetActivityActionsQueryHandler
             var value = item.TryGetProperty("value", out var v) ? v.GetString() : null;
             var label = item.TryGetProperty("label", out var l) ? l.GetString() : null;
             var mode = item.TryGetProperty("assignmentMode", out var m) ? m.GetString() : "system";
+            var condition = item.TryGetProperty("condition", out var cond) ? cond.GetString() : null;
 
-            if (!string.IsNullOrEmpty(value))
-            {
+            if (!string.IsNullOrEmpty(condition))
+                try
+                {
+                    if (!_expressionEvaluator.EvaluateExpression(condition, variables))
+                        continue;
+                }
+                catch
+                {
+                    continue; // fail closed — hide action if evaluation throws
+                }
+
+            if (!string.IsNullOrEmpty(value) && value != "EXT" && value != "INT")
                 actions.Add(new ActionDto
                 {
                     Value = value,
                     Label = label ?? value,
                     AssignmentMode = mode ?? "system"
                 });
-            }
         }
 
         return actions;

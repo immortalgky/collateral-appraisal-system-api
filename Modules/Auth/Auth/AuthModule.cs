@@ -61,7 +61,7 @@ public static class AuthModule
 
                 options.Lockout.MaxFailedAccessAttempts = lockoutConfig.GetValue("MaxFailedAccessAttempts", 5);
                 options.Lockout.DefaultLockoutTimeSpan = lockoutConfig.GetValue("PermanentLockout", true)
-                    ? TimeSpan.MaxValue
+                    ? TimeSpan.FromDays(365 * 200)
                     : TimeSpan.FromMinutes(lockoutConfig.GetValue("DefaultLockoutTimeSpanInMinutes", 5));
                 options.Lockout.AllowedForNewUsers = lockoutConfig.GetValue("LockoutEnabled", true);
             })

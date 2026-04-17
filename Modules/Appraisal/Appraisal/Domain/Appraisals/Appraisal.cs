@@ -61,6 +61,10 @@ public class Appraisal : Aggregate<Guid>
     public int? ActualDaysToComplete { get; private set; }
     public bool? IsWithinSLA { get; private set; }
 
+    // Committee approval evidence
+    public DateTime? CompletedAt { get; private set; }
+    public string? ApprovedByCommittee { get; private set; }
+
     // Soft Delete
     public SoftDelete SoftDelete { get; private set; } = SoftDelete.NotDeleted();
 
@@ -655,6 +659,17 @@ public class Appraisal : Aggregate<Guid>
         IsWithinSLA = !SLADueDate.HasValue || DateTime.UtcNow <= SLADueDate.Value;
 
         AddDomainEvent(new AppraisalCompletedEvent(this));
+    }
+
+    /// <summary>
+    /// Stamps committee approval evidence. Idempotent — no-op if already stamped.
+    /// Does NOT touch Status; status will be derived from workflow state later.
+    /// </summary>
+    public void MarkApprovedByCommittee(string committeeCode, DateTime approvedAt)
+    {
+        if (CompletedAt.HasValue) return; // idempotent guard — safe on pipeline retries
+        CompletedAt = approvedAt;
+        ApprovedByCommittee = committeeCode;
     }
 
     /// <summary>
