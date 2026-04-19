@@ -2,7 +2,10 @@ using Shared.CQRS;
 
 namespace Common.Application.Features.Dashboard.GetCompanyAppraisalSummary;
 
-public record GetCompanyAppraisalSummaryQuery : IQuery<GetCompanyAppraisalSummaryResult>;
+public record GetCompanyAppraisalSummaryQuery(
+    DateOnly? From = null,
+    DateOnly? To = null
+) : IQuery<GetCompanyAppraisalSummaryResult>;
 
 public record GetCompanyAppraisalSummaryResult(List<CompanyAppraisalSummaryDto> Items);
 

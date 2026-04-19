@@ -18,10 +18,12 @@ SELECT pt.Id                                                                    
        CASE
            WHEN a.CompletedAt IS NOT NULL THEN 'Completed'
            WHEN pt.ActivityId IN ('appraisal-initiation-check', 'appraisal-assignment') THEN 'Pending'
-           WHEN pt.ActivityId IN ('appraisal-book-verification', 'int-appraisal-check', 'int-appraisal-verification', 'pending-approval') THEN 'UnderReview'
+           WHEN pt.ActivityId IN
+                ('appraisal-book-verification', 'int-appraisal-check', 'int-appraisal-verification', 'pending-approval')
+               THEN 'UnderReview'
            WHEN a.Id IS NOT NULL THEN 'InProgress'
            ELSE r.Status
-       END AS Status,
+           END                                                                            AS Status,
        pt.TaskStatus                                                                      AS PendingTaskStatus,
        ap.AppointmentDateTime,
        pt.AssignedTo                                                                      AS AssigneeUserId,
@@ -39,13 +41,21 @@ SELECT pt.Id                                                                    
        COALESCE(a.Priority, r.Priority)                                                   AS Priority,
        pt.DueAt,
        pt.SlaStatus,
-       DATEDIFF(HOUR, pt.AssignedAt, GETUTCDATE())                                        AS ElapsedHours,
-       CASE WHEN pt.DueAt IS NOT NULL THEN DATEDIFF(HOUR, GETUTCDATE(), pt.DueAt) END     AS RemainingHours,
+       DATEDIFF(HOUR, pt.AssignedAt, GETDATE())                                           AS ElapsedHours,
+       CASE WHEN pt.DueAt IS NOT NULL THEN DATEDIFF(HOUR, GETDATE(), pt.DueAt) END        AS RemainingHours,
        pt.WorkingBy,
        pt.LockedAt
 FROM workflow.PendingTasks pt
-         LEFT JOIN appraisal.Appraisals a ON a.RequestId = pt.CorrelationId
-         LEFT JOIN request.Requests r ON r.Id = pt.CorrelationId OUTER APPLY (SELECT TOP 1 Name
+         -- Followup tasks (ProvideAdditionalDocuments) carry the DocumentFollowup.Id as
+         -- CorrelationId, not the RequestId. Resolve the effective RequestId via the
+         -- DocumentFollowups row whose FollowupWorkflowInstanceId matches pt.WorkflowInstanceId.
+         -- For non-followup tasks, df.RequestId is NULL and COALESCE falls through to
+         -- pt.CorrelationId (which already equals the requestId).
+         OUTER APPLY (SELECT TOP 1 RequestId, AppraisalId
+                      FROM workflow.DocumentFollowups
+                      WHERE FollowupWorkflowInstanceId = pt.WorkflowInstanceId) df
+         LEFT JOIN appraisal.Appraisals a ON a.RequestId = COALESCE(df.RequestId, pt.CorrelationId)
+         LEFT JOIN request.Requests r ON r.Id = COALESCE(df.RequestId, pt.CorrelationId) OUTER APPLY (SELECT TOP 1 Name
                           FROM request.RequestCustomers
                           WHERE RequestId = r.Id) C
         OUTER APPLY (SELECT STRING_AGG(PropertyType, ',') AS PropertyType

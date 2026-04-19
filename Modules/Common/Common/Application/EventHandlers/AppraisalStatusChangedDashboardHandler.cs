@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Shared.Data;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
+using Shared.Time;
 
 namespace Common.Application.EventHandlers;
 
@@ -22,7 +23,8 @@ namespace Common.Application.EventHandlers;
 public class AppraisalStatusChangedDashboardHandler(
     ISqlConnectionFactory connectionFactory,
     ILogger<AppraisalStatusChangedDashboardHandler> logger,
-    InboxGuard<CommonDbContext> inboxGuard) : IConsumer<AppraisalStatusChangedIntegrationEvent>
+    InboxGuard<CommonDbContext> inboxGuard,
+    IDateTimeProvider dateTimeProvider) : IConsumer<AppraisalStatusChangedIntegrationEvent>
 {
     public async Task Consume(ConsumeContext<AppraisalStatusChangedIntegrationEvent> context)
     {
@@ -38,7 +40,7 @@ public class AppraisalStatusChangedDashboardHandler(
             message.NewStatus);
 
         var connection = connectionFactory.GetOpenConnection();
-        var now = DateTimeOffset.UtcNow;
+        var now = new DateTimeOffset(dateTimeProvider.ApplicationNow);
 
         // TODO: derivation rules pending — placeholder decrements previous bucket and
         // increments new bucket. Confirm edge cases (e.g., Cancelled from any status) with user.

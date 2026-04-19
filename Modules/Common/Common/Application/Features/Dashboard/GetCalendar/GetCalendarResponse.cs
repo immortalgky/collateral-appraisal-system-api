@@ -11,4 +11,5 @@ public sealed record CalendarItemDto(
     string Title,
     TimeOnly? Time,
     string LinkEntityType,
-    Guid LinkEntityId);
+    Guid LinkEntityId,
+    string? AppraisalNumber = null);

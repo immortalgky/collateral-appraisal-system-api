@@ -11,9 +11,16 @@ public class GetCompanyAppraisalSummaryEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapGet("/dashboard/company-appraisal-summary",
-                async (ISender sender, CancellationToken cancellationToken) =>
+                async (
+                    DateOnly? from,
+                    DateOnly? to,
+                    ISender sender,
+                    CancellationToken cancellationToken) =>
                 {
-                    var query = new GetCompanyAppraisalSummaryQuery();
+                    if (from.HasValue && to.HasValue && from.Value > to.Value)
+                        return Results.Problem("'from' must not be later than 'to'.", statusCode: 400);
+
+                    var query = new GetCompanyAppraisalSummaryQuery(from, to);
                     var result = await sender.Send(query, cancellationToken);
                     return Results.Ok(result);
                 })

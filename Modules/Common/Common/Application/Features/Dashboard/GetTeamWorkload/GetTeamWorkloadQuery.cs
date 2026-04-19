@@ -2,7 +2,10 @@ using Shared.CQRS;
 
 namespace Common.Application.Features.Dashboard.GetTeamWorkload;
 
-public record GetTeamWorkloadQuery : IQuery<GetTeamWorkloadResult>;
+public record GetTeamWorkloadQuery(
+    DateOnly? From = null,
+    DateOnly? To = null
+) : IQuery<GetTeamWorkloadResult>;
 
 public record GetTeamWorkloadResult(List<TeamWorkloadDto> Items);
 
@@ -12,4 +15,5 @@ public record TeamWorkloadDto
     public int NotStarted { get; init; }
     public int InProgress { get; init; }
     public int Completed { get; init; }
+    public int Overdue { get; init; }
 }

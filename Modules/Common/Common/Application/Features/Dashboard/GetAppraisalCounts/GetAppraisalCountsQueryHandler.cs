@@ -1,11 +1,13 @@
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
+using Shared.Time;
 
 namespace Common.Application.Features.Dashboard.GetAppraisalCounts;
 
 public class GetAppraisalCountsQueryHandler(
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    IDateTimeProvider dateTimeProvider
 ) : IQueryHandler<GetAppraisalCountsQuery, GetAppraisalCountsResult>
 {
     public async Task<GetAppraisalCountsResult> Handle(
@@ -13,8 +15,8 @@ public class GetAppraisalCountsQueryHandler(
         CancellationToken cancellationToken)
     {
         var connection = connectionFactory.GetOpenConnection();
-        var from = query.From ?? DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-1));
-        var to = query.To ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var from = query.From ?? dateTimeProvider.Today.AddYears(-1);
+        var to = query.To ?? dateTimeProvider.Today;
 
         var (groupBy, selectPeriod) = query.Period?.ToLower() switch
         {
