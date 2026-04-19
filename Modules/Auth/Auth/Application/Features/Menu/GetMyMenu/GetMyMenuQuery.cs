@@ -1,3 +1,3 @@
 namespace Auth.Application.Features.Menu.GetMyMenu;
 
-public record GetMyMenuQuery(Guid UserId) : IQuery<MyMenuResponse>;
+public record GetMyMenuQuery(Guid UserId, string? ActivityId = null) : IQuery<MyMenuResponse>;

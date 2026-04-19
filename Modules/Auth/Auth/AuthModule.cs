@@ -92,6 +92,8 @@ public static class AuthModule
                 options.AllowPasswordFlow();
                 options.AllowRefreshTokenFlow();
 
+                options.UseReferenceRefreshTokens();
+
                 options.SetAccessTokenLifetime(TimeSpan.FromMinutes(15));
                 options.SetRefreshTokenLifetime(TimeSpan.FromDays(7));
                 options.SetIdentityTokenLifetime(TimeSpan.FromMinutes(15));
@@ -239,7 +241,8 @@ public static class AuthModule
             .AddScopePolicy("ClsReadAppraisal", "appraisal.read")
             .AddScopePolicy("ClsWriteRequest", "request.write")
             .AddScopePolicy("ClsReadDocument", "document.read")
-            .AddScopePolicy("ClsWriteDocument", "document.write");
+            .AddScopePolicy("ClsWriteDocument", "document.write")
+            .AddUserPermissionPolicy("workflow.admin", "WORKFLOW_ADMIN");
 
         // In Development, don't pin policies to OpenIddict scheme so the
         // PolicyScheme can route to either DevBypass or OpenIddict.

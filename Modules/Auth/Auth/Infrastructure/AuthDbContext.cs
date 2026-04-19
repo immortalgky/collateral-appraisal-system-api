@@ -15,6 +15,7 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
     public DbSet<GroupUser> GroupUsers => Set<GroupUser>();
     public DbSet<GroupMonitoring> GroupMonitoring => Set<GroupMonitoring>();
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
+    public DbSet<ActivityMenuOverride> ActivityMenuOverrides => Set<ActivityMenuOverride>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

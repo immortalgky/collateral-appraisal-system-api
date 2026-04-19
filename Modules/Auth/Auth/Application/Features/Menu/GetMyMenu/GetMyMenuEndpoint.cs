@@ -8,13 +8,18 @@ public class GetMyMenuEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapGet("/auth/me/menu",
-                async (ClaimsPrincipal user, ISender sender, CancellationToken cancellationToken) =>
+                async (
+                    ClaimsPrincipal user,
+                    ISender sender,
+                    CancellationToken cancellationToken,
+                    [FromQuery(Name = "activityId")] string? activityId = null) =>
                 {
                     var userIdClaim = user.FindFirst(OpenIddictConstants.Claims.Subject)?.Value;
                     if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
                         return Results.Unauthorized();
 
-                    var result = await sender.Send(new GetMyMenuQuery(userId), cancellationToken);
+                    var normalizedActivityId = string.IsNullOrWhiteSpace(activityId) ? null : activityId.Trim();
+                    var result = await sender.Send(new GetMyMenuQuery(userId, normalizedActivityId), cancellationToken);
                     return Results.Ok(result);
                 })
             .RequireAuthorization()

@@ -34,7 +34,26 @@ public class AuthDataSeed(
     {
         await SeedPermissionsAsync();
         await SeedMenuItemsAsync();
+        await SeedActivityMenuOverridesAsync();
         await SeedAdminRoleAsync();
+
+        string[] appraisalSectionViews =
+        [
+            "APPRAISAL_360_VIEW", "APPRAISAL_REQUEST_VIEW",
+            "APPRAISAL_ADMINISTRATION_VIEW", "APPRAISAL_APPOINTMENT_VIEW",
+            "APPRAISAL_PROPERTY_VIEW", "APPRAISAL_BLOCK_CONDO_VIEW",
+            "APPRAISAL_BLOCK_VILLAGE_VIEW", "APPRAISAL_PROPERTY_PMA_VIEW",
+            "APPRAISAL_DOCUMENTS_VIEW", "APPRAISAL_SUMMARY_VIEW",
+        ];
+        string[] appraisalSectionEdits =
+        [
+            "APPRAISAL_REQUEST_EDIT",
+            "APPRAISAL_ADMINISTRATION_EDIT", "APPRAISAL_APPOINTMENT_EDIT",
+            "APPRAISAL_PROPERTY_EDIT", "APPRAISAL_BLOCK_CONDO_EDIT",
+            "APPRAISAL_BLOCK_VILLAGE_EDIT", "APPRAISAL_PROPERTY_PMA_EDIT",
+            "APPRAISAL_DOCUMENTS_EDIT", "APPRAISAL_SUMMARY_EDIT",
+        ];
+
         await SeedRoleWithPermissionsAsync(MeetingSecretaryRoleName,
             "Meeting Secretary — creates, schedules, updates, and ends approval meetings.",
             scope: "Bank",
@@ -44,12 +63,14 @@ public class AuthDataSeed(
             scope: "Bank",
             ["DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
              "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW",
-             "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE"]);
+             "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE",
+             ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
             "External Company Admin — manages external company users and external appraisal assignments.",
             scope: "Company",
             ["DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
-             "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE"]);
+             "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE",
+             ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(RequestMakerRoleName,
             "Request Maker — creates appraisal requests and handles initiation tasks.",
             scope: "Bank",
@@ -63,37 +84,44 @@ public class AuthDataSeed(
             "Internal Appraisal Staff — executes internal appraisals and verifies appraisal books.",
             scope: "Bank",
             ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
-             "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "STANDALONE_USE"]);
+             "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "STANDALONE_USE",
+             ..appraisalSectionViews, ..appraisalSectionEdits]);
         await SeedRoleWithPermissionsAsync(IntAppraisalCheckerRoleName,
             "Internal Appraisal Checker — checks and validates internal appraisal reports.",
             scope: "Bank",
             ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_INT_APPR_CHECK"]);
+             "TASK_INT_APPR_CHECK",
+             ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(IntAppraisalVerifierRoleName,
             "Internal Appraisal Verifier — final verification of internal appraisal reports.",
             scope: "Bank",
             ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW"]);
+             "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW",
+             ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalStaffRoleName,
             "External Appraisal Staff — field appraisers from external companies who execute appraisals.",
             scope: "Company",
             ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
-             "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE"]);
+             "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE",
+             ..appraisalSectionViews, ..appraisalSectionEdits]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalCheckerRoleName,
             "External Appraisal Checker — checks external appraisal reports before verification.",
             scope: "Company",
             ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_EXT_APPR_CHECK"]);
+             "TASK_EXT_APPR_CHECK",
+             ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalVerifierRoleName,
             "External Appraisal Verifier — final verification of external appraisal reports.",
             scope: "Company",
             ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_EXT_APPR_VERIFICATION"]);
+             "TASK_EXT_APPR_VERIFICATION",
+             ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(AppraisalCommitteeRoleName,
             "Appraisal Committee — approves appraisals in committee meetings.",
             scope: "Bank",
             ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "MEETING_MANAGE", "COMMITTEE_MEMBER"]);
+             "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "MEETING_MANAGE", "COMMITTEE_MEMBER",
+             ..appraisalSectionViews]);
         await SeedUsersAsync();
         await SeedClientsAsync();
         await SeedCompaniesAsync();
@@ -366,6 +394,26 @@ public class AuthDataSeed(
             ("APPRAISAL_CREATE", "Create Appraisal", "Create new appraisal requests", "Appraisal"),
             ("APPRAISAL_EDIT", "Edit Appraisal", "Edit existing appraisal requests", "Appraisal"),
             ("APPRAISAL_DELETE", "Delete Appraisal", "Delete appraisal requests", "Appraisal"),
+            // Per-section permissions for the appraisal layout tabs
+            ("APPRAISAL_360_VIEW", "View 360 Summary", "View the 360 Summary tab", "Appraisal"),
+            ("APPRAISAL_REQUEST_VIEW", "View Request Information", "View the Request Information tab inside an appraisal", "Appraisal"),
+            ("APPRAISAL_REQUEST_EDIT", "Edit Request Information", "Edit the Request Information tab inside an appraisal", "Appraisal"),
+            ("APPRAISAL_ADMINISTRATION_VIEW", "View Administration", "View the Administration tab", "Appraisal"),
+            ("APPRAISAL_ADMINISTRATION_EDIT", "Edit Administration", "Edit the Administration tab", "Appraisal"),
+            ("APPRAISAL_APPOINTMENT_VIEW", "View Appointment & Fee", "View the Appointment & Fee tab", "Appraisal"),
+            ("APPRAISAL_APPOINTMENT_EDIT", "Edit Appointment & Fee", "Edit the Appointment & Fee tab", "Appraisal"),
+            ("APPRAISAL_PROPERTY_VIEW", "View Property Information", "View the Property Information tab", "Appraisal"),
+            ("APPRAISAL_PROPERTY_EDIT", "Edit Property Information", "Edit the Property Information tab", "Appraisal"),
+            ("APPRAISAL_BLOCK_CONDO_VIEW", "View Property Information (Condo)", "View the Condo block tab", "Appraisal"),
+            ("APPRAISAL_BLOCK_CONDO_EDIT", "Edit Property Information (Condo)", "Edit the Condo block tab", "Appraisal"),
+            ("APPRAISAL_BLOCK_VILLAGE_VIEW", "View Property Information (Village)", "View the Village block tab", "Appraisal"),
+            ("APPRAISAL_BLOCK_VILLAGE_EDIT", "Edit Property Information (Village)", "Edit the Village block tab", "Appraisal"),
+            ("APPRAISAL_PROPERTY_PMA_VIEW", "View Property Information (PMA)", "View the PMA tab", "Appraisal"),
+            ("APPRAISAL_PROPERTY_PMA_EDIT", "Edit Property Information (PMA)", "Edit the PMA tab", "Appraisal"),
+            ("APPRAISAL_DOCUMENTS_VIEW", "View Document Checklist", "View the Document Checklist tab", "Appraisal"),
+            ("APPRAISAL_DOCUMENTS_EDIT", "Edit Document Checklist", "Edit the Document Checklist tab", "Appraisal"),
+            ("APPRAISAL_SUMMARY_VIEW", "View Summary & Decision", "View the Summary & Decision tab", "Appraisal"),
+            ("APPRAISAL_SUMMARY_EDIT", "Edit Summary & Decision", "Edit the Summary & Decision tab", "Appraisal"),
             ("USER_MANAGE", "Manage Users", "Create, update, and deactivate user accounts", "Auth"),
             ("ROLE_MANAGE", "Manage Roles", "Create, update, and delete roles and role permissions", "Auth"),
             ("PERMISSION_MANAGE", "Manage Permissions", "Create, update, and delete permissions", "Auth"),
@@ -482,6 +530,36 @@ public class AuthDataSeed(
         MenuItemTranslation.Create("th", labelEn),
         MenuItemTranslation.Create("zh", labelEn),
     };
+
+    private async Task SeedActivityMenuOverridesAsync()
+    {
+        var seed = ActivityMenuOverrideSeedData.GetSeed();
+        if (seed.Count == 0) return;
+
+        var menuItemIdsByKey = await dbContext.MenuItems
+            .Where(m => m.Scope == MenuScope.Appraisal)
+            .ToDictionaryAsync(m => m.ItemKey, m => m.Id);
+
+        var existing = await dbContext.ActivityMenuOverrides
+            .ToDictionaryAsync(o => (o.ActivityId, o.MenuItemId));
+
+        var added = false;
+        foreach (var entry in seed)
+        {
+            if (!menuItemIdsByKey.TryGetValue(entry.MenuItemKey, out var menuItemId))
+                continue; // menu item not seeded yet — skip gracefully
+
+            if (existing.ContainsKey((entry.ActivityId, menuItemId)))
+                continue; // INSERT-ONLY, like MenuSeedData — admin edits win.
+
+            var row = ActivityMenuOverride.Create(entry.ActivityId, menuItemId, entry.IsVisible, entry.CanEdit);
+            dbContext.ActivityMenuOverrides.Add(row);
+            added = true;
+        }
+
+        if (added)
+            await dbContext.SaveChangesAsync();
+    }
 
     private async Task SeedAdminRoleAsync()
     {
