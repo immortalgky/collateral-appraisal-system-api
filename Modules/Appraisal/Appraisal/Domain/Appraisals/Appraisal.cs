@@ -65,6 +65,11 @@ public class Appraisal : Aggregate<Guid>
     public DateTime? CompletedAt { get; private set; }
     public string? ApprovedByCommittee { get; private set; }
 
+    // Cancellation metadata
+    public DateTime? CancelledAt { get; private set; }
+    public string? CancelledBy { get; private set; }
+    public string? CancelReason { get; private set; }
+
     // Soft Delete
     public SoftDelete SoftDelete { get; private set; } = SoftDelete.NotDeleted();
 
@@ -670,15 +675,27 @@ public class Appraisal : Aggregate<Guid>
         if (CompletedAt.HasValue) return; // idempotent guard — safe on pipeline retries
         CompletedAt = approvedAt;
         ApprovedByCommittee = committeeCode;
+        
+        // Calculate actual days
+        ActualDaysToComplete = CreatedAt.HasValue ? (DateTime.UtcNow - CreatedAt.Value).Days : null;
+        IsWithinSLA = !SLADueDate.HasValue || DateTime.UtcNow <= SLADueDate.Value;
+
+        AddDomainEvent(new AppraisalCompletedEvent(this));
     }
 
     /// <summary>
-    /// Cancel the appraisal
+    /// Cancel the appraisal, stamping cancellation audit metadata before transitioning status.
     /// </summary>
-    public void Cancel(string reason)
+    public void Cancel(string cancelledBy, DateTime cancelledAt, string? reason)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(cancelledBy);
+
         if (Status == AppraisalStatus.Completed)
             throw new InvalidAppraisalStateException("Cannot cancel a completed appraisal");
+
+        CancelledBy = cancelledBy;
+        CancelledAt = cancelledAt;
+        CancelReason = reason;
 
         UpdateStatus(AppraisalStatus.Cancelled);
 
@@ -687,7 +704,7 @@ public class Appraisal : Aggregate<Guid>
             a.AssignmentStatus == AssignmentStatus.Assigned ||
             a.AssignmentStatus == AssignmentStatus.InProgress);
 
-        activeAssignment?.Cancel(reason);
+        activeAssignment?.Cancel(reason ?? "Cancelled via workflow");
     }
 
     private void UpdateStatus(AppraisalStatus newStatus)
