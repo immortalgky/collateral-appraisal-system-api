@@ -32,6 +32,9 @@ public static class RequestModule
 
         services.AddScoped<IAppraisalNumberGenerator, AppraisalNumberGenerator>();
         services.AddScoped<IRequestSyncService, RequestSyncService>();
+        services.AddScoped<
+            Request.Contracts.RequestDocuments.IRequestDocumentAttacher,
+            Request.Application.Services.RequestDocumentAttacher>();
 
         // Infrastructure services
         services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();

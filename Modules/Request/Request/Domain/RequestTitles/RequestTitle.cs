@@ -63,7 +63,7 @@ public abstract class RequestTitle : Aggregate<Guid>
         var document = TitleDocument.Create(documentData);
         _documents.Add(document);
 
-        AddDomainEvent(new TitleDocumentAttachedEvent(document));
+        AddDomainEvent(new TitleDocumentAttachedEvent(RequestId, document));
 
         return document;
     }
