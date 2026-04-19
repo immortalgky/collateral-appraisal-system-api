@@ -1,5 +1,6 @@
 using Shared.CQRS;
 using Shared.Identity;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Appraisals.GetAppraisalViews;
 
@@ -8,14 +9,15 @@ namespace Appraisal.Application.Features.Appraisals.GetAppraisalViews;
 /// No database access — filter values are either static strings or derived from the current user context.
 /// </summary>
 public class GetAppraisalViewsQueryHandler(
-    ICurrentUserService currentUserService
+    ICurrentUserService currentUserService,
+    IDateTimeProvider dateTimeProvider
 ) : IQueryHandler<GetAppraisalViewsQuery, GetAppraisalViewsResult>
 {
     public Task<GetAppraisalViewsResult> Handle(
         GetAppraisalViewsQuery query,
         CancellationToken cancellationToken)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = dateTimeProvider.ApplicationNow.Date;
         var todayStr = today.ToString("yyyy-MM-dd");
         var plusThreeDays = today.AddDays(3).ToString("yyyy-MM-dd");
 

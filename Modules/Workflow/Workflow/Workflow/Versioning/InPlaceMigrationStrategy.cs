@@ -11,15 +11,18 @@ public class InPlaceMigrationStrategy : IMigrationStrategy
 {
     private readonly ILogger<InPlaceMigrationStrategy> _logger;
     private readonly IWorkflowInstanceRepository _instanceRepository;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
     public string StrategyName => "InPlace";
 
     public InPlaceMigrationStrategy(
         ILogger<InPlaceMigrationStrategy> logger,
-        IWorkflowInstanceRepository instanceRepository)
+        IWorkflowInstanceRepository instanceRepository,
+        IDateTimeProvider dateTimeProvider)
     {
         _logger = logger;
         _instanceRepository = instanceRepository;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public async Task<bool> MigrateInstanceAsync(WorkflowInstance instance, string targetVersion,
@@ -40,7 +43,7 @@ public class InPlaceMigrationStrategy : IMigrationStrategy
             // Note: In a real implementation, you would add SchemaVersion property to WorkflowInstance
             // For now, we simulate the migration by updating the status
             _logger.LogInformation("Simulating version update to {Version}", targetVersion);
-            instance.UpdatedAt = DateTime.UtcNow;
+            instance.UpdatedAt = _dateTimeProvider.ApplicationNow;
 
             // Save changes
             await _instanceRepository.UpdateAsync(instance, cancellationToken);

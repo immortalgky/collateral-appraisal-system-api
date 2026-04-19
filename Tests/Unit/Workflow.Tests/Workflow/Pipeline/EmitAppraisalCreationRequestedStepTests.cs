@@ -29,25 +29,25 @@ public class EmitAppraisalCreationRequestedStepTests
     }
 
     [Fact]
-    public void Name_ShouldBeEmitAppraisalCreationRequested()
+    public void Descriptor_Name_ShouldBeEmitAppraisalCreationRequested()
     {
-        _sut.Name.Should().Be("EmitAppraisalCreationRequested");
+        _sut.Descriptor.Name.Should().Be("EmitAppraisalCreationRequested");
     }
 
     [Fact]
-    public async Task ExecuteAsync_AlreadyRequested_ReturnsOkWithoutPublishing()
+    public async Task ExecuteAsync_AlreadyRequested_ReturnsPassWithoutPublishing()
     {
         var context = BuildContext(
-            variables: new Dictionary<string, object>
+            variables: new Dictionary<string, object?>
             {
                 ["appraisalCreationRequested"] = true,
                 ["channel"] = "MANUAL"
             },
-            parameters: """{"condition": "channel == 'MANUAL'", "requireDecision": "P"}""");
+            parametersJson: """{"condition": "channel == 'MANUAL'", "requireDecision": "P"}""");
 
         var result = await _sut.ExecuteAsync(context, CancellationToken.None);
 
-        result.Success.Should().BeTrue();
+        result.IsSuccess.Should().BeTrue();
         _outbox.DidNotReceive().Publish(
             Arg.Any<AppraisalCreationRequestedIntegrationEvent>(),
             Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>());
@@ -57,49 +57,50 @@ public class EmitAppraisalCreationRequestedStepTests
     public async Task ExecuteAsync_MissingParameters_ReturnsFail()
     {
         var context = BuildContext(
-            variables: new Dictionary<string, object> { ["channel"] = "MANUAL" },
-            parameters: null);
+            variables: new Dictionary<string, object?> { ["channel"] = "MANUAL" },
+            parametersJson: null);
 
         var result = await _sut.ExecuteAsync(context, CancellationToken.None);
 
-        result.Success.Should().BeFalse();
-        result.Errors.Should().Contain("Missing step parameters");
+        result.IsSuccess.Should().BeFalse();
+        result.Should().BeOfType<ProcessStepResult.Failed>();
+        ((ProcessStepResult.Failed)result).Message.Should().Contain("Missing step parameters");
     }
 
     [Fact]
-    public async Task ExecuteAsync_ConditionNotMet_ReturnsOkWithoutPublishing()
+    public async Task ExecuteAsync_ConditionNotMet_ReturnsPassWithoutPublishing()
     {
         var context = BuildContext(
-            variables: new Dictionary<string, object>
+            variables: new Dictionary<string, object?>
             {
                 ["channel"] = "ONLINE",
                 ["requestSubmissionPayload"] = BuildSamplePayload()
             },
-            parameters: """{"condition": "channel == 'MANUAL'"}""");
+            parametersJson: """{"condition": "channel == 'MANUAL'"}""");
 
         var result = await _sut.ExecuteAsync(context, CancellationToken.None);
 
-        result.Success.Should().BeTrue();
+        result.IsSuccess.Should().BeTrue();
         _outbox.DidNotReceive().Publish(
             Arg.Any<AppraisalCreationRequestedIntegrationEvent>(),
             Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>());
     }
 
     [Fact]
-    public async Task ExecuteAsync_RequireDecisionNotMet_ReturnsOkWithoutPublishing()
+    public async Task ExecuteAsync_RequireDecisionNotMet_ReturnsPassWithoutPublishing()
     {
         var context = BuildContext(
-            variables: new Dictionary<string, object>
+            variables: new Dictionary<string, object?>
             {
                 ["channel"] = "MANUAL",
                 ["requestSubmissionPayload"] = BuildSamplePayload()
             },
-            parameters: """{"condition": "channel == 'MANUAL'", "requireDecision": "P"}""",
-            input: new Dictionary<string, object> { ["decisionTaken"] = "R" });
+            parametersJson: """{"condition": "channel == 'MANUAL'", "requireDecision": "P"}""",
+            input: new Dictionary<string, object?> { ["decisionTaken"] = "R" });
 
         var result = await _sut.ExecuteAsync(context, CancellationToken.None);
 
-        result.Success.Should().BeTrue();
+        result.IsSuccess.Should().BeTrue();
         _outbox.DidNotReceive().Publish(
             Arg.Any<AppraisalCreationRequestedIntegrationEvent>(),
             Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>());
@@ -108,7 +109,7 @@ public class EmitAppraisalCreationRequestedStepTests
     [Fact]
     public async Task ExecuteAsync_ConditionMet_PublishesEventAndSetsFlag()
     {
-        var variables = new Dictionary<string, object>
+        var variables = new Dictionary<string, object?>
         {
             ["channel"] = "MANUAL",
             ["requestSubmissionPayload"] = BuildSamplePayload()
@@ -116,35 +117,39 @@ public class EmitAppraisalCreationRequestedStepTests
 
         var context = BuildContext(
             variables: variables,
-            parameters: """{"condition": "channel == 'MANUAL'", "requireDecision": "P"}""",
-            input: new Dictionary<string, object> { ["decisionTaken"] = "P" });
+            parametersJson: """{"condition": "channel == 'MANUAL'", "requireDecision": "P"}""",
+            input: new Dictionary<string, object?> { ["decisionTaken"] = "P" });
 
         var result = await _sut.ExecuteAsync(context, CancellationToken.None);
 
-        result.Success.Should().BeTrue();
+        result.IsSuccess.Should().BeTrue();
         _outbox.Received(1).Publish(
             Arg.Any<AppraisalCreationRequestedIntegrationEvent>(),
             Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>());
-        variables["appraisalCreationRequested"].Should().Be(true);
+        // B5: The flag is now written via SetVariable into PendingVariableWrites,
+        // not directly into the Variables snapshot. Verify it was queued correctly.
+        context.PendingVariableWrites.Should().ContainKey("appraisalCreationRequested");
+        context.PendingVariableWrites["appraisalCreationRequested"].Should().Be(true);
     }
 
     [Fact]
     public async Task ExecuteAsync_MissingPayload_ReturnsFail()
     {
         var context = BuildContext(
-            variables: new Dictionary<string, object> { ["channel"] = "ONLINE" },
-            parameters: """{"condition": "channel != 'MANUAL'"}""");
+            variables: new Dictionary<string, object?> { ["channel"] = "ONLINE" },
+            parametersJson: """{"condition": "channel != 'MANUAL'"}""");
 
         var result = await _sut.ExecuteAsync(context, CancellationToken.None);
 
-        result.Success.Should().BeFalse();
-        result.Errors.Should().Contain("Missing requestSubmissionPayload in workflow variables");
+        result.IsSuccess.Should().BeFalse();
+        var failed = (ProcessStepResult.Failed)result;
+        failed.Message.Should().Contain("Missing requestSubmissionPayload");
     }
 
     [Fact]
     public async Task ExecuteAsync_NonManualChannel_ConditionMet_Publishes()
     {
-        var variables = new Dictionary<string, object>
+        var variables = new Dictionary<string, object?>
         {
             ["channel"] = "ONLINE",
             ["requestSubmissionPayload"] = BuildSamplePayload()
@@ -152,11 +157,11 @@ public class EmitAppraisalCreationRequestedStepTests
 
         var context = BuildContext(
             variables: variables,
-            parameters: """{"condition": "channel != 'MANUAL'"}""");
+            parametersJson: """{"condition": "channel != 'MANUAL'"}""");
 
         var result = await _sut.ExecuteAsync(context, CancellationToken.None);
 
-        result.Success.Should().BeTrue();
+        result.IsSuccess.Should().BeTrue();
         _outbox.Received(1).Publish(
             Arg.Any<AppraisalCreationRequestedIntegrationEvent>(),
             Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>());
@@ -165,9 +170,9 @@ public class EmitAppraisalCreationRequestedStepTests
     // ── Helpers ──
 
     private static ProcessStepContext BuildContext(
-        Dictionary<string, object> variables,
-        string? parameters,
-        Dictionary<string, object>? input = null) =>
+        Dictionary<string, object?> variables,
+        string? parametersJson,
+        Dictionary<string, object?>? input = null) =>
         new()
         {
             CorrelationId = Guid.NewGuid(),
@@ -175,9 +180,9 @@ public class EmitAppraisalCreationRequestedStepTests
             WorkflowInstanceId = Guid.NewGuid(),
             ActivityName = "appraisal-initiation-check",
             CompletedBy = "test.user",
-            Input = input ?? new Dictionary<string, object>(),
+            Input = input ?? new Dictionary<string, object?>(),
             Variables = variables,
-            Parameters = parameters
+            ParametersJson = parametersJson
         };
 
     private static string BuildSamplePayload()

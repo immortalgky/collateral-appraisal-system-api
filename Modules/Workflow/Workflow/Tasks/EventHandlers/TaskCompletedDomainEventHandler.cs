@@ -1,4 +1,5 @@
 using MassTransit;
+using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Workflow.Workflow.Events;
 
@@ -7,6 +8,7 @@ namespace Workflow.Tasks.EventHandlers;
 public class TaskCompletedDomainEventHandler(
     IAssignmentRepository assignmentRepository,
     IPublishEndpoint publishEndpoint,
+    IIntegrationEventOutbox outbox,
     ILogger<TaskCompletedDomainEventHandler> logger
 ) : INotificationHandler<TaskCompletedDomainEvent>
 {
@@ -45,7 +47,8 @@ public class TaskCompletedDomainEventHandler(
         var completedBy = notification.CompletedBy ?? pendingTask.AssignedTo;
 
         var completedTask = CompletedTask.CreateFromPendingTask(
-            pendingTask, notification.ActionTaken, notification.CompletedAt, notification.Remark);
+            pendingTask, notification.ActionTaken, notification.CompletedAt, notification.Remark,
+            notification.Movement);
 
         await assignmentRepository.AddCompletedTaskAsync(completedTask, cancellationToken);
         await assignmentRepository.RemovePendingTaskAsync(pendingTask, cancellationToken);
@@ -65,7 +68,38 @@ public class TaskCompletedDomainEventHandler(
             AssignedAt = assignedAt,
             WasStarted = wasStarted,
             WasOverdue = wasOverdue,
-            OriginalAssignedTo = originalAssignedTo
+            OriginalAssignedTo = originalAssignedTo,
+            Movement = notification.Movement
         }, cancellationToken);
+
+        if (string.Equals(notification.Movement, "C", StringComparison.OrdinalIgnoreCase))
+        {
+            // Per-voter completions from ApprovalActivity use TaskName "{activity}:{voter}".
+            // Only publish cancel for the aggregated completion (no ':'), so N voters don't
+            // emit N duplicate events that InboxGuard would just short-circuit.
+            if (notification.TaskName.Contains(':'))
+            {
+                logger.LogDebug(
+                    "Skipping AppraisalCancelIntegrationEvent for per-voter task {TaskName}",
+                    notification.TaskName);
+            }
+            else if (string.IsNullOrWhiteSpace(completedBy))
+            {
+                logger.LogError(
+                    "Cannot publish AppraisalCancelIntegrationEvent: CompletedBy and AssignedTo both missing. CorrelationId {CorrelationId} TaskName {TaskName}",
+                    notification.CorrelationId, notification.TaskName);
+            }
+            else
+            {
+                // Outbox-delivered for guaranteed publish (matches committee approval pattern).
+                outbox.Publish(new AppraisalCancelIntegrationEvent
+                {
+                    AppraisalId = notification.CorrelationId,
+                    CancelledBy = completedBy,
+                    CancelledAt = notification.CompletedAt,
+                    CancelReason = notification.Remark
+                }, notification.CorrelationId.ToString());
+            }
+        }
     }
 }

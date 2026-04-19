@@ -30,43 +30,35 @@ public class ValidateTaskOwnershipStepTests
         _sut = new ValidateTaskOwnershipStep(_connectionFactory, _currentUserService, _logger);
     }
 
-    // ── Name property ──
+    // ── Descriptor ──
 
     [Fact]
-    public void Name_ShouldBeValidateTaskOwnership()
+    public void Descriptor_Name_ShouldBeValidateTaskOwnership()
     {
-        _sut.Name.Should().Be("ValidateTaskOwnership");
+        _sut.Descriptor.Name.Should().Be("ValidateTaskOwnership");
     }
 
     // ── ProcessStepResult contract ──
 
     [Fact]
-    public void ProcessStepResult_Ok_ShouldHaveSuccessTrue()
+    public void ProcessStepResult_Pass_ShouldBeSuccess()
     {
-        var result = ProcessStepResult.Ok();
+        var result = ProcessStepResult.Pass();
 
-        result.Success.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
+        result.IsSuccess.Should().BeTrue();
+        result.Should().BeOfType<ProcessStepResult.Passed>();
     }
 
     [Fact]
-    public void ProcessStepResult_Fail_ShouldHaveSuccessFalse()
+    public void ProcessStepResult_Fail_ShouldNotBeSuccess()
     {
-        var result = ProcessStepResult.Fail("Some error");
+        var result = ProcessStepResult.Fail("SOME_CODE", "Some error");
 
-        result.Success.Should().BeFalse();
-        result.Errors.Should().ContainSingle().Which.Should().Be("Some error");
-    }
-
-    [Fact]
-    public void ProcessStepResult_Fail_WithMultipleErrors_ShouldRetainAll()
-    {
-        var result = ProcessStepResult.Fail("Error A", "Error B");
-
-        result.Success.Should().BeFalse();
-        result.Errors.Should().HaveCount(2);
-        result.Errors.Should().Contain("Error A");
-        result.Errors.Should().Contain("Error B");
+        result.IsSuccess.Should().BeFalse();
+        result.Should().BeOfType<ProcessStepResult.Failed>();
+        var failed = (ProcessStepResult.Failed)result;
+        failed.ErrorCode.Should().Be("SOME_CODE");
+        failed.Message.Should().Be("Some error");
     }
 
     // ── ProcessStepContext contract ──
@@ -84,7 +76,7 @@ public class ValidateTaskOwnershipStepTests
             WorkflowInstanceId = workflowInstanceId,
             ActivityName = "int-appraisal-staff",
             CompletedBy = "john.doe",
-            Input = new Dictionary<string, object> { ["key"] = "value" }
+            Input = new Dictionary<string, object?> { ["key"] = "value" }
         };
 
         ctx.CorrelationId.Should().Be(appraisalId);
@@ -103,7 +95,7 @@ public class ValidateTaskOwnershipStepTests
         var step = new ValidateTaskOwnershipStep(_connectionFactory, _currentUserService, _logger);
 
         step.Should().NotBeNull();
-        step.Name.Should().Be("ValidateTaskOwnership");
+        step.Descriptor.Name.Should().Be("ValidateTaskOwnership");
     }
 
     // ── ExecuteAsync: connection usage ──
@@ -123,7 +115,7 @@ public class ValidateTaskOwnershipStepTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenConnectionThrows_ShouldReturnFail()
+    public async Task ExecuteAsync_WhenConnectionThrows_ShouldReturnErrored()
     {
         // Arrange — simulate a broken connection factory by making GetOpenConnection throw
         var throwingFactory = Substitute.For<ISqlConnectionFactory>();
@@ -137,16 +129,12 @@ public class ValidateTaskOwnershipStepTests
         // Act
         var result = await step.ExecuteAsync(context, CancellationToken.None);
 
-        // Assert: step must not propagate exceptions — it returns Fail
-        result.Success.Should().BeFalse();
-        result.Errors.Should().ContainSingle().Which.Should().Be("DB unavailable");
+        // Assert: step must not propagate exceptions — it returns Errored
+        result.IsSuccess.Should().BeFalse();
+        result.Should().BeOfType<ProcessStepResult.Errored>();
     }
 
     // ── IsOwner comparison logic ──
-
-    // The step checks:
-    //   string.Equals(assignedTo, currentUserService.Username, StringComparison.OrdinalIgnoreCase)
-    // These theory tests document and verify that contract independently of Dapper.
 
     [Theory]
     [InlineData("john.doe", "john.doe", true)]
@@ -159,31 +147,15 @@ public class ValidateTaskOwnershipStepTests
         string currentUsername,
         bool expectedOwner)
     {
-        // This mirrors the exact comparison inside ValidateTaskOwnershipStep.ExecuteAsync
         var isOwner = string.Equals(assignedTo, currentUsername, StringComparison.OrdinalIgnoreCase);
-
         isOwner.Should().Be(expectedOwner);
     }
 
     [Fact]
     public void OwnershipCheck_WhenAssignedToIsNull_ShouldNotBeOwner()
     {
-        // Null assignedTo means "no task found", the step returns Fail before this check.
-        // But if compared directly: string.Equals(null, "user", OrdinalIgnoreCase) → false.
         var isOwner = string.Equals(null, "john.doe", StringComparison.OrdinalIgnoreCase);
-
         isOwner.Should().BeFalse();
-    }
-
-    [Fact]
-    public void OwnershipCheck_WhenBothNull_ReturnsFalse()
-    {
-        // Unauthenticated user (null username) vs. null assignee: both null → true by string.Equals.
-        // The step guards against null assignedTo first (returns Fail), so this path is unreachable
-        // in production, but the underlying comparison still returns true for (null, null).
-        var bothNull = string.Equals((string?)null, (string?)null, StringComparison.OrdinalIgnoreCase);
-
-        bothNull.Should().BeTrue();
     }
 
     // ── IActivityProcessStep interface compliance ──
@@ -204,6 +176,6 @@ public class ValidateTaskOwnershipStepTests
             WorkflowInstanceId = Guid.NewGuid(),
             ActivityName = "int-appraisal-staff",
             CompletedBy = "john.doe",
-            Input = new Dictionary<string, object>()
+            Input = new Dictionary<string, object?>()
         };
 }

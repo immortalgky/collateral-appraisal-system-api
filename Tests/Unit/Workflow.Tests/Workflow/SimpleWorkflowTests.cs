@@ -13,6 +13,7 @@ using Workflow.Workflow.Services;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shared.Time;
 using Xunit;
 
 namespace Workflow.Tests.Workflow;
@@ -36,6 +37,9 @@ public class SimpleWorkflowTests
 
         // Act
         var slaCalculator = Substitute.For<ISlaCalculator>();
+        var dateTimeProvider = Substitute.For<IDateTimeProvider>();
+        dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+        dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
         var taskActivity = new TaskActivity(
             assignmentPipeline,
             configurationService,
@@ -44,6 +48,7 @@ public class SimpleWorkflowTests
             auditService,
             slaCalculator,
             publisher,
+            dateTimeProvider,
             logger);
 
         // Assert

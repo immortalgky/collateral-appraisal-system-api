@@ -27,7 +27,8 @@ public record CutOffMeetingCommand(Guid MeetingId)
 
 public class CutOffMeetingCommandHandler(
     IMeetingRepository meetingRepository,
-    WorkflowDbContext dbContext)
+    WorkflowDbContext dbContext,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<CutOffMeetingCommand>
 {
     public async Task<Unit> Handle(CutOffMeetingCommand command, CancellationToken ct)
@@ -45,7 +46,7 @@ public class CutOffMeetingCommandHandler(
             .Where(a => a.Status == AcknowledgementStatus.PendingAcknowledgement)
             .ToListAsync(ct);
 
-        meeting.CutOff(queueItems, ackItems, DateTime.UtcNow);
+        meeting.CutOff(queueItems, ackItems, dateTimeProvider.ApplicationNow);
 
         return Unit.Value;
     }

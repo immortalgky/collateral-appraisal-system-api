@@ -12,6 +12,7 @@ public class WorkflowDegradationService : IWorkflowDegradationService
 {
     private readonly IWorkflowAuditService _auditService;
     private readonly ILogger<WorkflowDegradationService> _logger;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ConcurrentDictionary<string, DegradationStatus> _serviceStatuses = new();
     private readonly ConcurrentDictionary<string, ServiceDegradationMetrics> _serviceMetrics = new();
     private readonly ConcurrentDictionary<string, ConcurrentQueue<CachedResult>> _resultCache = new();
@@ -19,9 +20,11 @@ public class WorkflowDegradationService : IWorkflowDegradationService
 
     public WorkflowDegradationService(
         IWorkflowAuditService auditService,
+        IDateTimeProvider dateTimeProvider,
         ILogger<WorkflowDegradationService> logger)
     {
         _auditService = auditService;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
 
         // Start periodic status check timer (every 30 seconds)
@@ -203,7 +206,7 @@ public class WorkflowDegradationService : IWorkflowDegradationService
                     AdditionalInfo = currentStatus.AdditionalInfo,
                     ConsecutiveSuccesses = newSuccessCount,
                     ConsecutiveFailures = 0,
-                    LastCheck = DateTime.UtcNow
+                    LastCheck = _dateTimeProvider.ApplicationNow
                 };
                 _serviceStatuses.TryUpdate(serviceName, updatedStatus, currentStatus);
             }
@@ -422,7 +425,7 @@ public class WorkflowDegradationService : IWorkflowDegradationService
                 AdditionalInfo = currentStatus.AdditionalInfo,
                 ConsecutiveFailures = newFailureCount,
                 ConsecutiveSuccesses = 0,
-                LastCheck = DateTime.UtcNow
+                LastCheck = _dateTimeProvider.ApplicationNow
             };
             _serviceStatuses.TryUpdate(serviceName, updatedStatus, currentStatus);
         }
@@ -432,7 +435,7 @@ public class WorkflowDegradationService : IWorkflowDegradationService
     {
         if (_resultCache.TryGetValue(operationName, out var cache) && cache.TryDequeue(out var cachedResult))
         {
-            if (cachedResult.ExpiresAt > DateTime.UtcNow && cachedResult.Result is T result)
+            if (cachedResult.ExpiresAt > _dateTimeProvider.ApplicationNow && cachedResult.Result is T result)
             {
                 _logger.LogInformation("Using cached fallback result for operation '{OperationName}'", operationName);
                 return Task.FromResult(result);
@@ -612,7 +615,7 @@ public class WorkflowDegradationService : IWorkflowDegradationService
                     ServiceName = existing.ServiceName,
                     CurrentLevel = status.CurrentLevel,
                     IsDegraded = status.IsDegraded,
-                    DegradationDuration = status.IsDegraded ? DateTime.UtcNow - status.DegradedSince : null,
+                    DegradationDuration = status.IsDegraded ? _dateTimeProvider.ApplicationNow - status.DegradedSince : null,
                     TotalOperations = existing.TotalOperations + 1,
                     SuccessfulOperations = existing.SuccessfulOperations + (success ? 1 : 0),
                     FailedOperations = existing.FailedOperations + (success ? 0 : 1),

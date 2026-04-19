@@ -7,6 +7,7 @@ namespace Workflow.Tasks.EventHandlers;
 public class ApprovalTasksAssignedEventHandler(
     IAssignmentRepository assignmentRepository,
     IPublishEndpoint publishEndpoint,
+    IDateTimeProvider dateTimeProvider,
     ILogger<ApprovalTasksAssignedEventHandler> logger
 ) : INotificationHandler<ApprovalTasksAssignedEvent>
 {
@@ -16,13 +17,15 @@ public class ApprovalTasksAssignedEventHandler(
             "Handling ApprovalTasksAssignedEvent for CorrelationId {CorrelationId}, {MemberCount} members",
             notification.CorrelationId, notification.Members.Count);
 
-        // Archive ALL existing PendingTasks for this CorrelationId (previous step or previous round)
-        var existingTasks = await assignmentRepository.GetPendingTasksByCorrelationIdAsync(
-            notification.CorrelationId, cancellationToken);
+        // Archive ALL existing PendingTasks from the previous step/round of THIS workflow
+        // instance. Scoped by WorkflowInstanceId (not CorrelationId) so sibling workflows
+        // sharing the same correlation (e.g. a concurrent document followup) are left alone.
+        var existingTasks = await assignmentRepository.GetPendingTasksByWorkflowInstanceIdAsync(
+            notification.WorkflowInstanceId, cancellationToken);
 
         foreach (var existingTask in existingTasks)
         {
-            var completedTask = CompletedTask.CreateFromPendingTask(existingTask, "Reassigned", DateTime.UtcNow);
+            var completedTask = CompletedTask.CreateFromPendingTask(existingTask, "Reassigned", dateTimeProvider.ApplicationNow);
             await assignmentRepository.AddCompletedTaskAsync(completedTask, cancellationToken);
             await assignmentRepository.RemovePendingTaskAsync(existingTask, cancellationToken);
         }
@@ -39,7 +42,8 @@ public class ApprovalTasksAssignedEventHandler(
                 notification.WorkflowInstanceId,
                 notification.ActivityId,
                 notification.DueAt,
-                member.TaskDescription);
+                member.TaskDescription,
+                notification.Movement);
 
             await assignmentRepository.AddTaskAsync(pendingTask, cancellationToken);
 

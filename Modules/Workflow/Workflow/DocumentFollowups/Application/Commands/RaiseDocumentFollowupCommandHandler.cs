@@ -17,6 +17,8 @@ public class RaiseDocumentFollowupCommandHandler(
     ILogger<RaiseDocumentFollowupCommandHandler> logger
 ) : ICommandHandler<RaiseDocumentFollowupCommand, RaiseDocumentFollowupResult>
 {
+    public const string WorkflowName = "Document Followup Workflow";
+
     public async Task<RaiseDocumentFollowupResult> Handle(
         RaiseDocumentFollowupCommand command, CancellationToken cancellationToken)
     {
@@ -33,20 +35,19 @@ public class RaiseDocumentFollowupCommandHandler(
                 $"Duplicate document type '{duplicateType.Key}' in line items. " +
                 "Auto-fulfill cannot disambiguate two line items of the same type.");
 
-        var raisingUserId = currentUser.UserId?.ToString() ?? currentUser.Username
-            ?? throw new InvalidOperationException("User not authenticated");
+        var raisingUserId = currentUser.Username ?? throw new InvalidOperationException("User not authenticated");
 
         // 1. Load raising (parent) workflow instance — must exist + be running
         var parentInstance = await instanceRepository.GetByIdAsync(command.RaisingWorkflowInstanceId, cancellationToken)
-            ?? throw new InvalidOperationException(
-                $"Raising workflow instance {command.RaisingWorkflowInstanceId} not found");
+                             ?? throw new InvalidOperationException(
+                                 $"Raising workflow instance {command.RaisingWorkflowInstanceId} not found");
 
         // 2. Resolve the pending task to capture activityId + correlationId (= requestId)
         var pendingTask = await dbContext.PendingTasks
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == command.RaisingPendingTaskId, cancellationToken)
-            ?? throw new InvalidOperationException(
-                $"Raising pending task {command.RaisingPendingTaskId} not found");
+                              .AsNoTracking()
+                              .FirstOrDefaultAsync(t => t.Id == command.RaisingPendingTaskId, cancellationToken)
+                          ?? throw new InvalidOperationException(
+                              $"Raising pending task {command.RaisingPendingTaskId} not found");
 
         // Reject duplicate open followups for the same raising task. The authoritative guard
         // is the filtered unique index UX_DocumentFollowups_RaisingPendingTaskId_Open; this
@@ -60,92 +61,71 @@ public class RaiseDocumentFollowupCommandHandler(
 
         var requestId = pendingTask.CorrelationId;
         var appraisalId = ReadGuidFromVariables(parentInstance.Variables, "appraisalId")
-            ?? throw new InvalidOperationException(
-                $"Cannot raise document followup for workflow {command.RaisingWorkflowInstanceId}: " +
-                "appraisalId is not set in workflow variables. Document followups require an existing appraisal.");
+                          ?? throw new InvalidOperationException(
+                              $"Cannot raise document followup for workflow {command.RaisingWorkflowInstanceId}: " +
+                              "appraisalId is not set in workflow variables. Document followups require an existing appraisal.");
 
         // 3. Resolve followup workflow definition up front so we fail fast before any writes
         var followupDefinition = await definitionRepository.GetLatestVersion(
-            DocumentFollowupWorkflowDefinitionSeeder.WorkflowName, cancellationToken)
-            ?? throw new InvalidOperationException(
-                $"Workflow definition '{DocumentFollowupWorkflowDefinitionSeeder.WorkflowName}' not found. " +
-                "Did the seeder run?");
+                                     WorkflowName, cancellationToken)
+                                 ?? throw new InvalidOperationException(
+                                     $"Workflow definition '{DocumentFollowupWorkflowDefinitionSeeder.WorkflowName}' not found. " +
+                                     "Did the seeder run?");
 
         // 4. Create the aggregate
         var followup = DocumentFollowup.Raise(
-            appraisalId: appraisalId,
-            requestId: requestId,
-            raisingWorkflowInstanceId: command.RaisingWorkflowInstanceId,
-            raisingPendingTaskId: command.RaisingPendingTaskId,
-            raisingActivityId: pendingTask.ActivityId,
-            raisingUserId: raisingUserId,
-            lineItems: command.LineItems.Select(li => (li.DocumentType, li.Notes)));
+            appraisalId,
+            requestId,
+            command.RaisingWorkflowInstanceId,
+            command.RaisingPendingTaskId,
+            pendingTask.ActivityId,
+            raisingUserId,
+            command.LineItems.Select(li => (li.DocumentType, li.Notes)));
 
-        // W2: wrap the two writes in a transaction so a failure in StartWorkflowAsync does
-        // not leave an orphaned Open followup without a followup workflow instance.
-        // In-memory provider does not support transactions — fall back to a plain save.
-        var useTransaction = dbContext.Database.IsRelational();
-        var transaction = useTransaction
-            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
-            : null;
-
+        // The TransactionalBehavior pipeline (triggered by ITransactionalCommand<IWorkflowUnitOfWork>)
+        // wraps this handler in the SQL Server retrying execution strategy and owns the
+        // transaction lifecycle, so the two writes below run atomically without a manual
+        // BeginTransactionAsync (which would conflict with the retrying strategy).
+        dbContext.DocumentFollowups.Add(followup);
         try
         {
-            dbContext.DocumentFollowups.Add(followup);
-            try
-            {
-                await dbContext.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
-            {
-                // W7: concurrent raise won the unique-index race.
-                throw new InvalidOperationException(
-                    "An open document followup already exists for this task. Resolve or cancel it first.", ex);
-            }
-
-            // 5. Spawn the followup workflow instance.
-            // StartedBy = parent's StartedBy → StartedByAssigneeSelector resolves to request maker.
-            var initialVariables = new Dictionary<string, object>
-            {
-                ["documentFollowupId"] = followup.Id,
-                ["parentAppraisalId"] = appraisalId,
-                ["raisingWorkflowInstanceId"] = command.RaisingWorkflowInstanceId,
-                ["raisingPendingTaskId"] = command.RaisingPendingTaskId,
-                ["raisingActivityId"] = pendingTask.ActivityId,
-                ["raisingUserId"] = raisingUserId
-            };
-
-            var followupInstance = await workflowService.StartWorkflowAsync(
-                workflowDefinitionId: followupDefinition.Id,
-                instanceName: $"DocFollowup-{followup.Id}",
-                startedBy: parentInstance.StartedBy,
-                initialVariables: initialVariables,
-                correlationId: followup.Id.ToString(),
-                cancellationToken: cancellationToken);
-
-            followup.AttachFollowupWorkflowInstance(followupInstance.Id);
             await dbContext.SaveChangesAsync(cancellationToken);
-
-            if (transaction is not null)
-                await transaction.CommitAsync(cancellationToken);
-
-            logger.LogInformation(
-                "Raised document followup {FollowupId} for raising task {TaskId}, followup workflow instance {InstanceId}",
-                followup.Id, command.RaisingPendingTaskId, followupInstance.Id);
-
-            return new RaiseDocumentFollowupResult(followup.Id, followupInstance.Id);
         }
-        catch
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
-            if (transaction is not null)
-                await transaction.RollbackAsync(cancellationToken);
-            throw;
+            // W7: concurrent raise won the unique-index race.
+            throw new InvalidOperationException(
+                "An open document followup already exists for this task. Resolve or cancel it first.", ex);
         }
-        finally
+
+        // 5. Spawn the followup workflow instance.
+        // StartedBy = parent's StartedBy → StartedByAssigneeSelector resolves to request maker.
+        var initialVariables = new Dictionary<string, object>
         {
-            if (transaction is not null)
-                await transaction.DisposeAsync();
-        }
+            ["documentFollowupId"] = followup.Id,
+            ["parentAppraisalId"] = appraisalId,
+            ["raisingWorkflowInstanceId"] = command.RaisingWorkflowInstanceId,
+            ["raisingPendingTaskId"] = command.RaisingPendingTaskId,
+            ["raisingActivityId"] = pendingTask.ActivityId,
+            ["raisingUserId"] = raisingUserId
+        };
+
+        var followupInstance = await workflowService.StartWorkflowAsync(
+            followupDefinition.Id,
+            $"DocFollowup-{followup.Id}",
+            parentInstance.StartedBy,
+            initialVariables,
+            followup.Id.ToString(),
+            cancellationToken: cancellationToken);
+
+        followup.AttachFollowupWorkflowInstance(followupInstance.Id);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Raised document followup {FollowupId} for raising task {TaskId}, followup workflow instance {InstanceId}",
+            followup.Id, command.RaisingPendingTaskId, followupInstance.Id);
+
+        return new RaiseDocumentFollowupResult(followup.Id, followupInstance.Id);
     }
 
     /// <summary>
@@ -177,7 +157,7 @@ public class RaiseDocumentFollowupCommandHandler(
         // SQL Server error numbers for unique constraint / unique index violations.
         var inner = ex.InnerException?.Message ?? ex.Message;
         return inner.Contains("UX_DocumentFollowups_RaisingPendingTaskId_Open", StringComparison.OrdinalIgnoreCase)
-            || inner.Contains("duplicate key", StringComparison.OrdinalIgnoreCase)
-            || inner.Contains("Violation of UNIQUE", StringComparison.OrdinalIgnoreCase);
+               || inner.Contains("duplicate key", StringComparison.OrdinalIgnoreCase)
+               || inner.Contains("Violation of UNIQUE", StringComparison.OrdinalIgnoreCase);
     }
 }

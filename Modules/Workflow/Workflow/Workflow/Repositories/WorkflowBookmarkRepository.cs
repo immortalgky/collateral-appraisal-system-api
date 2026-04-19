@@ -11,11 +11,13 @@ public class WorkflowBookmarkRepository : IWorkflowBookmarkRepository
 {
     private readonly WorkflowDbContext _context;
     private readonly ISqlConnectionFactory _sqlConnectionFactory;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public WorkflowBookmarkRepository(WorkflowDbContext context, ISqlConnectionFactory sqlConnectionFactory)
+    public WorkflowBookmarkRepository(WorkflowDbContext context, ISqlConnectionFactory sqlConnectionFactory, IDateTimeProvider dateTimeProvider)
     {
         _context = context;
         _sqlConnectionFactory = sqlConnectionFactory;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public async Task<WorkflowBookmark?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -76,7 +78,7 @@ public class WorkflowBookmarkRepository : IWorkflowBookmarkRepository
         DateTime? upToTime = null, 
         CancellationToken cancellationToken = default)
     {
-        var checkTime = upToTime ?? DateTime.UtcNow;
+        var checkTime = upToTime ?? _dateTimeProvider.ApplicationNow;
         
         return await _context.WorkflowBookmarks
             .Where(b => b.Type == BookmarkType.Timer 
@@ -88,10 +90,10 @@ public class WorkflowBookmarkRepository : IWorkflowBookmarkRepository
     }
 
     public async Task<List<WorkflowBookmark>> GetExpiredBookmarksAsync(
-        TimeSpan expiration, 
+        TimeSpan expiration,
         CancellationToken cancellationToken = default)
     {
-        var expirationTime = DateTime.UtcNow.Subtract(expiration);
+        var expirationTime = _dateTimeProvider.ApplicationNow.Subtract(expiration);
         
         return await _context.WorkflowBookmarks
             .Where(b => !b.IsConsumed && b.CreatedAt <= expirationTime)
@@ -162,7 +164,7 @@ public class WorkflowBookmarkRepository : IWorkflowBookmarkRepository
         DateTime? upToTime = null,
         CancellationToken cancellationToken = default)
     {
-        var currentTime = upToTime ?? DateTime.UtcNow;
+        var currentTime = upToTime ?? _dateTimeProvider.ApplicationNow;
         
         return await _context.WorkflowBookmarks
             .Where(b => !b.IsConsumed && 
@@ -174,10 +176,10 @@ public class WorkflowBookmarkRepository : IWorkflowBookmarkRepository
     }
 
     public async Task<int> CleanupExpiredBookmarksAsync(
-        TimeSpan expiration, 
+        TimeSpan expiration,
         CancellationToken cancellationToken = default)
     {
-        var expirationTime = DateTime.UtcNow.Subtract(expiration);
+        var expirationTime = _dateTimeProvider.ApplicationNow.Subtract(expiration);
         
         var expiredBookmarks = await _context.WorkflowBookmarks
             .Where(b => b.IsConsumed && b.ConsumedAt.HasValue && b.ConsumedAt.Value <= expirationTime)

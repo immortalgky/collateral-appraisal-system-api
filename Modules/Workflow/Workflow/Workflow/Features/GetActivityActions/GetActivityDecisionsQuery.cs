@@ -23,4 +23,5 @@ public record ActionDto
     public string Label { get; init; } = default!;
     public string AssignmentMode { get; init; } = "system";
     public string? TargetActivityId { get; set; }
+    public string Movement { get; init; } = "F";
 }

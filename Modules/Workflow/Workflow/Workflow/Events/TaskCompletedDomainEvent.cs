@@ -8,5 +8,6 @@ public record TaskCompletedDomainEvent(
     string? CompletedBy = null,
     string? WorkflowInstanceName = null,
     string? Remark = null,
-    string? AppraisalNumber = null
+    string? AppraisalNumber = null,
+    string Movement = "F"
 ) : IDomainEvent;

@@ -1,46 +1,48 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Workflow.Data.Entities;
 
 namespace Workflow.Workflow.Pipeline.Steps;
 
 /// <summary>
-/// Sets a workflow variable from step parameters.
-/// Parameters JSON: {"variable": "assignmentType", "value": "Internal"}
+/// Sets a workflow variable to a fixed value from step parameters.
 /// </summary>
 public class SetVariableStep(ILogger<SetVariableStep> logger) : IActivityProcessStep
 {
-    public string Name => "SetVariable";
-
-    public Task<ProcessStepResult> ExecuteAsync(ProcessStepContext context, CancellationToken ct)
+    public sealed record Parameters
     {
-        if (string.IsNullOrWhiteSpace(context.Parameters))
-            return Task.FromResult(ProcessStepResult.Fail("Missing parameters for SetVariable step"));
+        /// <summary>Name of the workflow variable to set.</summary>
+        public string Variable { get; init; } = default!;
 
-        try
-        {
-            using var doc = JsonDocument.Parse(context.Parameters);
-            var root = doc.RootElement;
+        /// <summary>Value to assign.</summary>
+        public string? Value { get; init; }
+    }
 
-            var variable = root.TryGetProperty("variable", out var v) ? v.GetString() : null;
-            var value = root.TryGetProperty("value", out var val) ? val.GetString() : null;
+    public StepDescriptor Descriptor { get; } = StepDescriptor.For<Parameters>(
+        name: "SetVariable",
+        displayName: "Set Workflow Variable",
+        kind: StepKind.Action,
+        description: "Sets a workflow variable to a fixed string value.");
 
-            if (string.IsNullOrEmpty(variable) || value is null)
-                return Task.FromResult(ProcessStepResult.Fail("Missing 'variable' or 'value' in parameters"));
+    public Task<ProcessStepResult> ExecuteAsync(ProcessStepContext ctx, CancellationToken ct)
+    {
+        var p = ctx.GetParameters<Parameters>();
 
-            if (context.Variables is not null)
-            {
-                context.Variables[variable] = value;
-                logger.LogInformation(
-                    "SetVariableStep: set {Variable} = {Value} for activity {ActivityName}",
-                    variable, value, context.ActivityName);
-            }
+        if (string.IsNullOrWhiteSpace(p.Variable))
+            return Task.FromResult(ProcessStepResult.Fail(
+                "MISSING_VARIABLE_NAME", "Missing 'variable' in step parameters"));
 
-            return Task.FromResult(ProcessStepResult.Ok());
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "SetVariableStep failed for activity {ActivityName}", context.ActivityName);
-            return Task.FromResult(ProcessStepResult.Fail(ex.Message));
-        }
+        if (p.Value is null)
+            return Task.FromResult(ProcessStepResult.Fail(
+                "MISSING_VALUE", "Missing 'value' in step parameters"));
+
+        // B5: Use the explicit SetVariable API instead of casting Variables to IDictionary.
+        // The pipeline will merge PendingVariableWrites into the WorkflowInstance after
+        // all Actions succeed, inside the outer transaction.
+        ctx.SetVariable(p.Variable, p.Value);
+        logger.LogInformation(
+            "SetVariableStep: queued {Variable} = {Value} for activity {ActivityName}",
+            p.Variable, p.Value, ctx.ActivityName);
+
+        return Task.FromResult(ProcessStepResult.Pass());
     }
 }

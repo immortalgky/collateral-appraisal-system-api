@@ -24,6 +24,7 @@ public class GetTasksEndpoint : ICarterModule
                     [FromQuery] DateTime? dateTo,
                     [FromQuery] string? sortBy,
                     [FromQuery] string? sortDir,
+                    [FromQuery] string? slaStatus,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
@@ -41,7 +42,8 @@ public class GetTasksEndpoint : ICarterModule
                         dateFrom,
                         dateTo,
                         sortBy,
-                        sortDir
+                        sortDir,
+                        slaStatus
                     );
 
                     var query = new GetTasksQuery(pagination, filter);
@@ -53,10 +55,12 @@ public class GetTasksEndpoint : ICarterModule
             )
             .WithName("GetTasks")
             .Produces<GetTasksResponse>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get all tasks")
             .WithDescription(
                 "Retrieves all workflow tasks with pagination and optional filtering by status, assignee, priority, and task name.")
-            .WithTags("Tasks");
+            .WithTags("Tasks")
+            .RequireAuthorization();
     }
 }

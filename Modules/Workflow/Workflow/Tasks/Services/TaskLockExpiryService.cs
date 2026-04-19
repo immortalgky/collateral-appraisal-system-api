@@ -27,8 +27,9 @@ public class TaskLockExpiryService(IServiceScopeFactory scopeFactory, ILogger<Ta
         using var scope = scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<WorkflowDbContext>();
         var notificationService = scope.ServiceProvider.GetRequiredService<IWorkflowNotificationService>();
+        var dateTimeProvider = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var cutoff = DateTime.UtcNow.Subtract(LockTimeout);
+        var cutoff = dateTimeProvider.ApplicationNow.Subtract(LockTimeout);
         var expiredTasks = await dbContext.PendingTasks
             .Where(t => t.AssignedType == "2" && t.WorkingBy != null && t.LockedAt != null && t.LockedAt < cutoff)
             .ToListAsync(cancellationToken);

@@ -1,63 +1,54 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Appraisal.Contracts.Services;
+using Workflow.Data.Entities;
 
 namespace Workflow.Workflow.Pipeline.Steps;
 
 /// <summary>
 /// Updates the appraisal aggregate's status using IAppraisalStatusService.
-/// Reads "targetStatus" from the step's Parameters JSON.
 /// </summary>
 public class UpdateAppraisalStatusStep(
     IAppraisalStatusService appraisalStatusService,
     ILogger<UpdateAppraisalStatusStep> logger) : IActivityProcessStep
 {
-    public string Name => "UpdateAppraisalStatus";
-
-    public async Task<ProcessStepResult> ExecuteAsync(ProcessStepContext context, CancellationToken ct)
+    public sealed record Parameters
     {
-        if (context.AppraisalId is null)
-            return ProcessStepResult.Fail("Appraisal not yet created");
+        /// <summary>Target appraisal status to transition to (e.g., "UnderReview").</summary>
+        public string? TargetStatus { get; init; }
+    }
 
-        var targetStatus = GetTargetStatus(context.Parameters);
-        if (targetStatus is null)
-            return ProcessStepResult.Fail("Missing 'targetStatus' in step parameters");
+    public StepDescriptor Descriptor { get; } = StepDescriptor.For<Parameters>(
+        name: "UpdateAppraisalStatus",
+        displayName: "Update Appraisal Status",
+        kind: StepKind.Action,
+        description: "Transitions the appraisal to the specified status.");
+
+    public async Task<ProcessStepResult> ExecuteAsync(ProcessStepContext ctx, CancellationToken ct)
+    {
+        if (ctx.AppraisalId is null)
+            return ProcessStepResult.Fail("APPRAISAL_NOT_CREATED", "Appraisal not yet created");
+
+        var p = ctx.GetParameters<Parameters>();
+        if (string.IsNullOrWhiteSpace(p.TargetStatus))
+            return ProcessStepResult.Fail("MISSING_TARGET_STATUS", "Missing 'targetStatus' in step parameters");
 
         try
         {
             await appraisalStatusService.UpdateStatusAsync(
-                context.AppraisalId.Value, targetStatus, context.CompletedBy, ct);
+                ctx.AppraisalId.Value, p.TargetStatus, ctx.CompletedBy, ct);
 
             logger.LogInformation(
                 "Updated appraisal {AppraisalId} status to {TargetStatus}",
-                context.AppraisalId, targetStatus);
+                ctx.AppraisalId, p.TargetStatus);
 
-            return ProcessStepResult.Ok();
+            return ProcessStepResult.Pass();
         }
         catch (Exception ex)
         {
             logger.LogError(ex,
                 "Failed to update appraisal {AppraisalId} status to {TargetStatus}",
-                context.AppraisalId, targetStatus);
-            return ProcessStepResult.Fail(ex.Message);
-        }
-    }
-
-    private static string? GetTargetStatus(string? parameters)
-    {
-        if (string.IsNullOrWhiteSpace(parameters))
-            return null;
-
-        try
-        {
-            using var doc = JsonDocument.Parse(parameters);
-            return doc.RootElement.TryGetProperty("targetStatus", out var prop)
-                ? prop.GetString()
-                : null;
-        }
-        catch
-        {
-            return null;
+                ctx.AppraisalId, p.TargetStatus);
+            return ProcessStepResult.Error(ex);
         }
     }
 }

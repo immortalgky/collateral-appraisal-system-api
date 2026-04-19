@@ -2,6 +2,7 @@ using Integration.Domain.WebhookDeliveries;
 using Integration.Domain.WebhookSubscriptions;
 using Integration.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
+using Shared.Time;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -13,7 +14,8 @@ public class WebhookService(
     IWebhookSubscriptionRepository subscriptionRepository,
     IWebhookDeliveryRepository deliveryRepository,
     IHttpClientFactory httpClientFactory,
-    ILogger<WebhookService> logger
+    ILogger<WebhookService> logger,
+    IDateTimeProvider dateTimeProvider
 ) : IWebhookService
 {
     public async Task SendAsync(
@@ -56,7 +58,7 @@ public class WebhookService(
                 {
                     eventType = delivery.EventType,
                     payload = JsonSerializer.Deserialize<object>(delivery.Payload),
-                    timestamp = DateTime.UtcNow
+                    timestamp = dateTimeProvider.ApplicationNow
                 })
             };
 
@@ -66,7 +68,7 @@ public class WebhookService(
             var response = await client.SendAsync(request, cancellationToken);
 
             delivery.RecordAttempt((int)response.StatusCode);
-            subscription.RecordDelivery(DateTime.UtcNow);
+            subscription.RecordDelivery(dateTimeProvider.ApplicationNow);
 
             await deliveryRepository.SaveChangesAsync(cancellationToken);
             await subscriptionRepository.SaveChangesAsync(cancellationToken);

@@ -1,0 +1,9 @@
+### ===========================================
+### Create Document Followup Workflow Definition
+### ===========================================
+### Creates a new workflow definition with the full document followup workflow schema
+POST {{baseUrl}}/api/workflows/definitions
+X-Dev-Auth: dev-bypass
+Content-Type: application/json
+
+< ../../Modules/Workflow/Workflow/Workflow/Config/document-followup-workflow.json

@@ -18,6 +18,13 @@ public class WorkflowActivityExecution : Entity<Guid>
     public string? ErrorMessage { get; private set; }
     public string? Comments { get; private set; }
 
+    /// <summary>
+    /// Direction stamp of the action that completed this activity. "F" (forward, default)
+    /// or "B" (backward / route-back). Read by the engine when building the NEXT activity's
+    /// ActivityContext so its PendingTask inherits the same movement.
+    /// </summary>
+    public string Movement { get; private set; } = "F";
+
     public WorkflowInstance WorkflowInstance { get; private set; } = default!;
 
     private WorkflowActivityExecution()
@@ -42,7 +49,7 @@ public class WorkflowActivityExecution : Entity<Guid>
             ActivityType = activityType,
             Status = ActivityExecutionStatus.Pending,
             AssignedTo = assignedTo,
-            StartedOn = DateTime.Now,
+            StartedOn = DateTime.UtcNow,
             InputData = inputData ?? new Dictionary<string, object>()
         };
     }
@@ -50,7 +57,7 @@ public class WorkflowActivityExecution : Entity<Guid>
     public void Start()
     {
         Status = ActivityExecutionStatus.InProgress;
-        StartedOn = DateTime.Now;
+        StartedOn = DateTime.UtcNow;
     }
 
     public void Complete(
@@ -59,7 +66,7 @@ public class WorkflowActivityExecution : Entity<Guid>
         string? comments = null)
     {
         Status = ActivityExecutionStatus.Completed;
-        CompletedOn = DateTime.Now;
+        CompletedOn = DateTime.UtcNow;
         CompletedBy = completedBy;
         OutputData = outputData ?? new Dictionary<string, object>();
         Comments = comments;
@@ -68,27 +75,32 @@ public class WorkflowActivityExecution : Entity<Guid>
     public void Fail(string errorMessage)
     {
         Status = ActivityExecutionStatus.Failed;
-        CompletedOn = DateTime.Now;
+        CompletedOn = DateTime.UtcNow;
         ErrorMessage = errorMessage;
     }
 
     public void Skip(string reason)
     {
         Status = ActivityExecutionStatus.Skipped;
-        CompletedOn = DateTime.Now;
+        CompletedOn = DateTime.UtcNow;
         Comments = reason;
     }
 
     public void Cancel(string reason)
     {
         Status = ActivityExecutionStatus.Cancelled;
-        CompletedOn = DateTime.Now;
+        CompletedOn = DateTime.UtcNow;
         Comments = reason;
     }
 
     public void UpdateAssignee(string? assigneeId)
     {
         AssignedTo = assigneeId;
+    }
+
+    public void StampMovement(string movement)
+    {
+        Movement = string.IsNullOrWhiteSpace(movement) ? "F" : movement;
     }
 }
 

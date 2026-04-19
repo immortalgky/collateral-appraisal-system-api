@@ -26,11 +26,15 @@ public class CronActivity : WorkflowActivityBase
     public string? CronName { get; set; }
     public bool AllowManualTrigger { get; set; } = true;
 
+    private readonly IDateTimeProvider _dateTimeProvider;
+
     public CronActivity(
         IWorkflowBookmarkService bookmarkService,
+        IDateTimeProvider dateTimeProvider,
         ILogger<CronActivity> logger)
     {
         _bookmarkService = bookmarkService;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -48,13 +52,13 @@ public class CronActivity : WorkflowActivityBase
             }
 
             // Calculate next execution time
-            var nextExecution = CalculateNextExecution(CronExpression, DateTime.UtcNow);
+            var nextExecution = CalculateNextExecution(CronExpression, _dateTimeProvider.ApplicationNow);
             if (nextExecution == null)
             {
                 _logger.LogInformation("No future execution scheduled for cron {CronExpression}", CronExpression);
                 return ActivityResult.Success(new Dictionary<string, object>
                 {
-                    ["CompletedAt"] = DateTime.UtcNow,
+                    ["CompletedAt"] = _dateTimeProvider.ApplicationNow,
                     ["Reason"] = "No future execution scheduled"
                 });
             }
@@ -65,7 +69,7 @@ public class CronActivity : WorkflowActivityBase
                 _logger.LogInformation("Next execution {NextExecution} is outside allowed date range", nextExecution);
                 return ActivityResult.Success(new Dictionary<string, object>
                 {
-                    ["CompletedAt"] = DateTime.UtcNow,
+                    ["CompletedAt"] = _dateTimeProvider.ApplicationNow,
                     ["Reason"] = "Outside date range"
                 });
             }
@@ -120,7 +124,7 @@ public class CronActivity : WorkflowActivityBase
                 new Dictionary<string, object> 
                 { 
                     ["ManualTrigger"] = true,
-                    ["ExecutionTime"] = DateTime.UtcNow
+                    ["ExecutionTime"] = _dateTimeProvider.ApplicationNow
                 },
                 cancellationToken);
 

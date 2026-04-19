@@ -21,6 +21,7 @@ public class ApprovalActivity : WorkflowActivityBase
     private readonly IPublisher _publisher;
     private readonly IIntegrationEventOutbox _outbox;
     private readonly ExpressionEvaluator _expressionEvaluator;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<ApprovalActivity> _logger;
 
     public ApprovalActivity(
@@ -28,12 +29,14 @@ public class ApprovalActivity : WorkflowActivityBase
         IApprovalVoteRepository voteRepository,
         IPublisher publisher,
         IIntegrationEventOutbox outbox,
+        IDateTimeProvider dateTimeProvider,
         ILogger<ApprovalActivity> logger)
     {
         _memberResolver = memberResolver;
         _voteRepository = voteRepository;
         _publisher = publisher;
         _outbox = outbox;
+        _dateTimeProvider = dateTimeProvider;
         _expressionEvaluator = new ExpressionEvaluator();
         _logger = logger;
     }
@@ -91,7 +94,7 @@ public class ApprovalActivity : WorkflowActivityBase
                 try
                 {
                     var timeout = System.Xml.XmlConvert.ToTimeSpan(timeoutDuration);
-                    dueAt = DateTime.UtcNow.Add(timeout);
+                    dueAt = _dateTimeProvider.ApplicationNow.Add(timeout);
                 }
                 catch { /* ignore invalid format */ }
             }
@@ -111,13 +114,14 @@ public class ApprovalActivity : WorkflowActivityBase
                 correlationGuid,
                 activityName,
                 memberAssignments,
-                DateTime.UtcNow,
+                _dateTimeProvider.ApplicationNow,
                 context.WorkflowInstanceId,
                 context.ActivityId,
                 dueAt,
                 context.WorkflowInstance.StartedBy,
                 context.WorkflowInstance.Name,
-                appraisalNumber), cancellationToken);
+                appraisalNumber,
+                context.Movement), cancellationToken);
 
             _logger.LogInformation(
                 "ApprovalActivity {ActivityId} started with {MemberCount} members, committee={CommitteeCode}",
@@ -195,10 +199,15 @@ public class ApprovalActivity : WorkflowActivityBase
                     voter, memberInfo.Role, vote, comments);
                 await _voteRepository.AddVoteAsync(rbVote, cancellationToken);
 
+                // Resolve movement ("B" for route_back). Stamp both the completed task
+                // and the activity execution row so the next activity inherits "B".
+                var rbMovement = ResolveActionMovement(context, vote);
+                execution.StampMovement(rbMovement);
+
                 // Publish task completed for this member
                 await _publisher.Publish(new TaskCompletedDomainEvent(
-                    correlationGuid, $"{activityName}:{voter}", vote, DateTime.UtcNow, voter,
-                    context.WorkflowInstance.Name), cancellationToken);
+                    correlationGuid, $"{activityName}:{voter}", vote, _dateTimeProvider.ApplicationNow, voter,
+                    context.WorkflowInstance.Name, null, null, rbMovement), cancellationToken);
 
                 var rbOutput = BuildOutputData(normalizedId, "route_back", 0, 0, 1,
                     1, members.Count,
@@ -233,10 +242,14 @@ public class ApprovalActivity : WorkflowActivityBase
                 return ActivityResult.Failed("Member has already voted in this round");
             }
 
+            // Resolve movement for this vote — used on the per-member completed task
+            // stamp and, if the quorum is reached below, on the activity execution row.
+            var voteMovement = ResolveActionMovement(context, vote);
+
             // Publish task completed for this member
             await _publisher.Publish(new TaskCompletedDomainEvent(
-                correlationGuid, $"{activityName}:{voter}", vote, DateTime.UtcNow, voter,
-                context.WorkflowInstance.Name), cancellationToken);
+                correlationGuid, $"{activityName}:{voter}", vote, _dateTimeProvider.ApplicationNow, voter,
+                context.WorkflowInstance.Name, null, null, voteMovement), cancellationToken);
 
             // Get all votes for this round
             var allVotes = await _voteRepository.GetVotesForExecutionAsync(executionId, cancellationToken);
@@ -275,6 +288,7 @@ public class ApprovalActivity : WorkflowActivityBase
                     GetVariable<string>(context, $"{normalizedId}_committeeName"),
                     GetVariable<string>(context, $"{normalizedId}_committeeCode"));
                 successOutput["decision"] = decision;
+                execution.StampMovement(voteMovement);
 
                 // Evaluate decision conditions if configured
                 var decisionConditions = GetProperty<Dictionary<string, string>>(context, "decisionConditions");
@@ -318,7 +332,7 @@ public class ApprovalActivity : WorkflowActivityBase
                             AppraisalId = appraisalId.Value,
                             CommitteeCode = committeeCode,
                             CommitteeName = committeeName,
-                            ApprovedAt = DateTime.UtcNow,
+                            ApprovedAt = _dateTimeProvider.ApplicationNow,
                             ApprovedBy = voter
                         }, appraisalId.Value.ToString());
 

@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shared.Time;
 using Workflow.AssigneeSelection.Services;
 using Workflow.Workflow.Activities;
 using Workflow.Workflow.Activities.Core;
@@ -18,8 +19,11 @@ public class CompanySelectionActivityTests
     public CompanySelectionActivityTests()
     {
         _roundRobinService = Substitute.For<ICompanyRoundRobinService>();
+        var dateTimeProvider = Substitute.For<IDateTimeProvider>();
+        dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+        dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
         var logger = Substitute.For<ILogger<CompanySelectionActivity>>();
-        _sut = new CompanySelectionActivity(_roundRobinService, logger);
+        _sut = new CompanySelectionActivity(_roundRobinService, dateTimeProvider, logger);
     }
 
     private static ActivityContext CreateContext(Dictionary<string, object>? variables = null)

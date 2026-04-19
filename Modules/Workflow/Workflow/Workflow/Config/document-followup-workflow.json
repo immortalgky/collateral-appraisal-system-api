@@ -33,7 +33,7 @@
           "revisitAssignmentStrategies": [ "previous_owner" ],
           "timeoutDuration": "PT72H",
           "actions": [
-            { "value": "P", "label": "Submit", "assignmentMode": "system" }
+            { "value": "P", "label": "Submit", "assignmentMode": "system", "movement": "F" }
           ]
         },
         "position": { "x": 250, "y": 100 },

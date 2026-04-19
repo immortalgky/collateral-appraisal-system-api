@@ -20,7 +20,8 @@ public record GetMyTasksFilterRequest(
     DateTime? RequestedAtFrom = null,
     DateTime? RequestedAtTo = null,
     string? SortBy = null,
-    string? SortDir = null
+    string? SortDir = null,
+    string? SlaStatus = null
 );
 
 public record GetMyTasksQuery(

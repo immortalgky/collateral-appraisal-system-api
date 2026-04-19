@@ -21,6 +21,7 @@ public class WorkflowEngine : IWorkflowEngine
     private readonly IWorkflowPersistenceService _persistenceService;
     private readonly IWorkflowStateManager _stateManager;
     private readonly IWorkflowDefinitionVersionRepository _versionRepository;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<WorkflowEngine> _logger;
 
     public WorkflowEngine(
@@ -30,6 +31,7 @@ public class WorkflowEngine : IWorkflowEngine
         IWorkflowPersistenceService persistenceService,
         IWorkflowStateManager stateManager,
         IWorkflowDefinitionVersionRepository versionRepository,
+        IDateTimeProvider dateTimeProvider,
         ILogger<WorkflowEngine> logger)
     {
         _activityFactory = activityFactory;
@@ -38,6 +40,7 @@ public class WorkflowEngine : IWorkflowEngine
         _persistenceService = persistenceService;
         _stateManager = stateManager;
         _versionRepository = versionRepository;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -427,7 +430,7 @@ public class WorkflowEngine : IWorkflowEngine
         bool isResume = false,
         CancellationToken cancellationToken = default)
     {
-        var startTime = DateTime.UtcNow;
+        var startTime = _dateTimeProvider.ApplicationNow;
 
         _logger.LogDebug("ENGINE: Starting {Mode} of activity {ActivityId} of type {ActivityType}",
             isResume ? "resume" : "execution", activityDefinition.Id, activityDefinition.Type);
@@ -467,7 +470,7 @@ public class WorkflowEngine : IWorkflowEngine
             }
 
             // 4. Track execution in context metadata
-            var duration = DateTime.UtcNow - startTime;
+            var duration = _dateTimeProvider.ApplicationNow - startTime;
             context.TrackExecutionStep(activityDefinition.Id, activityResult.Status, duration);
 
             _logger.LogDebug(
@@ -478,7 +481,7 @@ public class WorkflowEngine : IWorkflowEngine
         }
         catch (Exception ex)
         {
-            var duration = DateTime.UtcNow - startTime;
+            var duration = _dateTimeProvider.ApplicationNow - startTime;
             context.TrackExecutionStep(activityDefinition.Id, ActivityResultStatus.Failed, duration);
 
             _logger.LogError(ex, "ENGINE: Critical error during execution of activity {ActivityId}",
@@ -827,7 +830,7 @@ public class WorkflowEngine : IWorkflowEngine
     /// <summary>
     /// Records a branch execution result into workflow variables for the join activity to read.
     /// </summary>
-    private static void RecordBranchResult(
+    private void RecordBranchResult(
         WorkflowInstance workflowInstance,
         string forkId,
         string branchId,
@@ -851,7 +854,7 @@ public class WorkflowEngine : IWorkflowEngine
             BranchId = branchId,
             Status = BranchStatus.Completed,
             OutputData = activityResult.OutputData,
-            CompletedAt = DateTime.UtcNow
+            CompletedAt = _dateTimeProvider.ApplicationNow
         };
 
         workflowInstance.UpdateVariables(new Dictionary<string, object> { [resultsKey] = results });

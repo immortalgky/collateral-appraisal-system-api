@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shared.Time;
 using Workflow.Workflow.Activities;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Models;
@@ -14,8 +15,11 @@ public class RoutingActivityTests
 
     public RoutingActivityTests()
     {
+        var dateTimeProvider = Substitute.For<IDateTimeProvider>();
+        dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+        dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
         var logger = Substitute.For<ILogger<RoutingActivity>>();
-        _sut = new RoutingActivity(logger);
+        _sut = new RoutingActivity(dateTimeProvider, logger);
     }
 
     private static ActivityContext CreateContext(

@@ -12,18 +12,21 @@ public class WorkflowVersioningService : IWorkflowVersioningService
     private readonly ILogger<WorkflowVersioningService> _logger;
     private readonly IWorkflowDefinitionRepository _definitionRepository;
     private readonly IWorkflowInstanceRepository _instanceRepository;
-    
+    private readonly IDateTimeProvider _dateTimeProvider;
+
     // In-memory cache for schema versions (in production, use distributed cache)
     private readonly Dictionary<string, List<string>> _schemaVersionsCache = new();
 
     public WorkflowVersioningService(
         ILogger<WorkflowVersioningService> logger,
         IWorkflowDefinitionRepository definitionRepository,
-        IWorkflowInstanceRepository instanceRepository)
+        IWorkflowInstanceRepository instanceRepository,
+        IDateTimeProvider dateTimeProvider)
     {
         _logger = logger;
         _definitionRepository = definitionRepository;
         _instanceRepository = instanceRepository;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public async Task<string> GetSchemaVersionAsync(string workflowDefinitionId, CancellationToken cancellationToken = default)
@@ -93,7 +96,7 @@ public class WorkflowVersioningService : IWorkflowVersioningService
 
     public async Task<VersionMigrationResult> MigrateInstancesAsync(string workflowDefinitionId, string fromVersion, string toVersion, IMigrationStrategy strategy, CancellationToken cancellationToken = default)
     {
-        var startTime = DateTime.UtcNow;
+        var startTime = _dateTimeProvider.ApplicationNow;
         _logger.LogInformation("Starting migration of workflow {WorkflowId} instances from {FromVersion} to {ToVersion} using {Strategy}", 
             workflowDefinitionId, fromVersion, toVersion, strategy.StrategyName);
 
@@ -153,7 +156,7 @@ public class WorkflowVersioningService : IWorkflowVersioningService
             }
 
             result.IsSuccessful = result.FailedMigrations == 0;
-            result.Duration = DateTime.UtcNow - startTime;
+            result.Duration = _dateTimeProvider.ApplicationNow - startTime;
 
             _logger.LogInformation("Migration completed: {Successful}/{Total} instances migrated successfully in {Duration}", 
                 result.SuccessfulMigrations, result.TotalInstancesProcessed, result.Duration);
@@ -164,7 +167,7 @@ public class WorkflowVersioningService : IWorkflowVersioningService
         {
             _logger.LogError(ex, "Migration failed with critical error");
             result.IsSuccessful = false;
-            result.Duration = DateTime.UtcNow - startTime;
+            result.Duration = _dateTimeProvider.ApplicationNow - startTime;
             result.Errors.Add(new MigrationError
             {
                 ErrorMessage = $"Critical migration failure: {ex.Message}",

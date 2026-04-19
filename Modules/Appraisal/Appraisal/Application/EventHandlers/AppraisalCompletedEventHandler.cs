@@ -1,11 +1,13 @@
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.EventHandlers;
 
 public class AppraisalCompletedEventHandler(
     ILogger<AppraisalCompletedEventHandler> logger,
-    IIntegrationEventOutbox outbox) : INotificationHandler<AppraisalCompletedEvent>
+    IIntegrationEventOutbox outbox,
+    IDateTimeProvider dateTimeProvider) : INotificationHandler<AppraisalCompletedEvent>
 {
     public Task Handle(AppraisalCompletedEvent notification, CancellationToken cancellationToken)
     {
@@ -17,7 +19,7 @@ public class AppraisalCompletedEventHandler(
         outbox.Publish(new AppraisalCompletedIntegrationEvent
         {
             RequestId = appraisal.RequestId,
-            CompletedAt = DateTime.UtcNow
+            CompletedAt = dateTimeProvider.ApplicationNow
         }, correlationId: appraisal.Id.ToString());
 
         logger.LogInformation(

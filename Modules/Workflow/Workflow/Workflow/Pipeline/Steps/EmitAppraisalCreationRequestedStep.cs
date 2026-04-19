@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
+using Workflow.Data.Entities;
 
 namespace Workflow.Workflow.Pipeline.Steps;
 
@@ -15,38 +16,61 @@ public class EmitAppraisalCreationRequestedStep(
     AppraisalCreationTriggerEvaluator triggerEvaluator,
     ILogger<EmitAppraisalCreationRequestedStep> logger) : IActivityProcessStep
 {
-    public string Name => "EmitAppraisalCreationRequested";
-
-    public Task<ProcessStepResult> ExecuteAsync(ProcessStepContext context, CancellationToken ct)
+    public sealed record Parameters
     {
-        if (context.Variables is null)
-            return Task.FromResult(ProcessStepResult.Fail("Workflow variables are null"));
+        /// <summary>Optional condition expression evaluated by AppraisalCreationTriggerEvaluator.</summary>
+        public string? Condition { get; init; }
 
-        var variables = context.Variables;
+        /// <summary>Whether a decision field is required before triggering creation.</summary>
+        public bool RequireDecision { get; init; }
 
-        // Idempotent guard: skip if already triggered
-        if (variables.TryGetValue("appraisalCreationRequested", out var flagObj) && IsTruthy(flagObj))
+        /// <summary>Decision field name when RequireDecision is true.</summary>
+        public string? DecisionField { get; init; }
+    }
+
+    public StepDescriptor Descriptor { get; } = StepDescriptor.For<Parameters>(
+        name: "EmitAppraisalCreationRequested",
+        displayName: "Emit Appraisal Creation Requested",
+        kind: StepKind.Action,
+        description: "Publishes an AppraisalCreationRequestedIntegrationEvent via the outbox (deferred/manual channel).");
+
+    public Task<ProcessStepResult> ExecuteAsync(ProcessStepContext ctx, CancellationToken ct)
+    {
+        // Build the raw variables/input dictionaries the legacy evaluator expects
+        var variables = ctx.Variables.ToDictionary(kv => kv.Key, kv => kv.Value ?? (object)"");
+        var input = ctx.Input.ToDictionary(kv => kv.Key, kv => kv.Value ?? (object)"");
+
+        if (variables is null)
+            return Task.FromResult(ProcessStepResult.Fail("NULL_VARIABLES", "Workflow variables are null"));
+
+        // B5: Idempotency guard — check both the committed snapshot and any pending write
+        // so that a re-run within the same pipeline pass is also deduplicated.
+        var alreadyRequested =
+            (variables.TryGetValue("appraisalCreationRequested", out var flagObj) && IsTruthy(flagObj)) ||
+            (ctx.PendingVariableWrites.TryGetValue("appraisalCreationRequested", out var pendingFlag) &&
+             IsTruthy(pendingFlag));
+
+        if (alreadyRequested)
         {
             logger.LogInformation("Appraisal creation already requested for workflow {WorkflowInstanceId}, skipping",
-                context.WorkflowInstanceId);
-            return Task.FromResult(ProcessStepResult.Ok());
+                ctx.WorkflowInstanceId);
+            return Task.FromResult(ProcessStepResult.Pass());
         }
 
-        if (string.IsNullOrWhiteSpace(context.Parameters))
-            return Task.FromResult(ProcessStepResult.Fail("Missing step parameters"));
+        if (string.IsNullOrWhiteSpace(ctx.ParametersJson))
+            return Task.FromResult(ProcessStepResult.Fail("MISSING_PARAMETERS", "Missing step parameters"));
 
         try
         {
-            // Delegate condition + requireDecision evaluation to shared helper
-            if (!triggerEvaluator.EvaluateConfig(context.Parameters, variables, context.Input))
+            if (!triggerEvaluator.EvaluateConfig(ctx.ParametersJson, variables, input))
             {
-                logger.LogDebug("Trigger condition not met for workflow {WorkflowInstanceId}", context.WorkflowInstanceId);
-                return Task.FromResult(ProcessStepResult.Ok());
+                logger.LogDebug("Trigger condition not met for workflow {WorkflowInstanceId}", ctx.WorkflowInstanceId);
+                return Task.FromResult(ProcessStepResult.Pass());
             }
 
-            // Rehydrate the stashed request payload
             if (!variables.TryGetValue("requestSubmissionPayload", out var payloadObj))
-                return Task.FromResult(ProcessStepResult.Fail("Missing requestSubmissionPayload in workflow variables"));
+                return Task.FromResult(ProcessStepResult.Fail(
+                    "MISSING_PAYLOAD", "Missing requestSubmissionPayload in workflow variables"));
 
             var payloadJson = payloadObj switch
             {
@@ -56,15 +80,15 @@ public class EmitAppraisalCreationRequestedStep(
             };
 
             if (string.IsNullOrWhiteSpace(payloadJson))
-                return Task.FromResult(ProcessStepResult.Fail("requestSubmissionPayload is empty"));
+                return Task.FromResult(ProcessStepResult.Fail("EMPTY_PAYLOAD", "requestSubmissionPayload is empty"));
 
             var source = JsonSerializer.Deserialize<RequestSubmittedIntegrationEvent>(payloadJson,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (source is null)
-                return Task.FromResult(ProcessStepResult.Fail("Failed to deserialize requestSubmissionPayload"));
+                return Task.FromResult(ProcessStepResult.Fail(
+                    "DESERIALIZE_FAILED", "Failed to deserialize requestSubmissionPayload"));
 
-            // Publish via outbox (flushed on next SaveChangesAsync)
             outbox.Publish(new AppraisalCreationRequestedIntegrationEvent
             {
                 RequestId = source.RequestId,
@@ -84,20 +108,21 @@ public class EmitAppraisalCreationRequestedStep(
                 RequestedAt = source.RequestedAt
             }, source.RequestId.ToString());
 
-            // Set idempotency flag (mutates the tracked entity's Variables dictionary)
-            variables["appraisalCreationRequested"] = true;
+            // B5: Queue the write via SetVariable so it is persisted to the WorkflowInstance
+            // by the pipeline after all Actions succeed.
+            ctx.SetVariable("appraisalCreationRequested", true);
 
             logger.LogInformation(
-                "Published AppraisalCreationRequestedIntegrationEvent for RequestId {RequestId} from workflow {WorkflowInstanceId}",
-                source.RequestId, context.WorkflowInstanceId);
+                "Published AppraisalCreationRequestedIntegrationEvent for RequestId {RequestId}",
+                source.RequestId);
 
-            return Task.FromResult(ProcessStepResult.Ok());
+            return Task.FromResult(ProcessStepResult.Pass());
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to emit appraisal creation request for workflow {WorkflowInstanceId}",
-                context.WorkflowInstanceId);
-            return Task.FromResult(ProcessStepResult.Fail(ex.Message));
+                ctx.WorkflowInstanceId);
+            return Task.FromResult(ProcessStepResult.Error(ex));
         }
     }
 

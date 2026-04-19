@@ -40,19 +40,19 @@ public class CreateMeetingCommandHandler(
     ICommitteeRepository committeeRepository)
     : ICommandHandler<CreateMeetingCommand, CreateMeetingResponse>
 {
+    private const string COMMITTEE_WITH_MEETING = "COMMITTEE_WITH_MEETING";
+
     public async Task<CreateMeetingResponse> Handle(CreateMeetingCommand command, CancellationToken ct)
     {
         var meeting = Meeting.Create(command.Request.Title, command.Request.Notes);
 
-        if (command.Request.CommitteeId.HasValue)
-        {
-            var committee = await committeeRepository.GetByIdWithMembersAsync(
-                command.Request.CommitteeId.Value, ct)
-                ?? throw new NotFoundException(
-                    $"Committee {command.Request.CommitteeId.Value} not found");
+        var committee = await committeeRepository.GetByCodeAsync(
+                            COMMITTEE_WITH_MEETING, ct)
+                        ?? throw new NotFoundException(
+                            $"Committee {COMMITTEE_WITH_MEETING} not found");
 
-            meeting.SnapshotCommittee(committee);
-        }
+        meeting.SnapshotCommittee(committee);
+
 
         if (command.Request.StartAt.HasValue && command.Request.EndAt.HasValue)
             meeting.SetSchedule(command.Request.StartAt.Value, command.Request.EndAt.Value, command.Request.Location);

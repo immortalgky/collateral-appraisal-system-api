@@ -12,13 +12,16 @@ namespace Workflow.Workflow.Activities;
 public class CompanySelectionActivity : WorkflowActivityBase
 {
     private readonly ICompanyRoundRobinService _companyRoundRobinService;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<CompanySelectionActivity> _logger;
 
     public CompanySelectionActivity(
         ICompanyRoundRobinService companyRoundRobinService,
+        IDateTimeProvider dateTimeProvider,
         ILogger<CompanySelectionActivity> logger)
     {
         _companyRoundRobinService = companyRoundRobinService;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -36,7 +39,7 @@ public class CompanySelectionActivity : WorkflowActivityBase
         var outputData = new Dictionary<string, object>
         {
             ["selectionMethod"] = selectionMethod,
-            ["selectedAt"] = DateTime.UtcNow,
+            ["selectedAt"] = _dateTimeProvider.ApplicationNow,
             ["assignmentType"] = "External"
         };
 

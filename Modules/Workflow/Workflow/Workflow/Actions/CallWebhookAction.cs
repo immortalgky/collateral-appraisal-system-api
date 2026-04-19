@@ -16,16 +16,19 @@ public class CallWebhookAction : WorkflowActionBase
     private readonly HttpClient _httpClient;
     private readonly IWebhookSecurityService _securityService;
     private readonly IWorkflowResilienceService _resilienceService;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
     public CallWebhookAction(
-        HttpClient httpClient, 
-        IWebhookSecurityService securityService, 
+        HttpClient httpClient,
+        IWebhookSecurityService securityService,
         IWorkflowResilienceService resilienceService,
+        IDateTimeProvider dateTimeProvider,
         ILogger<CallWebhookAction> logger) : base(logger)
     {
         _httpClient = httpClient;
         _securityService = securityService;
         _resilienceService = resilienceService;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public override string ActionType => "CallWebhook";
@@ -141,7 +144,7 @@ public class CallWebhookAction : WorkflowActionBase
                 ["statusCode"] = (int)statusCode,
                 ["response"] = responseContent,
                 ["responseLength"] = responseContent.Length,
-                ["completedAt"] = DateTime.UtcNow,
+                ["completedAt"] = _dateTimeProvider.ApplicationNow,
                 ["success"] = true
             };
 
@@ -277,7 +280,7 @@ public class CallWebhookAction : WorkflowActionBase
                 ["instanceId"] = context.WorkflowInstanceId,
                 ["activityId"] = context.ActivityId,
                 ["assignee"] = context.CurrentAssignee ?? "",
-                ["timestamp"] = DateTime.UtcNow
+                ["timestamp"] = _dateTimeProvider.ApplicationNow
             };
         }
 

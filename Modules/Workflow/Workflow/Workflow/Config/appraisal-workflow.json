@@ -48,17 +48,20 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "F"
             },
             {
               "value": "R",
               "label": "Route Back",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             },
             {
               "value": "C",
               "label": "Cancel",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "C"
             }
           ]
         },
@@ -92,7 +95,8 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "F"
             }
           ],
           "inputMappings": {
@@ -137,9 +141,8 @@
         "description": "Evaluates routing conditions to determine workflow path — auto-assign to external company or route to internal admin",
         "properties": {
           "routingConditions": {
-            "auto_assign_external": "facilityLimit > 50000000",
             "auto_assign_internal": "hasAppraisalBook == true || isPma == true",
-            "admin_review": "priority == 'high'"
+            "admin_review": "priority == 'high' || bankingSegment == 'IBG'"
           },
           "defaultDecision": "auto_assign_external"
         },
@@ -166,11 +169,12 @@
           "revisitAssignmentStrategies": [
             "previous_owner"
           ],
+          "canRaiseFollowup": true,
           "timeoutDuration": "PT72H",
           "decisionConditions": {
             "route_external": "appraisal_assignment_decisionTaken == 'EXT'",
             "route_internal": "appraisal_assignment_decisionTaken == 'INT'",
-            "reject": "appraisal_assignment_decisionTaken == 'REJ'",
+            "reject": "appraisal_assignment_decisionTaken == 'C'",
             "request_more_info": "appraisal_assignment_decisionTaken == 'R'",
             "proceed": "appraisal_assignment_decisionTaken == 'P'"
           },
@@ -178,28 +182,33 @@
             {
               "value": "EXT",
               "label": "Route to External",
-              "assignmentMode": "user"
+              "assignmentMode": "user",
+              "movement": "F"
             },
             {
               "value": "INT",
               "label": "Route to Internal",
-              "assignmentMode": "user"
+              "assignmentMode": "user",
+              "movement": "F"
             },
             {
-              "value": "REJ",
-              "label": "Reject",
-              "assignmentMode": "system"
+              "value": "C",
+              "label": "Cancel",
+              "assignmentMode": "system",
+              "movement": "C"
             },
             {
               "value": "R",
               "label": "Request More Info",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             },
             {
               "value": "P",
               "label": "Proceed",
               "assignmentMode": "system",
-              "condition": "assignmentType == 'External' || assignmentType == 'Internal'"
+              "condition": "assignmentType == 'External' || assignmentType == 'Internal'",
+              "movement": "F"
             }
           ],
           "inputMappings": {
@@ -277,17 +286,20 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "user"
+              "assignmentMode": "user",
+              "movement": "F"
             },
             {
               "value": "C",
               "label": "Cancel",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             },
             {
               "value": "R",
               "label": "Route Back",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             }
           ]
         },
@@ -329,12 +341,14 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "user"
+              "assignmentMode": "user",
+              "movement": "F"
             },
             {
               "value": "R",
               "label": "Route Back",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             }
           ]
         },
@@ -376,12 +390,14 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "user"
+              "assignmentMode": "user",
+              "movement": "F"
             },
             {
               "value": "R",
               "label": "Route Back",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             }
           ]
         },
@@ -423,12 +439,14 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "F"
             },
             {
               "value": "R",
               "label": "Route Back",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             }
           ]
         },
@@ -462,24 +480,27 @@
           "timeoutDuration": "PT72H",
           "decisionConditions": {
             "proceed": "appraisal_book_verification_decisionTaken == 'P'",
-            "route_back_ext_admin": "appraisal_book_verification_decisionTaken == 'R_EA'",
-            "route_back_ext_checker": "appraisal_book_verification_decisionTaken == 'R_EC'"
+            "route_back_ext_admin": "appraisal_book_verification_decisionTaken == 'EA'",
+            "route_back_ext_checker": "appraisal_book_verification_decisionTaken == 'EC'"
           },
           "actions": [
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "F"
             },
             {
-              "value": "R_EA",
+              "value": "EA",
               "label": "Route Back to External Admin",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             },
             {
-              "value": "R_EC",
+              "value": "EC",
               "label": "Route Back to External Checker",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             }
           ]
         },
@@ -508,6 +529,7 @@
           "revisitAssignmentStrategies": [
             "previous_owner"
           ],
+          "canRaiseFollowup": true,
           "timeoutDuration": "PT72H",
           "decisionConditions": {
             "proceed": "int_appraisal_execution_decisionTaken == 'P'",
@@ -517,12 +539,14 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "F"
             },
             {
               "value": "R",
               "label": "Route Back",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             }
           ]
         },
@@ -554,6 +578,7 @@
           "revisitAssignmentStrategies": [
             "previous_owner"
           ],
+          "canRaiseFollowup": true,
           "timeoutDuration": "PT48H",
           "decisionConditions": {
             "proceed": "int_appraisal_check_decisionTaken == 'P'",
@@ -563,12 +588,14 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "F"
             },
             {
               "value": "R",
               "label": "Route Back",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             }
           ]
         },
@@ -600,6 +627,7 @@
           "revisitAssignmentStrategies": [
             "previous_owner"
           ],
+          "canRaiseFollowup": true,
           "timeoutDuration": "PT24H",
           "decisionConditions": {
             "proceed": "int_appraisal_verification_decisionTaken == 'P'",
@@ -609,12 +637,14 @@
             {
               "value": "P",
               "label": "Proceed",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "F"
             },
             {
               "value": "R",
               "label": "Route Back",
-              "assignmentMode": "system"
+              "assignmentMode": "system",
+              "movement": "B"
             }
           ]
         },
@@ -676,6 +706,9 @@
             "reject",
             "route_back"
           ],
+          "voteMovements": {
+            "route_back": "B"
+          },
           "memberSource": {
             "type": "threshold",
             "valueExpression": "facilityLimit",

@@ -18,7 +18,7 @@ public class PendingTask : Aggregate<Guid>
     public DateTime? DueAt { get; private set; }
     public string? SlaStatus { get; private set; }
     public DateTime? SlaBreachedAt { get; private set; }
-    public string Movement { get; private set; } = "Forward";
+    public string Movement { get; private set; } = "F";
 
     private PendingTask()
     {
@@ -27,7 +27,7 @@ public class PendingTask : Aggregate<Guid>
 
     private PendingTask(Guid correlationId, string taskName, string assignedTo, string assignedType,
         DateTime assignedAt, Guid workflowInstanceId, string activityId, string? taskDescription = null,
-        string movement = "Forward")
+        string movement = "F")
     {
         Id = Guid.CreateVersion7();
         CorrelationId = correlationId;
@@ -44,7 +44,7 @@ public class PendingTask : Aggregate<Guid>
 
     public static PendingTask Create(Guid correlationId, string taskName, string assignedTo,
         string assignedType, DateTime assignedAt, Guid workflowInstanceId, string activityId,
-        DateTime? dueAt = null, string? taskDescription = null, string movement = "Forward")
+        DateTime? dueAt = null, string? taskDescription = null, string movement = "F")
     {
         var task = new PendingTask(correlationId, taskName, assignedTo, assignedType, assignedAt,
             workflowInstanceId, activityId, taskDescription, movement);

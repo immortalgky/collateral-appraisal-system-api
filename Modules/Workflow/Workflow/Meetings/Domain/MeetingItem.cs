@@ -8,11 +8,13 @@ public class MeetingItem : Entity<Guid>
     public Guid AppraisalId { get; private set; }
     public string? AppraisalNo { get; private set; }
     public decimal FacilityLimit { get; private set; }
+
     /// <summary>Only populated for Decision items (null for Acknowledgement items).</summary>
     public Guid? WorkflowInstanceId { get; private set; }
 
     /// <summary>Only populated for Decision items (null for Acknowledgement items).</summary>
     public string? ActivityId { get; private set; }
+
     public DateTime AddedAt { get; private set; }
 
     // ----- New fields (Phase 1) -----
@@ -34,7 +36,9 @@ public class MeetingItem : Entity<Guid>
     public string? DecisionBy { get; private set; }
     public string? DecisionReason { get; private set; }
 
-    private MeetingItem() { }
+    private MeetingItem()
+    {
+    }
 
     /// <summary>
     /// Creates a Decision item for a workflow-gated appraisal.
@@ -51,7 +55,7 @@ public class MeetingItem : Entity<Guid>
     {
         return new MeetingItem
         {
-            Id = Guid.CreateVersion7(),
+            //Id = Guid.CreateVersion7(),
             MeetingId = meetingId,
             AppraisalId = appraisalId,
             AppraisalNo = appraisalNo,
@@ -61,7 +65,7 @@ public class MeetingItem : Entity<Guid>
             AddedAt = DateTime.UtcNow,
             Kind = MeetingItemKind.Decision,
             AppraisalType = appraisalType,
-            ItemDecision = Domain.ItemDecision.Pending
+            ItemDecision = ItemDecision.Pending
         };
     }
 
@@ -93,7 +97,7 @@ public class MeetingItem : Entity<Guid>
             AppraisalType = appraisalType,
             AcknowledgementGroup = acknowledgementGroup,
             SourceAppraisalDecisionId = sourceAppraisalDecisionId,
-            ItemDecision = Domain.ItemDecision.Pending
+            ItemDecision = ItemDecision.Pending
         };
     }
 

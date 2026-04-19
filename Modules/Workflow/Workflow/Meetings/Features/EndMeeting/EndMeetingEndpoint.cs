@@ -24,7 +24,7 @@ public class EndMeetingEndpoint : ICarterModule
 public record EndMeetingCommand(Guid MeetingId)
     : ICommand, ITransactionalCommand<IWorkflowUnitOfWork>;
 
-public class EndMeetingCommandHandler(IMeetingRepository meetingRepository)
+public class EndMeetingCommandHandler(IMeetingRepository meetingRepository, IDateTimeProvider dateTimeProvider)
     : ICommandHandler<EndMeetingCommand>
 {
     public async Task<Unit> Handle(EndMeetingCommand command, CancellationToken ct)
@@ -32,7 +32,7 @@ public class EndMeetingCommandHandler(IMeetingRepository meetingRepository)
         var meeting = await meetingRepository.GetByIdWithItemsAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
-        meeting.End(DateTime.UtcNow);
+        meeting.End(dateTimeProvider.ApplicationNow);
         return Unit.Value;
     }
 }

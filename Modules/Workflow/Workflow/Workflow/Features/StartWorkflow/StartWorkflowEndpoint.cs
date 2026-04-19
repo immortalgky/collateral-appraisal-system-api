@@ -101,10 +101,12 @@ public record StartWorkflowResponse
 public class StartWorkflowCommandHandler : ICommandHandler<StartWorkflowCommand, StartWorkflowResponse>
 {
     private readonly IWorkflowService _workflowService;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public StartWorkflowCommandHandler(IWorkflowService workflowService)
+    public StartWorkflowCommandHandler(IWorkflowService workflowService, IDateTimeProvider dateTimeProvider)
     {
         _workflowService = workflowService;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public async Task<StartWorkflowResponse> Handle(StartWorkflowCommand request, CancellationToken cancellationToken)
@@ -127,7 +129,7 @@ public class StartWorkflowCommandHandler : ICommandHandler<StartWorkflowCommand,
                     OverrideReason = overrideRequest.OverrideReason,
                     OverrideProperties = overrideRequest.OverrideProperties,
                     OverrideBy = request.StartedBy,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = _dateTimeProvider.ApplicationNow
                 };
             }
         }

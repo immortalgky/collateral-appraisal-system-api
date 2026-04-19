@@ -14,19 +14,22 @@ public class WorkflowExpressionService : IWorkflowExpressionService
 {
     private readonly ILogger<WorkflowExpressionService> _logger;
     private readonly IMemoryCache _cache;
-    
+    private readonly IDateTimeProvider _dateTimeProvider;
+
     // Cache for compiled scripts
     private readonly ConcurrentDictionary<string, Script> _scriptCache = new();
-    
+
     // Script options with common assemblies and namespaces
     private readonly ScriptOptions _scriptOptions;
 
     public WorkflowExpressionService(
         ILogger<WorkflowExpressionService> logger,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        IDateTimeProvider dateTimeProvider)
     {
         _logger = logger;
         _cache = cache;
+        _dateTimeProvider = dateTimeProvider;
 
         // Configure script options with common assemblies and imports
         _scriptOptions = ScriptOptions.Default
@@ -163,7 +166,7 @@ public class WorkflowExpressionService : IWorkflowExpressionService
         var workflowExpression = new WorkflowExpression<T>
         {
             ExpressionText = expression,
-            CompiledAt = DateTime.UtcNow
+            CompiledAt = _dateTimeProvider.ApplicationNow
         };
 
         try
@@ -266,7 +269,7 @@ public class WorkflowExpressionService : IWorkflowExpressionService
         return script;
     }
 
-    private static ScriptGlobals CreateScriptGlobals(ExpressionContext context)
+    private ScriptGlobals CreateScriptGlobals(ExpressionContext context)
     {
         return new ScriptGlobals
         {
@@ -276,8 +279,8 @@ public class WorkflowExpressionService : IWorkflowExpressionService
             CurrentUser = context.CurrentUser,
             ExecutionTime = context.ExecutionTime,
             Metadata = context.Metadata,
-            Now = DateTime.UtcNow,
-            Today = DateTime.UtcNow.Date,
+            Now = _dateTimeProvider.ApplicationNow,
+            Today = _dateTimeProvider.ApplicationNow.Date,
             NewGuid = Guid.NewGuid(),
             Random = new Random().NextDouble()
         };

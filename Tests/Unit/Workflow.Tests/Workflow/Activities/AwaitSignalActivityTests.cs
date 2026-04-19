@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shared.Time;
 using Workflow.Data;
 using Workflow.Workflow.Activities;
 using Workflow.Workflow.Activities.Core;
@@ -22,8 +23,12 @@ public class AwaitSignalActivityTests
             new DbContextOptionsBuilder<WorkflowDbContext>()
                 .UseInMemoryDatabase($"await-signal-{Guid.NewGuid()}")
                 .Options);
+        var dateTimeProvider = Substitute.For<IDateTimeProvider>();
+        dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+        dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
         _activity = new AwaitSignalActivity(
             _dbContext,
+            dateTimeProvider,
             Substitute.For<ILogger<AwaitSignalActivity>>());
     }
 

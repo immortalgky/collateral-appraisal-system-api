@@ -1,11 +1,13 @@
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.EventHandlers;
 
 public class AppraisalCreatedEventHandler(
     ILogger<AppraisalCreatedEventHandler> logger,
-    IIntegrationEventOutbox outbox) : INotificationHandler<AppraisalCreatedEvent>
+    IIntegrationEventOutbox outbox,
+    IDateTimeProvider dateTimeProvider) : INotificationHandler<AppraisalCreatedEvent>
 {
     public Task Handle(AppraisalCreatedEvent notification, CancellationToken cancellationToken)
     {
@@ -22,7 +24,7 @@ public class AppraisalCreatedEventHandler(
             AppraisalType = appraisal.AppraisalType,
             CreatedBy = notification.RequestedBy ?? appraisal.CreatedBy,
             RequestedBy = notification.RequestedBy,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = dateTimeProvider.ApplicationNow,
             IsPma = appraisal.IsPma,
             FacilityLimit = appraisal.FacilityLimit,
             Priority = appraisal.Priority,

@@ -10,10 +10,12 @@ namespace Workflow.Workflow.Actions;
 public class PublishEventAction : WorkflowActionBase
 {
     private readonly IEventPublisher _eventPublisher;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public PublishEventAction(IEventPublisher eventPublisher, ILogger<PublishEventAction> logger) : base(logger)
+    public PublishEventAction(IEventPublisher eventPublisher, IDateTimeProvider dateTimeProvider, ILogger<PublishEventAction> logger) : base(logger)
     {
         _eventPublisher = eventPublisher;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public override string ActionType => "PublishEvent";
@@ -51,7 +53,7 @@ public class PublishEventAction : WorkflowActionBase
                     ["instanceId"] = context.WorkflowInstanceId,
                     ["activityId"] = context.ActivityId,
                     ["assignee"] = context.CurrentAssignee ?? "",
-                    ["timestamp"] = DateTime.UtcNow
+                    ["timestamp"] = _dateTimeProvider.ApplicationNow
                 };
             }
 
@@ -85,7 +87,7 @@ public class PublishEventAction : WorkflowActionBase
                     ["publishedBy"] = "WorkflowEngine",
                     ["workflowInstanceId"] = context.WorkflowInstanceId,
                     ["activityId"] = context.ActivityId,
-                    ["publishedAt"] = DateTime.UtcNow
+                    ["publishedAt"] = _dateTimeProvider.ApplicationNow
                 }
             };
 
@@ -109,7 +111,7 @@ public class PublishEventAction : WorkflowActionBase
                 ["destination"] = destination,
                 ["correlationId"] = resolvedCorrelationId,
                 ["eventId"] = publishResult.EventId ?? "",
-                ["publishedAt"] = DateTime.UtcNow,
+                ["publishedAt"] = _dateTimeProvider.ApplicationNow,
                 ["eventVersion"] = eventVersion,
                 ["eventSource"] = eventSource
             };

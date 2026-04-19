@@ -24,15 +24,27 @@ public class ActivityProcessConfigurationConfiguration : IEntityTypeConfiguratio
             .IsRequired()
             .HasMaxLength(200);
 
+        builder.Property(x => x.Kind)
+            .IsRequired()
+            .HasColumnType("tinyint")
+            .HasDefaultValue(StepKind.Validation);
+
         builder.Property(x => x.SortOrder)
             .IsRequired();
 
-        builder.Property(x => x.Parameters)
+        builder.Property(x => x.RunIfExpression)
+            .HasColumnType("nvarchar(max)");
+
+        builder.Property(x => x.ParametersJson)
             .HasColumnType("nvarchar(max)");
 
         builder.Property(x => x.IsActive)
             .IsRequired()
             .HasDefaultValue(true);
+
+        builder.Property(x => x.Version)
+            .IsRequired()
+            .HasDefaultValue(1);
 
         builder.Property(x => x.CreatedAt)
             .IsRequired();

@@ -15,7 +15,8 @@ public record GetTasksFilterRequest(
     DateTime? DateFrom = null,
     DateTime? DateTo = null,
     string? SortBy = null,
-    string? SortDir = null
+    string? SortDir = null,
+    string? SlaStatus = null
 );
 
 public record GetTasksQuery(

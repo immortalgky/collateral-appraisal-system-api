@@ -8,6 +8,7 @@ namespace Workflow.Workflow.Activities;
 
 public class AwaitSignalActivity(
     WorkflowDbContext dbContext,
+    IDateTimeProvider dateTimeProvider,
     ILogger<AwaitSignalActivity> logger) : WorkflowActivityBase
 {
     public override string ActivityType => ActivityTypes.AwaitSignalActivity;
@@ -71,7 +72,7 @@ public class AwaitSignalActivity(
             ["signalName"] = signalName,
             ["correlationKey"] = correlationKey,
             ["correlationValue"] = correlationValue,
-            ["subscribedAt"] = DateTime.UtcNow
+            ["subscribedAt"] = dateTimeProvider.ApplicationNow
         }));
     }
 

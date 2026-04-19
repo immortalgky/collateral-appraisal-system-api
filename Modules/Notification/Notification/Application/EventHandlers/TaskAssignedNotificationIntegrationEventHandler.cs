@@ -4,6 +4,7 @@ using Notification.Domain.Notifications.Dtos;
 using Notification.Domain.Notifications.Models;
 using Notification.Domain.Notifications.Services;
 using Shared.Messaging.Filters;
+using Shared.Time;
 
 namespace Notification.Domain.Notifications.EventHandlers;
 
@@ -15,15 +16,18 @@ public class TaskAssignedNotificationIntegrationEventHandler : IConsumer<TaskAss
     private readonly INotificationService _notificationService;
     private readonly ILogger<TaskAssignedNotificationIntegrationEventHandler> _logger;
     private readonly InboxGuard<NotificationDbContext> _inboxGuard;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
     public TaskAssignedNotificationIntegrationEventHandler(
         INotificationService notificationService,
         ILogger<TaskAssignedNotificationIntegrationEventHandler> logger,
-        InboxGuard<NotificationDbContext> inboxGuard)
+        InboxGuard<NotificationDbContext> inboxGuard,
+        IDateTimeProvider dateTimeProvider)
     {
         _notificationService = notificationService;
         _logger = logger;
         _inboxGuard = inboxGuard;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public async Task Consume(ConsumeContext<TaskAssignedIntegrationEvent> context)
@@ -47,7 +51,7 @@ public class TaskAssignedNotificationIntegrationEventHandler : IConsumer<TaskAss
                 taskAssigned.AssignedType,
                 appraisalNumber,
                 taskAssigned.TaskName,
-                DateTime.UtcNow
+                _dateTimeProvider.ApplicationNow
             );
 
             // Notify the new assignee
@@ -67,7 +71,7 @@ public class TaskAssignedNotificationIntegrationEventHandler : IConsumer<TaskAss
                     taskAssigned.AssignedType,
                     appraisalNumber,
                     taskAssigned.TaskName,
-                    DateTime.UtcNow,
+                    _dateTimeProvider.ApplicationNow,
                     NotifiedTo: taskAssigned.CompletedBy
                 );
 

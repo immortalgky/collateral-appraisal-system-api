@@ -28,7 +28,8 @@ public record ReleaseMeetingItemCommand(Guid MeetingId, Guid AppraisalId)
 
 public class ReleaseMeetingItemCommandHandler(
     IMeetingRepository meetingRepository,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<ReleaseMeetingItemCommand>
 {
     public async Task<Unit> Handle(ReleaseMeetingItemCommand command, CancellationToken ct)
@@ -39,7 +40,7 @@ public class ReleaseMeetingItemCommandHandler(
         var meeting = await meetingRepository.GetByIdForDecisionAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
-        meeting.ReleaseItem(command.AppraisalId, actor, DateTime.UtcNow);
+        meeting.ReleaseItem(command.AppraisalId, actor, dateTimeProvider.ApplicationNow);
 
         return Unit.Value;
     }

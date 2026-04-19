@@ -28,6 +28,7 @@ public class GetMyTasksEndpoint : ICarterModule
                     [FromQuery] DateTime? requestedAtTo,
                     [FromQuery] string? sortBy,
                     [FromQuery] string? sortDir,
+                    [FromQuery] string? slaStatus,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
@@ -49,7 +50,8 @@ public class GetMyTasksEndpoint : ICarterModule
                         requestedAtFrom,
                         requestedAtTo,
                         sortBy,
-                        sortDir
+                        sortDir,
+                        slaStatus
                     );
 
                     var query = new GetMyTasksQuery(pagination, filter);

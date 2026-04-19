@@ -7,6 +7,7 @@ using Workflow.Workflow.Models;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shared.Time;
 
 namespace Workflow.Tests.AssigneeSelection.Pipeline;
 
@@ -41,12 +42,17 @@ public class AssignmentPipelineTests
 
         var logger = Substitute.For<ILogger<AssignmentPipeline>>();
 
+        var dateTimeProvider = Substitute.For<IDateTimeProvider>();
+        dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+        dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+
         _pipeline = new AssignmentPipeline(
             _contextBuilder,
             _filters,
             _engine,
             _validators,
             _finalizer,
+            dateTimeProvider,
             logger);
     }
 
@@ -712,8 +718,12 @@ public class AssignmentPipelineTests
         var filters = new List<IAssignmentFilter> { teamFilter, exclusionFilter };
         var logger = Substitute.For<ILogger<AssignmentPipeline>>();
 
+        var dateTimeProvider = Substitute.For<IDateTimeProvider>();
+        dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+        dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+
         var pipeline = new AssignmentPipeline(
-            _contextBuilder, filters, _engine, _validators, _finalizer, logger);
+            _contextBuilder, filters, _engine, _validators, _finalizer, dateTimeProvider, logger);
 
         // Setup: team-constrained with exclusion
         // DB query only returns members in the target group (no wrong-group members)

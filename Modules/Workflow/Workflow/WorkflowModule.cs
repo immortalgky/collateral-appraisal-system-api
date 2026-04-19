@@ -167,7 +167,7 @@ public static class WorkflowModule
         // Task lock expiry — releases stale pool task locks every 5 minutes
         services.AddHostedService<TaskLockExpiryService>();
 
-        // Activity process pipeline (submission pipeline)
+        // Activity process pipeline (pluggable pipeline v2)
         services.AddScoped<IActivityProcessStep, UpdateAppraisalStatusStep>();
         services.AddScoped<IActivityProcessStep, UpdateAssignmentStatusStep>();
         services.AddScoped<IActivityProcessStep, ValidateHasAppraisedValueStep>();
@@ -175,7 +175,16 @@ public static class WorkflowModule
         services.AddScoped<IActivityProcessStep, ValidateDecisionConstraintsStep>();
         services.AddScoped<IActivityProcessStep, EmitAppraisalCreationRequestedStep>();
         services.AddScoped<IActivityProcessStep, SetVariableStep>();
-        services.AddScoped<ProcessStepResolver>();
+        services.AddScoped<IActivityProcessStep, RequireDocumentFollowupClearedStep>();
+        services.AddSingleton<IStepCatalog>(sp =>
+        {
+            // Build catalog from a transient scope so we get one instance of each step for descriptor reading
+            using var scope = sp.CreateScope();
+            var steps = scope.ServiceProvider.GetRequiredService<IEnumerable<IActivityProcessStep>>();
+            return new StepCatalog(steps);
+        });
+        services.AddSingleton<IPredicateEvaluator, JintPredicateEvaluator>();
+        services.AddScoped<IActivityProcessExecutionSink, ActivityProcessExecutionSink>();
         services.AddScoped<IActivityProcessPipeline, ActivityProcessPipeline>();
         services.AddScoped<AppraisalCreationTriggerEvaluator>();
 

@@ -41,7 +41,7 @@ public class AppraisalCreationTriggerEvaluator(
 
         foreach (var config in configs)
         {
-            if (EvaluateConfig(config.Parameters, variables, input))
+            if (EvaluateConfig(config.ParametersJson, variables, input))
                 return true;
         }
 

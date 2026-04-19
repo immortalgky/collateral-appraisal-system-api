@@ -10,10 +10,12 @@ namespace Workflow.Workflow.Actions;
 public class UpdateEntityStatusAction : WorkflowActionBase
 {
     private readonly IEntityStatusService _entityStatusService;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public UpdateEntityStatusAction(IEntityStatusService entityStatusService, ILogger<UpdateEntityStatusAction> logger) : base(logger)
+    public UpdateEntityStatusAction(IEntityStatusService entityStatusService, IDateTimeProvider dateTimeProvider, ILogger<UpdateEntityStatusAction> logger) : base(logger)
     {
         _entityStatusService = entityStatusService;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public override string ActionType => "UpdateEntityStatus";
@@ -64,7 +66,7 @@ public class UpdateEntityStatusAction : WorkflowActionBase
                 {
                     ["workflowInstanceId"] = context.WorkflowInstanceId,
                     ["activityId"] = context.ActivityId,
-                    ["timestamp"] = DateTime.UtcNow
+                    ["timestamp"] = _dateTimeProvider.ApplicationNow
                 },
                 ValidateTransition = validateTransition,
                 IncludeAuditTrail = includeAuditTrail
@@ -93,7 +95,7 @@ public class UpdateEntityStatusAction : WorkflowActionBase
                 ["newStatus"] = resolvedNewStatus,
                 ["previousStatus"] = currentStatus ?? "",
                 ["reason"] = resolvedReason,
-                ["timestamp"] = DateTime.UtcNow,
+                ["timestamp"] = _dateTimeProvider.ApplicationNow,
                 ["updatedBy"] = context.CurrentAssignee ?? "",
                 ["transitionValidated"] = validateTransition
             };

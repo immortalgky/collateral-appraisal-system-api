@@ -43,7 +43,8 @@ public class SlaMonitorService(
         var dbContext = scope.ServiceProvider.GetRequiredService<WorkflowDbContext>();
         var connectionFactory = scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>();
         var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
-        var now = DateTime.UtcNow;
+        var dateTimeProvider = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var now = dateTimeProvider.ApplicationNow;
 
         await ScanActivitySlaAsync(dbContext, connectionFactory, publishEndpoint, now, ct);
         await ScanWorkflowSlaAsync(dbContext, connectionFactory, now, ct);

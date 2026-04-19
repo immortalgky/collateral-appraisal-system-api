@@ -11,6 +11,7 @@ public class WorkflowFaultHandler : IWorkflowFaultHandler
     private readonly IWorkflowExecutionLogRepository _executionLogRepository;
     private readonly IWorkflowInstanceRepository _workflowRepository;
     private readonly IWorkflowOutboxRepository _outboxRepository;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<WorkflowFaultHandler> _logger;
 
     // Fault thresholds
@@ -23,12 +24,14 @@ public class WorkflowFaultHandler : IWorkflowFaultHandler
         IWorkflowExecutionLogRepository executionLogRepository,
         IWorkflowInstanceRepository workflowRepository,
         IWorkflowOutboxRepository outboxRepository,
+        IDateTimeProvider dateTimeProvider,
         ILogger<WorkflowFaultHandler> logger)
     {
         _context = context;
         _executionLogRepository = executionLogRepository;
         _workflowRepository = workflowRepository;
         _outboxRepository = outboxRepository;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -190,8 +193,8 @@ public class WorkflowFaultHandler : IWorkflowFaultHandler
     {
         var recentFailures = await _executionLogRepository.GetByEventTypeAsync(
             ExecutionLogEvent.ActivityFailed,
-            DateTime.UtcNow.Subtract(FailureWindow),
-            DateTime.UtcNow,
+            _dateTimeProvider.ApplicationNow.Subtract(FailureWindow),
+            _dateTimeProvider.ApplicationNow,
             cancellationToken);
 
         var workflowFailures = recentFailures

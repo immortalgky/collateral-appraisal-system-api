@@ -3,6 +3,7 @@ using Notification.Data;
 using Notification.Domain.Notifications.Dtos;
 using Notification.Domain.Notifications.Services;
 using Shared.Messaging.Filters;
+using Shared.Time;
 
 namespace Notification.Domain.Notifications.EventHandlers;
 
@@ -11,15 +12,18 @@ public class TaskCompletedNotificationIntegrationEventHandler : IConsumer<TaskCo
     private readonly INotificationService _notificationService;
     private readonly ILogger<TaskCompletedNotificationIntegrationEventHandler> _logger;
     private readonly InboxGuard<NotificationDbContext> _inboxGuard;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
     public TaskCompletedNotificationIntegrationEventHandler(
         INotificationService notificationService,
         ILogger<TaskCompletedNotificationIntegrationEventHandler> logger,
-        InboxGuard<NotificationDbContext> inboxGuard)
+        InboxGuard<NotificationDbContext> inboxGuard,
+        IDateTimeProvider dateTimeProvider)
     {
         _notificationService = notificationService;
         _logger = logger;
         _inboxGuard = inboxGuard;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public async Task Consume(ConsumeContext<TaskCompletedIntegrationEvent> context)
@@ -45,7 +49,7 @@ public class TaskCompletedNotificationIntegrationEventHandler : IConsumer<TaskCo
                 appraisalNumber,
                 GetPreviousState(taskCompleted.TaskName),
                 GetNextState(taskCompleted.TaskName, taskCompleted.ActionTaken),
-                DateTime.UtcNow
+                _dateTimeProvider.ApplicationNow
             );
 
             await _notificationService.SendTaskCompletedNotificationAsync(notification);

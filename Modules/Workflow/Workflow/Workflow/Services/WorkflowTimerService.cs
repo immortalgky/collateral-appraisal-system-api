@@ -18,17 +18,20 @@ public class WorkflowTimerService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<WorkflowTimerService> _logger;
     private readonly WorkflowResilienceOptions _resilienceOptions;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly TimeSpan _processingInterval = TimeSpan.FromSeconds(60); // Check every minute
     private const int BatchSize = 100;
 
     public WorkflowTimerService(
         IServiceProvider serviceProvider,
         ILogger<WorkflowTimerService> logger,
-        IOptions<WorkflowResilienceOptions> resilienceOptions)
+        IOptions<WorkflowResilienceOptions> resilienceOptions,
+        IDateTimeProvider dateTimeProvider)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _resilienceOptions = resilienceOptions.Value;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -62,7 +65,7 @@ public class WorkflowTimerService : BackgroundService
 
         // Get due timer bookmarks
         var dueBookmarks =
-            await bookmarkRepository.GetDueTimerBookmarksAsync(BatchSize, DateTime.UtcNow, cancellationToken);
+            await bookmarkRepository.GetDueTimerBookmarksAsync(BatchSize, _dateTimeProvider.ApplicationNow, cancellationToken);
 
         if (!dueBookmarks.Any())
         {
@@ -139,7 +142,7 @@ public class WorkflowTimerService : BackgroundService
                 WorkflowInstanceId = bookmark.WorkflowInstanceId,
                 ActivityId = bookmark.ActivityId,
                 BookmarkKey = bookmark.Key,
-                ExpiredAt = DateTime.UtcNow,
+                ExpiredAt = _dateTimeProvider.ApplicationNow,
                 BookmarkPayload = bookmark.Payload
             }),
             correlationId: null, // Will be filled by repository if needed
@@ -157,7 +160,7 @@ public class WorkflowTimerService : BackgroundService
                 WorkflowInstanceId = bookmark.WorkflowInstanceId,
                 ActivityId = bookmark.ActivityId,
                 BookmarkKey = bookmark.Key,
-                TimeoutAt = DateTime.UtcNow,
+                TimeoutAt = _dateTimeProvider.ApplicationNow,
                 ExpectedAction = bookmark.Payload
             }),
             correlationId: null,
@@ -175,7 +178,7 @@ public class WorkflowTimerService : BackgroundService
                 WorkflowInstanceId = bookmark.WorkflowInstanceId,
                 ActivityId = bookmark.ActivityId,
                 BookmarkKey = bookmark.Key,
-                TimeoutAt = DateTime.UtcNow,
+                TimeoutAt = _dateTimeProvider.ApplicationNow,
                 ExpectedMessage = bookmark.Payload
             }),
             correlationId: null,
@@ -194,7 +197,7 @@ public class WorkflowTimerService : BackgroundService
                 ActivityId = bookmark.ActivityId,
                 BookmarkKey = bookmark.Key,
                 BookmarkType = bookmark.Type.ToString(),
-                TimeoutAt = DateTime.UtcNow,
+                TimeoutAt = _dateTimeProvider.ApplicationNow,
                 BookmarkData = bookmark.Payload
             }),
             correlationId: null,
@@ -270,9 +273,9 @@ public class WorkflowTimerService : BackgroundService
             {
                 WorkflowInstanceId = workflow.Id,
                 StartedAt = workflow.CreatedAt,
-                RunningDuration = DateTime.UtcNow - workflow.CreatedAt,
+                RunningDuration = _dateTimeProvider.ApplicationNow - workflow.CreatedAt,
                 CurrentStatus = workflow.Status.ToString(),
-                WarningAt = DateTime.UtcNow
+                WarningAt = _dateTimeProvider.ApplicationNow
             }),
             correlationId: workflow.CorrelationId,
             workflowInstanceId: workflow.Id

@@ -53,6 +53,6 @@ public class CompletedTaskConfiguration : IEntityTypeConfiguration<CompletedTask
         builder.Property(p => p.Movement)
             .HasMaxLength(16)
             .IsRequired()
-            .HasDefaultValue("Forward");
+            .HasDefaultValue("F");
     }
 }
