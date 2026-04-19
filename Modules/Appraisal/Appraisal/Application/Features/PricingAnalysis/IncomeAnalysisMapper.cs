@@ -28,6 +28,14 @@ internal static class IncomeAnalysisMapper
             DiscountedRate: analysis.DiscountedRate,
             FinalValue: analysis.FinalValue,
             FinalValueRounded: analysis.FinalValueRounded,
+            FinalValueAdjust: analysis.FinalValueAdjust,
+            IsHighestBestUsed: analysis.IsHighestBestUsed,
+            HighestBestUsed: new HighestBestUsedDto(
+                AreaRai: analysis.HighestBestUsed.AreaRai,
+                AreaNgan: analysis.HighestBestUsed.AreaNgan,
+                AreaWa: analysis.HighestBestUsed.AreaWa,
+                PricePerSqWa: analysis.HighestBestUsed.PricePerSqWa),
+            AppraisalPriceRounded: analysis.AppraisalPriceRounded,
             Sections: analysis.Sections
                 .OrderBy(s => s.DisplaySeq)
                 .Select(MapSection)

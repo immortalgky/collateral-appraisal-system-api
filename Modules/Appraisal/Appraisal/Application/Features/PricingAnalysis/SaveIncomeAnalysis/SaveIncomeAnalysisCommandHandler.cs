@@ -68,6 +68,17 @@ public class SaveIncomeAnalysisCommandHandler(
                 command.DiscountedRate);
         }
 
+        analysis.SetFinalValueAdjust(command.FinalValueAdjust);
+
+        analysis.SetHighestBestUsed(
+            command.IsHighestBestUsed,
+            Domain.Appraisals.Income.HighestBestUsed.Create(
+                command.HighestBestUsed?.AreaRai,
+                command.HighestBestUsed?.AreaNgan,
+                command.HighestBestUsed?.AreaWa,
+                command.HighestBestUsed?.PricePerSqWa),
+            command.AppraisalPriceRounded);
+
         var (sectionPairs, categoryPairs, assumptionPairs) = SyncSections(analysis, command.Sections);
 
         // Flush INSERTs so EF populates entity Ids from NEWSEQUENTIALID() before the M13 rewriter builds idMap.
@@ -88,23 +99,49 @@ public class SaveIncomeAnalysisCommandHandler(
         IncomeRefTargetRewriter.Rewrite(analysis, idMap, logger);
 
         // 6. Load tax brackets for Method-10 server-side derivation, then recalculate.
-        // Pass user-supplied FinalValueRounded override (null = recompute).
         var bracketsResult = await mediator.Send(new GetPricingTaxBracketsQuery(), cancellationToken);
-        var result = calcService.Calculate(analysis, bracketsResult.Brackets, command.FinalValueRounded);
+        var result = calcService.Calculate(analysis, bracketsResult.Brackets);
         analysis.ApplyCalculationResult(result);
 
-        // 7. Propagate final value to the method (always — zero is a valid result)
-        method.SetValue(result.FinalValueRounded);
+        // 7. Propagate the user's adjusted appraisal price up the chain.
+        // Priority: AppraisalPriceRounded (explicit override) → derived appraisal price
+        //           (FinalValueAdjust + HBU.TotalValue when applicable) → FinalValueRounded.
+        decimal methodValue;
+        if (analysis.AppraisalPriceRounded is > 0)
+        {
+            methodValue = analysis.AppraisalPriceRounded.Value;
+        }
+        else if (analysis.FinalValueAdjust.HasValue)
+        {
+            // Mirror the frontend TotalValue derivation:
+            // totalWa = AreaRai*400 + AreaNgan*100 + AreaWa
+            // hbuValue = totalWa * PricePerSqWa  (only when !IsHighestBestUsed)
+            var hbuValue = 0m;
+            if (!analysis.IsHighestBestUsed)
+            {
+                var hbu = analysis.HighestBestUsed;
+                var totalWa = (hbu.AreaRai ?? 0) * 400m
+                            + (hbu.AreaNgan ?? 0) * 100m
+                            + (hbu.AreaWa ?? 0m);
+                hbuValue = totalWa * (hbu.PricePerSqWa ?? 0m);
+            }
+            methodValue = analysis.FinalValueAdjust.Value + hbuValue;
+        }
+        else
+        {
+            methodValue = result.FinalValueRounded;
+        }
+        method.SetValue(methodValue);
 
         // Propagate up the approach/analysis chain if this method is selected
         if (method.IsSelected)
         {
             var parentApproach = pricingAnalysis.Approaches
                 .First(a => a.Methods.Any(m => m.Id == method.Id));
-            parentApproach.SetValue(result.FinalValueRounded);
+            parentApproach.SetValue(methodValue);
 
             if (parentApproach.IsSelected)
-                pricingAnalysis.SetFinalValues(result.FinalValueRounded);
+                pricingAnalysis.SetFinalValues(methodValue);
         }
 
         return new SaveIncomeAnalysisResult(IncomeAnalysisMapper.ToDto(analysis));

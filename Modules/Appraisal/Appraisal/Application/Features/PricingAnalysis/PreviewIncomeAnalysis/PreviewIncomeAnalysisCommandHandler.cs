@@ -30,6 +30,17 @@ public class PreviewIncomeAnalysisCommandHandler(
             command.DiscountedRate,
             id: Guid.NewGuid());
 
+        analysis.SetFinalValueAdjust(command.FinalValueAdjust);
+
+        analysis.SetHighestBestUsed(
+            command.IsHighestBestUsed,
+            Domain.Appraisals.Income.HighestBestUsed.Create(
+                command.HighestBestUsed?.AreaRai,
+                command.HighestBestUsed?.AreaNgan,
+                command.HighestBestUsed?.AreaWa,
+                command.HighestBestUsed?.PricePerSqWa),
+            command.AppraisalPriceRounded);
+
         // 3. Build section tree — every entity gets a real Guid so the calc service can key on Id
         var newSections = BuildSectionsWithIds(analysis.Id, command.Sections);
         analysis.ReplaceSections(newSections);
@@ -54,8 +65,7 @@ public class PreviewIncomeAnalysisCommandHandler(
         var bracketsResult = await mediator.Send(new GetPricingTaxBracketsQuery(), cancellationToken);
 
         // 7. Run the exact same calculation as Save — no SaveChangesAsync anywhere
-        // Pass user-supplied FinalValueRounded override (null = recompute).
-        var result = calcService.Calculate(analysis, bracketsResult.Brackets, command.FinalValueRounded);
+        var result = calcService.Calculate(analysis, bracketsResult.Brackets);
         analysis.ApplyCalculationResult(result);
 
         // 8. Return DTO — the analysis object is garbage-collected after this return
