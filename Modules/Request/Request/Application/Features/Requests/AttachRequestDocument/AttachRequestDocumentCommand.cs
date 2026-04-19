@@ -5,4 +5,4 @@ public record AttachRequestDocumentCommand(
     Guid DocumentId,
     string DocumentType,
     string? FileName,
-    string? Source) : ICommand<AttachRequestDocumentResult>;
+    string? Source) : ICommand<AttachRequestDocumentResult>, ITransactionalCommand<IRequestUnitOfWork>;

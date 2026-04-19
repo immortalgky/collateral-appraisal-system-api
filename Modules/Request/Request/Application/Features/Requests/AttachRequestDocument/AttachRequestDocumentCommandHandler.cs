@@ -16,18 +16,18 @@ internal class AttachRequestDocumentCommandHandler(
         if (request is null) throw new RequestNotFoundException(command.RequestId);
 
         var documentData = new RequestDocumentData(
-            DocumentId: command.DocumentId,
-            DocumentType: command.DocumentType,
-            FileName: command.FileName,
-            Prefix: null,
-            Set: 1,
-            Notes: null,
-            FilePath: null,
-            Source: command.Source ?? "REQUEST",
-            IsRequired: false,
-            UploadedBy: currentUser.UserId?.ToString(),
-            UploadedByName: currentUser.Username,
-            UploadedAt: dateTimeProvider.Now
+            command.DocumentId,
+            command.DocumentType,
+            command.FileName,
+            null,
+            1,
+            null,
+            null,
+            command.Source ?? "REQUEST",
+            false,
+            currentUser.Username,
+            currentUser.Username,
+            dateTimeProvider.Now
         );
 
         request.AddDocument(documentData);
