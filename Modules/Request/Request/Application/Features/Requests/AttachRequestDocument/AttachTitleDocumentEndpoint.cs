@@ -29,12 +29,13 @@ public class AttachTitleDocumentEndpoint : ICarterModule
                     DocumentType = request.DocumentType,
                     FileName = request.FileName,
                     Set = 1,
-                    UploadedBy = currentUser.UserId?.ToString(),
+                    UploadedBy = currentUser.Username,
                     UploadedByName = currentUser.Username,
                     UploadedAt = dateTimeProvider.Now
                 };
 
                 title.AddDocument(documentData);
+                await titleRepository.SaveChangesAsync(cancellationToken);
 
                 return Results.Ok(new AttachRequestDocumentResponse(true));
             })
