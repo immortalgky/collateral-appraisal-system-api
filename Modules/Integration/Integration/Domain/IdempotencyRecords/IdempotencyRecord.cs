@@ -36,7 +36,7 @@ public class IdempotencyRecord : Entity<Guid>
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationType);
 
-        var expiresAt = DateTime.UtcNow.Add(expiresIn ?? TimeSpan.FromHours(24));
+        var expiresAt = DateTime.Now.Add(expiresIn ?? TimeSpan.FromHours(24));
 
         return new IdempotencyRecord(idempotencyKey, operationType, requestHash, expiresAt);
     }
@@ -47,5 +47,5 @@ public class IdempotencyRecord : Entity<Guid>
         StatusCode = statusCode;
     }
 
-    public bool IsExpired() => DateTime.UtcNow >= ExpiresAt;
+    public bool IsExpired() => DateTime.Now >= ExpiresAt;
 }

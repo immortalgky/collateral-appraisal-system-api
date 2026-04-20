@@ -98,8 +98,8 @@ public class ActivityProcessConfiguration : Entity<Guid>
             RunIfExpression = runIfExpression,
             IsActive = true,
             Version = 1,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.Now,
+            UpdatedAt = DateTime.Now,
             CreatedBy = createdBy,
             UpdatedBy = createdBy
         };
@@ -129,7 +129,7 @@ public class ActivityProcessConfiguration : Entity<Guid>
         RunIfExpression = runIfExpression;
         IsActive = isActive;
         Version++;
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.Now;
         UpdatedBy = updatedBy;
     }
 
@@ -137,7 +137,7 @@ public class ActivityProcessConfiguration : Entity<Guid>
     {
         IsActive = isActive;
         Version++;
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.Now;
         UpdatedBy = updatedBy;
     }
 }

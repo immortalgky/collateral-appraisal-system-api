@@ -50,7 +50,7 @@ public class WorkflowExternalCall : Entity<Guid>
             Headers = headers ?? new Dictionary<string, string>(),
             IdempotencyKey = $"{workflowInstanceId}:{activityId}:{Guid.NewGuid()}",
             Status = ExternalCallStatus.Pending,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.Now,
             AttemptCount = 0
         };
     }
@@ -58,14 +58,14 @@ public class WorkflowExternalCall : Entity<Guid>
     public void MarkAsStarted()
     {
         Status = ExternalCallStatus.InProgress;
-        StartedAt = DateTime.UtcNow;
+        StartedAt = DateTime.Now;
         AttemptCount++;
     }
 
     public void MarkAsCompleted(string responsePayload, TimeSpan duration)
     {
         Status = ExternalCallStatus.Completed;
-        CompletedAt = DateTime.UtcNow;
+        CompletedAt = DateTime.Now;
         ResponsePayload = responsePayload;
         Duration = duration;
         ErrorMessage = null;
@@ -74,7 +74,7 @@ public class WorkflowExternalCall : Entity<Guid>
     public void MarkAsFailed(string errorMessage, TimeSpan duration)
     {
         Status = ExternalCallStatus.Failed;
-        CompletedAt = DateTime.UtcNow;
+        CompletedAt = DateTime.Now;
         ErrorMessage = errorMessage;
         Duration = duration;
     }
@@ -82,7 +82,7 @@ public class WorkflowExternalCall : Entity<Guid>
     public void MarkAsTimedOut(TimeSpan duration)
     {
         Status = ExternalCallStatus.TimedOut;
-        CompletedAt = DateTime.UtcNow;
+        CompletedAt = DateTime.Now;
         ErrorMessage = "Request timed out";
         Duration = duration;
     }

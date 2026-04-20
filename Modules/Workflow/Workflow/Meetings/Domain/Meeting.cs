@@ -366,7 +366,7 @@ public class Meeting : Aggregate<Guid>
 
         Status = MeetingStatus.Cancelled;
         CancelReason = reason;
-        CancelledAt = DateTime.UtcNow;
+        CancelledAt = DateTime.Now;
 
         var cancelledDecisionItems = _items
             .Where(i => i.Kind == MeetingItemKind.Decision)

@@ -60,7 +60,7 @@ public class JoinActivity : WorkflowActivityBase
             ["completedBranches"] = branchResults.Count(br => br.Value.Status == BranchStatus.Completed),
             ["totalBranches"] = forkContext.Branches.Count,
             ["mergedData"] = mergedData,
-            ["joinCompletedAt"] = DateTime.UtcNow
+            ["joinCompletedAt"] = DateTime.Now
         };
 
         // Add cleanup variables to output data
@@ -118,7 +118,7 @@ public class JoinActivity : WorkflowActivityBase
 
         // Check timeout
         var isTimeout = timeoutMinutes > 0 && 
-                       DateTime.UtcNow > forkContext.CreatedAt.AddMinutes(timeoutMinutes);
+                       DateTime.Now > forkContext.CreatedAt.AddMinutes(timeoutMinutes);
 
         var result = joinType switch
         {
@@ -250,7 +250,7 @@ public class JoinActivity : WorkflowActivityBase
             ["completedBranches"] = branchResults.Count(br => br.Value.Status == BranchStatus.Completed),
             ["totalBranches"] = forkContext.Branches.Count,
             ["timeoutAction"] = timeoutAction,
-            ["timeoutAt"] = DateTime.UtcNow
+            ["timeoutAt"] = DateTime.Now
         };
 
         return timeoutAction switch

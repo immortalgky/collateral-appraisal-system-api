@@ -54,7 +54,7 @@ public class QuotationNegotiation : Entity<Guid>
             NegotiationRound = negotiationRound,
             InitiatedBy = initiatedBy,
             InitiatedByUserId = initiatedByUserId,
-            InitiatedAt = DateTime.UtcNow,
+            InitiatedAt = DateTime.Now,
             Message = message,
             CounterPrice = counterPrice,
             CounterTimeline = counterTimeline,
@@ -69,7 +69,7 @@ public class QuotationNegotiation : Entity<Guid>
 
         Status = "Accepted";
         RespondedBy = respondedBy;
-        RespondedAt = DateTime.UtcNow;
+        RespondedAt = DateTime.Now;
         ResponseMessage = responseMessage;
     }
 
@@ -80,7 +80,7 @@ public class QuotationNegotiation : Entity<Guid>
 
         Status = "Rejected";
         RespondedBy = respondedBy;
-        RespondedAt = DateTime.UtcNow;
+        RespondedAt = DateTime.Now;
         ResponseMessage = responseMessage;
     }
 
@@ -91,7 +91,7 @@ public class QuotationNegotiation : Entity<Guid>
 
         Status = "Countered";
         RespondedBy = respondedBy;
-        RespondedAt = DateTime.UtcNow;
+        RespondedAt = DateTime.Now;
         ResponseMessage = responseMessage;
     }
 }

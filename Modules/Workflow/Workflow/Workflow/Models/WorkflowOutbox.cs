@@ -36,7 +36,7 @@ public class WorkflowOutbox : Entity<Guid>
         return new WorkflowOutbox
         {
             Id = Guid.CreateVersion7(),
-            OccurredAt = DateTime.UtcNow,
+            OccurredAt = DateTime.Now,
             Type = eventType,
             Payload = payload,
             Headers = headers ?? new Dictionary<string, string>(),
@@ -58,7 +58,7 @@ public class WorkflowOutbox : Entity<Guid>
     public void MarkAsProcessed()
     {
         Status = OutboxStatus.Processed;
-        ProcessedAt = DateTime.UtcNow;
+        ProcessedAt = DateTime.Now;
         NextAttemptAt = null;
         ErrorMessage = null;
     }
@@ -70,7 +70,7 @@ public class WorkflowOutbox : Entity<Guid>
         
         if (retryDelay.HasValue)
         {
-            NextAttemptAt = DateTime.UtcNow.Add(retryDelay.Value);
+            NextAttemptAt = DateTime.Now.Add(retryDelay.Value);
         }
     }
 
@@ -79,13 +79,13 @@ public class WorkflowOutbox : Entity<Guid>
         Attempts++;
         Status = OutboxStatus.Failed;
         ErrorMessage = errorMessage;
-        NextAttemptAt = DateTime.UtcNow.Add(CalculateRetryDelay());
+        NextAttemptAt = DateTime.Now.Add(CalculateRetryDelay());
     }
 
     public void ScheduleRetry(TimeSpan delay)
     {
         Status = OutboxStatus.Pending;
-        NextAttemptAt = DateTime.UtcNow.Add(delay);
+        NextAttemptAt = DateTime.Now.Add(delay);
     }
 
     public void MarkAsDeadLetter(string reason)
@@ -98,7 +98,7 @@ public class WorkflowOutbox : Entity<Guid>
     public bool IsReadyForProcessing()
     {
         return Status == OutboxStatus.Pending && 
-               (NextAttemptAt == null || NextAttemptAt <= DateTime.UtcNow);
+               (NextAttemptAt == null || NextAttemptAt <= DateTime.Now);
     }
 
     public bool ShouldRetry(int maxRetries)

@@ -292,7 +292,7 @@ public class EventPublishResult
             EventId = eventId,
             MessageId = messageId,
             PublishDetails = publishDetails ?? new Dictionary<string, object>(),
-            PublishedAt = DateTime.UtcNow
+            PublishedAt = DateTime.Now
         };
     
     public static EventPublishResult Failed(string errorMessage)
@@ -300,6 +300,6 @@ public class EventPublishResult
         {
             IsSuccess = false,
             ErrorMessage = errorMessage,
-            PublishedAt = DateTime.UtcNow
+            PublishedAt = DateTime.Now
         };
 }

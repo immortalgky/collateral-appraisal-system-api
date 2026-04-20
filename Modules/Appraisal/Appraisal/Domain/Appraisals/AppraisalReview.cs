@@ -58,7 +58,7 @@ public class AppraisalReview : Entity<Guid>
     public void AssignTo(Guid userId, Guid assignedBy, Guid? teamId = null, string? teamName = null)
     {
         AssignedTo = userId;
-        AssignedAt = DateTime.UtcNow;
+        AssignedAt = DateTime.Now;
         AssignedBy = assignedBy;
         TeamId = teamId;
         TeamName = teamName;
@@ -75,7 +75,7 @@ public class AppraisalReview : Entity<Guid>
     public void Approve(Guid reviewedBy, string? comments = null)
     {
         Status = ReviewStatus.Approved;
-        ReviewedAt = DateTime.UtcNow;
+        ReviewedAt = DateTime.Now;
         ReviewedBy = reviewedBy;
         ReviewComments = comments;
     }
@@ -86,7 +86,7 @@ public class AppraisalReview : Entity<Guid>
             throw new ArgumentException("Return reason is required");
 
         Status = ReviewStatus.Returned;
-        ReviewedAt = DateTime.UtcNow;
+        ReviewedAt = DateTime.Now;
         ReviewedBy = reviewedBy;
         ReturnReason = reason;
         ReviewComments = comments;

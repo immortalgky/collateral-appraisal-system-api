@@ -595,7 +595,7 @@ internal class CircuitBreakerInstance
     {
         lock (_lock)
         {
-            var now = DateTime.UtcNow;
+            var now = DateTime.Now;
             _successHistory.Enqueue(now);
             CleanupHistory(_successHistory, now);
             
@@ -616,7 +616,7 @@ internal class CircuitBreakerInstance
     {
         lock (_lock)
         {
-            var now = DateTime.UtcNow;
+            var now = DateTime.Now;
             _failureHistory.Enqueue(now);
             CleanupHistory(_failureHistory, now);
             
@@ -640,7 +640,7 @@ internal class CircuitBreakerInstance
         lock (_lock)
         {
             State = CircuitBreakerState.Open;
-            OpenUntil = DateTime.UtcNow.Add(duration);
+            OpenUntil = DateTime.Now.Add(duration);
         }
     }
 
@@ -655,7 +655,7 @@ internal class CircuitBreakerInstance
 
     private bool ShouldOpen()
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.Now;
         var totalRequests = _failureHistory.Count + _successHistory.Count;
         
         return totalRequests >= _policy.MinimumThroughput &&

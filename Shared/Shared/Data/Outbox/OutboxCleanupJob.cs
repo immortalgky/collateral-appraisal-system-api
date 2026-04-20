@@ -13,7 +13,7 @@ public class OutboxCleanupJob<TDbContext>(
 
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        var cutoff = DateTime.UtcNow.AddDays(-RetentionDays);
+        var cutoff = DateTime.Now.AddDays(-RetentionDays);
         var schema = dbContext.Model.GetDefaultSchema() ?? "dbo";
         var totalDeleted = 0;
 
@@ -21,7 +21,7 @@ public class OutboxCleanupJob<TDbContext>(
             typeof(TDbContext).Name, cutoff);
 
         // Reset stuck Processing messages (instance crashed mid-batch) back to Pending
-        var stuckCutoff = DateTime.UtcNow.AddMinutes(-5);
+        var stuckCutoff = DateTime.Now.AddMinutes(-5);
         var reset = await dbContext.Database.ExecuteSqlRawAsync(
             "UPDATE [" + schema + "].[IntegrationEventOutbox] " +
             "SET Status = 'Pending' " +

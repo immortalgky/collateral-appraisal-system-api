@@ -63,7 +63,7 @@ public class AppraisalGallery : Entity<Guid>
             PhotoNumber = photoNumber,
             PhotoType = photoType,
             IsInUse = false,
-            UploadedAt = DateTime.UtcNow,
+            UploadedAt = DateTime.Now,
             UploadedBy = uploadedBy,
             FileName = fileName,
             FilePath = filePath,

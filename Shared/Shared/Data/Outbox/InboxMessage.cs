@@ -17,14 +17,14 @@ public class InboxMessage
             MessageId = messageId,
             ConsumerType = consumerType,
             Status = InboxMessageStatus.Processing,
-            StartedAt = DateTime.UtcNow
+            StartedAt = DateTime.Now
         };
     }
 
     public void MarkAsProcessed()
     {
         Status = InboxMessageStatus.Processed;
-        ProcessedAt = DateTime.UtcNow;
+        ProcessedAt = DateTime.Now;
     }
 }
 

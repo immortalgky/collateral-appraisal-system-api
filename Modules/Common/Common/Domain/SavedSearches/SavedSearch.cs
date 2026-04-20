@@ -84,7 +84,7 @@ public class SavedSearch
                 $"FiltersJson exceeds the maximum allowed length of {MaxFiltersJsonLength} characters.",
                 nameof(filtersJson));
 
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.Now;
         return new SavedSearch
         {
             Id = Guid.CreateVersion7(),

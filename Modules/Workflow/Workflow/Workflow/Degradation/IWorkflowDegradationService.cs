@@ -274,7 +274,7 @@ public class DegradationStatus
         ServiceName = serviceName,
         IsDegraded = false,
         CurrentLevel = ServiceLevel.Full,
-        LastCheck = DateTime.UtcNow
+        LastCheck = DateTime.Now
     };
 
     public static DegradationStatus Degraded(
@@ -287,9 +287,9 @@ public class DegradationStatus
         IsDegraded = true,
         CurrentLevel = level,
         Reason = reason,
-        DegradedSince = DateTime.UtcNow,
+        DegradedSince = DateTime.Now,
         AdditionalInfo = additionalInfo,
-        LastCheck = DateTime.UtcNow
+        LastCheck = DateTime.Now
     };
 }
 
@@ -325,7 +325,7 @@ public class WorkflowContinuationResult
 public class DegradationMetrics
 {
     public Dictionary<string, ServiceDegradationMetrics> ServiceMetrics { get; set; } = new();
-    public DateTime CollectionTime { get; set; } = DateTime.UtcNow;
+    public DateTime CollectionTime { get; set; } = DateTime.Now;
     public ServiceLevel OverallServiceLevel { get; set; }
     public int TotalServices { get; set; }
     public int HealthyServices { get; set; }

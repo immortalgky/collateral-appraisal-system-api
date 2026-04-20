@@ -56,7 +56,7 @@ public class AppraisalAcknowledgementQueueItem : Entity<Guid>
             CommitteeCode = committeeCode,
             AcknowledgementGroup = acknowledgementGroup,
             Status = AcknowledgementStatus.PendingAcknowledgement,
-            EnqueuedAt = DateTime.UtcNow
+            EnqueuedAt = DateTime.Now
         };
     }
 

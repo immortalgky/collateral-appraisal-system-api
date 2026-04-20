@@ -52,7 +52,7 @@ public class QuotationRequest : Aggregate<Guid>
         return new QuotationRequest
         {
             Id = Guid.CreateVersion7(),
-            RequestDate = DateTime.UtcNow,
+            RequestDate = DateTime.Now,
             DueDate = dueDate,
             RequestedBy = requestedBy,
             RequestedByName = requestedByName,
@@ -117,7 +117,7 @@ public class QuotationRequest : Aggregate<Guid>
 
         SelectedCompanyId = companyId;
         SelectedQuotationId = quotationId;
-        SelectedAt = DateTime.UtcNow;
+        SelectedAt = DateTime.Now;
         SelectionReason = reason;
         Status = "Closed";
 

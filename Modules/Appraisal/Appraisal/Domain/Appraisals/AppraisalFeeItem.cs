@@ -58,7 +58,7 @@ public class AppraisalFeeItem : Entity<Guid>
 
         ApprovalStatus = "Approved";
         ApprovedBy = approvedBy;
-        ApprovedAt = DateTime.UtcNow;
+        ApprovedAt = DateTime.Now;
     }
 
     public void Reject(Guid rejectedBy, string reason)
@@ -68,7 +68,7 @@ public class AppraisalFeeItem : Entity<Guid>
 
         ApprovalStatus = "Rejected";
         ApprovedBy = rejectedBy;
-        ApprovedAt = DateTime.UtcNow;
+        ApprovedAt = DateTime.Now;
         RejectionReason = reason;
     }
 }

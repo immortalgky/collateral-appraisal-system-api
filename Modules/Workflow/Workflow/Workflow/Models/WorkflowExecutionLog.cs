@@ -39,7 +39,7 @@ public class WorkflowExecutionLog : Entity<Guid>
             WorkflowInstanceId = workflowInstanceId,
             ActivityId = activityId,
             Event = eventType,
-            OccurredAt = DateTime.UtcNow,
+            OccurredAt = DateTime.Now,
             Details = details,
             ActorId = actorId,
             CorrelationId = correlationId,

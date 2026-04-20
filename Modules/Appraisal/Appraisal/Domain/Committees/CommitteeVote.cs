@@ -35,7 +35,7 @@ public class CommitteeVote : Entity<Guid>
             MemberName = memberName,
             MemberRole = memberRole,
             Vote = vote,
-            VotedAt = DateTime.UtcNow,
+            VotedAt = DateTime.Now,
             Comments = comments
         };
     }

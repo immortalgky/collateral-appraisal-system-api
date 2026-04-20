@@ -14,7 +14,7 @@ public class VersionMigrationResult
     public TimeSpan Duration { get; set; }
     public List<MigrationError> Errors { get; set; } = new();
     public Dictionary<string, object> Statistics { get; set; } = new();
-    public DateTime MigratedAt { get; set; } = DateTime.UtcNow;
+    public DateTime MigratedAt { get; set; } = DateTime.Now;
 }
 
 /// <summary>

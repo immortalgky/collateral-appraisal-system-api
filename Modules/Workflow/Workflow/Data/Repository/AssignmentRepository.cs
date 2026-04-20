@@ -137,7 +137,7 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
                         GroupsList = groupsList,
                         UserId = userId,
                         AssignmentCount = 0,
-                        LastAssignedAt = DateTime.UtcNow,
+                        LastAssignedAt = DateTime.Now,
                         IsActive = true
                     });
             }
@@ -165,7 +165,7 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
         // Select user with minimum count
         var selectedUser = counters.First();
         selectedUser.AssignmentCount++;
-        selectedUser.LastAssignedAt = DateTime.UtcNow;
+        selectedUser.LastAssignedAt = DateTime.Now;
 
         // Check if the round is complete (no active users have count = 0)
         var usersWithZero = counters.Count(x => x.AssignmentCount == 0);

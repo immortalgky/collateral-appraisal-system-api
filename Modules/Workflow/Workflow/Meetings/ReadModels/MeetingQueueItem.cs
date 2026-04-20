@@ -38,7 +38,7 @@ public class MeetingQueueItem : Entity<Guid>
             WorkflowInstanceId = workflowInstanceId,
             ActivityId = activityId,
             Status = MeetingQueueItemStatus.Queued,
-            EnqueuedAt = DateTime.UtcNow
+            EnqueuedAt = DateTime.Now
         };
     }
 

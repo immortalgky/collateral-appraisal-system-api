@@ -23,7 +23,7 @@ public class SoftDelete : ValueObject
 
     public static SoftDelete Deleted(Guid? deletedBy)
     {
-        return new SoftDelete(true, DateTime.UtcNow, deletedBy);
+        return new SoftDelete(true, DateTime.Now, deletedBy);
     }
 
     public override string ToString()

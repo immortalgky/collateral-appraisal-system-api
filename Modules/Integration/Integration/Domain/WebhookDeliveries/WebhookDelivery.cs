@@ -49,7 +49,7 @@ public class WebhookDelivery : Entity<Guid>
         if (statusCode >= 200 && statusCode < 300)
         {
             Status = DeliveryStatus.Delivered;
-            DeliveredAt = DateTime.UtcNow;
+            DeliveredAt = DateTime.Now;
             NextRetryAt = null;
         }
         else if (AttemptCount >= 3)
@@ -60,7 +60,7 @@ public class WebhookDelivery : Entity<Guid>
         else
         {
             Status = DeliveryStatus.Retrying;
-            NextRetryAt = DateTime.UtcNow.Add(GetRetryDelay(AttemptCount));
+            NextRetryAt = DateTime.Now.Add(GetRetryDelay(AttemptCount));
         }
     }
 

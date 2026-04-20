@@ -243,7 +243,7 @@ public class SendNotificationAction : WorkflowActionBase
         templateData.TryAdd("workflowInstanceId", context.WorkflowInstanceId);
         templateData.TryAdd("activityId", context.ActivityId);
         templateData.TryAdd("assignee", context.CurrentAssignee ?? "");
-        templateData.TryAdd("timestamp", DateTime.UtcNow);
+        templateData.TryAdd("timestamp", DateTime.Now);
         
         // Add workflow variables (be careful with sensitive data)
         foreach (var variable in context.Variables)
@@ -335,7 +335,7 @@ public class NotificationResult
             IsSuccess = true,
             NotificationId = notificationId,
             DeliveryDetails = deliveryDetails ?? new Dictionary<string, object>(),
-            SentAt = DateTime.UtcNow
+            SentAt = DateTime.Now
         };
     
     public static NotificationResult Failed(string errorMessage)
@@ -343,6 +343,6 @@ public class NotificationResult
         {
             IsSuccess = false,
             ErrorMessage = errorMessage,
-            SentAt = DateTime.UtcNow
+            SentAt = DateTime.Now
         };
 }

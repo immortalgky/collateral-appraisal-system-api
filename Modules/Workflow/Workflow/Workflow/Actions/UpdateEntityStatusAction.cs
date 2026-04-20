@@ -233,7 +233,7 @@ public class EntityStatusUpdateResult
             IsSuccess = true,
             NewStatus = newStatus,
             PreviousStatus = previousStatus,
-            UpdatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.Now,
             AdditionalData = additionalData ?? new Dictionary<string, object>()
         };
     
@@ -243,6 +243,6 @@ public class EntityStatusUpdateResult
             IsSuccess = false,
             ErrorMessage = errorMessage,
             NewStatus = "",
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.Now
         };
 }

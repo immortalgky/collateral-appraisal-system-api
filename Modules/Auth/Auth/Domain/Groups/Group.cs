@@ -40,7 +40,7 @@ public class Group : Entity<Guid>
     public void Delete(Guid? deletedBy)
     {
         IsDeleted = true;
-        DeletedOn = DateTime.UtcNow;
+        DeletedOn = DateTime.Now;
         DeletedBy = deletedBy;
     }
 }

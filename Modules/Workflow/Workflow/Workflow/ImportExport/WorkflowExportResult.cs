@@ -78,7 +78,7 @@ public class WorkflowExportResult
     /// <summary>
     /// When the export was completed
     /// </summary>
-    public DateTime ExportedAt { get; set; } = DateTime.UtcNow;
+    public DateTime ExportedAt { get; set; } = DateTime.Now;
 
     /// <summary>
     /// Create a successful export result
@@ -93,7 +93,7 @@ public class WorkflowExportResult
             DataSizeBytes = System.Text.Encoding.UTF8.GetByteCount(data),
             ExecutionTime = executionTime,
             ContentType = GetContentType(format),
-            FileName = $"workflow_export_{DateTime.UtcNow:yyyyMMdd_HHmmss}{GetFileExtension(format)}"
+            FileName = $"workflow_export_{DateTime.Now:yyyyMMdd_HHmmss}{GetFileExtension(format)}"
         };
     }
 
@@ -110,7 +110,7 @@ public class WorkflowExportResult
             DataSizeBytes = data.Length,
             ExecutionTime = executionTime,
             ContentType = GetContentType(format),
-            FileName = $"workflow_export_{DateTime.UtcNow:yyyyMMdd_HHmmss}{GetFileExtension(format)}"
+            FileName = $"workflow_export_{DateTime.Now:yyyyMMdd_HHmmss}{GetFileExtension(format)}"
         };
     }
 

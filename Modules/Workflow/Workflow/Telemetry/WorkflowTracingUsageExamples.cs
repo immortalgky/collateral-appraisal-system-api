@@ -64,7 +64,7 @@ public static class WorkflowTracingUsageExamples
                 {
                     // Add activity context
                     span.SetAttribute("assignee_id", "approver123")
-                        .SetAttribute("due_date", DateTime.UtcNow.AddDays(1))
+                        .SetAttribute("due_date", DateTime.Now.AddDays(1))
                         .SetAttribute("task_priority", "medium");
 
                     // Record activity milestone

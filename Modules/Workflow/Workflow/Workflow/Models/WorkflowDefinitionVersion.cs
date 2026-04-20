@@ -49,7 +49,7 @@ public class WorkflowDefinitionVersion : Entity<Guid>
             Status = VersionStatus.Draft,
             Category = category,
             Metadata = metadata ?? new Dictionary<string, object>(),
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.Now,
             CreatedBy = createdBy
         };
     }
@@ -71,7 +71,7 @@ public class WorkflowDefinitionVersion : Entity<Guid>
             throw new InvalidOperationException("Version is already published");
 
         Status = VersionStatus.Published;
-        PublishedAt = DateTime.UtcNow;
+        PublishedAt = DateTime.Now;
         PublishedBy = publishedBy;
         BreakingChanges = breakingChanges ?? new List<BreakingChange>();
         MigrationInstructions = migrationInstructions;
@@ -83,7 +83,7 @@ public class WorkflowDefinitionVersion : Entity<Guid>
             throw new InvalidOperationException("Only published versions can be deprecated");
 
         Status = VersionStatus.Deprecated;
-        DeprecatedAt = DateTime.UtcNow;
+        DeprecatedAt = DateTime.Now;
         DeprecatedBy = deprecatedBy;
 
         if (!string.IsNullOrEmpty(reason)) Metadata["DeprecationReason"] = reason;
@@ -92,7 +92,7 @@ public class WorkflowDefinitionVersion : Entity<Guid>
     public void Archive(string archivedBy)
     {
         Status = VersionStatus.Archived;
-        Metadata["ArchivedAt"] = DateTime.UtcNow;
+        Metadata["ArchivedAt"] = DateTime.Now;
         Metadata["ArchivedBy"] = archivedBy;
     }
 
@@ -102,7 +102,7 @@ public class WorkflowDefinitionVersion : Entity<Guid>
             throw new InvalidOperationException("Cannot modify published version schema");
 
         JsonSchema = jsonSchema;
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.Now;
         UpdatedBy = updatedBy;
     }
 
@@ -111,7 +111,7 @@ public class WorkflowDefinitionVersion : Entity<Guid>
         Name = name;
         Description = description;
         if (metadata != null) Metadata = metadata;
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.Now;
         UpdatedBy = updatedBy;
     }
 

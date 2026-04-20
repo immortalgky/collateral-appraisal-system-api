@@ -81,8 +81,8 @@ public class Appointment : Entity<Guid>
         RecordHistory("StatusChanged", approvedBy, "Approved from Pending");
         Status = "Approved";
         ApprovedBy = approvedBy;
-        ApprovedAt = DateTime.UtcNow;
-        ActionDate = DateTime.UtcNow;
+        ApprovedAt = DateTime.Now;
+        ActionDate = DateTime.Now;
     }
 
     public void Complete(string changedBy)
@@ -92,7 +92,7 @@ public class Appointment : Entity<Guid>
 
         RecordHistory("StatusChanged", changedBy, "Completed");
         Status = "Completed";
-        ActionDate = DateTime.UtcNow;
+        ActionDate = DateTime.Now;
     }
 
     public void Cancel(string changedBy, string? reason = null)
@@ -103,7 +103,7 @@ public class Appointment : Entity<Guid>
         RecordHistory("Cancelled", changedBy, reason);
         Status = "Cancelled";
         Reason = reason;
-        ActionDate = DateTime.UtcNow;
+        ActionDate = DateTime.Now;
     }
 
     public void Reschedule(string changedBy, DateTime newDate, string? reason = null)
@@ -116,7 +116,7 @@ public class Appointment : Entity<Guid>
         Reason = reason;
         RescheduleCount++;
         Status = "Pending"; // Reset to pending for re-approval
-        ActionDate = DateTime.UtcNow;
+        ActionDate = DateTime.Now;
     }
 
     private void RecordHistory(string changeType, string changedBy, string? reason)

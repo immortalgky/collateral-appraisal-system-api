@@ -78,7 +78,7 @@ public class AppraisalAssignment : Entity<Guid>
         PreviousAssignmentId = previousAssignmentId;
         ReassignmentNumber = reassignmentNumber;
         AssignmentStatus = AssignmentStatus.Pending;
-        AssignedAt = DateTime.UtcNow;
+        AssignedAt = DateTime.Now;
         AssignedBy = assignedBy;
         ProgressPercent = 0;
     }
@@ -143,7 +143,7 @@ public class AppraisalAssignment : Entity<Guid>
         AssignedBy = assignedBy;
 
         AssignmentStatus = AssignmentStatus.Assigned;
-        AssignedAt = DateTime.UtcNow;
+        AssignedAt = DateTime.Now;
     }
 
     /// <summary>
@@ -154,7 +154,7 @@ public class AppraisalAssignment : Entity<Guid>
         ValidateStatus(AssignmentStatus.Assigned, "start work");
 
         AssignmentStatus = AssignmentStatus.InProgress;
-        StartedAt = DateTime.UtcNow;
+        StartedAt = DateTime.Now;
     }
 
     /// <summary>
@@ -169,7 +169,7 @@ public class AppraisalAssignment : Entity<Guid>
             throw new InvalidOperationException("Can only update progress for in-progress assignments");
 
         ProgressPercent = percent;
-        LastProgressUpdate = DateTime.UtcNow;
+        LastProgressUpdate = DateTime.Now;
     }
 
     /// <summary>
@@ -181,7 +181,7 @@ public class AppraisalAssignment : Entity<Guid>
 
         AssignmentStatus = AssignmentStatus.Completed;
         ProgressPercent = 100;
-        CompletedAt = DateTime.UtcNow;
+        CompletedAt = DateTime.Now;
     }
 
     /// <summary>

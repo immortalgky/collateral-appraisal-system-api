@@ -110,7 +110,7 @@ public class Appraisal : Aggregate<Guid>
 
         if (slaDays.HasValue)
         {
-            SLADueDate = DateTime.UtcNow.AddDays(slaDays.Value);
+            SLADueDate = DateTime.Now.AddDays(slaDays.Value);
             SLAStatus = "OnTrack";
         }
     }
@@ -660,8 +660,8 @@ public class Appraisal : Aggregate<Guid>
         UpdateStatus(AppraisalStatus.Completed);
 
         // Calculate actual days
-        ActualDaysToComplete = CreatedAt.HasValue ? (DateTime.UtcNow - CreatedAt.Value).Days : null;
-        IsWithinSLA = !SLADueDate.HasValue || DateTime.UtcNow <= SLADueDate.Value;
+        ActualDaysToComplete = CreatedAt.HasValue ? (DateTime.Now - CreatedAt.Value).Days : null;
+        IsWithinSLA = !SLADueDate.HasValue || DateTime.Now <= SLADueDate.Value;
 
         AddDomainEvent(new AppraisalCompletedEvent(this));
     }
@@ -677,8 +677,8 @@ public class Appraisal : Aggregate<Guid>
         ApprovedByCommittee = committeeCode;
         
         // Calculate actual days
-        ActualDaysToComplete = CreatedAt.HasValue ? (DateTime.UtcNow - CreatedAt.Value).Days : null;
-        IsWithinSLA = !SLADueDate.HasValue || DateTime.UtcNow <= SLADueDate.Value;
+        ActualDaysToComplete = CreatedAt.HasValue ? (DateTime.Now - CreatedAt.Value).Days : null;
+        IsWithinSLA = !SLADueDate.HasValue || DateTime.Now <= SLADueDate.Value;
 
         AddDomainEvent(new AppraisalCompletedEvent(this));
     }
@@ -741,7 +741,7 @@ public class Appraisal : Aggregate<Guid>
     {
         if (!SLADueDate.HasValue) return;
 
-        var daysRemaining = (SLADueDate.Value - DateTime.UtcNow).Days;
+        var daysRemaining = (SLADueDate.Value - DateTime.Now).Days;
         SLAStatus = daysRemaining switch
         {
             < 0 => "Breached",

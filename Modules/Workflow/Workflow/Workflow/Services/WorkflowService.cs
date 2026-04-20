@@ -199,13 +199,13 @@ public class WorkflowService : IWorkflowService
                 throw new InvalidOperationException("WorkflowEngine returned null instance");
 
             await _eventPublisher.PublishActivityCompletedAsync(
-                workflowInstanceId, activityId, completedBy, DateTime.UtcNow, input,
+                workflowInstanceId, activityId, completedBy, DateTime.Now, input,
                 input?.TryGetValue("comments", out var commentsValue) == true ? commentsValue?.ToString() : null,
                 cancellationToken);
 
             if (executionResult.Status == WorkflowExecutionStatus.Completed)
                 await _eventPublisher.PublishWorkflowCompletedAsync(
-                    workflowInstanceId, completedBy, DateTime.UtcNow, cancellationToken);
+                    workflowInstanceId, completedBy, DateTime.Now, cancellationToken);
 
             _logger.LogInformation("SERVICE: Successfully resumed workflow {WorkflowInstanceId} with status {Status}",
                 workflowInstanceId, executionResult.Status);
@@ -263,7 +263,7 @@ public class WorkflowService : IWorkflowService
         await _eventPublisher.PublishWorkflowCancelledAsync(
             workflowInstanceId,
             cancelledBy,
-            DateTime.UtcNow,
+            DateTime.Now,
             reason,
             cancellationToken);
 

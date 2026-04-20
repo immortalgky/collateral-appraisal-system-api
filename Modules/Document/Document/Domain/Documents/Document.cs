@@ -191,7 +191,7 @@ public class Document : Aggregate<Guid>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
         IsDeleted = true;
-        DeletedAt = DateTime.UtcNow;
+        DeletedAt = DateTime.Now;
         DeletedBy = deletedBy;
         IsActive = false;
     }
