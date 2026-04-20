@@ -28,7 +28,7 @@ public class ExpressionContext
     /// <summary>
     /// Execution timestamp
     /// </summary>
-    public DateTime ExecutionTime { get; set; } = DateTime.UtcNow;
+    public DateTime ExecutionTime { get; set; } = DateTime.Now;
 
     /// <summary>
     /// Global functions and helpers available in expressions
@@ -65,12 +65,12 @@ public class ExpressionContext
         {
             WorkflowInstanceId = workflowInstanceId,
             CurrentUser = currentUser,
-            ExecutionTime = DateTime.UtcNow
+            ExecutionTime = DateTime.Now
         };
 
         // Add common workflow functions
-        context.AddFunction("Now", () => DateTime.UtcNow);
-        context.AddFunction("Today", () => DateTime.UtcNow.Date);
+        context.AddFunction("Now", () => DateTime.Now);
+        context.AddFunction("Today", () => DateTime.Now.Date);
         context.AddFunction("NewGuid", () => Guid.NewGuid());
         context.AddFunction("Random", () => new Random().NextDouble());
 

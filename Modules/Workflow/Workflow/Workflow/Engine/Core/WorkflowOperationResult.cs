@@ -10,7 +10,7 @@ public class WorkflowOperationResult<T>
     public T? Result { get; init; }
     public string? ErrorMessage { get; init; }
     public Exception? Exception { get; init; }
-    public DateTime OperationTime { get; init; } = DateTime.UtcNow;
+    public DateTime OperationTime { get; init; } = DateTime.Now;
     public Dictionary<string, object> Metadata { get; init; } = new();
 
     /// <summary>
@@ -137,7 +137,7 @@ public class WorkflowOperationResult
     public bool IsSuccess { get; init; }
     public string? ErrorMessage { get; init; }
     public Exception? Exception { get; init; }
-    public DateTime OperationTime { get; init; } = DateTime.UtcNow;
+    public DateTime OperationTime { get; init; } = DateTime.Now;
     public Dictionary<string, object> Metadata { get; init; } = new();
 
     /// <summary>

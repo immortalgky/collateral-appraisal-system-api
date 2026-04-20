@@ -50,7 +50,7 @@ public class WorkflowBookmark : Entity<Guid>
             Payload = payload,
             IsConsumed = false,
             DueAt = dueAt,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.Now,
             ClaimedBy = null,
             ClaimedAt = null,
             LeaseExpiresAt = null
@@ -63,19 +63,19 @@ public class WorkflowBookmark : Entity<Guid>
             throw new InvalidOperationException("Bookmark has already been consumed");
 
         IsConsumed = true;
-        ConsumedAt = DateTime.UtcNow;
+        ConsumedAt = DateTime.Now;
         ConsumedBy = consumedBy;
     }
 
     public bool IsDue()
     {
-        return DueAt.HasValue && DueAt.Value <= DateTime.UtcNow;
+        return DueAt.HasValue && DueAt.Value <= DateTime.Now;
     }
 
     public bool IsExpired(TimeSpan? expiration = null)
     {
         if (!expiration.HasValue) return false;
-        return CreatedAt.Add(expiration.Value) <= DateTime.UtcNow;
+        return CreatedAt.Add(expiration.Value) <= DateTime.Now;
     }
 
     public void Claim(string claimedBy, TimeSpan leaseDuration)
@@ -87,8 +87,8 @@ public class WorkflowBookmark : Entity<Guid>
             throw new InvalidOperationException($"Bookmark is already claimed by {ClaimedBy}");
 
         ClaimedBy = claimedBy;
-        ClaimedAt = DateTime.UtcNow;
-        LeaseExpiresAt = DateTime.UtcNow.Add(leaseDuration);
+        ClaimedAt = DateTime.Now;
+        LeaseExpiresAt = DateTime.Now.Add(leaseDuration);
     }
 
     public void ReleaseClaim()
@@ -100,7 +100,7 @@ public class WorkflowBookmark : Entity<Guid>
 
     public bool IsLeaseExpired()
     {
-        return LeaseExpiresAt.HasValue && LeaseExpiresAt.Value <= DateTime.UtcNow;
+        return LeaseExpiresAt.HasValue && LeaseExpiresAt.Value <= DateTime.Now;
     }
 
     public bool IsAvailableForClaim()

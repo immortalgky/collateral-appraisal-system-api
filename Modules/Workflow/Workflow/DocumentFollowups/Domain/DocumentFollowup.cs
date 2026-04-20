@@ -55,7 +55,7 @@ public class DocumentFollowup : Aggregate<Guid>
             RaisingActivityId = raisingActivityId,
             RaisingUserId = raisingUserId,
             Status = DocumentFollowupStatus.Open,
-            RaisedAt = DateTime.UtcNow
+            RaisedAt = DateTime.Now
         };
 
         foreach (var (type, notes) in items)
@@ -120,7 +120,7 @@ public class DocumentFollowup : Aggregate<Guid>
             throw new InvalidOperationException("All line items must be Uploaded or Declined before submitting");
 
         Status = DocumentFollowupStatus.Resolved;
-        ResolvedAt = DateTime.UtcNow;
+        ResolvedAt = DateTime.Now;
         AddDomainEvent(new DocumentFollowupResolvedDomainEvent(Id, RaisingPendingTaskId));
     }
 
@@ -155,7 +155,7 @@ public class DocumentFollowup : Aggregate<Guid>
 
         Status = DocumentFollowupStatus.Cancelled;
         CancellationReason = reason;
-        ResolvedAt = DateTime.UtcNow;
+        ResolvedAt = DateTime.Now;
         AddDomainEvent(new DocumentFollowupCancelledDomainEvent(Id, RaisingPendingTaskId, reason));
     }
 

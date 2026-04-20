@@ -51,7 +51,7 @@ public class InboxGuard<TDbContext>(
         }
 
         // Status is Processing — check if stale
-        if (existing.StartedAt < DateTime.UtcNow.AddMinutes(-StaleThresholdMinutes))
+        if (existing.StartedAt < DateTime.Now.AddMinutes(-StaleThresholdMinutes))
         {
             // Stale Processing — another instance crashed. Delete and re-claim.
             logger.LogWarning("[INBOX] Stale Processing message {MessageId} by {Consumer} (started {StartedAt}), reclaiming",
@@ -96,6 +96,6 @@ public class InboxGuard<TDbContext>(
             "UPDATE [" + schema + "].[InboxMessage] " +
             "SET Status = 'Processed', ProcessedAt = {0} " +
             "WHERE MessageId = {1} AND ConsumerType = {2}",
-            new object[] { DateTime.UtcNow, messageId.Value, consumerType }, ct);
+            new object[] { DateTime.Now, messageId.Value, consumerType }, ct);
     }
 }

@@ -60,7 +60,7 @@ public class CompanyQuotation : Entity<Guid>
             InvitationId = invitationId,
             CompanyId = companyId,
             QuotationNumber = quotationNumber,
-            SubmittedAt = DateTime.UtcNow,
+            SubmittedAt = DateTime.Now,
             EstimatedDays = estimatedDays,
             Status = "Submitted",
             TotalQuotedPrice = 0

@@ -36,7 +36,7 @@ public class DashboardNote
     {
         ValidateContent(content);
 
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.Now;
         return new DashboardNote
         {
             Id = Guid.CreateVersion7(),
@@ -54,7 +54,7 @@ public class DashboardNote
     {
         ValidateContent(content);
         Content = content.Trim();
-        UpdatedAt = DateTimeOffset.UtcNow;
+        UpdatedAt = DateTimeOffset.Now;
     }
 
     private static void ValidateContent(string content)

@@ -103,7 +103,7 @@ public class ActivityProcessExecution
             SkipReason = skipReason,
             DurationMs = durationMs,
             ErrorMessage = errorMessage,
-            CreatedOn = DateTime.UtcNow
+            CreatedOn = DateTime.Now
         };
     }
 }

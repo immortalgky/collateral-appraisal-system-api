@@ -44,7 +44,7 @@ public static class ActivityErrorBuilder
             ["errorMessage"] = message,
             ["activityId"] = activityId,
             ["errorType"] = "ExecutionError",
-            ["occurredAt"] = DateTime.UtcNow
+            ["occurredAt"] = DateTime.Now
         };
 
         if (exception != null)
@@ -95,7 +95,7 @@ public static class ActivityErrorBuilder
             ["activityId"] = activityId,
             ["errorType"] = "ExpressionError",
             ["expression"] = expression,
-            ["evaluatedAt"] = DateTime.UtcNow
+            ["evaluatedAt"] = DateTime.Now
         };
     }
 

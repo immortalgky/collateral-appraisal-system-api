@@ -28,21 +28,21 @@ public class DocumentFollowupLineItem
     {
         Status = DocumentFollowupLineItemStatus.Uploaded;
         DocumentId = documentId;
-        ResolvedAt = DateTime.UtcNow;
+        ResolvedAt = DateTime.Now;
     }
 
     internal void MarkDeclined(string reason)
     {
         Status = DocumentFollowupLineItemStatus.Declined;
         Reason = reason;
-        ResolvedAt = DateTime.UtcNow;
+        ResolvedAt = DateTime.Now;
     }
 
     internal void MarkCancelled(string reason)
     {
         Status = DocumentFollowupLineItemStatus.Cancelled;
         Reason = reason;
-        ResolvedAt = DateTime.UtcNow;
+        ResolvedAt = DateTime.Now;
     }
 }
 

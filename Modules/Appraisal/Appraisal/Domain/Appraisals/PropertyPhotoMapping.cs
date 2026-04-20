@@ -38,7 +38,7 @@ public class PropertyPhotoMapping : Entity<Guid>
             PhotoPurpose = photoPurpose,
             SequenceNumber = 1,
             LinkedBy = linkedBy,
-            LinkedAt = DateTime.UtcNow
+            LinkedAt = DateTime.Now
         };
     }
 

@@ -39,7 +39,7 @@ public class RuntimeOverride
     /// <summary>
     /// Timestamp when the override was created
     /// </summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     /// <summary>
     /// Checks if this override has any assignment specifications

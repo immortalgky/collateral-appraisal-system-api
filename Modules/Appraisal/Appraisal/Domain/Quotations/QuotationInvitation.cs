@@ -28,7 +28,7 @@ public class QuotationInvitation : Entity<Guid>
             Id = Guid.CreateVersion7(),
             QuotationRequestId = quotationRequestId,
             CompanyId = companyId,
-            InvitedAt = DateTime.UtcNow,
+            InvitedAt = DateTime.Now,
             Status = "Pending",
             NotificationSent = false
         };
@@ -37,12 +37,12 @@ public class QuotationInvitation : Entity<Guid>
     public void MarkNotificationSent()
     {
         NotificationSent = true;
-        NotificationSentAt = DateTime.UtcNow;
+        NotificationSentAt = DateTime.Now;
     }
 
     public void MarkViewed()
     {
-        ViewedAt ??= DateTime.UtcNow;
+        ViewedAt ??= DateTime.Now;
     }
 
     public void MarkSubmitted()

@@ -135,7 +135,7 @@ public class WorkflowExecutionContext
             ActivityId = activityId,
             Status = status,
             Duration = duration,
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.Now
         });
     }
 
@@ -160,7 +160,7 @@ public class WorkflowExecutionContext
 /// </summary>
 public class WorkflowExecutionMetadata
 {
-    public DateTime StartTime { get; set; } = DateTime.UtcNow;
+    public DateTime StartTime { get; set; } = DateTime.Now;
     public List<ExecutionStep> ExecutionSteps { get; set; } = new();
     public Dictionary<string, object> AdditionalData { get; set; } = new();
 

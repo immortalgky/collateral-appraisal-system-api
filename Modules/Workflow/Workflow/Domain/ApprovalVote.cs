@@ -30,7 +30,7 @@ public class ApprovalVote : Entity<Guid>
             MemberRole = memberRole,
             Vote = vote,
             Comments = comments,
-            VotedAt = DateTime.UtcNow
+            VotedAt = DateTime.Now
         };
     }
 }

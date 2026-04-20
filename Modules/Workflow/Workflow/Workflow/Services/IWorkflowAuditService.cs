@@ -196,7 +196,7 @@ public enum AuditTrailCategory
 public class WorkflowAuditEvent
 {
     public Guid Id { get; init; } = Guid.CreateVersion7();
-    public DateTime Timestamp { get; init; } = DateTime.UtcNow;
+    public DateTime Timestamp { get; init; } = DateTime.Now;
     public Guid WorkflowInstanceId { get; init; }
     public string? ActivityId { get; init; }
     public string EventType { get; init; } = default!;

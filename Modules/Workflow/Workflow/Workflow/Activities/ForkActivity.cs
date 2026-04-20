@@ -39,7 +39,7 @@ public class ForkActivity : WorkflowActivityBase
             Branches = branches,
             ForkType = forkType,
             MaxConcurrency = maxConcurrency,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.Now,
             Status = ForkStatus.Active
         };
 

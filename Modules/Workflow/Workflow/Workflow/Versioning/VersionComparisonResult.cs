@@ -12,5 +12,5 @@ public class VersionComparisonResult
     public List<string> AddedActivities { get; set; } = new();
     public List<string> RemovedActivities { get; set; } = new();
     public List<string> ModifiedActivities { get; set; } = new();
-    public DateTime ComparedAt { get; set; } = DateTime.UtcNow;
+    public DateTime ComparedAt { get; set; } = DateTime.Now;
 }

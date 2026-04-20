@@ -477,8 +477,8 @@ public class WorkflowDegradationService : IWorkflowDegradationService
         var cachedResult = new CachedResult
         {
             Result = result,
-            CachedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.Add(expiry)
+            CachedAt = DateTime.Now,
+            ExpiresAt = DateTime.Now.Add(expiry)
         };
         
         cache.Enqueue(cachedResult);
@@ -633,7 +633,7 @@ public class WorkflowDegradationService : IWorkflowDegradationService
             // Clean up expired cache entries
             foreach (var cache in _resultCache.Values)
             {
-                var now = DateTime.UtcNow;
+                var now = DateTime.Now;
                 var itemsToKeep = new List<CachedResult>();
 
                 while (cache.TryDequeue(out var item))

@@ -42,7 +42,7 @@ public class MeetingMember : Entity<Guid>
             MemberName = committeeMember.MemberName,
             Position = committeeMember.Position,
             SourceCommitteeMemberId = committeeMember.Id,
-            AddedAt = DateTime.UtcNow
+            AddedAt = DateTime.Now
         };
     }
 
@@ -66,7 +66,7 @@ public class MeetingMember : Entity<Guid>
             MemberName = memberName.Trim(),
             Position = position,
             SourceCommitteeMemberId = null,
-            AddedAt = DateTime.UtcNow
+            AddedAt = DateTime.Now
         };
     }
 

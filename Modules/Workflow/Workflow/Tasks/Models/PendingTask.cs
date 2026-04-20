@@ -77,7 +77,7 @@ public class PendingTask : Aggregate<Guid>
             throw new InvalidOperationException($"Task is already locked by {WorkingBy}");
 
         WorkingBy = username;
-        LockedAt = DateTime.UtcNow;
+        LockedAt = DateTime.Now;
     }
 
     public void ReleaseLock()
@@ -90,7 +90,7 @@ public class PendingTask : Aggregate<Guid>
         string.Equals(WorkingBy, username, StringComparison.OrdinalIgnoreCase);
 
     public bool IsLockExpired(TimeSpan timeout) =>
-        LockedAt.HasValue && LockedAt.Value.Add(timeout) < DateTime.UtcNow;
+        LockedAt.HasValue && LockedAt.Value.Add(timeout) < DateTime.Now;
 
     public void MarkAtRisk()
     {

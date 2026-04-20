@@ -44,7 +44,7 @@ public class AppointmentHistory : Entity<Guid>
             PreviousLocationDetail = previousLocationDetail,
             ChangeType = changeType,
             ChangeReason = changeReason,
-            ChangedAt = DateTime.UtcNow,
+            ChangedAt = DateTime.Now,
             ChangedBy = changedBy
         };
     }

@@ -64,7 +64,7 @@ public class WorkflowInstance : Entity<Guid>
             CorrelationId = correlationId,
             Status = WorkflowStatus.Running,
             CurrentActivityId = string.Empty,
-            StartedOn = DateTime.UtcNow,
+            StartedOn = DateTime.Now,
             StartedBy = startedBy,
             Variables = initialVariables ?? new Dictionary<string, object>(),
             RuntimeOverrides = runtimeOverrides ?? new Dictionary<string, RuntimeOverride>()
@@ -108,7 +108,7 @@ public class WorkflowInstance : Entity<Guid>
         
         if (status == WorkflowStatus.Completed || status == WorkflowStatus.Failed || status == WorkflowStatus.Cancelled)
         {
-            CompletedOn = DateTime.UtcNow;
+            CompletedOn = DateTime.Now;
         }
 
         if (!string.IsNullOrEmpty(errorMessage))

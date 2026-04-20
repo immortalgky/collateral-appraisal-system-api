@@ -402,7 +402,7 @@ public class OperationValidationResult
 public class ResilienceMetrics
 {
     public Dictionary<string, OperationMetrics> OperationMetrics { get; init; } = new();
-    public DateTime CollectionTime { get; init; } = DateTime.UtcNow;
+    public DateTime CollectionTime { get; init; } = DateTime.Now;
     public TimeSpan CollectionPeriod { get; init; }
 }
 

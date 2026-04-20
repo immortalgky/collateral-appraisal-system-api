@@ -218,7 +218,7 @@ internal class WorkflowSpan : IWorkflowSpan
                 eventTags[WorkflowTelemetryConstants.SemanticAttributes.WorkflowErrorStackTrace] = exception.StackTrace;
             }
             
-            Activity.AddEvent(new ActivityEvent("exception", DateTimeOffset.UtcNow, eventTags));
+            Activity.AddEvent(new ActivityEvent("exception", DateTimeOffset.Now, eventTags));
         }
         
         return this;
@@ -238,7 +238,7 @@ internal class WorkflowSpan : IWorkflowSpan
                 ? new ActivityTagsCollection(attributes.Select(kv => new KeyValuePair<string, object?>(kv.Key, kv.Value)))
                 : new ActivityTagsCollection();
                 
-            Activity.AddEvent(new ActivityEvent(name, DateTimeOffset.UtcNow, tags));
+            Activity.AddEvent(new ActivityEvent(name, DateTimeOffset.Now, tags));
         }
         
         return this;

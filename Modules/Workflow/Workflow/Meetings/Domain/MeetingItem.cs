@@ -62,7 +62,7 @@ public class MeetingItem : Entity<Guid>
             FacilityLimit = facilityLimit,
             WorkflowInstanceId = workflowInstanceId,
             ActivityId = activityId,
-            AddedAt = DateTime.UtcNow,
+            AddedAt = DateTime.Now,
             Kind = MeetingItemKind.Decision,
             AppraisalType = appraisalType,
             ItemDecision = ItemDecision.Pending
@@ -92,7 +92,7 @@ public class MeetingItem : Entity<Guid>
             FacilityLimit = facilityLimit,
             WorkflowInstanceId = null,
             ActivityId = null,
-            AddedAt = DateTime.UtcNow,
+            AddedAt = DateTime.Now,
             Kind = MeetingItemKind.Acknowledgement,
             AppraisalType = appraisalType,
             AcknowledgementGroup = acknowledgementGroup,

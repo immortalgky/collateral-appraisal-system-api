@@ -108,8 +108,8 @@ public class TaskAssignmentConfiguration : Entity<Guid>
             AssigneeGroup = assigneeGroup,
             AdditionalConfiguration = additionalConfiguration,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.Now,
+            UpdatedAt = DateTime.Now,
             CreatedBy = createdBy,
             UpdatedBy = createdBy
         };
@@ -137,21 +137,21 @@ public class TaskAssignmentConfiguration : Entity<Guid>
             EscalateToAdminPool = escalateToAdminPool.Value;
             
         AdditionalConfiguration = additionalConfiguration;
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.Now;
         UpdatedBy = updatedBy;
     }
 
     public void Activate(string updatedBy)
     {
         IsActive = true;
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.Now;
         UpdatedBy = updatedBy;
     }
 
     public void Deactivate(string updatedBy)
     {
         IsActive = false;
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.Now;
         UpdatedBy = updatedBy;
     }
 }

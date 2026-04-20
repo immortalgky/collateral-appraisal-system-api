@@ -63,7 +63,7 @@ public class WorkflowImportResult
     /// <summary>
     /// When the import was completed
     /// </summary>
-    public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+    public DateTime ImportedAt { get; set; } = DateTime.Now;
 
     /// <summary>
     /// Create a successful import result

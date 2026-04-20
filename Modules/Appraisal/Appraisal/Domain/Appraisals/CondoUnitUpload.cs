@@ -19,7 +19,7 @@ public class CondoUnitUpload : Entity<Guid>
             Id = Guid.CreateVersion7(),
             AppraisalId = appraisalId,
             FileName = fileName,
-            UploadedAt = DateTime.UtcNow,
+            UploadedAt = DateTime.Now,
             IsUsed = false,
             DocumentId = documentId
         };
