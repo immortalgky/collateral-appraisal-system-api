@@ -57,17 +57,14 @@ public class IncomeCalculationService : IPricingCalculationService
     /// When null or empty the client-supplied <c>TotalPropertyTax</c> array is used as-is
     /// (backward-compatible path; a warning is logged).
     /// <para>
-    /// When <paramref name="userFinalValueRoundedOverride"/> is non-null and &gt; 0, it is used
-    /// as <c>FinalValueRounded</c> in the result instead of the server-computed value.
-    /// Pass null (default) to recompute — existing callers are unaffected.
-    /// Contract: 0 is treated as "no override" (same as null) to avoid storing a meaningless zero
-    /// when the frontend sends an empty field.
+    /// <c>FinalValueRounded</c> in the result is always server-computed as
+    /// <c>round(finalValue / 1000, MidpointRounding.AwayFromZero) × 1000</c>.
+    /// User-adjustable values are handled separately via <see cref="IncomeAnalysis.FinalValueAdjust"/>.
     /// </para>
     /// </summary>
     public IncomeCalculationResult Calculate(
         IncomeAnalysis analysis,
-        IReadOnlyList<TaxBracketDto>? taxBrackets,
-        decimal? userFinalValueRoundedOverride = null)
+        IReadOnlyList<TaxBracketDto>? taxBrackets)
     {
         var years = analysis.TotalNumberOfYears;
         var daysInYear = analysis.TotalNumberOfDayInYear;
@@ -166,12 +163,9 @@ public class IncomeCalculationService : IPricingCalculationService
         var (terminalRevenue, totalNet, discount, presentValue, finalValue) =
             ComputeDcfSummary(analysis, grossRevenue);
 
-        // Use user override when non-null and > 0; otherwise recompute from finalValue.
-        // 0 is treated as "no override" so a frontend that sends an empty numeric field
-        // (which serialises as 0) does not replace a real computed value with zero.
-        var finalValueRounded = userFinalValueRoundedOverride.HasValue && userFinalValueRoundedOverride.Value > 0
-            ? userFinalValueRoundedOverride.Value
-            : finalValue;
+        // Always compute FinalValueRounded as round-to-nearest-1000 (half-up).
+        // roundToThousand(500) === 1000, roundToThousand(499) === 0.
+        var finalValueRounded = Math.Round(finalValue / 1000m, MidpointRounding.AwayFromZero) * 1000m;
 
         return new IncomeCalculationResult
         {
@@ -536,40 +530,50 @@ public class IncomeCalculationService : IPricingCalculationService
             if (section.SectionType == "summaryDCF" || section.SectionType == "summaryDirect")
                 continue;
 
+            // Pass 1: non-GOP categories (sum of assumptions). This must complete before
+            // GOP computation so GOP's Σ(sibling expenses) sees every populated sibling,
+            // regardless of the section.Categories iteration order (EF DisplaySeq-ordered
+            // load can place GOP before its sibling expense categories).
             foreach (var category in section.Categories)
             {
+                if (category.CategoryType == "gop")
+                    continue;
+
+                var catTotal = new decimal[years];
+                foreach (var assumption in category.Assumptions)
+                {
+                    if (assumptionValues.TryGetValue(assumption.Id, out var av))
+                        for (int y = 0; y < years; y++) catTotal[y] += av[y];
+                }
+                result[category.Id] = catTotal;
+            }
+
+            // Pass 2: GOP categories — now safe to read every sibling from `result`.
+            foreach (var category in section.Categories)
+            {
+                if (category.CategoryType != "gop")
+                    continue;
+
                 var catTotal = new decimal[years];
 
-                if (category.CategoryType == "gop")
+                // GOP = totalIncome − Σ(expenses-type categories, excluding gop + fixedExps)
+                if (section.SectionType == "expenses")
                 {
-                    // GOP = totalIncome − Σ(expenses-type categories, excluding gop + fixedExps)
-                    if (section.SectionType == "expenses")
+                    for (int y = 0; y < years; y++)
                     {
-                        for (int y = 0; y < years; y++)
+                        var income = incomeSectionTotal != null ? incomeSectionTotal[y] : 0m;
+                        decimal exps = 0m;
+                        foreach (var sibling in section.Categories)
                         {
-                            var income = incomeSectionTotal != null ? incomeSectionTotal[y] : 0m;
-                            decimal exps = 0m;
-                            foreach (var sibling in section.Categories)
-                            {
-                                if (sibling.CategoryType == "gop" || sibling.CategoryType == "fixedExps")
-                                    continue;
-                                if (result.TryGetValue(sibling.Id, out var sibVals))
-                                    exps += sibVals[y];
-                            }
-                            catTotal[y] = income - exps;
+                            if (sibling.CategoryType == "gop" || sibling.CategoryType == "fixedExps")
+                                continue;
+                            if (result.TryGetValue(sibling.Id, out var sibVals))
+                                exps += sibVals[y];
                         }
-                    }
-                    // gop outside expenses section: leave as zeros.
-                }
-                else
-                {
-                    // income, expenses, fixedExps: sum of assumptions.
-                    foreach (var assumption in category.Assumptions)
-                    {
-                        if (assumptionValues.TryGetValue(assumption.Id, out var av))
-                            for (int y = 0; y < years; y++) catTotal[y] += av[y];
+                        catTotal[y] = income - exps;
                     }
                 }
+                // gop outside expenses section: leave as zeros.
 
                 result[category.Id] = catTotal;
             }

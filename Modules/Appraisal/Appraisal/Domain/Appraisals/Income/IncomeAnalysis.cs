@@ -35,6 +35,24 @@ public class IncomeAnalysis : Entity<Guid>
     public decimal? FinalValue { get; private set; }
     public decimal? FinalValueRounded { get; private set; }
 
+    /// <summary>
+    /// User-adjustable value that defaults to <see cref="FinalValueRounded"/> on the frontend.
+    /// Stored as-is; the backend never recomputes it.
+    /// The frontend derives Appraisal Price = FinalValueAdjust + HBU.TotalValue
+    /// when !IsHighestBestUsed and HBU has value, otherwise = FinalValueAdjust.
+    /// </summary>
+    public decimal? FinalValueAdjust { get; private set; }
+
+    // Highest-and-Best-Used top-up (user inputs only; derived totals recompute client-side).
+    // When IsHighestBestUsed is false AND the land area/price is populated, the appraiser
+    // considers that the highest-and-best use of the land exceeds the income-approach value,
+    // and the extra land value is added to the final appraisal price on the client.
+    public bool IsHighestBestUsed { get; private set; } = true;
+    public HighestBestUsed HighestBestUsed { get; private set; } = HighestBestUsed.Empty();
+
+    /// <summary>User-editable rounded appraisal price (overrides the client-derived default).</summary>
+    public decimal? AppraisalPriceRounded { get; private set; }
+
     // Summary (owned — year-indexed arrays)
     public IncomeSummary Summary { get; private set; } = IncomeSummary.Empty();
 
@@ -93,6 +111,22 @@ public class IncomeAnalysis : Entity<Guid>
         TotalNumberOfDayInYear = totalNumberOfDayInYear <= 0 ? 365 : totalNumberOfDayInYear;
         CapitalizeRate = capitalizeRate;
         DiscountedRate = discountedRate;
+    }
+
+    /// <summary>Sets the user-adjustable final value. Pass null to clear.</summary>
+    public void SetFinalValueAdjust(decimal? value)
+    {
+        FinalValueAdjust = value;
+    }
+
+    public void SetHighestBestUsed(
+        bool isHighestBestUsed,
+        HighestBestUsed highestBestUsed,
+        decimal? appraisalPriceRounded)
+    {
+        IsHighestBestUsed = isHighestBestUsed;
+        HighestBestUsed = highestBestUsed;
+        AppraisalPriceRounded = appraisalPriceRounded;
     }
 
     public void ReplaceSections(IEnumerable<IncomeSection> sections)

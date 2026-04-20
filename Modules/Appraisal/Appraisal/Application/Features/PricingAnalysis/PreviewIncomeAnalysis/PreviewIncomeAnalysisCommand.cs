@@ -13,5 +13,8 @@ public record PreviewIncomeAnalysisCommand(
     decimal CapitalizeRate,
     decimal DiscountedRate,
     IReadOnlyList<IncomeSectionInput> Sections,
-    decimal? FinalValueRounded = null
+    decimal? FinalValueAdjust = null,
+    bool IsHighestBestUsed = true,
+    HighestBestUsedInput? HighestBestUsed = null,
+    decimal? AppraisalPriceRounded = null
 ) : ICommand<PreviewIncomeAnalysisResult>;

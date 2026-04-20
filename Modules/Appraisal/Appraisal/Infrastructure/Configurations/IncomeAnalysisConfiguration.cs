@@ -26,6 +26,18 @@ public class IncomeAnalysisConfiguration : IEntityTypeConfiguration<IncomeAnalys
 
         builder.Property(a => a.FinalValue).HasPrecision(18, 2);
         builder.Property(a => a.FinalValueRounded).HasPrecision(18, 2);
+        builder.Property(a => a.FinalValueAdjust).HasPrecision(18, 2);
+
+        builder.Property(a => a.IsHighestBestUsed).HasDefaultValue(true);
+        builder.Property(a => a.AppraisalPriceRounded).HasPrecision(18, 2);
+
+        builder.OwnsOne(a => a.HighestBestUsed, h =>
+        {
+            h.Property(x => x.AreaRai).HasColumnName("HighestBestUsed_AreaRai");
+            h.Property(x => x.AreaNgan).HasColumnName("HighestBestUsed_AreaNgan");
+            h.Property(x => x.AreaWa).HasColumnName("HighestBestUsed_AreaWa").HasPrecision(18, 2);
+            h.Property(x => x.PricePerSqWa).HasColumnName("HighestBestUsed_PricePerSqWa").HasPrecision(18, 2);
+        });
 
         // Owned IncomeSummary (all JSON columns)
         builder.OwnsOne(a => a.Summary, s =>

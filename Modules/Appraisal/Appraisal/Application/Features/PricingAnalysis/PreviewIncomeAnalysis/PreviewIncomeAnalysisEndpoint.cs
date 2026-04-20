@@ -21,7 +21,10 @@ public class PreviewIncomeAnalysisEndpoint : ICarterModule
                         request.CapitalizeRate,
                         request.DiscountedRate,
                         request.Sections,
-                        request.FinalValueRounded
+                        request.FinalValueAdjust,
+                        request.IsHighestBestUsed,
+                        request.HighestBestUsed,
+                        request.AppraisalPriceRounded
                     );
 
                     var result = await sender.Send(command, cancellationToken);
