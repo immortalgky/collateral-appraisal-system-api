@@ -9,6 +9,8 @@ public record DocumentSectionDto(
     Guid? TitleId,
     string? TitleIdentifier,
     string? CollateralType,
+    string? CollateralTypeName,
+    string? SectionLabel,
     int TotalDocuments,
     int UploadedDocuments,
     List<DocumentItemDto> Documents);
@@ -17,6 +19,7 @@ public record DocumentItemDto(
     Guid Id,
     Guid? DocumentId,
     string? DocumentType,
+    string? DocumentTypeName,
     string? FileName,
     string? FilePath,
     string? Notes,

@@ -29,14 +29,23 @@ public class GetDecisionSummaryQueryHandler(
             WHERE pg.AppraisalId = @AppraisalId
             """;
 
-        // Query 2: Building insurance (sum of depreciated price for actual buildings only)
-        const string insuranceSql = """
+        // Query 2a: Building insurance (approach-agnostic) — sum of depreciated building prices
+        const string buildingInsuranceSql = """
             SELECT ISNULL(SUM(bdd.PriceAfterDepreciation), 0)
             FROM appraisal.BuildingDepreciationDetails bdd
             JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
             WHERE ap.AppraisalId = @AppraisalId
               AND bdd.IsBuilding = 1
+            """;
+
+        // Query 2b: Review values overridden / populated in ValuationAnalyses
+        const string valuationReviewSql = """
+            SELECT AppraisedValue AS TotalAppraisalPriceReview,
+                   ForcedSaleValue AS ForceSellingPriceReview,
+                   InsuranceValue AS BuildingInsuranceReview
+            FROM appraisal.ValuationAnalyses
+            WHERE AppraisalId = @AppraisalId
             """;
 
         // Query 3: Government prices
@@ -80,7 +89,8 @@ public class GetDecisionSummaryQueryHandler(
 
         // Execute all queries
         var flatRows = (await connectionFactory.QueryAsync<FlatApproachRow>(approachSql, param)).ToList();
-        var buildingInsurance = await connectionFactory.ExecuteScalarAsync<decimal>(insuranceSql, param);
+        var buildingInsurance = await connectionFactory.QueryFirstOrDefaultAsync<decimal>(buildingInsuranceSql, param);
+        var valuationReview = await connectionFactory.QueryFirstOrDefaultAsync<ValuationReviewRow>(valuationReviewSql, param);
         var governmentPrices = (await connectionFactory.QueryAsync<GovernmentPriceRow>(govPriceSql, param)).ToList();
         var approvalRows = (await connectionFactory.QueryAsync<ApprovalRow>(approvalSql, param)).ToList();
 
@@ -98,7 +108,7 @@ public class GetDecisionSummaryQueryHandler(
             .OrderBy(g => g.GroupNumber)
             .ToList();
 
-        // Calculate totals
+        // Top summary values — computed on-read from source tables (not from ValuationAnalyses)
         var totalAppraisalPrice = approachMatrix.Sum(g => g.GroupSummaryValue ?? 0m);
         var forceSellingPrice = totalAppraisalPrice * 0.70m;
         var insurance = buildingInsurance;
@@ -109,11 +119,10 @@ public class GetDecisionSummaryQueryHandler(
         var govTotalPrice = surveyedTitles.Sum(g => g.GovernmentPrice ?? 0m);
         var govAvgPerSqWa = govTotalArea > 0 ? govTotalPrice / govTotalArea : 0m;
 
-        // Review calculations
-        var totalAppraisalPriceReview = decision?.TotalAppraisalPriceReview;
-        var forceSellingPriceReview = totalAppraisalPriceReview.HasValue
-            ? totalAppraisalPriceReview.Value * 0.70m
-            : (decimal?)null;
+        // Review values come from ValuationAnalyses (populated by final-values event handler; overridden by Book Verification save)
+        var totalAppraisalPriceReview = valuationReview?.TotalAppraisalPriceReview;
+        var forceSellingPriceReview = valuationReview?.ForceSellingPriceReview;
+        var buildingInsuranceReview = valuationReview?.BuildingInsuranceReview;
 
         // Build approval list
         string? committeeName = approvalRows.Count > 0 ? approvalRows[0].CommitteeName : null;
@@ -135,7 +144,7 @@ public class GetDecisionSummaryQueryHandler(
             GovernmentPriceAvgPerSqWa: govAvgPerSqWa,
             TotalAppraisalPriceReview: totalAppraisalPriceReview,
             ForceSellingPriceReview: forceSellingPriceReview,
-            BuildingInsuranceReview: insurance,
+            BuildingInsuranceReview: buildingInsuranceReview,
             CommitteeName: committeeName,
             ReviewStatus: reviewStatus,
             ReviewId: reviewId,
@@ -153,6 +162,12 @@ public class GetDecisionSummaryQueryHandler(
             AdditionalAssumptions: decision?.AdditionalAssumptions
         );
     }
+
+    private record ValuationReviewRow(
+        decimal? TotalAppraisalPriceReview,
+        decimal? ForceSellingPriceReview,
+        decimal? BuildingInsuranceReview
+    );
 
     private record FlatApproachRow(
         Guid PropertyGroupId,

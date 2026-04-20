@@ -60,6 +60,20 @@ public class ValuationAnalysis : Entity<Guid>
         InsuranceValue = insuranceValue;
     }
 
+    public void UpdateSummary(
+        string valuationApproach,
+        DateTime valuationDate,
+        decimal appraisedValue,
+        decimal? forcedSaleValue,
+        decimal? insuranceValue)
+    {
+        ValuationApproach = valuationApproach;
+        ValuationDate = valuationDate;
+        AppraisedValue = appraisedValue;
+        ForcedSaleValue = forcedSaleValue;
+        InsuranceValue = insuranceValue;
+    }
+
     public void SetOpinion(string? opinion, string? notes)
     {
         AppraiserOpinion = opinion;

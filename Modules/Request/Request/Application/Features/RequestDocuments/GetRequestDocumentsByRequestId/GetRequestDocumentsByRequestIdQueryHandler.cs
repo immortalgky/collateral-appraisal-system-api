@@ -1,4 +1,5 @@
 using Dapper;
+using Request.Domain.RequestTitles;
 
 namespace Request.Application.Features.RequestDocuments.GetRequestDocumentsByRequestId;
 
@@ -11,27 +12,31 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
     {
         const string sql = """
                            -- Result set 1: Request-level documents
-                           SELECT [Id], [DocumentId], [DocumentType], [FileName], [FilePath],
-                                  [Notes], [IsRequired], [UploadedBy], [UploadedByName], [UploadedAt]
-                           FROM [request].[RequestDocuments]
-                           WHERE [RequestId] = @RequestId
-                           ORDER BY [Id] ASC;
+                           SELECT rd.[Id], rd.[DocumentId], rd.[DocumentType], dt.[Name] AS [DocumentTypeName],
+                                  rd.[FileName], rd.[FilePath], rd.[Notes], rd.[IsRequired],
+                                  rd.[UploadedBy], rd.[UploadedByName], rd.[UploadedAt]
+                           FROM [request].[RequestDocuments] rd
+                           LEFT JOIN [parameter].[DocumentTypes] dt ON dt.[Code] = rd.[DocumentType]
+                           WHERE rd.[RequestId] = @RequestId
+                           ORDER BY rd.[Id] ASC;
 
                            -- Result set 2: Title info + title documents
                            SELECT
                                t.[Id] AS [TitleId],
                                CASE
-                                   WHEN t.[CollateralType] IN ('L', 'LB', 'U', 'LSL', 'LS', 'LSU') THEN t.[TitleNumber]
+                                   WHEN t.[CollateralType] IN ('L', 'B', 'LB', 'U', 'LSL', 'LSB', 'LS', 'LSU') THEN t.[TitleNumber]
                                    WHEN t.[CollateralType] = 'VEH' THEN t.[LicensePlateNumber]
                                    WHEN t.[CollateralType] = 'VES' THEN t.[VesselRegistrationNumber]
                                    WHEN t.[CollateralType] = 'MAC' THEN t.[RegistrationNumber]
                                    ELSE t.[CollateralType]
                                END AS [TitleIdentifier],
                                t.[CollateralType],
-                               td.[Id], td.[DocumentId], td.[DocumentType], td.[FileName], td.[FilePath],
-                               td.[Notes], td.[IsRequired], td.[UploadedBy], td.[UploadedByName], td.[UploadedAt]
+                               td.[Id], td.[DocumentId], td.[DocumentType], dt.[Name] AS [DocumentTypeName],
+                               td.[FileName], td.[FilePath], td.[Notes], td.[IsRequired],
+                               td.[UploadedBy], td.[UploadedByName], td.[UploadedAt]
                            FROM [request].[RequestTitles] t
                            LEFT JOIN [request].[RequestTitleDocuments] td ON t.[Id] = td.[TitleId]
+                           LEFT JOIN [parameter].[DocumentTypes] dt ON dt.[Code] = td.[DocumentType]
                            WHERE t.[RequestId] = @RequestId
                            ORDER BY t.[CreatedAt] ASC, td.[Id] ASC;
                            """;
@@ -52,7 +57,7 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
         {
             var uploadedCount = requestDocs.Count(d => d.DocumentId is not null);
             sections.Add(new DocumentSectionDto(
-                null, null, null,
+                null, null, null, null, "Application Documents",
                 requestDocs.Count, uploadedCount,
                 requestDocs));
         }
@@ -74,6 +79,7 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
                     r.Id!.Value,
                     r.DocumentId,
                     r.DocumentType,
+                    r.DocumentTypeName,
                     r.FileName,
                     r.FilePath,
                     r.Notes,
@@ -83,11 +89,25 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
                     r.UploadedAt))
                 .ToList();
 
+            var collateralTypeCode = group.Key.CollateralType;
+            string? collateralTypeName = null;
+            if (collateralTypeCode is not null && CollateralType.TryFromCode(collateralTypeCode, out var ct))
+            {
+                collateralTypeName = ct?.DisplayName;
+            }
+
+            var sectionLabel = BuildSectionLabel(
+                group.Key.TitleIdentifier,
+                collateralTypeCode,
+                collateralTypeName);
+
             var uploaded = docs.Count(d => d.DocumentId is not null);
             sections.Add(new DocumentSectionDto(
                 group.Key.TitleId,
                 group.Key.TitleIdentifier,
-                group.Key.CollateralType,
+                collateralTypeCode,
+                collateralTypeName,
+                sectionLabel,
                 docs.Count, uploaded,
                 docs));
         }
@@ -96,6 +116,27 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
         var totalUploaded = sections.Sum(s => s.UploadedDocuments);
 
         return new GetRequestDocumentsByRequestIdResult(totalDocuments, totalUploaded, sections);
+    }
+
+    private static string BuildSectionLabel(
+        string? titleIdentifier,
+        string? collateralType,
+        string? collateralTypeName)
+    {
+        if (string.IsNullOrWhiteSpace(titleIdentifier))
+        {
+            return collateralTypeName ?? collateralType ?? "Section";
+        }
+
+        return collateralType switch
+        {
+            "VEH" => $"Vehicle · Plate {titleIdentifier}",
+            "VES" => $"Vessel · Reg. {titleIdentifier}",
+            "MAC" => $"Machine · Reg. {titleIdentifier}",
+            "L" or "LB" or "U" or "LSL" or "LS" or "LSU" or "LSB" or "B"
+                => $"{collateralTypeName} · Title No. {titleIdentifier}",
+            _ => titleIdentifier
+        };
     }
 }
 
@@ -109,6 +150,7 @@ internal record TitleDocumentRow(
     Guid? Id,
     Guid? DocumentId,
     string? DocumentType,
+    string? DocumentTypeName,
     string? FileName,
     string? FilePath,
     string? Notes,

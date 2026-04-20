@@ -42,7 +42,6 @@ public class AppraisalDecision : Entity<Guid>
         string? appraiserOpinion,
         string? committeeOpinionType,
         string? committeeOpinion,
-        decimal? totalAppraisalPriceReview,
         string? additionalAssumptions)
     {
         IsPriceVerified = isPriceVerified;
@@ -54,7 +53,6 @@ public class AppraisalDecision : Entity<Guid>
         AppraiserOpinion = appraiserOpinion;
         CommitteeOpinionType = committeeOpinionType;
         CommitteeOpinion = committeeOpinion;
-        TotalAppraisalPriceReview = totalAppraisalPriceReview;
         AdditionalAssumptions = additionalAssumptions;
     }
 }

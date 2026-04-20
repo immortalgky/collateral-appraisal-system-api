@@ -139,7 +139,7 @@ public class NotificationService : INotificationService
             Title = title,
             Message = message,
             Type = type,
-            CreatedAt = _dateTimeProvider.UtcNow,
+            CreatedAt = _dateTimeProvider.ApplicationNow,
             IsRead = false,
             ActionUrl = actionUrl,
             Metadata = metadata
@@ -171,7 +171,7 @@ public class NotificationService : INotificationService
                 Title = title,
                 Message = message,
                 Type = type.ToString(),
-                CreatedAt = _dateTimeProvider.UtcNow,
+                CreatedAt = _dateTimeProvider.ApplicationNow,
                 ActionUrl = actionUrl,
                 Metadata = metadata
             });

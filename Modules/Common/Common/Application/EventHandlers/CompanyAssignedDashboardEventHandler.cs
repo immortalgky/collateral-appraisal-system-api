@@ -30,17 +30,23 @@ public class CompanyAssignedDashboardEventHandler(
 
         await connection.ExecuteAsync("""
             MERGE common.CompanyAppraisalSummaries AS target
-            USING (SELECT @CompanyId AS CompanyId) AS source
-            ON target.CompanyId = source.CompanyId
+            USING (SELECT @CompanyId AS CompanyId, @Date AS Date) AS source
+            ON target.CompanyId = source.CompanyId AND target.Date = source.Date
             WHEN MATCHED THEN
                 UPDATE SET AssignedCount = AssignedCount + 1,
                            CompanyName = @CompanyName,
                            LastUpdatedAt = @Now
             WHEN NOT MATCHED THEN
-                INSERT (CompanyId, CompanyName, AssignedCount, CompletedCount, LastUpdatedAt)
-                VALUES (@CompanyId, @CompanyName, 1, 0, @Now);
+                INSERT (CompanyId, Date, CompanyName, AssignedCount, CompletedCount, LastUpdatedAt)
+                VALUES (@CompanyId, @Date, @CompanyName, 1, 0, @Now);
             """,
-            new { message.CompanyId, message.CompanyName, Now = dateTimeProvider.ApplicationNow });
+            new
+            {
+                message.CompanyId,
+                message.CompanyName,
+                Date = message.OccurredOn.Date,
+                Now = dateTimeProvider.ApplicationNow
+            });
 
         await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }

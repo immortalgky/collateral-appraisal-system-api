@@ -19,5 +19,6 @@ public record TaskHistoryItemDto
     public DateTime AssignedAt { get; init; }
     public DateTime? CompletedAt { get; init; }
     public string? ActionTaken { get; init; }
+    public string Movement { get; init; } = "F";
     public string? Remark { get; init; }
 }
