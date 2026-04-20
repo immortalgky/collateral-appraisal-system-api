@@ -389,6 +389,17 @@ namespace Appraisal.infrastructure.Migrations
                     b.Property<string>("BankingSegment")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+                    
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CancelledBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Channel")
                         .HasMaxLength(100)
