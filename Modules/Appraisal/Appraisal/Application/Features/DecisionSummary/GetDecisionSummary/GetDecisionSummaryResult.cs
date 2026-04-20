@@ -14,10 +14,10 @@ public record GetDecisionSummaryResult(
     decimal GovernmentPriceTotalArea,
     decimal GovernmentPriceAvgPerSqWa,
 
-    // Review fields (read-only, calculated from stored TotalAppraisalPriceReview)
+    // Review fields (sourced from ValuationAnalyses — populated by event handler, overridden by Book Verification save)
     decimal? TotalAppraisalPriceReview,
     decimal? ForceSellingPriceReview,
-    decimal BuildingInsuranceReview,
+    decimal? BuildingInsuranceReview,
 
     // Committee Approval
     string? CommitteeName,

@@ -10,7 +10,10 @@ public class CompanyAppraisalSummaryConfiguration : IEntityTypeConfiguration<Com
     {
         builder.ToTable("CompanyAppraisalSummaries");
 
-        builder.HasKey(x => x.CompanyId);
+        builder.HasKey(x => new { x.CompanyId, x.Date });
+
+        builder.Property(x => x.Date)
+            .HasColumnType("date");
 
         builder.Property(x => x.CompanyName)
             .HasMaxLength(255);

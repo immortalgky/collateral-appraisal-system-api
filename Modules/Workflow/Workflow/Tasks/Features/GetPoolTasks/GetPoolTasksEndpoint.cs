@@ -16,7 +16,7 @@ public class GetPoolTasksEndpoint : ICarterModule
                     [FromQuery] string? taskName,
                     [FromQuery] string? sortBy,
                     [FromQuery] string? sortDir,
-                    [FromQuery] Guid? activityId,
+                    [FromQuery] string? activityId,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>

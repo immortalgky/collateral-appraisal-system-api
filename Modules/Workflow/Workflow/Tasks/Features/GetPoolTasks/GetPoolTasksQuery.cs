@@ -9,7 +9,7 @@ public record GetPoolTasksFilterRequest(
     string? TaskName = null,
     string? SortBy = null,
     string? SortDir = null,
-    Guid? ActivityId = null
+    string? ActivityId = null
 );
 
 public record GetPoolTasksQuery(

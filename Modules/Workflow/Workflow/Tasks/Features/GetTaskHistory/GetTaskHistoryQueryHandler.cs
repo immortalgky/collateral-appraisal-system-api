@@ -28,6 +28,7 @@ public class GetTaskHistoryQueryHandler(
             AssignedAt,
             CAST(NULL AS datetime2)     AS CompletedAt,
             CAST(NULL AS nvarchar(10))  AS ActionTaken,
+            Movement,
             CAST(NULL AS nvarchar(1000)) AS Remark
         FROM workflow.PendingTasks
         WHERE WorkflowInstanceId = @WorkflowInstanceId
@@ -43,6 +44,7 @@ public class GetTaskHistoryQueryHandler(
             AssignedAt,
             CompletedAt,
             ActionTaken,
+            Movement,
             Remark
         FROM workflow.CompletedTasks
         WHERE @CorrelationGuid IS NOT NULL
@@ -106,6 +108,7 @@ public class GetTaskHistoryQueryHandler(
                 AssignedAt = r.AssignedAt,
                 CompletedAt = r.CompletedAt,
                 ActionTaken = r.ActionTaken,
+                Movement = r.Movement,
                 Remark = r.Remark,
             };
         }).ToList();
@@ -123,6 +126,7 @@ public class GetTaskHistoryQueryHandler(
         public DateTime AssignedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
         public string? ActionTaken { get; set; }
+        public string Movement { get; set; } = "F";
         public string? Remark { get; set; }
     }
 }

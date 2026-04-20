@@ -41,12 +41,13 @@ public class GetPoolTasksQueryHandler(
         conditions.Add("AssignedType = @PoolAssignedType");
         parameters.Add("PoolAssignedType", "2");
 
-        // Pool tasks are assigned to a group (AssigneeUserId contains a group name)
+        // Pool tasks are assigned to one or more groups stored comma-separated in AssigneeUserId.
+        // Wrap both sides with commas so group names match exactly (e.g. "Admin" must not match "SuperAdmin").
         var groupConditions = new List<string>();
         for (var i = 0; i < userGroups.Count; i++)
         {
-            groupConditions.Add($"AssigneeUserId LIKE @Group{i}");
-            parameters.Add($"Group{i}", $"%{userGroups[i]}%");
+            groupConditions.Add($"',' + AssigneeUserId + ',' LIKE @Group{i}");
+            parameters.Add($"Group{i}", $"%,{userGroups[i]},%");
         }
 
         conditions.Add($"({string.Join(" OR ", groupConditions)})");
@@ -72,10 +73,10 @@ public class GetPoolTasksQueryHandler(
                 parameters.Add("TaskName", filter.TaskName);
             }
 
-            if (filter.ActivityId.HasValue)
+            if (!string.IsNullOrWhiteSpace(filter.ActivityId))
             {
                 conditions.Add("ActivityId = @ActivityId");
-                parameters.Add("ActivityId", filter.ActivityId.Value);
+                parameters.Add("ActivityId", filter.ActivityId);
             }
         }
 

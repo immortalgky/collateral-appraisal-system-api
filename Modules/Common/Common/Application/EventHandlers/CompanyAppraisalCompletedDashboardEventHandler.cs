@@ -75,18 +75,23 @@ public class CompanyAppraisalCompletedDashboardEventHandler(
 
         // MERGE (not plain UPDATE): if CompanyAssigned event hasn't been processed
         // yet for some reason, we still record the completion. CompanyName gets
-        // patched by the subsequent CompanyAssigned MERGE.
+        // patched by the subsequent CompanyAssigned MERGE on the same (CompanyId, Date).
         await connection.ExecuteAsync("""
             MERGE common.CompanyAppraisalSummaries AS target
-            USING (SELECT @CompanyId AS CompanyId) AS source
-            ON target.CompanyId = source.CompanyId
+            USING (SELECT @CompanyId AS CompanyId, @Date AS Date) AS source
+            ON target.CompanyId = source.CompanyId AND target.Date = source.Date
             WHEN MATCHED THEN
                 UPDATE SET CompletedCount = CompletedCount + 1, LastUpdatedAt = @Now
             WHEN NOT MATCHED THEN
-                INSERT (CompanyId, CompanyName, AssignedCount, CompletedCount, LastUpdatedAt)
-                VALUES (@CompanyId, N'(pending)', 0, 1, @Now);
+                INSERT (CompanyId, Date, CompanyName, AssignedCount, CompletedCount, LastUpdatedAt)
+                VALUES (@CompanyId, @Date, N'(pending)', 0, 1, @Now);
             """,
-            new { CompanyId = companyId, Now = dateTimeProvider.ApplicationNow });
+            new
+            {
+                CompanyId = companyId,
+                Date = message.OccurredOn.Date,
+                Now = dateTimeProvider.ApplicationNow
+            });
 
         logger.LogInformation(
             "Dashboard: CompanyAppraisalSummaries.CompletedCount incremented for CompanyId {CompanyId} (CorrelationId {CorrelationId})",

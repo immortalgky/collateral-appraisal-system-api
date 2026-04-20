@@ -59,18 +59,24 @@ public class PricingAnalysis : Aggregate<Guid>
         if (Status != "InProgress")
             throw new InvalidOperationException($"Cannot complete analysis in status '{Status}'");
 
-        FinalAppraisedValue = appraisedValue;
+        SetFinalAppraisedValueInternal(appraisedValue);
         Status = "Completed";
     }
 
     public void SetFinalValues(decimal appraisedValue)
     {
-        FinalAppraisedValue = appraisedValue;
+        SetFinalAppraisedValueInternal(appraisedValue);
     }
 
     public void ClearFinalValues()
     {
-        FinalAppraisedValue = null;
+        SetFinalAppraisedValueInternal(null);
+    }
+
+    private void SetFinalAppraisedValueInternal(decimal? value)
+    {
+        FinalAppraisedValue = value;
+        AddDomainEvent(new AppraisalFinalValuesChangedEvent(PropertyGroupId));
     }
 
     public void SetUseSystemCalc(bool value)

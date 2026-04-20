@@ -16,73 +16,37 @@ public class GetCompanyAppraisalSummaryQueryHandler(
     {
         var connection = connectionFactory.GetOpenConnection();
         var parameters = new DynamicParameters();
+        var conditions = new List<string>();
 
-        var companyId = currentUserService.CompanyId;
-
-        // When date params are provided, query source tables directly because the
-        // denormalized summary table (CompanyAppraisalSummaries) has no per-appraisal
-        // date column — only a rolling LastUpdatedAt.
-        if (query.From.HasValue || query.To.HasValue)
+        if (query.From.HasValue)
         {
-            var dateConditions = new List<string> { "a.IsDeleted = 0" };
-
-            if (query.From.HasValue)
-            {
-                dateConditions.Add("a.CreatedAt >= @From");
-                parameters.Add("From", query.From.Value.ToDateTime(TimeOnly.MinValue));
-            }
-
-            if (query.To.HasValue)
-            {
-                dateConditions.Add("a.CreatedAt < DATEADD(day, 1, @To)");
-                parameters.Add("To", query.To.Value.ToDateTime(TimeOnly.MinValue));
-            }
-
-            if (companyId.HasValue)
-            {
-                dateConditions.Add("aa.AssigneeCompanyId = CAST(@CompanyId AS nvarchar(450))");
-                parameters.Add("CompanyId", companyId.Value);
-            }
-
-            var whereClause = string.Join(" AND ", dateConditions);
-
-            var sourceSql = $"""
-                SELECT
-                    TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier) AS CompanyId,
-                    comp.Name                                           AS CompanyName,
-                    COUNT(*)                                            AS AssignedCount,
-                    SUM(CASE WHEN a.Status = 'Completed' THEN 1 ELSE 0 END) AS CompletedCount
-                FROM appraisal.Appraisals a
-                INNER JOIN (
-                    SELECT AppraisalId, AssigneeCompanyId,
-                           ROW_NUMBER() OVER (PARTITION BY AppraisalId ORDER BY CreatedAt DESC) AS rn
-                    FROM appraisal.AppraisalAssignments
-                    WHERE AssigneeCompanyId IS NOT NULL
-                      AND AssignmentStatus NOT IN ('Rejected', 'Cancelled')
-                ) aa ON aa.AppraisalId = a.Id AND aa.rn = 1
-                LEFT JOIN auth.Companies comp
-                    ON comp.Id = TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier)
-                WHERE {whereClause}
-                GROUP BY aa.AssigneeCompanyId, comp.Name
-                ORDER BY AssignedCount DESC
-                """;
-
-            var sourceItems = await connection.QueryAsync<CompanyAppraisalSummaryDto>(sourceSql, parameters);
-            return new GetCompanyAppraisalSummaryResult(sourceItems.ToList());
+            conditions.Add("Date >= @From");
+            parameters.Add("From", query.From.Value.ToDateTime(TimeOnly.MinValue));
         }
 
-        // Fast path: no date filter — use the pre-aggregated summary table.
-        var companyFilter = "";
+        if (query.To.HasValue)
+        {
+            conditions.Add("Date <= @To");
+            parameters.Add("To", query.To.Value.ToDateTime(TimeOnly.MinValue));
+        }
+
+        var companyId = currentUserService.CompanyId;
         if (companyId.HasValue)
         {
-            companyFilter = "WHERE CompanyId = @CompanyId";
+            conditions.Add("CompanyId = @CompanyId");
             parameters.Add("CompanyId", companyId.Value);
         }
 
+        var where = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
+
         var sql = $"""
-            SELECT CompanyId, CompanyName, AssignedCount, CompletedCount
+            SELECT CompanyId,
+                   COALESCE(MAX(CASE WHEN CompanyName <> N'(pending)' THEN CompanyName END), N'(pending)') AS CompanyName,
+                   SUM(AssignedCount)  AS AssignedCount,
+                   SUM(CompletedCount) AS CompletedCount
             FROM common.CompanyAppraisalSummaries
-            {companyFilter}
+            {where}
+            GROUP BY CompanyId
             ORDER BY AssignedCount DESC
             """;
 

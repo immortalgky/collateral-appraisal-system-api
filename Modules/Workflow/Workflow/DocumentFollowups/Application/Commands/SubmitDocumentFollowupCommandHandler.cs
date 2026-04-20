@@ -1,4 +1,3 @@
-using MediatR;
 using Request.Contracts.RequestDocuments;
 using Shared.Identity;
 using Workflow.DocumentFollowups.Domain;

@@ -24,6 +24,7 @@ internal class GetRequestByIdQueryHandler(RequestDbContext dbContext)
             Status = request.Status,
             Purpose = request.Purpose,
             Channel = request.Channel,
+            RequestedAt = request.RequestedAt,
             Requestor = new UserInfoDto(request.Requestor.UserId, request.Requestor.Username),
             Creator = new UserInfoDto(request.Creator.UserId, request.Creator.Username),
             Priority = request.Priority,
