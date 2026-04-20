@@ -27,6 +27,9 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
     // Activity process configuration (submission pipeline)
     public DbSet<ActivityProcessConfiguration> ActivityProcessConfigurations => Set<ActivityProcessConfiguration>();
 
+    // Per-completion execution trace
+    public DbSet<ActivityProcessExecution> ActivityProcessExecutions => Set<ActivityProcessExecution>();
+
     // Workflow support entities
     public DbSet<WorkflowOutbox> WorkflowOutboxes => Set<WorkflowOutbox>();
     public DbSet<WorkflowBookmark> WorkflowBookmarks => Set<WorkflowBookmark>();

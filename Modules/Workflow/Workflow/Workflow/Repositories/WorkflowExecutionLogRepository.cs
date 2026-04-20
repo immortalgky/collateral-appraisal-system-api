@@ -7,10 +7,12 @@ namespace Workflow.Workflow.Repositories;
 public class WorkflowExecutionLogRepository : IWorkflowExecutionLogRepository
 {
     private readonly WorkflowDbContext _context;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public WorkflowExecutionLogRepository(WorkflowDbContext context)
+    public WorkflowExecutionLogRepository(WorkflowDbContext context, IDateTimeProvider dateTimeProvider)
     {
         _context = context;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public async Task<List<WorkflowExecutionLog>> GetByWorkflowInstanceAsync(
@@ -194,7 +196,7 @@ public class WorkflowExecutionLogRepository : IWorkflowExecutionLogRepository
         TimeSpan retention, 
         CancellationToken cancellationToken = default)
     {
-        var cutoffDate = DateTime.UtcNow.Subtract(retention);
+        var cutoffDate = _dateTimeProvider.ApplicationNow.Subtract(retention);
         
         var oldLogs = await _context.WorkflowExecutionLogs
             .Where(l => l.OccurredAt <= cutoffDate)

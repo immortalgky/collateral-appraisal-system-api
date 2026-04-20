@@ -13,17 +13,20 @@ public class TwoPhaseExternalCallService : ITwoPhaseExternalCallService
     private readonly WorkflowDbContext _context;
     private readonly HttpClient _httpClient;
     private readonly IWorkflowResilienceService _resilienceService;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<TwoPhaseExternalCallService> _logger;
 
     public TwoPhaseExternalCallService(
         WorkflowDbContext context,
         HttpClient httpClient,
         IWorkflowResilienceService resilienceService,
+        IDateTimeProvider dateTimeProvider,
         ILogger<TwoPhaseExternalCallService> logger)
     {
         _context = context;
         _httpClient = httpClient;
         _resilienceService = resilienceService;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -226,7 +229,7 @@ public class TwoPhaseExternalCallService : ITwoPhaseExternalCallService
         // Placeholder for third-party API calls
         // This would implement specific API client logic
         await Task.Delay(100, cancellationToken); // Simulate API call
-        return new ExternalCallResult(true, JsonSerializer.Serialize(new { success = true, timestamp = DateTime.UtcNow }));
+        return new ExternalCallResult(true, JsonSerializer.Serialize(new { success = true, timestamp = _dateTimeProvider.ApplicationNow }));
     }
 
     private async Task<ExternalCallResult> ExecuteEmailService(

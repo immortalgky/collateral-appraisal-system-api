@@ -5,7 +5,7 @@ using Shared.Data;
 
 namespace Workflow.Workflow.Repositories;
 
-public class WorkflowInstanceRepository(WorkflowDbContext dbContext) : IWorkflowInstanceRepository
+public class WorkflowInstanceRepository(WorkflowDbContext dbContext, IDateTimeProvider dateTimeProvider) : IWorkflowInstanceRepository
 {
     public async Task<WorkflowInstance?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -158,7 +158,7 @@ public class WorkflowInstanceRepository(WorkflowDbContext dbContext) : IWorkflow
         int maxResults,
         CancellationToken cancellationToken = default)
     {
-        var cutoffTime = DateTime.UtcNow.Subtract(timeout);
+        var cutoffTime = dateTimeProvider.ApplicationNow.Subtract(timeout);
         return await dbContext.WorkflowInstances
             .Where(x => x.Status == WorkflowStatus.Running && x.StartedOn < cutoffTime)
             .OrderBy(x => x.StartedOn)

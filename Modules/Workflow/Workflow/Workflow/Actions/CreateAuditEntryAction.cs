@@ -10,10 +10,12 @@ namespace Workflow.Workflow.Actions;
 public class CreateAuditEntryAction : WorkflowActionBase
 {
     private readonly IAuditService _auditService;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public CreateAuditEntryAction(IAuditService auditService, ILogger<CreateAuditEntryAction> logger) : base(logger)
+    public CreateAuditEntryAction(IAuditService auditService, IDateTimeProvider dateTimeProvider, ILogger<CreateAuditEntryAction> logger) : base(logger)
     {
         _auditService = auditService;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public override string ActionType => "CreateAuditEntry";
@@ -51,7 +53,7 @@ public class CreateAuditEntryAction : WorkflowActionBase
                 ["description"] = resolvedDescription,
                 ["severity"] = severity,
                 ["category"] = category,
-                ["timestamp"] = DateTime.UtcNow,
+                ["timestamp"] = _dateTimeProvider.ApplicationNow,
                 ["assignee"] = context.CurrentAssignee ?? ""
             };
 
@@ -110,7 +112,7 @@ public class CreateAuditEntryAction : WorkflowActionBase
                 ["eventType"] = eventType,
                 ["message"] = resolvedMessage,
                 ["severity"] = severity,
-                ["timestamp"] = DateTime.UtcNow
+                ["timestamp"] = _dateTimeProvider.ApplicationNow
             };
 
             Logger.LogInformation("Successfully created audit entry for activity {ActivityId}: {EventType} - {Message}",

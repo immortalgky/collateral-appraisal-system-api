@@ -13,5 +13,6 @@ public record TaskAssignedEvent(
     string? WorkflowInstanceName = null,
     string? TaskDescription = null,
     string? CompletedBy = null,
-    string? AppraisalNumber = null
+    string? AppraisalNumber = null,
+    string Movement = "F"
 ) : IDomainEvent;

@@ -7,6 +7,7 @@ namespace Workflow.Tasks.EventHandlers;
 public class TaskAssignedEventHandler(
     IAssignmentRepository assignmentRepository,
     IPublishEndpoint publishEndpoint,
+    IDateTimeProvider dateTimeProvider,
     ILogger<TaskAssignedEventHandler> logger
 ) : INotificationHandler<TaskAssignedEvent>
 {
@@ -16,9 +17,12 @@ public class TaskAssignedEventHandler(
             "Handling TaskAssignedEvent for CorrelationId {CorrelationId}, TaskName {TaskName}, AssignedTo {AssignedTo}",
             notification.CorrelationId, notification.TaskName, notification.AssignedTo);
 
-        // Check for existing PendingTask for this correlation (previous workflow step)
-        var existingTask = await assignmentRepository.GetPendingTaskByCorrelationIdAsync(
-            notification.CorrelationId, cancellationToken);
+        // Check for existing PendingTask from the previous step of THIS workflow instance.
+        // Scope by WorkflowInstanceId (not CorrelationId) because multiple workflows can share
+        // the same CorrelationId — e.g. a document-followup child workflow inherits the parent
+        // appraisal's requestId — and we must not archive a sibling workflow's pending task.
+        var existingTask = await assignmentRepository.GetPendingTaskByWorkflowInstanceIdAsync(
+            notification.WorkflowInstanceId, cancellationToken);
 
         // Use CompletedBy from event (reliable), fall back to DB lookup (may be stale)
         string? previousAssignee = notification.CompletedBy ?? existingTask?.AssignedTo;
@@ -26,7 +30,7 @@ public class TaskAssignedEventHandler(
         if (existingTask is not null)
         {
             // Move previous step's task to CompletedTask as "Reassigned"
-            var completedTask = CompletedTask.CreateFromPendingTask(existingTask, "Reassigned", DateTime.UtcNow);
+            var completedTask = CompletedTask.CreateFromPendingTask(existingTask, "Reassigned", dateTimeProvider.ApplicationNow);
             await assignmentRepository.AddCompletedTaskAsync(completedTask, cancellationToken);
             await assignmentRepository.RemovePendingTaskAsync(existingTask, cancellationToken);
         }
@@ -41,7 +45,8 @@ public class TaskAssignedEventHandler(
             notification.WorkflowInstanceId,
             notification.ActivityId,
             notification.DueAt,
-            notification.TaskDescription);
+            notification.TaskDescription,
+            notification.Movement);
 
         await assignmentRepository.AddTaskAsync(pendingTask, cancellationToken);
 

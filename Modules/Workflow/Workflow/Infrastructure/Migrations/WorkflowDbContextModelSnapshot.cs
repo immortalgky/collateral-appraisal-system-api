@@ -161,13 +161,21 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
-                    b.Property<string>("Parameters")
+                    b.Property<byte>("Kind")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint")
+                        .HasDefaultValue((byte)0);
+
+                    b.Property<string>("ParametersJson")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ProcessorName")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RunIfExpression")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
@@ -188,6 +196,11 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<string>("UpdatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
                     b.HasKey("Id");
 
                     b.HasIndex("ActivityName")
@@ -197,6 +210,66 @@ namespace Workflow.Infrastructure.Migrations
                         .HasDatabaseName("IX_ActivityProcessConfigurations_Activity_Active_Sort");
 
                     b.ToTable("ActivityProcessConfigurations", "workflow");
+                });
+
+            modelBuilder.Entity("Workflow.Data.Entities.ActivityProcessExecution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<Guid?>("ConfigurationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ConfigurationVersion")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DurationMs")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<byte>("Kind")
+                        .HasColumnType("tinyint");
+
+                    b.Property<byte>("Outcome")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("ParametersJsonSnapshot")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RunIfExpressionSnapshot")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte?>("SkipReason")
+                        .HasColumnType("tinyint");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StepName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("WorkflowActivityExecutionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkflowInstanceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkflowActivityExecutionId")
+                        .HasDatabaseName("IX_ActivityProcessExecutions_WorkflowActivityExecutionId");
+
+                    b.ToTable("ActivityProcessExecutions", "workflow");
                 });
 
             modelBuilder.Entity("Workflow.Data.Entities.TaskAssignmentConfiguration", b =>
@@ -1391,7 +1464,7 @@ namespace Workflow.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)")
-                        .HasDefaultValue("Forward");
+                        .HasDefaultValue("F");
 
                     b.Property<string>("Remark")
                         .HasMaxLength(1000)
@@ -1476,7 +1549,7 @@ namespace Workflow.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)")
-                        .HasDefaultValue("Forward");
+                        .HasDefaultValue("F");
 
                     b.Property<DateTime?>("SlaBreachedAt")
                         .HasColumnType("datetime2");
@@ -1610,6 +1683,13 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<string>("InputData")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Movement")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)")
+                        .HasDefaultValue("F");
 
                     b.Property<string>("OutputData")
                         .IsRequired()

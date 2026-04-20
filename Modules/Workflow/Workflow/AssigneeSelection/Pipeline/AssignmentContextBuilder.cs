@@ -81,9 +81,9 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
         var executions = activityCtx.WorkflowInstance.ActivityExecutions;
 
         return executions
-            .Where(e => e.Status == ActivityExecutionStatus.Completed && !string.IsNullOrEmpty(e.AssignedTo))
+            .Where(e => e.Status == ActivityExecutionStatus.Completed && !string.IsNullOrEmpty(e.CompletedBy))
             .OrderByDescending(e => e.CompletedOn)
-            .Select(e => e.AssignedTo)
+            .Select(e => e.CompletedBy)
             .FirstOrDefault();
     }
 
@@ -91,7 +91,6 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
     {
         // Try to get assignmentRules from activity properties (parsed from JSON definition)
         if (activityCtx.Properties.TryGetValue("assignmentRules", out var rulesObj))
-        {
             try
             {
                 if (rulesObj is JsonElement jsonElement)
@@ -102,15 +101,14 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
                     if (jsonElement.TryGetProperty("teamConstrained", out var tc))
                         teamConstrained = tc.GetBoolean();
 
-                    if (jsonElement.TryGetProperty("excludeAssigneesFrom", out var ea) && ea.ValueKind == JsonValueKind.Array)
-                    {
+                    if (jsonElement.TryGetProperty("excludeAssigneesFrom", out var ea) &&
+                        ea.ValueKind == JsonValueKind.Array)
                         foreach (var item in ea.EnumerateArray())
                         {
                             var val = item.GetString();
                             if (!string.IsNullOrEmpty(val))
                                 excludeFrom.Add(val);
                         }
-                    }
 
                     return new ActivityAssignmentRules(teamConstrained, excludeFrom);
                 }
@@ -130,7 +128,6 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
             {
                 _logger.LogWarning(ex, "Failed to parse assignmentRules for {ActivityId}", activityCtx.ActivityId);
             }
-        }
 
         return ActivityAssignmentRules.Default;
     }
@@ -140,11 +137,10 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
         var map = new Dictionary<string, string>();
         var executions = activityCtx.WorkflowInstance.ActivityExecutions;
 
-        foreach (var exec in executions.Where(e => e.Status == ActivityExecutionStatus.Completed && !string.IsNullOrEmpty(e.AssignedTo)))
-        {
+        foreach (var exec in executions.Where(e =>
+                     e.Status == ActivityExecutionStatus.Completed && !string.IsNullOrEmpty(e.AssignedTo)))
             // Last completed assignee per activity wins
             map[exec.ActivityId] = exec.AssignedTo!;
-        }
 
         return map;
     }

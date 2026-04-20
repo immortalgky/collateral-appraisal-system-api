@@ -16,6 +16,9 @@ public record CancelDocumentFollowupRequest(string Reason);
 
 public record DeclineDocumentFollowupLineItemRequest(string Reason);
 
+public record SubmitDocumentFollowupRequest(
+    IReadOnlyList<SubmitFollowupAttachmentDto>? Attachments);
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 public class DocumentFollowupEndpoints : ICarterModule
@@ -69,9 +72,10 @@ public class DocumentFollowupEndpoints : ICarterModule
             .RequireAuthorization();
 
         app.MapPost($"{Base}/{{id:guid}}/submit", async (
-                Guid id, ISender sender, CancellationToken ct) =>
+                Guid id, SubmitDocumentFollowupRequest? body, ISender sender, CancellationToken ct) =>
             {
-                await sender.Send(new SubmitDocumentFollowupCommand(id), ct);
+                var attachments = body?.Attachments ?? new List<SubmitFollowupAttachmentDto>();
+                await sender.Send(new SubmitDocumentFollowupCommand(id, attachments), ct);
                 return Results.NoContent();
             })
             .WithName("SubmitDocumentFollowup")

@@ -8,6 +8,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shared.Time;
 using Workflow.Workflow.Engine.Core;
 using Xunit;
 using System.Diagnostics;
@@ -57,6 +58,10 @@ public class WorkflowCheckpointPerformanceTests
                         definitionId, 1, "t", "t", "{}", "c", "tester"));
             });
 
+        var dateTimeProvider = Substitute.For<IDateTimeProvider>();
+        dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+        dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+
         _workflowEngine = new WorkflowEngine(
             _activityFactory,
             _flowControlManager,
@@ -64,6 +69,7 @@ public class WorkflowCheckpointPerformanceTests
             _persistenceService,
             _stateManager,
             versionRepository,
+            dateTimeProvider,
             _logger);
     }
 

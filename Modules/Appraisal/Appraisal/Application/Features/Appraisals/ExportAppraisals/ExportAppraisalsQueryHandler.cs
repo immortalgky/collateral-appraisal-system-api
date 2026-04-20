@@ -4,6 +4,7 @@ using ClosedXML.Excel;
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Appraisals.ExportAppraisals;
 
@@ -12,7 +13,8 @@ namespace Appraisal.Application.Features.Appraisals.ExportAppraisals;
 /// Applies the same filters as the list query but returns ALL matching rows (up to MaxExportRows).
 /// </summary>
 public class ExportAppraisalsQueryHandler(
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    IDateTimeProvider dateTimeProvider
 ) : IQueryHandler<ExportAppraisalsQuery, ExportAppraisalsResult>
 {
     private const int MaxExportRows = 10_000;
@@ -33,7 +35,7 @@ public class ExportAppraisalsQueryHandler(
         byte[] fileBytes;
         string contentType;
         string fileName;
-        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+        var timestamp = dateTimeProvider.ApplicationNow.ToString("yyyyMMdd-HHmmss");
 
         if (string.Equals(query.Format, "csv", StringComparison.OrdinalIgnoreCase))
         {

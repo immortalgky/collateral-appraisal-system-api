@@ -24,6 +24,7 @@ public class TaskActivity : WorkflowActivityBase
     private readonly ISlaCalculator _slaCalculator;
     private readonly IPublisher _publisher;
     private readonly ExpressionEvaluator _expressionEvaluator;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<TaskActivity> _logger;
 
     public TaskActivity(
@@ -34,6 +35,7 @@ public class TaskActivity : WorkflowActivityBase
         IWorkflowAuditService auditService,
         ISlaCalculator slaCalculator,
         IPublisher publisher,
+        IDateTimeProvider dateTimeProvider,
         ILogger<TaskActivity> logger)
     {
         _assignmentPipeline = assignmentPipeline;
@@ -44,6 +46,7 @@ public class TaskActivity : WorkflowActivityBase
         _slaCalculator = slaCalculator;
         _publisher = publisher;
         _expressionEvaluator = new ExpressionEvaluator();
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -59,14 +62,13 @@ public class TaskActivity : WorkflowActivityBase
             var workflowDefinitionId = context.WorkflowInstance.WorkflowDefinitionId.ToString();
             var activityName = GetProperty(context, "activityName", context.ActivityId);
             var assigneeGroup = GetProperty<string>(context, "assigneeGroup")
-                                ?? GetProperty<string>(context, "assigneeRole"); // backwards compat for in-flight workflows
+                                ?? GetProperty<string>(context,
+                                    "assigneeRole"); // backwards compat for in-flight workflows
 
             // System task: skip assignment pipeline, assign to "SYSTEM" sentinel
             var taskType = GetProperty(context, "taskType", "human");
             if (taskType.Equals("system", StringComparison.OrdinalIgnoreCase))
-            {
                 return await ExecuteSystemTaskAsync(context, activityName, assigneeGroup, cancellationToken);
-            }
 
             // Pre-pipeline Step 1: Try custom assignment service (highest priority)
             var customServiceName = GetProperty<string>(context, "customAssignmentService");
@@ -124,8 +126,11 @@ public class TaskActivity : WorkflowActivityBase
             // Publish domain event — assignedType: "1" = specific person, "2" = pool
             var assignedType = assignmentResult.Metadata?.TryGetValue("AssignedType", out var metaType) == true
                 ? metaType?.ToString() ?? "1"
-                : string.IsNullOrEmpty(assignmentResult.AssigneeId) ? "2" : "1";
-            await PublishTaskAssignedEventAsync(context, assignmentResult.AssigneeId, assignedType, cancellationToken, previousAssignee);
+                : string.IsNullOrEmpty(assignmentResult.AssigneeId)
+                    ? "2"
+                    : "1";
+            await PublishTaskAssignedEventAsync(context, assignmentResult.AssigneeId, assignedType, cancellationToken,
+                previousAssignee);
 
             var outputData = new Dictionary<string, object>
             {
@@ -185,9 +190,7 @@ public class TaskActivity : WorkflowActivityBase
             // onto CompletedTask.Remark. `comments` is on the reserved-key denylist below, so the
             // generic input-passthrough loop will skip it — we have to handle it explicitly here.
             if (resumeInput.TryGetValue("comments", out var commentsValue))
-            {
                 outputData[$"{NormalizeActivityId(context.ActivityId)}_comments"] = commentsValue;
-            }
 
             // Process all input data using inputMappings (unified approach)
             foreach (var kvp in resumeInput)
@@ -232,7 +235,7 @@ public class TaskActivity : WorkflowActivityBase
                 outputData[$"{NormalizeActivityId(context.ActivityId)}_decisionTaken"] = "completed";
 
             // Evaluate decision conditions if configured (new conditional decision feature)
-            var decisionConditions = GetProperty<Dictionary<string, string>>(context, "decisionConditions");
+            var decisionConditions = GetProperty<Dictionary<string, string>>(context, "decisionConditions", []);
             if (decisionConditions.Any())
             {
                 var evaluatedDecision = EvaluateDecisionConditions(decisionConditions, outputData, context);
@@ -625,25 +628,32 @@ public class TaskActivity : WorkflowActivityBase
 
         // Use CorrelationId if available, otherwise fall back to WorkflowInstance.Id
         var correlationGuid = !string.IsNullOrEmpty(context.WorkflowInstance.CorrelationId)
-            && Guid.TryParse(context.WorkflowInstance.CorrelationId, out var parsed)
-                ? parsed
-                : context.WorkflowInstance.Id;
+                              && Guid.TryParse(context.WorkflowInstance.CorrelationId, out var parsed)
+            ? parsed
+            : context.WorkflowInstance.Id;
 
         // Calculate SLA deadline
         var companyId = context.WorkflowInstance.Variables.TryGetValue("assignedCompanyId", out var cid)
-            && Guid.TryParse(cid?.ToString(), out var parsedCid) ? parsedCid : (Guid?)null;
+                        && Guid.TryParse(cid?.ToString(), out var parsedCid)
+            ? parsedCid
+            : (Guid?)null;
         var loanType = context.WorkflowInstance.Variables.TryGetValue("loanType", out var lt)
-            ? lt?.ToString() : null;
+            ? lt?.ToString()
+            : null;
         // Parse timeoutDuration from activity properties (ISO 8601 duration, e.g., "PT72H")
         TimeSpan? defaultTimeout = null;
         if (context.Properties.TryGetValue("timeoutDuration", out var td))
         {
             var tdStr = td?.ToString();
             if (!string.IsNullOrEmpty(tdStr))
-            {
-                try { defaultTimeout = System.Xml.XmlConvert.ToTimeSpan(tdStr); }
-                catch { /* ignore invalid format, SLA config table will be used instead */ }
-            }
+                try
+                {
+                    defaultTimeout = System.Xml.XmlConvert.ToTimeSpan(tdStr);
+                }
+                catch
+                {
+                    /* ignore invalid format, SLA config table will be used instead */
+                }
         }
 
         var dueAt = await _slaCalculator.CalculateActivityDueAtAsync(
@@ -651,7 +661,7 @@ public class TaskActivity : WorkflowActivityBase
             context.WorkflowInstance.WorkflowDefinitionId,
             companyId,
             loanType,
-            DateTime.UtcNow,
+            _dateTimeProvider.ApplicationNow,
             defaultTimeout,
             context.WorkflowInstance.WorkflowDueAt,
             cancellationToken);
@@ -666,9 +676,9 @@ public class TaskActivity : WorkflowActivityBase
 
         await _publisher.Publish(
             new TaskAssignedEvent(correlationGuid, taskName, assigneeId ?? "", assignedType ?? "",
-                DateTime.UtcNow, context.WorkflowInstanceId, context.ActivityId, dueAt,
+                _dateTimeProvider.ApplicationNow, context.WorkflowInstanceId, context.ActivityId, dueAt,
                 context.WorkflowInstance.StartedBy, context.WorkflowInstance.Name,
-                context.ActivityName, completedBy, appraisalNumber),
+                context.ActivityName, completedBy, appraisalNumber, context.Movement),
             cancellationToken);
     }
 
@@ -680,9 +690,9 @@ public class TaskActivity : WorkflowActivityBase
 
         // Use CorrelationId if available, otherwise fall back to WorkflowInstance.Id
         var correlationGuid = !string.IsNullOrEmpty(context.WorkflowInstance.CorrelationId)
-            && Guid.TryParse(context.WorkflowInstance.CorrelationId, out var parsed)
-                ? parsed
-                : context.WorkflowInstance.Id;
+                              && Guid.TryParse(context.WorkflowInstance.CorrelationId, out var parsed)
+            ? parsed
+            : context.WorkflowInstance.Id;
 
         var activityKey = $"{NormalizeActivityId(context.ActivityId)}_decisionTaken";
         var actionTaken = outputData.TryGetValue(activityKey, out var decisionTaken)
@@ -693,10 +703,7 @@ public class TaskActivity : WorkflowActivityBase
         var remark = outputData.TryGetValue(commentsKey, out var commentsValue)
             ? commentsValue?.ToString()
             : null;
-        if (string.IsNullOrWhiteSpace(remark))
-        {
-            remark = null;
-        }
+        if (string.IsNullOrWhiteSpace(remark)) remark = null;
 
         // Pass CompletedBy for pool task implicit assignment
         var completedBy = context.WorkflowInstance.CurrentAssignee;
@@ -705,9 +712,16 @@ public class TaskActivity : WorkflowActivityBase
             ? appraisalNumObj?.ToString()
             : null;
 
+        // Resolve movement from the action taken. Stamp it on the current activity's
+        // execution row so the next activity (read from the last completed execution by
+        // WorkflowExecutionContext) inherits the same direction onto its PendingTask.
+        var movement = ResolveActionMovement(context, actionTaken);
+        FindActivityExecution(context)?.StampMovement(movement);
+
         await _publisher.Publish(
-            new TaskCompletedDomainEvent(correlationGuid, taskName, actionTaken, DateTime.UtcNow, completedBy,
-                context.WorkflowInstance.Name, remark, appraisalNumber),
+            new TaskCompletedDomainEvent(correlationGuid, taskName, actionTaken, _dateTimeProvider.ApplicationNow,
+                completedBy,
+                context.WorkflowInstance.Name, remark, appraisalNumber, movement),
             cancellationToken);
     }
 

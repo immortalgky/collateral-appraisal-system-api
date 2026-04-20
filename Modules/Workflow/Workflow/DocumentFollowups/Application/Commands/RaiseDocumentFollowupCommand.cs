@@ -6,6 +6,6 @@ public record RaiseDocumentFollowupCommand(
     Guid RaisingWorkflowInstanceId,
     Guid RaisingPendingTaskId,
     IReadOnlyList<RaiseDocumentFollowupLineItemDto> LineItems
-) : ICommand<RaiseDocumentFollowupResult>;
+) : ICommand<RaiseDocumentFollowupResult>, ITransactionalCommand<IWorkflowUnitOfWork>;
 
 public record RaiseDocumentFollowupResult(Guid FollowupId, Guid FollowupWorkflowInstanceId);

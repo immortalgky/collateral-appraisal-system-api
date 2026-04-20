@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Workflow.Data.Entities;
 using Workflow.Workflow.Engine.Expression;
 
 namespace Workflow.Workflow.Pipeline.Steps;
@@ -13,23 +14,35 @@ public class ValidateDecisionConstraintsStep(
     IExpressionEvaluator expressionEvaluator,
     ILogger<ValidateDecisionConstraintsStep> logger) : IActivityProcessStep
 {
-    public string Name => "ValidateDecisionConstraints";
-
-    public Task<ProcessStepResult> ExecuteAsync(ProcessStepContext context, CancellationToken ct)
+    public sealed record Parameters
     {
-        if (string.IsNullOrWhiteSpace(context.Parameters))
-            return Task.FromResult(ProcessStepResult.Ok());
+        /// <summary>Name of the input field carrying the decision value (e.g., "decision").</summary>
+        public string DecisionField { get; init; } = "decision";
 
-        var parameters = JsonSerializer.Deserialize<JsonElement>(context.Parameters);
+        /// <summary>
+        /// Map of decision value → constraint expression.
+        /// e.g. {"INT": "workflow.variables.facilityLimit &lt;= 50000000"}
+        /// </summary>
+        public Dictionary<string, string>? Constraints { get; init; }
+    }
 
-        if (!parameters.TryGetProperty("decisionField", out var decisionFieldElement))
-            return Task.FromResult(ProcessStepResult.Ok());
+    public StepDescriptor Descriptor { get; } = StepDescriptor.For<Parameters>(
+        name: "ValidateDecisionConstraints",
+        displayName: "Validate Decision Constraints",
+        kind: StepKind.Validation,
+        description: "Blocks a decision value when its associated constraint expression is not satisfied.");
 
-        var decisionField = decisionFieldElement.GetString()!;
+    public Task<ProcessStepResult> ExecuteAsync(ProcessStepContext ctx, CancellationToken ct)
+    {
+        var p = ctx.GetParameters<Parameters>();
 
-        // Get the decision value from input
-        if (!context.Input.TryGetValue(decisionField, out var rawDecision))
-            return Task.FromResult(ProcessStepResult.Ok());
+        if (p.Constraints is null || p.Constraints.Count == 0)
+            return Task.FromResult(ProcessStepResult.Pass());
+
+        var decisionField = p.DecisionField;
+
+        if (!ctx.Input.TryGetValue(decisionField, out var rawDecision))
+            return Task.FromResult(ProcessStepResult.Pass());
 
         var decision = rawDecision switch
         {
@@ -39,22 +52,16 @@ public class ValidateDecisionConstraintsStep(
         };
 
         if (string.IsNullOrEmpty(decision))
-            return Task.FromResult(ProcessStepResult.Ok());
+            return Task.FromResult(ProcessStepResult.Pass());
 
-        // Look up constraint for this decision value
-        if (!parameters.TryGetProperty("constraints", out var constraints)
-            || !constraints.TryGetProperty(decision, out var constraintElement))
-        {
-            // No constraint defined for this decision — allow it
-            return Task.FromResult(ProcessStepResult.Ok());
-        }
+        if (!p.Constraints.TryGetValue(decision, out var expression))
+            return Task.FromResult(ProcessStepResult.Pass());
 
-        var expression = constraintElement.GetString();
         if (string.IsNullOrWhiteSpace(expression))
-            return Task.FromResult(ProcessStepResult.Ok());
+            return Task.FromResult(ProcessStepResult.Pass());
 
-        // Evaluate the constraint expression against workflow variables
-        var variables = context.Variables ?? new Dictionary<string, object>();
+        // Convert the read-only variables dict back to mutable for the legacy evaluator
+        var variables = ctx.Variables.ToDictionary(kv => kv.Key, kv => kv.Value ?? (object)"");
 
         try
         {
@@ -64,22 +71,22 @@ public class ValidateDecisionConstraintsStep(
             {
                 logger.LogWarning(
                     "Decision constraint failed for activity {ActivityName}: decision '{Decision}' blocked by '{Expression}'",
-                    context.ActivityName, decision, expression);
+                    ctx.ActivityName, decision, expression);
 
-                return Task.FromResult(
-                    ProcessStepResult.Fail($"Decision '{decision}' is not allowed: constraint '{expression}' not met"));
+                return Task.FromResult(ProcessStepResult.Fail(
+                    "DECISION_CONSTRAINT_FAILED",
+                    $"Decision '{decision}' is not allowed: constraint '{expression}' not met"));
             }
 
-            return Task.FromResult(ProcessStepResult.Ok());
+            return Task.FromResult(ProcessStepResult.Pass());
         }
         catch (Exception ex)
         {
             logger.LogError(ex,
                 "Failed to evaluate decision constraint '{Expression}' for activity {ActivityName}",
-                expression, context.ActivityName);
+                expression, ctx.ActivityName);
 
-            return Task.FromResult(
-                ProcessStepResult.Fail($"Failed to evaluate constraint: {ex.Message}"));
+            return Task.FromResult(ProcessStepResult.Error(ex));
         }
     }
 }

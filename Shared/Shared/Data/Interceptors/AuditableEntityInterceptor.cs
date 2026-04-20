@@ -31,14 +31,14 @@ public class AuditableEntityInterceptor(IDateTimeProvider dateTimeProvider, ICur
         {
             if (entry.State == EntityState.Added)
             {
-                entry.Entity.CreatedAt = dateTimeProvider.Now;
+                entry.Entity.CreatedAt = dateTimeProvider.ApplicationNow;
                 entry.Entity.CreatedBy = currentUserService.Username ?? "anonymous";
             }
 
             if (entry.State == EntityState.Added || entry.State == EntityState.Modified ||
                 entry.HasChangedOwnedEntities())
             {
-                entry.Entity.UpdatedAt = dateTimeProvider.Now;
+                entry.Entity.UpdatedAt = dateTimeProvider.ApplicationNow;
                 entry.Entity.UpdatedBy = currentUserService.Username ?? "anonymous";
             }
         }

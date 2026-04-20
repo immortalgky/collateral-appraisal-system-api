@@ -7,29 +7,32 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj"/>
-        <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
-        <ProjectReference Include="..\..\Appraisal\Appraisal.Contracts\Appraisal.Contracts.csproj"/>
-        <ProjectReference Include="..\..\Auth\Auth\Auth.csproj"/>
-        <ProjectReference Include="..\..\Auth\Auth.Contracts\Auth.Contracts.csproj"/>
+        <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj" />
+        <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj" />
+        <ProjectReference Include="..\..\Appraisal\Appraisal.Contracts\Appraisal.Contracts.csproj" />
+        <ProjectReference Include="..\..\Auth\Auth\Auth.csproj" />
+        <ProjectReference Include="..\..\Auth\Auth.Contracts\Auth.Contracts.csproj" />
+        <ProjectReference Include="..\..\Request\Request.Contracts\Request.Contracts.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Infrastructure\Seed\"/>
+        <Folder Include="Infrastructure\Seed\" />
     </ItemGroup>
 
     <ItemGroup>
-        <EmbeddedResource Include="Workflow\Config\appraisal-workflow.json"/>
-        <EmbeddedResource Include="Workflow\Config\document-followup-workflow.json"/>
+        <EmbeddedResource Include="Workflow\Config\appraisal-workflow.json" />
+        <EmbeddedResource Include="Workflow\Config\document-followup-workflow.json" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.11.0"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0"/>
-        <PackageReference Include="Microsoft.Extensions.Resilience" Version="9.8.0"/>
-        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.8.0"/>
-        <PackageReference Include="Polly" Version="8.0.0"/>
-        <PackageReference Include="YamlDotNet" Version="16.1.3"/>
+        <PackageReference Include="Jint" Version="4.1.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.11.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
+        <PackageReference Include="Microsoft.Extensions.Resilience" Version="9.8.0" />
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.8.0" />
+        <PackageReference Include="NJsonSchema" Version="11.1.0" />
+        <PackageReference Include="Polly" Version="8.0.0" />
+        <PackageReference Include="YamlDotNet" Version="16.1.3" />
 
         <!-- OpenTelemetry packages come transitively via Shared -->
     </ItemGroup>

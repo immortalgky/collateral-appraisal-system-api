@@ -7,10 +7,12 @@ namespace Workflow.Workflow.Repositories;
 public class WorkflowOutboxRepository : IWorkflowOutboxRepository
 {
     private readonly WorkflowDbContext _context;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public WorkflowOutboxRepository(WorkflowDbContext context)
+    public WorkflowOutboxRepository(WorkflowDbContext context, IDateTimeProvider dateTimeProvider)
     {
         _context = context;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public async Task<WorkflowOutbox?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -24,8 +26,8 @@ public class WorkflowOutboxRepository : IWorkflowOutboxRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.WorkflowOutboxes
-            .Where(o => o.Status == OutboxStatus.Pending && 
-                       (o.NextAttemptAt == null || o.NextAttemptAt <= DateTime.UtcNow))
+            .Where(o => o.Status == OutboxStatus.Pending &&
+                       (o.NextAttemptAt == null || o.NextAttemptAt <= _dateTimeProvider.ApplicationNow))
             .OrderBy(o => o.OccurredAt)
             .Take(maxCount)
             .ToListAsync(cancellationToken);
@@ -39,7 +41,7 @@ public class WorkflowOutboxRepository : IWorkflowOutboxRepository
         return await _context.WorkflowOutboxes
             .Where(o => o.Status == OutboxStatus.Failed && 
                        o.Attempts < maxRetries &&
-                       (o.NextAttemptAt == null || o.NextAttemptAt <= DateTime.UtcNow))
+                       (o.NextAttemptAt == null || o.NextAttemptAt <= _dateTimeProvider.ApplicationNow))
             .OrderBy(o => o.NextAttemptAt ?? o.OccurredAt)
             .Take(maxCount)
             .ToListAsync(cancellationToken);
@@ -235,7 +237,7 @@ public class WorkflowOutboxRepository : IWorkflowOutboxRepository
         TimeSpan retention, 
         CancellationToken cancellationToken = default)
     {
-        var cutoffDate = DateTime.UtcNow.Subtract(retention);
+        var cutoffDate = _dateTimeProvider.ApplicationNow.Subtract(retention);
         
         var processedEvents = await _context.WorkflowOutboxes
             .Where(o => o.Status == OutboxStatus.Processed && 

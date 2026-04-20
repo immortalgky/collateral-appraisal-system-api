@@ -23,11 +23,15 @@ public class TimerActivity : WorkflowActivityBase
     public string? TimerName { get; set; }
     public bool AllowEarlyCancellation { get; set; } = true;
 
+    private readonly IDateTimeProvider _dateTimeProvider;
+
     public TimerActivity(
         IWorkflowBookmarkService bookmarkService,
+        IDateTimeProvider dateTimeProvider,
         ILogger<TimerActivity> logger)
     {
         _bookmarkService = bookmarkService;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -47,17 +51,17 @@ public class TimerActivity : WorkflowActivityBase
             }
             else
             {
-                targetTime = DateTime.UtcNow.Add(Duration);
+                targetTime = _dateTimeProvider.ApplicationNow.Add(Duration);
                 _logger.LogInformation("Timer scheduled for duration: {Duration} (target: {TargetTime})", Duration, targetTime);
             }
 
             // Check if the target time has already passed
-            if (targetTime <= DateTime.UtcNow)
+            if (targetTime <= _dateTimeProvider.ApplicationNow)
             {
                 _logger.LogInformation("Timer target time already passed, completing immediately");
                 return ActivityResult.Success(new Dictionary<string, object>
                 {
-                    ["CompletedAt"] = DateTime.UtcNow,
+                    ["CompletedAt"] = _dateTimeProvider.ApplicationNow,
                     ["WasDelayed"] = false
                 });
             }

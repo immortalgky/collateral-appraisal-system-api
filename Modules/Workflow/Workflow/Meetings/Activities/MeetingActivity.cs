@@ -16,15 +16,18 @@ public class MeetingActivity : WorkflowActivityBase
 {
     private readonly WorkflowDbContext _dbContext;
     private readonly IPublisher _publisher;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<MeetingActivity> _logger;
 
     public MeetingActivity(
         WorkflowDbContext dbContext,
         IPublisher publisher,
+        IDateTimeProvider dateTimeProvider,
         ILogger<MeetingActivity> logger)
     {
         _dbContext = dbContext;
         _publisher = publisher;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -81,7 +84,7 @@ public class MeetingActivity : WorkflowActivityBase
             var outputData = new Dictionary<string, object>
             {
                 [$"{NormalizeActivityId(context.ActivityId)}_awaitingMeeting"] = true,
-                [$"{NormalizeActivityId(context.ActivityId)}_enqueuedAt"] = DateTime.UtcNow
+                [$"{NormalizeActivityId(context.ActivityId)}_enqueuedAt"] = _dateTimeProvider.ApplicationNow
             };
 
             return ActivityResult.Pending(outputData);

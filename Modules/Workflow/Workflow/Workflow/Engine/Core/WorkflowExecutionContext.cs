@@ -48,8 +48,27 @@ public class WorkflowExecutionContext
             InputData = new Dictionary<string, object>(),
             CurrentAssignee = WorkflowInstance.CurrentAssignee,
             WorkflowInstance = WorkflowInstance,
-            RuntimeOverrides = activityRuntimeOverride
+            RuntimeOverrides = activityRuntimeOverride,
+            Movement = ResolveIncomingMovement()
         };
+    }
+
+    private string ResolveIncomingMovement()
+    {
+        // The movement for this activity comes from the most recently completed execution
+        // within this workflow instance. System activities (Routing, Switch, etc.) inherit
+        // movement at creation in WorkflowActivityBase.ExecuteAsync, so the chain survives
+        // even when non-human activities sit between route-back and the next task.
+        //
+        // TODO: not fork-safe. Parallel branches can each have a completed execution and
+        // OrderByDescending(CompletedOn) is nondeterministic when timestamps are close.
+        // Once ForkActivity writes a BranchId per execution, filter by the current branch.
+        var lastCompleted = WorkflowInstance.ActivityExecutions
+            .Where(e => e.Status == ActivityExecutionStatus.Completed)
+            .OrderByDescending(e => e.CompletedOn)
+            .FirstOrDefault();
+
+        return string.IsNullOrWhiteSpace(lastCompleted?.Movement) ? "F" : lastCompleted!.Movement;
     }
 
     /// <summary>

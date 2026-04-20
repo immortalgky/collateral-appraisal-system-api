@@ -12,4 +12,5 @@ public record TaskCompletedIntegrationEvent : IntegrationEvent
     public bool WasStarted { get; init; }
     public bool WasOverdue { get; init; }
     public string OriginalAssignedTo { get; init; } = default!;
+    public string Movement { get; init; } = "F";
 }

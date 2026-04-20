@@ -12,14 +12,17 @@ public class ConditionalAction : WorkflowActionBase
 {
     private readonly IWorkflowActionExecutor _actionExecutor;
     private readonly IWorkflowExpressionEvaluator _expressionEvaluator;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
     public ConditionalAction(
         IWorkflowActionExecutor actionExecutor,
         IWorkflowExpressionEvaluator expressionEvaluator,
+        IDateTimeProvider dateTimeProvider,
         ILogger<ConditionalAction> logger) : base(logger)
     {
         _actionExecutor = actionExecutor;
         _expressionEvaluator = expressionEvaluator;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public override string ActionType => "ConditionalAction";
@@ -128,7 +131,7 @@ public class ConditionalAction : WorkflowActionBase
                     evaluatedValue = r.EvaluatedValue,
                     error = r.ErrorMessage
                 }).ToList(),
-                ["executionTimestamp"] = DateTime.UtcNow
+                ["executionTimestamp"] = _dateTimeProvider.ApplicationNow
             };
 
             // Include detailed results if not too many

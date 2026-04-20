@@ -14,4 +14,12 @@ public class ActivityContext
     public CancellationToken CancellationToken { get; init; }
     public WorkflowInstance WorkflowInstance { get; init; } = default!;
     public RuntimeOverride? RuntimeOverrides { get; init; }
+
+    /// <summary>
+    /// Movement stamp inherited from the previous completed activity execution.
+    /// "F" = Forward (default), "B" = Backward (route-back). The engine sets this when it
+    /// builds the context; activities pass it through to PendingTask.Movement via the
+    /// TaskAssigned / ApprovalTasksAssigned events.
+    /// </summary>
+    public string Movement { get; init; } = "F";
 }

@@ -19,14 +19,13 @@ public class DeclineLineItemCommandHandler(
             throw new ArgumentException("Reason is required to decline a line item");
 
         var followup = await dbContext.DocumentFollowups
-            .FirstOrDefaultAsync(f => f.Id == command.FollowupId, cancellationToken)
-            ?? throw new InvalidOperationException($"Document followup {command.FollowupId} not found");
+                           .FirstOrDefaultAsync(f => f.Id == command.FollowupId, cancellationToken)
+                       ?? throw new InvalidOperationException($"Document followup {command.FollowupId} not found");
 
         if (followup.Status != DocumentFollowupStatus.Open)
             throw new InvalidOperationException("Followup is not open");
 
-        var actor = currentUser.UserId?.ToString() ?? currentUser.Username
-            ?? throw new InvalidOperationException("User not authenticated");
+        var actor = currentUser.Username ?? throw new InvalidOperationException("User not authenticated");
 
         // Fail closed: if the followup workflow has not yet been attached (race with Raise
         // handler), we cannot validate authorization. Reject rather than silently permitting
@@ -35,15 +34,14 @@ public class DeclineLineItemCommandHandler(
             throw new InvalidOperationException("Followup not fully provisioned");
 
         var fwInstance = await dbContext.WorkflowInstances
-            .AsNoTracking()
-            .FirstOrDefaultAsync(w => w.Id == followup.FollowupWorkflowInstanceId.Value, cancellationToken)
-            ?? throw new InvalidOperationException("Followup workflow instance not found");
+                             .AsNoTracking()
+                             .FirstOrDefaultAsync(w => w.Id == followup.FollowupWorkflowInstanceId.Value,
+                                 cancellationToken)
+                         ?? throw new InvalidOperationException("Followup workflow instance not found");
 
         if (!string.Equals(fwInstance.StartedBy, actor, StringComparison.OrdinalIgnoreCase))
-        {
             throw new UnauthorizedAccessException(
                 "Only the request maker assigned to this followup can decline line items");
-        }
 
         followup.DeclineLineItem(command.LineItemId, command.Reason);
         await dbContext.SaveChangesAsync(cancellationToken);

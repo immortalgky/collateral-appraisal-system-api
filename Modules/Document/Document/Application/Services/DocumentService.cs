@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Shared.Configurations;
 using Shared.Data;
 using Shared.Identity;
+using Shared.Time;
 
 namespace Document.Services;
 
@@ -15,7 +16,8 @@ public class DocumentService(
     IDocumentUnitOfWork uow,
     IWebHostEnvironment webHostEnvironment,
     IOptions<FileStorageConfiguration> fileStorageOptions,
-    ILogger<DocumentService> logger)
+    ILogger<DocumentService> logger,
+    IDateTimeProvider dateTimeProvider)
     : IDocumentService
 {
     private readonly FileStorageConfiguration _fileStorageConfiguration = fileStorageOptions.Value;
@@ -90,7 +92,7 @@ public class DocumentService(
             storageUrl,
             username,
             username,
-            DateTime.UtcNow,
+            dateTimeProvider.ApplicationNow,
             description,
             null,
             null,

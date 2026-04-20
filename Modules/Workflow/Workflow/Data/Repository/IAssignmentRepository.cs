@@ -10,6 +10,9 @@ public interface IAssignmentRepository
     Task<PendingTask?> GetPendingTaskByCorrelationIdAsync(Guid correlationId,
         CancellationToken cancellationToken = default);
 
+    Task<PendingTask?> GetPendingTaskByWorkflowInstanceIdAsync(Guid workflowInstanceId,
+        CancellationToken cancellationToken = default);
+
     Task AddTaskAsync(PendingTask pendingTask, CancellationToken cancellationToken = default);
     Task AddCompletedTaskAsync(CompletedTask completedTask, CancellationToken cancellationToken = default);
     Task RemovePendingTaskAsync(PendingTask pendingTask, CancellationToken cancellationToken = default);
@@ -32,5 +35,8 @@ public interface IAssignmentRepository
         CancellationToken cancellationToken = default);
 
     Task<List<PendingTask>> GetPendingTasksByCorrelationIdAsync(Guid correlationId,
+        CancellationToken cancellationToken = default);
+
+    Task<List<PendingTask>> GetPendingTasksByWorkflowInstanceIdAsync(Guid workflowInstanceId,
         CancellationToken cancellationToken = default);
 }

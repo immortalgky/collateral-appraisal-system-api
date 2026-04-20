@@ -16,7 +16,7 @@ public class CompletedTask : Aggregate<Guid>
     public string? SlaStatus { get; private set; }
     public DateTime? SlaBreachedAt { get; private set; }
     public string? Remark { get; private set; }
-    public string Movement { get; private set; } = "Forward";
+    public string Movement { get; private set; } = "F";
 
     private CompletedTask()
     {
@@ -26,7 +26,7 @@ public class CompletedTask : Aggregate<Guid>
     private CompletedTask(Guid id, Guid correlationId, string taskName, string assignedTo,
         string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt,
         DateTime? dueAt = null, string? slaStatus = null, DateTime? slaBreachedAt = null,
-        string? taskDescription = null, string? remark = null, string movement = "Forward",
+        string? taskDescription = null, string? remark = null, string movement = "F",
         string? activityId = null)
     {
         Id = id;
@@ -49,14 +49,14 @@ public class CompletedTask : Aggregate<Guid>
 
     public static CompletedTask Create(Guid id, Guid correlationId, string taskName, string assignedTo,
         string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt,
-        string? remark = null, string movement = "Forward")
+        string? remark = null, string movement = "F")
     {
         return new CompletedTask(id, correlationId, taskName, assignedTo, assignedType, assignedAt,
             actionTaken, completedAt, remark: remark, movement: movement);
     }
 
     public static CompletedTask CreateFromPendingTask(PendingTask pendingTask, string actionTaken,
-        DateTime completedAt, string? remark = null)
+        DateTime completedAt, string? remark = null, string? movement = null)
     {
         return new CompletedTask(
             pendingTask.Id,
@@ -72,7 +72,7 @@ public class CompletedTask : Aggregate<Guid>
             pendingTask.SlaBreachedAt,
             pendingTask.TaskDescription,
             remark,
-            pendingTask.Movement,
+            movement ?? pendingTask.Movement,
             pendingTask.ActivityId
         );
     }

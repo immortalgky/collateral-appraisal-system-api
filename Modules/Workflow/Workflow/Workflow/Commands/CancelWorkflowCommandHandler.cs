@@ -15,6 +15,7 @@ public sealed class CancelWorkflowCommandHandler : IRequestHandler<CancelWorkflo
     private readonly IWorkflowResilienceService _resilienceService;
     private readonly IWorkflowFaultHandler _faultHandler;
     private readonly IWorkflowBookmarkRepository _bookmarkRepository;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<CancelWorkflowCommandHandler> _logger;
 
     public CancelWorkflowCommandHandler(
@@ -23,6 +24,7 @@ public sealed class CancelWorkflowCommandHandler : IRequestHandler<CancelWorkflo
         IWorkflowResilienceService resilienceService,
         IWorkflowFaultHandler faultHandler,
         IWorkflowBookmarkRepository bookmarkRepository,
+        IDateTimeProvider dateTimeProvider,
         ILogger<CancelWorkflowCommandHandler> logger)
     {
         _workflowInstanceRepository = workflowInstanceRepository;
@@ -30,6 +32,7 @@ public sealed class CancelWorkflowCommandHandler : IRequestHandler<CancelWorkflo
         _resilienceService = resilienceService;
         _faultHandler = faultHandler;
         _bookmarkRepository = bookmarkRepository;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -160,7 +163,7 @@ public sealed class CancelWorkflowCommandHandler : IRequestHandler<CancelWorkflo
             WorkflowInstanceId = workflowInstance.Id,
             CancelledBy = cancelledBy,
             Reason = reason ?? "No reason provided",
-            CancelledAt = DateTime.UtcNow,
+            CancelledAt = _dateTimeProvider.ApplicationNow,
             CorrelationId = workflowInstance.CorrelationId,
             CurrentActivityId = workflowInstance.CurrentActivityId
         };

@@ -123,6 +123,12 @@ public class GetMyTasksQueryHandler(
                 conditions.Add("RequestReceivedDate < DATEADD(day, 1, @RequestedAtTo)");
                 parameters.Add("RequestedAtTo", filter.RequestedAtTo.Value);
             }
+
+            if (!string.IsNullOrWhiteSpace(filter.SlaStatus))
+            {
+                conditions.Add("SlaStatus = @SlaStatus");
+                parameters.Add("SlaStatus", filter.SlaStatus);
+            }
         }
 
         if (conditions.Count > 0)

@@ -8,6 +8,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shared.Time;
 using Workflow.Workflow.Engine.Core;
 using Xunit;
 
@@ -60,6 +61,10 @@ public class WorkflowEngineTests
                 Arg.Any<WorkflowInstance>(), Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>())
             .Returns(StateUpdateResult.Success());
 
+        var dateTimeProvider = Substitute.For<IDateTimeProvider>();
+        dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+        dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+
         _workflowEngine = new WorkflowEngine(
             _activityFactory,
             _flowControlManager,
@@ -67,6 +72,7 @@ public class WorkflowEngineTests
             _persistenceService,
             _stateManager,
             _versionRepository,
+            dateTimeProvider,
             _logger);
     }
 

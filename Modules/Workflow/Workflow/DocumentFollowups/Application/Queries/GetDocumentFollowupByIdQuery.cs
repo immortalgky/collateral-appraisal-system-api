@@ -12,9 +12,10 @@ public class GetDocumentFollowupByIdQueryHandler(
     IUserLookupService userLookupService)
     : IRequestHandler<GetDocumentFollowupByIdQuery, DocumentFollowupDto?>
 {
-    public async Task<DocumentFollowupDto?> Handle(GetDocumentFollowupByIdQuery request, CancellationToken cancellationToken)
+    public async Task<DocumentFollowupDto?> Handle(GetDocumentFollowupByIdQuery request,
+        CancellationToken cancellationToken)
     {
-        var actor = currentUser.UserId?.ToString() ?? currentUser.Username;
+        var actor = currentUser.Username;
         if (string.IsNullOrWhiteSpace(actor))
             throw new UnauthorizedAccessException("User not authenticated");
 
@@ -51,39 +52,45 @@ public class GetDocumentFollowupByIdQueryHandler(
 
     internal static DocumentFollowupDto Map(
         DocumentFollowup f,
-        IReadOnlyDictionary<string, UserLookupDto> userMap) => new(
-        Id: f.Id,
-        ParentAppraisalId: f.AppraisalId,
-        RequestId: f.RequestId,
-        RaisingWorkflowInstanceId: f.RaisingWorkflowInstanceId,
-        RaisingTaskId: f.RaisingPendingTaskId,
-        RaisingActivityId: f.RaisingActivityId,
-        RaisedBy: BuildUserRef(f.RaisingUserId, userMap),
-        FollowupWorkflowInstanceId: f.FollowupWorkflowInstanceId,
-        Status: f.Status.ToString(),
-        CancellationReason: f.CancellationReason,
-        RaisedAt: f.RaisedAt,
-        ResolvedAt: f.ResolvedAt,
-        LineItems: f.LineItems.Select(li => new DocumentFollowupLineItemDto(
-            li.Id, li.DocumentType, li.Notes, li.Status.ToString(),
-            li.Reason, li.DocumentId, li.ResolvedAt)).ToList());
+        IReadOnlyDictionary<string, UserLookupDto> userMap)
+    {
+        return new DocumentFollowupDto(
+            f.Id,
+            f.AppraisalId,
+            f.RequestId,
+            f.RaisingWorkflowInstanceId,
+            f.RaisingPendingTaskId,
+            f.RaisingActivityId,
+            BuildUserRef(f.RaisingUserId, userMap),
+            f.FollowupWorkflowInstanceId,
+            f.Status.ToString(),
+            f.CancellationReason,
+            f.RaisedAt,
+            f.ResolvedAt,
+            f.LineItems.Select(li => new DocumentFollowupLineItemDto(
+                li.Id, li.DocumentType, li.Notes, li.Status.ToString(),
+                li.Reason, li.DocumentId, li.ResolvedAt)).ToList());
+    }
 
     internal static DocumentFollowupSummaryDto MapSummary(
         DocumentFollowup f,
-        IReadOnlyDictionary<string, UserLookupDto> userMap) => new(
-        Id: f.Id,
-        ParentAppraisalId: f.AppraisalId,
-        RequestId: f.RequestId,
-        RaisingWorkflowInstanceId: f.RaisingWorkflowInstanceId,
-        RaisingTaskId: f.RaisingPendingTaskId,
-        RaisingActivityId: f.RaisingActivityId,
-        RaisedBy: BuildUserRef(f.RaisingUserId, userMap),
-        FollowupWorkflowInstanceId: f.FollowupWorkflowInstanceId,
-        Status: f.Status.ToString(),
-        RaisedAt: f.RaisedAt,
-        ResolvedAt: f.ResolvedAt,
-        LineItemCount: f.LineItems.Count,
-        PendingCount: f.LineItems.Count(li => li.Status == DocumentFollowupLineItemStatus.Pending));
+        IReadOnlyDictionary<string, UserLookupDto> userMap)
+    {
+        return new DocumentFollowupSummaryDto(
+            f.Id,
+            f.AppraisalId,
+            f.RequestId,
+            f.RaisingWorkflowInstanceId,
+            f.RaisingPendingTaskId,
+            f.RaisingActivityId,
+            BuildUserRef(f.RaisingUserId, userMap),
+            f.FollowupWorkflowInstanceId,
+            f.Status.ToString(),
+            f.RaisedAt,
+            f.ResolvedAt,
+            f.LineItems.Count,
+            f.LineItems.Count(li => li.Status == DocumentFollowupLineItemStatus.Pending));
+    }
 
     internal static DocumentFollowupUserRef BuildUserRef(
         string? userId,
@@ -99,6 +106,7 @@ public class GetDocumentFollowupByIdQueryHandler(
                 displayName = userId;
             return new DocumentFollowupUserRef(userId, displayName);
         }
+
         return new DocumentFollowupUserRef(userId, userId);
     }
 }

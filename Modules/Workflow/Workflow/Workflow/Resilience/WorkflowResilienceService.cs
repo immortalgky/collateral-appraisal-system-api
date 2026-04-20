@@ -12,6 +12,7 @@ public class WorkflowResilienceService : IWorkflowResilienceService
 {
     private readonly IWorkflowAuditService _auditService;
     private readonly ILogger<WorkflowResilienceService> _logger;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ConcurrentDictionary<string, CircuitBreakerInstance> _circuitBreakers = new();
     private readonly ConcurrentDictionary<string, OperationMetrics> _operationMetrics = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _bulkheadSemaphores = new();
@@ -19,9 +20,11 @@ public class WorkflowResilienceService : IWorkflowResilienceService
 
     public WorkflowResilienceService(
         IWorkflowAuditService auditService,
+        IDateTimeProvider dateTimeProvider,
         ILogger<WorkflowResilienceService> logger)
     {
         _auditService = auditService;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -193,7 +196,7 @@ public class WorkflowResilienceService : IWorkflowResilienceService
     {
         var metrics = new ResilienceMetrics
         {
-            CollectionTime = DateTime.UtcNow,
+            CollectionTime = _dateTimeProvider.ApplicationNow,
             CollectionPeriod = TimeSpan.FromMinutes(1)
         };
 
@@ -225,7 +228,7 @@ public class WorkflowResilienceService : IWorkflowResilienceService
         {
             case CircuitBreakerState.Open:
                 var circuitBreaker = _circuitBreakers[operationName];
-                var waitTime = circuitBreaker.OpenUntil - DateTime.UtcNow;
+                var waitTime = circuitBreaker.OpenUntil - _dateTimeProvider.ApplicationNow;
                 return Task.FromResult(OperationValidationResult.Blocked(
                     "Circuit breaker is open", 
                     circuitBreakerState, 

@@ -13,13 +13,16 @@ namespace Workflow.Workflow.Activities;
 public class InternalFollowupSelectionActivity : WorkflowActivityBase
 {
     private readonly IInternalStaffRoundRobinService _staffRoundRobinService;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<InternalFollowupSelectionActivity> _logger;
 
     public InternalFollowupSelectionActivity(
         IInternalStaffRoundRobinService staffRoundRobinService,
+        IDateTimeProvider dateTimeProvider,
         ILogger<InternalFollowupSelectionActivity> logger)
     {
         _staffRoundRobinService = staffRoundRobinService;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -36,7 +39,7 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
 
         var outputData = new Dictionary<string, object>
         {
-            ["selectedAt"] = DateTime.UtcNow
+            ["selectedAt"] = _dateTimeProvider.ApplicationNow
         };
 
         // If admin already selected a followup staff, use it

@@ -10,10 +10,12 @@ namespace Workflow.Workflow.Actions;
 public class SendNotificationAction : WorkflowActionBase
 {
     private readonly INotificationService _notificationService;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public SendNotificationAction(INotificationService notificationService, ILogger<SendNotificationAction> logger) : base(logger)
+    public SendNotificationAction(INotificationService notificationService, IDateTimeProvider dateTimeProvider, ILogger<SendNotificationAction> logger) : base(logger)
     {
         _notificationService = notificationService;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public override string ActionType => "SendNotification";
@@ -84,7 +86,7 @@ public class SendNotificationAction : WorkflowActionBase
                     ["workflowInstanceId"] = context.WorkflowInstanceId,
                     ["activityId"] = context.ActivityId,
                     ["source"] = "WorkflowAction",
-                    ["timestamp"] = DateTime.UtcNow
+                    ["timestamp"] = _dateTimeProvider.ApplicationNow
                 }
             };
 
@@ -108,7 +110,7 @@ public class SendNotificationAction : WorkflowActionBase
                 ["recipients"] = finalRecipients,
                 ["subject"] = resolvedSubject,
                 ["notificationId"] = notificationResult.NotificationId ?? "",
-                ["sentAt"] = DateTime.UtcNow,
+                ["sentAt"] = _dateTimeProvider.ApplicationNow,
                 ["priority"] = priority,
                 ["category"] = category
             };

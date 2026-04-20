@@ -92,6 +92,12 @@ public class GetTasksQueryHandler(
                 conditions.Add("AssignedDate < DATEADD(day, 1, @DateTo)");
                 parameters.Add("DateTo", filter.DateTo.Value);
             }
+
+            if (!string.IsNullOrWhiteSpace(filter.SlaStatus))
+            {
+                conditions.Add("SlaStatus = @SlaStatus");
+                parameters.Add("SlaStatus", filter.SlaStatus);
+            }
         }
 
         if (conditions.Count > 0)

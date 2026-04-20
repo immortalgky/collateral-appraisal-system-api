@@ -106,6 +106,16 @@ public class GetActivityActionsQueryHandler
             voteOptions.ValueKind != JsonValueKind.Array)
             return actions;
 
+        // voteMovements is a { "vote_value": "F|B|C" } map used by ApprovalActivity at
+        // resolve-time; surface it here so the UI can style Cancel/Backward buttons.
+        var voteMovements = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (properties.TryGetProperty("voteMovements", out var vm) && vm.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in vm.EnumerateObject())
+                if (prop.Value.ValueKind == JsonValueKind.String)
+                    voteMovements[prop.Name] = NormalizeMovement(prop.Value.GetString());
+        }
+
         foreach (var item in voteOptions.EnumerateArray())
         {
             var value = item.GetString();
@@ -114,7 +124,8 @@ public class GetActivityActionsQueryHandler
                 {
                     Value = value,
                     Label = value.Replace("_", " "),
-                    AssignmentMode = "system"
+                    AssignmentMode = "system",
+                    Movement = voteMovements.TryGetValue(value, out var m) ? m : "F"
                 });
         }
 
@@ -135,6 +146,8 @@ public class GetActivityActionsQueryHandler
             var label = item.TryGetProperty("label", out var l) ? l.GetString() : null;
             var mode = item.TryGetProperty("assignmentMode", out var m) ? m.GetString() : "system";
             var condition = item.TryGetProperty("condition", out var cond) ? cond.GetString() : null;
+            var rawMovement = item.TryGetProperty("movement", out var mv) ? mv.GetString() : null;
+            var movement = NormalizeMovement(rawMovement);
 
             if (!string.IsNullOrEmpty(condition))
                 try
@@ -152,7 +165,8 @@ public class GetActivityActionsQueryHandler
                 {
                     Value = value,
                     Label = label ?? value,
-                    AssignmentMode = mode ?? "system"
+                    AssignmentMode = mode ?? "system",
+                    Movement = movement
                 });
         }
 
@@ -222,5 +236,19 @@ public class GetActivityActionsQueryHandler
         }
 
         return map;
+    }
+
+    /// <summary>
+    /// Normalises a raw movement string from workflow JSON into one of the allowed single
+    /// letters: F (forward), B (backward), C (cancel). Any unrecognised or missing value
+    /// falls back to "F" so existing behaviour is preserved.
+    /// </summary>
+    private static string NormalizeMovement(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return "F";
+
+        var upper = raw.Trim().ToUpperInvariant();
+        return upper is "F" or "B" or "C" ? upper : "F";
     }
 }

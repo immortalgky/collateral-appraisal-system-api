@@ -18,7 +18,7 @@ public class ListDocumentFollowupsQueryHandler(
     public async Task<IReadOnlyList<DocumentFollowupSummaryDto>> Handle(
         ListDocumentFollowupsQuery request, CancellationToken cancellationToken)
     {
-        var actor = currentUser.UserId?.ToString() ?? currentUser.Username;
+        var actor = currentUser.Username;
         if (string.IsNullOrWhiteSpace(actor))
             throw new UnauthorizedAccessException("User not authenticated");
 
@@ -31,10 +31,8 @@ public class ListDocumentFollowupsQueryHandler(
             query = query.Where(f => f.FollowupWorkflowInstanceId == request.FollowupWorkflowInstanceId.Value);
 
         if (!string.IsNullOrWhiteSpace(request.Status) &&
-            Enum.TryParse<DocumentFollowupStatus>(request.Status, ignoreCase: true, out var parsed))
-        {
+            Enum.TryParse<DocumentFollowupStatus>(request.Status, true, out var parsed))
             query = query.Where(f => f.Status == parsed);
-        }
 
         var rows = await query.OrderByDescending(f => f.RaisedAt).ToListAsync(cancellationToken);
 
@@ -73,7 +71,8 @@ public class ListDocumentFollowupsQueryHandler(
             .ToArray();
 
         var userMap = distinctUserIds.Length == 0
-            ? (IReadOnlyDictionary<string, UserLookupDto>)new Dictionary<string, UserLookupDto>(StringComparer.OrdinalIgnoreCase)
+            ? (IReadOnlyDictionary<string, UserLookupDto>)new Dictionary<string, UserLookupDto>(StringComparer
+                .OrdinalIgnoreCase)
             : await userLookupService.GetByUsernamesAsync(distinctUserIds, cancellationToken);
 
         return visible.Select(f => GetDocumentFollowupByIdQueryHandler.MapSummary(f, userMap)).ToList();

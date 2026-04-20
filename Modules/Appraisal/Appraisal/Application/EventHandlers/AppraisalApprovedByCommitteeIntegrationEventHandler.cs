@@ -1,25 +1,31 @@
 using Appraisal.Domain.Appraisals;
+using Appraisal.Infrastructure;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Shared.Messaging.Events;
+using Shared.Messaging.Filters;
 
 namespace Appraisal.Application.EventHandlers;
 
 /// <summary>
-/// Handles AppraisalApprovedByCommitteeIntegrationEvent by stamping CompletedAt and
-/// ApprovedByCommittee on the Appraisal aggregate.
-/// Published by the Workflow module's EmitAppraisalApprovedByCommitteeStep pipeline step
-/// when pending-approval completes with decision == "approve".
+/// Stamps CompletedAt + ApprovedByCommittee on the Appraisal aggregate.
+/// Published by ApprovalActivity.ResumeActivityAsync when the final decision
+/// (after any decisionConditions remap) resolves to "approve".
 /// </summary>
 public class AppraisalApprovedByCommitteeIntegrationEventHandler(
     ILogger<AppraisalApprovedByCommitteeIntegrationEventHandler> logger,
     IAppraisalRepository appraisalRepository,
-    IAppraisalUnitOfWork unitOfWork)
+    IAppraisalUnitOfWork unitOfWork,
+    InboxGuard<AppraisalDbContext> inboxGuard)
     : IConsumer<AppraisalApprovedByCommitteeIntegrationEvent>
 {
     public async Task Consume(ConsumeContext<AppraisalApprovedByCommitteeIntegrationEvent> context)
     {
+        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
+            return;
+
         var message = context.Message;
+        var ct = context.CancellationToken;
 
         logger.LogInformation(
             "Integration Event received: {IntegrationEvent} for AppraisalId: {AppraisalId} CommitteeCode: {CommitteeCode}",
@@ -29,8 +35,7 @@ public class AppraisalApprovedByCommitteeIntegrationEventHandler(
 
         try
         {
-            var appraisal = await appraisalRepository.GetByIdWithAllDataAsync(
-                message.AppraisalId, context.CancellationToken);
+            var appraisal = await appraisalRepository.GetByIdAsync(message.AppraisalId, ct);
 
             if (appraisal is null)
             {
@@ -43,7 +48,8 @@ public class AppraisalApprovedByCommitteeIntegrationEventHandler(
 
             appraisal.MarkApprovedByCommittee(message.CommitteeCode, message.ApprovedAt);
 
-            await unitOfWork.SaveChangesAsync(context.CancellationToken);
+            await unitOfWork.SaveChangesAsync(ct);
+            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
 
             logger.LogInformation(
                 "Successfully stamped committee approval for AppraisalId {AppraisalId} CommitteeCode {CommitteeCode}",

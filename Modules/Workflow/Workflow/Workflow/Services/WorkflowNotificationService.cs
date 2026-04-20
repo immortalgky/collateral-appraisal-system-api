@@ -6,10 +6,12 @@ namespace Workflow.Workflow.Services;
 public class WorkflowNotificationService : IWorkflowNotificationService
 {
     private readonly IHubContext<WorkflowHub> _hubContext;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public WorkflowNotificationService(IHubContext<WorkflowHub> hubContext)
+    public WorkflowNotificationService(IHubContext<WorkflowHub> hubContext, IDateTimeProvider dateTimeProvider)
     {
         _hubContext = hubContext;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public async Task NotifyWorkflowStarted(Guid workflowInstanceId, string instanceName, string startedBy)
@@ -20,7 +22,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             WorkflowInstanceId = workflowInstanceId,
             InstanceName = instanceName,
             StartedBy = startedBy,
-            Timestamp = DateTime.Now
+            Timestamp = DateTime.UtcNow
         };
 
         await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
@@ -37,7 +39,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             ActivityId = activityId,
             CompletedBy = completedBy,
             OutputData = outputData,
-            Timestamp = DateTime.Now
+            Timestamp = DateTime.UtcNow
         };
 
         await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
@@ -54,7 +56,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             ActivityId = activityId,
             AssignedTo = assignedTo,
             ActivityName = activityName,
-            Timestamp = DateTime.Now
+            Timestamp = DateTime.UtcNow
         };
 
         await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
@@ -72,7 +74,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             Type = "WorkflowCompleted",
             WorkflowInstanceId = workflowInstanceId,
             CompletedBy = completedBy,
-            Timestamp = DateTime.Now
+            Timestamp = DateTime.UtcNow
         };
 
         await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
@@ -86,7 +88,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             Type = "WorkflowFailed",
             WorkflowInstanceId = workflowInstanceId,
             ErrorMessage = errorMessage,
-            Timestamp = DateTime.Now
+            Timestamp = DateTime.UtcNow
         };
 
         await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
@@ -101,7 +103,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             WorkflowInstanceId = workflowInstanceId,
             CancelledBy = cancelledBy,
             Reason = reason,
-            Timestamp = DateTime.Now
+            Timestamp = DateTime.UtcNow
         };
 
         await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
@@ -116,7 +118,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             WorkflowInstanceId = workflowInstanceId,
             TaskName = taskName,
             ActivityId = activityId,
-            Timestamp = DateTime.Now
+            Timestamp = DateTime.UtcNow
         };
 
         await _hubContext.Clients.Group($"user-{userId}")
@@ -131,7 +133,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             TaskId = taskId,
             TaskName = taskName,
             PoolGroup = poolGroup,
-            Timestamp = DateTime.UtcNow
+            Timestamp = _dateTimeProvider.ApplicationNow
         };
 
         await _hubContext.Clients.Group($"pool-{poolGroup}")
@@ -146,7 +148,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             TaskId = taskId,
             StartedBy = startedBy,
             PoolGroup = poolGroup,
-            Timestamp = DateTime.UtcNow
+            Timestamp = _dateTimeProvider.ApplicationNow
         };
 
         await _hubContext.Clients.Group($"pool-{poolGroup}")
@@ -161,7 +163,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             TaskId = taskId,
             ClaimedBy = claimedBy,
             PoolGroup = poolGroup,
-            Timestamp = DateTime.UtcNow
+            Timestamp = _dateTimeProvider.ApplicationNow
         };
 
         await _hubContext.Clients.Group($"pool-{poolGroup}")
@@ -176,7 +178,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             TaskId = taskId,
             LockedBy = lockedBy,
             PoolGroup = poolGroup,
-            Timestamp = DateTime.UtcNow
+            Timestamp = _dateTimeProvider.ApplicationNow
         };
 
         await _hubContext.Clients.Group($"pool-{poolGroup}")
@@ -191,7 +193,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             TaskId = taskId,
             ReleasedBy = releasedBy,
             PoolGroup = poolGroup,
-            Timestamp = DateTime.UtcNow
+            Timestamp = _dateTimeProvider.ApplicationNow
         };
 
         await _hubContext.Clients.Group($"pool-{poolGroup}")

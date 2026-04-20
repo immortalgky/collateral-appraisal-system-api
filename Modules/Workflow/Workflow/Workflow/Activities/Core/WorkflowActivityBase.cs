@@ -26,6 +26,12 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
             context.WorkflowInstance.AddActivityExecution(execution);
             context.WorkflowInstance.SetCurrentActivity(context.ActivityId);
 
+            // Inherit the incoming movement by default so system activities (Routing, Switch,
+            // IfElse, Company/Internal-Followup selection, etc.) carry the direction through
+            // to the next human task. Activities that change direction (TaskActivity,
+            // ApprovalActivity) overwrite this via StampMovement in their Resume path.
+            execution.StampMovement(context.Movement);
+
             // Start execution tracking
             execution.Start();
 
@@ -287,5 +293,62 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
     protected string NormalizeActivityId(string activityId)
     {
         return activityId.Replace("-", "_");
+    }
+
+    /// <summary>
+    /// Resolves the movement ("F" or "B") declared for the given <paramref name="actionValue"/>
+    /// in the activity's JSON properties.
+    ///
+    /// For TaskActivity: reads <c>properties.actions[].movement</c> — the array entry whose
+    /// <c>value</c> matches (case-insensitive).
+    ///
+    /// For ApprovalActivity: falls back to <c>properties.voteMovements</c> — a
+    /// <c>{ "route_back": "B", ... }</c> map keyed on the vote string.
+    ///
+    /// Returns "F" (forward) when the action is not found or has no movement declared.
+    /// </summary>
+    protected string ResolveActionMovement(ActivityContext context, string actionValue)
+    {
+        // --- 1. Try properties.actions[] ---
+        var actions = GetProperty<List<Dictionary<string, object>>>(context, "actions");
+        if (actions != null)
+        {
+            foreach (var action in actions)
+            {
+                if (!action.TryGetValue("value", out var rawValue)) continue;
+
+                var value = rawValue is JsonElement je
+                    ? je.GetString() ?? string.Empty
+                    : rawValue?.ToString() ?? string.Empty;
+
+                if (!string.Equals(value, actionValue, StringComparison.OrdinalIgnoreCase)) continue;
+
+                if (!action.TryGetValue("movement", out var rawMovement)) return "F";
+
+                var movement = rawMovement is JsonElement mje
+                    ? mje.GetString() ?? "F"
+                    : rawMovement?.ToString() ?? "F";
+
+                return string.IsNullOrWhiteSpace(movement) ? "F" : movement.ToUpperInvariant() switch
+                {
+                    "B" => "B",
+                    _ => "F"
+                };
+            }
+        }
+
+        // --- 2. Fall back to properties.voteMovements (ApprovalActivity) ---
+        // Case-insensitive lookup — vote validation in ApprovalActivity accepts votes
+        // case-insensitively, so the movement map must too.
+        var voteMovements = GetProperty<Dictionary<string, string>>(context, "voteMovements");
+        if (voteMovements != null)
+        {
+            var mapped = voteMovements.FirstOrDefault(kvp =>
+                string.Equals(kvp.Key, actionValue, StringComparison.OrdinalIgnoreCase)).Value;
+            if (!string.IsNullOrWhiteSpace(mapped))
+                return mapped.ToUpperInvariant() == "B" ? "B" : "F";
+        }
+
+        return "F";
     }
 }

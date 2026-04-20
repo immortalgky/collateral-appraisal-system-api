@@ -71,15 +71,15 @@ public class RequestSubmittedIntegrationEventConsumer(
             }
 
             var definition = await workflowDefinitionRepository.GetLatestVersion(WorkflowName, ct)
-                ?? throw new InvalidOperationException(
-                    $"Workflow definition '{WorkflowName}' not found.");
+                             ?? throw new InvalidOperationException(
+                                 $"Workflow definition '{WorkflowName}' not found.");
 
             var instance = await workflowService.StartWorkflowAsync(
-                workflowDefinitionId: definition.Id,
-                instanceName: $"Request-{message.RequestId}",
-                startedBy: message.CreatedBy ?? "system",
-                initialVariables: initialVariables,
-                correlationId: message.RequestId.ToString(),
+                definition.Id,
+                $"Request-{message.RequestId}",
+                message.CreatedBy ?? "system",
+                initialVariables,
+                message.RequestId.ToString(),
                 cancellationToken: ct);
 
             logger.LogInformation(
@@ -135,8 +135,9 @@ public class RequestSubmittedIntegrationEventConsumer(
             existing.Id, message.RequestId);
     }
 
-    private static Dictionary<string, object> BuildInitialVariables(RequestSubmittedIntegrationEvent message) =>
-        new()
+    private static Dictionary<string, object> BuildInitialVariables(RequestSubmittedIntegrationEvent message)
+    {
+        return new Dictionary<string, object>
         {
             ["requestId"] = message.RequestId,
             ["channel"] = message.Channel ?? string.Empty,
@@ -144,12 +145,15 @@ public class RequestSubmittedIntegrationEventConsumer(
             ["isPma"] = message.IsPma,
             ["facilityLimit"] = message.FacilityLimit ?? 0m,
             ["hasAppraisalBook"] = message.HasAppraisalBook,
+            ["bankingSegment"] = message.BankingSegment ?? string.Empty,
             ["requestSubmissionPayload"] = JsonSerializer.Serialize(message)
         };
+    }
 
     private static AppraisalCreationRequestedIntegrationEvent BuildCreationRequestedEvent(
-        RequestSubmittedIntegrationEvent message) =>
-        new()
+        RequestSubmittedIntegrationEvent message)
+    {
+        return new AppraisalCreationRequestedIntegrationEvent
         {
             RequestId = message.RequestId,
             RequestTitles = message.RequestTitles,
@@ -167,6 +171,7 @@ public class RequestSubmittedIntegrationEventConsumer(
             RequestedBy = message.RequestedBy,
             RequestedAt = message.RequestedAt
         };
+    }
 
     private static bool IsAppraisalCreationRequested(Dictionary<string, object>? variables)
     {

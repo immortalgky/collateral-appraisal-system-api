@@ -42,7 +42,8 @@ public class RouteBackMeetingItemCommandValidator : AbstractValidator<RouteBackM
 
 public class RouteBackMeetingItemCommandHandler(
     IMeetingRepository meetingRepository,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<RouteBackMeetingItemCommand>
 {
     public async Task<Unit> Handle(RouteBackMeetingItemCommand command, CancellationToken ct)
@@ -53,7 +54,7 @@ public class RouteBackMeetingItemCommandHandler(
         var meeting = await meetingRepository.GetByIdForDecisionAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
-        meeting.RouteBackItem(command.AppraisalId, actor, command.Reason, DateTime.UtcNow);
+        meeting.RouteBackItem(command.AppraisalId, actor, command.Reason, dateTimeProvider.ApplicationNow);
 
         return Unit.Value;
     }

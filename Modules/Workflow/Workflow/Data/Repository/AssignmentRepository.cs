@@ -37,6 +37,16 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
             );
     }
 
+    public async Task<PendingTask?> GetPendingTaskByWorkflowInstanceIdAsync(Guid workflowInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.PendingTasks
+            .FirstOrDefaultAsync(
+                x => x.WorkflowInstanceId == workflowInstanceId,
+                cancellationToken
+            );
+    }
+
     public async Task AddTaskAsync(PendingTask pendingTask, CancellationToken cancellationToken = default)
     {
         dbContext.PendingTasks.Add(pendingTask);
@@ -127,7 +137,7 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
                         GroupsList = groupsList,
                         UserId = userId,
                         AssignmentCount = 0,
-                        LastAssignedAt = DateTime.Now,
+                        LastAssignedAt = DateTime.UtcNow,
                         IsActive = true
                     });
             }
@@ -155,7 +165,7 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
         // Select user with minimum count
         var selectedUser = counters.First();
         selectedUser.AssignmentCount++;
-        selectedUser.LastAssignedAt = DateTime.Now;
+        selectedUser.LastAssignedAt = DateTime.UtcNow;
 
         // Check if the round is complete (no active users have count = 0)
         var usersWithZero = counters.Count(x => x.AssignmentCount == 0);
@@ -175,6 +185,14 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
     {
         return await dbContext.PendingTasks
             .Where(x => x.CorrelationId == correlationId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<PendingTask>> GetPendingTasksByWorkflowInstanceIdAsync(Guid workflowInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.PendingTasks
+            .Where(x => x.WorkflowInstanceId == workflowInstanceId)
             .ToListAsync(cancellationToken);
     }
 }

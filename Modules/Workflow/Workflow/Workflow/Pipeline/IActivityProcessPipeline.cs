@@ -1,14 +1,17 @@
 namespace Workflow.Workflow.Pipeline;
 
 /// <summary>
-/// Runs configured process steps for an activity before workflow continuation.
+/// Orchestrates the Validations-then-Actions pipeline for an activity completion.
+/// Executes inside the completion DB transaction so Action failures trigger rollback.
 /// </summary>
 public interface IActivityProcessPipeline
 {
-    Task<ProcessStepResult> ExecuteAsync(
+    Task<PipelineResult> ExecuteAsync(
         Guid workflowInstanceId,
-        string activityId,
+        Guid workflowActivityExecutionId,
+        string activityName,
         string completedBy,
-        Dictionary<string, object> input,
+        IReadOnlyList<string> userRoles,
+        IReadOnlyDictionary<string, object?> input,
         CancellationToken ct);
 }

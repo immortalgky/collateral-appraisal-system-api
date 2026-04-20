@@ -10,10 +10,12 @@ namespace Workflow.Workflow.Activities;
 /// </summary>
 public class RoutingActivity : WorkflowActivityBase
 {
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<RoutingActivity> _logger;
 
-    public RoutingActivity(ILogger<RoutingActivity> logger)
+    public RoutingActivity(IDateTimeProvider dateTimeProvider, ILogger<RoutingActivity> logger)
     {
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -54,7 +56,7 @@ public class RoutingActivity : WorkflowActivityBase
             ["decision"] = decision,
             ["routingDecision"] = decision,
             ["routingPath"] = routingPath,
-            ["routedAt"] = DateTime.UtcNow
+            ["routedAt"] = _dateTimeProvider.ApplicationNow
         };
 
         // For auto-assign external, set selectionMethod so CompanySelectionActivity knows to use round-robin

@@ -13,10 +13,15 @@ public class GetTaskByIdQueryHandler(
     private const string Sql = """
         SELECT
             pt.Id                              AS TaskId,
-            pt.CorrelationId                   AS RequestId,
-            (SELECT TOP 1 Id FROM appraisal.Appraisals
-              WHERE RequestId = pt.CorrelationId
-              ORDER BY CreatedAt DESC) AS AppraisalId,
+            -- Followup tasks (ProvideAdditionalDocuments) carry DocumentFollowup.Id as
+            -- CorrelationId, not the RequestId. Resolve via the DocumentFollowups row whose
+            -- FollowupWorkflowInstanceId matches pt.WorkflowInstanceId. For non-followup tasks
+            -- df.RequestId is NULL and COALESCE falls through to pt.CorrelationId (= requestId).
+            COALESCE(df.RequestId, pt.CorrelationId) AS RequestId,
+            COALESCE(df.AppraisalId,
+                     (SELECT TOP 1 Id FROM appraisal.Appraisals
+                      WHERE RequestId = pt.CorrelationId
+                      ORDER BY CreatedAt DESC)) AS AppraisalId,
             pt.WorkflowInstanceId,
             pt.ActivityId,
             pt.AssignedTo                      AS AssigneeUserId,
@@ -26,6 +31,9 @@ public class GetTaskByIdQueryHandler(
             pt.WorkingBy,
             pt.LockedAt
         FROM workflow.PendingTasks pt
+        OUTER APPLY (SELECT TOP 1 RequestId, AppraisalId
+                     FROM workflow.DocumentFollowups
+                     WHERE FollowupWorkflowInstanceId = pt.WorkflowInstanceId) df
         WHERE pt.Id = @TaskId
         """;
 

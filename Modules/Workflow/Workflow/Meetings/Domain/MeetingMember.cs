@@ -20,9 +20,12 @@ public class MeetingMember : Entity<Guid>
     /// <see cref="CreateSnapshot"/>; null for manually-added members.
     /// </summary>
     public Guid? SourceCommitteeMemberId { get; private set; }
+
     public DateTime AddedAt { get; private set; }
 
-    private MeetingMember() { }
+    private MeetingMember()
+    {
+    }
 
     /// <summary>
     /// Creates a snapshot of an existing active committee member for a meeting.
@@ -33,7 +36,7 @@ public class MeetingMember : Entity<Guid>
 
         return new MeetingMember
         {
-            Id = Guid.CreateVersion7(),
+            //Id = Guid.CreateVersion7(),
             MeetingId = meetingId,
             UserId = committeeMember.UserId,
             MemberName = committeeMember.MemberName,

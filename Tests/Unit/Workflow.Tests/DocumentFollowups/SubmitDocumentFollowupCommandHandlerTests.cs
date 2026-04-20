@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Request.Contracts.RequestDocuments;
 using Shared.Identity;
 using Workflow.Data;
 using Workflow.DocumentFollowups.Application.Commands;
@@ -59,13 +60,18 @@ public class SubmitDocumentFollowupCommandHandlerTests
     private static SubmitDocumentFollowupCommandHandler BuildHandler(
         WorkflowDbContext db,
         IWorkflowService workflowService,
-        string actorName) =>
+        string actorName,
+        IRequestDocumentAttacher? attacher = null) =>
         new(
             db,
             workflowService,
+            attacher ?? Substitute.For<IRequestDocumentAttacher>(),
             User(actorName),
             Substitute.For<IPublisher>(),
             Substitute.For<ILogger<SubmitDocumentFollowupCommandHandler>>());
+
+    private static SubmitDocumentFollowupCommand NoAttachments(Guid followupId) =>
+        new(followupId, new List<SubmitFollowupAttachmentDto>());
 
     // ────────────────────────────────────────────────────────────────────────────
     // 1. All Uploaded → Resolved + ResumeWorkflowAsync called with decisionTaken="P"
@@ -86,7 +92,7 @@ public class SubmitDocumentFollowupCommandHandlerTests
         var workflowService = Substitute.For<IWorkflowService>();
         var handler = BuildHandler(db, workflowService, "requestmaker");
 
-        await handler.Handle(new SubmitDocumentFollowupCommand(followup.Id), CancellationToken.None);
+        await handler.Handle(NoAttachments(followup.Id), CancellationToken.None);
 
         var persisted = await db.DocumentFollowups.AsNoTracking().FirstAsync(f => f.Id == followup.Id);
         persisted.Status.Should().Be(DocumentFollowupStatus.Resolved);
@@ -122,7 +128,7 @@ public class SubmitDocumentFollowupCommandHandlerTests
         var workflowService = Substitute.For<IWorkflowService>();
         var handler = BuildHandler(db, workflowService, "requestmaker");
 
-        await handler.Handle(new SubmitDocumentFollowupCommand(followup.Id), CancellationToken.None);
+        await handler.Handle(NoAttachments(followup.Id), CancellationToken.None);
 
         var persisted = await db.DocumentFollowups.AsNoTracking().FirstAsync(f => f.Id == followup.Id);
         persisted.Status.Should().Be(DocumentFollowupStatus.Resolved);
@@ -157,7 +163,7 @@ public class SubmitDocumentFollowupCommandHandlerTests
         var workflowService = Substitute.For<IWorkflowService>();
         var handler = BuildHandler(db, workflowService, "requestmaker");
 
-        await handler.Handle(new SubmitDocumentFollowupCommand(followup.Id), CancellationToken.None);
+        await handler.Handle(NoAttachments(followup.Id), CancellationToken.None);
 
         var persisted = await db.DocumentFollowups.AsNoTracking().FirstAsync(f => f.Id == followup.Id);
         persisted.Status.Should().Be(DocumentFollowupStatus.Resolved);
@@ -192,7 +198,7 @@ public class SubmitDocumentFollowupCommandHandlerTests
         var handler = BuildHandler(db, Substitute.For<IWorkflowService>(), "requestmaker");
 
         Func<Task> act = () => handler.Handle(
-            new SubmitDocumentFollowupCommand(followup.Id), CancellationToken.None);
+            NoAttachments(followup.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*Uploaded or Declined*");
@@ -215,7 +221,7 @@ public class SubmitDocumentFollowupCommandHandlerTests
         var handler = BuildHandler(db, Substitute.For<IWorkflowService>(), "someone-else");
 
         Func<Task> act = () => handler.Handle(
-            new SubmitDocumentFollowupCommand(followup.Id), CancellationToken.None);
+            NoAttachments(followup.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -237,11 +243,11 @@ public class SubmitDocumentFollowupCommandHandlerTests
         // First submit to resolve it
         var workflowService = Substitute.For<IWorkflowService>();
         var handler = BuildHandler(db, workflowService, "requestmaker");
-        await handler.Handle(new SubmitDocumentFollowupCommand(followup.Id), CancellationToken.None);
+        await handler.Handle(NoAttachments(followup.Id), CancellationToken.None);
 
         // Second submit on already-resolved followup
         Func<Task> act = () => handler.Handle(
-            new SubmitDocumentFollowupCommand(followup.Id), CancellationToken.None);
+            NoAttachments(followup.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*already resolved*");

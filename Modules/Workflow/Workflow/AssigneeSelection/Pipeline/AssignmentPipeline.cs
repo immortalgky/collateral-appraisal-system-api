@@ -12,6 +12,7 @@ public class AssignmentPipeline : IAssignmentPipeline
     private readonly ICascadingAssignmentEngine _engine;
     private readonly IEnumerable<IAssignmentValidator> _validators;
     private readonly IAssignmentFinalizer _finalizer;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<AssignmentPipeline> _logger;
 
     private const int MaxRetries = 3;
@@ -22,6 +23,7 @@ public class AssignmentPipeline : IAssignmentPipeline
         ICascadingAssignmentEngine engine,
         IEnumerable<IAssignmentValidator> validators,
         IAssignmentFinalizer finalizer,
+        IDateTimeProvider dateTimeProvider,
         ILogger<AssignmentPipeline> logger)
     {
         _contextBuilder = contextBuilder;
@@ -29,6 +31,7 @@ public class AssignmentPipeline : IAssignmentPipeline
         _engine = engine;
         _validators = validators;
         _finalizer = finalizer;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -187,7 +190,7 @@ public class AssignmentPipeline : IAssignmentPipeline
             AssignmentStrategies = strategies,
             UserGroups = userGroups,
             UserCode = pipelineCtx.RuntimeOverride?.RuntimeAssignee ?? GetPropertyString(activityCtx.Properties, "assignee") ?? "",
-            DueDate = DateTime.UtcNow.AddDays(7),
+            DueDate = _dateTimeProvider.ApplicationNow.AddDays(7),
             Properties = activityCtx.Properties,
             StartedBy = activityCtx.WorkflowInstance.StartedBy,
             CandidatePool = pipelineCtx.CandidatePool,

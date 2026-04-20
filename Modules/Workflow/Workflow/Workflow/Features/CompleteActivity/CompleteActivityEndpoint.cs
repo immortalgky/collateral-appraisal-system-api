@@ -1,7 +1,5 @@
 using Shared.CQRS;
 using Shared.Identity;
-using Workflow.Data.Repository;
-using Workflow.DocumentFollowups.Application;
 using Workflow.Workflow.Pipeline;
 using Workflow.Workflow.Services;
 using Workflow.Workflow.Activities.Core;
@@ -29,8 +27,26 @@ public class CompleteActivityEndpoint : ICarterModule
                     NextAssignmentOverrides = request.NextAssignmentOverrides
                 };
 
-                var result = await sender.Send(command, cancellationToken);
-                return Results.Ok(result);
+                try
+                {
+                    var result = await sender.Send(command, cancellationToken);
+                    return Results.Ok(result);
+                }
+                catch (WorkflowActionFailedException ex)
+                {
+                    // B4: Action failure — the transaction has already been rolled back by
+                    // TransactionalBehavior. Map to a 422 Problem Details response so callers
+                    // receive structured failure info rather than a 500.
+                    return Results.Problem(
+                        title: "Activity completion failed",
+                        detail: ex.Message,
+                        statusCode: StatusCodes.Status422UnprocessableEntity,
+                        extensions: new Dictionary<string, object?>
+                        {
+                            ["stepName"] = ex.Failure.StepName,
+                            ["errorCode"] = ex.Failure.ErrorCode,
+                        });
+                }
             })
             .WithName("CompleteActivity")
             .WithTags("Workflows");
@@ -92,6 +108,7 @@ public record CompleteActivityCommand : ICommand<CompleteActivityResponse>, ITra
 public record CompleteActivityResponse
 {
     public Guid WorkflowInstanceId { get; init; }
+    public Guid WorkflowActivityExecutionId { get; init; }
     public string Status { get; init; } = default!;
     public string? NextActivityId { get; init; }
     public string? CurrentAssignee { get; init; }
@@ -103,64 +120,57 @@ public record CompleteActivityResponse
 public class CompleteActivityCommandHandler(
     IWorkflowService workflowService,
     IActivityProcessPipeline processPipeline,
-    IDocumentFollowupGate documentFollowupGate,
-    IAssignmentRepository assignmentRepository) : ICommandHandler<CompleteActivityCommand, CompleteActivityResponse>
+    ICurrentUserService currentUserService,
+    IDateTimeProvider dateTimeProvider) : ICommandHandler<CompleteActivityCommand, CompleteActivityResponse>
 {
     public async Task<CompleteActivityResponse> Handle(CompleteActivityCommand request,
         CancellationToken cancellationToken)
     {
-        // Run the configurable process pipeline before resuming the workflow
-        var pipelineResult = await processPipeline.ExecuteAsync(
-            request.WorkflowInstanceId,
-            request.ActivityId,
-            request.CompletedBy,
-            request.Input,
-            cancellationToken);
-
-        if (!pipelineResult.Success)
-        {
-            return new CompleteActivityResponse
-            {
-                WorkflowInstanceId = request.WorkflowInstanceId,
-                Status = "ValidationFailed",
-                ValidationErrors = pipelineResult.Errors
-            };
-        }
-
         // Get the workflow instance before resuming to capture the current assignee
         var currentWorkflowInstance =
             await workflowService.GetWorkflowInstanceAsync(request.WorkflowInstanceId, cancellationToken);
         var currentAssignee = currentWorkflowInstance?.CurrentAssignee;
 
-        // Document followup gate: if this activity opted in via canRaiseFollowup,
-        // block submission while open followups exist for the corresponding pending task.
-        if (currentWorkflowInstance is not null &&
-            ActivityFollowupHelpers.ActivityCanRaiseFollowup(currentWorkflowInstance, request.ActivityId))
+        // Build a typed read-only input dict for the pipeline
+        var input = request.Input
+            .ToDictionary<KeyValuePair<string, object>, string, object?>(
+                kv => kv.Key, kv => kv.Value);
+
+        // B1: Generate a stable execution ID so trace rows can be looked up via the admin API.
+        var workflowActivityExecutionId = Guid.CreateVersion7();
+
+        // W10: Pull roles from the authenticated user rather than hardcoding an empty array.
+        var userRoles = currentUserService.Roles;
+
+        // Run the configurable process pipeline INSIDE the completion transaction.
+        // The pipeline includes Validation steps (collect-all) and Action steps (stop-on-first).
+        // RequireDocumentFollowupClearedStep is now a registered Validation step — no inline gate needed.
+        var pipelineResult = await processPipeline.ExecuteAsync(
+            request.WorkflowInstanceId,
+            workflowActivityExecutionId,
+            request.ActivityId,
+            request.CompletedBy,
+            userRoles,
+            input,
+            cancellationToken);
+
+        // B4: Distinguish Validation failures (no mutation) from Action failures (need rollback).
+        if (!pipelineResult.IsSuccess)
         {
-            var correlationGuid = !string.IsNullOrEmpty(currentWorkflowInstance.CorrelationId) &&
-                                  Guid.TryParse(currentWorkflowInstance.CorrelationId, out var parsed)
-                ? parsed
-                : currentWorkflowInstance.Id;
-
-            var taskName = ActivityFollowupHelpers.ResolveActivityName(currentWorkflowInstance, request.ActivityId)
-                           ?? request.ActivityId;
-
-            var pendingTask = await assignmentRepository.GetPendingTaskAsync(
-                correlationGuid, taskName, cancellationToken);
-
-            if (pendingTask is not null &&
-                await documentFollowupGate.HasOpenFollowupAsync(pendingTask.Id, cancellationToken))
+            if (pipelineResult.ActionFailure is not null)
             {
-                return new CompleteActivityResponse
-                {
-                    WorkflowInstanceId = request.WorkflowInstanceId,
-                    Status = "ValidationFailed",
-                    ValidationErrors = new List<string>
-                    {
-                        "This task has open document followups. Resolve or cancel them before submitting."
-                    }
-                };
+                // Action failure: mutations may have occurred — force a rollback via exception.
+                throw new WorkflowActionFailedException(pipelineResult.ActionFailure);
             }
+
+            // Validation failure: nothing was mutated, return a clean failure response.
+            return new CompleteActivityResponse
+            {
+                WorkflowInstanceId = request.WorkflowInstanceId,
+                WorkflowActivityExecutionId = workflowActivityExecutionId,
+                Status = "ValidationFailed",
+                ValidationErrors = pipelineResult.AllErrors().ToList()
+            };
         }
 
         // Convert assignment override requests to runtime override objects
@@ -181,7 +191,7 @@ public class CompleteActivityCommandHandler(
                     OverrideReason = overrideRequest.OverrideReason,
                     OverrideProperties = overrideRequest.OverrideProperties,
                     OverrideBy = request.CompletedBy,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = dateTimeProvider.ApplicationNow
                 };
             }
         }
@@ -197,6 +207,7 @@ public class CompleteActivityCommandHandler(
         return new CompleteActivityResponse
         {
             WorkflowInstanceId = workflowInstance.Id,
+            WorkflowActivityExecutionId = workflowActivityExecutionId,
             Status = workflowInstance.Status.ToString(),
             NextActivityId = workflowInstance.CurrentActivityId,
             CurrentAssignee = currentAssignee,

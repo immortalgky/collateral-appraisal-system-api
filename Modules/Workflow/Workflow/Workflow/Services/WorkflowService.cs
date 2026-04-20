@@ -1,5 +1,6 @@
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
+using Workflow.Tasks.Models;
 using Workflow.Workflow.Engine;
 using Workflow.Workflow.Models;
 using Workflow.Workflow.Schema;
@@ -18,6 +19,8 @@ public class WorkflowService : IWorkflowService
     private readonly IWorkflowEventPublisher _eventPublisher;
     private readonly IWorkflowUnitOfWork _unitOfWork;
     private readonly IIntegrationEventOutbox _outbox;
+    private readonly IAssignmentRepository _assignmentRepository;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<WorkflowService> _logger;
 
     public WorkflowService(
@@ -26,6 +29,8 @@ public class WorkflowService : IWorkflowService
         IWorkflowEventPublisher eventPublisher,
         IWorkflowUnitOfWork unitOfWork,
         IIntegrationEventOutbox outbox,
+        IAssignmentRepository assignmentRepository,
+        IDateTimeProvider dateTimeProvider,
         ILogger<WorkflowService> logger)
     {
         _workflowEngine = workflowEngine;
@@ -33,6 +38,8 @@ public class WorkflowService : IWorkflowService
         _eventPublisher = eventPublisher;
         _unitOfWork = unitOfWork;
         _outbox = outbox;
+        _assignmentRepository = assignmentRepository;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -192,13 +199,13 @@ public class WorkflowService : IWorkflowService
                 throw new InvalidOperationException("WorkflowEngine returned null instance");
 
             await _eventPublisher.PublishActivityCompletedAsync(
-                workflowInstanceId, activityId, completedBy, DateTime.Now, input,
+                workflowInstanceId, activityId, completedBy, DateTime.UtcNow, input,
                 input?.TryGetValue("comments", out var commentsValue) == true ? commentsValue?.ToString() : null,
                 cancellationToken);
 
             if (executionResult.Status == WorkflowExecutionStatus.Completed)
                 await _eventPublisher.PublishWorkflowCompletedAsync(
-                    workflowInstanceId, completedBy, DateTime.Now, cancellationToken);
+                    workflowInstanceId, completedBy, DateTime.UtcNow, cancellationToken);
 
             _logger.LogInformation("SERVICE: Successfully resumed workflow {WorkflowInstanceId} with status {Status}",
                 workflowInstanceId, executionResult.Status);
@@ -234,12 +241,29 @@ public class WorkflowService : IWorkflowService
             await _persistenceService.UpdateActivityExecutionAsync(currentActivityExecution, cancellationToken);
         }
 
-        await _persistenceService.SaveWorkflowInstanceAsync(workflowInstance, cancellationToken);
+        // UpdateWorkflowInstanceAsync (not SaveWorkflowInstanceAsync) — the instance already
+        // exists in the DB. SaveWorkflowInstanceAsync delegates to AddAsync and would cause a
+        // PK collision on the WorkflowInstances row we just loaded.
+        await _persistenceService.UpdateWorkflowInstanceAsync(workflowInstance, cancellationToken);
+
+        // Archive any pending tasks tied to this instance. Without this the maker's task
+        // inbox keeps showing cancelled followup tasks (e.g. ProvideAdditionalDocuments).
+        // Also covers future manual cancel UIs and the parent-cancel cascade
+        // (ParentWorkflowCancelledConsumer invokes this method on each child workflow).
+        var pendingTasks = await _assignmentRepository.GetPendingTasksByWorkflowInstanceIdAsync(
+            workflowInstanceId, cancellationToken);
+        foreach (var pendingTask in pendingTasks)
+        {
+            var completedTask = CompletedTask.CreateFromPendingTask(
+                pendingTask, "Cancelled", _dateTimeProvider.ApplicationNow);
+            await _assignmentRepository.AddCompletedTaskAsync(completedTask, cancellationToken);
+            await _assignmentRepository.RemovePendingTaskAsync(pendingTask, cancellationToken);
+        }
 
         await _eventPublisher.PublishWorkflowCancelledAsync(
             workflowInstanceId,
             cancelledBy,
-            DateTime.Now,
+            DateTime.UtcNow,
             reason,
             cancellationToken);
 
