@@ -18,7 +18,27 @@ public class GetTeamWorkloadQueryHandler(
         var parameters = new DynamicParameters();
         parameters.Add("CurrentUsername", currentUserService.Username);
 
-        const string sql = """
+        // Optional date range — applied to EventAt (AssignedAt for active/overdue,
+        // CompletedAt for completed rows) as exposed by the view.
+        var dateConditions = new List<string>();
+
+        if (query.From.HasValue)
+        {
+            dateConditions.Add("v.EventAt >= @From");
+            parameters.Add("From", query.From.Value.ToDateTime(TimeOnly.MinValue));
+        }
+
+        if (query.To.HasValue)
+        {
+            dateConditions.Add("v.EventAt < DATEADD(day, 1, @To)");
+            parameters.Add("To", query.To.Value.ToDateTime(TimeOnly.MinValue));
+        }
+
+        var dateWhere = dateConditions.Count > 0
+            ? "AND " + string.Join(" AND ", dateConditions)
+            : string.Empty;
+
+        var sql = $"""
             WITH CurrentUserTeam AS (
                 SELECT tm.TeamId
                 FROM auth.TeamMembers tm
@@ -42,9 +62,11 @@ public class GetTeamWorkloadQueryHandler(
                 v.Username,
                 COUNT(CASE WHEN v.Bucket = 'NotStarted' THEN 1 END) AS NotStarted,
                 COUNT(CASE WHEN v.Bucket = 'InProgress'  THEN 1 END) AS InProgress,
-                COUNT(CASE WHEN v.Bucket = 'Completed'   THEN 1 END) AS Completed
+                COUNT(CASE WHEN v.Bucket = 'Completed'   THEN 1 END) AS Completed,
+                COUNT(CASE WHEN v.Bucket = 'Overdue'     THEN 1 END) AS Overdue
             FROM workflow.vw_UserTaskSummary v
             INNER JOIN TeamUsers tu ON tu.UserName = v.Username
+            WHERE 1 = 1 {dateWhere}
             GROUP BY v.Username
             ORDER BY (COUNT(CASE WHEN v.Bucket = 'NotStarted' THEN 1 END)
                     + COUNT(CASE WHEN v.Bucket = 'InProgress'  THEN 1 END)

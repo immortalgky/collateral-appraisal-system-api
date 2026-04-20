@@ -1,18 +1,20 @@
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
+using Shared.Time;
 
 namespace Common.Application.Features.Dashboard.ReconcileAppraisalCounts;
 
 public class ReconcileAppraisalCountsCommandHandler(
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    IDateTimeProvider dateTimeProvider
 ) : ICommandHandler<ReconcileAppraisalCountsCommand, ReconcileAppraisalCountsResult>
 {
     public async Task<ReconcileAppraisalCountsResult> Handle(
         ReconcileAppraisalCountsCommand command,
         CancellationToken cancellationToken)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = dateTimeProvider.Today;
         var from = command.FromDate ?? today.AddDays(-30);
         var to = command.ToDate ?? today;
 

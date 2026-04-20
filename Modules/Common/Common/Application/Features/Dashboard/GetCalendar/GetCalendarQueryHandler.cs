@@ -42,16 +42,18 @@ public class GetCalendarQueryHandler(
                 Title,
                 EventTime,
                 LinkEntityType,
-                LinkEntityId
+                LinkEntityId,
+                AppraisalNumber
             FROM (
-                -- Source 1: meetings I am a member of
+                -- Source 1: meetings I am a member of (not appraisal-scoped)
                 SELECT
                     CAST(m.StartAt AS date)                  AS EventDate,
                     'meeting'                                AS Type,
                     m.Title                                  AS Title,
                     CAST(m.StartAt AS time)                  AS EventTime,
                     'meeting'                                AS LinkEntityType,
-                    m.Id                                     AS LinkEntityId
+                    m.Id                                     AS LinkEntityId,
+                    CAST(NULL AS nvarchar(50))               AS AppraisalNumber
                 FROM workflow.Meetings m
                 INNER JOIN workflow.MeetingMembers mm
                     ON mm.MeetingId = m.Id
@@ -77,7 +79,8 @@ public class GetCalendarQueryHandler(
                         WHEN tl.RequestId   IS NOT NULL THEN 'request'
                         ELSE 'task'
                     END                                      AS LinkEntityType,
-                    COALESCE(tl.AppraisalId, tl.RequestId, tl.Id) AS LinkEntityId
+                    COALESCE(tl.AppraisalId, tl.RequestId, tl.Id) AS LinkEntityId,
+                    tl.AppraisalNumber                       AS AppraisalNumber
                 FROM workflow.vw_TaskList tl
                 WHERE tl.AssigneeUserId  = @Username
                   AND tl.DueAt          IS NOT NULL
@@ -103,7 +106,8 @@ public class GetCalendarQueryHandler(
                         WHEN sl.RequestId   IS NOT NULL THEN 'request'
                         ELSE 'task'
                     END                                      AS LinkEntityType,
-                    COALESCE(sl.AppraisalId, sl.RequestId, sl.TaskId) AS LinkEntityId
+                    COALESCE(sl.AppraisalId, sl.RequestId, sl.TaskId) AS LinkEntityId,
+                    sl.AppraisalNumber                       AS AppraisalNumber
                 FROM workflow.vw_SlaTaskList sl
                 WHERE sl.AssignedTo     = @Username
                   AND sl.SlaStatus      IN ('AtRisk', 'Breached')
@@ -133,7 +137,8 @@ public class GetCalendarQueryHandler(
                     r.Title,
                     r.EventTime.HasValue ? TimeOnly.FromTimeSpan(r.EventTime.Value) : null,
                     r.LinkEntityType,
-                    r.LinkEntityId))
+                    r.LinkEntityId,
+                    r.AppraisalNumber))
                 .ToList()))
             .ToList();
 
@@ -172,5 +177,6 @@ public class GetCalendarQueryHandler(
         public TimeSpan? EventTime { get; init; }
         public string LinkEntityType { get; init; } = string.Empty;
         public Guid LinkEntityId { get; init; }
+        public string? AppraisalNumber { get; init; }
     }
 }

@@ -5,13 +5,15 @@ using Microsoft.Extensions.Logging;
 using Shared.Data;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
+using Shared.Time;
 
 namespace Common.Application.EventHandlers;
 
 public class AppraisalCreatedDashboardStatusHandler(
     ISqlConnectionFactory connectionFactory,
     ILogger<AppraisalCreatedDashboardStatusHandler> logger,
-    InboxGuard<CommonDbContext> inboxGuard) : IConsumer<AppraisalCreatedIntegrationEvent>
+    InboxGuard<CommonDbContext> inboxGuard,
+    IDateTimeProvider dateTimeProvider) : IConsumer<AppraisalCreatedIntegrationEvent>
 {
     public async Task Consume(ConsumeContext<AppraisalCreatedIntegrationEvent> context)
     {
@@ -37,7 +39,7 @@ public class AppraisalCreatedDashboardStatusHandler(
                 INSERT (Status, Count, LastUpdatedAt)
                 VALUES ('Pending', 1, @Now);
             """,
-            new { Now = DateTimeOffset.UtcNow });
+            new { Now = new DateTimeOffset(dateTimeProvider.ApplicationNow) });
 
         await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
