@@ -1,8 +1,8 @@
 namespace Auth.Application.Features.Groups.GetGroupById;
 
-public record GroupUserDto(Guid UserId);
+public record GroupUserDto(Guid UserId, string UserName, string FirstName, string LastName);
 
-public record GroupMonitoringDto(Guid MonitoredGroupId, string MonitoredGroupName);
+public record GroupMonitoringDto(Guid GroupId, string GroupName);
 
 public record GetGroupByIdResult(
     Guid Id,

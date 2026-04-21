@@ -1,6 +1,6 @@
 namespace Auth.Application.Features.Users.GetUserById;
 
-public record UserGroupDto(Guid GroupId, string GroupName, string Scope);
+public record UserGroupDto(Guid Id, string Name, string Scope);
 
 public record UserPermissionDto(Guid PermissionId, string PermissionCode, bool IsGranted);
 
