@@ -1,3 +1,5 @@
+using Shared.Data.Outbox;
+using Shared.Messaging.Events;
 using Workflow.AssigneeSelection.Services;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Models;
@@ -14,15 +16,18 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
 {
     private readonly IInternalStaffRoundRobinService _staffRoundRobinService;
     private readonly IDateTimeProvider _dateTimeProvider;
+    private readonly IIntegrationEventOutbox _outbox;
     private readonly ILogger<InternalFollowupSelectionActivity> _logger;
 
     public InternalFollowupSelectionActivity(
         IInternalStaffRoundRobinService staffRoundRobinService,
         IDateTimeProvider dateTimeProvider,
+        IIntegrationEventOutbox outbox,
         ILogger<InternalFollowupSelectionActivity> logger)
     {
         _staffRoundRobinService = staffRoundRobinService;
         _dateTimeProvider = dateTimeProvider;
+        _outbox = outbox;
         _logger = logger;
     }
 
@@ -45,14 +50,16 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
         // If admin already selected a followup staff, use it
         if (!string.IsNullOrEmpty(existingStaffId))
         {
+            var method = string.IsNullOrEmpty(existingMethod) ? "Manual" : existingMethod;
             outputData["internalFollowupStaffId"] = existingStaffId;
-            outputData["internalFollowupMethod"] = string.IsNullOrEmpty(existingMethod) ? "Manual" : existingMethod;
+            outputData["internalFollowupMethod"] = method;
             outputData["decision"] = "staff_selected";
 
             _logger.LogInformation(
                 "InternalFollowupSelectionActivity {ActivityId}: using admin-selected staff {StaffId}",
                 context.ActivityId, existingStaffId);
 
+            PublishFollowupAssignedEvent(context, existingStaffId, method);
             return ActivityResult.Success(outputData);
         }
 
@@ -69,6 +76,7 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
                 "InternalFollowupSelectionActivity {ActivityId}: round-robin selected staff {StaffId}",
                 context.ActivityId, result.UserId);
 
+            PublishFollowupAssignedEvent(context, result.UserId!, "RoundRobin");
             return ActivityResult.Success(outputData);
         }
 
@@ -92,5 +100,32 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
             ActivityType,
             "SYSTEM",
             context.Variables);
+    }
+
+    private void PublishFollowupAssignedEvent(
+        ActivityContext context,
+        string internalAppraiserId,
+        string internalFollowupMethod)
+    {
+        var appraisalId = WorkflowVariables.TryGetAppraisalId(context.Variables);
+        if (appraisalId is null)
+        {
+            _logger.LogWarning(
+                "InternalFollowupSelectionActivity {ActivityId}: appraisalId not in variables; skipping InternalFollowupAssignedIntegrationEvent publish",
+                context.ActivityId);
+            return;
+        }
+
+        _outbox.Publish(new InternalFollowupAssignedIntegrationEvent
+        {
+            AppraisalId = appraisalId.Value,
+            InternalAppraiserId = internalAppraiserId,
+            InternalFollowupAssignmentMethod = internalFollowupMethod,
+            CompletedBy = context.WorkflowInstance.LastCompletedBy
+        }, correlationId: appraisalId.Value.ToString());
+
+        _logger.LogInformation(
+            "InternalFollowupSelectionActivity {ActivityId}: published InternalFollowupAssignedIntegrationEvent for AppraisalId={AppraisalId}, StaffId={StaffId}",
+            context.ActivityId, appraisalId.Value, internalAppraiserId);
     }
 }

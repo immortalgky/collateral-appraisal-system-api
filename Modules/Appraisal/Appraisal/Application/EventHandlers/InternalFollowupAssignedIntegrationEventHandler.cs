@@ -7,14 +7,14 @@ using Shared.Messaging.Filters;
 
 namespace Appraisal.Application.EventHandlers;
 
-public class CompanyAssignedIntegrationEventHandler(
+public class InternalFollowupAssignedIntegrationEventHandler(
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
-    ILogger<CompanyAssignedIntegrationEventHandler> logger,
+    ILogger<InternalFollowupAssignedIntegrationEventHandler> logger,
     InboxGuard<AppraisalDbContext> inboxGuard
-) : IConsumer<CompanyAssignedIntegrationEvent>
+) : IConsumer<InternalFollowupAssignedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<CompanyAssignedIntegrationEvent> context)
+    public async Task Consume(ConsumeContext<InternalFollowupAssignedIntegrationEvent> context)
     {
         if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
             return;
@@ -23,15 +23,15 @@ public class CompanyAssignedIntegrationEventHandler(
         var ct = context.CancellationToken;
 
         logger.LogInformation(
-            "Integration Event received: {IntegrationEvent} for AppraisalId: {AppraisalId}, CompanyId: {CompanyId}",
-            nameof(CompanyAssignedIntegrationEvent), message.AppraisalId, message.CompanyId);
+            "Integration Event received: {IntegrationEvent} for AppraisalId: {AppraisalId}, InternalAppraiserId: {InternalAppraiserId}",
+            nameof(InternalFollowupAssignedIntegrationEvent), message.AppraisalId, message.InternalAppraiserId);
 
         var appraisal = await appraisalRepository.GetByIdWithAllDataAsync(message.AppraisalId, ct);
 
         if (appraisal is null)
         {
             logger.LogWarning(
-                "Appraisal {AppraisalId} not found for company assignment", message.AppraisalId);
+                "Appraisal {AppraisalId} not found for internal followup assignment", message.AppraisalId);
             await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
@@ -44,28 +44,22 @@ public class CompanyAssignedIntegrationEventHandler(
         if (assignment is null)
         {
             logger.LogWarning(
-                "No active assignment found for Appraisal {AppraisalId}", message.AppraisalId);
+                "No active assignment found for Appraisal {AppraisalId} when attaching internal followup",
+                message.AppraisalId);
             await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
-        // Preserve internal-followup fields: Assign() defaults them to null, so without
-        // passing them back we'd clobber values set by InternalFollowupAssignedIntegrationEventHandler
-        // if that event was processed first (consumer delivery order is not guaranteed).
-        assignment.Assign(
-            assignmentType: "External",
-            assigneeCompanyId: message.CompanyId.ToString(),
-            assignmentMethod: message.AssignmentMethod,
-            internalAppraiserId: assignment.InternalAppraiserId,
-            internalFollowupMethod: assignment.InternalFollowupAssignmentMethod,
-            assignedBy: "System");
+        assignment.AssignInternalFollowup(
+            message.InternalAppraiserId,
+            message.InternalFollowupAssignmentMethod);
 
         await appraisalRepository.UpdateAsync(appraisal, ct);
         await unitOfWork.SaveChangesAsync(ct);
         await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
 
         logger.LogInformation(
-            "Updated AppraisalAssignment for AppraisalId {AppraisalId}: CompanyId={CompanyId}, Method={Method}",
-            message.AppraisalId, message.CompanyId, message.AssignmentMethod);
+            "Attached internal followup to AppraisalAssignment for AppraisalId {AppraisalId}: StaffId={StaffId}, Method={Method}",
+            message.AppraisalId, message.InternalAppraiserId, message.InternalFollowupAssignmentMethod);
     }
 }

@@ -1,3 +1,5 @@
+using Shared.Data.Outbox;
+using Shared.Messaging.Events;
 using Workflow.AssigneeSelection.Services;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Models;
@@ -13,15 +15,18 @@ public class CompanySelectionActivity : WorkflowActivityBase
 {
     private readonly ICompanyRoundRobinService _companyRoundRobinService;
     private readonly IDateTimeProvider _dateTimeProvider;
+    private readonly IIntegrationEventOutbox _outbox;
     private readonly ILogger<CompanySelectionActivity> _logger;
 
     public CompanySelectionActivity(
         ICompanyRoundRobinService companyRoundRobinService,
         IDateTimeProvider dateTimeProvider,
+        IIntegrationEventOutbox outbox,
         ILogger<CompanySelectionActivity> logger)
     {
         _companyRoundRobinService = companyRoundRobinService;
         _dateTimeProvider = dateTimeProvider;
+        _outbox = outbox;
         _logger = logger;
     }
 
@@ -64,6 +69,7 @@ public class CompanySelectionActivity : WorkflowActivityBase
                 "CompanySelectionActivity {ActivityId}: manually selected company {CompanyName} ({CompanyId})",
                 context.ActivityId, companyName, companyId);
 
+            PublishCompanyAssignedEvent(context, companyId, companyName, "Manual");
             return ActivityResult.Success(outputData);
         }
 
@@ -83,7 +89,7 @@ public class CompanySelectionActivity : WorkflowActivityBase
             _logger.LogInformation(
                 "CompanySelectionActivity {ActivityId}: replaying — reusing previously selected company {CompanyName} ({CompanyId})",
                 context.ActivityId, existingCompanyName, existingCompanyId);
-
+            
             return ActivityResult.Success(outputData);
         }
 
@@ -104,6 +110,7 @@ public class CompanySelectionActivity : WorkflowActivityBase
                 "CompanySelectionActivity {ActivityId}: round-robin selected company {CompanyName} ({CompanyId})",
                 context.ActivityId, result.CompanyName, result.CompanyId);
 
+            PublishCompanyAssignedEvent(context, result.CompanyId!.Value.ToString(), result.CompanyName!, "RoundRobin");
             return ActivityResult.Success(outputData);
         }
 
@@ -127,5 +134,45 @@ public class CompanySelectionActivity : WorkflowActivityBase
             ActivityType,
             "SYSTEM",
             context.Variables);
+    }
+
+    private void PublishCompanyAssignedEvent(
+        ActivityContext context,
+        string companyIdRaw,
+        string companyName,
+        string assignmentMethod)
+    {
+        var appraisalId = WorkflowVariables.TryGetAppraisalId(context.Variables);
+        if (appraisalId is null)
+        {
+            _logger.LogWarning(
+                "CompanySelectionActivity {ActivityId}: appraisalId not in variables; skipping CompanyAssignedIntegrationEvent publish",
+                context.ActivityId);
+            return;
+        }
+
+        if (!Guid.TryParse(companyIdRaw, out var companyId))
+        {
+            _logger.LogWarning(
+                "CompanySelectionActivity {ActivityId}: assignedCompanyId '{Raw}' is not a Guid; skipping publish",
+                context.ActivityId, companyIdRaw);
+            return;
+        }
+
+        var appraisalNumber = GetVariable<string>(context, "appraisalNumber", "");
+
+        _outbox.Publish(new CompanyAssignedIntegrationEvent
+        {
+            AppraisalId = appraisalId.Value,
+            CompanyId = companyId,
+            CompanyName = companyName,
+            AssignmentMethod = assignmentMethod,
+            CompletedBy = context.WorkflowInstance.LastCompletedBy,
+            AppraisalNumber = string.IsNullOrEmpty(appraisalNumber) ? null : appraisalNumber
+        }, correlationId: appraisalId.Value.ToString());
+
+        _logger.LogInformation(
+            "CompanySelectionActivity {ActivityId}: published CompanyAssignedIntegrationEvent for AppraisalId={AppraisalId}, CompanyId={CompanyId}",
+            context.ActivityId, appraisalId.Value, companyId);
     }
 }

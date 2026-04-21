@@ -2,6 +2,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shared.Data.Outbox;
+using Shared.Messaging.Events;
 using Shared.Time;
 using Workflow.AssigneeSelection.Services;
 using Workflow.Workflow.Activities;
@@ -14,6 +16,7 @@ namespace Workflow.Tests.Workflow;
 public class CompanySelectionActivityTests
 {
     private readonly ICompanyRoundRobinService _roundRobinService;
+    private readonly IIntegrationEventOutbox _outbox;
     private readonly CompanySelectionActivity _sut;
 
     public CompanySelectionActivityTests()
@@ -22,8 +25,9 @@ public class CompanySelectionActivityTests
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
         dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+        _outbox = Substitute.For<IIntegrationEventOutbox>();
         var logger = Substitute.For<ILogger<CompanySelectionActivity>>();
-        _sut = new CompanySelectionActivity(_roundRobinService, dateTimeProvider, logger);
+        _sut = new CompanySelectionActivity(_roundRobinService, dateTimeProvider, _outbox, logger);
     }
 
     private static ActivityContext CreateContext(Dictionary<string, object>? variables = null)
@@ -34,12 +38,15 @@ public class CompanySelectionActivityTests
             null,
             "test-user");
 
+        var vars = variables ?? new Dictionary<string, object>();
+        vars.TryAdd("appraisalId", Guid.NewGuid());
+
         return new ActivityContext
         {
             WorkflowInstanceId = workflowInstance.Id,
             ActivityId = "company-selection",
             Properties = new Dictionary<string, object>(),
-            Variables = variables ?? new Dictionary<string, object>(),
+            Variables = vars,
             WorkflowInstance = workflowInstance
         };
     }
@@ -168,5 +175,76 @@ public class CompanySelectionActivityTests
         result.Status.Should().Be(ActivityResultStatus.Completed);
         result.OutputData["assignmentMethod"].Should().Be("RoundRobin");
         await _roundRobinService.Received(1).SelectCompanyAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RoundRobin_PublishesCompanyAssignedEvent()
+    {
+        var appraisalId = Guid.NewGuid();
+        var companyId = Guid.NewGuid();
+        _roundRobinService.SelectCompanyAsync(Arg.Any<CancellationToken>())
+            .Returns(CompanySelectionResult.Success(companyId, "RR Corp"));
+
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["appraisalId"] = appraisalId
+        });
+
+        await _sut.ExecuteAsync(context);
+
+        _outbox.Received(1).Publish(
+            Arg.Is<CompanyAssignedIntegrationEvent>(e =>
+                e.AppraisalId == appraisalId
+                && e.CompanyId == companyId
+                && e.AssignmentMethod == "RoundRobin"),
+            appraisalId.ToString(),
+            Arg.Any<Dictionary<string, string>?>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReplayBranch_DoesNotPublish()
+    {
+        // Replay: same loanType as previously assigned company — the activity
+        // reuses the prior selection and must NOT republish (would double-count).
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["loanType"] = "HomeEquity",
+            ["assignedCompanyId"] = Guid.NewGuid().ToString(),
+            ["assignedCompanyName"] = "Prior Corp",
+            ["assignedCompanyLoanType"] = "HomeEquity"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("company_selected");
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_NoMatch_DoesNotPublish()
+    {
+        _roundRobinService.SelectCompanyAsync(Arg.Any<CancellationToken>())
+            .Returns(CompanySelectionResult.Failure("No active companies"));
+
+        var context = CreateContext();
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("no_match");
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ManualSelectionFailure_DoesNotPublish()
+    {
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["selectionMethod"] = "manual"
+            // no selectedCompanyId
+        });
+
+        await _sut.ExecuteAsync(context);
+
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
     }
 }
