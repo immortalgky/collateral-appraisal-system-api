@@ -64,7 +64,8 @@ public class IncomeCalculationService : IPricingCalculationService
     /// </summary>
     public IncomeCalculationResult Calculate(
         IncomeAnalysis analysis,
-        IReadOnlyList<TaxBracketDto>? taxBrackets)
+        IReadOnlyList<TaxBracketDto>? taxBrackets
+        )
     {
         var years = analysis.TotalNumberOfYears;
         var daysInYear = analysis.TotalNumberOfDayInYear;
@@ -157,6 +158,132 @@ public class IncomeCalculationService : IPricingCalculationService
 
         // ── Summary (DCF pipeline) ─────────────────────────────────────────
         var contractRentalFee = ParseJsonArray(analysis.Summary.ContractRentalFeeJson, years);
+        var (grossRevenue, grossRevenueProportional) = ComputeGrossRevenue(
+            analysis, sectionValues, contractRentalFee, years);
+
+        var (terminalRevenue, totalNet, discount, presentValue, finalValue) =
+            ComputeDcfSummary(analysis, grossRevenue);
+
+        // Always compute FinalValueRounded as round-to-nearest-1000 (half-up).
+        // roundToThousand(500) === 1000, roundToThousand(499) === 0.
+        var finalValueRounded = Math.Round(finalValue / 1000m, MidpointRounding.AwayFromZero) * 1000m;
+
+        return new IncomeCalculationResult
+        {
+            MethodValues = methodValues,
+            AssumptionValues = assumptionValues,
+            CategoryValues = categoryValues,
+            SectionValues = sectionValues,
+            ContractRentalFee = contractRentalFee,
+            GrossRevenue = grossRevenue,
+            GrossRevenueProportional = grossRevenueProportional,
+            TerminalRevenue = terminalRevenue,
+            TotalNet = totalNet,
+            Discount = discount,
+            PresentValue = presentValue,
+            FinalValue = finalValue,
+            FinalValueRounded = finalValueRounded
+        };
+    }
+    
+    public IncomeCalculationResult Calculate(
+        IncomeAnalysis analysis,
+        IReadOnlyList<TaxBracketDto>? taxBrackets,
+        decimal[]? contractRentalFeeOverride)
+    {
+        var years = analysis.TotalNumberOfYears;
+        var daysInYear = analysis.TotalNumberOfDayInYear;
+
+        var hasBrackets = taxBrackets is { Count: > 0 };
+        if (!hasBrackets)
+        {
+            _logger.LogWarning(
+                "IncomeCalculationService.Calculate called without tax brackets. " +
+                "Method-10 will use client-supplied TotalPropertyTax values. " +
+                "Pass brackets from GetPricingTaxBracketsQuery for server-authoritative results.");
+        }
+
+        // ── Pass 1: compute all non-method-13 methods ──────────────────────
+        var methodValues = new Dictionary<Guid, decimal[]>();
+
+        // We need cross-method refs for method 08 (refs method-01) and method 11 (refs method-06).
+        // Collect those after the first pass.
+        var deferred13 = new List<(IncomeAssumption assumption, Method13Detail detail)>();
+
+        // Collect totalSaleableAreaDeductByOccRate arrays by method type for cross-ref.
+        // Key: methodTypeCode -> first computed array found.
+        var crossRefSaleableAreaOccRate = new Dictionary<string, decimal[]>();
+
+        foreach (var section in analysis.Sections)
+        {
+            foreach (var category in section.Categories)
+            {
+                foreach (var assumption in category.Assumptions)
+                {
+                    var code = assumption.Method.MethodTypeCode;
+                    var detailJson = assumption.Method.DetailJson;
+
+                    if (code == "13")
+                    {
+                        // Defer until all other methods are computed.
+                        var d13 = MethodDetailSerializer.Deserialize<Method13Detail>(code, detailJson);
+                        deferred13.Add((assumption, d13));
+                        continue;
+                    }
+
+                    decimal[] values = ComputeMethod(code, detailJson, years, daysInYear, crossRefSaleableAreaOccRate, taxBrackets);
+                    methodValues[assumption.Id] = values;
+                }
+            }
+        }
+
+        // ── Pass 2: resolve method 13 (proportional) — iterative to convergence ──
+        // Each iteration: aggregate categories/sections using current values, then
+        // re-resolve every M13 against those aggregates. When an M13 references an
+        // aggregate that itself contains other M13s (e.g. Admin Fee = 5% of GOP, and
+        // GOP = Income − Expenses where Expenses contains multiple M13s), a single
+        // pass uses stale (pre-M13) aggregates and produces wrong values.
+        // A fixed-point iteration converges in ≤3 passes for any non-circular ref graph.
+
+        var assumptionValues = new Dictionary<Guid, decimal[]>(methodValues);
+        var categoryValues = AggregateCategoryValues(analysis, assumptionValues, years);
+        var sectionValues = AggregateSectionValues(analysis, categoryValues, assumptionValues, years);
+
+        const int MaxIterations = 5;
+        bool didNotConverge = false;
+        for (int iter = 0; iter < MaxIterations; iter++)
+        {
+            bool anyChanged = false;
+            foreach (var (assumption, detail) in deferred13)
+            {
+                var refValues = ResolveRefTarget(detail, sectionValues, categoryValues, assumptionValues, years);
+                decimal[] values = new decimal[years];
+                for (int y = 0; y < years; y++)
+                    values[y] = (detail.ProportionPct / 100m) * (refValues != null ? refValues[y] : 0m);
+
+                if (!assumptionValues.TryGetValue(assumption.Id, out var prev) || !ArraysEqual(prev, values))
+                    anyChanged = true;
+
+                methodValues[assumption.Id] = values;
+                assumptionValues[assumption.Id] = values;
+            }
+
+            categoryValues = AggregateCategoryValues(analysis, assumptionValues, years);
+            sectionValues = AggregateSectionValues(analysis, categoryValues, assumptionValues, years);
+
+            if (!anyChanged) break;
+            didNotConverge = iter == MaxIterations - 1;
+        }
+
+        if (didNotConverge)
+            _logger.LogWarning(
+                "Method-13 iteration did not converge after {MaxIterations} passes — possible circular reference or proportion >= 100%. Result may be inaccurate. AnalysisId={AnalysisId}.",
+                MaxIterations, analysis.Id);
+
+        // ── Summary (DCF pipeline) ─────────────────────────────────────────
+        var contractRentalFee = contractRentalFeeOverride is { Length: > 0 }
+            ? NormalizeLength(contractRentalFeeOverride, years)
+            : ParseJsonArray(analysis.Summary.ContractRentalFeeJson, years);
         var (grossRevenue, grossRevenueProportional) = ComputeGrossRevenue(
             analysis, sectionValues, contractRentalFee, years);
 
@@ -813,6 +940,30 @@ public class IncomeCalculationService : IPricingCalculationService
         }
 
         return result;
+    }
+    
+    /// <summary>
+    /// Normalizes a source decimal array to exactly <paramref name="expectedLength"/>.
+    /// Truncates when longer, zero-pads when shorter, returns a defensive copy otherwise.
+    /// </summary>
+    private static decimal[] NormalizeLength(decimal[]? source, int expectedLength)
+    {
+        // Guard: if the domain ever passes a weird length, don't throw — return empty.
+        if (expectedLength <= 0)
+            return Array.Empty<decimal>();
+
+        // Case 1: null or empty source → all-zero array
+        if (source is null || source.Length == 0)
+            return new decimal[expectedLength];
+
+        // Case 2: source is longer → truncate (range slice creates a new array)
+        if (source.Length >= expectedLength)
+            return source[..expectedLength];
+
+        // Case 3: source is shorter → pad with zeros at the tail
+        var padded = new decimal[expectedLength];
+        source.CopyTo(padded, 0);
+        return padded;
     }
 
     // ── JSON helpers ──────────────────────────────────────────────────────

@@ -6,6 +6,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.PreviewIncomeAnalysis;
 public record PreviewIncomeAnalysisCommand(
     Guid PricingAnalysisId,
     Guid MethodId,
+    Guid AppraisalId,
+    Guid PropertyId,
     string TemplateCode,
     string TemplateName,
     int TotalNumberOfYears,

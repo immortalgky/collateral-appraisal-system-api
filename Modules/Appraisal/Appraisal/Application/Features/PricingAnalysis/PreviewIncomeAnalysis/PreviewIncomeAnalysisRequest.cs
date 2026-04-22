@@ -7,6 +7,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.PreviewIncomeAnalysis;
 /// Identical shape to <see cref="SaveIncomeAnalysisRequest"/> — reuses the same input DTOs.
 /// </summary>
 public record PreviewIncomeAnalysisRequest(
+    Guid AppraisalId,
+    Guid PropertyId,
     string TemplateCode,
     string TemplateName,
     int TotalNumberOfYears,

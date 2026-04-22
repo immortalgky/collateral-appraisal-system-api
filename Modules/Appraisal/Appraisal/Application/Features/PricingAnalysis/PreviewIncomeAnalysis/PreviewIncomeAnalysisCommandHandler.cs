@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Appraisals.GetRentalInfo;
 using Appraisal.Application.Features.PricingAnalysis.SaveIncomeAnalysis;
 using Appraisal.Domain.Appraisals.Income;
 using Appraisal.Domain.Appraisals.Income.MethodDetails;
@@ -61,11 +62,33 @@ public class PreviewIncomeAnalysisCommandHandler(
         // 5. Rewrite Method-13 refTarget.clientId → in-memory dbId
         IncomeRefTargetRewriter.Rewrite(analysis, idMap, logger);
 
-        // 6. Load tax brackets (read-only query — no writes)
+        // 6a. Load tax brackets (read-only query — no writes)
         var bracketsResult = await mediator.Send(new GetPricingTaxBracketsQuery(), cancellationToken);
+        
+        // 6b. Load rental schedule — only if this is a lease-agreement property
+        decimal[]? contractRentalFeeFromSchedule = null;
+        try
+        {
+            var rental = await mediator.Send(
+                new GetRentalInfoQuery(command.AppraisalId, command.PropertyId),
+                cancellationToken);
+
+            // Build a Year -> TotalAmount map, then project into a year-indexed array
+            contractRentalFeeFromSchedule = BuildContractRentalFeeArray(
+                rental.ScheduleEntries,
+                command.TotalNumberOfYears);
+        }
+        catch (InvalidOperationException)
+        {
+            contractRentalFeeFromSchedule = null;
+        }
+        catch (PropertyNotFoundException)
+        {
+            contractRentalFeeFromSchedule = null;
+        }
 
         // 7. Run the exact same calculation as Save — no SaveChangesAsync anywhere
-        var result = calcService.Calculate(analysis, bracketsResult.Brackets);
+        var result = calcService.Calculate(analysis, bracketsResult.Brackets, contractRentalFeeFromSchedule);
         analysis.ApplyCalculationResult(result);
 
         // 8. Return DTO — the analysis object is garbage-collected after this return
@@ -175,5 +198,20 @@ public class PreviewIncomeAnalysisCommandHandler(
             assumptions.Add(assumption);
         }
         return assumptions;
+    }
+    
+    private static decimal[] BuildContractRentalFeeArray(
+        IReadOnlyList<ScheduleEntryDto> entries,
+        int totalYears)
+    {
+        var arr = new decimal[totalYears];
+        foreach (var e in entries)
+        {
+            // Year is typically 1-based in the schedule; adjust if your domain uses 0-based
+            var idx = e.Year - 1;
+            if (idx >= 0 && idx < totalYears)
+                arr[idx] = e.TotalAmount;
+        }
+        return arr;
     }
 }
