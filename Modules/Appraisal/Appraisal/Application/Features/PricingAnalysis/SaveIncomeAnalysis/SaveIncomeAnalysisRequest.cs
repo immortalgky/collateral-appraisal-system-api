@@ -7,6 +7,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.SaveIncomeAnalysis;
 /// The client submits the entire tree; the server recalculates and returns canonical values.
 /// </summary>
 public record SaveIncomeAnalysisRequest(
+    Guid AppraisalId,
+    Guid PropertyId,
     string TemplateCode,
     string TemplateName,
     int TotalNumberOfYears,
