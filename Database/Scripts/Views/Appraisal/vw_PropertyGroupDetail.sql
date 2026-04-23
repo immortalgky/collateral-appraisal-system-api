@@ -38,7 +38,9 @@ SELECT PG.AppraisalId,
        CASE
            WHEN AP.PropertyType = 'MAC' THEN M.Location
            ELSE CONCAT_WS(',', SD.NameTh, DI.NameTh, PV.NameTh)
-           END                                                       AS Location
+           END                                                       AS Location,
+       COALESCE(L.Latitude,  C.Latitude)                             AS Latitude,
+       COALESCE(L.Longitude, C.Longitude)                            AS Longitude
 FROM appraisal.PropertyGroups PG
          LEFT JOIN appraisal.PricingAnalysis PA ON PA.PropertyGroupId = PG.Id
          LEFT JOIN appraisal.PropertyGroupItems PGI ON PGI.PropertyGroupId = PG.Id
