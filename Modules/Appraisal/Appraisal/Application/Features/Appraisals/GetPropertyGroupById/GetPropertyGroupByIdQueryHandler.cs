@@ -116,6 +116,8 @@ public record PropertyGroupItemDto
     public Guid? AppraisalDetailId { get; set; }
     public string? PropertyName { get; set; } = default!;
     public decimal? Area { get; set; }
+    public decimal? latitude { get; set; }
+    public decimal? longitude { get; set; }
     public string? MachineName { get; set; }
     public string? Brand { get; set; }
     public string? Model { get; set; }
