@@ -23,7 +23,7 @@ public interface IAppraisalRepository : IRepository<Appraisal, Guid>
     /// <summary>
     /// Get appraisals by request ID
     /// </summary>
-    Task<IEnumerable<Appraisal>> GetByRequestIdAsync(Guid requestId, CancellationToken cancellationToken = default);
+    Task<Appraisal?> GetByRequestIdAsync(Guid requestId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Check if appraisal exists for request

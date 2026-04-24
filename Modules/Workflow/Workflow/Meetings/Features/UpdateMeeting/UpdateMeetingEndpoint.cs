@@ -32,7 +32,9 @@ public record UpdateMeetingRequest(
 public record UpdateMeetingCommand(Guid MeetingId, UpdateMeetingRequest Request)
     : ICommand, ITransactionalCommand<IWorkflowUnitOfWork>;
 
-public class UpdateMeetingCommandHandler(IMeetingRepository meetingRepository)
+public class UpdateMeetingCommandHandler(
+    IMeetingRepository meetingRepository,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<UpdateMeetingCommand>
 {
     public async Task<Unit> Handle(UpdateMeetingCommand command, CancellationToken ct)
@@ -40,10 +42,11 @@ public class UpdateMeetingCommandHandler(IMeetingRepository meetingRepository)
         var meeting = await meetingRepository.GetByIdAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
-        meeting.UpdateDetails(command.Request.Title, command.Request.Location, command.Request.Notes);
+        var now = dateTimeProvider.ApplicationNow;
+        meeting.UpdateDetails(command.Request.Title, command.Request.Location, command.Request.Notes, now);
 
         if (command.Request.StartAt.HasValue && command.Request.EndAt.HasValue)
-            meeting.SetSchedule(command.Request.StartAt.Value, command.Request.EndAt.Value, command.Request.Location);
+            meeting.SetSchedule(command.Request.StartAt.Value, command.Request.EndAt.Value, command.Request.Location, now);
 
         return Unit.Value;
     }

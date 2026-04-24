@@ -91,10 +91,13 @@ public class AppraisalDbContext : DbContext
     // =====================================================
     public DbSet<QuotationRequest> QuotationRequests => Set<QuotationRequest>();
     public DbSet<QuotationRequestItem> QuotationRequestItems => Set<QuotationRequestItem>();
+    public DbSet<QuotationRequestAppraisal> QuotationRequestAppraisals => Set<QuotationRequestAppraisal>();
     public DbSet<QuotationInvitation> QuotationInvitations => Set<QuotationInvitation>();
     public DbSet<CompanyQuotation> CompanyQuotations => Set<CompanyQuotation>();
     public DbSet<CompanyQuotationItem> CompanyQuotationItems => Set<CompanyQuotationItem>();
     public DbSet<QuotationNegotiation> QuotationNegotiations => Set<QuotationNegotiation>();
+    public DbSet<QuotationSharedDocument> QuotationSharedDocuments => Set<QuotationSharedDocument>();
+    public DbSet<QuotationActivityLog> QuotationActivityLogs => Set<QuotationActivityLog>();
 
     // =====================================================
     // Appointment Entities (part of Appraisal aggregate)

@@ -20,6 +20,7 @@ public class ApprovalActivity : WorkflowActivityBase
     private readonly IApprovalVoteRepository _voteRepository;
     private readonly IPublisher _publisher;
     private readonly IIntegrationEventOutbox _outbox;
+    private readonly ICommitteeRepository _committeeRepository;
     private readonly ExpressionEvaluator _expressionEvaluator;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<ApprovalActivity> _logger;
@@ -29,6 +30,7 @@ public class ApprovalActivity : WorkflowActivityBase
         IApprovalVoteRepository voteRepository,
         IPublisher publisher,
         IIntegrationEventOutbox outbox,
+        ICommitteeRepository committeeRepository,
         IDateTimeProvider dateTimeProvider,
         ILogger<ApprovalActivity> logger)
     {
@@ -36,6 +38,7 @@ public class ApprovalActivity : WorkflowActivityBase
         _voteRepository = voteRepository;
         _publisher = publisher;
         _outbox = outbox;
+        _committeeRepository = committeeRepository;
         _dateTimeProvider = dateTimeProvider;
         _expressionEvaluator = new ExpressionEvaluator();
         _logger = logger;
@@ -317,7 +320,9 @@ public class ApprovalActivity : WorkflowActivityBase
                     context.ActivityId, successOutput["decision"], approveCount, rejectCount, routeBackCount);
 
                 // Emit committee approval event when decision == "approve".
-                // Consumer in Appraisal module stamps CompletedAt + ApprovedByCommittee on the aggregate.
+                // Consumers:
+                //   - Appraisal module: stamps CompletedAt + ApprovedByCommittee on the aggregate.
+                //   - Workflow Meetings: enqueues AppraisalAcknowledgementQueueItem (filtered by committee code).
                 if (successOutput["decision"] is string finalDecision &&
                     string.Equals(finalDecision, "approve", StringComparison.OrdinalIgnoreCase))
                 {
@@ -326,19 +331,53 @@ public class ApprovalActivity : WorkflowActivityBase
                     {
                         var committeeCode = GetVariable<string>(context, $"{normalizedId}_committeeCode") ?? string.Empty;
                         var committeeName = GetVariable<string>(context, $"{normalizedId}_committeeName");
+                        var appraisalNo = context.WorkflowInstance.Variables.TryGetValue("appraisalNumber", out var appraisalNumObj)
+                            ? appraisalNumObj?.ToString()
+                            : null;
 
-                        _outbox.Publish(new AppraisalApprovedByCommitteeIntegrationEvent
+                        // Resolve CommitteeId for the ack-queue consumer. A missing committee row is
+                        // non-fatal — we still publish the event (the Appraisal consumer still needs it);
+                        // the ack consumer will just not find a mapping in AcknowledgementGroupSettings
+                        // and will skip silently.
+                        Guid committeeId = Guid.Empty;
+                        if (!string.IsNullOrEmpty(committeeCode))
+                        {
+                            try
+                            {
+                                var committee = await _committeeRepository.GetByCodeAsync(committeeCode, cancellationToken);
+                                if (committee is not null)
+                                {
+                                    committeeId = committee.Id;
+                                }
+                                else
+                                {
+                                    _logger.LogWarning(
+                                        "ApprovalActivity {ActivityId}: Committee with code '{CommitteeCode}' not found; CommitteeId will be Guid.Empty in event",
+                                        context.ActivityId, committeeCode);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex,
+                                    "ApprovalActivity {ActivityId}: Failed to resolve CommitteeId for code '{CommitteeCode}'; CommitteeId will be Guid.Empty in event",
+                                    context.ActivityId, committeeCode);
+                            }
+                        }
+
+                        _outbox.Publish(new AppraisalApprovedIntegrationEvent
                         {
                             AppraisalId = appraisalId.Value,
                             CommitteeCode = committeeCode,
                             CommitteeName = committeeName,
                             ApprovedAt = _dateTimeProvider.ApplicationNow,
-                            ApprovedBy = voter
+                            ApprovedBy = voter,
+                            AppraisalNo = appraisalNo,
+                            CommitteeId = committeeId
                         }, appraisalId.Value.ToString());
 
                         _logger.LogInformation(
-                            "ApprovalActivity {ActivityId}: Published AppraisalApprovedByCommitteeIntegrationEvent for AppraisalId {AppraisalId} CommitteeCode {CommitteeCode}",
-                            context.ActivityId, appraisalId.Value, committeeCode);
+                            "ApprovalActivity {ActivityId}: Published AppraisalApprovedIntegrationEvent for AppraisalId {AppraisalId} CommitteeCode {CommitteeCode} CommitteeId {CommitteeId}",
+                            context.ActivityId, appraisalId.Value, committeeCode, committeeId);
                     }
                     else
                     {

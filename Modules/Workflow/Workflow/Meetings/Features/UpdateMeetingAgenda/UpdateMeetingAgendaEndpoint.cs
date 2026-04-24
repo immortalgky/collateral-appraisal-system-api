@@ -32,7 +32,9 @@ public record UpdateMeetingAgendaRequest(
 public record UpdateMeetingAgendaCommand(Guid MeetingId, UpdateMeetingAgendaRequest Request)
     : ICommand, ITransactionalCommand<IWorkflowUnitOfWork>;
 
-public class UpdateMeetingAgendaCommandHandler(IMeetingRepository meetingRepository)
+public class UpdateMeetingAgendaCommandHandler(
+    IMeetingRepository meetingRepository,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<UpdateMeetingAgendaCommand>
 {
     public async Task<Unit> Handle(UpdateMeetingAgendaCommand command, CancellationToken ct)
@@ -45,7 +47,8 @@ public class UpdateMeetingAgendaCommandHandler(IMeetingRepository meetingReposit
             command.Request.ToText,
             command.Request.AgendaCertifyMinutes,
             command.Request.AgendaChairmanInformed,
-            command.Request.AgendaOthers);
+            command.Request.AgendaOthers,
+            dateTimeProvider.ApplicationNow);
 
         return Unit.Value;
     }

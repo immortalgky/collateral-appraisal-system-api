@@ -2,8 +2,9 @@ namespace Workflow.Meetings.Domain;
 
 public enum MeetingStatus
 {
-    Draft,
-    Scheduled,
+    New,
+    InvitationSent,
+    RoutedBack,
     Ended,
     Cancelled
 }

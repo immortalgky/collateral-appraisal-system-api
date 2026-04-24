@@ -81,7 +81,22 @@ public class WorkflowInstanceConfiguration : IEntityTypeConfiguration<WorkflowIn
             .HasForeignKey(x => x.WorkflowInstanceId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Optimistic concurrency — prevents fan-out race: concurrent resumes on the last
+        // two tasks both reading remaining==0; the loser gets DbUpdateConcurrencyException
+        // and MassTransit retries the message so the next read sees remaining==1.
+        builder.Property(x => x.RowVersion)
+            .IsRowVersion();
+
         builder.HasIndex(x => x.CorrelationId);
+
+        // M5: unique per (CorrelationId, WorkflowDefinitionId) so duplicate spawn on message
+        // retry is caught at the database level with a constraint violation rather than relying
+        // solely on the in-process idempotency check (which has a TOCTOU gap).
+        builder.HasIndex(x => new { x.CorrelationId, x.WorkflowDefinitionId })
+            .IsUnique()
+            .HasDatabaseName("IX_WorkflowInstances_CorrelationId_WorkflowDefinitionId")
+            .HasFilter("[CorrelationId] IS NOT NULL");
+
         builder.HasIndex(x => x.Status);
         builder.HasIndex(x => x.CurrentAssignee);
         builder.HasIndex(x => x.StartedOn);

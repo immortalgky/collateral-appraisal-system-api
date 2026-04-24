@@ -33,7 +33,7 @@ public record CreateCommitteeRequest(
     List<CreateCommitteeThresholdRequest>? Thresholds,
     List<CreateCommitteeConditionRequest>? Conditions);
 
-public record CreateCommitteeMemberRequest(string UserId, string MemberName, string Role);
+public record CreateCommitteeMemberRequest(string UserId, string MemberName, string Role, string? Attendance = null);
 public record CreateCommitteeThresholdRequest(decimal? MinValue, decimal? MaxValue, int Priority);
 public record CreateCommitteeConditionRequest(string ConditionType, string? RoleRequired, int? MinVotesRequired, int Priority, string? Description);
 
@@ -66,7 +66,10 @@ public class CreateCommitteeCommandHandler(
             foreach (var m in req.Members)
             {
                 var position = Enum.Parse<CommitteeMemberPosition>(m.Role, ignoreCase: true);
-                committee.AddMember(m.UserId, m.MemberName, position);
+                var attendance = string.IsNullOrWhiteSpace(m.Attendance)
+                    ? CommitteeAttendance.Always
+                    : Enum.Parse<CommitteeAttendance>(m.Attendance, ignoreCase: true);
+                committee.AddMember(m.UserId, m.MemberName, position, attendance);
             }
         }
 

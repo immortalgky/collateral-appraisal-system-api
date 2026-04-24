@@ -60,7 +60,9 @@ public record AddMeetingMemberRequest(string UserId, string MemberName, Committe
 public record AddMeetingMemberCommand(Guid MeetingId, AddMeetingMemberRequest Request)
     : ICommand, ITransactionalCommand<IWorkflowUnitOfWork>;
 
-public class AddMeetingMemberCommandHandler(IMeetingRepository meetingRepository)
+public class AddMeetingMemberCommandHandler(
+    IMeetingRepository meetingRepository,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<AddMeetingMemberCommand>
 {
     public async Task<Unit> Handle(AddMeetingMemberCommand command, CancellationToken ct)
@@ -74,7 +76,7 @@ public class AddMeetingMemberCommandHandler(IMeetingRepository meetingRepository
             command.Request.MemberName,
             command.Request.Position);
 
-        meeting.AddMember(member);
+        meeting.AddMember(member, dateTimeProvider.ApplicationNow);
         return Unit.Value;
     }
 }
@@ -84,7 +86,9 @@ public class AddMeetingMemberCommandHandler(IMeetingRepository meetingRepository
 public record RemoveMeetingMemberCommand(Guid MeetingId, Guid MemberId)
     : ICommand, ITransactionalCommand<IWorkflowUnitOfWork>;
 
-public class RemoveMeetingMemberCommandHandler(IMeetingRepository meetingRepository)
+public class RemoveMeetingMemberCommandHandler(
+    IMeetingRepository meetingRepository,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<RemoveMeetingMemberCommand>
 {
     public async Task<Unit> Handle(RemoveMeetingMemberCommand command, CancellationToken ct)
@@ -92,7 +96,7 @@ public class RemoveMeetingMemberCommandHandler(IMeetingRepository meetingReposit
         var meeting = await meetingRepository.GetByIdForDecisionAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
-        meeting.RemoveMember(command.MemberId);
+        meeting.RemoveMember(command.MemberId, dateTimeProvider.ApplicationNow);
         return Unit.Value;
     }
 }
@@ -107,7 +111,9 @@ public record ChangeMemberPositionCommand(
     CommitteeMemberPosition Position)
     : ICommand, ITransactionalCommand<IWorkflowUnitOfWork>;
 
-public class ChangeMemberPositionCommandHandler(IMeetingRepository meetingRepository)
+public class ChangeMemberPositionCommandHandler(
+    IMeetingRepository meetingRepository,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<ChangeMemberPositionCommand>
 {
     public async Task<Unit> Handle(ChangeMemberPositionCommand command, CancellationToken ct)
@@ -115,7 +121,7 @@ public class ChangeMemberPositionCommandHandler(IMeetingRepository meetingReposi
         var meeting = await meetingRepository.GetByIdForDecisionAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
-        meeting.ChangeMemberPosition(command.MemberId, command.Position);
+        meeting.ChangeMemberPosition(command.MemberId, command.Position, dateTimeProvider.ApplicationNow);
         return Unit.Value;
     }
 }

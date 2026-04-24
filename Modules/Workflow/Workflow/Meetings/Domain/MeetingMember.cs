@@ -36,7 +36,7 @@ public class MeetingMember : Entity<Guid>
 
         return new MeetingMember
         {
-            //Id = Guid.CreateVersion7(),
+            Id = Guid.CreateVersion7(),
             MeetingId = meetingId,
             UserId = committeeMember.UserId,
             MemberName = committeeMember.MemberName,

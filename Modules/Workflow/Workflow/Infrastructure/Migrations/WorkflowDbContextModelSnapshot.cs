@@ -645,6 +645,13 @@ namespace Workflow.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Attendance")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasDefaultValue("Always");
+
                     b.Property<Guid>("CommitteeId")
                         .HasColumnType("uniqueidentifier");
 
@@ -861,7 +868,6 @@ namespace Workflow.Infrastructure.Migrations
             modelBuilder.Entity("Workflow.Meetings.Domain.MeetingItem", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("AcknowledgementGroup")
@@ -954,7 +960,6 @@ namespace Workflow.Infrastructure.Migrations
             modelBuilder.Entity("Workflow.Meetings.Domain.MeetingMember", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("AddedAt")
@@ -1019,7 +1024,7 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<Guid>("AppraisalDecisionId")
+                    b.Property<Guid?>("AppraisalDecisionId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("AppraisalId")
@@ -1070,13 +1075,14 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AppraisalDecisionId")
-                        .IsUnique()
-                        .HasFilter("[Status] IN ('PendingAcknowledgement', 'Included')");
-
                     b.HasIndex("MeetingId");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("AppraisalId", "CommitteeId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AckQueueItems_AppraisalId_CommitteeId_Active")
+                        .HasFilter("[Status] IN ('PendingAcknowledgement', 'Included')");
 
                     b.ToTable("AppraisalAcknowledgementQueueItems", "workflow");
                 });
@@ -1420,8 +1426,8 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.Property<string>("ActionTaken")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
 
                     b.Property<string>("ActivityId")
                         .HasMaxLength(100)
@@ -1525,6 +1531,9 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<Guid?>("AssigneeCompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("CorrelationId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1586,6 +1595,9 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(255)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("WorkflowInstanceId", "ActivityId", "AssigneeCompanyId")
+                        .HasDatabaseName("IX_PendingTasks_WorkflowInstance_Activity_Company");
 
                     b.ToTable("PendingTasks", "workflow");
                 });
@@ -2302,6 +2314,12 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<int>("RetryCount")
                         .HasColumnType("int");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("RuntimeOverrides")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -2357,6 +2375,11 @@ namespace Workflow.Infrastructure.Migrations
                     b.HasIndex("WorkflowDefinitionId");
 
                     b.HasIndex("WorkflowDefinitionVersionId");
+
+                    b.HasIndex("CorrelationId", "WorkflowDefinitionId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_WorkflowInstances_CorrelationId_WorkflowDefinitionId")
+                        .HasFilter("[CorrelationId] IS NOT NULL");
 
                     b.ToTable("WorkflowInstances", "workflow");
                 });

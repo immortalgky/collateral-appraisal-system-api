@@ -20,6 +20,12 @@ public class PendingTask : Aggregate<Guid>
     public DateTime? SlaBreachedAt { get; private set; }
     public string Movement { get; private set; } = "F";
 
+    /// <summary>
+    /// For fan-out tasks (e.g. ext-collect-submissions): the company that owns this task slot.
+    /// Null for non-fan-out tasks.
+    /// </summary>
+    public Guid? AssigneeCompanyId { get; private set; }
+
     private PendingTask()
     {
         // For EF Core
@@ -27,7 +33,7 @@ public class PendingTask : Aggregate<Guid>
 
     private PendingTask(Guid correlationId, string taskName, string assignedTo, string assignedType,
         DateTime assignedAt, Guid workflowInstanceId, string activityId, string? taskDescription = null,
-        string movement = "F")
+        string movement = "F", Guid? assigneeCompanyId = null)
     {
         Id = Guid.CreateVersion7();
         CorrelationId = correlationId;
@@ -40,14 +46,16 @@ public class PendingTask : Aggregate<Guid>
         WorkflowInstanceId = workflowInstanceId;
         ActivityId = activityId;
         Movement = movement;
+        AssigneeCompanyId = assigneeCompanyId;
     }
 
     public static PendingTask Create(Guid correlationId, string taskName, string assignedTo,
         string assignedType, DateTime assignedAt, Guid workflowInstanceId, string activityId,
-        DateTime? dueAt = null, string? taskDescription = null, string movement = "F")
+        DateTime? dueAt = null, string? taskDescription = null, string movement = "F",
+        Guid? assigneeCompanyId = null)
     {
         var task = new PendingTask(correlationId, taskName, assignedTo, assignedType, assignedAt,
-            workflowInstanceId, activityId, taskDescription, movement);
+            workflowInstanceId, activityId, taskDescription, movement, assigneeCompanyId);
         task.DueAt = dueAt;
         task.SlaStatus = dueAt.HasValue ? "OnTime" : null;
         return task;

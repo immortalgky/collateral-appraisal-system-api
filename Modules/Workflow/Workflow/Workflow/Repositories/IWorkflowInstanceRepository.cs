@@ -16,6 +16,13 @@ public interface IWorkflowInstanceRepository
         CancellationToken cancellationToken = default);
 
     Task<WorkflowInstance?> GetByCorrelationId(string correlationId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Overload that additionally scopes the lookup to a specific workflow definition name.
+    /// Prevents cross-definition collisions when multiple workflow types share a CorrelationId prefix.
+    /// </summary>
+    Task<WorkflowInstance?> GetByCorrelationIdAsync(string correlationId, string workflowDefinitionName, CancellationToken cancellationToken = default);
+
     Task<WorkflowInstance?> GetWithExecutionsAsync(Guid id, CancellationToken cancellationToken = default);
 
 

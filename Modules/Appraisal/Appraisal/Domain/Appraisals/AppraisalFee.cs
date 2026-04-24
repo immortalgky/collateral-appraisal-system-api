@@ -11,6 +11,7 @@ public class AppraisalFee : Entity<Guid>
     // Fee Metadata (from Request)
     public string? FeePaymentType { get; private set; }
     public string? FeeNotes { get; private set; }
+    public decimal? TotalSellingPrice { get; private set; }
 
     // Fee Totals (calculated from FeeItems)
     public decimal TotalFeeBeforeVAT { get; private set; }
@@ -33,6 +34,7 @@ public class AppraisalFee : Entity<Guid>
     // Fee Items
     private readonly List<AppraisalFeeItem> _items = [];
     public IReadOnlyList<AppraisalFeeItem> Items => _items.AsReadOnly();
+    public bool HasItems => _items.Count > 0;
 
     // Payment History (at fee level, not item level)
     private readonly List<AppraisalFeePaymentHistory> _paymentHistory = [];
@@ -46,7 +48,8 @@ public class AppraisalFee : Entity<Guid>
     public static AppraisalFee Create(
         Guid assignmentId,
         string? feePaymentType = null,
-        string? feeNotes = null)
+        string? feeNotes = null,
+        decimal? totalSellingPrice = null)
     {
         return new AppraisalFee
         {
@@ -54,6 +57,7 @@ public class AppraisalFee : Entity<Guid>
             AssignmentId = assignmentId,
             FeePaymentType = feePaymentType,
             FeeNotes = feeNotes,
+            TotalSellingPrice = totalSellingPrice,
             TotalFeeBeforeVAT = 0,
             VATRate = 7.00m,
             VATAmount = 0,

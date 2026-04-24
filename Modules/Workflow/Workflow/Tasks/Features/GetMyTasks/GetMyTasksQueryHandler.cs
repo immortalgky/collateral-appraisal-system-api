@@ -27,13 +27,33 @@ public class GetMyTasksQueryHandler(
         var conditions = new List<string>();
         var parameters = new DynamicParameters();
 
-        // Only individual assignments (AssignedType = '1'); pool tasks are excluded
-        conditions.Add("AssignedType = @IndividualAssignedType");
-        parameters.Add("IndividualAssignedType", "1");
+        // Build ownership predicate:
+        //   - Individual tasks (AssignedType='1') assigned directly to this user
+        //   - ExtAdmin pool tasks (AssignedType='2', AssignedTo='ExtAdmin') scoped to the caller's company
+        //   - ExtAppraisalChecker pool tasks (AssignedType='2', AssignedTo='ExtAppraisalChecker') scoped to the caller's company
+        var isExtAdmin = currentUserService.IsInRole("ExtAdmin");
+        var isExtChecker = currentUserService.IsInRole("ExtAppraisalChecker");
+        var companyId = currentUserService.CompanyId;
 
-        // Always filter by current user
-        conditions.Add("AssigneeUserId = @AssigneeUserId");
-        parameters.Add("AssigneeUserId", currentUserService.Username);
+        if ((isExtAdmin || isExtChecker) && companyId.HasValue)
+        {
+            // Include both individual tasks AND company-pool (fan-out) tasks for the caller's ext role(s)
+            var roleMatches = new List<string>();
+            if (isExtAdmin) roleMatches.Add("'ExtAdmin'");
+            if (isExtChecker) roleMatches.Add("'ExtAppraisalChecker'");
+            conditions.Add(
+                $"((AssignedType = '1' AND AssigneeUserId = @AssigneeUserId) " +
+                $"OR (AssignedType = '2' AND AssigneeCompanyId = @CallerCompanyId AND AssigneeUserId IN ({string.Join(", ", roleMatches)})))");
+            parameters.Add("AssigneeUserId", currentUserService.Username);
+            parameters.Add("CallerCompanyId", companyId.Value);
+        }
+        else
+        {
+            // Standard: individual assignments only
+            conditions.Add("AssignedType = '1'");
+            conditions.Add("AssigneeUserId = @AssigneeUserId");
+            parameters.Add("AssigneeUserId", currentUserService.Username);
+        }
 
         var filter = query.Filter;
         if (filter is not null)

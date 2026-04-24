@@ -142,7 +142,7 @@
         "properties": {
           "routingConditions": {
             "auto_assign_internal": "hasAppraisalBook == true || isPma == true",
-            "admin_review": "priority == 'high' || bankingSegment == 'IBG'"
+            "admin_review": "priority == 'high' || bankingSegment == 'IBG' || channel == 'MANUAL'"
           },
           "defaultDecision": "auto_assign_external"
         },
@@ -161,7 +161,7 @@
         "description": "Internal admin reviews the request and decides to assign to external company or internal appraisal",
         "properties": {
           "activityName": "AppraisalAssignment",
-          "assigneeGroup": "Admin",
+          "assigneeGroup": "IntAdmin",
           "assignmentStrategies": "pool",
           "initialAssignmentStrategies": [
             "pool"
@@ -170,6 +170,7 @@
             "previous_owner"
           ],
           "canRaiseFollowup": true,
+          "canRaiseQuotation": true,
           "timeoutDuration": "PT72H",
           "decisionConditions": {
             "route_external": "appraisal_assignment_decisionTaken == 'EXT'",
@@ -224,7 +225,7 @@
           "y": 100
         },
         "requiredRoles": [
-          "Admin"
+          "IntAdmin"
         ],
         "isStartActivity": false,
         "isEndActivity": false
@@ -714,7 +715,7 @@
             "valueExpression": "facilityLimit",
             "thresholds": [
               {
-                "maxValue": 10000000,
+                "maxValue": 9999999.99,
                 "committeeCode": "SUB_COMMITTEE"
               },
               {
@@ -1101,7 +1102,23 @@
         "id": "meeting-to-approval",
         "from": "pending-meeting",
         "to": "pending-approval",
-        "condition": "meetingOutcome == 'ended'",
+        "condition": "meetingOutcome == 'released'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "meeting-back-to-execution",
+        "from": "pending-meeting",
+        "to": "int-appraisal-execution",
+        "condition": "meetingOutcome == 'route_back' && assignmentType == 'Internal'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "meeting-back-to-book-verification",
+        "from": "pending-meeting",
+        "to": "appraisal-book-verification",
+        "condition": "meetingOutcome == 'route_back' && assignmentType == 'External'",
         "properties": {},
         "type": "Conditional"
       },

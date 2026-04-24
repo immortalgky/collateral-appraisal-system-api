@@ -1,4 +1,5 @@
-using Workflow.Domain.Committees;
+using Dapper;
+using Shared.Data;
 using Workflow.Meetings.Domain;
 
 namespace Workflow.Meetings.Features.GetMeetingDetail;
@@ -22,6 +23,26 @@ public class GetMeetingDetailEndpoint : ICarterModule
 }
 
 public record GetMeetingDetailQuery(Guid Id) : IQuery<MeetingDetailDto>;
+
+public record MeetingDto(
+    Guid Id,
+    string Title,
+    string Status,
+    string? MeetingNo,
+    DateTime? StartAt,
+    DateTime? EndAt,
+    string? Location,
+    string? Notes,
+    string? CancelReason,
+    DateTime? EndedAt,
+    DateTime? CancelledAt,
+    DateTime? CutOffAt,
+    DateTime? InvitationSentAt,
+    string? FromText,
+    string? ToText,
+    string? AgendaCertifyMinutes,
+    string? AgendaChairmanInformed,
+    string? AgendaOthers);
 
 public record MeetingDetailDto(
     Guid Id,
@@ -56,7 +77,7 @@ public record MeetingMemberDto(
 public record MeetingItemDto(
     Guid Id,
     Guid AppraisalId,
-    string? AppraisalNo,
+    string? AppraisalNumber,
     decimal FacilityLimit,
     Guid? WorkflowInstanceId,
     string? ActivityId,
@@ -67,7 +88,10 @@ public record MeetingItemDto(
     DateTime? DecisionAt,
     string? DecisionBy,
     string? DecisionReason,
-    DateTime AddedAt);
+    DateTime AddedAt,
+    string CustomerName,
+    string AppraisalStaff,
+    decimal? AppraisedValue);
 
 /// <summary>Stable grouped shape with typed arrays — TypeScript-friendly, no dynamic dictionary keys.</summary>
 public record MeetingItemGroupDto(string Group, List<MeetingItemDto> Items);
@@ -80,31 +104,55 @@ public record MeetingItemsGroupedDto(
     List<MeetingItemGroupDto> DecisionItems,
     List<MeetingItemGroupDto> AcknowledgementItems);
 
-public class GetMeetingDetailQueryHandler(IMeetingRepository meetingRepository)
+public class GetMeetingDetailQueryHandler(
+    IMeetingRepository meetingRepository,
+    ISqlConnectionFactory sqlConnectionFactory)
     : IQueryHandler<GetMeetingDetailQuery, MeetingDetailDto>
 {
     public async Task<MeetingDetailDto> Handle(GetMeetingDetailQuery query, CancellationToken cancellationToken)
     {
-        var meeting = await meetingRepository.GetByIdForDecisionAsync(query.Id, cancellationToken)
-            ?? throw new NotFoundException($"Meeting {query.Id} not found");
+        const string sql = """
+                           SELECT 
+                               Id, Title, Status, MeetingNo, StartAt, EndAt, 
+                               Location, Notes, CancelReason, EndedAt, CancelledAt, CutOffAt, 
+                               InvitationSentAt, FromText, ToText, 
+                               AgendaCertifyMinutes, AgendaChairmanInformed, AgendaOthers
+                           FROM workflow.[Meetings] m WHERE m.[Id] = @Id
 
-        var members = meeting.Members
-            .Select(m => new MeetingMemberDto(
-                m.Id, m.UserId, m.MemberName, m.Position.ToString(),
-                m.SourceCommitteeMemberId, m.AddedAt))
-            .ToList();
+                           SELECT 
+                               Id, UserId, MemberName, Position, SourceCommitteeMemberId, AddedAt
+                           FROM workflow.[MeetingMembers] where MeetingId = @Id
 
-        var allItemDtos = meeting.Items
-            .Select(i => new MeetingItemDto(
-                i.Id, i.AppraisalId, i.AppraisalNo, i.FacilityLimit,
-                i.WorkflowInstanceId, i.ActivityId,
-                i.Kind.ToString(), i.AppraisalType, i.AcknowledgementGroup,
-                i.ItemDecision.ToString(), i.DecisionAt, i.DecisionBy, i.DecisionReason,
-                i.AddedAt))
-            .ToList();
+                           SELECT
+                               m.Id, a.Id AS AppraisalId, a.AppraisalNumber, a.FacilityLimit, WorkflowInstanceId,
+                               ActivityId, Kind, a.AppraisalType, AcknowledgementGroup,
+                               ItemDecision, DecisionAt, DecisionBy, DecisionReason, AddedAt,
+                               c.Name AS CustomerName, u.FirstName + ' ' + u.LastName AS AppraisalStaff, v.AppraisedValue
+                           FROM workflow.MeetingItems m
+                               INNER JOIN appraisal.Appraisals a ON a.Id = m.AppraisalId
+                               CROSS APPLY (SELECT TOP 1 Name
+                                            FROM request.RequestCustomers
+                                            WHERE RequestId = a.RequestId) c
+                               OUTER APPLY (SELECT TOP 1 Id, COALESCE(AssigneeUserId, InternalAppraiserId) AS InternalAppraiserId
+                                            FROM appraisal.AppraisalAssignments
+                                            WHERE AppraisalId = a.Id AND AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+                                            ORDER BY AssignedAt DESC) AA
+                               LEFT JOIN auth.AspNetUsers u ON u.UserName = aa.InternalAppraiserId
+                               LEFT JOIN appraisal.ValuationAnalyses v ON v.AppraisalId = a.Id
+                               WHERE MeetingId = @Id
+                           """;
+
+        var connection = sqlConnectionFactory.GetOpenConnection();
+        await using var multi = await connection.QueryMultipleAsync(sql, new { query.Id });
+
+        var meeting = await multi.ReadSingleAsync<MeetingDto>();
+
+        var members = (await multi.ReadAsync<MeetingMemberDto>()).ToList();
+
+        var allItems = (await multi.ReadAsync<MeetingItemDto>()).ToList();
 
         // Decision items: one group per AppraisalType, known types first then any others.
-        var decisionItemsList = allItemDtos
+        var decisionItemsList = allItems
             .Where(i => i.Kind == MeetingItemKind.Decision.ToString())
             .ToList();
 
@@ -114,7 +162,7 @@ public class GetMeetingDetailQueryHandler(IMeetingRepository meetingRepository)
             .ToList();
 
         // Acknowledgement items: one group per AcknowledgementGroup key.
-        var ackItemsList = allItemDtos
+        var ackItemsList = allItems
             .Where(i => i.Kind == MeetingItemKind.Acknowledgement.ToString())
             .ToList();
 
@@ -125,10 +173,17 @@ public class GetMeetingDetailQueryHandler(IMeetingRepository meetingRepository)
 
         var grouped = new MeetingItemsGroupedDto(decisionGroups, ackGroups);
 
+        // Compute effective status: InvitationSent + now >= StartAt → InProgress (never persisted).
+        var effectiveStatus = meeting.Status == nameof(MeetingStatus.InvitationSent)
+                              && meeting.StartAt.HasValue
+                              && meeting.StartAt.Value <= DateTime.UtcNow
+            ? "InProgress"
+            : meeting.Status;
+
         return new MeetingDetailDto(
             meeting.Id,
             meeting.Title,
-            meeting.Status.ToString(),
+            effectiveStatus,
             meeting.MeetingNo,
             meeting.StartAt,
             meeting.EndAt,

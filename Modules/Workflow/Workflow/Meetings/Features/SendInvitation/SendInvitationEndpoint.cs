@@ -28,7 +28,6 @@ public record SendInvitationResponse(Guid MeetingId, string? MeetingNo, DateTime
 
 public class SendInvitationCommandHandler(
     IMeetingRepository meetingRepository,
-    IMeetingNoGenerator meetingNoGenerator,
     IDateTimeProvider dateTimeProvider)
     : ICommandHandler<SendInvitationCommand, SendInvitationResponse>
 {
@@ -37,7 +36,7 @@ public class SendInvitationCommandHandler(
         var meeting = await meetingRepository.GetByIdAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
-        await meeting.SendInvitation(meetingNoGenerator, dateTimeProvider.ApplicationNow, ct);
+        meeting.SendInvitation(dateTimeProvider.ApplicationNow);
 
         return new SendInvitationResponse(meeting.Id, meeting.MeetingNo, meeting.InvitationSentAt);
     }

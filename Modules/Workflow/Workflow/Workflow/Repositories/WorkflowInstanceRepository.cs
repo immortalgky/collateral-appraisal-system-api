@@ -54,6 +54,20 @@ public class WorkflowInstanceRepository(WorkflowDbContext dbContext, IDateTimePr
             .FirstOrDefaultAsync(x => x.CorrelationId == correlationId, cancellationToken);
     }
 
+    public async Task<WorkflowInstance?> GetByCorrelationIdAsync(
+        string correlationId,
+        string workflowDefinitionName,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.WorkflowInstances
+            .Include(x => x.WorkflowDefinition)
+            .Include(x => x.ActivityExecutions)
+            .FirstOrDefaultAsync(
+                x => x.CorrelationId == correlationId
+                     && x.WorkflowDefinition.Name == workflowDefinitionName,
+                cancellationToken);
+    }
+
     public async Task<WorkflowInstance?> GetWithExecutionsAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await dbContext.WorkflowInstances

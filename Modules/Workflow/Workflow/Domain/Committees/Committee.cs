@@ -57,14 +57,15 @@ public class Committee : Aggregate<Guid>
         IsActive = isActive;
     }
 
-    public CommitteeMember AddMember(string userId, string memberName, CommitteeMemberPosition position)
+    public CommitteeMember AddMember(string userId, string memberName, CommitteeMemberPosition position,
+        CommitteeAttendance attendance = CommitteeAttendance.Always)
     {
         var existing = _members.FirstOrDefault(m =>
             m.UserId == userId && m.IsActive);
         if (existing is not null)
             throw new InvalidOperationException($"User {userId} is already an active member of this committee");
 
-        var member = CommitteeMember.Create(Id, userId, memberName, position);
+        var member = CommitteeMember.Create(Id, userId, memberName, position, attendance);
         _members.Add(member);
         return member;
     }
@@ -74,6 +75,21 @@ public class Committee : Aggregate<Guid>
         var member = _members.FirstOrDefault(m => m.Id == memberId)
             ?? throw new NotFoundException($"CommitteeMember {memberId} not found");
         member.Deactivate();
+    }
+
+    /// <summary>
+    /// Updates an existing committee member's position, attendance schedule, and active status.
+    /// Throws <see cref="NotFoundException"/> if the member is not found.
+    /// </summary>
+    public void UpdateMember(Guid memberId, CommitteeMemberPosition position,
+        CommitteeAttendance attendance, bool isActive)
+    {
+        var member = _members.FirstOrDefault(m => m.Id == memberId)
+            ?? throw new NotFoundException($"CommitteeMember {memberId} not found");
+
+        member.UpdatePosition(position);
+        member.UpdateAttendance(attendance);
+        if (isActive) member.Activate(); else member.Deactivate();
     }
 
     public CommitteeThreshold AddThreshold(decimal? minValue, decimal? maxValue, int priority)
@@ -95,6 +111,20 @@ public class Committee : Aggregate<Guid>
 
     public List<CommitteeMember> GetActiveMembers() =>
         _members.Where(m => m.IsActive).ToList();
+
+    /// <summary>
+    /// Returns active members filtered by parity of <paramref name="meetingSeq"/>.
+    /// A member with <see cref="CommitteeAttendance.Always"/> is always included.
+    /// A member with <see cref="CommitteeAttendance.Odd"/> is included when seq is odd.
+    /// A member with <see cref="CommitteeAttendance.Even"/> is included when seq is even.
+    /// </summary>
+    public List<CommitteeMember> GetActiveMembers(int meetingSeq) =>
+        _members.Where(m =>
+            m.IsActive && (
+                m.Attendance == CommitteeAttendance.Always ||
+                (m.Attendance == CommitteeAttendance.Odd  && meetingSeq % 2 == 1) ||
+                (m.Attendance == CommitteeAttendance.Even && meetingSeq % 2 == 0)
+            )).ToList();
 
     public int GetRequiredQuorum()
     {

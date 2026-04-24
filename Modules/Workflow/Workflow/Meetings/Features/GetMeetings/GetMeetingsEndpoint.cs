@@ -41,21 +41,54 @@ public record MeetingListItemDto(
 public class GetMeetingsQueryHandler(ISqlConnectionFactory connectionFactory)
     : IQueryHandler<GetMeetingsQuery, PaginatedResult<MeetingListItemDto>>
 {
+    /// <summary>
+    /// Effective-status CASE expression:
+    ///   InvitationSent + StartAt &lt;= now  → 'InProgress'  (computed, never persisted)
+    ///   otherwise                           → persisted Status value
+    ///
+    /// Filter mapping (same SYSUTCDATETIME() anchor used by both projection and WHERE):
+    ///   @Status = NULL          → all rows
+    ///   @Status = 'InProgress'  → Status='InvitationSent' AND StartAt &lt;= now
+    ///   @Status = 'InvitationSent' → Status='InvitationSent' AND (StartAt IS NULL OR StartAt > now)
+    ///   any other @Status       → plain Status = @Status
+    /// </summary>
     private const string Sql = """
-        SELECT
-            m.Id,
-            m.Title,
-            m.Status,
-            m.MeetingNo,
-            m.StartAt,
-            m.EndAt,
-            m.Location,
-            (SELECT COUNT(1) FROM workflow.MeetingItems i WHERE i.MeetingId = m.Id) AS ItemCount,
-            m.CutOffAt,
-            m.InvitationSentAt
-        FROM workflow.Meetings m
-        WHERE (@Status IS NULL OR m.Status = @Status)
-        """;
+                               SELECT
+                                   m.Id,
+                                   m.Title,
+                                   CASE
+                                       WHEN m.Status = 'InvitationSent' AND m.StartAt IS NOT NULL AND m.StartAt <= GETDATE()
+                                           THEN 'InProgress'
+                                       ELSE m.Status
+                                   END AS Status,
+                                   m.MeetingNo,
+                                   m.StartAt,
+                                   m.EndAt,
+                                   m.Location,
+                                   (SELECT COUNT(1) FROM workflow.MeetingItems i WHERE i.MeetingId = m.Id) AS ItemCount,
+                                   m.CutOffAt,
+                                   m.InvitationSentAt
+                               FROM workflow.Meetings m
+                               WHERE (
+                                   @Status IS NULL
+                                   OR (
+                                       @Status = 'InProgress'
+                                           AND m.Status = 'InvitationSent'
+                                           AND m.StartAt IS NOT NULL
+                                           AND m.StartAt <= GETDATE()
+                                   )
+                                   OR (
+                                       @Status = 'InvitationSent'
+                                           AND m.Status = 'InvitationSent'
+                                           AND (m.StartAt IS NULL OR m.StartAt > GETDATE())
+                                   )
+                                   OR (
+                                       @Status <> 'InProgress'
+                                       AND @Status <> 'InvitationSent'
+                                       AND m.Status = @Status
+                                   )
+                               )
+                               """;
 
     public async Task<PaginatedResult<MeetingListItemDto>> Handle(
         GetMeetingsQuery query, CancellationToken cancellationToken)
@@ -63,8 +96,8 @@ public class GetMeetingsQueryHandler(ISqlConnectionFactory connectionFactory)
         var request = new PaginationRequest(query.PageNumber, query.PageSize);
         return await connectionFactory.QueryPaginatedAsync<MeetingListItemDto>(
             Sql,
-            orderBy: "m.StartAt DESC, m.Id DESC",
+            "m.StartAt, m.MeetingNoSeq",
             request,
-            param: new { Status = query.Status });
+            new { Status = query.Status });
     }
 }
