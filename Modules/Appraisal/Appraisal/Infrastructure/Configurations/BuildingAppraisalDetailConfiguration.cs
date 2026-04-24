@@ -104,7 +104,7 @@ public class
         builder.Property(e => e.ForcedSalePrice).HasPrecision(18, 2);
 
         // Other
-        builder.Property(e => e.Remark).HasMaxLength(1000);
+        builder.Property(e => e.Remark).HasMaxLength(4000);
 
         // Relationship - FK to AppraisalProperty (1:1)
         builder.Property(e => e.AppraisalPropertyId).IsRequired();
