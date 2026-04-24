@@ -434,7 +434,10 @@ public class TaskActivity : WorkflowActivityBase
             new Dictionary<string, object> { ["taskType"] = "system" },
             cancellationToken);
 
-        await PublishTaskAssignedEventAsync(context, SystemAssignee, "1", cancellationToken);
+        // v6: do NOT publish TaskAssignedEvent for system-parked activities.
+        // System tasks await external triggers (commands called from outside the task list),
+        // so a PendingTask row surfacing in /tasks/me would be noise and confuses users.
+        // The workflow still parks (we return Pending below) and advances on ResumeWorkflowAsync.
 
         var outputData = new Dictionary<string, object>
         {
@@ -449,7 +452,7 @@ public class TaskActivity : WorkflowActivityBase
         };
 
         _logger.LogInformation(
-            "System task created for activity {ActivityId}. Awaiting external trigger.",
+            "System task parked for activity {ActivityId}. Awaiting external trigger (no PendingTask surfaced).",
             context.ActivityId);
 
         return ActivityResult.Pending(outputData);
