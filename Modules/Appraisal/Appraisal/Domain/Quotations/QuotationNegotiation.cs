@@ -6,7 +6,12 @@ namespace Appraisal.Domain.Quotations;
 public class QuotationNegotiation : Entity<Guid>
 {
     public Guid CompanyQuotationId { get; private set; }
-    public Guid QuotationItemId { get; private set; }
+
+    /// <summary>
+    /// Optional link to a specific QuotationRequestItem.
+    /// Null for quotation-level (overall) negotiations in the IBG flow.
+    /// </summary>
+    public Guid? QuotationItemId { get; private set; }
 
     // Negotiation Details
     public int NegotiationRound { get; private set; }
@@ -35,7 +40,7 @@ public class QuotationNegotiation : Entity<Guid>
 
     public static QuotationNegotiation Create(
         Guid companyQuotationId,
-        Guid quotationItemId,
+        Guid? quotationItemId,
         int negotiationRound,
         string initiatedBy,
         Guid? initiatedByUserId,
@@ -48,7 +53,7 @@ public class QuotationNegotiation : Entity<Guid>
 
         return new QuotationNegotiation
         {
-            Id = Guid.CreateVersion7(),
+            //Id = Guid.CreateVersion7(),
             CompanyQuotationId = companyQuotationId,
             QuotationItemId = quotationItemId,
             NegotiationRound = negotiationRound,
