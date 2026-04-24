@@ -4,6 +4,7 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260423032134_AddAppraisalFeeTotalSellingPrice")]
+    partial class AddAppraisalFeeTotalSellingPrice
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -6139,30 +6142,14 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal>("Discount")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
-
                     b.Property<int>("EstimatedDays")
                         .HasColumnType("int");
-
-                    b.Property<decimal>("FeeAmount")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
 
                     b.Property<string>("ItemNotes")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("ItemNumber")
                         .HasColumnType("int");
-
-                    b.Property<decimal?>("NegotiatedDiscount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("NegotiationRounds")
                         .HasColumnType("int");
@@ -6195,12 +6182,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("UpdatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<decimal>("VatPercent")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
-
                     b.HasKey("Id");
 
                     b.HasIndex("AppraisalId");
@@ -6208,73 +6189,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasIndex("CompanyQuotationId");
 
                     b.ToTable("CompanyQuotationItems", "appraisal");
-                });
-
-            modelBuilder.Entity("Appraisal.Domain.Quotations.QuotationActivityLog", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("ActionAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ActionBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("ActionByRole")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("ActivityName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<Guid?>("CompanyId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("CompanyQuotationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("CreatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("QuotationRequestId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Remark")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("UpdatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("QuotationRequestId")
-                        .HasDatabaseName("IX_QuotationActivityLogs_QuotationRequestId");
-
-                    b.HasIndex("QuotationRequestId", "ActionAt")
-                        .HasDatabaseName("IX_QuotationActivityLogs_QuotationRequestId_ActionAt");
-
-                    b.ToTable("QuotationActivityLogs", "appraisal");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Quotations.QuotationInvitation", b =>

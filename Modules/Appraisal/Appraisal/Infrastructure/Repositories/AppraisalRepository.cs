@@ -65,12 +65,11 @@ public class AppraisalRepository(AppraisalDbContext dbContext)
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<Domain.Appraisals.Appraisal>> GetByRequestIdAsync(Guid requestId,
+    public async Task<Domain.Appraisals.Appraisal?> GetByRequestIdAsync(Guid requestId,
         CancellationToken cancellationToken = default)
     {
         return await _dbContext.Appraisals
-            .Where(a => a.RequestId == requestId)
-            .ToListAsync(cancellationToken);
+            .FirstOrDefaultAsync(a => a.RequestId == requestId, cancellationToken);
     }
 
     /// <inheritdoc />
