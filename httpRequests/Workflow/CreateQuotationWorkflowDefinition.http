@@ -6,4 +6,4 @@ POST {{baseUrl}}/api/workflows/definitions
 X-Dev-Auth: dev-bypass
 Content-Type: application/json
 
-< ../../Modules/Workflow/Workflow/Workflow/Config/appraisal-workflow.json
+< ../../Modules/Workflow/Workflow/Workflow/Config/quotation-workflow.json
