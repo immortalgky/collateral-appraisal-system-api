@@ -1107,7 +1107,7 @@
         "type": "Conditional"
       },
       {
-        "id": "meeting-to-approval",
+        "id": "meeting-back-to-execution",
         "from": "pending-meeting",
         "to": "int-appraisal-execution",
         "condition": "meetingOutcome == 'route_back' && assignmentType == 'Internal'",
@@ -1115,7 +1115,7 @@
         "type": "Conditional"
       },
       {
-        "id": "meeting-to-approval",
+        "id": "meeting-back-to-book-verification",
         "from": "pending-meeting",
         "to": "appraisal-book-verification",
         "condition": "meetingOutcome == 'route_back' && assignmentType == 'External'",
