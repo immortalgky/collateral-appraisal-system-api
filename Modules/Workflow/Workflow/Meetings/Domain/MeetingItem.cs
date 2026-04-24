@@ -55,7 +55,7 @@ public class MeetingItem : Entity<Guid>
     {
         return new MeetingItem
         {
-            //Id = Guid.CreateVersion7(),
+            Id = Guid.CreateVersion7(),
             MeetingId = meetingId,
             AppraisalId = appraisalId,
             AppraisalNo = appraisalNo,
@@ -79,7 +79,7 @@ public class MeetingItem : Entity<Guid>
         decimal facilityLimit,
         string? appraisalType,
         string acknowledgementGroup,
-        Guid sourceAppraisalDecisionId)
+        Guid? sourceAppraisalDecisionId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(acknowledgementGroup);
 
@@ -111,5 +111,22 @@ public class MeetingItem : Entity<Guid>
         DecisionAt = now;
         DecisionBy = actor;
         DecisionReason = reason;
+    }
+
+    /// <summary>
+    /// Reinstates a routed-back Decision item back to Pending so it can be reconsidered
+    /// in the same meeting. Only valid when <see cref="ItemDecision"/> is
+    /// <see cref="ItemDecision.RoutedBack"/>.
+    /// </summary>
+    internal void Reinstate(DateTime now)
+    {
+        if (Kind != MeetingItemKind.Decision)
+            throw new InvalidOperationException("Only Decision items can be reinstated");
+
+        if (ItemDecision != ItemDecision.RoutedBack)
+            throw new InvalidOperationException(
+                $"Cannot reinstate item with decision {ItemDecision}; expected RoutedBack");
+
+        ApplyDecision(ItemDecision.Pending, string.Empty, null, now);
     }
 }
