@@ -163,7 +163,7 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
             title.Property(t => t.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
             // Title Deed Info
-            title.Property(t => t.TitleNumber).IsRequired().HasMaxLength(100);
+            title.Property(t => t.TitleNumber).IsRequired().HasMaxLength(200);
             title.Property(t => t.TitleType).IsRequired().HasMaxLength(50);
             title.Property(t => t.BookNumber).HasMaxLength(50);
             title.Property(t => t.PageNumber).HasMaxLength(50);
