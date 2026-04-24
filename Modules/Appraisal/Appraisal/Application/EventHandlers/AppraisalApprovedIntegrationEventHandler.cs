@@ -12,14 +12,14 @@ namespace Appraisal.Application.EventHandlers;
 /// Published by ApprovalActivity.ResumeActivityAsync when the final decision
 /// (after any decisionConditions remap) resolves to "approve".
 /// </summary>
-public class AppraisalApprovedByCommitteeIntegrationEventHandler(
-    ILogger<AppraisalApprovedByCommitteeIntegrationEventHandler> logger,
+public class AppraisalApprovedIntegrationEventHandler(
+    ILogger<AppraisalApprovedIntegrationEventHandler> logger,
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
     InboxGuard<AppraisalDbContext> inboxGuard)
-    : IConsumer<AppraisalApprovedByCommitteeIntegrationEvent>
+    : IConsumer<AppraisalApprovedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<AppraisalApprovedByCommitteeIntegrationEvent> context)
+    public async Task Consume(ConsumeContext<AppraisalApprovedIntegrationEvent> context)
     {
         if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
             return;
@@ -29,7 +29,7 @@ public class AppraisalApprovedByCommitteeIntegrationEventHandler(
 
         logger.LogInformation(
             "Integration Event received: {IntegrationEvent} for AppraisalId: {AppraisalId} CommitteeCode: {CommitteeCode}",
-            nameof(AppraisalApprovedByCommitteeIntegrationEvent),
+            nameof(AppraisalApprovedIntegrationEvent),
             message.AppraisalId,
             message.CommitteeCode);
 
@@ -42,7 +42,7 @@ public class AppraisalApprovedByCommitteeIntegrationEventHandler(
                 logger.LogWarning(
                     "Appraisal {AppraisalId} not found when handling {IntegrationEvent}",
                     message.AppraisalId,
-                    nameof(AppraisalApprovedByCommitteeIntegrationEvent));
+                    nameof(AppraisalApprovedIntegrationEvent));
                 return;
             }
 
@@ -60,7 +60,7 @@ public class AppraisalApprovedByCommitteeIntegrationEventHandler(
         {
             logger.LogError(ex,
                 "Error processing {IntegrationEvent} for AppraisalId: {AppraisalId}",
-                nameof(AppraisalApprovedByCommitteeIntegrationEvent),
+                nameof(AppraisalApprovedIntegrationEvent),
                 message.AppraisalId);
 
             throw;
