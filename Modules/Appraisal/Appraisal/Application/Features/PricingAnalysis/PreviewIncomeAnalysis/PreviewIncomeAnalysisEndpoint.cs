@@ -14,6 +14,8 @@ public class PreviewIncomeAnalysisEndpoint : ICarterModule
                     var command = new PreviewIncomeAnalysisCommand(
                         pricingAnalysisId,
                         methodId,
+                        request.AppraisalId,
+                        request.PropertyId,
                         request.TemplateCode,
                         request.TemplateName,
                         request.TotalNumberOfYears,

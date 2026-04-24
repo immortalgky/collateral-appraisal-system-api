@@ -18,6 +18,8 @@ public class SaveIncomeAnalysisEndpoint : ICarterModule
                     var command = new SaveIncomeAnalysisCommand(
                         pricingAnalysisId,
                         methodId,
+                        request.AppraisalId,
+                        request.PropertyId,
                         request.TemplateCode,
                         request.TemplateName,
                         request.TotalNumberOfYears,

@@ -30,7 +30,7 @@ namespace Workflow.Infrastructure.Migrations
                 oldClrType: typeof(Guid),
                 oldType: "uniqueidentifier",
                 oldNullable: true);
-
+                
             // Step 3: index + FK.
             migrationBuilder.CreateIndex(
                 name: "IX_WorkflowInstances_WorkflowDefinitionVersionId",

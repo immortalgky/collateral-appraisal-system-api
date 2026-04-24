@@ -1,4 +1,5 @@
 using Appraisal.Application.Configurations;
+using Appraisal.Application.Features.Appraisals.GetRentalInfo;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Appraisals.Income;
 using Appraisal.Domain.Appraisals.Income.MethodDetails;
@@ -98,10 +99,34 @@ public class SaveIncomeAnalysisCommandHandler(
         // On re-save the rewriter skips nodes whose dbId is already populated.
         IncomeRefTargetRewriter.Rewrite(analysis, idMap, logger);
 
-        // 6. Load tax brackets for Method-10 server-side derivation, then recalculate.
+        // 6a. Load tax brackets for Method-10 server-side derivation, then recalculate.
         var bracketsResult = await mediator.Send(new GetPricingTaxBracketsQuery(), cancellationToken);
-        var result = calcService.Calculate(analysis, bracketsResult.Brackets);
+        
+        // 6b. Load rental schedule — only if this is a lease-agreement property
+        decimal[]? contractRentalFeeFromSchedule = null;
+        try
+        {
+            var rental = await mediator.Send(
+                new GetRentalInfoQuery(command.AppraisalId, command.PropertyId),
+                cancellationToken);
+
+            // Build a Year -> TotalAmount map, then project into a year-indexed array
+            contractRentalFeeFromSchedule = BuildContractRentalFeeArray(
+                rental.ScheduleEntries,
+                command.TotalNumberOfYears);
+        }
+        catch (InvalidOperationException)
+        {
+            contractRentalFeeFromSchedule = null;
+        }
+        catch (PropertyNotFoundException)
+        {
+            contractRentalFeeFromSchedule = null;
+        }
+        
+        var result = calcService.Calculate(analysis, bracketsResult.Brackets, contractRentalFeeFromSchedule);
         analysis.ApplyCalculationResult(result);
+        
 
         // 7. Propagate the user's adjusted appraisal price up the chain.
         // Priority: AppraisalPriceRounded (explicit override) → derived appraisal price
@@ -313,5 +338,20 @@ public class SaveIncomeAnalysisCommandHandler(
                 category.RemoveAssumption(assumption);
 
         return pairs;
+    }
+    
+    private static decimal[] BuildContractRentalFeeArray(
+        IReadOnlyList<ScheduleEntryDto> entries,
+        int totalYears)
+    {
+        var arr = new decimal[totalYears];
+        foreach (var e in entries)
+        {
+            // Year is typically 1-based in the schedule; adjust if your domain uses 0-based
+            var idx = e.Year - 1;
+            if (idx >= 0 && idx < totalYears)
+                arr[idx] = e.TotalAmount;
+        }
+        return arr;
     }
 }

@@ -6,6 +6,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.SaveIncomeAnalysis;
 public record SaveIncomeAnalysisCommand(
     Guid PricingAnalysisId,
     Guid MethodId,
+    Guid AppraisalId,
+    Guid PropertyId,
     string TemplateCode,
     string TemplateName,
     int TotalNumberOfYears,
