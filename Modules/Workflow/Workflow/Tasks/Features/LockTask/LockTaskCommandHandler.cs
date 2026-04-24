@@ -25,8 +25,11 @@ public class LockTaskCommandHandler(
         if (task.AssignedType != "2")
             return new LockTaskResult(false, ErrorMessage: "Only pool tasks can be locked");
 
+        // Pool membership requires: role match AND, for company-scoped fan-out tasks
+        // (AssigneeCompanyId IS NOT NULL), caller must belong to that company.
         var isPoolMember = currentUserService.Roles.Any(r =>
-            string.Equals(r, task.AssignedTo, StringComparison.OrdinalIgnoreCase));
+            string.Equals(r, task.AssignedTo, StringComparison.OrdinalIgnoreCase)) &&
+            (task.AssigneeCompanyId is null || task.AssigneeCompanyId == currentUserService.CompanyId);
         if (!isPoolMember)
             return new LockTaskResult(false, ErrorMessage: "You are not a member of this pool");
 

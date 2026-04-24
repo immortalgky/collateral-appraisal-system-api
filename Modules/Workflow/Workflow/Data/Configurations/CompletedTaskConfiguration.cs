@@ -26,7 +26,7 @@ public class CompletedTaskConfiguration : IEntityTypeConfiguration<CompletedTask
             .HasMaxLength(10);
 
         builder.Property(p => p.ActionTaken)
-            .HasMaxLength(10);
+            .HasMaxLength(255);
 
         builder.OwnsOne(p => p.TaskStatus,
             taskStatus =>

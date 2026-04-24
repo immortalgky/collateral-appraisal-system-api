@@ -195,4 +195,39 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
             .Where(x => x.WorkflowInstanceId == workflowInstanceId)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<List<PendingTask>> GetFanOutPendingTasksAsync(
+        Guid workflowInstanceId, string activityId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.PendingTasks
+            .Where(x => x.WorkflowInstanceId == workflowInstanceId && x.ActivityId == activityId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<PendingTask?> GetFanOutTaskByCompanyAsync(
+        Guid workflowInstanceId, string activityId, Guid companyId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.PendingTasks
+            .FirstOrDefaultAsync(
+                x => x.WorkflowInstanceId == workflowInstanceId
+                     && x.ActivityId == activityId
+                     && x.AssigneeCompanyId == companyId,
+                cancellationToken);
+    }
+
+    public async Task<PendingTask?> GetFanOutTaskByCorrelationIdAndCompanyAsync(
+        Guid correlationId,
+        string activityId,
+        Guid assigneeCompanyId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.PendingTasks
+            .FirstOrDefaultAsync(
+                x => x.CorrelationId == correlationId
+                     && x.ActivityId == activityId
+                     && x.AssigneeCompanyId == assigneeCompanyId,
+                cancellationToken);
+    }
 }

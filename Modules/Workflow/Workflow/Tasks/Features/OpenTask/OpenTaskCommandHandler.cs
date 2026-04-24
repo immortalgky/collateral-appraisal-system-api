@@ -26,8 +26,11 @@ public class OpenTaskCommandHandler(
 
         var isOwner = task.AssignedType == "1" &&
             string.Equals(task.AssignedTo, username, StringComparison.OrdinalIgnoreCase);
+        // Pool tasks (AssignedType = "2"): role must match AND, for company-scoped fan-out tasks
+        // (AssigneeCompanyId IS NOT NULL), the caller must belong to that company.
         var isPoolMember = task.AssignedType == "2" &&
-            currentUserService.Roles.Any(r => string.Equals(r, task.AssignedTo, StringComparison.OrdinalIgnoreCase));
+            currentUserService.Roles.Any(r => string.Equals(r, task.AssignedTo, StringComparison.OrdinalIgnoreCase)) &&
+            (task.AssigneeCompanyId is null || task.AssigneeCompanyId == currentUserService.CompanyId);
 
         if (!isOwner && !isPoolMember)
             return new OpenTaskResult(false, "You are not assigned to this task");
