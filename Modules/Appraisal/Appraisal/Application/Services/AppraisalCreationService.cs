@@ -38,9 +38,9 @@ public class AppraisalCreationService(
 
         // Step 1: Check idempotency - does an appraisal already exist for this request?
         var existingAppraisal = await appraisalRepository.GetByRequestIdAsync(requestId, cancellationToken);
-        if (existingAppraisal.Any())
+        if (existingAppraisal is not null)
         {
-            var existingId = existingAppraisal.First().Id;
+            var existingId = existingAppraisal.Id;
             logger.LogInformation("Appraisal already exists for request {RequestId}: {AppraisalId}",
                 requestId, existingId);
             return existingId;
@@ -175,40 +175,25 @@ public class AppraisalCreationService(
                 "Saved group and assignment {AssignmentId} for appraisal {AppraisalId}",
                 assignment.Id, appraisal.Id);
 
-            // Phase 3: Create fee + appointment (both FK to assignment, which now exists in DB)
-            // Only auto-create the Appraisal Fee (code "01") with amount based on TotalSellingPrice tier.
-            // Other fees (Travel, Urgent) are added manually via the AddFeeItem endpoint.
-            var totalSellingPrice = fee?.TotalSellingPrice ?? 0m;
-
-            var appraisalFeeStructure = await dbContext.FeeStructures
-                .Where(fs => fs.IsActive && fs.FeeCode == "01")
-                .ToListAsync(cancellationToken);
-
-            var matchedTier = appraisalFeeStructure.FirstOrDefault(fs => fs.IsApplicableFor(totalSellingPrice));
-            if (matchedTier is null)
+            // Phase 3: Create fee shell + appointment (both FK to assignment, which now exists in DB)
+            // The shell captures the 4 fee-context fields from the request.
+            // Fee items (the calculated amount) are added later by IAssignmentFeeService
+            // when the real assignee is known (internal/external/quotation event handler).
+            if (fee is not null)
             {
-                // Fallback: use highest tier (open-ended MaxSellingPrice)
-                matchedTier = appraisalFeeStructure
-                    .OrderByDescending(fs => fs.MinSellingPrice)
-                    .First();
-                logger.LogWarning(
-                    "No fee tier matched TotalSellingPrice {TotalSellingPrice}. Falling back to highest tier (BaseAmount={BaseAmount})",
-                    totalSellingPrice, matchedTier.BaseAmount);
+                var appraisalFee = AppraisalFee.Create(
+                    assignmentId: assignment.Id,
+                    feePaymentType: fee.FeePaymentType,
+                    feeNotes: fee.FeeNotes,
+                    totalSellingPrice: fee.TotalSellingPrice);
+                if (fee.AbsorbedAmount is > 0m)
+                    appraisalFee.SetBankAbsorb(fee.AbsorbedAmount.Value);
+                dbContext.AppraisalFees.Add(appraisalFee);
+
+                logger.LogInformation(
+                    "Appraisal fee created: shell fee {FeeId} for assignment {AssignmentId} (TotalSellingPrice={TotalSellingPrice})",
+                    appraisalFee.Id, assignment.Id, fee.TotalSellingPrice);
             }
-
-            var appraisalFee = AppraisalFee.Create(
-                assignment.Id,
-                fee?.FeePaymentType,
-                fee?.FeeNotes);
-            appraisalFee.AddItem(matchedTier.FeeCode, matchedTier.FeeName, matchedTier.BaseAmount);
-
-            if (fee?.AbsorbedAmount is > 0) appraisalFee.SetBankAbsorb(fee.AbsorbedAmount.Value);
-
-            dbContext.AppraisalFees.Add(appraisalFee);
-
-            logger.LogInformation(
-                "Created fee {FeeId} with Appraisal Fee (BaseAmount={BaseAmount}) for assignment {AssignmentId} (TotalSellingPrice={TotalSellingPrice})",
-                appraisalFee.Id, matchedTier.BaseAmount, assignment.Id, totalSellingPrice);
 
             if (appointment?.AppointmentDateTime.HasValue == true)
             {

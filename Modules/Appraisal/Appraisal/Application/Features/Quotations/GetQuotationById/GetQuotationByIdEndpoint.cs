@@ -24,8 +24,10 @@ public class GetQuotationByIdEndpoint : ICarterModule
             .WithName("GetQuotationById")
             .Produces<GetQuotationByIdResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithSummary("Get quotation by ID")
-            .WithDescription("Retrieve a specific quotation request by its ID.")
-            .WithTags("Quotation");
+            .WithDescription("Retrieve a specific quotation request by its ID. Access is filtered by role.")
+            .WithTags("Quotation")
+            .RequireAuthorization();
     }
 }

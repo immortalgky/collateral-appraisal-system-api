@@ -1,0 +1,183 @@
+using Appraisal.Application.Features.Quotations.Shared;
+using Shared.Data.Outbox;
+using Shared.Identity;
+using Shared.Messaging.Events;
+
+namespace Appraisal.Application.Features.Quotations.SubmitQuotation;
+
+public class SubmitQuotationCommandHandler(
+    IQuotationRepository quotationRepository,
+    ICurrentUserService currentUser,
+    IIntegrationEventOutbox outbox,
+    IQuotationActivityLogger activityLogger)
+    : ICommandHandler<SubmitQuotationCommand, SubmitQuotationResult>
+{
+    public async Task<SubmitQuotationResult> Handle(
+        SubmitQuotationCommand command,
+        CancellationToken cancellationToken)
+    {
+        var quotationRequest = await quotationRepository.GetByIdAsync(command.QuotationRequestId, cancellationToken)
+                               ?? throw new NotFoundException($"Quotation request '{command.QuotationRequestId}' not found");
+
+        // Find the invitation for this company
+        var invitation = quotationRequest.Invitations
+            .FirstOrDefault(i => i.CompanyId == command.CompanyId)
+            ?? throw new BadRequestException($"Company '{command.CompanyId}' is not invited to this quotation");
+
+        // Enforce ext-company access (Maker or Checker)
+        QuotationAccessPolicy.EnsureCanSubmitQuotation(invitation, currentUser);
+
+        if (quotationRequest.Status != "Sent")
+            throw new BadRequestException($"Cannot submit quotation: RFQ is in status '{quotationRequest.Status}'");
+
+        // Determine which path we are on
+        var existingQuotation = quotationRequest.Quotations
+            .FirstOrDefault(q => q.CompanyId == command.CompanyId);
+
+        CompanyQuotation companyQuotation;
+        string submitRole;
+
+        if (existingQuotation is null)
+        {
+            // ─── Legacy path: no prior draft — create and submit directly ────────
+            companyQuotation = CompanyQuotation.Create(
+                quotationRequestId: command.QuotationRequestId,
+                invitationId: invitation.Id,
+                companyId: command.CompanyId,
+                quotationNumber: command.QuotationNumber,
+                estimatedDays: command.EstimatedDays);
+
+            ApplyScalarFields(companyQuotation, command);
+            AddItems(companyQuotation, command.Items);
+
+            quotationRequest.AddQuotation(companyQuotation);
+            submitRole = "ExtAdmin";
+        }
+        else if (existingQuotation.Status == "PendingCheckerReview")
+        {
+            // ─── Checker-final path: Checker finalises a pending draft ───────────
+            if (!QuotationAccessPolicy.IsChecker(currentUser))
+                throw new UnauthorizedAccessException(
+                    "Only the Checker (ExtAppraisalChecker) can make a final submission from PendingCheckerReview");
+
+            companyQuotation = existingQuotation;
+            ApplyScalarFields(companyQuotation, command);
+            companyQuotation.ClearItems();
+            AddItems(companyQuotation, command.Items);
+            companyQuotation.MarkSubmitted();
+
+            quotationRequest.RecalculateQuotationsReceived();
+            submitRole = "ExtAppraisalChecker";
+        }
+        else if (existingQuotation.Status == "Draft")
+        {
+            // ─── Two-person rule: Draft must go through submit-to-checker first ──
+            // A Checker calling /submit on a Draft bypasses the Maker hand-off.
+            // Reject unconditionally so the Maker must explicitly call /submit-to-checker.
+            throw new BadRequestException("Draft must be submitted to checker first (Maker action).");
+        }
+        else
+        {
+            throw new BadRequestException(
+                $"Cannot submit quotation: existing quotation is in status '{existingQuotation.Status}'");
+        }
+
+        // Mark invitation as submitted (idempotent)
+        invitation.MarkSubmitted();
+
+        activityLogger.Log(
+            quotationRequest.Id,
+            companyQuotation.Id,
+            command.CompanyId,
+            "Quotation submitted",
+            actionByRole: submitRole);
+
+        var autoClosed = quotationRequest.TryAutoCloseAfterAllResponses();
+
+        quotationRepository.Update(quotationRequest);
+
+        if (autoClosed)
+        {
+            outbox.Publish(new QuotationSubmissionsClosedIntegrationEvent
+            {
+                QuotationRequestId = quotationRequest.Id,
+                RequestId = quotationRequest.RequestId ?? Guid.Empty,
+                AdminUserIds = []
+            }, correlationId: quotationRequest.Id.ToString());
+        }
+
+        // Resume fan-out step in quotation child workflow for this company's submission
+        outbox.Publish(new QuotationWorkflowResumeIntegrationEvent
+        {
+            QuotationRequestId = quotationRequest.Id,
+            ActivityId = "ext-collect-submissions",
+            DecisionTaken = "Submit",
+            CompletedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty,
+            CompanyId = command.CompanyId
+        }, correlationId: quotationRequest.Id.ToString());
+
+        return new SubmitQuotationResult(
+            companyQuotation.Id,
+            companyQuotation.QuotationNumber,
+            companyQuotation.TotalQuotedPrice,
+            companyQuotation.Status);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static void ApplyScalarFields(CompanyQuotation quotation, SubmitQuotationCommand command)
+    {
+        if (command.ValidUntil.HasValue)
+            quotation.SetValidUntil(command.ValidUntil.Value);
+
+        quotation.SetProposedDates(command.ProposedStartDate, command.ProposedCompletionDate);
+        quotation.SetRemarks(command.Remarks);
+        quotation.SetTermsAndConditions(command.TermsAndConditions);
+        quotation.SetContactInfo(command.ContactName, command.ContactEmail, command.ContactPhone);
+    }
+
+    private static void AddItems(CompanyQuotation quotation, List<SubmitQuotationItemRequest> items)
+    {
+        foreach (var itemRequest in items)
+        {
+            // If the caller supplied a full fee breakdown (FeeAmount + Discount + VatPercent),
+            // derive the canonical NetAmount and persist the breakdown so it survives the
+            // Checker-final submit unchanged. Legacy callers that only send QuotedPrice use
+            // that value directly and skip SetFeeBreakdown.
+            decimal quotedPrice;
+            bool hasFeeBreakdown = itemRequest.FeeAmount.HasValue
+                                   && itemRequest.Discount.HasValue
+                                   && itemRequest.VatPercent.HasValue;
+
+            if (hasFeeBreakdown)
+            {
+                var feeAfterDiscount = itemRequest.FeeAmount!.Value
+                                       - itemRequest.Discount!.Value
+                                       - (itemRequest.NegotiatedDiscount ?? 0m);
+                var vatAmount = Math.Round(
+                    feeAfterDiscount * itemRequest.VatPercent!.Value / 100m, 2,
+                    MidpointRounding.AwayFromZero);
+                quotedPrice = feeAfterDiscount + vatAmount;
+            }
+            else
+            {
+                quotedPrice = itemRequest.QuotedPrice;
+            }
+
+            var item = quotation.AddItem(
+                itemRequest.QuotationRequestItemId,
+                itemRequest.AppraisalId,
+                itemRequest.ItemNumber,
+                quotedPrice,
+                itemRequest.EstimatedDays);
+
+            if (hasFeeBreakdown)
+            {
+                item.SetFeeBreakdown(itemRequest.FeeAmount!.Value, itemRequest.Discount!.Value, itemRequest.VatPercent!.Value);
+
+                if (itemRequest.NegotiatedDiscount.HasValue)
+                    item.SetNegotiatedDiscount(itemRequest.NegotiatedDiscount.Value);
+            }
+        }
+    }
+}
