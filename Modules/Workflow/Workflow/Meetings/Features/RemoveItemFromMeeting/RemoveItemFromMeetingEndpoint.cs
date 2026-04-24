@@ -28,7 +28,8 @@ public record RemoveItemFromMeetingCommand(Guid MeetingId, Guid AppraisalId)
 
 public class RemoveItemFromMeetingCommandHandler(
     IMeetingRepository meetingRepository,
-    WorkflowDbContext dbContext)
+    WorkflowDbContext dbContext,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<RemoveItemFromMeetingCommand>
 {
     public async Task<Unit> Handle(RemoveItemFromMeetingCommand command, CancellationToken ct)
@@ -36,7 +37,7 @@ public class RemoveItemFromMeetingCommandHandler(
         var meeting = await meetingRepository.GetByIdWithItemsAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
-        meeting.RemoveItem(command.AppraisalId);
+        meeting.RemoveItem(command.AppraisalId, dateTimeProvider.ApplicationNow);
 
         // Return the queue item back to Queued
         var queueItem = await dbContext.MeetingQueueItems

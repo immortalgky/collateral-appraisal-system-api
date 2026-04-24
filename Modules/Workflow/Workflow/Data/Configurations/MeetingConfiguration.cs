@@ -57,6 +57,8 @@ public class MeetingItemConfiguration : IEntityTypeConfiguration<MeetingItem>
         builder.ToTable("MeetingItems");
         builder.HasKey(i => i.Id);
 
+        builder.Property(i => i.Id).ValueGeneratedNever();
+
         builder.Property(i => i.MeetingId).IsRequired();
         builder.Property(i => i.AppraisalId).IsRequired();
         builder.Property(i => i.AppraisalNo).HasMaxLength(100);
@@ -89,6 +91,8 @@ public class MeetingMemberConfiguration : IEntityTypeConfiguration<MeetingMember
         builder.ToTable("MeetingMembers");
         builder.HasKey(m => m.Id);
 
+        builder.Property(i => i.Id).ValueGeneratedNever();
+
         builder.Property(m => m.MeetingId).IsRequired();
         builder.Property(m => m.UserId).HasMaxLength(255).IsRequired();
         builder.Property(m => m.MemberName).HasMaxLength(255).IsRequired();
@@ -97,4 +101,3 @@ public class MeetingMemberConfiguration : IEntityTypeConfiguration<MeetingMember
         builder.Property(m => m.AddedAt).IsRequired();
     }
 }
-
