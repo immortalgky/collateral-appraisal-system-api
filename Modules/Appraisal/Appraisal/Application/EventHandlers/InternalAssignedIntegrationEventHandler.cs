@@ -1,3 +1,4 @@
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using MassTransit;
@@ -9,6 +10,7 @@ namespace Appraisal.Application.EventHandlers;
 public class InternalAssignedIntegrationEventHandler(
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
+    IAssignmentFeeService feeService,
     ILogger<InternalAssignedIntegrationEventHandler> logger
 ) : IConsumer<InternalAssignedIntegrationEvent>
 {
@@ -50,6 +52,12 @@ public class InternalAssignedIntegrationEventHandler(
             assignmentMethod: message.AssignmentMethod,
             internalFollowupMethod: message.InternalFollowupAssignmentMethod,
             assignedBy: "System");
+
+        await feeService.EnsureAssignmentFeeItemsAsync(
+            appraisalId: message.AppraisalId,
+            assignmentId: assignment.Id,
+            source: new AssignmentFeeSource.TierBased(),
+            ct: context.CancellationToken);
 
         await appraisalRepository.UpdateAsync(appraisal, context.CancellationToken);
         await unitOfWork.SaveChangesAsync(context.CancellationToken);
