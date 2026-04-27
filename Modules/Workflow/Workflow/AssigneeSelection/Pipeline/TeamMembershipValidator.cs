@@ -26,6 +26,23 @@ public class TeamMembershipValidator : IAssignmentValidator
             return AssignmentValidationResult.Valid();
         }
 
+        // Pool assignees (e.g. "ExtAdmin:Team_<teamId>") are team-scoped by construction
+        // and are not users — GetTeamForUserAsync would always return null for them.
+        if (string.Equals(context.SelectionStrategy, "pool", StringComparison.OrdinalIgnoreCase))
+        {
+            var expectedSuffix = $":Team_{teamId}";
+            if (!context.SelectedAssignee.EndsWith(expectedSuffix, StringComparison.Ordinal))
+            {
+                _logger.LogWarning(
+                    "Pool assignee {Assignee} is not scoped to required team {RequiredTeam}",
+                    context.SelectedAssignee, teamId);
+                return AssignmentValidationResult.Invalid(
+                    $"Pool assignee '{context.SelectedAssignee}' is not scoped to team '{teamId}'");
+            }
+
+            return AssignmentValidationResult.Valid();
+        }
+
         // Verify the selected assignee belongs to the workflow's team
         var assigneeTeam = await _teamService.GetTeamForUserAsync(context.SelectedAssignee, cancellationToken);
 

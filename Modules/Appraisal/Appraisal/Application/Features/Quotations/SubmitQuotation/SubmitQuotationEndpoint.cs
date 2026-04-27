@@ -31,7 +31,8 @@ public class SubmitQuotationEndpoint : ICarterModule
                         FeeAmount: i.FeeAmount,
                         Discount: i.Discount,
                         NegotiatedDiscount: i.NegotiatedDiscount,
-                        VatPercent: i.VatPercent)).ToList();
+                        VatPercent: i.VatPercent,
+                        ItemNotes: i.ItemNotes)).ToList();
 
                     var command = new SubmitQuotationCommand(
                         QuotationRequestId: id,

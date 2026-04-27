@@ -15,7 +15,10 @@
         "type": "StartActivity",
         "description": "Initial workflow entry point",
         "properties": {},
-        "position": { "x": 100, "y": 100 },
+        "position": {
+          "x": 100,
+          "y": 100
+        },
         "requiredRoles": [],
         "isStartActivity": true,
         "isEndActivity": false
@@ -28,15 +31,77 @@
         "properties": {
           "activityName": "SubmitQuotation",
           "fanOutVariable": "invitedCompanyIds",
-          "assigneeGroup": "ExtAdmin",
           "dueAtVariable": "dueDate",
-          "actions": [
-            { "value": "Submit",  "label": "Submit",  "movement": "F" },
-            { "value": "Decline", "label": "Decline", "movement": "F" }
+          "onTimeout": {
+            "complete": "Declined"
+          },
+          "initialStage": "maker",
+          "stages": [
+            {
+              "name": "maker",
+              "assigneeGroup": "ExtAdmin",
+              "initialAssignmentStrategies": [
+                "pool"
+              ],
+              "revisitAssignmentStrategies": [
+                "pool"
+              ],
+              "actions": [
+                {
+                  "value": "SubmitToChecker",
+                  "label": "Submit to Checker",
+                  "to": "checker"
+                },
+                {
+                  "value": "Decline",
+                  "label": "Decline",
+                  "complete": "Declined"
+                }
+              ]
+            },
+            {
+              "name": "checker",
+              "assigneeGroup": "ExtAppraisalChecker",
+              "initialAssignmentStrategies": [
+                "pool"
+              ],
+              "revisitAssignmentStrategies": [
+                "pool"
+              ],
+              "assignmentRules": {
+                "teamConstrained": true,
+                "excludeAssigneesFrom": [
+                  "ext-collect-submissions:maker"
+                ]
+              },
+              "actions": [
+                {
+                  "value": "ReturnToMaker",
+                  "label": "Return to Maker",
+                  "to": "maker"
+                },
+                {
+                  "value": "Submit",
+                  "label": "Submit Quotation",
+                  "complete": "Submitted"
+                },
+                {
+                  "value": "Decline",
+                  "label": "Decline",
+                  "complete": "Declined"
+                }
+              ]
+            }
           ]
         },
-        "position": { "x": 250, "y": 100 },
-        "requiredRoles": ["ExtAdmin"],
+        "position": {
+          "x": 250,
+          "y": 100
+        },
+        "requiredRoles": [
+          "ExtAdmin",
+          "ExtAppraisalChecker"
+        ],
         "isStartActivity": false,
         "isEndActivity": false
       },
@@ -48,22 +113,54 @@
         "properties": {
           "taskType": "system",
           "activityName": "ReviewQuotationSubmissions",
-          "assigneeGroup": "Admin",
-          "assignmentStrategies": "started_by",
-          "initialAssignmentStrategies": ["started_by"],
-          "revisitAssignmentStrategies": ["previous_owner"],
+          "assigneeGroup": "IntAdmin",
+          "assignmentStrategies": "pool",
+          "initialAssignmentStrategies": [
+            "pool"
+          ],
+          "revisitAssignmentStrategies": [
+            "pool"
+          ],
           "timeoutDuration": "PT72H",
           "decisionConditions": {
             "send_to_rm": "admin_review_submissions_decisionTaken == 'SendToRm'",
-            "cancel":     "admin_review_submissions_decisionTaken == 'Cancel'"
+            "select_as_winner": "admin_review_submissions_decisionTaken == 'SelectAsWinner'",
+            "cancel": "admin_review_submissions_decisionTaken == 'Cancel'"
           },
           "actions": [
-            { "value": "SendToRm", "label": "Send to RM", "assignmentMode": "system", "movement": "F" },
-            { "value": "Cancel",   "label": "Cancel",     "assignmentMode": "system", "movement": "C" }
-          ]
+            {
+              "value": "SendToRm",
+              "label": "Send to RM",
+              "assignmentMode": "system",
+              "movement": "F"
+            },
+            {
+              "value": "SelectAsWinner",
+              "label": "Select as Winner",
+              "assignmentMode": "system",
+              "movement": "F"
+            },
+            {
+              "value": "Cancel",
+              "label": "Cancel",
+              "assignmentMode": "system",
+              "movement": "C"
+            }
+          ],
+          "outputMappings": {
+            "tentativeWinnerCompanyQuotationId": "tentativeWinnerCompanyQuotationId",
+            "tentativeWinnerCompanyId": "tentativeWinnerCompanyId",
+            "rmRequestsNegotiation": "rmRequestsNegotiation",
+            "rmNegotiationNote": "rmNegotiationNote"
+          }
         },
-        "position": { "x": 400, "y": 100 },
-        "requiredRoles": ["Admin"],
+        "position": {
+          "x": 400,
+          "y": 100
+        },
+        "requiredRoles": [
+          "IntAdmin"
+        ],
         "isStartActivity": false,
         "isEndActivity": false
       },
@@ -75,28 +172,47 @@
         "properties": {
           "activityName": "PickQuotationWinner",
           "assigneeGroup": "RequestMaker",
-          "assignmentStrategies": "started_by",
-          "initialAssignmentStrategies": ["started_by"],
-          "revisitAssignmentStrategies": ["previous_owner"],
+          "assignmentStrategies": "variable_assignee",
+          "initialAssignmentStrategies": [
+            "variable_assignee"
+          ],
+          "revisitAssignmentStrategies": [
+            "previous_owner"
+          ],
           "assigneeVariable": "rmUserId",
           "timeoutDuration": "PT48H",
           "decisionConditions": {
-            "pick":            "rm_pick_winner_decisionTaken == 'Pick'",
+            "pick": "rm_pick_winner_decisionTaken == 'Pick'",
             "recall_shortlist": "rm_pick_winner_decisionTaken == 'RecallShortlist'"
           },
           "actions": [
-            { "value": "Pick",            "label": "Pick Winner",      "assignmentMode": "system", "movement": "F" },
-            { "value": "RecallShortlist", "label": "Recall Shortlist", "assignmentMode": "system", "movement": "B" }
+            {
+              "value": "Pick",
+              "label": "Pick Winner",
+              "assignmentMode": "system",
+              "movement": "F"
+            },
+            {
+              "value": "RecallShortlist",
+              "label": "Recall Shortlist",
+              "assignmentMode": "system",
+              "movement": "B"
+            }
           ],
           "outputMappings": {
             "tentativeWinnerCompanyQuotationId": "tentativeWinnerCompanyQuotationId",
-            "tentativeWinnerCompanyId":          "tentativeWinnerCompanyId",
-            "rmRequestsNegotiation":             "rmRequestsNegotiation",
-            "rmNegotiationNote":                 "rmNegotiationNote"
+            "tentativeWinnerCompanyId": "tentativeWinnerCompanyId",
+            "rmRequestsNegotiation": "rmRequestsNegotiation",
+            "rmNegotiationNote": "rmNegotiationNote"
           }
         },
-        "position": { "x": 550, "y": 100 },
-        "requiredRoles": ["RequestMaker"],
+        "position": {
+          "x": 550,
+          "y": 100
+        },
+        "requiredRoles": [
+          "RequestMaker"
+        ],
         "isStartActivity": false,
         "isEndActivity": false
       },
@@ -108,31 +224,60 @@
         "properties": {
           "taskType": "system",
           "activityName": "FinalizeQuotation",
-          "assigneeGroup": "Admin",
-          "assignmentStrategies": "started_by",
-          "initialAssignmentStrategies": ["started_by"],
-          "revisitAssignmentStrategies": ["previous_owner"],
+          "assigneeGroup": "IntAdmin",
+          "assignmentStrategies": "pool",
+          "initialAssignmentStrategies": [
+            "pool"
+          ],
+          "revisitAssignmentStrategies": [
+            "pool"
+          ],
           "timeoutDuration": "PT72H",
           "decisionConditions": {
-            "open_negotiation":  "admin_finalize_decisionTaken == 'OpenNegotiation'",
-            "reject_tentative":  "admin_finalize_decisionTaken == 'RejectTentative'",
-            "finalize":          "admin_finalize_decisionTaken == 'Finalize'",
-            "cancel":            "admin_finalize_decisionTaken == 'Cancel'"
+            "open_negotiation": "admin_finalize_decisionTaken == 'OpenNegotiation'",
+            "reject_tentative": "admin_finalize_decisionTaken == 'RejectTentative'",
+            "finalize": "admin_finalize_decisionTaken == 'Finalize'",
+            "cancel": "admin_finalize_decisionTaken == 'Cancel'"
           },
           "actions": [
-            { "value": "OpenNegotiation", "label": "Open Negotiation",    "assignmentMode": "system", "movement": "F" },
-            { "value": "RejectTentative", "label": "Reject Tentative",    "assignmentMode": "system", "movement": "B" },
-            { "value": "Finalize",        "label": "Finalize",            "assignmentMode": "system", "movement": "F" },
-            { "value": "Cancel",          "label": "Cancel",              "assignmentMode": "system", "movement": "C" }
+            {
+              "value": "OpenNegotiation",
+              "label": "Open Negotiation",
+              "assignmentMode": "system",
+              "movement": "F"
+            },
+            {
+              "value": "RejectTentative",
+              "label": "Reject Tentative",
+              "assignmentMode": "system",
+              "movement": "B"
+            },
+            {
+              "value": "Finalize",
+              "label": "Finalize",
+              "assignmentMode": "system",
+              "movement": "F"
+            },
+            {
+              "value": "Cancel",
+              "label": "Cancel",
+              "assignmentMode": "system",
+              "movement": "C"
+            }
           ],
           "inputMappings": {
-            "rmRequestsNegotiation":             "rmRequestsNegotiation",
-            "rmNegotiationNote":                 "rmNegotiationNote",
+            "rmRequestsNegotiation": "rmRequestsNegotiation",
+            "rmNegotiationNote": "rmNegotiationNote",
             "tentativeWinnerCompanyQuotationId": "tentativeWinnerCompanyQuotationId"
           }
         },
-        "position": { "x": 700, "y": 100 },
-        "requiredRoles": ["Admin"],
+        "position": {
+          "x": 700,
+          "y": 100
+        },
+        "requiredRoles": [
+          "IntAdmin"
+        ],
         "isStartActivity": false,
         "isEndActivity": false
       },
@@ -145,24 +290,50 @@
           "activityName": "RespondNegotiationRound",
           "assigneeGroup": "ExtAdmin",
           "teamIdVariable": "tentativeWinnerCompanyId",
-          "assignmentRules": { "teamConstrained": true },
-          "assignmentStrategies": "round_robin",
-          "initialAssignmentStrategies": ["round_robin"],
-          "revisitAssignmentStrategies": ["previous_owner"],
+          "assignmentRules": {
+            "teamConstrained": true
+          },
+          "assignmentStrategies": "pool",
+          "initialAssignmentStrategies": [
+            "pool"
+          ],
+          "revisitAssignmentStrategies": [
+            "pool"
+          ],
           "timeoutDuration": "PT48H",
           "decisionConditions": {
-            "accept":  "ext_respond_negotiation_decisionTaken == 'Accept'",
+            "accept": "ext_respond_negotiation_decisionTaken == 'Accept'",
             "counter": "ext_respond_negotiation_decisionTaken == 'Counter'",
-            "reject":  "ext_respond_negotiation_decisionTaken == 'Reject'"
+            "reject": "ext_respond_negotiation_decisionTaken == 'Reject'"
           },
           "actions": [
-            { "value": "Accept",  "label": "Accept",  "assignmentMode": "system", "movement": "F" },
-            { "value": "Counter", "label": "Counter",  "assignmentMode": "system", "movement": "F" },
-            { "value": "Reject",  "label": "Reject",  "assignmentMode": "system", "movement": "B" }
+            {
+              "value": "Accept",
+              "label": "Accept",
+              "assignmentMode": "system",
+              "movement": "F"
+            },
+            {
+              "value": "Counter",
+              "label": "Counter",
+              "assignmentMode": "system",
+              "movement": "F"
+            },
+            {
+              "value": "Reject",
+              "label": "Reject",
+              "assignmentMode": "system",
+              "movement": "B"
+            }
           ]
         },
-        "position": { "x": 850, "y": 100 },
-        "requiredRoles": ["ExtAdmin"],
+        "position": {
+          "x": 850,
+          "y": 100
+        },
+        "requiredRoles": [
+          "ExtAdmin"
+        ],
         "isStartActivity": false,
         "isEndActivity": false
       },
@@ -174,7 +345,10 @@
         "properties": {
           "completionMessage": "Quotation finalized and company assigned"
         },
-        "position": { "x": 900, "y": 50 },
+        "position": {
+          "x": 900,
+          "y": 50
+        },
         "requiredRoles": [],
         "isStartActivity": false,
         "isEndActivity": true
@@ -187,7 +361,10 @@
         "properties": {
           "completionMessage": "Quotation cancelled"
         },
-        "position": { "x": 900, "y": 200 },
+        "position": {
+          "x": 900,
+          "y": 200
+        },
         "requiredRoles": [],
         "isStartActivity": false,
         "isEndActivity": true
@@ -215,6 +392,14 @@
         "from": "admin-review-submissions",
         "to": "rm-pick-winner",
         "condition": "decision == 'send_to_rm'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "admin-review-select-as-winner",
+        "from": "admin-review-submissions",
+        "to": "admin-finalize",
+        "condition": "decision == 'select_as_winner'",
         "properties": {},
         "type": "Conditional"
       },
@@ -316,7 +501,11 @@
       "author": "System Admin",
       "createdDate": "2026-04-22T00:00:00Z",
       "version": "1.0",
-      "tags": ["appraisal", "quotation", "rfq"],
+      "tags": [
+        "appraisal",
+        "quotation",
+        "rfq"
+      ],
       "customProperties": {}
     }
   }

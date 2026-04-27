@@ -29,7 +29,8 @@ public class SaveDraftQuotationEndpoint : ICarterModule
                         i.Discount,
                         i.NegotiatedDiscount,
                         i.VatPercent,
-                        i.EstimatedDays)).ToList();
+                        i.EstimatedDays,
+                        i.ItemNotes)).ToList();
 
                     var command = new SaveDraftQuotationCommand(
                         QuotationRequestId: id,

@@ -30,9 +30,9 @@ public class QuotationRequestConfiguration : IEntityTypeConfiguration<QuotationR
         //   UnderAdminReview | PendingRmSelection | WinnerTentative | Negotiating | Finalized
         builder.Property(q => q.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Draft");
         builder.Property(q => q.SelectionReason).HasMaxLength(500);
+        builder.Property(q => q.CancellationReason).HasMaxLength(500);
 
-        builder.Property(q => q.RequestedBy).IsRequired();
-        builder.Property(q => q.RequestedByName).IsRequired().HasMaxLength(200);
+        builder.Property(q => q.RequestedBy).IsRequired().HasMaxLength(50);
 
         // ── RM identity (denormalised for access-policy evaluation) ──────────
         builder.Property(q => q.RmUserId);
@@ -219,6 +219,9 @@ public class CompanyQuotationConfiguration : IEntityTypeConfiguration<CompanyQuo
         builder.Property(q => q.DeclineReason).HasMaxLength(500);
         builder.Property(q => q.DeclinedAt);
         builder.Property(q => q.DeclinedBy).HasMaxLength(450);
+
+        // Captured when admin rejects this row as the tentative winner (RejectTentativeWinner flow).
+        builder.Property(q => q.WithdrawalReason).HasMaxLength(500);
 
         // ── Relationships ─────────────────────────────────────────────────────
         builder.HasMany(q => q.Items)

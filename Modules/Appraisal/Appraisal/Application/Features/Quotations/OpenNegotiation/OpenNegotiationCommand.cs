@@ -5,6 +5,5 @@ namespace Appraisal.Application.Features.Quotations.OpenNegotiation;
 public record OpenNegotiationCommand(
     Guid QuotationRequestId,
     Guid CompanyQuotationId,
-    decimal ProposedPrice,
     string Message)
     : ICommand<OpenNegotiationResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

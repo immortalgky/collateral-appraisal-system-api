@@ -13,4 +13,8 @@ public record StartQuotationFromTaskRequest(
     string? PropertyLocation = null,
     decimal? EstimatedValue = null,
     string? SpecialRequirements = null,
-    Guid? ExistingQuotationRequestId = null);
+    Guid? ExistingQuotationRequestId = null,
+    int? MaxAppraisalDays = null,
+    string? AssignmentType = null,
+    string? AssignmentMethod = null,
+    string? InternalFollowupAssignmentMethod = null);

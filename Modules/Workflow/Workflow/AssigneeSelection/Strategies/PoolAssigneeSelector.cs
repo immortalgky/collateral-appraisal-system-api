@@ -7,6 +7,7 @@ namespace Workflow.AssigneeSelection.Strategies;
 /// All users in the group can see the task and optionally claim it.
 /// Returns the group name(s) as AssigneeId with AssignedType="2" in metadata.
 /// </summary>
+/// <remarks>Multi-group emission (e.g. "Group1,Group2") is not supported by <see cref="Workflow.Tasks.Authorization.PoolTaskAccess"/> matching; schemas must emit a single-group <c>assigneeGroup</c>.</remarks>
 public class PoolAssigneeSelector : IAssigneeSelector
 {
     private readonly ILogger<PoolAssigneeSelector> _logger;

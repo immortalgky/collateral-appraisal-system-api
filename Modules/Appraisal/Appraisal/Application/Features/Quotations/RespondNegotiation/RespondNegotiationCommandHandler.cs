@@ -28,13 +28,18 @@ public class RespondNegotiationCommandHandler(
 
         QuotationAccessPolicy.EnsureCanSubmitQuotation(invitation, currentUser);
 
+        var itemDiscounts = command.Items?.ToDictionary(
+            i => i.AppraisalId,
+            i => i.NegotiatedDiscount);
+
         quotation.RespondNegotiation(
             command.CompanyQuotationId,
             command.NegotiationId,
             command.Verb,
             command.CounterPrice,
             command.Message,
-            currentUser.UserId!.Value);
+            currentUser.UserId!.Value,
+            itemDiscounts);
 
         quotationRepository.Update(quotation);
 

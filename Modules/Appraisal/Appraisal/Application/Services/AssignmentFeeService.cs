@@ -103,16 +103,23 @@ public class AssignmentFeeService(
                 break;
             }
 
-            case AssignmentFeeSource.Quotation(var amount, var rfqId):
+            case AssignmentFeeSource.Quotation quotationSource:
             {
+                // Use feeCode "01" (Appraisal Fee) so the FE renders this row as
+                // non-deletable (FeeInformationSection.tsx gates delete on feeCode !== '01').
+                // The amount is ex-VAT — RecalculateFromItems will add VAT on top.
+                var rfqLabel = !string.IsNullOrWhiteSpace(quotationSource.QuotationNumber)
+                    ? quotationSource.QuotationNumber
+                    : quotationSource.QuotationRequestId.ToString();
+
                 fee.AddItem(
-                    feeCode: "QUOTATION_FEE",
-                    feeDescription: $"Appraisal fee agreed via competitive quotation RFQ {rfqId}",
-                    feeAmount: amount);
+                    feeCode: "01",
+                    feeDescription: $"Appraisal fee agreed via competitive quotation {rfqLabel}",
+                    feeAmount: quotationSource.Amount);
 
                 logger.LogInformation(
-                    "Created quotation fee: fee {FeeId} assigned quotation item (Amount={Amount}, RfqId={RfqId}) for AssignmentId={AssignmentId}",
-                    fee.Id, amount, rfqId, assignmentId);
+                    "Created quotation fee: fee {FeeId} assigned quotation item (Amount={Amount}, Rfq={Rfq}) for AssignmentId={AssignmentId}",
+                    fee.Id, quotationSource.Amount, rfqLabel, assignmentId);
                 break;
             }
 

@@ -20,8 +20,8 @@ public class GetMyDraftsForAssemblyQueryHandler(
     {
         QuotationAccessPolicy.EnsureAdmin(currentUser);
 
-        var adminId = currentUser.UserId
-            ?? throw new UnauthorizedAccessException("Cannot resolve current user ID from token");
+        var adminUsername = currentUser.Username
+            ?? throw new UnauthorizedAccessException("Cannot resolve current user username from token");
 
         using var connection = connectionFactory.GetOpenConnection();
 
@@ -37,11 +37,11 @@ public class GetMyDraftsForAssemblyQueryHandler(
                 q.TotalCompaniesInvited
             FROM appraisal.QuotationRequests q
             WHERE q.Status = 'Draft'
-              AND q.RequestedBy = @AdminId
+              AND q.RequestedBy = @AdminUsername
             """;
 
         var parameters = new DynamicParameters();
-        parameters.Add("AdminId", adminId);
+        parameters.Add("AdminUsername", adminUsername);
 
         if (!string.IsNullOrWhiteSpace(query.BankingSegment))
         {

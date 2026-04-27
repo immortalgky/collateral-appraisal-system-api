@@ -2589,6 +2589,77 @@ namespace Workflow.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.OwnsMany("Workflow.Workflow.Models.FanOutItemState", "FanOutItems", b1 =>
+                        {
+                            b1.Property<Guid>("WorkflowActivityExecutionId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("int");
+
+                            b1.Property<string>("CurrentStage")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
+
+                            b1.Property<Guid>("FanOutKey")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.HasKey("WorkflowActivityExecutionId", "__synthesizedOrdinal");
+
+                            b1.ToTable("WorkflowActivityExecutions", "workflow");
+
+                            b1.ToJson("FanOutItems");
+
+                            b1.WithOwner()
+                                .HasForeignKey("WorkflowActivityExecutionId");
+
+                            b1.OwnsMany("Workflow.Workflow.Models.StageAssignment", "History", b2 =>
+                                {
+                                    b2.Property<Guid>("FanOutItemStateWorkflowActivityExecutionId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<int>("FanOutItemState__synthesizedOrdinal")
+                                        .HasColumnType("int");
+
+                                    b2.Property<int>("__synthesizedOrdinal")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("int");
+
+                                    b2.Property<string>("AssignedTo")
+                                        .IsRequired()
+                                        .HasMaxLength(200)
+                                        .HasColumnType("nvarchar(200)");
+
+                                    b2.Property<string>("AssigneeUserId")
+                                        .HasMaxLength(100)
+                                        .HasColumnType("nvarchar(100)");
+
+                                    b2.Property<DateTime>("EnteredOn")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<DateTime?>("ExitedOn")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("StageName")
+                                        .IsRequired()
+                                        .HasMaxLength(100)
+                                        .HasColumnType("nvarchar(100)");
+
+                                    b2.HasKey("FanOutItemStateWorkflowActivityExecutionId", "FanOutItemState__synthesizedOrdinal", "__synthesizedOrdinal");
+
+                                    b2.ToTable("WorkflowActivityExecutions", "workflow");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("FanOutItemStateWorkflowActivityExecutionId", "FanOutItemState__synthesizedOrdinal");
+                                });
+
+                            b1.Navigation("History");
+                        });
+
+                    b.Navigation("FanOutItems");
+
                     b.Navigation("WorkflowInstance");
                 });
 

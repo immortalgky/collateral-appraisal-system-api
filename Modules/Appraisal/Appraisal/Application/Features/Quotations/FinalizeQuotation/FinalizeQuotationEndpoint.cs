@@ -16,7 +16,6 @@ public class FinalizeQuotationEndpoint : ICarterModule
                     var command = new FinalizeQuotationCommand(
                         id,
                         request.CompanyQuotationId,
-                        request.FinalPrice,
                         request.Reason);
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);

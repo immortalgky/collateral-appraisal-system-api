@@ -23,7 +23,7 @@ public class GetQuotationsQueryHandler(
     // Explicit column list matches the QuotationDto positional record constructor exactly.
     // RmUserId and AppraisalId are used for filtering only — not selected into the DTO.
     private const string SelectColumns = """
-        SELECT q.Id, q.QuotationNumber, q.RequestDate, q.DueDate, q.Status, q.RequestedByName,
+        SELECT q.Id, q.QuotationNumber, q.RequestDate, q.DueDate, q.Status, q.RequestedBy,
                q.TotalAppraisals, q.TotalCompaniesInvited, q.TotalQuotationsReceived
         """;
 

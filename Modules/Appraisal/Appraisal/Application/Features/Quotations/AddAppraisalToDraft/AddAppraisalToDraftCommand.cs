@@ -12,5 +12,6 @@ public record AddAppraisalToDraftCommand(
     string AppraisalNumber,
     string PropertyType,
     string? PropertyLocation = null,
-    decimal? EstimatedValue = null
+    decimal? EstimatedValue = null,
+    int? MaxAppraisalDays = null
 ) : ICommand<AddAppraisalToDraftResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

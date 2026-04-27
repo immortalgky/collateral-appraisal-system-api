@@ -2,12 +2,17 @@ using Dapper;
 using Shared.Data;
 using Shared.Exceptions;
 using Shared.Identity;
+using Workflow.AssigneeSelection.Teams;
+using Workflow.Services.Groups;
+using Workflow.Tasks.Authorization;
 
 namespace Workflow.Tasks.Features.GetTaskById;
 
 public class GetTaskByIdQueryHandler(
     ISqlConnectionFactory connectionFactory,
-    ICurrentUserService currentUserService
+    ICurrentUserService currentUserService,
+    IUserGroupService userGroupService,
+    ITeamService teamService
 ) : IQueryHandler<GetTaskByIdQuery, TaskDetailResult>
 {
     private const string Sql = """
@@ -70,13 +75,32 @@ public class GetTaskByIdQueryHandler(
         if (dto is null)
             throw new NotFoundException(nameof(TaskDetailResult), query.TaskId);
 
-        // Pool tasks (AssignedType = "2") are assigned to a group name, not a username.
-        // A user "owns" a pool task if they belong to that group AND, for company-scoped
-        // fan-out tasks (AssigneeCompanyId IS NOT NULL), they are from that company.
-        var isOwner = dto.AssignedType == "2"
-            ? currentUserService.Roles.Any(r => string.Equals(r, dto.AssigneeUserId, StringComparison.OrdinalIgnoreCase))
-              && (dto.AssigneeCompanyId is null || dto.AssigneeCompanyId == currentUserService.CompanyId)
-            : string.Equals(dto.AssigneeUserId, currentUserService.Username, StringComparison.OrdinalIgnoreCase);
+        var username = currentUserService.Username;
+
+        bool isOwner;
+        if (dto.AssignedType == "2")
+        {
+            if (string.IsNullOrEmpty(username))
+            {
+                isOwner = false;
+            }
+            else
+            {
+                var groups = await userGroupService.GetGroupsForUserAsync(username, cancellationToken);
+                var team   = await teamService.GetTeamForUserAsync(username, cancellationToken);
+                isOwner = PoolTaskAccess.IsOwner(
+                    dto.AssigneeUserId,
+                    dto.AssigneeCompanyId,
+                    groups,
+                    team?.TeamId,
+                    currentUserService.CompanyId);
+            }
+        }
+        else
+        {
+            isOwner = string.Equals(dto.AssigneeUserId, username,
+                StringComparison.OrdinalIgnoreCase);
+        }
 
         return new TaskDetailResult
         {

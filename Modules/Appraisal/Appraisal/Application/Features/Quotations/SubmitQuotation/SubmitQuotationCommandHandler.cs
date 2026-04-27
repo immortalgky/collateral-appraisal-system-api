@@ -2,6 +2,7 @@ using Appraisal.Application.Features.Quotations.Shared;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.SubmitQuotation;
 
@@ -9,6 +10,7 @@ public class SubmitQuotationCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
+    IDateTimeProvider dateTimeProvider,
     IQuotationActivityLogger activityLogger)
     : ICommandHandler<SubmitQuotationCommand, SubmitQuotationResult>
 {
@@ -30,6 +32,28 @@ public class SubmitQuotationCommandHandler(
         if (quotationRequest.Status != "Sent")
             throw new BadRequestException($"Cannot submit quotation: RFQ is in status '{quotationRequest.Status}'");
 
+        // Hard cap: reject if any item's EstimatedDays exceeds the admin-set MaxAppraisalDays
+        var itemsByAppraisalId = quotationRequest.Items
+            .GroupBy(i => i.AppraisalId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var violations = command.Items
+            .Where(i =>
+            {
+                itemsByAppraisalId.TryGetValue(i.AppraisalId, out var rfqItem);
+                return rfqItem?.MaxAppraisalDays is int max && i.EstimatedDays > max;
+            })
+            .Select(i =>
+            {
+                itemsByAppraisalId.TryGetValue(i.AppraisalId, out var rfqItem);
+                return $"{rfqItem!.AppraisalNumber}: {i.EstimatedDays} > {rfqItem.MaxAppraisalDays}";
+            })
+            .ToList();
+
+        if (violations.Count > 0)
+            throw new BadRequestException(
+                $"Estimated Mandays exceeds the maximum duration for appraisal(s): {string.Join(", ", violations)}.");
+
         // Determine which path we are on
         var existingQuotation = quotationRequest.Quotations
             .FirstOrDefault(q => q.CompanyId == command.CompanyId);
@@ -45,7 +69,8 @@ public class SubmitQuotationCommandHandler(
                 invitationId: invitation.Id,
                 companyId: command.CompanyId,
                 quotationNumber: command.QuotationNumber,
-                estimatedDays: command.EstimatedDays);
+                estimatedDays: command.EstimatedDays,
+                submittedAt: dateTimeProvider.ApplicationNow);
 
             ApplyScalarFields(companyQuotation, command);
             AddItems(companyQuotation, command.Items);
@@ -64,7 +89,7 @@ public class SubmitQuotationCommandHandler(
             ApplyScalarFields(companyQuotation, command);
             companyQuotation.ClearItems();
             AddItems(companyQuotation, command.Items);
-            companyQuotation.MarkSubmitted();
+            companyQuotation.MarkSubmitted(dateTimeProvider.ApplicationNow);
 
             quotationRequest.RecalculateQuotationsReceived();
             submitRole = "ExtAppraisalChecker";
@@ -178,6 +203,8 @@ public class SubmitQuotationCommandHandler(
                 if (itemRequest.NegotiatedDiscount.HasValue)
                     item.SetNegotiatedDiscount(itemRequest.NegotiatedDiscount.Value);
             }
+
+            item.SetItemNotes(itemRequest.ItemNotes);
         }
     }
 }

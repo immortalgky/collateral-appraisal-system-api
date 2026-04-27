@@ -1,14 +1,11 @@
 using Appraisal.Application.Features.Quotations.Shared;
-using Shared.Data.Outbox;
 using Shared.Identity;
-using Shared.Messaging.Events;
 
 namespace Appraisal.Application.Features.Quotations.SubmitDraftToChecker;
 
 public class SubmitDraftToCheckerCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox,
     IQuotationActivityLogger activityLogger)
     : ICommandHandler<SubmitDraftToCheckerCommand, SubmitDraftToCheckerResult>
 {
@@ -49,12 +46,9 @@ public class SubmitDraftToCheckerCommandHandler(
 
         companyQuotation.MarkPendingCheckerReview();
 
-        outbox.Publish(new QuotationDraftSubmittedToCheckerIntegrationEvent
-        {
-            QuotationRequestId = quotationRequest.Id,
-            CompanyId = command.CompanyId,
-            SubmittedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty
-        }, correlationId: quotationRequest.Id.ToString());
+        // NOTE: The workflow task reassignment (Maker → Checker) is now handled by the
+        // engine-native stage transition. The FE posts POST /tasks/{id}/actions/SubmitToChecker
+        // which calls AdvanceFanOutStageCommandHandler — no integration event needed here.
 
         activityLogger.Log(
             quotationRequest.Id,

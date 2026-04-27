@@ -138,28 +138,16 @@ public class AppraisalDbContext : DbContext
         Set<ComparativeAnalysisTemplateFactor>();
 
     // =====================================================
-    // Block Condo Entities (part of Appraisal aggregate)
+    // Project Aggregate (unified Block-Condo + Block-Village)
     // =====================================================
-    public DbSet<CondoProject> CondoProjects => Set<CondoProject>();
-    public DbSet<CondoModel> CondoModels => Set<CondoModel>();
-    public DbSet<CondoModelAreaDetail> CondoModelAreaDetails => Set<CondoModelAreaDetail>();
-    public DbSet<CondoTower> CondoTowers => Set<CondoTower>();
-    public DbSet<CondoUnit> CondoUnits => Set<CondoUnit>();
-    public DbSet<CondoUnitUpload> CondoUnitUploads => Set<CondoUnitUpload>();
-    public DbSet<CondoUnitPrice> CondoUnitPrices => Set<CondoUnitPrice>();
-    public DbSet<CondoPricingAssumption> CondoPricingAssumptions => Set<CondoPricingAssumption>();
-    public DbSet<CondoModelAssumption> CondoModelAssumptions => Set<CondoModelAssumption>();
-
-    // =====================================================
-    // Block Village Entities (part of Appraisal aggregate)
-    // =====================================================
-    public DbSet<VillageProject> VillageProjects => Set<VillageProject>();
-    public DbSet<VillageProjectLand> VillageProjectLands => Set<VillageProjectLand>();
-    public DbSet<VillageModel> VillageModels => Set<VillageModel>();
-    public DbSet<VillageUnit> VillageUnits => Set<VillageUnit>();
-    public DbSet<VillageUnitUpload> VillageUnitUploads => Set<VillageUnitUpload>();
-    public DbSet<VillageUnitPrice> VillageUnitPrices => Set<VillageUnitPrice>();
-    public DbSet<VillagePricingAssumption> VillagePricingAssumptions => Set<VillagePricingAssumption>();
+    public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ProjectTower> ProjectTowers => Set<ProjectTower>();
+    public DbSet<ProjectModel> ProjectModels => Set<ProjectModel>();
+    public DbSet<ProjectUnit> ProjectUnits => Set<ProjectUnit>();
+    public DbSet<ProjectUnitPrice> ProjectUnitPrices => Set<ProjectUnitPrice>();
+    public DbSet<ProjectUnitUpload> ProjectUnitUploads => Set<ProjectUnitUpload>();
+    public DbSet<ProjectPricingAssumption> ProjectPricingAssumptions => Set<ProjectPricingAssumption>();
+    public DbSet<ProjectLand> ProjectLands => Set<ProjectLand>();
 
     // =====================================================
     // Supporting Entities (part of Appraisal aggregate)

@@ -77,10 +77,12 @@ public class CompanyAssignedIntegrationEventHandler(
             // the status when the company begins the appraisal work.
             assignment.RecordQuotationWinner(message.CompanyId, "System");
 
-            // ── Link the winning QuotationRequest and create the fee ──────────────
-            // C4: pass the per-appraisal fee from the event so HandleQuotationAssignmentAsync
-            // does not fall back to the aggregate total price.
-            await HandleQuotationAssignmentAsync(appraisal.Id, message.CompanyId, assignment, message.Fee, ct);
+            // Link the winning QuotationRequest onto the assignment so the
+            // AssignAppraisal command can later read the quotation fee when admin picks
+            // AssignmentMethod="Quotation". Fee creation is intentionally deferred until
+            // that explicit admin action — finalize alone must not materialise an
+            // AppraisalFee.
+            await LinkQuotationRequestAsync(appraisal.Id, assignment, ct);
         }
         else
         {
@@ -113,20 +115,16 @@ public class CompanyAssignedIntegrationEventHandler(
     }
 
     /// <summary>
-    /// When the assignment method is Quotation, find the Finalized QuotationRequest
-    /// for this appraisal, link its Id on the assignment, and materialise the fee via IAssignmentFeeService.
-    /// Guards: QuotationRequest must be in Finalized status and winning company must match.
-    /// Fee materialisation is idempotent — safe to retry on duplicate event delivery.
+    /// Records the Finalized QuotationRequest's Id on the assignment so a later
+    /// AssignAppraisal command (AssignmentMethod="Quotation") can resolve the agreed
+    /// per-appraisal fee. No fee materialisation happens here — that's deferred to the
+    /// admin-initiated assignment flow.
     /// </summary>
-    private async Task HandleQuotationAssignmentAsync(
+    private async Task LinkQuotationRequestAsync(
         Guid appraisalId,
-        Guid winningCompanyId,
         AppraisalAssignment assignment,
-        decimal? eventFee,
         CancellationToken ct)
     {
-        // Look up the Finalized QuotationRequest linked to this appraisal.
-        // There should be exactly one non-cancelled RFQ per appraisal at any time.
         var quotationRequest = await quotationRepository.GetFinalizedByAppraisalIdAsync(appraisalId, ct);
 
         if (quotationRequest is null)
@@ -138,41 +136,6 @@ public class CompanyAssignedIntegrationEventHandler(
             return;
         }
 
-        // Link the quotation on the assignment
         assignment.SetQuotationRequestId(quotationRequest.Id);
-
-        // Determine the final fee amount.
-        // Priority: per-appraisal fee carried on the event (populated by QuotationFinalizedIntegrationEventHandler
-        // fan-out) → negotiated price on the winning quotation → original total quoted price.
-        // The event-level fee is the most accurate because it comes from CompanyQuotationItem.QuotedPrice
-        // for the specific appraisal, avoiding the "full quotation total applied to every appraisal" bug (C4).
-        decimal? finalFeeAmount = null;
-
-        if (eventFee.HasValue && eventFee.Value > 0m)
-        {
-            finalFeeAmount = eventFee.Value;
-        }
-        else
-        {
-            var winningQuotation = quotationRequest.Quotations
-                .FirstOrDefault(q => q.CompanyId == winningCompanyId && q.IsWinner);
-            finalFeeAmount = winningQuotation?.CurrentNegotiatedPrice
-                             ?? winningQuotation?.TotalQuotedPrice;
-        }
-
-        if (finalFeeAmount is null or <= 0m)
-        {
-            logger.LogWarning(
-                "Cannot materialise AppraisalFee for QuotationRequest {QuotationRequestId}: winning quotation has no usable price. " +
-                "Assignment is linked but fee materialisation is skipped.",
-                quotationRequest.Id);
-            return;
-        }
-
-        await feeService.EnsureAssignmentFeeItemsAsync(
-            appraisalId: appraisalId,
-            assignmentId: assignment.Id,
-            source: new AssignmentFeeSource.Quotation(finalFeeAmount.Value, quotationRequest.Id),
-            ct: ct);
     }
 }

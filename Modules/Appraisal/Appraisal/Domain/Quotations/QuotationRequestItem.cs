@@ -16,6 +16,7 @@ public class QuotationRequestItem : Entity<Guid>
     public string PropertyType { get; private set; } = null!;
     public string? PropertyLocation { get; private set; }
     public decimal? EstimatedValue { get; private set; }
+    public int? MaxAppraisalDays { get; private set; }
 
     // Item-Specific Requirements
     public string? ItemNotes { get; private set; }
@@ -32,7 +33,8 @@ public class QuotationRequestItem : Entity<Guid>
         string appraisalNumber,
         string propertyType,
         string? propertyLocation = null,
-        decimal? estimatedValue = null)
+        decimal? estimatedValue = null,
+        int? maxAppraisalDays = null)
     {
         return new QuotationRequestItem
         {
@@ -43,7 +45,8 @@ public class QuotationRequestItem : Entity<Guid>
             AppraisalNumber = appraisalNumber,
             PropertyType = propertyType,
             PropertyLocation = propertyLocation,
-            EstimatedValue = estimatedValue
+            EstimatedValue = estimatedValue,
+            MaxAppraisalDays = maxAppraisalDays
         };
     }
 

@@ -18,17 +18,32 @@ public class PickTentativeWinnerCommandHandler(
         var quotation = await quotationRepository.GetByIdAsync(command.QuotationRequestId, cancellationToken)
                         ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
 
-        // RM can only pick for their own request; Admin can override
-        var role = currentUser.IsInRole("RequestMaker") ? "RM" : "Admin";
-        QuotationAccessPolicy.EnsureRmOrAdmin(quotation, currentUser);
+        // Capture the source status before transition so we know which workflow step to resume.
+        // From UnderAdminReview the admin is selecting a winner directly (skipping RM); the workflow is
+        // parked on "admin-review-submissions". From PendingRmSelection it's parked on "rm-pick-winner".
+        var startedFromAdminReview = quotation.Status == "UnderAdminReview";
+
+        // Admin-direct-pick from UnderAdminReview is admin-only (RMs can't see this status, and the
+        // recommendation/role semantics below assume an admin actor). Other source statuses allow RM or Admin.
+        if (startedFromAdminReview)
+            QuotationAccessPolicy.EnsureAdmin(currentUser);
+        else
+            QuotationAccessPolicy.EnsureRmOrAdmin(quotation, currentUser);
+
+        var role = startedFromAdminReview
+            ? "Admin"
+            : currentUser.IsInRole("RequestMaker") ? "RM" : "Admin";
 
         quotation.PickTentativeWinner(
             command.CompanyQuotationId,
             currentUser.UserId!.Value,
             role);
 
-        // Store RM negotiation recommendation on aggregate for admin-finalize step to read
-        quotation.SetRmNegotiationRecommendation(command.RequestNegotiation, command.NegotiationNote);
+        // RM negotiation recommendation only makes sense when an RM picked. Skipping on admin-direct-pick
+        // also avoids silently clearing a prior recommendation if the quotation has bounced back through
+        // UnderAdminReview after an earlier RM selection.
+        if (!startedFromAdminReview)
+            quotation.SetRmNegotiationRecommendation(command.RequestNegotiation, command.NegotiationNote);
 
         quotationRepository.Update(quotation);
 
@@ -44,17 +59,21 @@ public class PickTentativeWinnerCommandHandler(
             Role = role
         }, correlationId: quotation.Id.ToString());
 
-        // v4: resume rm-pick-winner step in quotation child workflow
+        // Resume the workflow step the engine is parked on. Admin direct-pick happens on
+        // "admin-review-submissions" (decision SelectAsWinner → admin-finalize); the normal RM
+        // flow happens on "rm-pick-winner" (decision Pick → admin-finalize).
         outbox.Publish(new QuotationWorkflowResumeIntegrationEvent
         {
             QuotationRequestId = quotation.Id,
-            ActivityId = "rm-pick-winner",
-            DecisionTaken = "Pick",
-            CompletedBy = currentUser.UserId?.ToString() ?? string.Empty,
+            ActivityId = startedFromAdminReview ? "admin-review-submissions" : "rm-pick-winner",
+            DecisionTaken = startedFromAdminReview ? "SelectAsWinner" : "Pick",
+            CompletedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty,
             TentativeWinnerCompanyQuotationId = command.CompanyQuotationId,
             TentativeWinnerCompanyId = pickedQuotation.CompanyId,
-            RmRequestsNegotiation = command.RequestNegotiation,
-            RmNegotiationNote = command.NegotiationNote
+            // Suppress RM-only fields when admin picked directly so admin-finalize doesn't render
+            // a non-existent "RM requested negotiation" hint.
+            RmRequestsNegotiation = startedFromAdminReview ? false : command.RequestNegotiation,
+            RmNegotiationNote = startedFromAdminReview ? null : command.NegotiationNote
         }, correlationId: quotation.Id.ToString());
 
         return new PickTentativeWinnerResult(quotation.Id, command.CompanyQuotationId, quotation.Status);

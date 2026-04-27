@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Shared.Identity;
+using Workflow.AssigneeSelection.Teams;
 using Workflow.Data;
+using Workflow.Services.Groups;
+using Workflow.Tasks.Authorization;
 using Workflow.Workflow.Services;
 
 namespace Workflow.Tasks.Features.LockTask;
@@ -9,7 +12,9 @@ public class LockTaskCommandHandler(
     WorkflowDbContext dbContext,
     ICurrentUserService currentUserService,
     IWorkflowNotificationService notificationService,
-    ILogger<LockTaskCommandHandler> logger
+    ILogger<LockTaskCommandHandler> logger,
+    IUserGroupService userGroupService,
+    ITeamService teamService
 ) : ICommandHandler<LockTaskCommand, LockTaskResult>
 {
     public async Task<LockTaskResult> Handle(LockTaskCommand command, CancellationToken cancellationToken)
@@ -25,11 +30,14 @@ public class LockTaskCommandHandler(
         if (task.AssignedType != "2")
             return new LockTaskResult(false, ErrorMessage: "Only pool tasks can be locked");
 
-        // Pool membership requires: role match AND, for company-scoped fan-out tasks
-        // (AssigneeCompanyId IS NOT NULL), caller must belong to that company.
-        var isPoolMember = currentUserService.Roles.Any(r =>
-            string.Equals(r, task.AssignedTo, StringComparison.OrdinalIgnoreCase)) &&
-            (task.AssigneeCompanyId is null || task.AssigneeCompanyId == currentUserService.CompanyId);
+        var groups = await userGroupService.GetGroupsForUserAsync(username, cancellationToken);
+        var team   = await teamService.GetTeamForUserAsync(username, cancellationToken);
+        var isPoolMember = PoolTaskAccess.IsOwner(
+            task.AssignedTo,
+            task.AssigneeCompanyId,
+            groups,
+            team?.TeamId,
+            currentUserService.CompanyId);
         if (!isPoolMember)
             return new LockTaskResult(false, ErrorMessage: "You are not a member of this pool");
 

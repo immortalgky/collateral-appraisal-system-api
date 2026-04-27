@@ -20,10 +20,15 @@ public class FinalizeQuotationCommandHandler(
         var quotation = await quotationRepository.GetByIdAsync(command.QuotationRequestId, cancellationToken)
                         ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
 
-        quotation.Finalize(command.CompanyQuotationId, command.FinalPrice, command.Reason);
+        quotation.Finalize(command.CompanyQuotationId, command.Reason);
         quotationRepository.Update(quotation);
 
         var winningQuotation = quotation.Quotations.First(q => q.Id == command.CompanyQuotationId);
+
+        // The system uses the winner's current total (after any negotiation discount) as the
+        // appraisal fee for each application. CurrentNegotiatedPrice is set when the company
+        // counters with a discount adjustment; otherwise fall back to TotalQuotedPrice.
+        var finalFeeAmount = winningQuotation.CurrentNegotiatedPrice ?? winningQuotation.TotalQuotedPrice;
 
         // v2: collect all appraisal IDs from the join table
         var appraisalIds = quotation.Appraisals
@@ -43,7 +48,7 @@ public class FinalizeQuotationCommandHandler(
             TaskExecutionId = quotation.TaskExecutionId ?? Guid.Empty,
             WinningCompanyId = winningQuotation.CompanyId,
             WinningQuotationId = command.CompanyQuotationId,
-            FinalFeeAmount = command.FinalPrice,
+            FinalFeeAmount = finalFeeAmount,
             RmUserId = quotation.RmUserId
         }, correlationId: quotation.Id.ToString());
 
@@ -53,14 +58,14 @@ public class FinalizeQuotationCommandHandler(
             QuotationRequestId = quotation.Id,
             ActivityId = "admin-finalize",
             DecisionTaken = "Finalize",
-            CompletedBy = currentUser.UserId?.ToString() ?? string.Empty
+            CompletedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty
         }, correlationId: quotation.Id.ToString());
 
         return new FinalizeQuotationResult(
             quotation.Id,
             command.CompanyQuotationId,
             winningQuotation.CompanyId,
-            command.FinalPrice,
+            finalFeeAmount,
             quotation.Status);
     }
 }
