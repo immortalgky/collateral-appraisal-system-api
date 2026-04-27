@@ -683,7 +683,7 @@ public class IncomeCalculationService : IPricingCalculationService
             // price is at or below this bracket's floor — nothing more to tax
             if (totalPropertyPrice <= bracket.MinValue)
             {
-                return propertyTax;
+                return Math.Round(propertyTax, 0);
             }
 
             var upperBound = bracket.MaxValue ?? totalPropertyPrice;
@@ -691,7 +691,7 @@ public class IncomeCalculationService : IPricingCalculationService
             propertyTax += taxableAmount * bracket.TaxRate;
         }
 
-        return propertyTax;
+        return Math.Round(propertyTax, 0);
     }
 
     /// <summary>
