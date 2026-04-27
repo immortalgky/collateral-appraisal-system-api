@@ -386,7 +386,7 @@ public class IncomeCalculationService : IPricingCalculationService
             var curOccupancyRate = d.OccupancyRate[y] >= 0 ? d.OccupancyRate[y] : occupancyRate[y];
             var saleableAreaDeductByOcc = saleableAreaConst * (curOccupancyRate / 100m);
             totalSaleableAreaDeductByOccRate[y] = saleableAreaDeductByOcc;
-            result[y] = saleableAreaDeductByOcc * avgDailyRate[y];
+            result[y] = Math.Round(saleableAreaDeductByOcc * avgDailyRate[y], 2);
         }
 
         // Store for method 08 cross-reference.
@@ -432,7 +432,7 @@ public class IncomeCalculationService : IPricingCalculationService
 
             var saleableAreaDeductByOcc = saleableAreaConst * (curOccupancyRate / 100m);
             totalSaleableAreaDeductByOccRate[y] = saleableAreaDeductByOcc;
-            result[y] = saleableAreaDeductByOcc * avgDailyRate[y];
+            result[y] = Math.Round(saleableAreaDeductByOcc * avgDailyRate[y], 2);
         }
 
         // Also register as "01" for method-08 cross-reference if no method-01 exists.
@@ -483,7 +483,7 @@ public class IncomeCalculationService : IPricingCalculationService
             }
             var curOccupancyRate = d.OccupancyRate[y] >= 0 ? d.OccupancyRate[y] : occupancyRate[y];
 
-            result[y] = adjusted[y] * (curOccupancyRate / 100m);
+            result[y] = Math.Round(adjusted[y] * (curOccupancyRate / 100m), 2);
         }
 
         return result;
@@ -537,7 +537,7 @@ public class IncomeCalculationService : IPricingCalculationService
 
             var saleableAreaDeductByOcc = d.SumSaleableArea * (curOccupancyRate / 100m);
             totalSaleableAreaDeductByOccRate[y] = saleableAreaDeductByOcc;
-            result[y] = avgRentalRate[y] * saleableAreaDeductByOcc * 12m;
+            result[y] = Math.Round(avgRentalRate[y] * saleableAreaDeductByOcc * 12m, 2);
         }
 
         // Store for method 11 cross-reference.
@@ -593,7 +593,7 @@ public class IncomeCalculationService : IPricingCalculationService
             }
 
             var areaOccRate = saleableAreaOccRate != null ? saleableAreaOccRate[y] : 0m;
-            result[y] = perDay[y] * areaOccRate;
+            result[y] = Math.Round(perDay[y] * areaOccRate, 2);
         }
         return result;
     }
@@ -720,7 +720,7 @@ public class IncomeCalculationService : IPricingCalculationService
             }
             
             var areaOccRate = saleableAreaOccRate != null ? saleableAreaOccRate[y] : 0m;
-            result[y] = indexGrowth[y] * areaOccRate * 12m;
+            result[y] = Math.Round(indexGrowth[y] * areaOccRate * 12m, 2);
         }
         return result;
     }
@@ -1034,7 +1034,7 @@ public class IncomeCalculationService : IPricingCalculationService
             var growthRate = (increaseRateYrs > 0 && y % increaseRateYrs == 0)
                 ? increaseRatePct
                 : 0m;
-            result[y] = result[y - 1] * (1m + growthRate / 100m);
+            result[y] = Math.Round(result[y - 1] * (1m + growthRate / 100m), 2);
         }
 
         return result;
@@ -1077,29 +1077,29 @@ public class IncomeCalculationService : IPricingCalculationService
         return result;
     }
 
-  /// <summary>
-  /// Normalizes a source decimal array to exactly <paramref name="expectedLength"/>.
-  /// Truncates when longer, zero-pads when shorter, returns a defensive copy otherwise.
-  /// </summary>
-  private static decimal[] NormalizeLength(decimal[]? source, int expectedLength)
-  {
-    // Guard: if the domain ever passes a weird length, don't throw — return empty.
-    if (expectedLength <= 0)
-      return Array.Empty<decimal>();
+    /// <summary>
+    /// Normalizes a source decimal array to exactly <paramref name="expectedLength"/>.
+    /// Truncates when longer, zero-pads when shorter, returns a defensive copy otherwise.
+    /// </summary>
+    private static decimal[] NormalizeLength(decimal[]? source, int expectedLength)
+    {
+        // Guard: if the domain ever passes a weird length, don't throw — return empty.
+        if (expectedLength <= 0)
+        return Array.Empty<decimal>();
 
-    // Case 1: null or empty source → all-zero array
-    if (source is null || source.Length == 0)
-      return new decimal[expectedLength];
+        // Case 1: null or empty source → all-zero array
+        if (source is null || source.Length == 0)
+        return new decimal[expectedLength];
 
-    // Case 2: source is longer → truncate (range slice creates a new array)
-    if (source.Length >= expectedLength)
-      return source[..expectedLength];
+        // Case 2: source is longer → truncate (range slice creates a new array)
+        if (source.Length >= expectedLength)
+        return source[..expectedLength];
 
-    // Case 3: source is shorter → pad with zeros at the tail
-    var padded = new decimal[expectedLength];
-    source.CopyTo(padded, 0);
-    return padded;
-  }
+        // Case 3: source is shorter → pad with zeros at the tail
+        var padded = new decimal[expectedLength];
+        source.CopyTo(padded, 0);
+        return padded;
+    }
 
     /// <summary>
     /// Shifts all elements in the source array to the right by the specified number of positions,
