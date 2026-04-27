@@ -20,4 +20,7 @@ public sealed record Method12Detail
 
     [JsonPropertyName("proportionOfNewReplacementCosts")]
     public decimal[] ProportionOfNewReplacementCosts { get; init; } = [];
+
+    [JsonPropertyName("startIn")]
+    public int StartIn { get; init; }
 }

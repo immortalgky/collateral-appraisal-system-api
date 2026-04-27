@@ -409,3 +409,105 @@ BEGIN
         ('A0000005-0003-0000-0000-000000000001', 'A0000005-0000-0000-0000-000000000001', 'summaryDirect', 'Summary', 'empty', 2);
 
 END;
+
+-- ============================================================
+-- TEMPLATE 6: DCF - Hotel Lease Agreement  (dcf-hotel-lease-agreement)
+-- Structure mirrors TEMPLATE 1 (dcf-hotel) exactly.
+-- Only differences from Template 1:
+--   - Id prefix: A0000006
+--   - Code: dcf-hotel-lease-agreement
+--   - Name: DCF - Hotel - Lease Agreement
+--   - TotalNumberOfYears: 10
+--   - CapitalizeRate: 0.00
+--   - DiscountedRate: 0.00
+--   - DisplaySeq: 6
+-- ============================================================
+IF NOT EXISTS (SELECT 1 FROM parameter.PricingTemplates WHERE Code = 'dcf-hotel-lease-agreement')
+BEGIN
+
+    INSERT INTO parameter.PricingTemplates
+        (Id, Code, Name, TemplateType, Description, TotalNumberOfYears, TotalNumberOfDayInYear, CapitalizeRate, DiscountedRate, IsActive, DisplaySeq)
+    VALUES
+        ('A0000006-0000-0000-0000-000000000001', 'dcf-hotel-lease-agreement', 'DCF - Hotel - Lease Agreement', 'DCF', NULL, 10, 365, 0.00, 0.00, 1, 6);
+
+    -- -------------------------
+    -- Section: Income
+    -- -------------------------
+    INSERT INTO parameter.PricingTemplateSections (Id, PricingTemplateId, SectionType, SectionName, Identifier, DisplaySeq) VALUES
+        ('A0000006-0001-0000-0000-000000000001', 'A0000006-0000-0000-0000-000000000001', 'income', 'Income', 'positive', 0);
+
+    -- Category: Operating Income
+    INSERT INTO parameter.PricingTemplateCategories (Id, PricingTemplateSectionId, CategoryType, CategoryName, Identifier, DisplaySeq) VALUES
+        ('A0000006-0001-0001-0000-000000000001', 'A0000006-0001-0000-0000-000000000001', 'income', 'Operating Income', 'positive', 0);
+
+    INSERT INTO parameter.PricingTemplateAssumptions (Id, PricingTemplateCategoryId, AssumptionType, AssumptionName, Identifier, DisplaySeq, MethodTypeCode, MethodDetailJson) VALUES
+        ('A0000006-0001-0001-0001-000000000001', 'A0000006-0001-0001-0000-000000000001', 'I01', 'Room Rental Income', 'positive', 0, '01',
+            '{"increaseRatePct":10,"increaseRateYrs":3,"occupancyRateFirstYearPct":80,"occupancyRatePct":5,"occupancyRateYrs":3,"startIn":1}'),
+        ('A0000006-0001-0001-0001-000000000002', 'A0000006-0001-0001-0000-000000000001', 'I04', 'Utility Income', 'positive', 1, '13',
+            '{"proportionPct":10,"refTarget":{"kind":"assumption","dbId":"A0000006-0001-0001-0001-000000000001"},"startIn":1}'),
+        ('A0000006-0001-0001-0001-000000000003', 'A0000006-0001-0001-0000-000000000001', 'I05', 'Food and Beverage Income', 'positive', 2, '14',
+            '{"startIn":1}');
+
+    -- -------------------------
+    -- Section: Expenses / Costs
+    -- -------------------------
+    INSERT INTO parameter.PricingTemplateSections (Id, PricingTemplateId, SectionType, SectionName, Identifier, DisplaySeq) VALUES
+        ('A0000006-0002-0000-0000-000000000001', 'A0000006-0000-0000-0000-000000000001', 'expenses', 'Expenses / Costs', 'negative', 1);
+
+    -- Category: Direct Operating Expenses
+    INSERT INTO parameter.PricingTemplateCategories (Id, PricingTemplateSectionId, CategoryType, CategoryName, Identifier, DisplaySeq) VALUES
+        ('A0000006-0002-0001-0000-000000000001', 'A0000006-0002-0000-0000-000000000001', 'expenses', 'Direct Operating Expenses', 'expenses', 0);
+
+    INSERT INTO parameter.PricingTemplateAssumptions (Id, PricingTemplateCategoryId, AssumptionType, AssumptionName, Identifier, DisplaySeq, MethodTypeCode, MethodDetailJson) VALUES
+        ('A0000006-0002-0001-0001-000000000001', 'A0000006-0002-0001-0000-000000000001', 'E15', 'Room Cost', 'negative', 0, '13',
+            '{"proportionPct":15,"refTarget":{"kind":"assumption","dbId":"A0000006-0001-0001-0001-000000000001"},"startIn":1}'),
+        ('A0000006-0002-0001-0001-000000000002', 'A0000006-0002-0001-0000-000000000001', 'E07', 'Food and Beverage Expenses', 'negative', 1, '08',
+            '{"startIn":1}'),
+        ('A0000006-0002-0001-0001-000000000003', 'A0000006-0002-0001-0000-000000000001', 'E10', 'Other Expenses', 'negative', 2, '13',
+            '{"proportionPct":10,"refTarget":{"kind":"assumption","dbId":"A0000006-0001-0001-0001-000000000001"},"startIn":1}');
+
+    -- Category: Administrative and Management Expenses
+    INSERT INTO parameter.PricingTemplateCategories (Id, PricingTemplateSectionId, CategoryType, CategoryName, Identifier, DisplaySeq) VALUES
+        ('A0000006-0002-0002-0000-000000000001', 'A0000006-0002-0000-0000-000000000001', 'expenses', 'Administrative and Management Expenses', 'positive', 1);
+
+    INSERT INTO parameter.PricingTemplateAssumptions (Id, PricingTemplateCategoryId, AssumptionType, AssumptionName, Identifier, DisplaySeq, MethodTypeCode, MethodDetailJson) VALUES
+        ('A0000006-0002-0002-0001-000000000001', 'A0000006-0002-0002-0000-000000000001', 'E09', 'Operational and Administrative Expenses', 'negative', 0, '13',
+            '{"proportionPct":12,"refTarget":{"kind":"assumption","dbId":"A0000006-0001-0001-0001-000000000001"},"startIn":1}'),
+        ('A0000006-0002-0002-0001-000000000002', 'A0000006-0002-0002-0000-000000000001', 'E17', 'Sales and Marketing Expenses', 'negative', 1, '13',
+            '{"proportionPct":3,"refTarget":{"kind":"assumption","dbId":"A0000006-0001-0001-0001-000000000001"},"startIn":1}'),
+        ('A0000006-0002-0002-0001-000000000003', 'A0000006-0002-0002-0000-000000000001', 'E13', 'Repair and Maintenance Costs', 'negative', 2, '13',
+            '{"proportionPct":2,"refTarget":{"kind":"assumption","dbId":"A0000006-0001-0001-0001-000000000001"},"startIn":1}'),
+        ('A0000006-0002-0002-0001-000000000004', 'A0000006-0002-0002-0000-000000000001', 'E03', 'Contingency Expenses', 'negative', 3, '13',
+            '{"proportionPct":2,"refTarget":{"kind":"assumption","dbId":"A0000006-0001-0001-0001-000000000001"},"startIn":1}'),
+        ('A0000006-0002-0002-0001-000000000005', 'A0000006-0002-0002-0000-000000000001', 'E14', 'Reserve Funds for Building Improvements', 'negative', 4, '13',
+            '{"proportionPct":2,"refTarget":{"kind":"assumption","dbId":"A0000006-0001-0001-0001-000000000001"},"startIn":1}'),
+        ('A0000006-0002-0002-0001-000000000006', 'A0000006-0002-0002-0000-000000000001', 'E18', 'Utility Expenses', 'negative', 5, '13',
+            '{"proportionPct":2,"refTarget":{"kind":"assumption","dbId":"A0000006-0001-0001-0001-000000000001"},"startIn":1}');
+
+    -- Category: GOP (computed — no assumptions)
+    INSERT INTO parameter.PricingTemplateCategories (Id, PricingTemplateSectionId, CategoryType, CategoryName, Identifier, DisplaySeq) VALUES
+        ('A0000006-0002-0003-0000-000000000001', 'A0000006-0002-0000-0000-000000000001', 'gop', 'Gross Operating Profit (GOP)', 'gop', 2);
+
+    -- Category: Fixed Charge
+    INSERT INTO parameter.PricingTemplateCategories (Id, PricingTemplateSectionId, CategoryType, CategoryName, Identifier, DisplaySeq) VALUES
+        ('A0000006-0002-0004-0000-000000000001', 'A0000006-0002-0000-0000-000000000001', 'fixedExps', 'Fixed Charge', 'positive', 3);
+
+    INSERT INTO parameter.PricingTemplateAssumptions (Id, PricingTemplateCategoryId, AssumptionType, AssumptionName, Identifier, DisplaySeq, MethodTypeCode, MethodDetailJson) VALUES
+        ('A0000006-0002-0004-0001-000000000001', 'A0000006-0002-0004-0000-000000000001', 'E20', 'Reserve for Asset Maintenance (FF&E / Cap Ex)', 'positive', 0, '13',
+            '{"proportionPct":2,"refTarget":{"kind":"assumption","dbId":"A0000006-0001-0001-0001-000000000001"},"startIn":1}'),
+        ('A0000006-0002-0004-0001-000000000002', 'A0000006-0002-0004-0000-000000000001', 'E06', 'Fire Insurance Premium', 'positive', 1, '12',
+            '{"proportionPct":0.1,"increaseRatePct":2,"increaseRateYrs":1,"startIn":1}'),
+        ('A0000006-0002-0004-0001-000000000003', 'A0000006-0002-0004-0000-000000000001', 'E12', 'Property Tax', 'positive', 2, '10',
+            '{}'),
+        ('A0000006-0002-0004-0001-000000000004', 'A0000006-0002-0004-0000-000000000001', 'E00', 'Administration Fee', 'positive', 3, '13',
+            '{"proportionPct":5,"refTarget":{"kind":"category","dbId":"A0000006-0002-0003-0000-000000000001"},"startIn":1}'),
+        ('A0000006-0002-0004-0001-000000000005', 'A0000006-0002-0004-0000-000000000001', 'E11', 'Project Management Compensation', 'positive', 4, '13',
+            '{"proportionPct":5,"refTarget":{"kind":"category","dbId":"A0000006-0002-0003-0000-000000000001"},"startIn":1}');
+
+    -- -------------------------
+    -- Section: Summary DCF
+    -- -------------------------
+    INSERT INTO parameter.PricingTemplateSections (Id, PricingTemplateId, SectionType, SectionName, Identifier, DisplaySeq) VALUES
+        ('A0000006-0003-0000-0000-000000000001', 'A0000006-0000-0000-0000-000000000001', 'summaryDCF', 'Summary', 'empty', 2);
+
+END;

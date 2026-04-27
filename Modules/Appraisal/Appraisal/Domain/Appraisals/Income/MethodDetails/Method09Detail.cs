@@ -44,4 +44,7 @@ public sealed record Method09Detail
         [JsonPropertyName("totalSalaryPerYear")]
         public decimal TotalSalaryPerYear { get; init; }
     }
+
+    [JsonPropertyName("startIn")]
+    public int StartIn { get; init; }
 }

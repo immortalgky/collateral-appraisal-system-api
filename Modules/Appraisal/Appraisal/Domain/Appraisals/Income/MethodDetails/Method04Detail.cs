@@ -44,4 +44,7 @@ public sealed record Method04Detail
 
     [JsonPropertyName("roomIncome")]
     public decimal[] RoomIncome { get; init; } = [];
+
+    [JsonPropertyName("startIn")]
+    public int StartIn { get; init; }
 }

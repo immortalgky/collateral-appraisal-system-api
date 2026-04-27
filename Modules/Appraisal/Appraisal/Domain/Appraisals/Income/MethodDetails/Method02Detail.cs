@@ -9,7 +9,7 @@ public sealed record Method02Detail
     public int SeasonCount { get; init; }
 
     [JsonPropertyName("seasonDetails")]
-    public SeasonDetail SeasonDetails { get; init; } = new();
+    public SeasonDetail[] SeasonDetails { get; init; } = [];
 
     [JsonPropertyName("roomDetails")]
     public RoomIncomeRow[] RoomDetails { get; init; } = [];
@@ -53,6 +53,9 @@ public sealed record Method02Detail
 
     [JsonPropertyName("roomIncome")]
     public decimal[] RoomIncome { get; init; } = [];
+
+    [JsonPropertyName("startIn")]
+    public int StartIn { get; init; } = 1;
 
     public sealed record SeasonDetail
     {

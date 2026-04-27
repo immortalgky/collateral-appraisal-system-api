@@ -23,4 +23,7 @@ public sealed record Method08Detail
 
     [JsonPropertyName("totalFoodAndBeveragePerRoomPerYear")]
     public decimal[] TotalFoodAndBeveragePerRoomPerYear { get; init; } = [];
+
+    [JsonPropertyName("startIn")]
+    public int StartIn { get; init; }
 }

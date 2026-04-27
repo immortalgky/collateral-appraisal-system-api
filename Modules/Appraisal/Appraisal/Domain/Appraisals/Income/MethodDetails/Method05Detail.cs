@@ -52,5 +52,9 @@ public sealed record Method05Detail
 
         [JsonPropertyName("totalRoomIncomePerYear")]
         public decimal TotalRoomIncomePerYear { get; init; }
+
     }
+    
+    [JsonPropertyName("startIn")]
+    public int StartIn { get; init; }
 }

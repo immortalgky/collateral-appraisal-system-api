@@ -259,7 +259,16 @@ public class IncomeCalculationService : IPricingCalculationService
                 var refValues = ResolveRefTarget(detail, sectionValues, categoryValues, assumptionValues, years);
                 decimal[] values = new decimal[years];
                 for (int y = 0; y < years; y++)
+                {
+                    if (detail.StartIn > 1 && y < detail.StartIn - 1)
+                    {
+                        values[y] = 0;
+                        continue;
+                    }
+
                     values[y] = (detail.ProportionPct / 100m) * (refValues != null ? refValues[y] : 0m);
+                } 
+                   
 
                 if (!assumptionValues.TryGetValue(assumption.Id, out var prev) || !ArraysEqual(prev, values))
                     anyChanged = true;
@@ -366,13 +375,26 @@ public class IncomeCalculationService : IPricingCalculationService
 
         for (int y = 0; y < years; y++)
         {
-            var saleableAreaDeductByOcc = saleableAreaConst * (occupancyRate[y] / 100m);
+            // If year less than `startIn`, result will be 0;
+            if (d.StartIn > 1 && y < d.StartIn - 1)
+            {
+                result[y] = 0;
+                totalSaleableAreaDeductByOccRate[y] = 0;
+                continue;
+            }
+
+            var curOccupancyRate = d.OccupancyRate[y] >= 0 ? d.OccupancyRate[y] : occupancyRate[y];
+            var saleableAreaDeductByOcc = saleableAreaConst * (curOccupancyRate / 100m);
             totalSaleableAreaDeductByOccRate[y] = saleableAreaDeductByOcc;
             result[y] = saleableAreaDeductByOcc * avgDailyRate[y];
         }
 
         // Store for method 08 cross-reference.
         crossRef.TryAdd("01", totalSaleableAreaDeductByOccRate);
+
+        // Store for method 11 cross-reference.
+        var saleableAreaOccRate = totalSaleableAreaDeductByOccRate;
+        crossRef.TryAdd("06", saleableAreaOccRate);
 
         return result;
     }
@@ -398,13 +420,27 @@ public class IncomeCalculationService : IPricingCalculationService
 
         for (int y = 0; y < years; y++)
         {
-            var saleableAreaDeductByOcc = saleableAreaConst * (occupancyRate[y] / 100m);
+            // If year less than `startIn`, result will be 0;
+            if (d.StartIn > 1 && y < d.StartIn - 1)
+            {
+                result[y] = 0;
+                totalSaleableAreaDeductByOccRate[y] = 0;
+                continue;
+            }
+
+            var curOccupancyRate = d.OccupancyRate[y] >= 0 ? d.OccupancyRate[y] : occupancyRate[y];
+
+            var saleableAreaDeductByOcc = saleableAreaConst * (curOccupancyRate / 100m);
             totalSaleableAreaDeductByOccRate[y] = saleableAreaDeductByOcc;
             result[y] = saleableAreaDeductByOcc * avgDailyRate[y];
         }
 
         // Also register as "01" for method-08 cross-reference if no method-01 exists.
         crossRef.TryAdd("01", totalSaleableAreaDeductByOccRate);
+
+        // Store for method 11 cross-reference.
+        var saleableAreaOccRate = totalSaleableAreaDeductByOccRate;
+        crossRef.TryAdd("06", saleableAreaOccRate);
 
         return result;
     }
@@ -415,7 +451,15 @@ public class IncomeCalculationService : IPricingCalculationService
     /// </summary>
     private static decimal[] ComputeMethod03(Method03Detail d, int years)
     {
-        return ComputeStepCompoundingArray(d.FirstYearAmt, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+        var result = ComputeStepCompoundingArray(d.FirstYearAmt, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+
+        if (d.StartIn > 1 && d.StartIn > 1)
+        {
+            // use 0-base year
+            result = ShiftRight(result, d.StartIn - 1);
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -430,7 +474,18 @@ public class IncomeCalculationService : IPricingCalculationService
 
         var result = new decimal[years];
         for (int y = 0; y < years; y++)
-            result[y] = adjusted[y] * (occupancyRate[y] / 100m);
+        {
+            // If year less than `startIn`, result will be 0;
+            if (d.StartIn > 1 && y < d.StartIn - 1)
+            {
+                result[y] = 0;
+                continue;
+            }
+            var curOccupancyRate = d.OccupancyRate[y] >= 0 ? d.OccupancyRate[y] : occupancyRate[y];
+
+            result[y] = adjusted[y] * (curOccupancyRate / 100m);
+        }
+
         return result;
     }
 
@@ -440,7 +495,15 @@ public class IncomeCalculationService : IPricingCalculationService
     /// </summary>
     private static decimal[] ComputeMethod05(Method05Detail d, int years)
     {
-        return ComputeStepCompoundingArray(d.SumRoomIncomePerYear, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+        var result = ComputeStepCompoundingArray(d.SumRoomIncomePerYear, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+
+        if (d.StartIn > 1)
+        {
+            // use 0-base year
+            result = ShiftRight(result, d.StartIn - 1);
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -463,13 +526,26 @@ public class IncomeCalculationService : IPricingCalculationService
 
         for (int y = 0; y < years; y++)
         {
-            var saleableAreaDeductByOcc = d.SumSaleableArea * (occupancyRate[y] / 100m);
+            // If year less than `startIn`, result will be 0;
+            if (d.StartIn > 1 && y < d.StartIn - 1)
+            {
+                result[y] = 0;
+                totalSaleableAreaDeductByOccRate[y] = 0;
+                continue;
+            }
+            var curOccupancyRate = d.OccupancyRate[y] >= 0 ? d.OccupancyRate[y] : occupancyRate[y];
+
+            var saleableAreaDeductByOcc = d.SumSaleableArea * (curOccupancyRate / 100m);
             totalSaleableAreaDeductByOccRate[y] = saleableAreaDeductByOcc;
             result[y] = avgRentalRate[y] * saleableAreaDeductByOcc * 12m;
         }
 
         // Store for method 11 cross-reference.
-        crossRef.TryAdd("06", totalSaleableAreaDeductByOccRate);
+        var saleableAreaOccRate = totalSaleableAreaDeductByOccRate;
+        crossRef.TryAdd("06", saleableAreaOccRate);
+
+        // Also register as "01" for method-08 cross-reference if no method-01 or method-02 exists.
+        crossRef.TryAdd("01", totalSaleableAreaDeductByOccRate);
 
         return result;
     }
@@ -480,14 +556,22 @@ public class IncomeCalculationService : IPricingCalculationService
     /// </summary>
     private static decimal[] ComputeMethod07(Method07Detail d, int years)
     {
-        return ComputeStepCompoundingArray(d.SumTotalRoomExpensePerYear, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+        var result = ComputeStepCompoundingArray(d.SumTotalRoomExpensePerYear, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+        
+        if (d.StartIn > 1)
+        {
+            // use 0-base year
+            result = ShiftRight(result, d.StartIn - 1);
+        }
+
+        return result;
     }
 
     /// <summary>
     /// Method 08 — F&amp;B Expense Per Room Per Day.
     /// totalFoodAndBeveragePerRoomPerDay[y]: step compounding of firstYearAmt
     /// totalMethodValues[y] = totalFoodAndBeveragePerRoomPerDay[y] × totalSaleableAreaDeductByOccRate[y]
-    /// where totalSaleableAreaDeductByOccRate comes from the first method-01 (or method-02) in the analysis.
+    /// where totalSaleableAreaDeductByOccRate comes from the first method-01 (or method-02, method-06) in the analysis.
     /// </summary>
     private static decimal[] ComputeMethod08(
         Method08Detail d,
@@ -501,6 +585,13 @@ public class IncomeCalculationService : IPricingCalculationService
         var result = new decimal[years];
         for (int y = 0; y < years; y++)
         {
+            // If year less than `startIn`, result will be 0;
+            if (d.StartIn > 1 && y < d.StartIn - 1)
+            {
+                result[y] = 0;
+                continue;
+            }
+
             var areaOccRate = saleableAreaOccRate != null ? saleableAreaOccRate[y] : 0m;
             result[y] = perDay[y] * areaOccRate;
         }
@@ -514,7 +605,15 @@ public class IncomeCalculationService : IPricingCalculationService
     /// </summary>
     private static decimal[] ComputeMethod09(Method09Detail d, int years)
     {
-        return ComputeStepCompoundingArray(d.SumTotalSalaryPerYear, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+        var result = ComputeStepCompoundingArray(d.SumTotalSalaryPerYear, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+
+        if (d.StartIn > 1)
+        {
+            // use 0-base year
+            result = ShiftRight(result, d.StartIn - 1);
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -562,24 +661,37 @@ public class IncomeCalculationService : IPricingCalculationService
     }
 
     /// <summary>
-    /// Flat-rate bracket lookup: find the first bracket where
-    /// <paramref name="totalPropertyPrice"/> >= MinValue and (MaxValue is null OR price &lt;= MaxValue),
-    /// then return price × TaxRate.  Returns 0 when no bracket matches (price below lowest tier).
+    /// Calculates property tax using a progressive bracket method: each portion of
+    /// <paramref name="totalPropertyPrice"/> that falls within a bracket is taxed at that
+    /// bracket's rate, and the results are summed. Brackets are defined by MinValue
+    /// (inclusive lower bound) and MaxValue (exclusive upper bound; null means open-ended).
+    /// Returns 0 when the price is at or below the lowest bracket's MinValue.
     /// </summary>
+    /// <param name="totalPropertyPrice">The total property price to be taxed.</param>
+    /// <param name="taxBrackets">The list of tax brackets. Will be sorted by MinValue ascending.</param>
+    /// <returns>The total property tax owed.</returns>
     public static decimal DerivePropertyTax(
         decimal totalPropertyPrice,
         IReadOnlyList<TaxBracketDto> taxBrackets)
     {
+        // sort by MinValue ascending to ensure correct progressive accumulation
+        taxBrackets = taxBrackets.OrderBy(tb => tb.MinValue).ToList();
+
+        var propertyTax = 0m;
         foreach (var bracket in taxBrackets)
         {
-            if (totalPropertyPrice >= bracket.MinValue &&
-                (bracket.MaxValue is null || totalPropertyPrice <= bracket.MaxValue))
+            // price is at or below this bracket's floor — nothing more to tax
+            if (totalPropertyPrice <= bracket.MinValue)
             {
-                return totalPropertyPrice * bracket.TaxRate;
+                return propertyTax;
             }
+
+            var upperBound = bracket.MaxValue ?? totalPropertyPrice;
+            var taxableAmount = Math.Min(totalPropertyPrice, upperBound) - bracket.MinValue;
+            propertyTax += taxableAmount * bracket.TaxRate;
         }
 
-        return 0m;
+        return propertyTax;
     }
 
     /// <summary>
@@ -600,6 +712,13 @@ public class IncomeCalculationService : IPricingCalculationService
         var result = new decimal[years];
         for (int y = 0; y < years; y++)
         {
+            // If year less than `startIn`, result will be 0;
+            if (d.StartIn > 1 && y < d.StartIn - 1)
+            {
+                result[y] = 0;
+                continue;
+            }
+            
             var areaOccRate = saleableAreaOccRate != null ? saleableAreaOccRate[y] : 0m;
             result[y] = indexGrowth[y] * areaOccRate * 12m;
         }
@@ -614,7 +733,15 @@ public class IncomeCalculationService : IPricingCalculationService
     private static decimal[] ComputeMethod12(Method12Detail d, int years)
     {
         var firstYearAmt = (d.ProportionPct / 100m) * d.NewReplacementCost;
-        return ComputeStepCompoundingArray(firstYearAmt, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+        var result = ComputeStepCompoundingArray(firstYearAmt, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+
+        if (d.StartIn > 1)
+        {
+            // use 0-base year
+            result = ShiftRight(result, d.StartIn - 1);
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -623,7 +750,15 @@ public class IncomeCalculationService : IPricingCalculationService
     /// </summary>
     private static decimal[] ComputeMethod14(Method14Detail d, int years)
     {
-        return ComputeStepCompoundingArray(d.FirstYearAmt, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+        var result = ComputeStepCompoundingArray(d.FirstYearAmt, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+
+        if (d.StartIn > 1)
+        {
+            // use 0-base year
+            result = ShiftRight(result, d.StartIn - 1);
+        }
+
+        return result;
     }
 
     // ── Aggregation helpers ───────────────────────────────────────────────
@@ -941,29 +1076,59 @@ public class IncomeCalculationService : IPricingCalculationService
 
         return result;
     }
-    
+
+  /// <summary>
+  /// Normalizes a source decimal array to exactly <paramref name="expectedLength"/>.
+  /// Truncates when longer, zero-pads when shorter, returns a defensive copy otherwise.
+  /// </summary>
+  private static decimal[] NormalizeLength(decimal[]? source, int expectedLength)
+  {
+    // Guard: if the domain ever passes a weird length, don't throw — return empty.
+    if (expectedLength <= 0)
+      return Array.Empty<decimal>();
+
+    // Case 1: null or empty source → all-zero array
+    if (source is null || source.Length == 0)
+      return new decimal[expectedLength];
+
+    // Case 2: source is longer → truncate (range slice creates a new array)
+    if (source.Length >= expectedLength)
+      return source[..expectedLength];
+
+    // Case 3: source is shorter → pad with zeros at the tail
+    var padded = new decimal[expectedLength];
+    source.CopyTo(padded, 0);
+    return padded;
+  }
+
     /// <summary>
-    /// Normalizes a source decimal array to exactly <paramref name="expectedLength"/>.
-    /// Truncates when longer, zero-pads when shorter, returns a defensive copy otherwise.
+    /// Shifts all elements in the source array to the right by the specified number of positions,
+    /// filling the vacated positions on the left with zeros and truncating elements that overflow
+    /// beyond the array's original length.
     /// </summary>
-    private static decimal[] NormalizeLength(decimal[]? source, int expectedLength)
+    static decimal[] ShiftRight(decimal[] source, int shift)
     {
-        // Guard: if the domain ever passes a weird length, don't throw — return empty.
-        if (expectedLength <= 0)
+        // Case 1: shift is zero or negative, return source as-is
+        if (shift <= 0)
+            return source;
+
+        // Case 2: source is null or empty, return an empty array
+        if (source is null || source.Length == 0)
             return Array.Empty<decimal>();
 
-        // Case 1: null or empty source → all-zero array
-        if (source is null || source.Length == 0)
-            return new decimal[expectedLength];
+        int length = source.Length;
 
-        // Case 2: source is longer → truncate (range slice creates a new array)
-        if (source.Length >= expectedLength)
-            return source[..expectedLength];
+        // Case 3: shift exceeds or equals the source length, return an all-zero array
+        if (shift >= length)
+            return new decimal[length];
 
-        // Case 3: source is shorter → pad with zeros at the tail
-        var padded = new decimal[expectedLength];
-        source.CopyTo(padded, 0);
-        return padded;
+        // Case 4: shift is within the source length range, perform the shift
+        decimal[] result = new decimal[length];
+
+        // Copy source elements into result, offset by shift
+        source[..^shift].CopyTo(result.AsSpan(shift));
+
+        return result;
     }
 
     // ── JSON helpers ──────────────────────────────────────────────────────
