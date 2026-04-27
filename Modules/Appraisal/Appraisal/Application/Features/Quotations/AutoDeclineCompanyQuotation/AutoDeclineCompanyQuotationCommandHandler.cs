@@ -1,3 +1,5 @@
+using Shared.Time;
+
 namespace Appraisal.Application.Features.Quotations.AutoDeclineCompanyQuotation;
 
 /// <summary>
@@ -9,6 +11,7 @@ namespace Appraisal.Application.Features.Quotations.AutoDeclineCompanyQuotation;
 /// </summary>
 public class AutoDeclineCompanyQuotationCommandHandler(
     IQuotationRepository quotationRepository,
+    IDateTimeProvider dateTimeProvider,
     ILogger<AutoDeclineCompanyQuotationCommandHandler> logger)
     : ICommandHandler<AutoDeclineCompanyQuotationCommand, Unit>
 {
@@ -48,7 +51,7 @@ public class AutoDeclineCompanyQuotationCommandHandler(
                 return Unit.Value;
             }
 
-            existing.Decline(command.Reason, "SYSTEM");
+            existing.Decline(command.Reason, "SYSTEM", dateTimeProvider.ApplicationNow);
             logger.LogInformation(
                 "AutoDeclineCompanyQuotation: declined existing CompanyQuotation for company {CompanyId} on quotation {QuotationRequestId}",
                 command.CompanyId, command.QuotationRequestId);
@@ -62,7 +65,8 @@ public class AutoDeclineCompanyQuotationCommandHandler(
                 companyId: command.CompanyId,
                 quotationNumber: $"EXPIRED-{command.CompanyId:N}",
                 reason: command.Reason,
-                declinedBy: "SYSTEM");
+                declinedBy: "SYSTEM",
+                declinedAt: dateTimeProvider.ApplicationNow);
 
             quotation.AddQuotation(declined);
             logger.LogInformation(

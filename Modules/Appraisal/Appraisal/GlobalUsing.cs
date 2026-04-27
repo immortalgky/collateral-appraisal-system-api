@@ -39,6 +39,7 @@ global using Appraisal.Domain.Appraisals.Events;
 global using Appraisal.Domain.Appraisals.Exceptions;
 global using Appraisal.Domain.Committees;
 global using Appraisal.Domain.MarketComparables;
+global using Appraisal.Domain.Projects;
 global using Appraisal.Domain.Settings;
 global using Appraisal.Domain.Quotations;
 

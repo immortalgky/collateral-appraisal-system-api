@@ -66,6 +66,14 @@ public class CompanyQuotation : Entity<Guid>
     public DateTime? DeclinedAt { get; private set; }
     public string? DeclinedBy { get; private set; }
 
+    /// <summary>
+    /// Set when an admin rejects this quotation as the tentative winner — the row transitions to
+    /// <c>Withdrawn</c> while the parent RFQ returns to <c>UnderAdminReview</c>. Distinct from
+    /// <see cref="DeclineReason"/> (ext-company declined invitation) and from the parent's
+    /// <c>CancellationReason</c> (whole-RFQ cancel).
+    /// </summary>
+    public string? WithdrawalReason { get; private set; }
+
     private CompanyQuotation()
     {
     }
@@ -75,7 +83,8 @@ public class CompanyQuotation : Entity<Guid>
         Guid invitationId,
         Guid companyId,
         string quotationNumber,
-        int estimatedDays)
+        int estimatedDays,
+        DateTime submittedAt)
     {
         return new CompanyQuotation
         {
@@ -84,7 +93,7 @@ public class CompanyQuotation : Entity<Guid>
             InvitationId = invitationId,
             CompanyId = companyId,
             QuotationNumber = quotationNumber,
-            SubmittedAt = DateTime.UtcNow,
+            SubmittedAt = submittedAt,
             EstimatedDays = estimatedDays,
             Status = "Submitted",
             TotalQuotedPrice = 0,
@@ -104,9 +113,13 @@ public class CompanyQuotation : Entity<Guid>
         string quotationNumber,
         int estimatedDays)
     {
-        var q = new CompanyQuotation
+        // Id intentionally left at default — matches legacy Create() pattern.
+        // Repository uses DbSet.Update() which treats default-key entities as Added
+        // (server generates via NEWSEQUENTIALID) and non-default-key entities as
+        // Modified. A pre-assigned Guid would trigger a silent UPDATE no-op and the
+        // subsequent item INSERTs would violate FK.
+        return new CompanyQuotation
         {
-            Id = Guid.CreateVersion7(),
             QuotationRequestId = quotationRequestId,
             InvitationId = invitationId,
             CompanyId = companyId,
@@ -117,7 +130,6 @@ public class CompanyQuotation : Entity<Guid>
             TotalQuotedPrice = 0,
             Currency = "THB"
         };
-        return q;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -182,15 +194,14 @@ public class CompanyQuotation : Entity<Guid>
 
     /// <summary>
     /// Checker finalises the submission. Draft or PendingCheckerReview → Submitted.
-    /// Stamps SubmittedAt to the current UTC time.
     /// </summary>
-    public void MarkSubmitted()
+    public void MarkSubmitted(DateTime submittedAt)
     {
         if (Status != "Draft" && Status != "PendingCheckerReview")
             throw new InvalidOperationException(
                 $"Cannot submit: status is '{Status}', expected 'Draft' or 'PendingCheckerReview'");
         Status = "Submitted";
-        SubmittedAt = DateTime.UtcNow;
+        SubmittedAt = submittedAt;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -221,12 +232,13 @@ public class CompanyQuotation : Entity<Guid>
         Status = "Rejected";
     }
 
-    public void Withdraw()
+    public void Withdraw(string? reason = null)
     {
         if (Status == "Accepted")
             throw new InvalidOperationException("Cannot withdraw an accepted quotation");
 
         Status = "Withdrawn";
+        WithdrawalReason = reason;
     }
 
     /// <summary>
@@ -235,14 +247,14 @@ public class CompanyQuotation : Entity<Guid>
     /// Emitting a domain event happens at the aggregate root level (QuotationRequest) —
     /// or the caller is responsible for triggering MarkAllResponsesReceived.
     /// </summary>
-    public void Decline(string reason, string declinedBy)
+    public void Decline(string reason, string declinedBy, DateTime declinedAt)
     {
         var terminalStatuses = new[] { "Accepted", "Withdrawn", "Declined" };
         if (terminalStatuses.Contains(Status))
             throw new InvalidOperationException($"Cannot decline: quotation is already in terminal status '{Status}'.");
 
         DeclineReason = reason;
-        DeclinedAt = DateTime.UtcNow;
+        DeclinedAt = declinedAt;
         DeclinedBy = declinedBy;
         Status = "Declined";
     }
@@ -257,7 +269,8 @@ public class CompanyQuotation : Entity<Guid>
         Guid companyId,
         string quotationNumber,
         string reason,
-        string declinedBy)
+        string declinedBy,
+        DateTime declinedAt)
     {
         return new CompanyQuotation
         {
@@ -265,14 +278,14 @@ public class CompanyQuotation : Entity<Guid>
             InvitationId = invitationId,
             CompanyId = companyId,
             QuotationNumber = quotationNumber,
-            SubmittedAt = DateTime.UtcNow,
+            SubmittedAt = declinedAt,
             EstimatedDays = 0,
             Status = "Declined",
             TotalQuotedPrice = 0,
             IsShortlisted = false,
             NegotiationRounds = 0,
             DeclineReason = reason,
-            DeclinedAt = DateTime.UtcNow,
+            DeclinedAt = declinedAt,
             DeclinedBy = declinedBy
         };
     }
@@ -318,10 +331,11 @@ public class CompanyQuotation : Entity<Guid>
     }
 
     /// <summary>
-    /// Admin opens a negotiation round with a proposed price.
+    /// Admin opens a negotiation round with a note (no price). The company sets the revised
+    /// price by adjusting per-item discount when they Counter; price tracking happens there.
     /// Guards: max rounds, correct status.
     /// </summary>
-    public QuotationNegotiation OpenNegotiationRound(decimal proposedPrice, Guid adminUserId, string message)
+    public QuotationNegotiation OpenNegotiationRound(Guid? adminUserId, string message)
     {
         if (Status != "Tentative" && Status != "Negotiating")
             throw new InvalidOperationException($"Cannot open negotiation round in status '{Status}'");
@@ -330,20 +344,19 @@ public class CompanyQuotation : Entity<Guid>
             throw new InvalidOperationException(
                 $"Maximum negotiation rounds ({MaxNegotiationRounds}) reached for this quotation");
 
-        // Use QuotationRequestId as a placeholder quotation item id — the negotiation is at quotation level, not per-item
-        // (QuotationNegotiation.QuotationItemId is kept for legacy, we use the quotation's own Id)
+        // Quotation-level negotiation — covers the whole company quotation, not a single item.
+        // Per-item discount is captured on CompanyQuotationItem.NegotiatedDiscount when the
+        // company counters. QuotationItemId stays null for these rounds.
         var negotiation = QuotationNegotiation.Create(
             Id,
-            Id, // quotation-level negotiation; reuse own Id as sentinel
+            null,
             NegotiationRounds + 1,
             "Admin",
             adminUserId,
-            message,
-            proposedPrice);
+            message);
 
         _negotiations.Add(negotiation);
         NegotiationRounds++;
-        UpdateNegotiatedPrice(proposedPrice);
         Status = "Negotiating";
 
         return negotiation;
@@ -351,10 +364,20 @@ public class CompanyQuotation : Entity<Guid>
 
     /// <summary>
     /// Ext-company responds to an open negotiation round.
-    /// verb: Accept | Reject | Counter
+    /// verb: Accept | Reject | Counter.
+    ///
+    /// For Counter, the canonical input is per-item negotiated discount via
+    /// <paramref name="itemDiscounts"/> (key = AppraisalId, value = NegotiatedDiscount).
+    /// The total is recomputed from items afterwards. Callers that still submit a single
+    /// counter total via <paramref name="counterPrice"/> remain supported as a fallback.
     /// </summary>
-    public void RespondNegotiation(Guid negotiationId, string verb, decimal? counterPrice, string? message,
-        Guid companyUserId)
+    public void RespondNegotiation(
+        Guid negotiationId,
+        string verb,
+        decimal? counterPrice,
+        string? message,
+        Guid companyUserId,
+        IReadOnlyDictionary<Guid, decimal?>? itemDiscounts = null)
     {
         var negotiation = _negotiations.FirstOrDefault(n => n.Id == negotiationId)
                           ?? throw new InvalidOperationException($"Negotiation '{negotiationId}' not found");
@@ -368,16 +391,46 @@ public class CompanyQuotation : Entity<Guid>
             case "Accept":
                 negotiation.Accept(companyUserId, message);
                 // Return to Tentative — the parent QuotationRequest transitions to WinnerTentative.
-                // CompanyQuotation.Status reflects the company's acceptance by reverting to Tentative
-                // so the status chain is consistent: Tentative → (admin opens) → Negotiating → (company accepts) → Tentative.
+                // Status chain: Tentative → (admin opens) → Negotiating → (company responds) → Tentative.
                 Status = "Tentative";
                 break;
 
             case "Counter":
-                if (!counterPrice.HasValue)
-                    throw new InvalidOperationException("Counter response requires a counter price");
                 negotiation.Counter(companyUserId, message ?? string.Empty);
-                UpdateNegotiatedPrice(counterPrice.Value);
+
+                if (itemDiscounts is { Count: > 0 })
+                {
+                    foreach (var item in _items)
+                    {
+                        if (itemDiscounts.TryGetValue(item.AppraisalId, out var discount))
+                            item.SetNegotiatedDiscount(discount);
+
+                        // Sync per-item negotiated fields so downstream readers
+                        // (CompanyAssignedIntegrationEvent, finalization) pick up the post-discount
+                        // net rather than the original QuotedPrice from the first submission.
+                        if (item.FeeAmount > 0)
+                        {
+                            item.UpdateNegotiatedPrice(item.NetAmount);
+                            item.AcceptNegotiatedPrice();
+                        }
+                    }
+
+                    RecalculateTotalPrice();
+                    UpdateNegotiatedPrice(TotalQuotedPrice);
+                }
+                else if (counterPrice.HasValue)
+                {
+                    UpdateNegotiatedPrice(counterPrice.Value);
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        "Adjust at least one item's Negotiated Discount before submitting your proposal.");
+                }
+
+                // Counter ends this round — return to Tentative so admin can finalize, reject,
+                // or open another negotiation round (OpenNegotiationRound accepts both).
+                Status = "Tentative";
                 break;
 
             case "Reject":

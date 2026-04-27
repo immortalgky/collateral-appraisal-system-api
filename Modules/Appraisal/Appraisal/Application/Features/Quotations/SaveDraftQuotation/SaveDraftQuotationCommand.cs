@@ -10,7 +10,8 @@ public record SaveDraftQuotationItem(
     decimal Discount,
     decimal? NegotiatedDiscount,
     decimal VatPercent,
-    int EstimatedDays);
+    int EstimatedDays,
+    string? ItemNotes = null);
 
 public record SaveDraftQuotationCommand(
     Guid QuotationRequestId,

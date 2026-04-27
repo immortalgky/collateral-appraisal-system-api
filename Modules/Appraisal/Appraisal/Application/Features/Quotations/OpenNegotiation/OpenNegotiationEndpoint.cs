@@ -16,7 +16,6 @@ public class OpenNegotiationEndpoint : ICarterModule
                     var command = new OpenNegotiationCommand(
                         id,
                         request.CompanyQuotationId,
-                        request.ProposedPrice,
                         request.Message);
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);
@@ -26,7 +25,7 @@ public class OpenNegotiationEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Open a negotiation round")
-            .WithDescription("Admin opens a negotiation round with the tentative winner, proposing a revised price. Maximum 3 rounds per quotation.")
+            .WithDescription("Admin opens a negotiation round with the tentative winner by sending a note. The company sets the revised price by adjusting per-item discount when responding. Maximum 3 rounds per quotation.")
             .WithTags("Quotation")
             .RequireAuthorization();
     }

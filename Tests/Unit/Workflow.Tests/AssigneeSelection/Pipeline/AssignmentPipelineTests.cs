@@ -557,6 +557,48 @@ public class AssignmentPipelineTests
     }
 
     [Fact]
+    public async Task TeamMembershipValidator_PoolStrategy_TeamScopedAssignee_Valid()
+    {
+        var validator = new TeamMembershipValidator(_teamService, Substitute.For<ILogger<TeamMembershipValidator>>());
+
+        var ctx = new AssignmentPipelineContext
+        {
+            ActivityContext = CreateActivityContext(),
+            Rules = new ActivityAssignmentRules(true, []),
+            SelectedAssignee = "ExtAdmin:Team_team-A",
+            SelectionStrategy = "pool",
+            TeamId = "team-A"
+        };
+
+        var result = await validator.ValidateAsync(ctx);
+
+        result.IsValid.Should().BeTrue();
+        // Pool assignees are not users — GetTeamForUserAsync must not be called.
+        await _teamService.DidNotReceive().GetTeamForUserAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task TeamMembershipValidator_PoolStrategy_WrongTeamSuffix_Invalid()
+    {
+        var validator = new TeamMembershipValidator(_teamService, Substitute.For<ILogger<TeamMembershipValidator>>());
+
+        var ctx = new AssignmentPipelineContext
+        {
+            ActivityContext = CreateActivityContext(),
+            Rules = new ActivityAssignmentRules(true, []),
+            SelectedAssignee = "ExtAdmin:Team_team-B",
+            SelectionStrategy = "pool",
+            TeamId = "team-A"
+        };
+
+        var result = await validator.ValidateAsync(ctx);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainSingle().Which.Should().Contain("not scoped to team");
+        await _teamService.DidNotReceive().GetTeamForUserAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ExclusionRuleValidator_AssigneeNotExcluded_Valid()
     {
         var validator = new ExclusionRuleValidator(Substitute.For<ILogger<ExclusionRuleValidator>>());

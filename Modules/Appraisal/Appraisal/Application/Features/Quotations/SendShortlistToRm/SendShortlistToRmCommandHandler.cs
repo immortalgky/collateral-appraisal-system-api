@@ -45,7 +45,7 @@ public class SendShortlistToRmCommandHandler(
             QuotationRequestId = quotation.Id,
             ActivityId = "admin-review-submissions",
             DecisionTaken = "SendToRm",
-            CompletedBy = currentUser.UserId?.ToString() ?? string.Empty
+            CompletedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty
         }, correlationId: quotation.Id.ToString());
 
         return new SendShortlistToRmResult(

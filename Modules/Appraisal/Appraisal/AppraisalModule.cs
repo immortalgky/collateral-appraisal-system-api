@@ -30,6 +30,7 @@ public static class AppraisalModule
         services.AddScoped<IAppraisalUnitOfWork, AppraisalUnitOfWork>();
 
         // Register Aggregate Repositories (only aggregates have repositories)
+        services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IAppraisalRepository, AppraisalRepository>();
         services.AddScoped<IPricingAnalysisRepository, PricingAnalysisRepository>();
         services.AddScoped<ICommitteeRepository, CommitteeRepository>();

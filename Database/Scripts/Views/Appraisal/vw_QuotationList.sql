@@ -5,7 +5,7 @@ SELECT
     q.RequestDate,
     q.DueDate,
     q.Status,
-    q.RequestedByName,
+    q.RequestedBy,
     q.TotalAppraisals,
     q.TotalCompaniesInvited,
     q.TotalQuotationsReceived,

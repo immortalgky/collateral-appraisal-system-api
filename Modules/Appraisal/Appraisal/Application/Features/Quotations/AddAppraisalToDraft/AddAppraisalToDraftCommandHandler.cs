@@ -20,12 +20,12 @@ public class AddAppraisalToDraftCommandHandler(
         var quotation = await quotationRepository.GetByIdAsync(command.QuotationRequestId, cancellationToken)
                         ?? throw new NotFoundException($"Quotation request '{command.QuotationRequestId}' not found.");
 
-        var adminId = currentUser.UserId
-            ?? throw new UnauthorizedAccessException("Cannot resolve current user ID from token");
-        var adminName = currentUser.Username ?? adminId.ToString();
+        var adminUsername = currentUser.Username
+            ?? throw new UnauthorizedAccessException("Cannot resolve current user username from token");
+        var adminUserId = currentUser.UserId; // for integration event only
 
         // Only the quotation owner can add appraisals
-        if (quotation.RequestedBy != adminId)
+        if (quotation.RequestedBy != adminUsername)
             throw new UnauthorizedAccessException("You can only modify your own Draft quotation.");
 
         if (quotation.Status != "Draft")
@@ -41,7 +41,7 @@ public class AddAppraisalToDraftCommandHandler(
             throw new ConflictException(
                 $"Appraisal '{command.AppraisalId}' is already part of another active quotation request.");
 
-        quotation.AddAppraisal(command.AppraisalId, addedBy: adminName);
+        quotation.AddAppraisal(command.AppraisalId, addedBy: adminUsername);
 
         // Add display item for admin review panel
         quotation.AddItem(
@@ -49,7 +49,8 @@ public class AddAppraisalToDraftCommandHandler(
             appraisalNumber: command.AppraisalNumber,
             propertyType: command.PropertyType,
             propertyLocation: command.PropertyLocation,
-            estimatedValue: command.EstimatedValue);
+            estimatedValue: command.EstimatedValue,
+            maxAppraisalDays: command.MaxAppraisalDays);
 
         quotationRepository.Update(quotation);
 
@@ -57,7 +58,7 @@ public class AddAppraisalToDraftCommandHandler(
         {
             QuotationRequestId = quotation.Id,
             AppraisalId = command.AppraisalId,
-            AdminUserId = adminId
+            AdminUserId = adminUserId ?? Guid.Empty
         }, correlationId: quotation.Id.ToString());
 
         return new AddAppraisalToDraftResult(quotation.Id, quotation.TotalAppraisals);

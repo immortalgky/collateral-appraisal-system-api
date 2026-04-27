@@ -10,7 +10,8 @@ public record SubmitQuotationItemBody(
     decimal? FeeAmount = null,
     decimal? Discount = null,
     decimal? NegotiatedDiscount = null,
-    decimal? VatPercent = null);
+    decimal? VatPercent = null,
+    string? ItemNotes = null);
 
 public record SubmitQuotationRequest(
     string QuotationNumber,

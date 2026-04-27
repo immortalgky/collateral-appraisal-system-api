@@ -19,7 +19,8 @@ public class AddAppraisalToDraftEndpoint : ICarterModule
                         AppraisalNumber: request.AppraisalNumber,
                         PropertyType: request.PropertyType,
                         PropertyLocation: request.PropertyLocation,
-                        EstimatedValue: request.EstimatedValue);
+                        EstimatedValue: request.EstimatedValue,
+                        MaxAppraisalDays: request.MaxAppraisalDays);
 
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);

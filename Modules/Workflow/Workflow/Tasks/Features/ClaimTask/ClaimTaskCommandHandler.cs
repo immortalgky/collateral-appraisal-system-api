@@ -2,7 +2,10 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Shared.Identity;
 using Shared.Messaging.Events;
+using Workflow.AssigneeSelection.Teams;
 using Workflow.Data;
+using Workflow.Services.Groups;
+using Workflow.Tasks.Authorization;
 using Workflow.Workflow.Services;
 
 namespace Workflow.Tasks.Features.ClaimTask;
@@ -12,7 +15,9 @@ public class ClaimTaskCommandHandler(
     ICurrentUserService currentUserService,
     IWorkflowNotificationService notificationService,
     IPublishEndpoint publishEndpoint,
-    ILogger<ClaimTaskCommandHandler> logger
+    ILogger<ClaimTaskCommandHandler> logger,
+    IUserGroupService userGroupService,
+    ITeamService teamService
 ) : ICommandHandler<ClaimTaskCommand, ClaimTaskResult>
 {
     public async Task<ClaimTaskResult> Handle(ClaimTaskCommand command, CancellationToken cancellationToken)
@@ -28,8 +33,14 @@ public class ClaimTaskCommandHandler(
         if (task.AssignedType != "2")
             return new ClaimTaskResult(false, ErrorMessage: "Only pool tasks can be claimed");
 
-        var isPoolMember = currentUserService.Roles.Any(r =>
-            string.Equals(r, task.AssignedTo, StringComparison.OrdinalIgnoreCase));
+        var groups = await userGroupService.GetGroupsForUserAsync(username, cancellationToken);
+        var team   = await teamService.GetTeamForUserAsync(username, cancellationToken);
+        var isPoolMember = PoolTaskAccess.IsOwner(
+            task.AssignedTo,
+            task.AssigneeCompanyId,
+            groups,
+            team?.TeamId,
+            currentUserService.CompanyId);
         if (!isPoolMember)
             return new ClaimTaskResult(false, ErrorMessage: "You are not a member of this pool");
 

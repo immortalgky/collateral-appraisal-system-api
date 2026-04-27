@@ -33,7 +33,7 @@ public class RejectTentativeWinnerCommandHandler(
             QuotationRequestId = quotation.Id,
             ActivityId = "admin-finalize",
             DecisionTaken = "RejectTentative",
-            CompletedBy = currentUser.UserId?.ToString() ?? string.Empty
+            CompletedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty
         }, correlationId: quotation.Id.ToString());
 
         return new RejectTentativeWinnerResult(quotation.Id, quotation.Status);

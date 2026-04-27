@@ -32,19 +32,44 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
                 context.TeamId = activityTeamId;
         }
 
-        // 2b. If team-constrained but no explicit variable, derive from previous assignee's team
+        // 2b. If team-constrained but no explicit variable, derive from previous assignee's team.
+        //     Fan-out-aware path runs first: when we are inside a fan-out stage transition,
+        //     the activity execution is still InProgress so GetMostRecentPriorAssignee (which only
+        //     scans Completed executions) would miss the maker. We read CompletedBy from the
+        //     outgoing stage's history entry instead.
         if (string.IsNullOrEmpty(context.TeamId) && context.Rules.TeamConstrained)
         {
-            var lastAssignee = GetMostRecentPriorAssignee(activityCtx);
-            if (lastAssignee is not null)
+            // Fan-out stage transition path (maker → checker, etc.)
+            if (activityCtx.FanOutKey.HasValue)
             {
-                var team = await _teamService.GetTeamForUserAsync(lastAssignee, cancellationToken);
-                if (team is not null)
+                var priorUser = GetMostRecentFanOutStageCompletedBy(activityCtx);
+                if (!string.IsNullOrEmpty(priorUser))
                 {
-                    context.TeamId = team.TeamId;
-                    _logger.LogDebug(
-                        "Derived TeamId={TeamId} from previous assignee {Assignee} for {ActivityId}",
-                        team.TeamId, lastAssignee, activityCtx.ActivityId);
+                    var team = await _teamService.GetTeamForUserAsync(priorUser, cancellationToken);
+                    if (team is not null)
+                    {
+                        context.TeamId = team.TeamId;
+                        _logger.LogDebug(
+                            "Derived TeamId={TeamId} from fan-out stage CompletedBy={User} for {ActivityId}/{FanOutKey}",
+                            team.TeamId, priorUser, activityCtx.ActivityId, activityCtx.FanOutKey);
+                    }
+                }
+            }
+
+            // Cross-activity path (executed when not a fan-out stage, or fan-out path yielded no team)
+            if (string.IsNullOrEmpty(context.TeamId))
+            {
+                var lastAssignee = GetMostRecentPriorAssignee(activityCtx);
+                if (lastAssignee is not null)
+                {
+                    var team = await _teamService.GetTeamForUserAsync(lastAssignee, cancellationToken);
+                    if (team is not null)
+                    {
+                        context.TeamId = team.TeamId;
+                        _logger.LogDebug(
+                            "Derived TeamId={TeamId} from previous assignee {Assignee} for {ActivityId}",
+                            team.TeamId, lastAssignee, activityCtx.ActivityId);
+                    }
                 }
             }
         }
@@ -60,8 +85,12 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
         // 3. Extract RuntimeOverride for this activity
         context.RuntimeOverride = activityCtx.RuntimeOverrides;
 
-        // 4. Build PriorAssignees map from completed activity executions
-        context.PriorAssignees = BuildPriorAssigneesMap(activityCtx);
+        // 4. Build PriorAssignees map from completed activity executions.
+        //    When FanOutKey is set on the ActivityContext, also include per-item stage history
+        //    entries keyed as "<activityId>:<stageName>" so excludeAssigneesFrom can reference
+        //    prior stages on the same fan-out item.
+        var fanOutKey = context.FanOutKey ?? activityCtx.FanOutKey;
+        context.PriorAssignees = BuildPriorAssigneesMap(activityCtx, fanOutKey);
 
         _logger.LogDebug(
             "Context built for {ActivityId}: TeamConstrained={TeamConstrained}, TeamId={TeamId}, ExcludeFrom=[{ExcludeFrom}], PriorAssignees={Count}",
@@ -84,6 +113,35 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
             .Where(e => e.Status == ActivityExecutionStatus.Completed && !string.IsNullOrEmpty(e.CompletedBy))
             .OrderByDescending(e => e.CompletedOn)
             .Select(e => e.CompletedBy)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// For a fan-out stage transition (e.g. maker → checker), finds the <c>CompletedBy</c>
+    /// value stamped on the most recently exited stage for this fan-out key.
+    /// The activity execution is still <c>InProgress</c> during a stage transition, so
+    /// <see cref="GetMostRecentPriorAssignee"/> (which only scans Completed executions) cannot
+    /// see it. This helper reads directly from <see cref="FanOutItemState.History"/>.
+    /// Returns <c>null</c> when <c>FanOutKey</c> is absent, the item is not found, or no
+    /// completed stage history entry exists yet (e.g. first stage of a new fan-out).
+    /// </summary>
+    internal static string? GetMostRecentFanOutStageCompletedBy(ActivityContext activityCtx)
+    {
+        if (!activityCtx.FanOutKey.HasValue) return null;
+
+        // Locate the in-flight execution for this activity (Status != Completed).
+        var execution = activityCtx.WorkflowInstance.ActivityExecutions
+            .FirstOrDefault(e => e.ActivityId == activityCtx.ActivityId
+                                 && e.Status != ActivityExecutionStatus.Completed);
+        if (execution is null) return null;
+
+        var item = execution.FanOutItems.FirstOrDefault(i => i.FanOutKey == activityCtx.FanOutKey.Value);
+        if (item is null) return null;
+
+        return item.History
+            .Where(h => !string.IsNullOrEmpty(h.CompletedBy) && h.ExitedOn.HasValue)
+            .OrderByDescending(h => h.ExitedOn)
+            .Select(h => h.CompletedBy)
             .FirstOrDefault();
     }
 
@@ -132,15 +190,44 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
         return ActivityAssignmentRules.Default;
     }
 
-    private static Dictionary<string, string> BuildPriorAssigneesMap(ActivityContext activityCtx)
+    /// <summary>
+    /// Builds the prior-assignees map used by <see cref="ExclusionFilter"/>.
+    /// Keys are either bare activity ids or <c>&lt;activityId&gt;:&lt;stageName&gt;</c> entries.
+    ///
+    /// When <paramref name="fanOutKey"/> is provided and an <c>excludeAssigneesFrom</c> entry
+    /// contains a colon, the lookup reads from
+    /// <see cref="WorkflowActivityExecution.FanOutItems"/> filtered by the fan-out key and
+    /// stage name, returning the first <see cref="StageAssignment.CompletedBy"/> found.
+    /// <c>CompletedBy</c> is the actual user who completed the stage — the same identifier
+    /// shape <c>excludeAssigneesFrom</c> wants to compare against. <c>AssigneeUserId</c> is
+    /// not used here because it is only set for stages whose pipeline picked a specific user
+    /// and is null for the initial fan-out spawn (where the maker is assigned to a group pool).
+    /// Bare activity-id entries keep the existing completed-execution lookup.
+    /// </summary>
+    private static Dictionary<string, string> BuildPriorAssigneesMap(
+        ActivityContext activityCtx,
+        Guid? fanOutKey)
     {
         var map = new Dictionary<string, string>();
         var executions = activityCtx.WorkflowInstance.ActivityExecutions;
 
+        // --- Bare activity-id entries (original behavior) ---
         foreach (var exec in executions.Where(e =>
                      e.Status == ActivityExecutionStatus.Completed && !string.IsNullOrEmpty(e.AssignedTo)))
-            // Last completed assignee per activity wins
             map[exec.ActivityId] = exec.AssignedTo!;
+
+        // --- <activityId>:<stageName> entries (stage-scoped history) ---
+        if (fanOutKey.HasValue)
+            foreach (var exec in executions)
+            {
+                foreach (var item in exec.FanOutItems.Where(i => i.FanOutKey == fanOutKey.Value))
+                    foreach (var history in item.History.Where(h => !string.IsNullOrEmpty(h.CompletedBy)))
+                    {
+                        var stageKey = $"{exec.ActivityId}:{history.StageName}";
+                        // First entry wins — earliest completion per stage for this fan-out key
+                        map.TryAdd(stageKey, history.CompletedBy!);
+                    }
+            }
 
         return map;
     }

@@ -22,4 +22,11 @@ public class ActivityContext
     /// TaskAssigned / ApprovalTasksAssigned events.
     /// </summary>
     public string Movement { get; init; } = "F";
+
+    /// <summary>
+    /// When set, the assignment pipeline will resolve stage-scoped
+    /// <c>excludeAssigneesFrom</c> entries (format <c>&lt;activityId&gt;:&lt;stageName&gt;</c>)
+    /// against this fan-out key's history. Null for non-fan-out activities.
+    /// </summary>
+    public Guid? FanOutKey { get; init; }
 }

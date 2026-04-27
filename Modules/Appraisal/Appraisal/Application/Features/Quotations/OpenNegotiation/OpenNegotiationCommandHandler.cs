@@ -1,3 +1,4 @@
+using System.Security.Authentication;
 using Appraisal.Application.Features.Quotations.Shared;
 using Shared.Data.Outbox;
 using Shared.Identity;
@@ -17,13 +18,16 @@ public class OpenNegotiationCommandHandler(
     {
         QuotationAccessPolicy.EnsureAdmin(currentUser);
 
-        var quotation = await quotationRepository.GetByIdWithNegotiationsAsync(command.QuotationRequestId, cancellationToken)
-                        ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
+        var quotation =
+            await quotationRepository.GetByIdWithNegotiationsAsync(command.QuotationRequestId, cancellationToken)
+            ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
+
+        if (currentUser.UserId is null)
+            throw new AuthenticationException("Current user does not have a valid user id");
 
         quotation.StartNegotiation(
             command.CompanyQuotationId,
-            command.ProposedPrice,
-            currentUser.UserId!.Value,
+            currentUser.UserId,
             command.Message);
 
         quotationRepository.Update(quotation);
@@ -38,8 +42,8 @@ public class OpenNegotiationCommandHandler(
             QuotationRequestId = quotation.Id,
             ActivityId = "admin-finalize",
             DecisionTaken = "OpenNegotiation",
-            CompletedBy = currentUser.UserId?.ToString() ?? string.Empty
-        }, correlationId: quotation.Id.ToString());
+            CompletedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty
+        }, quotation.Id.ToString());
 
         return new OpenNegotiationResult(
             quotation.Id,

@@ -13,12 +13,14 @@ public class SaveDraftQuotationCommandHandler(
         CancellationToken cancellationToken)
     {
         var quotationRequest = await quotationRepository.GetByIdAsync(command.QuotationRequestId, cancellationToken)
-                               ?? throw new NotFoundException($"Quotation request '{command.QuotationRequestId}' not found");
+                               ?? throw new NotFoundException(
+                                   $"Quotation request '{command.QuotationRequestId}' not found");
 
         // Find the invitation for this company
         var invitation = quotationRequest.Invitations
-            .FirstOrDefault(i => i.CompanyId == command.CompanyId)
-            ?? throw new BadRequestException($"Company '{command.CompanyId}' is not invited to this quotation");
+                             .FirstOrDefault(i => i.CompanyId == command.CompanyId)
+                         ?? throw new BadRequestException(
+                             $"Company '{command.CompanyId}' is not invited to this quotation");
 
         // Enforce ext-company access (Maker or Checker)
         QuotationAccessPolicy.EnsureCanSubmitQuotation(invitation, currentUser);
@@ -36,11 +38,11 @@ public class SaveDraftQuotationCommandHandler(
         {
             // Create path: no quotation yet — create a new Draft
             companyQuotation = CompanyQuotation.CreateDraft(
-                quotationRequestId: command.QuotationRequestId,
-                invitationId: invitation.Id,
-                companyId: command.CompanyId,
-                quotationNumber: command.QuotationNumber,
-                estimatedDays: command.EstimatedDays);
+                command.QuotationRequestId,
+                invitation.Id,
+                command.CompanyId,
+                command.QuotationNumber,
+                command.EstimatedDays);
 
             ApplyScalarFields(companyQuotation, command);
             AddItems(companyQuotation, command.Items);
@@ -62,8 +64,6 @@ public class SaveDraftQuotationCommandHandler(
             companyQuotation.ClearItems();
             AddItems(companyQuotation, command.Items);
         }
-
-        quotationRepository.Update(quotationRequest);
 
         return new SaveDraftQuotationResult(companyQuotation.Id, companyQuotation.Status);
     }
@@ -87,8 +87,10 @@ public class SaveDraftQuotationCommandHandler(
         {
             // Derive NetAmount so that the legacy QuotedPrice column stays in sync.
             // Formula: (FeeAmount - Discount - NegotiatedDiscount) * (1 + VatPercent / 100)
-            var feeAfterDiscount = itemRequest.FeeAmount - itemRequest.Discount - (itemRequest.NegotiatedDiscount ?? 0m);
-            var vatAmount = Math.Round(feeAfterDiscount * itemRequest.VatPercent / 100m, 2, MidpointRounding.AwayFromZero);
+            var feeAfterDiscount =
+                itemRequest.FeeAmount - itemRequest.Discount - (itemRequest.NegotiatedDiscount ?? 0m);
+            var vatAmount = Math.Round(feeAfterDiscount * itemRequest.VatPercent / 100m, 2,
+                MidpointRounding.AwayFromZero);
             var netAmount = feeAfterDiscount + vatAmount;
 
             var item = quotation.AddItem(
@@ -102,6 +104,8 @@ public class SaveDraftQuotationCommandHandler(
 
             if (itemRequest.NegotiatedDiscount.HasValue)
                 item.SetNegotiatedDiscount(itemRequest.NegotiatedDiscount.Value);
+
+            item.SetItemNotes(itemRequest.ItemNotes);
         }
     }
 }

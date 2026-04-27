@@ -20,10 +20,11 @@ public class RemoveAppraisalFromDraftCommandHandler(
         var quotation = await quotationRepository.GetByIdAsync(command.QuotationRequestId, cancellationToken)
                         ?? throw new NotFoundException($"Quotation request '{command.QuotationRequestId}' not found.");
 
-        var adminId = currentUser.UserId
-            ?? throw new UnauthorizedAccessException("Cannot resolve current user ID from token");
+        var adminUsername = currentUser.Username
+            ?? throw new UnauthorizedAccessException("Cannot resolve current user username from token");
+        var adminUserId = currentUser.UserId; // for integration event only
 
-        if (quotation.RequestedBy != adminId)
+        if (quotation.RequestedBy != adminUsername)
             throw new UnauthorizedAccessException("You can only modify your own Draft quotation.");
 
         // Domain method handles Draft-only guard and auto-cancel when last appraisal removed
@@ -38,7 +39,7 @@ public class RemoveAppraisalFromDraftCommandHandler(
         {
             QuotationRequestId = quotation.Id,
             AppraisalId = command.AppraisalId,
-            AdminUserId = adminId
+            AdminUserId = adminUserId ?? Guid.Empty
         }, correlationId: quotation.Id.ToString());
 
         // M1: when removing the last appraisal auto-cancels the quotation, also publish the cancel event

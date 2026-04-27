@@ -2,6 +2,7 @@ using Appraisal.Application.Features.Quotations.Shared;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.DeclineInvitation;
 
@@ -9,6 +10,7 @@ public class DeclineInvitationCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
+    IDateTimeProvider dateTimeProvider,
     IQuotationActivityLogger activityLogger)
     : ICommandHandler<DeclineInvitationCommand, DeclineInvitationResult>
 {
@@ -44,7 +46,7 @@ public class DeclineInvitationCommandHandler(
         if (existing is not null)
         {
             // Decline the existing submitted quotation
-            existing.Decline(command.Reason, declinedBy);
+            existing.Decline(command.Reason, declinedBy, dateTimeProvider.ApplicationNow);
             declinedQuotation = existing;
         }
         else
@@ -56,7 +58,8 @@ public class DeclineInvitationCommandHandler(
                 companyId: command.CompanyId,
                 quotationNumber: $"DECLINED-{command.CompanyId:N}",
                 reason: command.Reason,
-                declinedBy: declinedBy);
+                declinedBy: declinedBy,
+                declinedAt: dateTimeProvider.ApplicationNow);
 
             quotation.AddQuotation(newDeclined);
             declinedQuotation = newDeclined;

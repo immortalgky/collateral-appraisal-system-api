@@ -8,8 +8,15 @@ public abstract record AssignmentFeeSource
     /// <summary>Look up the applicable tier from FeeStructures (FeeCode="01") using TotalSellingPrice.</summary>
     public sealed record TierBased : AssignmentFeeSource;
 
-    /// <summary>Use the price agreed through the quotation process.</summary>
-    public sealed record Quotation(decimal Amount, Guid QuotationRequestId) : AssignmentFeeSource;
+    /// <summary>
+    /// Use the price agreed through the quotation process.
+    /// <paramref name="Amount"/> must be the *ex-VAT* fee — the AppraisalFee aggregate
+    /// recalculates VAT on top of item amounts, so passing a VAT-inclusive figure here
+    /// would double-count the tax.
+    /// <paramref name="QuotationNumber"/> is optional and used in the human-readable
+    /// fee description.
+    /// </summary>
+    public sealed record Quotation(decimal Amount, Guid QuotationRequestId, string? QuotationNumber = null) : AssignmentFeeSource;
 }
 
 /// <summary>

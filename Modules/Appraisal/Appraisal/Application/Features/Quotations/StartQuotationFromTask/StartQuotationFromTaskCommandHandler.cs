@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Quotations.Shared;
+using Appraisal.Domain.Appraisals;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using Shared.Data;
@@ -10,6 +11,7 @@ namespace Appraisal.Application.Features.Quotations.StartQuotationFromTask;
 
 public class StartQuotationFromTaskCommandHandler(
     IQuotationRepository quotationRepository,
+    IAppraisalRepository appraisalRepository,
     ICurrentUserService currentUser,
     ISqlConnectionFactory connectionFactory,
     IIntegrationEventOutbox outbox,
@@ -23,24 +25,24 @@ public class StartQuotationFromTaskCommandHandler(
     {
         QuotationAccessPolicy.EnsureAdmin(currentUser);
 
-        var requestedBy = currentUser.UserId
-            ?? throw new UnauthorizedAccessException("Cannot resolve current user ID from token");
-        var requestedByName = currentUser.Username ?? requestedBy.ToString();
+        var requestedBy = currentUser.Username
+            ?? throw new UnauthorizedAccessException("Cannot resolve current user username from token");
+        var adminUserId = currentUser.UserId;
 
         // ── Path A: add appraisal to an existing Draft ────────────────────────
         if (command.ExistingQuotationRequestId.HasValue)
         {
-            return await AddToExistingDraftAsync(command, requestedBy, requestedByName, cancellationToken);
+            return await AddToExistingDraftAsync(command, requestedBy, adminUserId, cancellationToken);
         }
 
         // ── Path B: create a new Draft ────────────────────────────────────────
-        return await CreateNewDraftAsync(command, requestedBy, requestedByName, cancellationToken);
+        return await CreateNewDraftAsync(command, requestedBy, adminUserId, cancellationToken);
     }
 
     private async Task<StartQuotationFromTaskResult> AddToExistingDraftAsync(
         StartQuotationFromTaskCommand command,
-        Guid requestedBy,
-        string requestedByName,
+        string requestedBy,
+        Guid? adminUserId,
         CancellationToken cancellationToken)
     {
         var existingId = command.ExistingQuotationRequestId!.Value;
@@ -64,7 +66,7 @@ public class StartQuotationFromTaskCommandHandler(
             throw new ConflictException(
                 $"Appraisal '{command.AppraisalId}' is already part of another non-terminal quotation request.");
 
-        quotation.AddAppraisal(command.AppraisalId, requestedByName);
+        quotation.AddAppraisal(command.AppraisalId, requestedBy);
 
         // Also add a display item for the new appraisal (used by admin review panel)
         quotation.AddItem(
@@ -72,7 +74,8 @@ public class StartQuotationFromTaskCommandHandler(
             appraisalNumber: command.AppraisalNumber,
             propertyType: command.PropertyType,
             propertyLocation: command.PropertyLocation,
-            estimatedValue: command.EstimatedValue);
+            estimatedValue: command.EstimatedValue,
+            maxAppraisalDays: command.MaxAppraisalDays);
 
         quotationRepository.Update(quotation);
 
@@ -80,7 +83,7 @@ public class StartQuotationFromTaskCommandHandler(
         {
             QuotationRequestId = existingId,
             AppraisalId = command.AppraisalId,
-            AdminUserId = requestedBy
+            AdminUserId = adminUserId ?? Guid.Empty
         }, correlationId: existingId.ToString());
 
         return new StartQuotationFromTaskResult(existingId);
@@ -88,8 +91,8 @@ public class StartQuotationFromTaskCommandHandler(
 
     private async Task<StartQuotationFromTaskResult> CreateNewDraftAsync(
         StartQuotationFromTaskCommand command,
-        Guid requestedBy,
-        string requestedByName,
+        string requestedBy,
+        Guid? adminUserId,
         CancellationToken cancellationToken)
     {
         if (command.InvitedCompanyIds == null || command.InvitedCompanyIds.Count == 0)
@@ -110,13 +113,12 @@ public class StartQuotationFromTaskCommandHandler(
         var quotation = QuotationRequest.CreateFromTask(
             dueDate: command.DueDate,
             requestedBy: requestedBy,
-            requestedByName: requestedByName,
             initialAppraisalId: command.AppraisalId,
             requestId: command.RequestId,
             workflowInstanceId: command.WorkflowInstanceId,
             taskExecutionId: command.TaskExecutionId,
             bankingSegment: command.BankingSegment,
-            addedBy: requestedByName,
+            addedBy: requestedBy,
             rmUserId: rmUserId,
             rmUsername: rmUsername,
             description: null,
@@ -128,7 +130,8 @@ public class StartQuotationFromTaskCommandHandler(
             appraisalNumber: command.AppraisalNumber,
             propertyType: command.PropertyType,
             propertyLocation: command.PropertyLocation,
-            estimatedValue: command.EstimatedValue);
+            estimatedValue: command.EstimatedValue,
+            maxAppraisalDays: command.MaxAppraisalDays);
 
         // Invite each company
         var distinctCompanyIds = command.InvitedCompanyIds.Distinct().ToList();
@@ -140,6 +143,21 @@ public class StartQuotationFromTaskCommandHandler(
         // QuotationStartedIntegrationEvent is emitted by SendQuotationCommandHandler on explicit send.
 
         await quotationRepository.AddAsync(quotation, cancellationToken);
+
+        // Pre-register a Pending assignment so we capture the admin's selection (type + method)
+        // before the quotation winner is known. Promoted to Assigned when quotation is finalized.
+        if (!string.IsNullOrWhiteSpace(command.AssignmentType) && !string.IsNullOrWhiteSpace(command.AssignmentMethod))
+        {
+            var appraisal = await appraisalRepository.GetByIdAsync(command.AppraisalId, cancellationToken)
+                            ?? throw new NotFoundException($"Appraisal '{command.AppraisalId}' not found.");
+            appraisal.CreatePendingAssignment(
+                command.AssignmentType,
+                command.AssignmentMethod,
+                command.InternalFollowupAssignmentMethod,
+                quotationRequestId: quotation.Id,
+                registeredBy: requestedBy);
+            await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
+        }
 
         var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
         activityLogger.Log(quotation.Id, null, null, "Quotation creation", actionByRole: adminRole);

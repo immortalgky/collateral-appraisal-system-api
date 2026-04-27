@@ -20,7 +20,8 @@ public class RespondNegotiationEndpoint : ICarterModule
                         request.CompanyQuotationId,
                         request.Verb,
                         request.CounterPrice,
-                        request.Message);
+                        request.Message,
+                        request.Items);
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);
                 })

@@ -5,4 +5,5 @@ public record AddAppraisalToDraftRequest(
     string AppraisalNumber,
     string PropertyType,
     string? PropertyLocation = null,
-    decimal? EstimatedValue = null);
+    decimal? EstimatedValue = null,
+    int? MaxAppraisalDays = null);

@@ -28,7 +28,7 @@ public static class QuotationAccessPolicy
     /// Pass <paramref name="quotation"/> so the check uses the denormalized RmUserId field;
     /// this avoids a cross-module Request lookup inside the handler.
     /// </summary>
-    public static void EnsureRmOrAdmin(Domain.Quotations.QuotationRequest quotation, ICurrentUserService user)
+    public static void EnsureRmOrAdmin(QuotationRequest quotation, ICurrentUserService user)
     {
         if (user.IsInRole("Admin") || user.IsInRole("IntAdmin"))
             return;
@@ -63,7 +63,7 @@ public static class QuotationAccessPolicy
     ///   ExtAdmin (ExtCompany): must be an invited company.
     /// </summary>
     public static void EnsureCanViewQuotation(
-        Domain.Quotations.QuotationRequest quotation,
+        QuotationRequest quotation,
         Guid? requestorId,
         ICurrentUserService user)
     {
@@ -86,7 +86,7 @@ public static class QuotationAccessPolicy
             return;
         }
 
-        if (user.IsInRole("ExtAdmin"))
+        if (user.IsInRole("ExtAdmin") || user.IsInRole("ExtAppraisalChecker"))
         {
             var companyId = user.CompanyId;
             if (!companyId.HasValue)
@@ -133,7 +133,8 @@ public static class QuotationAccessPolicy
             throw new UnauthorizedAccessException("External company user has no company_id claim");
 
         if (companyId.Value != expectedCompanyId)
-            throw new UnauthorizedAccessException("External company can only perform this operation for their own company");
+            throw new UnauthorizedAccessException(
+                "External company can only perform this operation for their own company");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -144,14 +145,16 @@ public static class QuotationAccessPolicy
     /// Returns true if the current user has the ExtAppraisalChecker role.
     /// </summary>
     public static bool IsChecker(ICurrentUserService user)
-        => user.IsInRole("ExtAppraisalChecker");
+    {
+        return user.IsInRole("ExtAppraisalChecker");
+    }
 
     /// <summary>
     /// Ensures the ext-company caller can submit a quotation for the given invitation.
     /// Accepts either Maker (ExtAdmin) or Checker (ExtAppraisalChecker) — both must belong to the invited company.
     /// </summary>
     public static void EnsureCanSubmitQuotation(
-        Domain.Quotations.QuotationInvitation invitation,
+        QuotationInvitation invitation,
         ICurrentUserService user)
     {
         if (!user.IsInRole("ExtAdmin") && !user.IsInRole("ExtAppraisalChecker"))
@@ -162,7 +165,8 @@ public static class QuotationAccessPolicy
             throw new UnauthorizedAccessException("External company user has no company_id claim");
 
         if (invitation.CompanyId != companyId.Value)
-            throw new UnauthorizedAccessException("External company can only submit quotations for their own invitation");
+            throw new UnauthorizedAccessException(
+                "External company can only submit quotations for their own invitation");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -173,10 +177,10 @@ public static class QuotationAccessPolicy
     /// Filters the company quotation collection based on the caller's role:
     ///   Admin: all quotations returned unchanged.
     ///   RM: only shortlisted quotations.
-    ///   ExtAdmin: only the quotation belonging to their company.
+    ///   ExtAdmin (Maker) / ExtAppraisalChecker (Checker): only the quotation belonging to their company.
     /// </summary>
-    public static IEnumerable<Domain.Quotations.CompanyQuotation> FilterCompanyQuotationsForView(
-        IEnumerable<Domain.Quotations.CompanyQuotation> quotations,
+    public static IEnumerable<CompanyQuotation> FilterCompanyQuotationsForView(
+        IEnumerable<CompanyQuotation> quotations,
         ICurrentUserService user)
     {
         if (user.IsInRole("Admin") || user.IsInRole("IntAdmin"))
@@ -185,7 +189,8 @@ public static class QuotationAccessPolicy
         if (user.IsInRole("RequestMaker"))
             return quotations.Where(q => q.IsShortlisted);
 
-        if (user.IsInRole("ExtAdmin"))
+        // Both Maker and Checker belong to the same ext company; Checker must see the Maker's draft.
+        if (user.IsInRole("ExtAdmin") || user.IsInRole("ExtAppraisalChecker"))
         {
             var companyId = user.CompanyId;
             if (!companyId.HasValue) return [];
@@ -193,5 +198,17 @@ public static class QuotationAccessPolicy
         }
 
         return [];
+    }
+
+    /// <summary>
+    /// Whether the caller may see the full list of invited companies (names) on a quotation.
+    /// Internal users (Admin / IntAdmin / RequestMaker) may; external company users may not,
+    /// because disclosing rival invitees during a competitive bid is a privacy concern.
+    /// </summary>
+    public static bool CanViewInvitedCompanies(ICurrentUserService user)
+    {
+        return user.IsInRole("Admin")
+               || user.IsInRole("IntAdmin")
+               || user.IsInRole("RequestMaker");
     }
 }

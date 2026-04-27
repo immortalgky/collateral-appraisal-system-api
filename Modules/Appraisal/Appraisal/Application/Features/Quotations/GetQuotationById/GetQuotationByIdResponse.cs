@@ -10,8 +10,7 @@ public record GetQuotationByIdResponse(
     DateTime RequestDate,
     DateTime DueDate,
     string Status,
-    Guid RequestedBy,
-    string RequestedByName,
+    string RequestedBy,
     string? Description,
     string? SpecialRequirements,
     int TotalAppraisals,
@@ -24,6 +23,9 @@ public record GetQuotationByIdResponse(
     DateTime? SelectedAt,
     string? SelectionReason,
 
+    // ── Cancellation ──────────────────────────────────────────────────────────
+    string? CancellationReason,
+
     // ── IBG-extended fields (v2) ──────────────────────────────────────────────
     // v2: AppraisalId scalar removed; replaced by Appraisals array.
     IReadOnlyList<QuotationAppraisalResult> Appraisals,
@@ -33,6 +35,7 @@ public record GetQuotationByIdResponse(
     Guid? TaskExecutionId,
     string? BankingSegment,
     Guid? RmUserId,
+    string? RmUserName,
     DateTime? SubmissionsClosedAt,
     DateTime? ShortlistSentToRmAt,
     Guid? ShortlistSentByAdminId,
@@ -42,9 +45,16 @@ public record GetQuotationByIdResponse(
     Guid? TentativelySelectedBy,
     string? TentativelySelectedByRole,
 
+    // ── v4: RM negotiation recommendation captured when RM picks a tentative winner ─
+    bool RmRequestsNegotiation,
+    string? RmNegotiationNote,
+
     // ── v4: shared documents ─────────────────────────────────────────────────
     IReadOnlyList<QuotationSharedDocumentResult> SharedDocuments,
 
     // ── Company quotations (filtered by role) ─────────────────────────────────
-    IReadOnlyList<CompanyQuotationResult> CompanyQuotations
+    IReadOnlyList<CompanyQuotationResult> CompanyQuotations,
+
+    // ── Invited companies (non-Expired invitations, enriched with name) ───────
+    IReadOnlyList<InvitedCompanyResult> InvitedCompanies
 );

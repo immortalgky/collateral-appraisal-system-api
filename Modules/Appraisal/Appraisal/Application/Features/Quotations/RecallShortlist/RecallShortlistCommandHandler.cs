@@ -30,7 +30,7 @@ public class RecallShortlistCommandHandler(
             QuotationRequestId = quotation.Id,
             ActivityId = "rm-pick-winner",
             DecisionTaken = "RecallShortlist",
-            CompletedBy = currentUser.UserId?.ToString() ?? string.Empty
+            CompletedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty
         }, correlationId: quotation.Id.ToString());
 
         return new RecallShortlistResult(quotation.Id, quotation.Status);

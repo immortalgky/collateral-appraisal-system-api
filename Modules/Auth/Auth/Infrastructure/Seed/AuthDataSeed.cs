@@ -64,18 +64,22 @@ public class AuthDataSeed(
             ["DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
              "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW",
              "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE",
+             "QUOTATION_VIEW", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT",
+             "TASK_QUOTATION_REVIEW", "TASK_QUOTATION_FINALIZE",
              ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
             "External Company Admin — manages external company users and external appraisal assignments.",
             scope: "Company",
             ["DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
              "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE",
+             "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
              ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(RequestMakerRoleName,
             "Request Maker — creates appraisal requests and handles initiation tasks.",
             scope: "Bank",
             ["DASHBOARD_VIEW", "REQUEST_VIEW", "REQUEST_CREATE", "TASK_LIST_VIEW",
-             "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION", "TASK_PROVIDE_ADDITIONAL_DOCS"]);
+             "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION", "TASK_PROVIDE_ADDITIONAL_DOCS",
+             "QUOTATION_VIEW", "TASK_QUOTATION_PICK_WINNER"]);
         await SeedRoleWithPermissionsAsync(RequestCheckerRoleName,
             "Request Checker — reviews and approves incoming appraisal requests.",
             scope: "Bank",
@@ -109,6 +113,7 @@ public class AuthDataSeed(
             scope: "Company",
             ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
              "TASK_EXT_APPR_CHECK",
+             "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
              ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalVerifierRoleName,
             "External Appraisal Verifier — final verification of external appraisal reports.",
@@ -449,6 +454,17 @@ public class AuthDataSeed(
             ("TASK_INT_APPR_VERIFICATION", "Task: Internal Appraisal Verification", "Access internal appraisal verification tasks", "Workflow"),
             ("TASK_PENDING_APPROVAL", "Task: Pending Approval", "Access pending approval tasks", "Workflow"),
             ("TASK_PROVIDE_ADDITIONAL_DOCS", "Task: Provide Additional Documents", "Access document followup tasks raised by checkers", "Workflow"),
+            // Quotation feature
+            ("QUOTATION_VIEW", "View Quotations", "View quotation requests and details", "Quotation"),
+            ("QUOTATION_DRAFT_VIEW", "View Quotation Drafts", "View own quotation drafts", "Quotation"),
+            ("QUOTATION_DRAFT_EDIT", "Edit Quotation Drafts", "Create and edit quotation drafts before submission", "Quotation"),
+            ("QUOTATION_EXT_VIEW", "View External Quotation Portal", "Access the external company quotation portal", "Quotation"),
+            // Quotation per-activity task gating
+            ("TASK_QUOTATION_SUBMIT", "Task: Submit Quotation", "Access external company quotation submission tasks", "Workflow"),
+            ("TASK_QUOTATION_NEGOTIATE", "Task: Respond to Negotiation", "Access external company negotiation response tasks", "Workflow"),
+            ("TASK_QUOTATION_REVIEW", "Task: Review Quotation Bids", "Access admin quotation review tasks", "Workflow"),
+            ("TASK_QUOTATION_PICK_WINNER", "Task: Pick Quotation Winner", "Access RM pick winner tasks", "Workflow"),
+            ("TASK_QUOTATION_FINALIZE", "Task: Finalize Quotation", "Access admin quotation finalization tasks", "Workflow"),
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)

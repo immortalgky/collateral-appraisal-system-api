@@ -15,7 +15,7 @@ namespace Appraisal.Application.Features.Quotations.StartQuotationFromTask;
 ///   - A new Draft is created with the given DueDate, BankingSegment, invited companies, appraisal.
 ///   - QuotationStartedIntegrationEvent is NOT emitted at creation — it fires when Send() is called.
 ///
-/// RequestedBy, RequestedByName, and RmUserId are resolved server-side — not accepted from the request body.
+/// RequestedBy (username) and RmUserId are resolved server-side — not accepted from the request body.
 /// </summary>
 public record StartQuotationFromTaskCommand(
     Guid AppraisalId,
@@ -33,5 +33,9 @@ public record StartQuotationFromTaskCommand(
     /// <summary>
     /// When set, adds the appraisal to this existing Draft quotation instead of creating a new one.
     /// </summary>
-    Guid? ExistingQuotationRequestId = null
+    Guid? ExistingQuotationRequestId = null,
+    int? MaxAppraisalDays = null,
+    string? AssignmentType = null,
+    string? AssignmentMethod = null,
+    string? InternalFollowupAssignmentMethod = null
 ) : ICommand<StartQuotationFromTaskResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

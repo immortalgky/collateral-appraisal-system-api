@@ -59,6 +59,26 @@ public class WorkflowActivityExecutionConfiguration : IEntityTypeConfiguration<W
             .HasMaxLength(1)
             .HasDefaultValue("F");
 
+        // Per-fan-out-item stage state: stored as a single JSON column.
+        // Empty list on existing rows means "no stages declared — legacy behavior".
+        // Note: HasMaxLength is intentionally omitted on properties below — EF only honors
+        // it for relational columns, not for properties projected into the JSON payload.
+        builder.OwnsMany(x => x.FanOutItems, b =>
+        {
+            b.ToJson();
+            b.Property(i => i.FanOutKey).IsRequired();
+            b.Property(i => i.CurrentStage).IsRequired();
+            b.OwnsMany(i => i.History, h =>
+            {
+                h.Property(s => s.StageName).IsRequired();
+                h.Property(s => s.AssignedTo).IsRequired();
+                h.Property(s => s.AssigneeUserId);
+                h.Property(s => s.EnteredOn).IsRequired();
+                h.Property(s => s.ExitedOn);
+                h.Property(s => s.CompletedBy);
+            });
+        });
+
         builder.HasOne(x => x.WorkflowInstance)
             .WithMany(x => x.ActivityExecutions)
             .HasForeignKey(x => x.WorkflowInstanceId)

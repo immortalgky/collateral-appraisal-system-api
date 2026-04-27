@@ -43,7 +43,7 @@ public class CancelQuotationCommandHandler(
                 QuotationRequestId = quotation.Id,
                 ActivityId = "cancel",  // sentinel: consumer will call CancelWorkflowAsync
                 DecisionTaken = "Cancel",
-                CompletedBy = currentUser.UserId?.ToString() ?? string.Empty
+                CompletedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty
             }, correlationId: quotation.Id.ToString());
         }
 
