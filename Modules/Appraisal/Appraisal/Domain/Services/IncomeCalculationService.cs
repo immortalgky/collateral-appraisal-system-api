@@ -266,7 +266,7 @@ public class IncomeCalculationService : IPricingCalculationService
                         continue;
                     }
 
-                    values[y] = (detail.ProportionPct / 100m) * (refValues != null ? refValues[y] : 0m);
+                    values[y] = Math.Round((detail.ProportionPct / 100m) * (refValues != null ? refValues[y] : 0m), 2);
                 } 
                    
 

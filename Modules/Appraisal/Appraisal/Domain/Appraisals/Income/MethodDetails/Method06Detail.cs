@@ -6,7 +6,7 @@ namespace Appraisal.Domain.Appraisals.Income.MethodDetails;
 public sealed record Method06Detail
 {
     [JsonPropertyName("areaDetail")]
-    public AreaDetail AreaDetails { get; init; } = new();
+    public AreaDetail[] AreaDetails { get; init; } = [];
 
     [JsonPropertyName("sumRentalPrice")]
     public decimal SumRentalPrice { get; init; }
