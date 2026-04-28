@@ -938,7 +938,8 @@ public class IncomeCalculationService : IPricingCalculationService
         // summaryDirect has a special 1-year path in TS.
         var hasSummaryDirect = analysis.Sections.Any(s => s.SectionType == "summaryDirect");
 
-        if (hasSummaryDirect)
+        // now, backend doesn't recieve summary section from front end, so we rely on total number of years to determine whether to do direct capitalization or DCF. If total number of years is 1, we will do direct capitalization.
+        if (hasSummaryDirect || years == 1)
         {
             // Direct capitalization: pv = grossRevenue[0] / (capRate / 100)
             // Return single-element arrays so the FE can render all columns uniformly.
@@ -951,7 +952,8 @@ public class IncomeCalculationService : IPricingCalculationService
                 totalNet: [totalNet0],
                 discount: [1m],
                 presentValue: [pv],
-                finalValue: pv);
+                finalValue: Math.Round(pv, 2) 
+            );
         }
 
         // DCF path
@@ -964,19 +966,19 @@ public class IncomeCalculationService : IPricingCalculationService
         for (int i = 0; i < dcfLen; i++)
         {
             // TS: terminal revenue placed only at index totalNumberOfYears - 2
-            terminalRevenue[i] = (i == years - 2) ? terminalValue : 0m;
+            terminalRevenue[i] = (i == years - 2) ? Math.Round(terminalValue, 2) : 0m;
 
-            totalNet[i] = grossRevenue[i] + terminalRevenue[i];
+            totalNet[i] = Math.Round(grossRevenue[i] + terminalRevenue[i], 2);
 
             // TS: 1 / Math.pow(1 + discountedRate/100, idx+1)
             discount[i] = discountedRate != 0m
                 ? 1m / (decimal)Math.Pow((double)(1m + discountedRate / 100m), i + 1)
                 : 1m;
 
-            presentValue[i] = totalNet[i] * discount[i];
+            presentValue[i] = Math.Round(totalNet[i] * discount[i], 2);
         }
 
-        var finalValue = presentValue.Sum();
+        var finalValue = Math.Round(presentValue.Sum(), 2);
 
         return (terminalRevenue, totalNet, discount, presentValue, finalValue);
     }
