@@ -8,7 +8,7 @@ public record QuotationDto(
     DateTime RequestDate,
     DateTime DueDate,
     string Status,
-    string RequestedByName,
+    string RequestedBy,
     int TotalAppraisals,
     int TotalCompaniesInvited,
     int TotalQuotationsReceived);

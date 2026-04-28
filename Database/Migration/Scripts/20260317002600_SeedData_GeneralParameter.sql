@@ -3974,7 +3974,7 @@ VALUES
     (N'PropertyType', N'TH', N'EN', N'U', N'Condominium', 1, 3),
     (N'PropertyType', N'TH', N'TH', N'U', N'คอนโด', 1, 3),
     (N'PropertyType', N'TH', N'EN', N'L', N'Land', 1, 4),
-    (N'PropertyType', N'TH', N'TH', N'L', N'ที่ี่ดินเปล่า', 1, 4),
+    (N'PropertyType', N'TH', N'TH', N'L', N'ที่ดินเปล่า', 1, 4),
     (N'PropertyType', N'TH', N'EN', N'MAC', N'Machinery', 1, 5),
     (N'PropertyType', N'TH', N'TH', N'MAC', N'เครื่องจักร', 1, 5),
     (N'PropertyType', N'TH', N'EN', N'VEH', N'Vehicle', 1, 6),

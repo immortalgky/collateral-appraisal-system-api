@@ -77,6 +77,7 @@ public static class ActivityTypes
     public const string ApprovalActivity = "ApprovalActivity";
     public const string MeetingActivity = "MeetingActivity";
     public const string AwaitSignalActivity = "AwaitSignalActivity";
+    public const string FanOutTaskActivity = "FanOutTaskActivity";
 }
 
 public static class AppraisalActivityTypes

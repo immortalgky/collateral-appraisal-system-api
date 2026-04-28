@@ -1,6 +1,8 @@
+using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Application.Services;
 using Appraisal.Domain.ComparativeAnalysis;
 using Appraisal.Domain.Services;
+using Appraisal.Infrastructure.BackgroundServices;
 using Appraisal.Infrastructure.Repositories;
 using Appraisal.Infrastructure.Seed;
 // DocumentRequirement entities moved to Parameter module
@@ -28,6 +30,7 @@ public static class AppraisalModule
         services.AddScoped<IAppraisalUnitOfWork, AppraisalUnitOfWork>();
 
         // Register Aggregate Repositories (only aggregates have repositories)
+        services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IAppraisalRepository, AppraisalRepository>();
         services.AddScoped<IPricingAnalysisRepository, PricingAnalysisRepository>();
         services.AddScoped<ICommitteeRepository, CommitteeRepository>();
@@ -44,6 +47,9 @@ public static class AppraisalModule
 
         // Register additional aggregate repositories
         services.AddScoped<IQuotationRepository, QuotationRepository>();
+
+        // Register quotation activity logger (audit trail for quotation lifecycle)
+        services.AddScoped<IQuotationActivityLogger, QuotationActivityLogger>();
 
         // Register Gallery repository
         services.AddScoped<IAppraisalGalleryRepository, AppraisalGalleryRepository>();
@@ -63,6 +69,7 @@ public static class AppraisalModule
         // Register Application Services
         services.AddScoped<IAppraisalCreationService, AppraisalCreationService>();
         services.AddScoped<IAppraisalStatusService, AppraisalStatusService>();
+        services.AddScoped<IAssignmentFeeService, AssignmentFeeService>();
 
         // Register Application Services (pricing)
         services.AddScoped<PricingPropertyDataService>();
@@ -76,6 +83,9 @@ public static class AppraisalModule
         // Register Data Seeders
         services.AddScoped<IDataSeeder<AppraisalDbContext>, AppendixTypeDataSeed>();
         services.AddScoped<IDataSeeder<AppraisalDbContext>, CommitteeThresholdDataSeed>();
+
+        // Background services
+        services.AddHostedService<QuotationAutoCloseService>();
 
         return services;
     }

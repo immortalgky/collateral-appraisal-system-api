@@ -32,7 +32,7 @@ public record GetCommitteeByIdResponse(
     List<CommitteeThresholdDto> Thresholds,
     List<CommitteeConditionDto> Conditions);
 
-public record CommitteeMemberDto(Guid Id, string UserId, string MemberName, string Role, bool IsActive);
+public record CommitteeMemberDto(Guid Id, string UserId, string MemberName, string Role, bool IsActive, string Attendance);
 public record CommitteeThresholdDto(Guid Id, decimal? MinValue, decimal? MaxValue, int Priority, bool IsActive);
 public record CommitteeConditionDto(Guid Id, string ConditionType, string? RoleRequired, int? MinVotesRequired, int Priority, bool IsActive, string? Description);
 
@@ -50,7 +50,7 @@ public class GetCommitteeByIdQueryHandler(
             committee.IsActive, committee.QuorumType.ToString(), committee.QuorumValue,
             committee.MajorityType.ToString(),
             committee.Members.Select(m => new CommitteeMemberDto(
-                m.Id, m.UserId, m.MemberName, m.Position.ToString(), m.IsActive)).ToList(),
+                m.Id, m.UserId, m.MemberName, m.Position.ToString(), m.IsActive, m.Attendance.ToString())).ToList(),
             committee.Thresholds.Select(t => new CommitteeThresholdDto(
                 t.Id, t.MinValue, t.MaxValue, t.Priority, t.IsActive)).ToList(),
             committee.Conditions.Select(c => new CommitteeConditionDto(

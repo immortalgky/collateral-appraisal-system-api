@@ -8,11 +8,12 @@ public class GetQuotationsEndpoint : ICarterModule
                 "/quotations",
                 async (
                     [AsParameters] PaginationRequest request,
+                    Guid? appraisalId,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    var query = new GetQuotationsQuery(request);
+                    var query = new GetQuotationsQuery(request, appraisalId);
 
                     var result = await sender.Send(query, cancellationToken);
 
@@ -23,8 +24,10 @@ public class GetQuotationsEndpoint : ICarterModule
             )
             .WithName("GetQuotations")
             .Produces<GetQuotationsResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithSummary("Get all quotations")
-            .WithDescription("Retrieve all quotation requests with pagination.")
-            .WithTags("Quotation");
+            .WithDescription("Retrieve quotation requests with pagination. Results are scoped by caller role.")
+            .WithTags("Quotation")
+            .RequireAuthorization();
     }
 }

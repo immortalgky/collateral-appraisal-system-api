@@ -4,6 +4,8 @@ using NSubstitute;
 using Shared.Data;
 using Shared.Exceptions;
 using Shared.Identity;
+using Workflow.AssigneeSelection.Teams;
+using Workflow.Services.Groups;
 using Workflow.Tasks.Features.GetTaskById;
 using Xunit;
 
@@ -13,12 +15,16 @@ public class GetTaskByIdQueryHandlerTests
 {
     private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IUserGroupService _userGroupService;
+    private readonly ITeamService _teamService;
     private readonly IDbConnection _dbConnection;
 
     public GetTaskByIdQueryHandlerTests()
     {
         _connectionFactory = Substitute.For<ISqlConnectionFactory>();
         _currentUserService = Substitute.For<ICurrentUserService>();
+        _userGroupService = Substitute.For<IUserGroupService>();
+        _teamService = Substitute.For<ITeamService>();
         _dbConnection = Substitute.For<IDbConnection>();
 
         _connectionFactory.GetOpenConnection().Returns(_dbConnection);
@@ -30,7 +36,7 @@ public class GetTaskByIdQueryHandlerTests
     public void Constructor_ShouldAcceptDependencies()
     {
         // Act
-        var handler = new GetTaskByIdQueryHandler(_connectionFactory, _currentUserService);
+        var handler = new GetTaskByIdQueryHandler(_connectionFactory, _currentUserService, _userGroupService, _teamService);
 
         // Assert
         handler.Should().NotBeNull();
@@ -83,7 +89,7 @@ public class GetTaskByIdQueryHandlerTests
     {
         // Arrange
         _currentUserService.Username.Returns("john.doe");
-        var handler = new GetTaskByIdQueryHandler(_connectionFactory, _currentUserService);
+        var handler = new GetTaskByIdQueryHandler(_connectionFactory, _currentUserService, _userGroupService, _teamService);
         var query = new GetTaskByIdQuery(Guid.NewGuid());
 
         // Act — the mock IDbConnection does not support Dapper, so we expect an exception
@@ -107,7 +113,7 @@ public class GetTaskByIdQueryHandlerTests
     {
         // Arrange
         _currentUserService.Username.Returns("jane.smith");
-        var handler = new GetTaskByIdQueryHandler(_connectionFactory, _currentUserService);
+        var handler = new GetTaskByIdQueryHandler(_connectionFactory, _currentUserService, _userGroupService, _teamService);
         var query = new GetTaskByIdQuery(Guid.NewGuid());
 
         // Act
@@ -197,7 +203,7 @@ public class GetTaskByIdQueryHandlerTests
         // Arrange
         var taskId = Guid.NewGuid();
         _currentUserService.Username.Returns("some.user");
-        var handler = new GetTaskByIdQueryHandler(_connectionFactory, _currentUserService);
+        var handler = new GetTaskByIdQueryHandler(_connectionFactory, _currentUserService, _userGroupService, _teamService);
         var query = new GetTaskByIdQuery(taskId);
 
         // Act

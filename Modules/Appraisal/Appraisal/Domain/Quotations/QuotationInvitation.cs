@@ -25,7 +25,7 @@ public class QuotationInvitation : Entity<Guid>
     {
         return new QuotationInvitation
         {
-            Id = Guid.CreateVersion7(),
+            //Id = Guid.CreateVersion7(),
             QuotationRequestId = quotationRequestId,
             CompanyId = companyId,
             InvitedAt = DateTime.Now,

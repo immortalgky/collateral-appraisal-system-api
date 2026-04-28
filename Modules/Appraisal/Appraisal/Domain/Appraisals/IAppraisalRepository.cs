@@ -23,7 +23,7 @@ public interface IAppraisalRepository : IRepository<Appraisal, Guid>
     /// <summary>
     /// Get appraisals by request ID
     /// </summary>
-    Task<IEnumerable<Appraisal>> GetByRequestIdAsync(Guid requestId, CancellationToken cancellationToken = default);
+    Task<Appraisal?> GetByRequestIdAsync(Guid requestId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Check if appraisal exists for request
@@ -34,14 +34,4 @@ public interface IAppraisalRepository : IRepository<Appraisal, Guid>
     /// Get all appraisals
     /// </summary>
     Task<IEnumerable<Appraisal>> GetAllAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Get appraisal by ID with block condo data (CondoProject, CondoModels, CondoTowers, etc.)
-    /// </summary>
-    Task<Appraisal?> GetByIdWithCondoDataAsync(Guid id, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Get appraisal by ID with block village data (VillageProject, VillageModels, VillageUnits, etc.)
-    /// </summary>
-    Task<Appraisal?> GetByIdWithVillageDataAsync(Guid id, CancellationToken cancellationToken = default);
 }

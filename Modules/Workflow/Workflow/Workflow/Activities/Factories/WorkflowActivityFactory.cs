@@ -83,6 +83,9 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
         // Signal activities
         _activityTypes[ActivityTypes.AwaitSignalActivity] = typeof(AwaitSignalActivity);
 
+        // Fan-out task activity (quotation submissions)
+        _activityTypes[ActivityTypes.FanOutTaskActivity] = typeof(FanOutTaskActivity);
+
         // Appraisal-specific activities
         _activityTypes[AppraisalActivityTypes.RequestSubmission] = typeof(RequestSubmissionActivity);
         _activityTypes[AppraisalActivityTypes.AdminReview] = typeof(AdminReviewActivity);

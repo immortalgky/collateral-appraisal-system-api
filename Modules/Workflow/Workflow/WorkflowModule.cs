@@ -143,6 +143,7 @@ public static class WorkflowModule
         services.AddScoped<JoinActivity>();
         services.AddScoped<StartActivity>();
         services.AddScoped<EndActivity>();
+        services.AddScoped<FanOutTaskActivity>();
 
         // Meeting infrastructure
         services.AddScoped<IMeetingRepository, MeetingRepository>();
@@ -176,6 +177,7 @@ public static class WorkflowModule
         services.AddScoped<IActivityProcessStep, EmitAppraisalCreationRequestedStep>();
         services.AddScoped<IActivityProcessStep, SetVariableStep>();
         services.AddScoped<IActivityProcessStep, RequireDocumentFollowupClearedStep>();
+        services.AddScoped<IActivityProcessStep, RequireNoActiveQuotationStep>();
         services.AddSingleton<IStepCatalog>(sp =>
         {
             // Build catalog from a transient scope so we get one instance of each step for descriptor reading
@@ -195,6 +197,7 @@ public static class WorkflowModule
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Data.Seed.ActivityProcessConfigurationSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Data.Seed.CommitteeDataSeed>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, DocumentFollowupWorkflowDefinitionSeeder>();
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, Workflow.Infrastructure.Seed.QuotationWorkflowDefinitionSeeder>();
 
         // Workflow DbContext with its own migration assembly and history table
         services.AddDbContext<WorkflowDbContext>((sp, options) =>

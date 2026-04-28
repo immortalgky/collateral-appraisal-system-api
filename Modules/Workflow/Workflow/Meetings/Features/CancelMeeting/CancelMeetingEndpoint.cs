@@ -38,7 +38,9 @@ public class CancelMeetingCommandValidator : AbstractValidator<CancelMeetingComm
     }
 }
 
-public class CancelMeetingCommandHandler(IMeetingRepository meetingRepository)
+public class CancelMeetingCommandHandler(
+    IMeetingRepository meetingRepository,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<CancelMeetingCommand>
 {
     public async Task<Unit> Handle(CancelMeetingCommand command, CancellationToken ct)
@@ -46,7 +48,7 @@ public class CancelMeetingCommandHandler(IMeetingRepository meetingRepository)
         var meeting = await meetingRepository.GetByIdWithItemsAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
-        meeting.Cancel(command.Reason);
+        meeting.Cancel(command.Reason, dateTimeProvider.ApplicationNow);
         return Unit.Value;
     }
 }

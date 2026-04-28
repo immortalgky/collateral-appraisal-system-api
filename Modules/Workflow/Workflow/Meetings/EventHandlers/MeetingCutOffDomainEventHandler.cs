@@ -22,27 +22,27 @@ public class MeetingCutOffDomainEventHandler(
 {
     public async Task Handle(MeetingCutOffDomainEvent notification, CancellationToken cancellationToken)
     {
-        if (notification.IncludedAppraisalIds.Count == 0)
-            return;
-
-        var ackItems = await dbContext.AppraisalAcknowledgementQueueItems
-            .Where(a =>
-                notification.IncludedAppraisalIds.Contains(a.AppraisalId) &&
-                a.Status == AcknowledgementStatus.PendingAcknowledgement)
-            .ToListAsync(cancellationToken);
-
-        foreach (var ai in ackItems)
-        {
-            ai.Include(notification.MeetingId);
-        }
-
-        if (ackItems.Count > 0)
-        {
-            logger.LogInformation(
-                "Meeting {MeetingId} cut-off: included {Count} AppraisalAcknowledgementQueueItem(s)",
-                notification.MeetingId, ackItems.Count);
-
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-        }
+        // if (notification.IncludedAppraisalIds.Count == 0)
+        //     return;
+        //
+        // var ackItems = await dbContext.AppraisalAcknowledgementQueueItems
+        //     .Where(a =>
+        //         notification.IncludedAppraisalIds.Contains(a.AppraisalId) &&
+        //         a.Status == AcknowledgementStatus.PendingAcknowledgement)
+        //     .ToListAsync(cancellationToken);
+        //
+        // foreach (var ai in ackItems)
+        // {
+        //     ai.Include(notification.MeetingId);
+        // }
+        //
+        // if (ackItems.Count > 0)
+        // {
+        //     logger.LogInformation(
+        //         "Meeting {MeetingId} cut-off: included {Count} AppraisalAcknowledgementQueueItem(s)",
+        //         notification.MeetingId, ackItems.Count);
+        //
+        //     await unitOfWork.SaveChangesAsync(cancellationToken);
+        // }
     }
 }

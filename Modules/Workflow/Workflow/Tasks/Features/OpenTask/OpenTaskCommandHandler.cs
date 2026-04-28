@@ -2,7 +2,10 @@ using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data;
 using Shared.Identity;
+using Workflow.AssigneeSelection.Teams;
 using Workflow.Data;
+using Workflow.Services.Groups;
+using Workflow.Tasks.Authorization;
 using Workflow.Tasks.ValueObjects;
 
 namespace Workflow.Tasks.Features.OpenTask;
@@ -11,7 +14,9 @@ public class OpenTaskCommandHandler(
     WorkflowDbContext dbContext,
     ICurrentUserService currentUserService,
     ISqlConnectionFactory connectionFactory,
-    ILogger<OpenTaskCommandHandler> logger
+    ILogger<OpenTaskCommandHandler> logger,
+    IUserGroupService userGroupService,
+    ITeamService teamService
 ) : ICommandHandler<OpenTaskCommand, OpenTaskResult>
 {
     public async Task<OpenTaskResult> Handle(OpenTaskCommand command, CancellationToken cancellationToken)
@@ -26,8 +31,23 @@ public class OpenTaskCommandHandler(
 
         var isOwner = task.AssignedType == "1" &&
             string.Equals(task.AssignedTo, username, StringComparison.OrdinalIgnoreCase);
-        var isPoolMember = task.AssignedType == "2" &&
-            currentUserService.Roles.Any(r => string.Equals(r, task.AssignedTo, StringComparison.OrdinalIgnoreCase));
+
+        bool isPoolMember;
+        if (task.AssignedType == "2")
+        {
+            var groups = await userGroupService.GetGroupsForUserAsync(username, cancellationToken);
+            var team   = await teamService.GetTeamForUserAsync(username, cancellationToken);
+            isPoolMember = PoolTaskAccess.IsOwner(
+                task.AssignedTo,
+                task.AssigneeCompanyId,
+                groups,
+                team?.TeamId,
+                currentUserService.CompanyId);
+        }
+        else
+        {
+            isPoolMember = false;
+        }
 
         if (!isOwner && !isPoolMember)
             return new OpenTaskResult(false, "You are not assigned to this task");

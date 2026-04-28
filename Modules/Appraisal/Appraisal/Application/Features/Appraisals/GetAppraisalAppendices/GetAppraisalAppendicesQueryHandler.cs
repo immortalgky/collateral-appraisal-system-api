@@ -61,9 +61,11 @@ public class GetAppraisalAppendicesQueryHandler(
                                 photo?.MimeType,
                                 photo?.FileSizeBytes
                             );
-                        }).ToList()
+                        })
+                        .ToList()
                 );
-            }).ToList();
+            })
+            .ToList();
 
         return new GetAppraisalAppendicesResult(dtos);
     }

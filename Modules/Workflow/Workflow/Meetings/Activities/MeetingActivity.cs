@@ -1,3 +1,4 @@
+using Workflow.Meetings.Domain;
 using Workflow.Meetings.Domain.Events;
 using Workflow.Meetings.ReadModels;
 using Workflow.Workflow.Activities.Core;
@@ -48,7 +49,38 @@ public class MeetingActivity : WorkflowActivityBase
             var facilityLimit = GetVariable<decimal>(context, "facilityLimit");
             var appraisalNo = GetVariable<string?>(context, "appraisalNumber");
 
-            // Enqueue (idempotent: if a non-Released row exists for this appraisal+workflow, reuse it)
+            // Re-entry path: if this appraisal+workflowInstance already has a RoutedBack item
+            // on a meeting, reinstate it on that same meeting instead of enqueueing a new one.
+            var routedBackItem = await _dbContext.MeetingItems
+                .FirstOrDefaultAsync(mi =>
+                    mi.AppraisalId == appraisalId &&
+                    mi.WorkflowInstanceId == context.WorkflowInstanceId &&
+                    mi.Kind == MeetingItemKind.Decision &&
+                    mi.ItemDecision == ItemDecision.RoutedBack, cancellationToken);
+
+            if (routedBackItem is not null)
+            {
+                var meeting = await _dbContext.Meetings
+                    .Include(m => m.Items)
+                    .FirstOrDefaultAsync(m => m.Id == routedBackItem.MeetingId, cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        $"Meeting {routedBackItem.MeetingId} not found for routed-back item {routedBackItem.Id}");
+
+                meeting.ReinstateRoutedBackItem(appraisalId, _dateTimeProvider.ApplicationNow);
+
+                _logger.LogInformation(
+                    "MeetingActivity {ActivityId} reinstated appraisal {AppraisalId} on meeting {MeetingId} after rework",
+                    context.ActivityId, appraisalId, meeting.Id);
+
+                return ActivityResult.Pending(new Dictionary<string, object>
+                {
+                    [$"{NormalizeActivityId(context.ActivityId)}_awaitingMeeting"] = true,
+                    [$"{NormalizeActivityId(context.ActivityId)}_reinstatedOnMeetingId"] = meeting.Id
+                });
+            }
+
+            // Normal enqueue path: first time through MeetingActivity for this appraisal+workflow.
+            // Idempotent: if a non-Released queue row already exists, reuse it.
             var existing = await _dbContext.MeetingQueueItems
                 .FirstOrDefaultAsync(q =>
                     q.AppraisalId == appraisalId &&

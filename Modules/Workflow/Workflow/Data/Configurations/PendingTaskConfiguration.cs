@@ -56,5 +56,11 @@ public class PendingTaskConfiguration : IEntityTypeConfiguration<PendingTask>
             .HasMaxLength(16)
             .IsRequired()
             .HasDefaultValue("F");
+
+        builder.Property(p => p.AssigneeCompanyId)
+            .IsRequired(false);
+
+        builder.HasIndex(p => new { p.WorkflowInstanceId, p.ActivityId, p.AssigneeCompanyId })
+            .HasDatabaseName("IX_PendingTasks_WorkflowInstance_Activity_Company");
     }
 }

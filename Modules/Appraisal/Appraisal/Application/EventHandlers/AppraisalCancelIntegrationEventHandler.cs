@@ -1,7 +1,4 @@
-using Appraisal.Domain.Appraisals;
-using Appraisal.Infrastructure;
 using MassTransit;
-using Microsoft.Extensions.Logging;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
 
@@ -27,20 +24,20 @@ public class AppraisalCancelIntegrationEventHandler(
         var ct = context.CancellationToken;
 
         logger.LogInformation(
-            "Integration Event received: {IntegrationEvent} for AppraisalId: {AppraisalId} CancelledBy: {CancelledBy}",
+            "Integration Event received: {IntegrationEvent} for CorrelationId: {CorrelationId} CancelledBy: {CancelledBy}",
             nameof(AppraisalCancelIntegrationEvent),
-            message.AppraisalId,
+            message.CorrelationId,
             message.CancelledBy);
 
         try
         {
-            var appraisal = await appraisalRepository.GetByIdAsync(message.AppraisalId, ct);
+            var appraisal = await appraisalRepository.GetByRequestIdAsync(message.CorrelationId, ct);
 
             if (appraisal is null)
             {
                 logger.LogWarning(
-                    "Appraisal {AppraisalId} not found when handling {IntegrationEvent}",
-                    message.AppraisalId,
+                    "Request {CorrelationId} not found when handling {IntegrationEvent}",
+                    message.CorrelationId,
                     nameof(AppraisalCancelIntegrationEvent));
                 await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
@@ -51,7 +48,7 @@ public class AppraisalCancelIntegrationEventHandler(
             {
                 logger.LogInformation(
                     "AppraisalId {AppraisalId} is already in status {Status}; skipping cancellation",
-                    message.AppraisalId, appraisal.Status.Code);
+                    appraisal.Id, appraisal.Status.Code);
                 await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
@@ -63,16 +60,16 @@ public class AppraisalCancelIntegrationEventHandler(
 
             logger.LogInformation(
                 "Successfully cancelled AppraisalId {AppraisalId} by {CancelledBy} at {CancelledAt}",
-                message.AppraisalId,
+                appraisal.Id,
                 message.CancelledBy,
                 message.CancelledAt);
         }
         catch (Exception ex)
         {
             logger.LogError(ex,
-                "Error processing {IntegrationEvent} for AppraisalId: {AppraisalId}",
+                "Error processing {IntegrationEvent} for CorrelationId: {CorrelationId}",
                 nameof(AppraisalCancelIntegrationEvent),
-                message.AppraisalId);
+                message.CorrelationId);
 
             throw;
         }

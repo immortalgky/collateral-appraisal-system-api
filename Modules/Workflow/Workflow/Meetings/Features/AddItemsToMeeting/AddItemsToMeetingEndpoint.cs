@@ -30,7 +30,8 @@ public record AddItemsToMeetingCommand(Guid MeetingId, AddItemsToMeetingRequest 
 
 public class AddItemsToMeetingCommandHandler(
     IMeetingRepository meetingRepository,
-    WorkflowDbContext dbContext)
+    WorkflowDbContext dbContext,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<AddItemsToMeetingCommand>
 {
     public async Task<Unit> Handle(AddItemsToMeetingCommand command, CancellationToken ct)
@@ -51,6 +52,8 @@ public class AddItemsToMeetingCommandHandler(
             throw new NotFoundException($"Queue items not found: {string.Join(", ", missing)}");
         }
 
+        var now = dateTimeProvider.ApplicationNow;
+
         foreach (var queueItem in queueItems)
         {
             if (queueItem.Status != MeetingQueueItemStatus.Queued)
@@ -62,7 +65,8 @@ public class AddItemsToMeetingCommandHandler(
                 queueItem.AppraisalNo,
                 queueItem.FacilityLimit,
                 queueItem.WorkflowInstanceId,
-                queueItem.ActivityId);
+                queueItem.ActivityId,
+                now);
 
             queueItem.AssignTo(meeting.Id);
         }

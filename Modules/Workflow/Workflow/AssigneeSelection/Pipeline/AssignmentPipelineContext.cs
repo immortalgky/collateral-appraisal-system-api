@@ -9,6 +9,13 @@ public class AssignmentPipelineContext
     // Input — set by the caller
     public ActivityContext ActivityContext { get; init; } = default!;
 
+    /// <summary>
+    /// When assigning for a stage transition on a fan-out item, this is the company Id
+    /// (fan-out key). Used by <see cref="AssignmentContextBuilder"/> to resolve
+    /// <c>excludeAssigneesFrom: ["&lt;activityId&gt;:&lt;stageName&gt;"]</c> entries.
+    /// </summary>
+    public Guid? FanOutKey { get; set; }
+
     // Stage 1 outputs
     public ActivityAssignmentRules Rules { get; set; } = ActivityAssignmentRules.Default;
     public string? TeamId { get; set; }

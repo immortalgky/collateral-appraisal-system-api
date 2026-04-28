@@ -181,6 +181,12 @@ public class WorkflowInstance : Entity<Guid>
         return ActiveBranchActivities.FirstOrDefault(b => b.ActivityId == activityId);
     }
 
+    // Optimistic-concurrency token — EF Core maps this to a SQL Server rowversion column.
+    // Any concurrent update to the same WorkflowInstance row (e.g. two fan-out resume messages
+    // arriving simultaneously) will cause one to throw DbUpdateConcurrencyException, which
+    // MassTransit retries automatically so the last task correctly detects remaining == 0.
+    public byte[] RowVersion { get; private set; } = [];
+
     public bool HasActiveBranches() => ActiveBranchActivities.Any();
 
     public bool IsInParallelMode() => ActiveBranchActivities.Any();

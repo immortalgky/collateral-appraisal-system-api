@@ -29,6 +29,12 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status400BadRequest
             ),
+            DomainException =>
+            (
+                exception.Message,
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest
+            ),
             ValidationException =>
             (
                 exception.Message,

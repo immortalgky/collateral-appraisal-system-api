@@ -1,8 +1,3 @@
-using Appraisal.Domain.Appraisals;
-using Appraisal.Infrastructure;
-using Microsoft.EntityFrameworkCore;
-using Shared.CQRS;
-
 namespace Appraisal.Application.Features.Appraisals.GetGalleryPhotos;
 
 public class GetGalleryPhotosQueryHandler(

@@ -645,6 +645,13 @@ namespace Workflow.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Attendance")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasDefaultValue("Always");
+
                     b.Property<Guid>("CommitteeId")
                         .HasColumnType("uniqueidentifier");
 
@@ -861,7 +868,6 @@ namespace Workflow.Infrastructure.Migrations
             modelBuilder.Entity("Workflow.Meetings.Domain.MeetingItem", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("AcknowledgementGroup")
@@ -954,7 +960,6 @@ namespace Workflow.Infrastructure.Migrations
             modelBuilder.Entity("Workflow.Meetings.Domain.MeetingMember", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("AddedAt")
@@ -1019,7 +1024,7 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<Guid>("AppraisalDecisionId")
+                    b.Property<Guid?>("AppraisalDecisionId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("AppraisalId")
@@ -1070,13 +1075,14 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AppraisalDecisionId")
-                        .IsUnique()
-                        .HasFilter("[Status] IN ('PendingAcknowledgement', 'Included')");
-
                     b.HasIndex("MeetingId");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("AppraisalId", "CommitteeId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AckQueueItems_AppraisalId_CommitteeId_Active")
+                        .HasFilter("[Status] IN ('PendingAcknowledgement', 'Included')");
 
                     b.ToTable("AppraisalAcknowledgementQueueItems", "workflow");
                 });
@@ -1420,8 +1426,8 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.Property<string>("ActionTaken")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
 
                     b.Property<string>("ActivityId")
                         .HasMaxLength(100)
@@ -1525,6 +1531,9 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<Guid?>("AssigneeCompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("CorrelationId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1586,6 +1595,9 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(255)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("WorkflowInstanceId", "ActivityId", "AssigneeCompanyId")
+                        .HasDatabaseName("IX_PendingTasks_WorkflowInstance_Activity_Company");
 
                     b.ToTable("PendingTasks", "workflow");
                 });
@@ -2302,6 +2314,12 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<int>("RetryCount")
                         .HasColumnType("int");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("RuntimeOverrides")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -2357,6 +2375,11 @@ namespace Workflow.Infrastructure.Migrations
                     b.HasIndex("WorkflowDefinitionId");
 
                     b.HasIndex("WorkflowDefinitionVersionId");
+
+                    b.HasIndex("CorrelationId", "WorkflowDefinitionId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_WorkflowInstances_CorrelationId_WorkflowDefinitionId")
+                        .HasFilter("[CorrelationId] IS NOT NULL");
 
                     b.ToTable("WorkflowInstances", "workflow");
                 });
@@ -2565,6 +2588,77 @@ namespace Workflow.Infrastructure.Migrations
                         .HasForeignKey("WorkflowInstanceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.OwnsMany("Workflow.Workflow.Models.FanOutItemState", "FanOutItems", b1 =>
+                        {
+                            b1.Property<Guid>("WorkflowActivityExecutionId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("int");
+
+                            b1.Property<string>("CurrentStage")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
+
+                            b1.Property<Guid>("FanOutKey")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.HasKey("WorkflowActivityExecutionId", "__synthesizedOrdinal");
+
+                            b1.ToTable("WorkflowActivityExecutions", "workflow");
+
+                            b1.ToJson("FanOutItems");
+
+                            b1.WithOwner()
+                                .HasForeignKey("WorkflowActivityExecutionId");
+
+                            b1.OwnsMany("Workflow.Workflow.Models.StageAssignment", "History", b2 =>
+                                {
+                                    b2.Property<Guid>("FanOutItemStateWorkflowActivityExecutionId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<int>("FanOutItemState__synthesizedOrdinal")
+                                        .HasColumnType("int");
+
+                                    b2.Property<int>("__synthesizedOrdinal")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("int");
+
+                                    b2.Property<string>("AssignedTo")
+                                        .IsRequired()
+                                        .HasMaxLength(200)
+                                        .HasColumnType("nvarchar(200)");
+
+                                    b2.Property<string>("AssigneeUserId")
+                                        .HasMaxLength(100)
+                                        .HasColumnType("nvarchar(100)");
+
+                                    b2.Property<DateTime>("EnteredOn")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<DateTime?>("ExitedOn")
+                                        .HasColumnType("datetime2");
+
+                                    b2.Property<string>("StageName")
+                                        .IsRequired()
+                                        .HasMaxLength(100)
+                                        .HasColumnType("nvarchar(100)");
+
+                                    b2.HasKey("FanOutItemStateWorkflowActivityExecutionId", "FanOutItemState__synthesizedOrdinal", "__synthesizedOrdinal");
+
+                                    b2.ToTable("WorkflowActivityExecutions", "workflow");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("FanOutItemStateWorkflowActivityExecutionId", "FanOutItemState__synthesizedOrdinal");
+                                });
+
+                            b1.Navigation("History");
+                        });
+
+                    b.Navigation("FanOutItems");
 
                     b.Navigation("WorkflowInstance");
                 });

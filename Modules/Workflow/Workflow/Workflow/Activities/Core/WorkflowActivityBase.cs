@@ -82,7 +82,9 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
                 context.WorkflowInstance.SetLastCompletedBy(completedBy);
             }
             else if (result.Status == ActivityResultStatus.Failed)
+            {
                 execution.Fail(result.ErrorMessage ?? "Activity resume failed");
+            }
 
             return result;
         }
@@ -110,9 +112,7 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
 
         // Capture optional free-text comment so it can be persisted onto CompletedTask.Remark
         if (resumeInput.TryGetValue("comments", out var comments))
-        {
             outputData[$"{NormalizeActivityId(context.ActivityId)}_comments"] = comments;
-        }
 
         return Task.FromResult(ActivityResult.Success(outputData));
     }
@@ -312,7 +312,6 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
         // --- 1. Try properties.actions[] ---
         var actions = GetProperty<List<Dictionary<string, object>>>(context, "actions");
         if (actions != null)
-        {
             foreach (var action in actions)
             {
                 if (!action.TryGetValue("value", out var rawValue)) continue;
@@ -329,13 +328,15 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
                     ? mje.GetString() ?? "F"
                     : rawMovement?.ToString() ?? "F";
 
-                return string.IsNullOrWhiteSpace(movement) ? "F" : movement.ToUpperInvariant() switch
-                {
-                    "B" => "B",
-                    _ => "F"
-                };
+                return string.IsNullOrWhiteSpace(movement)
+                    ? "F"
+                    : movement.ToUpperInvariant() switch
+                    {
+                        "C" => "C",
+                        "B" => "B",
+                        _ => "F"
+                    };
             }
-        }
 
         // --- 2. Fall back to properties.voteMovements (ApprovalActivity) ---
         // Case-insensitive lookup — vote validation in ApprovalActivity accepts votes

@@ -20,7 +20,12 @@ public class AppraisalAcknowledgementQueueItem : Entity<Guid>
 {
     public Guid AppraisalId { get; private set; }
     public string? AppraisalNo { get; private set; }
-    public Guid AppraisalDecisionId { get; private set; }
+    /// <summary>
+    /// Id of the corresponding AppraisalReview decision record. Nullable — not available
+    /// when the item is created via integration event (the workflow has no cross-module
+    /// AppraisalReview.Id at approval time).
+    /// </summary>
+    public Guid? AppraisalDecisionId { get; private set; }
     public Guid CommitteeId { get; private set; }
     public string CommitteeCode { get; private set; } = default!;
 
@@ -38,10 +43,11 @@ public class AppraisalAcknowledgementQueueItem : Entity<Guid>
     public static AppraisalAcknowledgementQueueItem Create(
         Guid appraisalId,
         string? appraisalNo,
-        Guid appraisalDecisionId,
+        Guid? appraisalDecisionId,
         Guid committeeId,
         string committeeCode,
-        string acknowledgementGroup)
+        string acknowledgementGroup,
+        DateTime now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(committeeCode);
         ArgumentException.ThrowIfNullOrWhiteSpace(acknowledgementGroup);
@@ -56,7 +62,7 @@ public class AppraisalAcknowledgementQueueItem : Entity<Guid>
             CommitteeCode = committeeCode,
             AcknowledgementGroup = acknowledgementGroup,
             Status = AcknowledgementStatus.PendingAcknowledgement,
-            EnqueuedAt = DateTime.Now
+            EnqueuedAt = now
         };
     }
 

@@ -8,7 +8,6 @@ public class CreateQuotationCommandHandler(IQuotationRepository quotationReposit
         var quotation = QuotationRequest.Create(
             command.DueDate,
             command.RequestedBy,
-            command.RequestedByName,
             command.Description);
 
         if (!string.IsNullOrWhiteSpace(command.SpecialRequirements))

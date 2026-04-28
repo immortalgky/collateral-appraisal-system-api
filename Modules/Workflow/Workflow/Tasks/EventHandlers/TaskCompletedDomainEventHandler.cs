@@ -94,7 +94,7 @@ public class TaskCompletedDomainEventHandler(
                 // Outbox-delivered for guaranteed publish (matches committee approval pattern).
                 outbox.Publish(new AppraisalCancelIntegrationEvent
                 {
-                    AppraisalId = notification.CorrelationId,
+                    CorrelationId = notification.CorrelationId,
                     CancelledBy = completedBy,
                     CancelledAt = notification.CompletedAt,
                     CancelReason = notification.Remark

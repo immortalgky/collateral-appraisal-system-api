@@ -27,11 +27,7 @@ public class GetMyTasksQueryHandler(
         var conditions = new List<string>();
         var parameters = new DynamicParameters();
 
-        // Only individual assignments (AssignedType = '1'); pool tasks are excluded
-        conditions.Add("AssignedType = @IndividualAssignedType");
-        parameters.Add("IndividualAssignedType", "1");
-
-        // Always filter by current user
+        conditions.Add("AssignedType = '1'");
         conditions.Add("AssigneeUserId = @AssigneeUserId");
         parameters.Add("AssigneeUserId", currentUserService.Username);
 

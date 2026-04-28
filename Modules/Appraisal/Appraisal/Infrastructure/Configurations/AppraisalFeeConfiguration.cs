@@ -29,6 +29,7 @@ public class AppraisalFeeConfiguration : IEntityTypeConfiguration<AppraisalFee>
         // Fee Metadata
         builder.Property(f => f.FeePaymentType).HasMaxLength(100);
         builder.Property(f => f.FeeNotes).HasMaxLength(4000);
+        builder.Property(f => f.TotalSellingPrice).HasPrecision(18, 2);
 
         // InspectionFee
         builder.Property(f => f.InspectionFeeAmount).HasPrecision(18, 2);

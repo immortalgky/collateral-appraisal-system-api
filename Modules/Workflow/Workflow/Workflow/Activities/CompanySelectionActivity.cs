@@ -48,28 +48,39 @@ public class CompanySelectionActivity : WorkflowActivityBase
             ["assignmentType"] = "External"
         };
 
-        if (selectionMethod == "manual")
+        if (selectionMethod == "manual" || selectionMethod == "Quotation")
         {
-            var companyId = GetVariable<string>(context, "selectedCompanyId", "");
-            var companyName = GetVariable<string>(context, "selectedCompanyName", "");
+            var companyId = GetVariable<string>(context, "assignedCompanyId", "");
+            if (string.IsNullOrEmpty(companyId))
+                companyId = GetVariable<string>(context, "selectedCompanyId", "");
+            var companyName = GetVariable<string>(context, "assignedCompanyName", "");
+            if (string.IsNullOrEmpty(companyName))
+                companyName = GetVariable<string>(context, "selectedCompanyName", "");
 
             if (string.IsNullOrEmpty(companyId))
             {
-                _logger.LogWarning("CompanySelectionActivity {ActivityId}: manual selection but no company selected",
-                    context.ActivityId);
-                return ActivityResult.Failed("No company selected for manual assignment");
+                _logger.LogWarning("CompanySelectionActivity {ActivityId}: {Method} selection but no company selected",
+                    context.ActivityId, selectionMethod);
+                return ActivityResult.Failed($"No company selected for {selectionMethod} assignment");
             }
+
+            var normalizedMethod = selectionMethod == "Quotation" ? "Quotation" : "Manual";
 
             outputData["assignedCompanyId"] = companyId;
             outputData["assignedCompanyName"] = companyName;
-            outputData["assignmentMethod"] = "Manual";
+            outputData["assignmentMethod"] = normalizedMethod;
             outputData["decision"] = "company_selected";
 
             _logger.LogInformation(
-                "CompanySelectionActivity {ActivityId}: manually selected company {CompanyName} ({CompanyId})",
-                context.ActivityId, companyName, companyId);
+                "CompanySelectionActivity {ActivityId}: {Method} selected company {CompanyName} ({CompanyId})",
+                context.ActivityId, normalizedMethod, companyName, companyId);
 
-            PublishCompanyAssignedEvent(context, companyId, companyName, "Manual");
+            // v4: Quotation path — CompanyAssignedIntegrationEvent is published by the
+            // QuotationFinalizedIntegrationEventHandler fan-out (one event per appraisal,
+            // with the per-appraisal fee). Publishing here would create a duplicate assignment.
+            if (selectionMethod != "Quotation")
+                PublishCompanyAssignedEvent(context, companyId, companyName, normalizedMethod);
+
             return ActivityResult.Success(outputData);
         }
 
@@ -89,7 +100,7 @@ public class CompanySelectionActivity : WorkflowActivityBase
             _logger.LogInformation(
                 "CompanySelectionActivity {ActivityId}: replaying — reusing previously selected company {CompanyName} ({CompanyId})",
                 context.ActivityId, existingCompanyName, existingCompanyId);
-            
+
             return ActivityResult.Success(outputData);
         }
 
@@ -169,7 +180,7 @@ public class CompanySelectionActivity : WorkflowActivityBase
             AssignmentMethod = assignmentMethod,
             CompletedBy = context.WorkflowInstance.LastCompletedBy,
             AppraisalNumber = string.IsNullOrEmpty(appraisalNumber) ? null : appraisalNumber
-        }, correlationId: appraisalId.Value.ToString());
+        }, appraisalId.Value.ToString());
 
         _logger.LogInformation(
             "CompanySelectionActivity {ActivityId}: published CompanyAssignedIntegrationEvent for AppraisalId={AppraisalId}, CompanyId={CompanyId}",
