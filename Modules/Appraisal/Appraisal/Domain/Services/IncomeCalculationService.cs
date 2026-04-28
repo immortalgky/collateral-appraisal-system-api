@@ -359,6 +359,7 @@ public class IncomeCalculationService : IPricingCalculationService
     /// avgDailyRate[0] = avgRoomRate; compounds by increaseRatePct every increaseRateYrs
     /// roomIncome[y] = saleableArea[y] × (occupancyRate[y]/100) × avgDailyRate[y]
     /// totalMethodValues[y] = roomIncome[y]
+    /// note: occupancyRate can adjust year by year, so we compute it by using occupancyRate from frontend if provided (>= 0), otherwise use the step-compounded one. 
     /// </summary>
     private static decimal[] ComputeMethod01(
         Method01Detail d,
@@ -366,37 +367,37 @@ public class IncomeCalculationService : IPricingCalculationService
         int daysInYear,
         Dictionary<string, decimal[]> crossRef)
     {
-        var saleableAreaConst = d.SumSaleableArea * daysInYear;
-        var occupancyRate = ComputeOccupancyRate(d.OccupancyRateFirstYearPct, d.OccupancyRatePct, d.OccupancyRateYrs, years);
-        var avgDailyRate = ComputeStepCompoundingArray(d.AvgRoomRate, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+      var saleableAreaConst = d.SumSaleableArea * daysInYear;
+      var occupancyRate = ComputeOccupancyRate(d.OccupancyRateFirstYearPct, d.OccupancyRatePct, d.OccupancyRateYrs, years);
+      var avgDailyRate = ComputeStepCompoundingArray(d.AvgRoomRate, d.IncreaseRatePct, d.IncreaseRateYrs, years);
 
-        var result = new decimal[years];
-        var totalSaleableAreaDeductByOccRate = new decimal[years];
+      var result = new decimal[years];
+      var totalSaleableAreaDeductByOccRate = new decimal[years];
 
-        for (int y = 0; y < years; y++)
+      for (int y = 0; y < years; y++)
+      {
+        // If year less than `startIn`, result will be 0;
+        if (d.StartIn > 1 && y < d.StartIn - 1)
         {
-            // If year less than `startIn`, result will be 0;
-            if (d.StartIn > 1 && y < d.StartIn - 1)
-            {
-                result[y] = 0;
-                totalSaleableAreaDeductByOccRate[y] = 0;
-                continue;
-            }
-
-            var curOccupancyRate = d.OccupancyRate[y] >= 0 ? d.OccupancyRate[y] : occupancyRate[y];
-            var saleableAreaDeductByOcc = saleableAreaConst * (curOccupancyRate / 100m);
-            totalSaleableAreaDeductByOccRate[y] = saleableAreaDeductByOcc;
-            result[y] = Math.Round(saleableAreaDeductByOcc * avgDailyRate[y], 2);
+          result[y] = 0;
+          totalSaleableAreaDeductByOccRate[y] = 0;
+          continue;
         }
 
-        // Store for method 08 cross-reference.
-        crossRef.TryAdd("01", totalSaleableAreaDeductByOccRate);
+        var curOccupancyRate = d.OccupancyRate[y] >= 0 ? d.OccupancyRate[y] : occupancyRate[y];
+        var saleableAreaDeductByOcc = saleableAreaConst * (curOccupancyRate / 100m);
+        totalSaleableAreaDeductByOccRate[y] = saleableAreaDeductByOcc;
+        result[y] = Math.Round(saleableAreaDeductByOcc * avgDailyRate[y], 2);
+      }
 
-        // Store for method 11 cross-reference.
-        var saleableAreaOccRate = totalSaleableAreaDeductByOccRate;
-        crossRef.TryAdd("06", saleableAreaOccRate);
+      // Store for method 08 cross-reference.
+      crossRef.TryAdd("01", totalSaleableAreaDeductByOccRate);
 
-        return result;
+      // Store for method 11 cross-reference.
+      var saleableAreaOccRate = totalSaleableAreaDeductByOccRate;
+      crossRef.TryAdd("06", saleableAreaOccRate);
+
+      return result;
     }
 
     /// <summary>
@@ -404,6 +405,7 @@ public class IncomeCalculationService : IPricingCalculationService
     /// The TS code is identical to method 01 in its derived-rules — avgRoomRate drives avgDailyRate.
     /// The seasonal detail is pre-computed into avgRoomRate in the frontend; we honour that here.
     /// saleableArea uses totalSaleableArea (not sumSaleableArea).
+    /// note: occupancyRate can adjust year by year, so we compute it by using occupancyRate from frontend if provided (>= 0), otherwise use the step-compounded one. 
     /// </summary>
     private static decimal[] ComputeMethod02(
         Method02Detail d,
@@ -451,21 +453,22 @@ public class IncomeCalculationService : IPricingCalculationService
     /// </summary>
     private static decimal[] ComputeMethod03(Method03Detail d, int years)
     {
-        var result = ComputeStepCompoundingArray(d.FirstYearAmt, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+      var result = ComputeStepCompoundingArray(d.FirstYearAmt, d.IncreaseRatePct, d.IncreaseRateYrs, years);
 
-        if (d.StartIn > 1 && d.StartIn > 1)
-        {
-            // use 0-base year
-            result = ShiftRight(result, d.StartIn - 1);
-        }
+      if (d.StartIn > 1 && d.StartIn > 1)
+      {
+        // use 0-base year
+        result = ShiftRight(result, d.StartIn - 1);
+      }
 
-        return result;
+      return result;
     }
 
     /// <summary>
     /// Method 04 — Room Income With Growth × Occupancy Rate.
     /// adjusted[y] = step-compounding of firstYearAmt
     /// roomIncome[y] = adjusted[y] × (occupancyRate[y] / 100)
+    /// note: occupancyRate can adjust year by year, so we compute it by using occupancyRate from frontend if provided (>= 0), otherwise use the step-compounded one. 
     /// </summary>
     private static decimal[] ComputeMethod04(Method04Detail d, int years)
     {
@@ -495,15 +498,15 @@ public class IncomeCalculationService : IPricingCalculationService
     /// </summary>
     private static decimal[] ComputeMethod05(Method05Detail d, int years)
     {
-        var result = ComputeStepCompoundingArray(d.SumRoomIncomePerYear, d.IncreaseRatePct, d.IncreaseRateYrs, years);
+      var result = ComputeStepCompoundingArray(d.SumRoomIncomePerYear, d.IncreaseRatePct, d.IncreaseRateYrs, years);
 
-        if (d.StartIn > 1)
-        {
-            // use 0-base year
-            result = ShiftRight(result, d.StartIn - 1);
-        }
+      if (d.StartIn > 1)
+      {
+        // use 0-base year
+        result = ShiftRight(result, d.StartIn - 1);
+      }
 
-        return result;
+      return result;
     }
 
     /// <summary>
@@ -512,6 +515,7 @@ public class IncomeCalculationService : IPricingCalculationService
     /// avgRentalRate[y]: step compounding starting from avgRentalRatePerMonth
     /// totalRentalIncome[y] = avgRentalRate[y] × (sumSaleableArea × occupancyRate[y]/100) × 12
     /// totalMethodValues[y] = totalRentalIncome[y]
+    /// note: occupancyRate can adjust year by year, so we compute it by using occupancyRate from frontend if provided (>= 0), otherwise use the step-compounded one. 
     /// </summary>
     private static decimal[] ComputeMethod06(
         Method06Detail d,

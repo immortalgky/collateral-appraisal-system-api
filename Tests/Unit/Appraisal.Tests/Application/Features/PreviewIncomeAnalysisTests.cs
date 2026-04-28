@@ -145,6 +145,8 @@ public class PreviewIncomeAnalysisTests
         var command = new PreviewIncomeAnalysisCommand(
             PricingAnalysisId: Guid.NewGuid(),
             MethodId: Guid.NewGuid(),
+            AppraisalId: Guid.NewGuid(),
+            PropertyId: Guid.NewGuid(),
             TemplateCode: "dcf-hotel",
             TemplateName: "DCF Hotel",
             TotalNumberOfYears: 3,
@@ -560,7 +562,7 @@ public class PreviewIncomeAnalysisTests
         };
 
         var command = new PreviewIncomeAnalysisCommand(
-            Guid.NewGuid(), Guid.NewGuid(),
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
             "dcf-test", "DCF Test",
             TotalNumberOfYears: 2,
             TotalNumberOfDayInYear: 365,

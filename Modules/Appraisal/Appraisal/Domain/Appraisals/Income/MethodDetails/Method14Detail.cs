@@ -19,6 +19,6 @@ public sealed record Method14Detail
     [JsonPropertyName("increaseRates")]
     public decimal[] IncreaseRates { get; init; } = [];
 
-    [JsonProperty("startIn")]
+    [JsonPropertyName("startIn")]
     public int StartIn { get; init; }
 }
