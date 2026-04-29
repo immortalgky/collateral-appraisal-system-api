@@ -276,6 +276,19 @@ public class QuotationRequest : Aggregate<Guid>
         DueDate = dueDate;
     }
 
+    public void SetItemMaxAppraisalDays(Guid appraisalId, int? maxAppraisalDays)
+    {
+        if (Status != "Draft")
+            throw new InvalidOperationException(
+                $"Cannot change max appraisal days on a quotation in status '{Status}'. Only Draft quotations are editable.");
+
+        var item = _items.FirstOrDefault(i => i.AppraisalId == appraisalId)
+            ?? throw new InvalidOperationException(
+                $"No item found for appraisal '{appraisalId}' on this quotation.");
+
+        item.SetMaxAppraisalDays(maxAppraisalDays);
+    }
+
     public void RemoveInvitation(Guid companyId)
     {
         if (Status != "Draft")
@@ -603,10 +616,36 @@ public class QuotationRequest : Aggregate<Guid>
             throw new InvalidOperationException(
                 $"Cannot set shared documents on a quotation in status '{Status}'. Only Draft quotations can be updated.");
 
-        _sharedDocuments.Clear();
+        // Dedup by DocumentId — composite PK is (QuotationRequestId, DocumentId), so the same
+        // doc can only appear once per quotation regardless of which appraisal it came in under.
+        // Last-write-wins on duplicate input.
+        var deduped = selections
+            .GroupBy(s => s.DocumentId)
+            .ToDictionary(g => g.Key, g => g.Last());
 
-        foreach (var (appraisalId, documentId, level) in selections)
-            _sharedDocuments.Add(QuotationSharedDocument.Create(Id, appraisalId, documentId, level, sharedBy));
+        // Diff against existing rows to keep tracked entities stable. Re-creating a row
+        // whose PK matches a still-tracked Deleted entity throws an "already being tracked"
+        // conflict in EF Core, so we only delete rows that are actually gone.
+        var toRemove = _sharedDocuments
+            .Where(d => !deduped.ContainsKey(d.DocumentId))
+            .ToList();
+
+        foreach (var existing in toRemove)
+            _sharedDocuments.Remove(existing);
+
+        foreach (var (documentId, sel) in deduped)
+        {
+            var existing = _sharedDocuments.FirstOrDefault(d => d.DocumentId == documentId);
+            if (existing is null)
+            {
+                _sharedDocuments.Add(QuotationSharedDocument.Create(
+                    Id, sel.AppraisalId, documentId, sel.Level, sharedBy));
+            }
+            else
+            {
+                existing.Update(sel.AppraisalId, sel.Level, sharedBy);
+            }
+        }
     }
 
     /// <summary>
@@ -625,6 +664,17 @@ public class QuotationRequest : Aggregate<Guid>
     {
         RmRequestsNegotiation = requestsNegotiation;
         RmNegotiationNote = requestsNegotiation ? note : null;
+    }
+
+    /// <summary>
+    /// Stamps the RM identity on a standalone-created quotation (no RequestId context at Create time).
+    /// Called after resolving the RM from the linked appraisals' parent request.
+    /// No-op when both values are null (cross-request bundles or RM resolution failure).
+    /// </summary>
+    public void SetRmInfo(Guid? rmUserId, string? rmUsername)
+    {
+        if (rmUserId is not null) RmUserId = rmUserId;
+        if (rmUsername is not null) RmUsername = rmUsername;
     }
 
     internal void AddQuotation(CompanyQuotation quotation)

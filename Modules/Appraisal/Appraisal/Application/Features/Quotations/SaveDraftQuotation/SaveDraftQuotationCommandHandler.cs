@@ -1,11 +1,13 @@
 using Appraisal.Application.Features.Quotations.Shared;
+using Appraisal.Contracts.Services;
 using Shared.Identity;
 
 namespace Appraisal.Application.Features.Quotations.SaveDraftQuotation;
 
 public class SaveDraftQuotationCommandHandler(
     IQuotationRepository quotationRepository,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser,
+    IQuotationTaskOwnershipService taskOwnership)
     : ICommandHandler<SaveDraftQuotationCommand, SaveDraftQuotationResult>
 {
     public async Task<SaveDraftQuotationResult> Handle(
@@ -27,6 +29,15 @@ public class SaveDraftQuotationCommandHandler(
 
         if (quotationRequest.Status != "Sent")
             throw new BadRequestException($"Cannot save draft: RFQ is in status '{quotationRequest.Status}'");
+
+        // Two-person rule: the caller must hold the active "maker" task for this quotation+company.
+        // This ensures the Checker cannot overwrite the Maker's draft directly (they must wait for
+        // SubmitToChecker to transition the task to them).
+        var isMakerTaskOwner = await taskOwnership.IsCallerActiveTaskOwnerAsync(
+            command.QuotationRequestId, command.CompanyId, expectedStageName: "maker", cancellationToken);
+        if (!isMakerTaskOwner)
+            throw new UnauthorizedAccessException(
+                "You do not hold the active Maker task for this quotation. Only the current task owner may save a draft.");
 
         // Find any existing CompanyQuotation for this company
         var existingQuotation = quotationRequest.Quotations

@@ -40,6 +40,7 @@ SELECT a.Id,
        -- First property location
        ld.Province,
        ld.District,
+       ld.SubDistrict,
        -- Latest appointment
        apt.AppointmentDateTime,
        -- SLA computed fields
@@ -69,6 +70,7 @@ FROM appraisal.Appraisals a
          LEFT JOIN (SELECT ap2.AppraisalId,
                            lad.Province,
                            lad.District,
+                           lad.SubDistrict,
                            ROW_NUMBER() OVER (PARTITION BY ap2.AppraisalId ORDER BY ap2.SequenceNumber) AS rn
                     FROM appraisal.AppraisalProperties ap2
                              JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap2.Id

@@ -104,5 +104,12 @@ public class AppraisalAssignmentConfiguration : IEntityTypeConfiguration<Apprais
         builder.HasIndex(a => a.AssigneeUserId);
         builder.HasIndex(a => a.AssigneeCompanyId);
         builder.HasIndex(a => a.PreviousAssignmentId);
+
+        // Index 1: supports ROW_NUMBER() OVER (PARTITION BY AppraisalId ORDER BY AssignedAt DESC)
+        // in vw_AppraisalList, filtered to exclude terminal statuses
+        builder.HasIndex(a => new { a.AppraisalId, a.AssignedAt })
+            .HasDatabaseName("IX_AppraisalAssignments_AppraisalId_AssignedAt_Active")
+            .HasFilter("[AssignmentStatus] <> 'Rejected' AND [AssignmentStatus] <> 'Cancelled'")
+            .IsDescending(false, true);
     }
 }

@@ -61,6 +61,11 @@ public class CompanyQuotation : Entity<Guid>
     public string? SubmittedByEmail { get; private set; }
     public string? SubmittedByPhone { get; private set; }
 
+    /// <summary>Maker username captured at the Draft → PendingCheckerReview hand-off. Drives the
+    /// "Quoted By" column on the vendor invitation list — the originator of the bid, distinct from
+    /// the Checker who finalises submission.</summary>
+    public string? SubmittedToCheckerBy { get; private set; }
+
     // ── Decline fields ────────────────────────────────────────────────────────
     public string? DeclineReason { get; private set; }
     public DateTime? DeclinedAt { get; private set; }
@@ -184,12 +189,15 @@ public class CompanyQuotation : Entity<Guid>
 
     /// <summary>
     /// Maker promotes a draft to Checker review. Draft → PendingCheckerReview.
+    /// Captures the maker's username so the vendor invitation list can attribute the bid
+    /// independent of who later finalises submission.
     /// </summary>
-    public void MarkPendingCheckerReview()
+    public void MarkPendingCheckerReview(string makerUsername)
     {
         if (Status != "Draft")
             throw new InvalidOperationException($"Cannot submit to checker: status is '{Status}', expected 'Draft'");
         Status = "PendingCheckerReview";
+        SubmittedToCheckerBy = makerUsername;
     }
 
     /// <summary>
@@ -301,17 +309,20 @@ public class CompanyQuotation : Entity<Guid>
     // ─────────────────────────────────────────────────────────────────────────
 
     /// <summary>Admin adds this quotation to the shortlist.</summary>
+    /// <remarks>
+    /// Shortlist is purely an admin-facing flag: <see cref="IsShortlisted"/> tracks selection.
+    /// We deliberately do NOT flip Status to "UnderReview" — the company side should keep
+    /// seeing "Submitted" until something material changes (Tentative / Accepted / Rejected).
+    /// </remarks>
     public void MarkShortlisted()
     {
         IsShortlisted = true;
-        if (Status == "Submitted") Status = "UnderReview";
     }
 
     /// <summary>Admin removes this quotation from the shortlist.</summary>
     public void ClearShortlisted()
     {
         IsShortlisted = false;
-        if (Status == "UnderReview") Status = "Submitted";
     }
 
     /// <summary>Marks this quotation as the tentative winner.</summary>
@@ -327,7 +338,7 @@ public class CompanyQuotation : Entity<Guid>
     public void ClearTentative()
     {
         if (Status == "Tentative" || Status == "Negotiating")
-            Status = IsShortlisted ? "UnderReview" : "Submitted";
+            Status = "Submitted";
     }
 
     /// <summary>

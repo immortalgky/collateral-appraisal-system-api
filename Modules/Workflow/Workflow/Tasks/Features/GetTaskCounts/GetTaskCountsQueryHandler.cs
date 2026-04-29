@@ -30,7 +30,7 @@ public class GetTaskCountsQueryHandler(
         if (userGroups.Count > 0)
         {
             var team = await teamService.GetTeamForUserAsync(username, cancellationToken);
-            var poolClause = PoolTaskAccess.BuildSqlClause(userGroups, team?.TeamId, currentUserService.CompanyId);
+            var poolClause = PoolTaskAccess.BuildSqlClause(userGroups, team?.TeamId, currentUserService.CompanyId, username);
             if (poolClause is not null)
             {
                 poolClauseSql = poolClause.Sql;

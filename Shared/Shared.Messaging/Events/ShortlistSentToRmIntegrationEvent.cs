@@ -13,4 +13,7 @@ public record ShortlistSentToRmIntegrationEvent : IntegrationEvent
     public Guid RmUserId { get; init; }
 
     public Guid[] ShortlistedCompanyQuotationIds { get; init; } = [];
+
+    /// <summary>AppraisalIds of all shortlisted appraisals in this quotation.</summary>
+    public Guid[] AppraisalIds { get; init; } = [];
 }

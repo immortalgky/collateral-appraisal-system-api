@@ -691,7 +691,8 @@ namespace Request.Infrastructure.Migrations
                             b1.HasIndex("Name")
                                 .HasDatabaseName("IX_RequestCustomer_Name");
 
-                            b1.HasIndex("RequestId");
+                            b1.HasIndex("RequestId")
+                                .HasDatabaseName("IX_RequestCustomer_RequestId");
 
                             b1.ToTable("RequestCustomers", "request");
 

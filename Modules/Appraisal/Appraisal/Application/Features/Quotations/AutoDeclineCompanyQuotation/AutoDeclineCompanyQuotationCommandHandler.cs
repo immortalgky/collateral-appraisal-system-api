@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Quotations.Shared;
 using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.AutoDeclineCompanyQuotation;
@@ -12,7 +13,8 @@ namespace Appraisal.Application.Features.Quotations.AutoDeclineCompanyQuotation;
 public class AutoDeclineCompanyQuotationCommandHandler(
     IQuotationRepository quotationRepository,
     IDateTimeProvider dateTimeProvider,
-    ILogger<AutoDeclineCompanyQuotationCommandHandler> logger)
+    ILogger<AutoDeclineCompanyQuotationCommandHandler> logger,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<AutoDeclineCompanyQuotationCommand, Unit>
 {
     private static readonly string[] TerminalStatuses = ["Accepted", "Withdrawn", "Declined"];
@@ -41,6 +43,7 @@ public class AutoDeclineCompanyQuotationCommandHandler(
 
         // Handle the CompanyQuotation record
         var existing = quotation.Quotations.FirstOrDefault(q => q.CompanyId == command.CompanyId);
+        CompanyQuotation autoDeclined;
         if (existing is not null)
         {
             if (TerminalStatuses.Contains(existing.Status))
@@ -52,6 +55,7 @@ public class AutoDeclineCompanyQuotationCommandHandler(
             }
 
             existing.Decline(command.Reason, "SYSTEM", dateTimeProvider.ApplicationNow);
+            autoDeclined = existing;
             logger.LogInformation(
                 "AutoDeclineCompanyQuotation: declined existing CompanyQuotation for company {CompanyId} on quotation {QuotationRequestId}",
                 command.CompanyId, command.QuotationRequestId);
@@ -69,6 +73,7 @@ public class AutoDeclineCompanyQuotationCommandHandler(
                 declinedAt: dateTimeProvider.ApplicationNow);
 
             quotation.AddQuotation(declined);
+            autoDeclined = declined;
             logger.LogInformation(
                 "AutoDeclineCompanyQuotation: created Declined CompanyQuotation for company {CompanyId} on quotation {QuotationRequestId}",
                 command.CompanyId, command.QuotationRequestId);
@@ -76,6 +81,14 @@ public class AutoDeclineCompanyQuotationCommandHandler(
 
         // Mark the invitation as Expired (not Declined — system expiry is semantically distinct)
         invitation.MarkExpired();
+
+        activityLogger.Log(
+            quotation.Id,
+            autoDeclined.Id,
+            command.CompanyId,
+            QuotationActivityNames.InvitationAutoDeclined,
+            "Auto-declined: deadline expired",
+            actionByRole: "System");
 
         quotationRepository.Update(quotation);
 

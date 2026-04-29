@@ -248,6 +248,16 @@ public class TaskActivity : WorkflowActivityBase
                 }
             }
 
+            // Write singleton route-back keys so PublishTaskAssignedEventAsync on the next activity can read them.
+            var actionDecision = outputData.TryGetValue("decision", out var dv) ? dv?.ToString() ?? string.Empty : string.Empty;
+            if (string.Equals(ResolveActionMovement(context, actionDecision), "B", StringComparison.OrdinalIgnoreCase))
+            {
+                if (resumeInput.TryGetValue("reasonCode", out var rcVal) && rcVal is not null)
+                    context.WorkflowInstance.Variables["routeBackReasonCode"] = rcVal.ToString()!;
+                if (resumeInput.TryGetValue("reason", out var rVal) && rVal is not null)
+                    context.WorkflowInstance.Variables["routeBackReason"] = rVal.ToString()!;
+            }
+
             // Publish domain event to move PendingTask → CompletedTask
             await PublishTaskCompletedEventAsync(context, outputData, cancellationToken);
 
@@ -673,6 +683,30 @@ public class TaskActivity : WorkflowActivityBase
             ? appraisalNumObj?.ToString()
             : null;
 
+        Guid? appraisalId = null;
+        if (context.WorkflowInstance.Variables.TryGetValue("appraisalId", out var appraisalIdObj))
+        {
+            appraisalId = appraisalIdObj switch
+            {
+                Guid g => g,
+                string s when Guid.TryParse(s, out var p) => p,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String
+                    && Guid.TryParse(je.GetString(), out var jp) => jp,
+                _ => null
+            };
+        }
+
+        // For route-back transitions, read canonical singleton keys written by the completing TaskActivity.
+        string? reasonCode = null;
+        string? reason = null;
+        if (string.Equals(context.Movement, "B", StringComparison.OrdinalIgnoreCase))
+        {
+            if (context.Variables.TryGetValue("routeBackReasonCode", out var rc) && rc is string rcs)
+                reasonCode = rcs;
+            if (context.Variables.TryGetValue("routeBackReason", out var r) && r is string rs)
+                reason = rs;
+        }
+
         _logger.LogInformation(
             "Publishing TaskAssignedEvent for {ActivityId}: CorrelationId={CorrelationId}, TaskName={TaskName}, AssignedTo={AssignedTo}, DueAt={DueAt}",
             context.ActivityId, correlationGuid, taskName, assigneeId, dueAt);
@@ -681,7 +715,8 @@ public class TaskActivity : WorkflowActivityBase
             new TaskAssignedEvent(correlationGuid, taskName, assigneeId ?? "", assignedType ?? "",
                 _dateTimeProvider.ApplicationNow, context.WorkflowInstanceId, context.ActivityId, dueAt,
                 context.WorkflowInstance.StartedBy, context.WorkflowInstance.Name,
-                context.ActivityName, completedBy, appraisalNumber, context.Movement),
+                context.ActivityName, completedBy, appraisalNumber, context.Movement, appraisalId,
+                reasonCode, reason),
             cancellationToken);
     }
 
@@ -721,10 +756,25 @@ public class TaskActivity : WorkflowActivityBase
         var movement = ResolveActionMovement(context, actionTaken);
         FindActivityExecution(context)?.StampMovement(movement);
 
+        // Resolve appraisalId for downstream consumers (mirrors same block in PublishTaskAssignedEventAsync).
+        Guid? completedAppraisalId = null;
+        if (context.WorkflowInstance.Variables.TryGetValue("appraisalId", out var completedAppraisalIdObj))
+        {
+            completedAppraisalId = completedAppraisalIdObj switch
+            {
+                Guid g => g,
+                string s when Guid.TryParse(s, out var p) => p,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String
+                    && Guid.TryParse(je.GetString(), out var jp) => jp,
+                _ => null
+            };
+        }
+
         await _publisher.Publish(
             new TaskCompletedDomainEvent(correlationGuid, taskName, actionTaken, _dateTimeProvider.ApplicationNow,
                 completedBy,
-                context.WorkflowInstance.Name, remark, appraisalNumber, movement),
+                context.WorkflowInstance.Name, remark, appraisalNumber, movement,
+                completedAppraisalId, context.ActivityId),
             cancellationToken);
     }
 

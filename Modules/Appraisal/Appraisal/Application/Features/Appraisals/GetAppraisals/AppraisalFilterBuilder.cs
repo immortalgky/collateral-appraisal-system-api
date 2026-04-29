@@ -12,9 +12,9 @@ internal static class AppraisalFilterBuilder
     {
         "AppraisalNumber", "RequestNumber", "CustomerName", "Status", "AppraisalType",
         "Priority", "SLADueDate", "SLAStatus", "CreatedAt", "AssignedDate",
-        "AppointmentDateTime", "Province", "Channel", "BankingSegment",
+        "AppointmentDateTime", "Province", "District", "SubDistrict", "Channel", "BankingSegment",
         "FacilityLimit", "PropertyCount", "ElapsedHours", "RemainingHours",
-        "AssignmentType", "CompanyName", "RequestedAt"
+        "AssignmentType", "CompanyName", "RequestedAt", "Purpose"
     };
 
     public static (string WhereClause, DynamicParameters Parameters) BuildFilter(GetAppraisalsFilterRequest? filter)
@@ -95,6 +95,34 @@ internal static class AppraisalFilterBuilder
 
             AddDateRangeFilter(conditions, parameters, filter.AppointmentDateFrom, filter.AppointmentDateTo,
                 "AppointmentDateTime", "AppointmentDateFrom", "AppointmentDateTo");
+
+            // Picker-specific additive fields
+            if (!string.IsNullOrWhiteSpace(filter.CustomerName))
+            {
+                conditions.Add("CustomerName LIKE '%' + @CustomerName + '%'");
+                parameters.Add("CustomerName", filter.CustomerName.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.AppraisalNumber))
+            {
+                conditions.Add("AppraisalNumber LIKE '%' + @AppraisalNumber + '%'");
+                parameters.Add("AppraisalNumber", filter.AppraisalNumber.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Purpose))
+            {
+                conditions.Add("Purpose = @Purpose");
+                parameters.Add("Purpose", filter.Purpose);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.SubDistrict))
+            {
+                conditions.Add("SubDistrict LIKE '%' + @SubDistrict + '%'");
+                parameters.Add("SubDistrict", filter.SubDistrict.Trim());
+            }
+
+            AddDateRangeFilter(conditions, parameters, filter.RequestedAtFrom, filter.RequestedAtTo,
+                "RequestedAt", "RequestedAtFrom", "RequestedAtTo");
         }
 
         var whereClause = conditions.Count > 0 ? " WHERE " + string.Join(" AND ", conditions) : "";

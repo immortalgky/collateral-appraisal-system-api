@@ -62,4 +62,26 @@ public interface IAssignmentRepository
         string activityId,
         Guid assigneeCompanyId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns completed fan-out tasks for a given correlation id where AssigneeCompanyId matches.
+    /// Used to determine whether an external company caller has historical ownership on a quotation workflow.
+    /// </summary>
+    Task<List<CompletedTask>> GetCompletedFanOutTasksByCorrelationIdAndCompanyAsync(
+        Guid correlationId,
+        Guid assigneeCompanyId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns completed tasks for a given correlation id that the specified user directly owns
+    /// (matched via PoolTaskAccess candidate set: username, groups, team).
+    /// Used for RM / non-fan-out historical ownership checks where no company filter applies.
+    /// </summary>
+    Task<List<CompletedTask>> GetCompletedTasksByCorrelationIdForUserAsync(
+        Guid correlationId,
+        string username,
+        IReadOnlyList<string> userGroups,
+        string? userTeamId,
+        Guid? callerCompanyId,
+        CancellationToken cancellationToken = default);
 }

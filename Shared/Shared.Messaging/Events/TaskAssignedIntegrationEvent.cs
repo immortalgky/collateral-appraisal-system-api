@@ -11,4 +11,9 @@ public record TaskAssignedIntegrationEvent : IntegrationEvent
     public string? WorkflowInstanceName { get; init; }
     public string? AppraisalNumber { get; init; }
     public DateTime AssignedAt { get; init; }
+    public Guid? AppraisalId { get; init; }
+    public string? ActivityId { get; init; }
+    public string? Movement { get; init; }
+    public string? ReasonCode { get; init; }
+    public string? Reason { get; init; }
 }

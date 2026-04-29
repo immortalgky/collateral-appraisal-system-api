@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Quotations.RespondNegotiation;
 public class RespondNegotiationCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<RespondNegotiationCommand, RespondNegotiationResult>
 {
     public async Task<RespondNegotiationResult> Handle(
@@ -41,9 +42,16 @@ public class RespondNegotiationCommandHandler(
             currentUser.UserId!.Value,
             itemDiscounts);
 
+        var companyQuotation = quotation.Quotations.First(q => q.Id == command.CompanyQuotationId);
+        activityLogger.Log(
+            quotation.Id,
+            command.CompanyQuotationId,
+            companyQuotation.CompanyId,
+            QuotationActivityNames.NegotiationResponded,
+            command.Message);
+
         quotationRepository.Update(quotation);
 
-        var companyQuotation = quotation.Quotations.First(q => q.Id == command.CompanyQuotationId);
         var negotiation = companyQuotation.Negotiations.First(n => n.Id == command.NegotiationId);
 
         // v4: resume ext-respond-negotiation step in quotation child workflow

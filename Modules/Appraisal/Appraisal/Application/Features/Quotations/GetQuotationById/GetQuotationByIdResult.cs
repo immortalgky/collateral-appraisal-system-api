@@ -35,6 +35,7 @@ public record GetQuotationByIdResult(
     string? BankingSegment,
     Guid? RmUserId,
     string? RmUserName,
+    string? RmUserFullName,
     DateTime? SubmissionsClosedAt,
     DateTime? ShortlistSentToRmAt,
     Guid? ShortlistSentByAdminId,
@@ -55,7 +56,22 @@ public record GetQuotationByIdResult(
     IReadOnlyList<CompanyQuotationResult> CompanyQuotations,
 
     // ── Invited companies (non-Expired invitations, enriched with name) ───────
-    IReadOnlyList<InvitedCompanyResult> InvitedCompanies
+    IReadOnlyList<InvitedCompanyResult> InvitedCompanies,
+
+    // ── Two-person rule edit gate ─────────────────────────────────────────────
+    /// <summary>
+    /// True when the caller holds the active workflow task for their company on this quotation
+    /// (meaning they may save draft, submit-to-checker, or final-submit depending on their role).
+    /// Always false for internal (Admin/RM) users — they use a different path.
+    /// </summary>
+    bool CanEdit,
+
+    /// <summary>
+    /// True when the caller is allowed to pick the tentative winner — i.e. they hold
+    /// the active rm-pick-winner workflow task (or are an internal admin). Only meaningful
+    /// while Status == "PendingRmSelection"; false otherwise.
+    /// </summary>
+    bool CanPickWinner
 );
 
 /// <summary>

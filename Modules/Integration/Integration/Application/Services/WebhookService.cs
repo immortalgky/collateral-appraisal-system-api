@@ -3,7 +3,8 @@ using Integration.Domain.WebhookSubscriptions;
 using Integration.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
 using Shared.Time;
-using System.Net.Http.Json;
+using System.Globalization;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -18,10 +19,18 @@ public class WebhookService(
     IDateTimeProvider dateTimeProvider
 ) : IWebhookService
 {
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public async Task SendAsync(
+        Guid eventId,
         string systemCode,
         string eventType,
-        object payload,
+        string externalCaseKey,
+        DateTime occurredAt,
+        object data,
         CancellationToken cancellationToken = default)
     {
         var subscription = await subscriptionRepository.GetBySystemCodeAsync(systemCode, cancellationToken);
@@ -32,8 +41,17 @@ public class WebhookService(
             return;
         }
 
-        var payloadJson = JsonSerializer.Serialize(payload);
-        var delivery = WebhookDelivery.Create(subscription.Id, eventType, payloadJson);
+        var envelope = new
+        {
+            eventId,
+            eventType,
+            occurredAt = occurredAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ", System.Globalization.CultureInfo.InvariantCulture),
+            externalCaseKey,
+            data
+        };
+
+        var envelopeJson = JsonSerializer.Serialize(envelope, _jsonOptions);
+        var delivery = WebhookDelivery.Create(subscription.Id, eventType, envelopeJson);
 
         await deliveryRepository.AddAsync(delivery, cancellationToken);
         await deliveryRepository.SaveChangesAsync(cancellationToken);
@@ -50,19 +68,17 @@ public class WebhookService(
         {
             var client = httpClientFactory.CreateClient("Webhook");
 
-            var signature = GenerateSignature(delivery.Payload, subscription.SecretKey);
+            var unixTimestamp = ((DateTimeOffset)dateTimeProvider.ApplicationNow.ToUniversalTime()).ToUnixTimeSeconds();
+            var signedPayload = $"{unixTimestamp}.{delivery.Payload}";
+            var signature = GenerateSignature(signedPayload, subscription.SecretKey);
 
             var request = new HttpRequestMessage(HttpMethod.Post, subscription.CallbackUrl)
             {
-                Content = JsonContent.Create(new
-                {
-                    eventType = delivery.EventType,
-                    payload = JsonSerializer.Deserialize<object>(delivery.Payload),
-                    timestamp = dateTimeProvider.ApplicationNow
-                })
+                Content = new StringContent(delivery.Payload, Encoding.UTF8, "application/json")
             };
 
-            request.Headers.Add("X-Signature", signature);
+            request.Headers.Add("X-Timestamp", unixTimestamp.ToString(CultureInfo.InvariantCulture));
+            request.Headers.Add("X-Signature", $"sha256={signature}");
             request.Headers.Add("X-Event-Type", delivery.EventType);
 
             var response = await client.SendAsync(request, cancellationToken);
@@ -105,6 +121,6 @@ public class WebhookService(
     {
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
         var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
-        return Convert.ToBase64String(hash);
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }

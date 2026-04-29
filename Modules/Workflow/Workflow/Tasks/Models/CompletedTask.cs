@@ -18,6 +18,13 @@ public class CompletedTask : Aggregate<Guid>
     public string? Remark { get; private set; }
     public string Movement { get; private set; } = "F";
 
+    /// <summary>
+    /// Carried forward from PendingTask.AssigneeCompanyId so historical pool-task
+    /// visibility queries can enforce per-company isolation on completed rows.
+    /// Null for non-fan-out tasks.
+    /// </summary>
+    public Guid? AssigneeCompanyId { get; private set; }
+
     private CompletedTask()
     {
         // For EF Core
@@ -27,7 +34,7 @@ public class CompletedTask : Aggregate<Guid>
         string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt,
         DateTime? dueAt = null, string? slaStatus = null, DateTime? slaBreachedAt = null,
         string? taskDescription = null, string? remark = null, string movement = "F",
-        string? activityId = null)
+        string? activityId = null, Guid? assigneeCompanyId = null)
     {
         Id = id;
         CorrelationId = correlationId;
@@ -45,6 +52,7 @@ public class CompletedTask : Aggregate<Guid>
         SlaBreachedAt = slaBreachedAt;
         Remark = remark;
         Movement = movement;
+        AssigneeCompanyId = assigneeCompanyId;
     }
 
     public static CompletedTask Create(Guid id, Guid correlationId, string taskName, string assignedTo,
@@ -73,7 +81,8 @@ public class CompletedTask : Aggregate<Guid>
             pendingTask.TaskDescription,
             remark,
             movement ?? pendingTask.Movement,
-            pendingTask.ActivityId
+            pendingTask.ActivityId,
+            pendingTask.AssigneeCompanyId
         );
     }
 }

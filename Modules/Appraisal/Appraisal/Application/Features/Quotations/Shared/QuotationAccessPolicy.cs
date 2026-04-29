@@ -1,3 +1,4 @@
+using Appraisal.Contracts.Services;
 using Shared.Identity;
 
 namespace Appraisal.Application.Features.Quotations.Shared;
@@ -58,13 +59,14 @@ public static class QuotationAccessPolicy
 
     /// <summary>
     /// Ensures the caller can view the given quotation request.
-    ///   Admin: always.
+    ///   Admin / IntAdmin: always.
     ///   RM: requestor match AND status ∈ {PendingRmSelection, WinnerTentative, Negotiating, Finalized}.
-    ///   ExtAdmin (ExtCompany): must be an invited company.
+    ///   ExtAdmin / ExtAppraisalChecker: must be an invited company AND the RFQ must not be Draft
+    ///     (bank-side drafts are not visible to companies even via direct URL).
+    ///   Withdrawn-bid and Cancelled terminal-status guards still apply for ext-company callers.
     /// </summary>
     public static void EnsureCanViewQuotation(
         QuotationRequest quotation,
-        Guid? requestorId,
         ICurrentUserService user)
     {
         if (user.IsInRole("Admin") || user.IsInRole("IntAdmin"))
@@ -72,7 +74,7 @@ public static class QuotationAccessPolicy
 
         if (user.IsInRole("RequestMaker"))
         {
-            if (user.UserId != requestorId)
+            if (user.UserId != quotation.RmUserId)
                 throw new UnauthorizedAccessException("RM can only view quotations for their own requests");
 
             var rmVisibleStatuses = new[]
@@ -96,8 +98,10 @@ public static class QuotationAccessPolicy
             if (invitation is null)
                 throw new UnauthorizedAccessException("External company is not invited to this quotation");
 
-            // M4: reject if the company's bid has been Withdrawn.
-            // Exception: if quotation is Finalized and this company was the winner, allow view for record purposes.
+            // Draft / never-sent gate: companies cannot view RFQs the bank hasn't published.
+            if (quotation.Status == "Draft")
+                throw new UnauthorizedAccessException("External company cannot view a draft quotation");
+
             var companyBid = quotation.Quotations.FirstOrDefault(q => q.CompanyId == companyId.Value);
             if (companyBid?.Status == "Withdrawn")
             {
@@ -107,7 +111,6 @@ public static class QuotationAccessPolicy
                         "External company's bid has been withdrawn from this quotation");
             }
 
-            // M4: if quotation itself is in a terminal status, only the winner (if finalized) may view
             var terminalStatuses = new[] { "Cancelled" };
             if (terminalStatuses.Contains(quotation.Status))
                 throw new UnauthorizedAccessException(

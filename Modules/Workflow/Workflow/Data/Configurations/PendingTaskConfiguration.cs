@@ -62,5 +62,11 @@ public class PendingTaskConfiguration : IEntityTypeConfiguration<PendingTask>
 
         builder.HasIndex(p => new { p.WorkflowInstanceId, p.ActivityId, p.AssigneeCompanyId })
             .HasDatabaseName("IX_PendingTasks_WorkflowInstance_Activity_Company");
+
+        // Index 4: supports OUTER APPLY (SELECT TOP 1 pt.ActivityId FROM workflow.PendingTasks pt
+        // WHERE pt.CorrelationId = a.RequestId ORDER BY pt.AssignedAt DESC) in vw_AppraisalList
+        builder.HasIndex(p => new { p.CorrelationId, p.AssignedAt })
+            .HasDatabaseName("IX_PendingTasks_CorrelationId_AssignedAt")
+            .IsDescending(false, true);
     }
 }

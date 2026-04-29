@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Quotations.Shared;
+using Appraisal.Contracts.Services;
 using Dapper;
 using Shared.Data;
 using Shared.Identity;
@@ -8,7 +9,8 @@ namespace Appraisal.Application.Features.Quotations.GetQuotationById;
 public class GetQuotationByIdQueryHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    ISqlConnectionFactory connectionFactory)
+    ISqlConnectionFactory connectionFactory,
+    IQuotationTaskOwnershipService taskOwnership)
     : IQueryHandler<GetQuotationByIdQuery, GetQuotationByIdResult>
 {
     public async Task<GetQuotationByIdResult> Handle(GetQuotationByIdQuery query, CancellationToken cancellationToken)
@@ -18,7 +20,7 @@ public class GetQuotationByIdQueryHandler(
                         ?? throw new QuotationNotFoundException(query.Id);
 
         // ── Access control ────────────────────────────────────────────────────
-        QuotationAccessPolicy.EnsureCanViewQuotation(quotation, quotation.RmUserId, currentUser);
+        QuotationAccessPolicy.EnsureCanViewQuotation(quotation, currentUser);
 
         // ── Filter visible company quotations by role ─────────────────────────
         var filteredQuotations = QuotationAccessPolicy
@@ -39,6 +41,13 @@ public class GetQuotationByIdQueryHandler(
             .Distinct()
             .ToArray();
         var negotiationUserNames = await ResolveUserNamesAsync(negotiationUserIds);
+
+        // Resolve the RM's display name so the FE can show it next to the username.
+        // RmUserId is always null on QuotationRequest (Requests.Requestor stores a username,
+        // not a Guid); resolve by username instead.
+        var rmUserFullName = !string.IsNullOrWhiteSpace(quotation.RmUsername)
+            ? await ResolveUserFullNameByUsernameAsync(quotation.RmUsername!)
+            : null;
 
         var visibleQuotations = filteredQuotations
             .Select(cq => new CompanyQuotationResult(
@@ -162,6 +171,28 @@ public class GetQuotationByIdQueryHandler(
             invitedCompanies = new List<InvitedCompanyResult>();
         }
 
+        // CanEdit: only meaningful for ext-company callers.
+        // True when the caller holds the active task for their company (any stage).
+        // Internal users always get false — they act via different commands.
+        bool canEdit = false;
+        if ((currentUser.IsInRole("ExtAdmin") || currentUser.IsInRole("ExtAppraisalChecker"))
+            && currentUser.CompanyId.HasValue)
+        {
+            canEdit = await taskOwnership.IsCallerActiveTaskOwnerAsync(
+                quotation.Id, currentUser.CompanyId.Value, expectedStageName: null, cancellationToken);
+        }
+
+        // CanPickWinner: gates the RM Pick button. STRICT — only the user matching the
+        // rm-pick-winner task's AssignedTo (by username, group, or group+team) passes.
+        // Admins do NOT bypass; the Pick button is reserved for the assigned RM.
+        // Pick is only meaningful in PendingRmSelection.
+        bool canPickWinner = false;
+        if (quotation.Status == "PendingRmSelection")
+        {
+            canPickWinner = await taskOwnership.IsCallerActivityTaskOwnerStrictAsync(
+                quotation.Id, activityId: "rm-pick-winner", cancellationToken);
+        }
+
         return new GetQuotationByIdResult(
             Id: quotation.Id,
             QuotationNumber: quotation.QuotationNumber,
@@ -187,6 +218,7 @@ public class GetQuotationByIdQueryHandler(
             BankingSegment: quotation.BankingSegment,
             RmUserId: quotation.RmUserId,
             RmUserName: quotation.RmUsername,
+            RmUserFullName: rmUserFullName,
             SubmissionsClosedAt: quotation.SubmissionsClosedAt,
             ShortlistSentToRmAt: quotation.ShortlistSentToRmAt,
             ShortlistSentByAdminId: quotation.ShortlistSentByAdminId,
@@ -199,7 +231,9 @@ public class GetQuotationByIdQueryHandler(
             RmNegotiationNote: quotation.RmNegotiationNote,
             SharedDocuments: sharedDocumentsEnriched,
             CompanyQuotations: visibleQuotations,
-            InvitedCompanies: invitedCompanies
+            InvitedCompanies: invitedCompanies,
+            CanEdit: canEdit,
+            CanPickWinner: canPickWinner
         );
     }
 
@@ -263,6 +297,22 @@ public class GetQuotationByIdQueryHandler(
             new { AppraisalIds = appraisalIds });
 
         return rows.ToDictionary(r => r.AppraisalId, r => r.CustomerName);
+    }
+
+    private async Task<string?> ResolveUserFullNameByUsernameAsync(string userName)
+    {
+        var connection = connectionFactory.GetOpenConnection();
+        var row = await connection.QuerySingleOrDefaultAsync<(string? FirstName, string? LastName, string? UserName)>(
+            """
+            SELECT TOP 1 u.FirstName, u.LastName, u.UserName
+            FROM [auth].[AspNetUsers] u
+            WHERE u.UserName = @UserName
+            """,
+            new { UserName = userName });
+
+        if (row.UserName is null) return null;
+        var fullName = $"{row.FirstName} {row.LastName}".Trim();
+        return string.IsNullOrWhiteSpace(fullName) ? null : fullName;
     }
 
     private async Task<Dictionary<Guid, string>> ResolveUserNamesAsync(Guid[] userIds)

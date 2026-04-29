@@ -57,4 +57,16 @@ public class QuotationSharedDocument
             SharedBy = sharedBy
         };
     }
+
+    internal void Update(Guid appraisalId, string level, string sharedBy)
+    {
+        if (level is not (RequestLevel or TitleLevel))
+            throw new ArgumentException(
+                $"Level must be '{RequestLevel}' or '{TitleLevel}'. Got: '{level}'", nameof(level));
+
+        AppraisalId = appraisalId;
+        Level = level;
+        SharedAt = DateTime.UtcNow;
+        SharedBy = sharedBy;
+    }
 }

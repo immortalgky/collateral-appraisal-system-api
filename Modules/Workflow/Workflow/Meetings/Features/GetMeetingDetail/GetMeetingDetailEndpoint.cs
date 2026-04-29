@@ -1,5 +1,6 @@
 using Dapper;
 using Shared.Data;
+using Shared.Time;
 using Workflow.Meetings.Domain;
 
 namespace Workflow.Meetings.Features.GetMeetingDetail;
@@ -63,6 +64,7 @@ public record MeetingDetailDto(
     string? AgendaCertifyMinutes,
     string? AgendaChairmanInformed,
     string? AgendaOthers,
+    string? PreviousEndedMeetingNo,
     List<MeetingMemberDto> Members,
     MeetingItemsGroupedDto Items);
 
@@ -106,20 +108,21 @@ public record MeetingItemsGroupedDto(
 
 public class GetMeetingDetailQueryHandler(
     IMeetingRepository meetingRepository,
-    ISqlConnectionFactory sqlConnectionFactory)
+    ISqlConnectionFactory sqlConnectionFactory,
+    IDateTimeProvider dateTimeProvider)
     : IQueryHandler<GetMeetingDetailQuery, MeetingDetailDto>
 {
     public async Task<MeetingDetailDto> Handle(GetMeetingDetailQuery query, CancellationToken cancellationToken)
     {
         const string sql = """
-                           SELECT 
-                               Id, Title, Status, MeetingNo, StartAt, EndAt, 
-                               Location, Notes, CancelReason, EndedAt, CancelledAt, CutOffAt, 
-                               InvitationSentAt, FromText, ToText, 
+                           SELECT
+                               Id, Title, Status, MeetingNo, StartAt, EndAt,
+                               Location, Notes, CancelReason, EndedAt, CancelledAt, CutOffAt,
+                               InvitationSentAt, FromText, ToText,
                                AgendaCertifyMinutes, AgendaChairmanInformed, AgendaOthers
                            FROM workflow.[Meetings] m WHERE m.[Id] = @Id
 
-                           SELECT 
+                           SELECT
                                Id, UserId, MemberName, Position, SourceCommitteeMemberId, AddedAt
                            FROM workflow.[MeetingMembers] where MeetingId = @Id
 
@@ -140,6 +143,17 @@ public class GetMeetingDetailQueryHandler(
                                LEFT JOIN auth.AspNetUsers u ON u.UserName = aa.InternalAppraiserId
                                LEFT JOIN appraisal.ValuationAnalyses v ON v.AppraisalId = a.Id
                                WHERE MeetingId = @Id
+
+                           -- Most recently Ended meeting before this one (by EndedAt). NULL if none.
+                           SELECT TOP 1 prev.MeetingNo
+                           FROM workflow.[Meetings] curr
+                           INNER JOIN workflow.[Meetings] prev
+                               ON prev.Status = 'Ended'
+                               AND prev.Id <> curr.Id
+                               AND prev.EndedAt IS NOT NULL
+                           WHERE curr.Id = @Id
+                             AND (curr.StartAt IS NULL OR prev.EndedAt < curr.StartAt)
+                           ORDER BY prev.EndedAt DESC
                            """;
 
         var connection = sqlConnectionFactory.GetOpenConnection();
@@ -150,6 +164,8 @@ public class GetMeetingDetailQueryHandler(
         var members = (await multi.ReadAsync<MeetingMemberDto>()).ToList();
 
         var allItems = (await multi.ReadAsync<MeetingItemDto>()).ToList();
+
+        var previousEndedMeetingNo = await multi.ReadFirstOrDefaultAsync<string?>();
 
         // Decision items: one group per AppraisalType, known types first then any others.
         var decisionItemsList = allItems
@@ -176,7 +192,7 @@ public class GetMeetingDetailQueryHandler(
         // Compute effective status: InvitationSent + now >= StartAt → InProgress (never persisted).
         var effectiveStatus = meeting.Status == nameof(MeetingStatus.InvitationSent)
                               && meeting.StartAt.HasValue
-                              && meeting.StartAt.Value <= DateTime.UtcNow
+                              && meeting.StartAt.Value <= dateTimeProvider.ApplicationNow
             ? "InProgress"
             : meeting.Status;
 
@@ -199,6 +215,7 @@ public class GetMeetingDetailQueryHandler(
             meeting.AgendaCertifyMinutes,
             meeting.AgendaChairmanInformed,
             meeting.AgendaOthers,
+            previousEndedMeetingNo,
             members,
             grouped);
     }

@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Quotations.SendShortlistToRm;
 public class SendShortlistToRmCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<SendShortlistToRmCommand, SendShortlistToRmResult>
 {
     public async Task<SendShortlistToRmResult> Handle(
@@ -21,6 +22,10 @@ public class SendShortlistToRmCommandHandler(
                         ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
 
         quotation.SendShortlistToRm(currentUser.UserId!.Value);
+
+        var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
+        activityLogger.Log(quotation.Id, null, null, QuotationActivityNames.ShortlistSentToRm, actionByRole: adminRole);
+
         quotationRepository.Update(quotation);
 
         var shortlistedIds = quotation.Quotations
@@ -30,12 +35,17 @@ public class SendShortlistToRmCommandHandler(
 
         if (quotation.RmUserId.HasValue)
         {
+            var appraisalIds = quotation.Appraisals
+                .Select(a => a.AppraisalId)
+                .ToArray();
+
             outbox.Publish(new ShortlistSentToRmIntegrationEvent
             {
                 QuotationRequestId = quotation.Id,
                 RequestId = quotation.RequestId ?? Guid.Empty,
                 RmUserId = quotation.RmUserId.Value,
-                ShortlistedCompanyQuotationIds = shortlistedIds
+                ShortlistedCompanyQuotationIds = shortlistedIds,
+                AppraisalIds = appraisalIds
             }, correlationId: quotation.Id.ToString());
         }
 
