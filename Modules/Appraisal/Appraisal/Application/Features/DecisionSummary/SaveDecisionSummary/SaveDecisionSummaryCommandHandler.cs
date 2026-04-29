@@ -93,6 +93,7 @@ public class SaveDecisionSummaryCommandHandler(
     {
         // BuildingAppraisalDetail is owned by AppraisalProperty — reach via the nav.
         var properties = await db.AppraisalProperties
+            .AsSplitQuery()
             .Where(ap => ap.AppraisalId == appraisalId)
             .ToListAsync(ct);
 
