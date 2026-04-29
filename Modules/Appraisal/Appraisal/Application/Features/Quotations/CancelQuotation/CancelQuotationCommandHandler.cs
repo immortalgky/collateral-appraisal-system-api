@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Quotations.CancelQuotation;
 public class CancelQuotationCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<CancelQuotationCommand, CancelQuotationResult>
 {
     public async Task<CancelQuotationResult> Handle(
@@ -22,6 +23,10 @@ public class CancelQuotationCommandHandler(
 
         var wasAlreadyCancelled = quotation.Status == "Cancelled";
         quotation.Cancel(command.Reason);
+
+        var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
+        activityLogger.Log(quotation.Id, null, null, QuotationActivityNames.QuotationCancelled, command.Reason, actionByRole: adminRole);
+
         quotationRepository.Update(quotation);
 
         if (!wasAlreadyCancelled)

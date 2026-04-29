@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Quotations.RecallShortlist;
 public class RecallShortlistCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<RecallShortlistCommand, RecallShortlistResult>
 {
     public async Task<RecallShortlistResult> Handle(
@@ -21,6 +22,9 @@ public class RecallShortlistCommandHandler(
                         ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
 
         quotation.RecallShortlist(currentUser.UserId!.Value);
+
+        var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
+        activityLogger.Log(quotation.Id, null, null, QuotationActivityNames.ShortlistRecalled, actionByRole: adminRole);
 
         quotationRepository.Update(quotation);
 

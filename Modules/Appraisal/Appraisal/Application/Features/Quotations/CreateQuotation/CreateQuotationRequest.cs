@@ -4,4 +4,6 @@ public record CreateQuotationRequest(
     DateTime DueDate,
     string RequestedBy,
     string? Description = null,
-    string? SpecialRequirements = null);
+    string? SpecialRequirements = null,
+    IReadOnlyList<CreateQuotationAppraisalDto>? Appraisals = null,
+    IReadOnlyList<Guid>? InvitedCompanyIds = null);

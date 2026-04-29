@@ -47,6 +47,7 @@ public record AppraisalDto
     // Location Info (from first property's land detail)
     public string? Province { get; init; }
     public string? District { get; init; }
+    public string? SubDistrict { get; init; }
 
     // Appointment
     public DateTime? AppointmentDateTime { get; init; }

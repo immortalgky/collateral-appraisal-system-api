@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Quotations.CloseQuotation;
 public class CloseQuotationCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<CloseQuotationCommand, CloseQuotationResult>
 {
     public async Task<CloseQuotationResult> Handle(
@@ -26,6 +27,12 @@ public class CloseQuotationCommandHandler(
 
         var wasAlreadyClosed = quotation.Status == "UnderAdminReview";
         quotation.Close();
+
+        var closeRole = currentUser.IsAuthenticated
+            ? (currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin")
+            : "System";
+        activityLogger.Log(quotation.Id, null, null, QuotationActivityNames.QuotationClosed, actionByRole: closeRole);
+
         quotationRepository.Update(quotation);
 
         // Only publish the event if we actually transitioned (idempotency guard)

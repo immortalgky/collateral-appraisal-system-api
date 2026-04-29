@@ -475,6 +475,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("[AppraisalNumber] IS NOT NULL");
 
+                    b.HasIndex("Id")
+                        .HasDatabaseName("IX_Appraisals_IsDeleted_NotDeleted")
+                        .HasFilter("[IsDeleted] = 0");
+
                     b.HasIndex("RequestId");
 
                     b.ToTable("Appraisals", "appraisal");
@@ -663,6 +667,11 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasIndex("AssigneeUserId");
 
                     b.HasIndex("PreviousAssignmentId");
+
+                    b.HasIndex("AppraisalId", "AssignedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_AppraisalAssignments_AppraisalId_AssignedAt_Active")
+                        .HasFilter("[AssignmentStatus] <> 'Rejected' AND [AssignmentStatus] <> 'Cancelled'");
 
                     b.ToTable("AppraisalAssignments", "appraisal");
                 });
@@ -5642,6 +5651,10 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("SubmittedByPhone")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SubmittedToCheckerBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("TermsAndConditions")
                         .HasColumnType("nvarchar(max)");

@@ -37,6 +37,11 @@ public class EditDraftQuotationCommandHandler(
         foreach (var toAdd in requested.Except(current).ToList())
             quotation.InviteCompany(toAdd);
 
+        // Per-appraisal MaxAppraisalDays. We only touch items the caller listed; entries
+        // whose AppraisalId isn't on the quotation throw via the aggregate guard.
+        foreach (var entry in command.Appraisals)
+            quotation.SetItemMaxAppraisalDays(entry.AppraisalId, entry.MaxAppraisalDays);
+
         quotationRepository.Update(quotation);
 
         return new EditDraftQuotationResult(quotation.Id);

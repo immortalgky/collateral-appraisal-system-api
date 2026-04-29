@@ -38,7 +38,7 @@ public class GetPoolTasksQueryHandler(
 
         var team = await teamService.GetTeamForUserAsync(username, cancellationToken);
 
-        var clause = PoolTaskAccess.BuildSqlClause(userGroups, team?.TeamId, currentUserService.CompanyId);
+        var clause = PoolTaskAccess.BuildSqlClause(userGroups, team?.TeamId, currentUserService.CompanyId, username);
         if (clause is null)
             return new GetPoolTasksResult(new PaginatedResult<PoolTaskDto>([], 0, 0, 10));
 

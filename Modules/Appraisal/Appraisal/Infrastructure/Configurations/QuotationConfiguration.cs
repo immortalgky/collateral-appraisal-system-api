@@ -208,6 +208,7 @@ public class CompanyQuotationConfiguration : IEntityTypeConfiguration<CompanyQuo
         builder.Property(q => q.SubmittedByName).HasMaxLength(200);
         builder.Property(q => q.SubmittedByEmail).HasMaxLength(100);
         builder.Property(q => q.SubmittedByPhone).HasMaxLength(20);
+        builder.Property(q => q.SubmittedToCheckerBy).HasMaxLength(450);
 
         // ── Shortlist + negotiation fields ────────────────────────────────────
         builder.Property(q => q.IsShortlisted).HasDefaultValue(false);

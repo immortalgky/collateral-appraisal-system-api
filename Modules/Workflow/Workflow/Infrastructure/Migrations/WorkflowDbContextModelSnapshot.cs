@@ -862,7 +862,31 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.HasIndex("Status");
 
+                    b.HasIndex("MeetingNoYear", "MeetingNoSeq");
+
                     b.ToTable("Meetings", "workflow");
+                });
+
+            modelBuilder.Entity("Workflow.Meetings.Domain.MeetingConfiguration", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("MeetingConfigurations", "workflow");
                 });
 
             modelBuilder.Entity("Workflow.Meetings.Domain.MeetingItem", b =>
@@ -1446,6 +1470,9 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<Guid?>("AssigneeCompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CompletedAt")
                         .HasColumnType("datetime2");
 
@@ -1595,6 +1622,10 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(255)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CorrelationId", "AssignedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_PendingTasks_CorrelationId_AssignedAt");
 
                     b.HasIndex("WorkflowInstanceId", "ActivityId", "AssigneeCompanyId")
                         .HasDatabaseName("IX_PendingTasks_WorkflowInstance_Activity_Company");
@@ -2600,8 +2631,7 @@ namespace Workflow.Infrastructure.Migrations
 
                             b1.Property<string>("CurrentStage")
                                 .IsRequired()
-                                .HasMaxLength(100)
-                                .HasColumnType("nvarchar(100)");
+                                .HasColumnType("nvarchar(max)");
 
                             b1.Property<Guid>("FanOutKey")
                                 .HasColumnType("uniqueidentifier");
@@ -2629,12 +2659,13 @@ namespace Workflow.Infrastructure.Migrations
 
                                     b2.Property<string>("AssignedTo")
                                         .IsRequired()
-                                        .HasMaxLength(200)
-                                        .HasColumnType("nvarchar(200)");
+                                        .HasColumnType("nvarchar(max)");
 
                                     b2.Property<string>("AssigneeUserId")
-                                        .HasMaxLength(100)
-                                        .HasColumnType("nvarchar(100)");
+                                        .HasColumnType("nvarchar(max)");
+
+                                    b2.Property<string>("CompletedBy")
+                                        .HasColumnType("nvarchar(max)");
 
                                     b2.Property<DateTime>("EnteredOn")
                                         .HasColumnType("datetime2");
@@ -2644,8 +2675,7 @@ namespace Workflow.Infrastructure.Migrations
 
                                     b2.Property<string>("StageName")
                                         .IsRequired()
-                                        .HasMaxLength(100)
-                                        .HasColumnType("nvarchar(100)");
+                                        .HasColumnType("nvarchar(max)");
 
                                     b2.HasKey("FanOutItemStateWorkflowActivityExecutionId", "FanOutItemState__synthesizedOrdinal", "__synthesizedOrdinal");
 

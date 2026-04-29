@@ -93,7 +93,8 @@ public class GetTaskByIdQueryHandler(
                     dto.AssigneeCompanyId,
                     groups,
                     team?.TeamId,
-                    currentUserService.CompanyId);
+                    currentUserService.CompanyId,
+                    username);
             }
         }
         else

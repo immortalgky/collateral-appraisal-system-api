@@ -36,6 +36,15 @@ public class CutOffMeetingCommandHandler(
         var meeting = await meetingRepository.GetByIdWithItemsAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
+        if (meeting.MeetingNoYear is int year && meeting.MeetingNoSeq is int seq)
+        {
+            var blocker = await meetingRepository.GetEarlierUnendedMeetingAsync(year, seq, ct);
+            if (blocker is not null)
+                throw new ConflictException(
+                    $"Cannot cut off meeting {meeting.MeetingNo}. " +
+                    $"Meeting {blocker.MeetingNo} must end first.");
+        }
+
         // Load queued items not yet assigned to any meeting
         var queueItems = await dbContext.MeetingQueueItems
             .Where(q => q.Status == MeetingQueueItemStatus.Queued && q.MeetingId == null)

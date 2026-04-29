@@ -9,5 +9,7 @@ public record TaskCompletedDomainEvent(
     string? WorkflowInstanceName = null,
     string? Remark = null,
     string? AppraisalNumber = null,
-    string Movement = "F"
+    string Movement = "F",
+    Guid? AppraisalId = null,
+    string? ActivityId = null
 ) : IDomainEvent;

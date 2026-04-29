@@ -189,6 +189,11 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
 
         builder.HasIndex(a => a.RequestId);
 
+        // Index 2: filtered index on IsDeleted = 0 to support WHERE a.IsDeleted = 0 in vw_AppraisalList
+        builder.HasIndex(a => a.Id)
+            .HasDatabaseName("IX_Appraisals_IsDeleted_NotDeleted")
+            .HasFilter("[IsDeleted] = 0");
+
         // Ignore domain events (not persisted)
         builder.Ignore(a => a.DomainEvents);
     }

@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Quotations.Shared;
+using Appraisal.Contracts.Services;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
@@ -11,7 +12,8 @@ public class SubmitQuotationCommandHandler(
     ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
     IDateTimeProvider dateTimeProvider,
-    IQuotationActivityLogger activityLogger)
+    IQuotationActivityLogger activityLogger,
+    IQuotationTaskOwnershipService taskOwnership)
     : ICommandHandler<SubmitQuotationCommand, SubmitQuotationResult>
 {
     public async Task<SubmitQuotationResult> Handle(
@@ -81,9 +83,13 @@ public class SubmitQuotationCommandHandler(
         else if (existingQuotation.Status == "PendingCheckerReview")
         {
             // ─── Checker-final path: Checker finalises a pending draft ───────────
-            if (!QuotationAccessPolicy.IsChecker(currentUser))
+            // Two-person rule: caller must hold the active "checker" task (task ownership)
+            // rather than only relying on the ExtAppraisalChecker role claim.
+            var isCheckerTaskOwner = await taskOwnership.IsCallerActiveTaskOwnerAsync(
+                command.QuotationRequestId, command.CompanyId, expectedStageName: "checker", cancellationToken);
+            if (!isCheckerTaskOwner)
                 throw new UnauthorizedAccessException(
-                    "Only the Checker (ExtAppraisalChecker) can make a final submission from PendingCheckerReview");
+                    "You do not hold the active Checker task for this quotation. Only the current task owner may make a final submission.");
 
             companyQuotation = existingQuotation;
             ApplyScalarFields(companyQuotation, command);
@@ -114,7 +120,7 @@ public class SubmitQuotationCommandHandler(
             quotationRequest.Id,
             companyQuotation.Id,
             command.CompanyId,
-            "Quotation submitted",
+            QuotationActivityNames.QuotationSubmitted,
             actionByRole: submitRole);
 
         var autoClosed = quotationRequest.TryAutoCloseAfterAllResponses();

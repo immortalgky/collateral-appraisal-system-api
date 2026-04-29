@@ -28,8 +28,7 @@ SELECT pt.Id                                                                    
        ap.AppointmentDateTime,
        pt.AssignedTo                                                                      AS AssigneeUserId,
        pt.AssignedType                                                                    AS AssignedType,
-       -- AssigneeCompanyId: prefer PendingTask.AssigneeCompanyId (fan-out), fall back to AppraisalAssignment
-       COALESCE(pt.AssigneeCompanyId, TRY_CAST(AA.AssigneeCompanyId AS uniqueidentifier)) AS AssigneeCompanyId,
+       pt.AssigneeCompanyId                                                               AS AssigneeCompanyId,
        COALESCE(a.RequestedBy, r.Requestor)                                               AS RequestedBy,
        COALESCE(CONCAT(u.FirstName, ' ', u.LastName), ISNULL(a.RequestedBy, r.Requestor)) AS RequestedByName,
        COALESCE(a.RequestedAt, r.RequestedAt)                                             AS RequestReceivedDate,

@@ -65,7 +65,12 @@ public class TaskAssignedEventHandler(
             StartedBy = notification.StartedBy,
             WorkflowInstanceName = notification.WorkflowInstanceName,
             AppraisalNumber = notification.AppraisalNumber,
-            AssignedAt = notification.AssignedAt
+            AssignedAt = notification.AssignedAt,
+            AppraisalId = notification.AppraisalId,
+            ActivityId = notification.ActivityId,
+            Movement = notification.Movement,
+            ReasonCode = notification.ReasonCode,
+            Reason = notification.Reason
         }, cancellationToken);
     }
 }

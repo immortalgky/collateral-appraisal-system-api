@@ -47,6 +47,7 @@ public class MeetingConfiguration : IEntityTypeConfiguration<Meeting>
 
         builder.HasIndex(m => m.Status);
         builder.HasIndex(m => m.MeetingNo).IsUnique().HasFilter("[MeetingNo] IS NOT NULL");
+        builder.HasIndex(m => new { m.MeetingNoYear, m.MeetingNoSeq });
     }
 }
 

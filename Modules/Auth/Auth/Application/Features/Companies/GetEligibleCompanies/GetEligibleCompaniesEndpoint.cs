@@ -5,7 +5,7 @@ public class GetEligibleCompaniesEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapGet("/companies/eligible", async (
-                [FromQuery] string loanType,
+                [FromQuery] string? loanType,
                 ISender sender) =>
             {
                 var result = await sender.Send(new GetEligibleCompaniesQuery(loanType));

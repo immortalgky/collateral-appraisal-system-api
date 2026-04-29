@@ -36,6 +36,7 @@ public record GetQuotationByIdResponse(
     string? BankingSegment,
     Guid? RmUserId,
     string? RmUserName,
+    string? RmUserFullName,
     DateTime? SubmissionsClosedAt,
     DateTime? ShortlistSentToRmAt,
     Guid? ShortlistSentByAdminId,
@@ -56,5 +57,7 @@ public record GetQuotationByIdResponse(
     IReadOnlyList<CompanyQuotationResult> CompanyQuotations,
 
     // ── Invited companies (non-Expired invitations, enriched with name) ───────
-    IReadOnlyList<InvitedCompanyResult> InvitedCompanies
+    IReadOnlyList<InvitedCompanyResult> InvitedCompanies,
+    bool CanEdit,
+    bool CanPickWinner
 );

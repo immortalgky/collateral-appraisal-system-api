@@ -72,6 +72,22 @@ public class TaskCompletedDomainEventHandler(
             Movement = notification.Movement
         }, cancellationToken);
 
+        // Publish outbound status-change event so the Integration module can fire the
+        // APPRAISAL_STATUS_CHANGED webhook when the activity maps to an external status.
+        // Per-voter completions from ApprovalActivity use TaskName "{activity}:{voter}" —
+        // skip those so N voters don't emit N duplicate status-change events.
+        if (notification.AppraisalId.HasValue && !string.IsNullOrWhiteSpace(notification.ActivityId)
+            && notification.TaskName?.Contains(':') != true)
+        {
+            outbox.Publish(new AppraisalActivityTransitionedIntegrationEvent
+            {
+                AppraisalId = notification.AppraisalId.Value,
+                ActivityId = notification.ActivityId,
+                Movement = notification.Movement,
+                OccurredAt = notification.CompletedAt
+            }, correlationId: notification.AppraisalId.Value.ToString());
+        }
+
         if (string.Equals(notification.Movement, "C", StringComparison.OrdinalIgnoreCase))
         {
             // Per-voter completions from ApprovalActivity use TaskName "{activity}:{voter}".

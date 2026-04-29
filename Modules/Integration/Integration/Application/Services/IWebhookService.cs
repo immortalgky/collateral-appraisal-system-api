@@ -2,5 +2,12 @@ namespace Integration.Application.Services;
 
 public interface IWebhookService
 {
-    Task SendAsync(string systemCode, string eventType, object payload, CancellationToken cancellationToken = default);
+    Task SendAsync(
+        Guid eventId,
+        string systemCode,
+        string eventType,
+        string externalCaseKey,
+        DateTime occurredAt,
+        object data,
+        CancellationToken cancellationToken = default);
 }

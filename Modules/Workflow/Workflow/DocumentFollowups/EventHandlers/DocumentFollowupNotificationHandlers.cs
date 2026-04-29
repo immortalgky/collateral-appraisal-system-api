@@ -1,4 +1,5 @@
 using MassTransit;
+using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Workflow.DocumentFollowups.Domain;
 using Workflow.DocumentFollowups.Domain.Events;
@@ -14,6 +15,7 @@ namespace Workflow.DocumentFollowups.EventHandlers;
 public class DocumentFollowupRaisedNotificationHandler(
     WorkflowDbContext dbContext,
     IPublishEndpoint publishEndpoint,
+    IIntegrationEventOutbox outbox,
     ILogger<DocumentFollowupRaisedNotificationHandler> logger)
     : INotificationHandler<DocumentFollowupRaisedDomainEvent>
 {
@@ -51,6 +53,17 @@ public class DocumentFollowupRaisedNotificationHandler(
             Title = "Additional Documents Requested",
             Message = $"A checker has requested {followup.LineItems.Count} additional document(s)."
         }, cancellationToken);
+
+        // Also publish thin outbound event for the external webhook bridge.
+        // ReasonCode = the activity that raised the followup; Reason = document types requested.
+        var documentTypes = string.Join(", ", followup.LineItems.Select(li => li.DocumentType));
+        outbox.Publish(new DocumentFollowupRequiredIntegrationEvent
+        {
+            AppraisalId = followup.AppraisalId,
+            FollowupId = followup.Id,
+            ReasonCode = followup.RaisingActivityId,
+            Reason = $"Additional documents requested: {documentTypes}"
+        }, correlationId: followup.AppraisalId.ToString());
     }
 
     private async Task<string?> ResolveRequestMakerAsync(DocumentFollowup followup, CancellationToken ct)
