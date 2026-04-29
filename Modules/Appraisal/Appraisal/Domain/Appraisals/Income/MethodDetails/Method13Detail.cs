@@ -13,6 +13,9 @@ public sealed record Method13Detail
 
     [JsonPropertyName("refTarget")]
     public RefTarget RefTarget { get; init; } = new();
+
+    [JsonPropertyName("startIn")]
+    public int StartIn { get; init; }
 }
 
 public sealed record RefTarget

@@ -562,7 +562,7 @@ public class PreviewIncomeAnalysisTests
         };
 
         var command = new PreviewIncomeAnalysisCommand(
-            Guid.NewGuid(), Guid.NewGuid(),Guid.NewGuid(), Guid.NewGuid(),
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
             "dcf-test", "DCF Test",
             TotalNumberOfYears: 2,
             TotalNumberOfDayInYear: 365,

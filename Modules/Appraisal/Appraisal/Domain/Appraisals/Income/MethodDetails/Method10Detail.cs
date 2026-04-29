@@ -25,5 +25,9 @@ public sealed record Method10Detail
         /// <summary>Effective tax rate per bracket.</summary>
         [JsonPropertyName("totalPropertyTaxRates")]
         public decimal[] TotalPropertyTaxRates { get; init; } = [];
+
     }
+    
+    [JsonPropertyName("startIn")]
+    public int StartIn { get; init; }
 }

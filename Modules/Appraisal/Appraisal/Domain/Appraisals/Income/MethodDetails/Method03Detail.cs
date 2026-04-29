@@ -29,4 +29,7 @@ public sealed record Method03Detail
 
     [JsonPropertyName("roomIncome")]
     public decimal[] RoomIncome { get; init; } = [];
+
+    [JsonPropertyName("startIn")]
+    public int StartIn { get; init; }
 }

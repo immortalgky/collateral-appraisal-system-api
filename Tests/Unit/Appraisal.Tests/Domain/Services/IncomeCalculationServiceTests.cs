@@ -762,44 +762,46 @@ public class IncomeCalculationServiceTests
         Assert.Equal(20_000_000m, result.PresentValue[0]); // 1_200_000 / (6/100)
     }
 
-    // ── FinalValueRounded preservation ───────────────────────────────────
+  // ── FinalValueRounded preservation ───────────────────────────────────
 
-    [Fact]
-    public void Calculate_PreservesFinalValueRoundedWhenAlreadySet()
-    {
-        // FinalValueRounded is set to a custom value on the analysis — it should be preserved.
-        var detail = new Method03Detail { FirstYearAmt = 1_000_000m, IncreaseRatePct = 5m, IncreaseRateYrs = 1 };
-        var analysis = BuildAnalysisWithSingleAssumption(3, 5m, 8m, "03", Serialize(detail));
+  [Fact]
+  public void Calculate_PreservesFinalValueRoundedWhenAlreadySet()
+  {
+    // FinalValueRounded is set to a custom value on the analysis — it should be preserved.
+    var detail = new Method03Detail { FirstYearAmt = 1_000_000m, IncreaseRatePct = 5m, IncreaseRateYrs = 1 };
+    var analysis = BuildAnalysisWithSingleAssumption(3, 5m, 8m, "03", Serialize(detail));
 
-        // Simulate a previously saved custom rounded value.
-        analysis.SetComputedValues(0m, 99_999_999m, IncomeSummary.Empty());
+    // Simulate a previously saved custom rounded value.
+    analysis.SetComputedValues(0m, 99_999_999m, IncomeSummary.Empty());
 
-        var result = _sut.Calculate(analysis);
-        Assert.Equal(99_999_999m, result.FinalValueRounded);
-    }
+    var result = _sut.Calculate(analysis);
+    Assert.Equal(99_999_999m, result.FinalValueRounded);
+  }
 
     // ── Method 10 — server-side bracket derivation ────────────────────────
 
     /// <summary>
     /// Seeded brackets (from 20260414180000_SeedData_PricingParameters.sql):
-    ///   Tier 1: rate=0.02, min=10_000_000, max=50_000_000
-    ///   Tier 2: rate=0.03, min=50_000_001, max=75_000_000
-    ///   Tier 3: rate=0.05, min=75_000_001, max=100_000_000
-    ///   Tier 4: rate=0.10, min=100_000_001, max=null
+    ///   Tier 1: rate=0.003, min=0, max=50_000_000
+    ///   Tier 2: rate=0.004, min=50_000_001, max=200_000_000
+    ///   Tier 3: rate=0.005, min=200_000_001, max=1000_000_000
+    ///   Tier 4: rate=0.006, min=1000_000_001, max=5000_000_000
+    ///   Tier 5: rate=0.007, min=5000_000_001, max=null (no upper bound)
     /// </summary>
     private static readonly IReadOnlyList<Parameter.Contracts.PricingParameters.TaxBracketDto> SeededBrackets =
     [
-        new(1, 0.02m,   10_000_000m,  50_000_000m),
-        new(2, 0.03m,   50_000_001m,  75_000_000m),
-        new(3, 0.05m,   75_000_001m, 100_000_000m),
-        new(4, 0.10m,  100_000_001m,          null),
+        new(1, 0.0030m,   0m,  50_000_000m),
+        new(2, 0.0040m,   50_000_001m,  200_000_000m),
+        new(3, 0.0050m,   200_000_001m, 1000_000_000m),
+        new(4, 0.0060m,  1000_000_001m,   5000_000_000m),
+        new(5, 0.0070m,  5000_000_001m,   null),
     ];
 
     [Fact]
     public void Method10_WithBrackets_DerivesTaxFromTotalPropertyPrice()
     {
-        // TotalPropertyPrice = 20_000_000 → Tier 1 (rate 0.02)
-        // Expected tax = 20_000_000 × 0.02 = 400_000
+        // TotalPropertyPrice = 20_000_000 → Tier 1 (rate 0.0030)
+        // Expected tax = 20_000_000 × 0.0030 = 60_000
         var detail = new Method10Detail
         {
             PropertyTax = new Method10Detail.PropertyTaxDetail
@@ -813,9 +815,9 @@ public class IncomeCalculationServiceTests
         var result = _sut.Calculate(analysis, SeededBrackets);
         var values = result.MethodValues.Values.First();
 
-        Assert.Equal(400_000m, values[0]);
-        Assert.Equal(400_000m, values[1]);
-        Assert.Equal(400_000m, values[2]);
+        Assert.Equal(60_000m, values[0]);
+        Assert.Equal(60_000m, values[1]);
+        Assert.Equal(60_000m, values[2]);
     }
 
     [Fact]
@@ -862,50 +864,42 @@ public class IncomeCalculationServiceTests
     // Bracket boundary tests
 
     [Fact]
-    public void DerivePropertyTax_PriceBelowLowestTier_ReturnsZero()
+    public void DerivePropertyTax_PriceAtTier1Min_Returns30_000()
     {
-        // 9_999_999 < 10_000_000 (lowest bracket min) → no match → 0
-        var tax = IncomeCalculationService.DerivePropertyTax(9_999_999m, SeededBrackets);
-        Assert.Equal(0m, tax);
-    }
-
-    [Fact]
-    public void DerivePropertyTax_PriceAtTier1Min_ReturnsTier1Rate()
-    {
-        // Exactly 10_000_000 → Tier 1 (rate 0.02) → 200_000
         var tax = IncomeCalculationService.DerivePropertyTax(10_000_000m, SeededBrackets);
-        Assert.Equal(200_000m, tax);
+        Assert.Equal(30_000m, tax);
     }
 
     [Fact]
-    public void DerivePropertyTax_PriceAtTier1Max_StaysInTier1()
+    public void DerivePropertyTax_PriceAtTier1Max_Returns150_000()
     {
-        // Exactly 50_000_000 → Tier 1 (max=50_000_000, inclusive) → 50_000_000 × 0.02 = 1_000_000
+        // 50,000,000 × 0.0030 = 150,000
         var tax = IncomeCalculationService.DerivePropertyTax(50_000_000m, SeededBrackets);
-        Assert.Equal(1_000_000m, tax);
+        Assert.Equal(150_000m, tax);
     }
 
     [Fact]
-    public void DerivePropertyTax_PriceAtTier2Min_UsesTier2Rate()
+    public void DerivePropertyTax_PriceAtTier2Min_Returns150_000_WithCurrentBoundaryLogic()
     {
-        // 50_000_001 → Tier 2 (rate 0.03) → 50_000_001 × 0.03 = 1_500_000.03
+        // Current implementation stops when totalPropertyPrice <= bracket.MinValue,
+        // so 50,000,001 still returns accumulated Tier 1 total.
         var tax = IncomeCalculationService.DerivePropertyTax(50_000_001m, SeededBrackets);
-        Assert.Equal(50_000_001m * 0.03m, tax);
+        Assert.Equal(150_000m, tax);
     }
 
     [Fact]
-    public void DerivePropertyTax_PriceInTopTierNoUpperBound_UsesTopRate()
+    public void DerivePropertyTax_PriceInTopTierNoUpperBound_Returns6993750000()
     {
-        // 999_999_999_999 → Tier 4 (rate 0.10, MaxValue=null) → × 0.10
         var tax = IncomeCalculationService.DerivePropertyTax(999_999_999_999m, SeededBrackets);
-        Assert.Equal(999_999_999_999m * 0.10m, tax);
+        Assert.Equal(6_993_750_000m, tax);
     }
 
     [Fact]
-    public void Method10_WithBrackets_Tier3Rate()
+    public void Method10_WithBrackets_Price80M_Returns270_000()
     {
-        // TotalPropertyPrice = 80_000_000 → Tier 3 (rate 0.05)
-        // Expected tax = 80_000_000 × 0.05 = 4_000_000
+        // 50,000,000 × 0.0030 = 150,000
+        // (80,000,000 - 50,000,001) × 0.0040 = 119,999.996
+        // Total = 269,999.996 -> rounded = 270,000
         var detail = new Method10Detail
         {
             PropertyTax = new Method10Detail.PropertyTaxDetail
@@ -919,6 +913,6 @@ public class IncomeCalculationServiceTests
         var result = _sut.Calculate(analysis, SeededBrackets);
         var values = result.MethodValues.Values.First();
 
-        Assert.Equal(4_000_000m, values[0]);
+        Assert.Equal(270_000m, values[0]);
     }
 }

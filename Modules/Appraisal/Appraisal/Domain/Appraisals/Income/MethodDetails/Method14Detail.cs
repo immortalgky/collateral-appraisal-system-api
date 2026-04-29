@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Newtonsoft.Json;
 
 namespace Appraisal.Domain.Appraisals.Income.MethodDetails;
 
@@ -17,4 +18,7 @@ public sealed record Method14Detail
     // Table (year-indexed arrays)
     [JsonPropertyName("increaseRates")]
     public decimal[] IncreaseRates { get; init; } = [];
+
+    [JsonPropertyName("startIn")]
+    public int StartIn { get; init; }
 }
