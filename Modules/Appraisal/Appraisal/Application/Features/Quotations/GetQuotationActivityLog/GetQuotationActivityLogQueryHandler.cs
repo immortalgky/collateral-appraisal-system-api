@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Quotations.Shared;
+using Appraisal.Contracts.Services;
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
@@ -9,7 +10,8 @@ namespace Appraisal.Application.Features.Quotations.GetQuotationActivityLog;
 public class GetQuotationActivityLogQueryHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    ISqlConnectionFactory connectionFactory)
+    ISqlConnectionFactory connectionFactory,
+    IQuotationTaskOwnershipService taskOwnership)
     : IQueryHandler<GetQuotationActivityLogQuery, List<QuotationActivityLogRow>>
 {
     public async Task<List<QuotationActivityLogRow>> Handle(
@@ -20,7 +22,7 @@ public class GetQuotationActivityLogQueryHandler(
         var quotation = await quotationRepository.GetByIdAsync(query.QuotationRequestId, cancellationToken)
                         ?? throw new NotFoundException($"Quotation request '{query.QuotationRequestId}' not found.");
 
-        QuotationAccessPolicy.EnsureCanViewQuotation(quotation, quotation.RmUserId, currentUser);
+        QuotationAccessPolicy.EnsureCanViewQuotation(quotation, currentUser);
 
         // ── Build query — ext-company callers see only their own company rows ─
         var isExtCaller = currentUser.IsInRole("ExtAdmin") || currentUser.IsInRole("ExtAppraisalChecker");

@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Quotations.Shared;
+using Appraisal.Contracts.Services;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
@@ -11,7 +12,8 @@ public class DeclineInvitationCommandHandler(
     ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
     IDateTimeProvider dateTimeProvider,
-    IQuotationActivityLogger activityLogger)
+    IQuotationActivityLogger activityLogger,
+    IQuotationTaskOwnershipService taskOwnership)
     : ICommandHandler<DeclineInvitationCommand, DeclineInvitationResult>
 {
     public async Task<DeclineInvitationResult> Handle(
@@ -32,6 +34,14 @@ public class DeclineInvitationCommandHandler(
             throw new BadRequestException(
                 $"Cannot decline: quotation is in status '{quotation.Status}'. " +
                 "Declination is only allowed while Status is Sent or UnderAdminReview.");
+
+        // Two-person rule: the caller must hold whichever stage task is currently active for their
+        // company (either "maker" or "checker"). Pass null to accept any active stage.
+        var isActiveTaskOwner = await taskOwnership.IsCallerActiveTaskOwnerAsync(
+            command.QuotationRequestId, command.CompanyId, expectedStageName: null, cancellationToken);
+        if (!isActiveTaskOwner)
+            throw new UnauthorizedAccessException(
+                "You do not hold the active task for this quotation. Only the current task owner may decline the invitation.");
 
         var invitation = quotation.Invitations
             .FirstOrDefault(i => i.CompanyId == command.CompanyId)
@@ -73,7 +83,7 @@ public class DeclineInvitationCommandHandler(
             quotation.Id,
             declinedQuotation.Id,
             command.CompanyId,
-            "Invitation declined",
+            QuotationActivityNames.InvitationDeclined,
             command.Reason,
             actionByRole: "ExtAdmin");
 

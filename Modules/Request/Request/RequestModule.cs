@@ -57,6 +57,7 @@ public static class RequestModule
 
         // Add other services, handlers, etc.
         services.AddTransient<ICreateRequestService, CreateRequestService>();
+        services.AddScoped<IRequestDocumentValidator, RequestDocumentValidator>();
 
         return services;
     }

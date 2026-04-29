@@ -16,7 +16,8 @@ public class SendQuotationCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
     ISqlConnectionFactory connectionFactory,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<SendQuotationCommand, SendQuotationResult>
 {
     public async Task<SendQuotationResult> Handle(
@@ -65,6 +66,9 @@ public class SendQuotationCommandHandler(
 
         // Domain method enforces: at least one appraisal + at least one invitation
         quotation.Send();
+
+        var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
+        activityLogger.Log(quotation.Id, null, null, QuotationActivityNames.QuotationSentToCompanies, actionByRole: adminRole);
 
         quotationRepository.Update(quotation);
 

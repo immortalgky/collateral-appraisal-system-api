@@ -50,6 +50,14 @@ public class QuotationRequestItem : Entity<Guid>
         };
     }
 
+    public void SetMaxAppraisalDays(int? days)
+    {
+        if (days is < 1)
+            throw new ArgumentException("Max appraisal days must be at least 1 when set.", nameof(days));
+
+        MaxAppraisalDays = days;
+    }
+
     public void SetNotes(string? notes)
     {
         ItemNotes = notes;

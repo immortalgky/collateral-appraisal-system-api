@@ -207,10 +207,13 @@ public class ApprovalActivity : WorkflowActivityBase
                 var rbMovement = ResolveActionMovement(context, vote);
                 execution.StampMovement(rbMovement);
 
+                var rbAppraisalId = ResolveAppraisalId(context.Variables);
+
                 // Publish task completed for this member
                 await _publisher.Publish(new TaskCompletedDomainEvent(
                     correlationGuid, $"{activityName}:{voter}", vote, _dateTimeProvider.ApplicationNow, voter,
-                    context.WorkflowInstance.Name, null, null, rbMovement), cancellationToken);
+                    context.WorkflowInstance.Name, null, null, rbMovement,
+                    rbAppraisalId, context.ActivityId), cancellationToken);
 
                 var rbOutput = BuildOutputData(normalizedId, "route_back", 0, 0, 1,
                     1, members.Count,
@@ -249,10 +252,13 @@ public class ApprovalActivity : WorkflowActivityBase
             // stamp and, if the quorum is reached below, on the activity execution row.
             var voteMovement = ResolveActionMovement(context, vote);
 
+            var voteAppraisalId = ResolveAppraisalId(context.Variables);
+
             // Publish task completed for this member
             await _publisher.Publish(new TaskCompletedDomainEvent(
                 correlationGuid, $"{activityName}:{voter}", vote, _dateTimeProvider.ApplicationNow, voter,
-                context.WorkflowInstance.Name, null, null, voteMovement), cancellationToken);
+                context.WorkflowInstance.Name, null, null, voteMovement,
+                voteAppraisalId, context.ActivityId), cancellationToken);
 
             // Get all votes for this round
             var allVotes = await _voteRepository.GetVotesForExecutionAsync(executionId, cancellationToken);

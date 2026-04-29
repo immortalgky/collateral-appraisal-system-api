@@ -4,6 +4,7 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore.Storage;
 using Dapper;
 using Shared.Data;
+using Workflow.Tasks.Authorization;
 
 namespace Workflow.Data.Repository;
 
@@ -229,5 +230,41 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
                      && x.ActivityId == activityId
                      && x.AssigneeCompanyId == assigneeCompanyId,
                 cancellationToken);
+    }
+
+    public async Task<List<CompletedTask>> GetCompletedFanOutTasksByCorrelationIdAndCompanyAsync(
+        Guid correlationId,
+        Guid assigneeCompanyId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.CompletedTasks
+            .Where(x => x.CorrelationId == correlationId && x.AssigneeCompanyId == assigneeCompanyId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<CompletedTask>> GetCompletedTasksByCorrelationIdForUserAsync(
+        Guid correlationId,
+        string username,
+        IReadOnlyList<string> userGroups,
+        string? userTeamId,
+        Guid? callerCompanyId,
+        CancellationToken cancellationToken = default)
+    {
+        // Load all completed tasks for this correlation then filter in-memory via PoolTaskAccess.
+        // This avoids duplicating the candidate-set logic in SQL and keeps the method simple.
+        // Expected row count per quotation is small (single-digit number of workflow steps).
+        var all = await dbContext.CompletedTasks
+            .Where(x => x.CorrelationId == correlationId)
+            .ToListAsync(cancellationToken);
+
+        return all
+            .Where(t => PoolTaskAccess.IsOwner(
+                t.AssignedTo,
+                t.AssigneeCompanyId,
+                userGroups,
+                userTeamId,
+                callerCompanyId,
+                username))
+            .ToList();
     }
 }

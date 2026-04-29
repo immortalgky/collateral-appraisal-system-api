@@ -57,6 +57,7 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
     public DbSet<MeetingQueueItem> MeetingQueueItems => Set<MeetingQueueItem>();
     public DbSet<MeetingMember> MeetingMembers => Set<MeetingMember>();
     public DbSet<AppraisalAcknowledgementQueueItem> AppraisalAcknowledgementQueueItems => Set<AppraisalAcknowledgementQueueItem>();
+    public DbSet<MeetingConfiguration> MeetingConfigurations => Set<MeetingConfiguration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

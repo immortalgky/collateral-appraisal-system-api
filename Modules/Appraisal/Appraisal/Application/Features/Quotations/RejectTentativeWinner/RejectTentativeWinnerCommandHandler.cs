@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Quotations.RejectTentativeWinner;
 public class RejectTentativeWinnerCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<RejectTentativeWinnerCommand, RejectTentativeWinnerResult>
 {
     public async Task<RejectTentativeWinnerResult> Handle(
@@ -23,7 +24,18 @@ public class RejectTentativeWinnerCommandHandler(
         if (!quotation.TentativeWinnerQuotationId.HasValue)
             throw new BadRequestException("No tentative winner to reject");
 
-        quotation.RejectTentativeWinner(quotation.TentativeWinnerQuotationId.Value, command.Reason);
+        var tentativeWinnerId = quotation.TentativeWinnerQuotationId.Value;
+        quotation.RejectTentativeWinner(tentativeWinnerId, command.Reason);
+
+        var rejectedQuotation = quotation.Quotations.First(q => q.Id == tentativeWinnerId);
+        var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
+        activityLogger.Log(
+            quotation.Id,
+            tentativeWinnerId,
+            rejectedQuotation.CompanyId,
+            QuotationActivityNames.TentativeWinnerRejected,
+            command.Reason,
+            actionByRole: adminRole);
 
         quotationRepository.Update(quotation);
 

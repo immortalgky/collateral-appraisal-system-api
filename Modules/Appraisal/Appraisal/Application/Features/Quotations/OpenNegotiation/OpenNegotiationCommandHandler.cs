@@ -9,7 +9,8 @@ namespace Appraisal.Application.Features.Quotations.OpenNegotiation;
 public class OpenNegotiationCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<OpenNegotiationCommand, OpenNegotiationResult>
 {
     public async Task<OpenNegotiationResult> Handle(
@@ -30,10 +31,20 @@ public class OpenNegotiationCommandHandler(
             currentUser.UserId,
             command.Message);
 
+        // Find the company quotation and log before Update (logger stages row atomically with Update)
+        var companyQuotation = quotation.Quotations.First(q => q.Id == command.CompanyQuotationId);
+        var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
+        activityLogger.Log(
+            quotation.Id,
+            command.CompanyQuotationId,
+            companyQuotation.CompanyId,
+            QuotationActivityNames.NegotiationOpened,
+            command.Message,
+            actionByRole: adminRole);
+
         quotationRepository.Update(quotation);
 
         // Find the negotiation just created on the company quotation
-        var companyQuotation = quotation.Quotations.First(q => q.Id == command.CompanyQuotationId);
         var latestNegotiation = companyQuotation.Negotiations.OrderByDescending(n => n.NegotiationRound).First();
 
         // v4: resume admin-finalize step in quotation child workflow (OpenNegotiation path)

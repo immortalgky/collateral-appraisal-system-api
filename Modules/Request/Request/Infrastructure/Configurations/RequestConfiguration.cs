@@ -130,6 +130,10 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
 
             //Index
             customer.HasIndex(p => p.Name).HasDatabaseName("IX_RequestCustomer_Name");
+
+            // Index 3: supports OUTER APPLY (SELECT TOP 1 Name FROM request.RequestCustomers WHERE RequestId = a.RequestId)
+            // in vw_AppraisalList
+            customer.HasIndex("RequestId").HasDatabaseName("IX_RequestCustomer_RequestId");
         });
 
         // RequestProperties

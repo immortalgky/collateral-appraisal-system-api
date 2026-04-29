@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Quotations.Shared;
+using Appraisal.Contracts.Services;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
@@ -8,7 +9,9 @@ namespace Appraisal.Application.Features.Quotations.PickTentativeWinner;
 public class PickTentativeWinnerCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IQuotationTaskOwnershipService taskOwnership,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<PickTentativeWinnerCommand, PickTentativeWinnerResult>
 {
     public async Task<PickTentativeWinnerResult> Handle(
@@ -24,11 +27,21 @@ public class PickTentativeWinnerCommandHandler(
         var startedFromAdminReview = quotation.Status == "UnderAdminReview";
 
         // Admin-direct-pick from UnderAdminReview is admin-only (RMs can't see this status, and the
-        // recommendation/role semantics below assume an admin actor). Other source statuses allow RM or Admin.
+        // recommendation/role semantics below assume an admin actor). Other source statuses require
+        // the caller to hold the active rm-pick-winner task — gating by the static RmUserId let any
+        // original requestor pick even after the task was reassigned.
         if (startedFromAdminReview)
+        {
             QuotationAccessPolicy.EnsureAdmin(currentUser);
+        }
         else
-            QuotationAccessPolicy.EnsureRmOrAdmin(quotation, currentUser);
+        {
+            var isOwner = await taskOwnership.IsCallerActiveTaskOwnerAsync(
+                quotation.Id, companyId: Guid.Empty, expectedStageName: null, cancellationToken);
+            if (!isOwner)
+                throw new UnauthorizedAccessException(
+                    "Only the RM assigned to the active rm-pick-winner task can pick the winner");
+        }
 
         var role = startedFromAdminReview
             ? "Admin"
@@ -45,9 +58,16 @@ public class PickTentativeWinnerCommandHandler(
         if (!startedFromAdminReview)
             quotation.SetRmNegotiationRecommendation(command.RequestNegotiation, command.NegotiationNote);
 
-        quotationRepository.Update(quotation);
-
         var pickedQuotation = quotation.Quotations.First(q => q.Id == command.CompanyQuotationId);
+        activityLogger.Log(
+            quotation.Id,
+            command.CompanyQuotationId,
+            pickedQuotation.CompanyId,
+            QuotationActivityNames.TentativeWinnerPicked,
+            remark: startedFromAdminReview ? null : command.NegotiationNote,
+            actionByRole: role);
+
+        quotationRepository.Update(quotation);
 
         outbox.Publish(new TentativeWinnerPickedIntegrationEvent
         {

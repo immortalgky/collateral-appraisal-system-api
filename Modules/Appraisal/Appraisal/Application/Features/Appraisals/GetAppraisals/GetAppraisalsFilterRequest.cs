@@ -41,4 +41,13 @@ public record GetAppraisalsFilterRequest(
     // Sorting
     string? SortBy = null,
     string? SortDir = null
-);
+)
+{
+    // Picker-only additive fields (not bound by GetAppraisalsEndpoint; opt-in via init setters)
+    public string? CustomerName { get; init; }
+    public string? AppraisalNumber { get; init; }
+    public string? Purpose { get; init; }
+    public string? SubDistrict { get; init; }
+    public DateTime? RequestedAtFrom { get; init; }
+    public DateTime? RequestedAtTo { get; init; }
+}

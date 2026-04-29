@@ -9,7 +9,9 @@ public class GetEligibleCompaniesQueryHandler(ICompanyRepository companyReposito
         GetEligibleCompaniesQuery query,
         CancellationToken cancellationToken)
     {
-        var companies = await companyRepository.GetByLoanTypeAsync(query.LoanType, activeOnly: true, cancellationToken);
+        var companies = string.IsNullOrWhiteSpace(query.LoanType)
+            ? await companyRepository.GetAllAsync(activeOnly: true, cancellationToken)
+            : await companyRepository.GetByLoanTypeAsync(query.LoanType, activeOnly: true, cancellationToken);
 
         var dtos = companies.Select(c => new EligibleCompanyDto(c.Id, c.Name, c.ContactPerson, c.Phone, c.Email, c.TaxId)).ToList();
 

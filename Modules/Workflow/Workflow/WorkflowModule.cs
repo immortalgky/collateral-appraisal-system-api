@@ -25,7 +25,10 @@ using Workflow.Workflow.Hubs;
 using Workflow.DocumentFollowups.Application;
 using Workflow.DocumentFollowups.Infrastructure;
 using Workflow.Meetings.Configuration;
+using Appraisal.Contracts.Services;
 using Workflow.Tasks.Services;
+using WfIUserGroupService = global::Workflow.Services.Groups.IUserGroupService;
+using WfITeamService = global::Workflow.AssigneeSelection.Teams.ITeamService;
 
 namespace Workflow;
 
@@ -41,7 +44,7 @@ public static class WorkflowModule
         services.AddScoped<IAssignmentRepository, AssignmentRepository>();
 
         // User group and hashing services
-        services.AddScoped<IUserGroupService, UserGroupService>();
+        services.AddScoped<WfIUserGroupService, UserGroupService>();
         services.AddScoped<IGroupHashService, GroupHashService>();
 
         // Assignee selector services
@@ -59,7 +62,7 @@ public static class WorkflowModule
         services.AddScoped<ICascadingAssignmentEngine, CascadingAssignmentEngine>();
 
         // Team service — queries auth schema (Company = Team, Group = assignment group)
-        services.AddScoped<ITeamService, CompanyTeamService>();
+        services.AddScoped<WfITeamService, CompanyTeamService>();
 
         // Assignment pipeline — 5-stage orchestrator
         services.AddScoped<IAssignmentContextBuilder, AssignmentContextBuilder>();
@@ -148,6 +151,7 @@ public static class WorkflowModule
         // Meeting infrastructure
         services.AddScoped<IMeetingRepository, MeetingRepository>();
         services.AddScoped<IMeetingNoGenerator, MeetingNoGenerator>();
+        services.AddScoped<IMeetingConfigurationRepository, MeetingConfigurationRepository>();
 
         // Approval infrastructure
         services.AddScoped<IApprovalMemberResolver, ApprovalMemberResolver>();
@@ -167,6 +171,15 @@ public static class WorkflowModule
 
         // Task lock expiry — releases stale pool task locks every 5 minutes
         services.AddHostedService<TaskLockExpiryService>();
+
+        // Quotation two-person rule: task ownership service (Appraisal contract, Workflow impl)
+        services.AddScoped<IQuotationTaskOwnershipService, QuotationTaskOwnershipService>();
+
+        // Cross-module adapters: expose Workflow pool-task helpers under Appraisal.Contracts interfaces
+        // so GetQuotationsQueryHandler can build pool-task visibility clauses without a Workflow project ref.
+        services.AddScoped<Appraisal.Contracts.Services.IUserGroupService, Tasks.Services.UserGroupServiceAdapter>();
+        services.AddScoped<Appraisal.Contracts.Services.ITeamService, Tasks.Services.TeamServiceAdapter>();
+        services.AddScoped<Appraisal.Contracts.Services.IPoolTaskClauseService, Tasks.Services.PoolTaskClauseService>();
 
         // Activity process pipeline (pluggable pipeline v2)
         services.AddScoped<IActivityProcessStep, UpdateAppraisalStatusStep>();

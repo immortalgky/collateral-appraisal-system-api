@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Quotations.Shared;
+using Appraisal.Contracts.Services;
 using Shared.Identity;
 
 namespace Appraisal.Application.Features.Quotations.SubmitDraftToChecker;
@@ -6,7 +7,8 @@ namespace Appraisal.Application.Features.Quotations.SubmitDraftToChecker;
 public class SubmitDraftToCheckerCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IQuotationActivityLogger activityLogger)
+    IQuotationActivityLogger activityLogger,
+    IQuotationTaskOwnershipService taskOwnership)
     : ICommandHandler<SubmitDraftToCheckerCommand, SubmitDraftToCheckerResult>
 {
     public async Task<SubmitDraftToCheckerResult> Handle(
@@ -31,6 +33,13 @@ public class SubmitDraftToCheckerCommandHandler(
         if (quotationRequest.Status != "Sent")
             throw new BadRequestException($"Cannot submit to checker: RFQ is in status '{quotationRequest.Status}'");
 
+        // Two-person rule: Maker must hold the active "maker" task to hand off to Checker.
+        var isMakerTaskOwner = await taskOwnership.IsCallerActiveTaskOwnerAsync(
+            command.QuotationRequestId, command.CompanyId, expectedStageName: "maker", cancellationToken);
+        if (!isMakerTaskOwner)
+            throw new UnauthorizedAccessException(
+                "You do not hold the active Maker task for this quotation. Only the current task owner may submit to checker.");
+
         var companyQuotation = quotationRequest.Quotations
             .FirstOrDefault(q => q.CompanyId == command.CompanyId);
 
@@ -44,7 +53,10 @@ public class SubmitDraftToCheckerCommandHandler(
             throw new BadRequestException(
                 $"Cannot submit to checker: existing quotation is in status '{companyQuotation.Status}'");
 
-        companyQuotation.MarkPendingCheckerReview();
+        var makerUsername = currentUser.Username
+            ?? currentUser.UserId?.ToString()
+            ?? throw new UnauthorizedAccessException("Cannot resolve the current user identity for maker attribution");
+        companyQuotation.MarkPendingCheckerReview(makerUsername);
 
         // NOTE: The workflow task reassignment (Maker → Checker) is now handled by the
         // engine-native stage transition. The FE posts POST /tasks/{id}/actions/SubmitToChecker
@@ -54,7 +66,7 @@ public class SubmitDraftToCheckerCommandHandler(
             quotationRequest.Id,
             companyQuotation.Id,
             command.CompanyId,
-            "Submitted to Checker",
+            QuotationActivityNames.SubmittedToChecker,
             actionByRole: "ExtAdmin");
 
         quotationRepository.Update(quotationRequest);

@@ -23,8 +23,6 @@ public class UpdateMeetingAgendaEndpoint : ICarterModule
 }
 
 public record UpdateMeetingAgendaRequest(
-    string? FromText,
-    string? ToText,
     string? AgendaCertifyMinutes,
     string? AgendaChairmanInformed,
     string? AgendaOthers);
@@ -42,9 +40,10 @@ public class UpdateMeetingAgendaCommandHandler(
         var meeting = await meetingRepository.GetByIdAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
+        // From/To are owned by the Edit Meeting endpoint now — preserve whatever's persisted.
         meeting.SetAgenda(
-            command.Request.FromText,
-            command.Request.ToText,
+            meeting.FromText,
+            meeting.ToText,
             command.Request.AgendaCertifyMinutes,
             command.Request.AgendaChairmanInformed,
             command.Request.AgendaOthers,

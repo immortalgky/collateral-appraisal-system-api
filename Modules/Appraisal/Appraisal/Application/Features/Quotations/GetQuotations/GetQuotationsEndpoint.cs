@@ -9,11 +9,15 @@ public class GetQuotationsEndpoint : ICarterModule
                 async (
                     [AsParameters] PaginationRequest request,
                     Guid? appraisalId,
+                    string? status,
+                    string? search,
+                    DateOnly? dueDateFrom,
+                    DateOnly? dueDateTo,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    var query = new GetQuotationsQuery(request, appraisalId);
+                    var query = new GetQuotationsQuery(request, appraisalId, status, search, dueDateFrom, dueDateTo);
 
                     var result = await sender.Send(query, cancellationToken);
 

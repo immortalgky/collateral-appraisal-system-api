@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Quotations.FinalizeQuotation;
 public class FinalizeQuotationCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<FinalizeQuotationCommand, FinalizeQuotationResult>
 {
     public async Task<FinalizeQuotationResult> Handle(
@@ -21,9 +22,17 @@ public class FinalizeQuotationCommandHandler(
                         ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
 
         quotation.Finalize(command.CompanyQuotationId, command.Reason);
-        quotationRepository.Update(quotation);
 
         var winningQuotation = quotation.Quotations.First(q => q.Id == command.CompanyQuotationId);
+        var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
+        activityLogger.Log(
+            quotation.Id,
+            command.CompanyQuotationId,
+            winningQuotation.CompanyId,
+            QuotationActivityNames.QuotationFinalized,
+            actionByRole: adminRole);
+
+        quotationRepository.Update(quotation);
 
         // The system uses the winner's current total (after any negotiation discount) as the
         // appraisal fee for each application. CurrentNegotiatedPrice is set when the company

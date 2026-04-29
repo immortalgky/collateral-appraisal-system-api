@@ -18,6 +18,7 @@ public class AppraisalCompletedEventHandler(
 
         outbox.Publish(new AppraisalCompletedIntegrationEvent
         {
+            AppraisalId = appraisal.Id,
             RequestId = appraisal.RequestId,
             CompletedAt = dateTimeProvider.ApplicationNow
         }, correlationId: appraisal.Id.ToString());

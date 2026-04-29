@@ -160,7 +160,7 @@ public class StartQuotationFromTaskCommandHandler(
         }
 
         var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
-        activityLogger.Log(quotation.Id, null, null, "Quotation creation", actionByRole: adminRole);
+        activityLogger.Log(quotation.Id, null, null, QuotationActivityNames.QuotationCreatedFromTask, actionByRole: adminRole);
 
         return new StartQuotationFromTaskResult(quotation.Id);
     }

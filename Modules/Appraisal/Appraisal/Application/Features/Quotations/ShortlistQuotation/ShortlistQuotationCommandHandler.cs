@@ -5,7 +5,8 @@ namespace Appraisal.Application.Features.Quotations.ShortlistQuotation;
 
 public class ShortlistQuotationCommandHandler(
     IQuotationRepository quotationRepository,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser,
+    IQuotationActivityLogger activityLogger)
     : ICommandHandler<ShortlistQuotationCommand, ShortlistQuotationResult>
 {
     public async Task<ShortlistQuotationResult> Handle(
@@ -18,6 +19,15 @@ public class ShortlistQuotationCommandHandler(
                         ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
 
         quotation.MarkShortlisted(command.CompanyQuotationId, currentUser.UserId!.Value);
+
+        var shortlistedQuotation = quotation.Quotations.First(q => q.Id == command.CompanyQuotationId);
+        var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
+        activityLogger.Log(
+            quotation.Id,
+            command.CompanyQuotationId,
+            shortlistedQuotation.CompanyId,
+            QuotationActivityNames.QuotationShortlisted,
+            actionByRole: adminRole);
 
         quotationRepository.Update(quotation);
 
