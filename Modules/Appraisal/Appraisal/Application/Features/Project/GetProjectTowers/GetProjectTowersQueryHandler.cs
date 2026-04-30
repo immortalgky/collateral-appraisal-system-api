@@ -59,6 +59,10 @@ public class GetProjectTowersQueryHandler(
             IsForestBoundary: t.IsForestBoundary,
             ForestBoundaryRemark: t.ForestBoundaryRemark,
             Remark: t.Remark,
-            ImageDocumentIds: t.ImageDocumentIds
+            Images: t.Images
+                .OrderBy(i => i.DisplaySequence)
+                .Select(i => new ProjectTowerImageDto(
+                    i.Id, i.GalleryPhotoId, i.DisplaySequence, i.Title, i.Description, i.IsThumbnail))
+                .ToList()
         );
 }

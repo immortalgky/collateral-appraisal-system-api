@@ -1,3 +1,5 @@
+using Shared.Exceptions;
+
 namespace Appraisal.Application.Features.PricingAnalysis.CreatePricingAnalysis;
 
 /// <summary>
@@ -11,16 +13,17 @@ public class CreatePricingAnalysisCommandHandler(
         CreatePricingAnalysisCommand command,
         CancellationToken cancellationToken)
     {
-        // Check if pricing analysis already exists for this group
+        // Pre-check: throws ConflictException (409) if already exists.
+        // The filtered unique index on PropertyGroupId is the DB-level race guard for concurrent requests.
         var exists = await pricingAnalysisRepository.ExistsByPropertyGroupIdAsync(
             command.PropertyGroupId,
             cancellationToken);
 
         if (exists)
-            throw new InvalidOperationException(
-                $"Pricing analysis already exists for property group {command.PropertyGroupId}");
+            throw new ConflictException(
+                "PricingAnalysis", command.PropertyGroupId);
 
-        var pricingAnalysis = Domain.Appraisals.PricingAnalysis.Create(command.PropertyGroupId);
+        var pricingAnalysis = Domain.Appraisals.PricingAnalysis.CreateForPropertyGroup(command.PropertyGroupId);
 
         await pricingAnalysisRepository.AddAsync(pricingAnalysis, cancellationToken);
 

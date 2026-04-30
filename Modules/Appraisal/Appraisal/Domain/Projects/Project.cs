@@ -483,14 +483,20 @@ public class Project : Aggregate<Guid>
             ? assumption.ModelAssumptions
                 .Where(ma => ma.ModelType != null)
                 .GroupBy(ma => ma.ModelType!)
-                .ToDictionary(g => g.Key, g => (
-                    StandardPrice: g.First().StandardPrice ?? 0m,
-                    CoverageAmount: g.First().CoverageAmount))
+                .ToDictionary(g => g.Key, g =>
+                {
+                    var ma = g.First();
+                    // StandardPrice now comes from PricingAnalysis.FinalAppraisedValue on the matching model.
+                    var model = _models.FirstOrDefault(m => m.Id == ma.ProjectModelId);
+                    return (
+                        StandardPrice: model?.PricingAnalysis?.FinalAppraisedValue ?? 0m,
+                        CoverageAmount: ma.CoverageAmount);
+                })
             : _models
                 .Where(m => m.ModelName != null)
                 .GroupBy(m => m.ModelName!)
                 .ToDictionary(g => g.Key, g => (
-                    StandardPrice: g.First().StandardPrice ?? 0m,
+                    StandardPrice: g.First().PricingAnalysis?.FinalAppraisedValue ?? 0m,
                     CoverageAmount: CoverageByCondition.Lookup(g.First().FireInsuranceCondition)));
 
         var results = new List<ProjectUnitPrice>();
@@ -509,12 +515,24 @@ public class Project : Aggregate<Guid>
                 coverageAmount = matched.CoverageAmount;
             }
 
-            var adjustPriceLocation = 0m;
-            if (unitPrice.IsCorner) adjustPriceLocation += assumption.CornerAdjustment ?? 0m;
-            if (unitPrice.IsEdge) adjustPriceLocation += assumption.EdgeAdjustment ?? 0m;
-            if (unitPrice.IsPoolView) adjustPriceLocation += assumption.PoolViewAdjustment ?? 0m;
-            if (unitPrice.IsSouth) adjustPriceLocation += assumption.SouthAdjustment ?? 0m;
-            if (unitPrice.IsOther) adjustPriceLocation += assumption.OtherAdjustment ?? 0m;
+            var rawLocationAdjustment = 0m;
+            if (unitPrice.IsCorner) rawLocationAdjustment += assumption.CornerAdjustment ?? 0m;
+            if (unitPrice.IsEdge) rawLocationAdjustment += assumption.EdgeAdjustment ?? 0m;
+            if (unitPrice.IsPoolView) rawLocationAdjustment += assumption.PoolViewAdjustment ?? 0m;
+            if (unitPrice.IsSouth) rawLocationAdjustment += assumption.SouthAdjustment ?? 0m;
+            if (unitPrice.IsOther) rawLocationAdjustment += assumption.OtherAdjustment ?? 0m;
+
+            // adjustPriceLocation is stored as the raw flag-adjustment total (no method scaling).
+            // The configured LocationMethod only kicks in when folding it into totalAppraisalValue.
+            var adjustPriceLocation = rawLocationAdjustment;
+
+            var usableAreaForCondo = unit.UsableArea ?? 0m;
+            var standardPriceTotal = standardPrice * usableAreaForCondo;
+            var locationContribution = ApplyLocationMethod(
+                adjustPriceLocation,
+                assumption.LocationMethod,
+                standardPriceTotal,
+                usableAreaForCondo);
 
             var priceIncrementPerFloor = 0m;
             if (unit.Floor.HasValue
@@ -526,8 +544,7 @@ public class Project : Aggregate<Guid>
                 priceIncrementPerFloor = floorGroups * assumption.FloorIncrementAmount.Value;
             }
 
-            var usableArea = unit.UsableArea ?? 0m;
-            var totalAppraisalValue = (standardPrice * usableArea) + adjustPriceLocation + priceIncrementPerFloor;
+            var totalAppraisalValue = standardPriceTotal + locationContribution + priceIncrementPerFloor;
             var totalAppraisalValueRounded = Math.Round(totalAppraisalValue, 0);
             var forceSellingPrice = assumption.ForceSalePercentage.HasValue
                 ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m, 0)
@@ -571,10 +588,14 @@ public class Project : Aggregate<Guid>
                 modelAssumption = matchedAssumption;
 
             var standardLandArea = 0m;
+            var standardPricePerSqm = 0m;
             if (unit.ModelType != null && projectModelMap.TryGetValue(unit.ModelType, out var projectModel))
+            {
                 standardLandArea = projectModel.StandardLandArea ?? 0m;
-
-            var standardPricePerSqm = modelAssumption?.StandardPrice ?? 0m;
+                // StandardPrice is now derived from the model's PricingAnalysis.FinalAppraisedValue.
+                // When no analysis exists yet, the price is 0 (unit shows pending pricing).
+                standardPricePerSqm = projectModel.PricingAnalysis?.FinalAppraisedValue ?? 0m;
+            }
             var coverageAmount = modelAssumption?.CoverageAmount;
             var usableArea = unit.UsableArea ?? 0m;
             var standardPrice = standardPricePerSqm * usableArea;
@@ -583,9 +604,17 @@ public class Project : Aggregate<Guid>
             var landIncreaseDecreaseRate = assumption.LandIncreaseDecreaseRate ?? 0m;
             var landIncreaseDecreaseAmount = (landArea - standardLandArea) * landIncreaseDecreaseRate;
 
-            var adjustPriceLocation = CalculateLBLocationAdjustment(assumption, unitPrice, standardPrice, usableArea);
+            // adjustPriceLocation is stored as the raw flag-adjustment total (no method scaling).
+            // The configured LocationMethod only kicks in when folding it into totalAppraisalValue.
+            // LB scales by LandArea (sq.wa) — not UsableArea (sq.m).
+            var adjustPriceLocation = SumLBLocationAdjustments(assumption, unitPrice);
+            var locationContribution = ApplyLocationMethod(
+                adjustPriceLocation,
+                assumption.LocationMethod,
+                standardPrice,
+                landArea);
 
-            var totalAppraisalValue = standardPrice + landIncreaseDecreaseAmount + adjustPriceLocation;
+            var totalAppraisalValue = standardPrice + landIncreaseDecreaseAmount + locationContribution;
             var totalAppraisalValueRounded = RoundToNearest10000(totalAppraisalValue);
             var forceSellingPrice = assumption.ForceSalePercentage.HasValue
                 ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m, 0)
@@ -601,25 +630,34 @@ public class Project : Aggregate<Guid>
         return results.AsReadOnly();
     }
 
-    private static decimal CalculateLBLocationAdjustment(
+    private static decimal SumLBLocationAdjustments(
         ProjectPricingAssumption assumption,
-        ProjectUnitPrice unitPrice,
-        decimal standardPrice,
-        decimal usableArea)
+        ProjectUnitPrice unitPrice)
     {
         var rawAdjustment = 0m;
         if (unitPrice.IsCorner) rawAdjustment += assumption.CornerAdjustment ?? 0m;
         if (unitPrice.IsEdge) rawAdjustment += assumption.EdgeAdjustment ?? 0m;
         if (unitPrice.IsNearGarden) rawAdjustment += assumption.NearGardenAdjustment ?? 0m;
         if (unitPrice.IsOther) rawAdjustment += assumption.OtherAdjustment ?? 0m;
-
-        return assumption.LocationMethod switch
-        {
-            "AdjustPriceSqm" => rawAdjustment * usableArea,
-            "AdjustPricePercentage" => standardPrice * rawAdjustment / 100m,
-            _ => rawAdjustment
-        };
+        return rawAdjustment;
     }
+
+    /// <summary>
+    /// Applies the configured LocationMethod to a raw per-attribute adjustment.
+    /// "AdjustPriceSqm"        → scales by area (Condo: UsableArea sq.m; LB: LandArea sq.wa).
+    /// "AdjustPricePercentage" → percent of the area-based standard price.
+    /// otherwise               → treated as a flat baht amount (legacy default).
+    /// </summary>
+    private static decimal ApplyLocationMethod(
+        decimal rawAdjustment,
+        string? locationMethod,
+        decimal standardPriceTotal,
+        decimal areaMultiplier) => locationMethod switch
+        {
+            "AdjustPriceSqm" => rawAdjustment * areaMultiplier,
+            "AdjustPricePercentage" => standardPriceTotal * rawAdjustment / 100m,
+            _ => rawAdjustment,
+        };
 
     private static decimal RoundToNearest10000(decimal value)
         => Math.Round(value / 10000m, MidpointRounding.AwayFromZero) * 10000m;

@@ -13,7 +13,6 @@ public class ProjectModelAssumption
     public string? ModelDescription { get; private set; }
     public decimal? UsableAreaFrom { get; private set; }
     public decimal? UsableAreaTo { get; private set; }
-    public decimal? StandardPrice { get; private set; }
     public decimal? StandardLandPrice { get; private set; } // LB only
     public decimal? CoverageAmount { get; private set; }
     public string? FireInsuranceCondition { get; private set; }
@@ -28,7 +27,6 @@ public class ProjectModelAssumption
         string? modelDescription,
         decimal? usableAreaFrom,
         decimal? usableAreaTo,
-        decimal? standardPrice,
         decimal? standardLandPrice,
         decimal? coverageAmount,
         string? fireInsuranceCondition)
@@ -41,7 +39,6 @@ public class ProjectModelAssumption
             ModelDescription = modelDescription,
             UsableAreaFrom = usableAreaFrom,
             UsableAreaTo = usableAreaTo,
-            StandardPrice = standardPrice,
             StandardLandPrice = standardLandPrice,
             CoverageAmount = coverageAmount,
             FireInsuranceCondition = fireInsuranceCondition
@@ -54,7 +51,6 @@ public class ProjectModelAssumption
         string? modelDescription,
         decimal? usableAreaFrom,
         decimal? usableAreaTo,
-        decimal? standardPrice,
         decimal? standardLandPrice,
         decimal? coverageAmount,
         string? fireInsuranceCondition)
@@ -64,7 +60,6 @@ public class ProjectModelAssumption
         ModelDescription = modelDescription;
         UsableAreaFrom = usableAreaFrom;
         UsableAreaTo = usableAreaTo;
-        StandardPrice = standardPrice;
         StandardLandPrice = standardLandPrice;
         CoverageAmount = coverageAmount;
         FireInsuranceCondition = fireInsuranceCondition;

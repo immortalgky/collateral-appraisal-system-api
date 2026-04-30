@@ -30,15 +30,6 @@ public class SaveDraftQuotationCommandHandler(
         if (quotationRequest.Status != "Sent")
             throw new BadRequestException($"Cannot save draft: RFQ is in status '{quotationRequest.Status}'");
 
-        // Two-person rule: the caller must hold the active "maker" task for this quotation+company.
-        // This ensures the Checker cannot overwrite the Maker's draft directly (they must wait for
-        // SubmitToChecker to transition the task to them).
-        var isMakerTaskOwner = await taskOwnership.IsCallerActiveTaskOwnerAsync(
-            command.QuotationRequestId, command.CompanyId, expectedStageName: "maker", cancellationToken);
-        if (!isMakerTaskOwner)
-            throw new UnauthorizedAccessException(
-                "You do not hold the active Maker task for this quotation. Only the current task owner may save a draft.");
-
         // Find any existing CompanyQuotation for this company
         var existingQuotation = quotationRequest.Quotations
             .FirstOrDefault(q => q.CompanyId == command.CompanyId);
@@ -47,7 +38,13 @@ public class SaveDraftQuotationCommandHandler(
 
         if (existingQuotation is null)
         {
-            // Create path: no quotation yet — create a new Draft
+            // Create path: no quotation yet — only the Maker may create a fresh Draft.
+            var isMakerTaskOwner = await taskOwnership.IsCallerActiveTaskOwnerAsync(
+                command.QuotationRequestId, command.CompanyId, expectedStageName: "maker", cancellationToken);
+            if (!isMakerTaskOwner)
+                throw new UnauthorizedAccessException(
+                    "You do not hold the active Maker task for this quotation. Only the current task owner may save a draft.");
+
             companyQuotation = CompanyQuotation.CreateDraft(
                 command.QuotationRequestId,
                 invitation.Id,
@@ -63,10 +60,22 @@ public class SaveDraftQuotationCommandHandler(
         }
         else
         {
-            // Update path — only allowed if still in Draft
-            if (existingQuotation.Status != "Draft")
-                throw new BadRequestException(
-                    $"Cannot save draft: existing quotation is in status '{existingQuotation.Status}'");
+            // Update path — Maker edits while Draft, Checker edits while PendingCheckerReview.
+            // Two-person rule: the caller must hold the active task at the corresponding stage.
+            var expectedStage = existingQuotation.Status switch
+            {
+                "Draft" => "maker",
+                "PendingCheckerReview" => "checker",
+                _ => throw new BadRequestException(
+                    $"Cannot save draft: existing quotation is in status '{existingQuotation.Status}'")
+            };
+
+            var isTaskOwner = await taskOwnership.IsCallerActiveTaskOwnerAsync(
+                command.QuotationRequestId, command.CompanyId, expectedStage, cancellationToken);
+            if (!isTaskOwner)
+                throw new UnauthorizedAccessException(
+                    $"You do not hold the active {expectedStage} task for this quotation. " +
+                    "Only the current task owner may save changes.");
 
             companyQuotation = existingQuotation;
             ApplyScalarFields(companyQuotation, command);

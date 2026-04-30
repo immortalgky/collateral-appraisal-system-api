@@ -1,3 +1,5 @@
+using Appraisal.Domain.Projects.Exceptions;
+
 namespace Appraisal.Domain.Projects;
 
 /// <summary>
@@ -59,7 +61,10 @@ public class ProjectTower : Entity<Guid>
 
     // Other
     public string? Remark { get; private set; }
-    public List<Guid>? ImageDocumentIds { get; private set; }
+
+    // ----- Images -----
+    private readonly List<ProjectTowerImage> _images = [];
+    public IReadOnlyList<ProjectTowerImage> Images => _images.AsReadOnly();
 
     private ProjectTower()
     {
@@ -129,8 +134,7 @@ public class ProjectTower : Entity<Guid>
         bool? isForestBoundary = null,
         string? forestBoundaryRemark = null,
         // Other
-        string? remark = null,
-        List<Guid>? imageDocumentIds = null)
+        string? remark = null)
     {
         // Validation
         if (numberOfUnits is < 0)
@@ -191,6 +195,54 @@ public class ProjectTower : Entity<Guid>
 
         // Other
         Remark = remark;
-        ImageDocumentIds = imageDocumentIds;
+    }
+
+    // --- Images ---
+
+    public ProjectTowerImage AddImage(
+        Guid galleryPhotoId,
+        string? title = null,
+        string? description = null)
+    {
+        var nextSequence = _images.Count > 0 ? _images.Max(i => i.DisplaySequence) + 1 : 1;
+        var image = ProjectTowerImage.Create(Id, nextSequence, galleryPhotoId, title, description);
+        if (!_images.Any(i => i.IsThumbnail)) image.SetAsThumbnail();
+        _images.Add(image);
+        return image;
+    }
+
+    public void RemoveImage(Guid imageId)
+    {
+        var image = _images.FirstOrDefault(i => i.Id == imageId)
+                    ?? throw new InvalidProjectStateException($"Image {imageId} not found on tower {Id}");
+        _images.Remove(image);
+    }
+
+    public void ReorderImages(IEnumerable<(Guid ImageId, int NewSequence)> reorder)
+    {
+        foreach (var (imageId, newSequence) in reorder)
+        {
+            var image = _images.FirstOrDefault(i => i.Id == imageId);
+            image?.UpdateSequence(newSequence);
+        }
+    }
+
+    public void SetThumbnail(Guid imageId)
+    {
+        var target = _images.FirstOrDefault(i => i.Id == imageId)
+                     ?? throw new InvalidProjectStateException($"Image {imageId} not found on tower {Id}");
+
+        // Enforce single-thumbnail invariant: unset any existing thumbnail first
+        foreach (var img in _images.Where(i => i.IsThumbnail))
+            img.UnsetAsThumbnail();
+
+        target.SetAsThumbnail();
+    }
+
+    public void UnsetThumbnail(Guid imageId)
+    {
+        var target = _images.FirstOrDefault(i => i.Id == imageId)
+                     ?? throw new InvalidProjectStateException($"Image {imageId} not found on tower {Id}");
+        target.UnsetAsThumbnail();
     }
 }

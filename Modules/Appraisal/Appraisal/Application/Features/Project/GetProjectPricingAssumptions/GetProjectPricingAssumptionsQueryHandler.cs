@@ -53,18 +53,28 @@ public class GetProjectPricingAssumptionsQueryHandler(
         // Build model assumption list.
         // If persisted model-assumptions exist: use them.
         // Otherwise: derive from project models (read-side parity with old Condo handler).
+        // For the persisted path, look up the ProjectModel by ModelType == ModelName to resolve
+        // the PricingAnalysis navigation (ModelAssumption is keyed by ModelType, not ModelId).
+        var modelByName = project.Models.ToDictionary(m => m.ModelName ?? string.Empty, StringComparer.Ordinal);
+
         var modelAssumptions = assumption.ModelAssumptions.Count > 0
             ? assumption.ModelAssumptions
-                .Select(ma => new ProjectModelAssumptionDto(
-                    ma.ProjectModelId,
-                    ma.ModelType,
-                    ma.ModelDescription,
-                    ma.UsableAreaFrom,
-                    ma.UsableAreaTo,
-                    ma.StandardPrice,
-                    ma.StandardLandPrice,
-                    ma.CoverageAmount,
-                    ma.FireInsuranceCondition))
+                .Select(ma =>
+                {
+                    modelByName.TryGetValue(ma.ModelType ?? string.Empty, out var model);
+                    return new ProjectModelAssumptionDto(
+                        ma.ProjectModelId,
+                        ma.ModelType,
+                        ma.ModelDescription,
+                        ma.UsableAreaFrom,
+                        ma.UsableAreaTo,
+                        ma.StandardLandPrice,
+                        ma.CoverageAmount,
+                        ma.FireInsuranceCondition,
+                        PricingAnalysisId: model?.PricingAnalysis?.Id,
+                        PricingAnalysisStatus: model?.PricingAnalysis?.Status,
+                        FinalAppraisedValue: model?.PricingAnalysis?.FinalAppraisedValue);
+                })
                 .ToList()
             : DeriveFromModels(project.Models, isCondo);
 
@@ -98,12 +108,14 @@ public class GetProjectPricingAssumptionsQueryHandler(
             m.ModelDescription,
             m.UsableAreaMin,
             m.UsableAreaMax,
-            m.StandardPrice,
             // StandardLandArea is LB-only; null for Condo
             isCondo ? null : m.StandardLandArea,
             // CoverageAmount: Condo derives from FireInsuranceCondition; LB has no model-level coverage
             isCondo ? LookupCoverageAmount(m.FireInsuranceCondition) : null,
-            m.FireInsuranceCondition))
+            m.FireInsuranceCondition,
+            PricingAnalysisId: m.PricingAnalysis?.Id,
+            PricingAnalysisStatus: m.PricingAnalysis?.Status,
+            FinalAppraisedValue: m.PricingAnalysis?.FinalAppraisedValue))
         .ToList();
 
     private static decimal? LookupCoverageAmount(string? condition)

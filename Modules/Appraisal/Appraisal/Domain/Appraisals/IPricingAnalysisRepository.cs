@@ -21,4 +21,14 @@ public interface IPricingAnalysisRepository : IRepository<PricingAnalysis, Guid>
     /// Check if pricing analysis exists for a property group
     /// </summary>
     Task<bool> ExistsByPropertyGroupIdAsync(Guid propertyGroupId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get pricing analysis by ProjectModel ID (model-level analysis)
+    /// </summary>
+    Task<PricingAnalysis?> GetByProjectModelIdAsync(Guid projectModelId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Check if a pricing analysis exists for a project model
+    /// </summary>
+    Task<bool> ExistsByProjectModelIdAsync(Guid projectModelId, CancellationToken cancellationToken = default);
 }

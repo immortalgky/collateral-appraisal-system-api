@@ -248,6 +248,17 @@ public class QuotationRequest : Aggregate<Guid>
         return item;
     }
 
+    /// <summary>
+    /// Removes the display item associated with the given appraisal.
+    /// No-op if no matching item exists (e.g. item was never created via AddItem).
+    /// </summary>
+    public void RemoveItem(Guid appraisalId)
+    {
+        var item = _items.FirstOrDefault(i => i.AppraisalId == appraisalId);
+        if (item is not null)
+            _items.Remove(item);
+    }
+
     public QuotationInvitation InviteCompany(Guid companyId)
     {
         if (companyId == Guid.Empty)

@@ -18,7 +18,9 @@ public class GetEligibleAppraisalsForQuotationQueryHandler(
     // "Not yet assigned" = no latest active assignment row, OR latest assignment is still Pending
     // (queued but not handed out). The view's LEFT JOIN already filters Rejected/Cancelled out, so
     // AssignmentStatus seen here is one of NULL, Pending, Assigned, InProgress, Completed.
-    private const string EligibilityClause = """
+    // When ExcludeQuotationRequestId is supplied (edit-draft picker), appraisals attached to
+    // that quotation pass through so the FE can render them as "removable but re-pickable" rows.
+    private static string BuildEligibilityClause(bool hasExcludeQuotation) => $$"""
         (v.AssignmentStatus IS NULL OR v.AssignmentStatus = 'Pending')
         AND NOT EXISTS (
             SELECT 1
@@ -26,6 +28,7 @@ public class GetEligibleAppraisalsForQuotationQueryHandler(
             JOIN appraisal.QuotationRequests qr ON qr.Id = qa.QuotationRequestId
             WHERE qa.AppraisalId = v.Id
               AND qr.Status NOT IN ('Finalized', 'Cancelled')
+              {{(hasExcludeQuotation ? "AND qa.QuotationRequestId <> @ExcludeQuotationRequestId" : "")}}
         )
         """;
 
@@ -36,9 +39,13 @@ public class GetEligibleAppraisalsForQuotationQueryHandler(
         var (whereClause, parameters) = AppraisalFilterBuilder.BuildFilter(query.Filter);
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(query.Filter);
 
+        var eligibilityClause = BuildEligibilityClause(query.ExcludeQuotationRequestId.HasValue);
+        if (query.ExcludeQuotationRequestId.HasValue)
+            parameters.Add("ExcludeQuotationRequestId", query.ExcludeQuotationRequestId.Value);
+
         var combinedWhere = string.IsNullOrEmpty(whereClause)
-            ? $" WHERE {EligibilityClause}"
-            : $"{whereClause} AND ({EligibilityClause})";
+            ? $" WHERE {eligibilityClause}"
+            : $"{whereClause} AND ({eligibilityClause})";
 
         var baseSql = "SELECT v.* FROM appraisal.vw_AppraisalList v" + combinedWhere;
 

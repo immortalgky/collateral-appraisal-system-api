@@ -60,7 +60,6 @@ public class SaveProjectPricingAssumptionsCommandHandler(
                     ma.ModelDescription,
                     ma.UsableAreaFrom,
                     ma.UsableAreaTo,
-                    ma.StandardPrice,
                     ma.StandardLandPrice,
                     ma.CoverageAmount,
                     ma.FireInsuranceCondition))

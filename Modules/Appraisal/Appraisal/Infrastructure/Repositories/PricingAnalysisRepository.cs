@@ -75,4 +75,20 @@ public class PricingAnalysisRepository(AppraisalDbContext dbContext)
         return await _dbContext.PricingAnalyses
             .AnyAsync(pa => pa.PropertyGroupId == propertyGroupId, cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task<PricingAnalysis?> GetByProjectModelIdAsync(Guid projectModelId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.PricingAnalyses
+            .FirstOrDefaultAsync(pa => pa.ProjectModelId == projectModelId, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> ExistsByProjectModelIdAsync(Guid projectModelId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.PricingAnalyses
+            .AnyAsync(pa => pa.ProjectModelId == projectModelId, cancellationToken);
+    }
 }

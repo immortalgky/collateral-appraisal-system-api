@@ -17,7 +17,7 @@ SELECT pt.Id                                                                    
        -- Derive appraisal status: CompletedAt trumps all; then workflow activity; fallback to request status
        CASE
            WHEN a.CompletedAt IS NOT NULL THEN 'Completed'
-           WHEN pt.ActivityId IN ('appraisal-initiation-check', 'appraisal-assignment') THEN 'Pending'
+           WHEN pt.ActivityId IN ('appraisal-initiation', 'appraisal-initiation-check', 'appraisal-assignment') THEN 'Pending'
            WHEN pt.ActivityId IN
                 ('appraisal-book-verification', 'int-appraisal-check', 'int-appraisal-verification', 'pending-approval')
                THEN 'UnderReview'

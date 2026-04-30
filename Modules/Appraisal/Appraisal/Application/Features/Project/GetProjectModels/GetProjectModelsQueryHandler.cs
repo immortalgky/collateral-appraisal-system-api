@@ -30,7 +30,6 @@ public class GetProjectModelsQueryHandler(
             StartingPrice: m.StartingPrice,
             StartingPriceMin: m.StartingPriceMin,
             StartingPriceMax: m.StartingPriceMax,
-            StandardPrice: m.StandardPrice,
             HasMezzanine: m.HasMezzanine,
             UsableAreaMin: m.UsableAreaMin,
             UsableAreaMax: m.UsableAreaMax,
@@ -44,7 +43,6 @@ public class GetProjectModelsQueryHandler(
             UpperFloorMaterialTypeOther: m.UpperFloorMaterialTypeOther,
             BathroomFloorMaterialType: m.BathroomFloorMaterialType,
             BathroomFloorMaterialTypeOther: m.BathroomFloorMaterialTypeOther,
-            ImageDocumentIds: m.ImageDocumentIds,
             Remark: m.Remark,
             LandAreaRai: m.LandAreaRai,
             LandAreaNgan: m.LandAreaNgan,
@@ -84,6 +82,9 @@ public class GetProjectModelsQueryHandler(
             ConstructionTypeOther: m.ConstructionTypeOther,
             UtilizationType: m.UtilizationType,
             UtilizationTypeOther: m.UtilizationTypeOther,
+            PricingAnalysisId: m.PricingAnalysis?.Id,
+            PricingAnalysisStatus: m.PricingAnalysis?.Status,
+            FinalAppraisedValue: m.PricingAnalysis?.FinalAppraisedValue,
             AreaDetails: m.AreaDetails
                 .Select(a => new ProjectModelAreaDetailDto(a.Id, a.AreaDescription, a.AreaSize))
                 .ToList(),
@@ -104,6 +105,11 @@ public class GetProjectModelsQueryHandler(
                             p.AtYear, p.ToYear, p.DepreciationPerYear,
                             p.TotalDepreciationPct, p.PriceDepreciation))
                         .ToList()))
+                .ToList(),
+            Images: m.Images
+                .OrderBy(i => i.DisplaySequence)
+                .Select(i => new ProjectModelImageDto(
+                    i.Id, i.GalleryPhotoId, i.DisplaySequence, i.Title, i.Description, i.IsThumbnail))
                 .ToList()
         );
 }

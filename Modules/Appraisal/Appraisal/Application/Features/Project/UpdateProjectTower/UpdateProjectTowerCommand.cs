@@ -39,6 +39,5 @@ public record UpdateProjectTowerCommand(
     string? RoyalDecree = null,
     bool? IsForestBoundary = null,
     string? ForestBoundaryRemark = null,
-    string? Remark = null,
-    List<Guid>? ImageDocumentIds = null
+    string? Remark = null
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;

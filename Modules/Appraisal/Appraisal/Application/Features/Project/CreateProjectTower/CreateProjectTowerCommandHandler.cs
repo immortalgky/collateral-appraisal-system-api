@@ -55,8 +55,7 @@ public class CreateProjectTowerCommandHandler(
             royalDecree: command.RoyalDecree,
             isForestBoundary: command.IsForestBoundary,
             forestBoundaryRemark: command.ForestBoundaryRemark,
-            remark: command.Remark,
-            imageDocumentIds: command.ImageDocumentIds);
+            remark: command.Remark);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
