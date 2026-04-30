@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Appraisal.Domain.Appraisals;
+using Appraisal.Domain.Projects;
 
 namespace Appraisal.Infrastructure.Configurations.Projects;
 
@@ -25,7 +27,14 @@ public class ProjectModelConfiguration : IEntityTypeConfiguration<ProjectModel>
         builder.Property(e => e.StartingPrice).HasPrecision(18, 2);
         builder.Property(e => e.StartingPriceMin).HasPrecision(18, 2);
         builder.Property(e => e.StartingPriceMax).HasPrecision(18, 2);
-        builder.Property(e => e.StandardPrice).HasPrecision(18, 2);
+        // StandardPrice column dropped — standard price is now derived from PricingAnalysis.FinalAppraisedValue.
+
+        // 1:1 inverse navigation only — FK, cascade, and filtered unique index are all
+        // declared on the PricingAnalysis side in PricingConfiguration.cs.
+        builder.HasOne(e => e.PricingAnalysis)
+            .WithOne()
+            .HasForeignKey<PricingAnalysis>(pa => pa.ProjectModelId)
+            .IsRequired(false);
 
         // Usable Area
         builder.Property(e => e.UsableAreaMin).HasPrecision(10, 2);
@@ -125,13 +134,6 @@ public class ProjectModelConfiguration : IEntityTypeConfiguration<ProjectModel>
         builder.Property(e => e.UtilizationType).HasMaxLength(100);
         builder.Property(e => e.UtilizationTypeOther).HasMaxLength(4000);
 
-        // Documents (JSON)
-        builder.Property(e => e.ImageDocumentIds)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<Guid>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(2000)");
-
         // Other
         builder.Property(e => e.Remark).HasMaxLength(4000);
 
@@ -205,6 +207,15 @@ public class ProjectModelConfiguration : IEntityTypeConfiguration<ProjectModel>
         });
 
         builder.Navigation(e => e.DepreciationDetails)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // Images (non-owned relationship — separate table, handled by ProjectModelImageConfiguration)
+        builder.HasMany(e => e.Images)
+            .WithOne()
+            .HasForeignKey(i => i.ProjectModelId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(e => e.Images)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

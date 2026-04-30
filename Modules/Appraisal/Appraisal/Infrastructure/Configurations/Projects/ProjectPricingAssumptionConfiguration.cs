@@ -46,7 +46,7 @@ public class ProjectPricingAssumptionConfiguration : IEntityTypeConfiguration<Pr
             assumption.Property(a => a.ModelDescription).HasMaxLength(500);
             assumption.Property(a => a.UsableAreaFrom).HasPrecision(18, 2);
             assumption.Property(a => a.UsableAreaTo).HasPrecision(18, 2);
-            assumption.Property(a => a.StandardPrice).HasPrecision(18, 2);
+            // StandardPrice dropped from ProjectModelAssumption — derived from PricingAnalysis.FinalAppraisedValue.
             assumption.Property(a => a.StandardLandPrice).HasPrecision(18, 2);
             assumption.Property(a => a.CoverageAmount).HasPrecision(18, 2);
             assumption.Property(a => a.FireInsuranceCondition).HasMaxLength(200);

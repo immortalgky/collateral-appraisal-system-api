@@ -1,5 +1,7 @@
+using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Appraisals.Income;
 using Appraisal.Domain.ComparativeAnalysis;
+using Appraisal.Domain.Projects;
 
 namespace Appraisal.Infrastructure.Configurations;
 
@@ -7,15 +9,39 @@ public class PricingAnalysisConfiguration : IEntityTypeConfiguration<PricingAnal
 {
     public void Configure(EntityTypeBuilder<PricingAnalysis> builder)
     {
-        builder.ToTable("PricingAnalysis");
+        builder.ToTable("PricingAnalysis", t =>
+        {
+            // XOR constraint: exactly one of the two subject FKs must be non-null.
+            t.HasCheckConstraint(
+                "CK_PricingAnalysis_SubjectXor",
+                "([PropertyGroupId] IS NOT NULL AND [ProjectModelId] IS NULL) OR ([PropertyGroupId] IS NULL AND [ProjectModelId] IS NOT NULL)");
+        });
 
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
-        builder.Property(p => p.PropertyGroupId).IsRequired();
-        builder.HasIndex(p => p.PropertyGroupId).IsUnique();
+        builder.Property(p => p.SubjectType).IsRequired();
 
-        builder.Property(p => p.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Draft");
+        // PropertyGroupId: nullable; filtered unique index (not null rows only)
+        builder.Property(p => p.PropertyGroupId).IsRequired(false);
+        builder.HasIndex(p => p.PropertyGroupId)
+            .IsUnique()
+            .HasFilter("[PropertyGroupId] IS NOT NULL");
+
+        // ProjectModelId: nullable; filtered unique index (not null rows only)
+        builder.Property(p => p.ProjectModelId).IsRequired(false);
+        builder.HasIndex(p => p.ProjectModelId)
+            .IsUnique()
+            .HasFilter("[ProjectModelId] IS NOT NULL");
+
+        // FK: PricingAnalysis.ProjectModelId → ProjectModels.Id (cascade)
+        builder.HasOne<ProjectModel>()
+            .WithOne(m => m.PricingAnalysis)
+            .HasForeignKey<PricingAnalysis>(p => p.ProjectModelId)
+            .OnDelete(DeleteBehavior.Cascade)
+            .IsRequired(false);
+
+        builder.Property(p => p.Status).IsRequired().HasMaxLength(50);
 
         builder.Property(p => p.FinalAppraisedValue).HasPrecision(18, 2);
 

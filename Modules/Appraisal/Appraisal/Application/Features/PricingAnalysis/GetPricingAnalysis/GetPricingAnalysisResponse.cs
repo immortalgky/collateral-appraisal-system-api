@@ -2,7 +2,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysis;
 
 public record GetPricingAnalysisResponse(
     Guid Id,
-    Guid PropertyGroupId,
+    Guid? PropertyGroupId,
+    Guid? ProjectModelId,
     string Status,
     decimal? FinalMarketValue,
     decimal? FinalAppraisedValue,

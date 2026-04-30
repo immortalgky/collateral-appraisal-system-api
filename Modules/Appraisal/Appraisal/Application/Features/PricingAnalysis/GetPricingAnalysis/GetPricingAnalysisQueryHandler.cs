@@ -32,6 +32,7 @@ public class GetPricingAnalysisQueryHandler(
         return new GetPricingAnalysisResult(
             pricingAnalysis.Id,
             pricingAnalysis.PropertyGroupId,
+            pricingAnalysis.ProjectModelId,
             pricingAnalysis.Status,
             pricingAnalysis.FinalAppraisedValue,
             pricingAnalysis.UseSystemCalc,

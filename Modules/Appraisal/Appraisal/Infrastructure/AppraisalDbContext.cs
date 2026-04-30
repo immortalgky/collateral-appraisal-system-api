@@ -142,7 +142,9 @@ public class AppraisalDbContext : DbContext
     // =====================================================
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectTower> ProjectTowers => Set<ProjectTower>();
+    public DbSet<ProjectTowerImage> ProjectTowerImages => Set<ProjectTowerImage>();
     public DbSet<ProjectModel> ProjectModels => Set<ProjectModel>();
+    public DbSet<ProjectModelImage> ProjectModelImages => Set<ProjectModelImage>();
     public DbSet<ProjectUnit> ProjectUnits => Set<ProjectUnit>();
     public DbSet<ProjectUnitPrice> ProjectUnitPrices => Set<ProjectUnitPrice>();
     public DbSet<ProjectUnitUpload> ProjectUnitUploads => Set<ProjectUnitUpload>();

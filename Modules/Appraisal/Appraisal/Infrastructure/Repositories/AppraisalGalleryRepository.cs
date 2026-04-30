@@ -1,5 +1,6 @@
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.MarketComparables;
+using Appraisal.Domain.Projects;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data;
 
@@ -99,6 +100,10 @@ public class AppraisalGalleryRepository(AppraisalDbContext dbContext)
                || await _dbContext.Set<MarketComparableImage>()
                    .AnyAsync(i => i.GalleryPhotoId == galleryPhotoId, ct)
                || await _dbContext.Set<LawAndRegulationImage>()
+                   .AnyAsync(i => i.GalleryPhotoId == galleryPhotoId, ct)
+               || await _dbContext.Set<ProjectModelImage>()
+                   .AnyAsync(i => i.GalleryPhotoId == galleryPhotoId, ct)
+               || await _dbContext.Set<ProjectTowerImage>()
                    .AnyAsync(i => i.GalleryPhotoId == galleryPhotoId, ct);
     }
 }

@@ -12,7 +12,6 @@ public record CreateProjectModelRequest(
     decimal? StartingPrice = null,        // LB
     decimal? StartingPriceMin = null,     // Condo
     decimal? StartingPriceMax = null,     // Condo
-    decimal? StandardPrice = null,
     bool? HasMezzanine = null,
     decimal? UsableAreaMin = null,
     decimal? UsableAreaMax = null,
@@ -26,7 +25,6 @@ public record CreateProjectModelRequest(
     string? UpperFloorMaterialTypeOther = null,
     string? BathroomFloorMaterialType = null,
     string? BathroomFloorMaterialTypeOther = null,
-    List<Guid>? ImageDocumentIds = null,
     string? Remark = null,
     // LB-specific
     decimal? LandAreaRai = null,

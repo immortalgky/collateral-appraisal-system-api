@@ -57,9 +57,11 @@ public class SaveDraftQuotationEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Save company quotation draft")
             .WithDescription(
-                "Maker (ExtAdmin) or Checker (ExtAppraisalChecker) saves or updates a draft quotation for the RFQ. " +
+                "Saves or updates a company quotation while editable. " +
+                "Maker (ExtAdmin) edits during status 'Draft'; Checker (ExtAppraisalChecker) may also " +
+                "edit during status 'PendingCheckerReview' to adjust fees before Submit or Send Back. " +
                 "The company is identified from the JWT company_id claim. " +
-                "Idempotent: re-saving replaces all items on the existing draft.")
+                "Idempotent: re-saving replaces all items on the existing quotation.")
             .WithTags("Quotation")
             .RequireAuthorization();
     }

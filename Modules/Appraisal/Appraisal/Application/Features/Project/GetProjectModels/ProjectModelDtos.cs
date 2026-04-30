@@ -1,5 +1,15 @@
 namespace Appraisal.Application.Features.Project.GetProjectModels;
 
+/// <summary>DTO for a project model image.</summary>
+public record ProjectModelImageDto(
+    Guid Id,
+    Guid GalleryPhotoId,
+    int DisplaySequence,
+    string? Title,
+    string? Description,
+    bool IsThumbnail
+);
+
 /// <summary>
 /// DTO for a project model area detail (used in both create/update requests and query responses).
 /// </summary>
@@ -58,7 +68,7 @@ public record ProjectModelDto(
     decimal? StartingPrice,           // LB
     decimal? StartingPriceMin,        // Condo
     decimal? StartingPriceMax,        // Condo
-    decimal? StandardPrice,
+    // StandardPrice removed — derived from PricingAnalysis.FinalAppraisedValue
     bool? HasMezzanine,
     decimal? UsableAreaMin,
     decimal? UsableAreaMax,
@@ -72,7 +82,6 @@ public record ProjectModelDto(
     string? UpperFloorMaterialTypeOther,
     string? BathroomFloorMaterialType,
     string? BathroomFloorMaterialTypeOther,
-    List<Guid>? ImageDocumentIds,
     string? Remark,
     // LB-specific
     decimal? LandAreaRai,
@@ -113,8 +122,13 @@ public record ProjectModelDto(
     string? ConstructionTypeOther,
     string? UtilizationType,
     string? UtilizationTypeOther,
+    // PricingAnalysis (model-level; null when not yet created)
+    Guid? PricingAnalysisId,
+    string? PricingAnalysisStatus,
+    decimal? FinalAppraisedValue,
     // Owned collections
     List<ProjectModelAreaDetailDto> AreaDetails,
     List<ProjectModelSurfaceDto> Surfaces,
-    List<ProjectModelDepreciationDetailDto> DepreciationDetails
+    List<ProjectModelDepreciationDetailDto> DepreciationDetails,
+    List<ProjectModelImageDto> Images
 );
