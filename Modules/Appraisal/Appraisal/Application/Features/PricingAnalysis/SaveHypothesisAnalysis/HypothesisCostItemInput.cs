@@ -8,6 +8,7 @@ namespace Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis;
 public record HypothesisCostItemInput(
     Guid? Id,
     HypothesisCostCategory Category,
+    CostItemKind Kind,
     string Description,
     int DisplaySequence,
     decimal Amount,

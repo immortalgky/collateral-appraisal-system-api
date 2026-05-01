@@ -55,28 +55,37 @@ public class GenerateHypothesisAnalysisCommandHandler(
             // Project Dev Cost defaults
             int seq = 1;
             analysis.AddCostItem(HypothesisCostCategory.ProjectDevCost,
+                CostItemKind.PublicUtilityConstruction,
                 "Public Utility Construction", seq++);
             analysis.AddCostItem(HypothesisCostCategory.ProjectDevCost,
+                CostItemKind.LandFilling,
                 "Land Filling", seq++);
 
             // Project Cost defaults
             seq = 1;
             analysis.AddCostItem(HypothesisCostCategory.ProjectCost,
-                "AllocationPermitFee", seq++);
+                CostItemKind.AllocationPermitFee,
+                "Allocation Permit Fee", seq++);
             analysis.AddCostItem(HypothesisCostCategory.ProjectCost,
+                CostItemKind.LandTitleDeedDivisionFee,
                 "Land Title Deed Division Fee", seq++);
             analysis.AddCostItem(HypothesisCostCategory.ProjectCost,
+                CostItemKind.ProfessionalFee,
                 "Professional Service Fees", seq++);
             analysis.AddCostItem(HypothesisCostCategory.ProjectCost,
+                CostItemKind.AdminFee,
                 "Project Admin/Management", seq++);
             analysis.AddCostItem(HypothesisCostCategory.ProjectCost,
+                CostItemKind.SellingAdvertising,
                 "Selling/Advertising", seq++);
 
             // Government Tax defaults
             seq = 1;
             analysis.AddCostItem(HypothesisCostCategory.GovernmentTax,
+                CostItemKind.TransferFee,
                 "Transfer Fee", seq++);
             analysis.AddCostItem(HypothesisCostCategory.GovernmentTax,
+                CostItemKind.SpecificBusinessTax,
                 "Specific Business Tax", seq++);
         }
         else // Condominium
@@ -84,32 +93,43 @@ public class GenerateHypothesisAnalysisCommandHandler(
             // Hard Cost defaults
             int seq = 1;
             analysis.AddCostItem(HypothesisCostCategory.HardCost,
+                CostItemKind.CondoBuildingConstruction,
                 "Condo Building Construction", seq++);
             analysis.AddCostItem(HypothesisCostCategory.HardCost,
+                CostItemKind.Furniture,
                 "Furniture/Kitchen Sets/Air Conditioners", seq++);
             analysis.AddCostItem(HypothesisCostCategory.HardCost,
+                CostItemKind.ExternalUtilities,
                 "External Utilities", seq++);
 
             // Soft Cost defaults
             seq = 1;
             analysis.AddCostItem(HypothesisCostCategory.SoftCost,
+                CostItemKind.ProfessionalFee,
                 "Professional Service Fees", seq++);
             analysis.AddCostItem(HypothesisCostCategory.SoftCost,
+                CostItemKind.AdminFee,
                 "Project Admin/Management", seq++);
             analysis.AddCostItem(HypothesisCostCategory.SoftCost,
+                CostItemKind.SellingAdvertising,
                 "Selling/Advertising", seq++);
             analysis.AddCostItem(HypothesisCostCategory.SoftCost,
+                CostItemKind.CondoTitleDeedFee,
                 "Condo Title Deed Issuance Fee", seq++);
             analysis.AddCostItem(HypothesisCostCategory.SoftCost,
+                CostItemKind.EIA,
                 "EIA Report", seq++);
             analysis.AddCostItem(HypothesisCostCategory.SoftCost,
+                CostItemKind.CondoRegistrationFee,
                 "Condo Registration Permit Fee", seq++);
 
             // Condo Gov Tax defaults
             seq = 1;
             analysis.AddCostItem(HypothesisCostCategory.CondoGovTax,
+                CostItemKind.TransferFee,
                 "Transfer Fee", seq++);
             analysis.AddCostItem(HypothesisCostCategory.CondoGovTax,
+                CostItemKind.SpecificBusinessTax,
                 "Specific Business Tax", seq++);
         }
     }

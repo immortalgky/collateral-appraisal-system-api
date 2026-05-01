@@ -1,3 +1,4 @@
+using System.Globalization;
 using Appraisal.Application.Configurations;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Appraisals.Hypothesis;
@@ -12,6 +13,7 @@ namespace Appraisal.Application.Features.PricingAnalysis.UploadHypothesisUnitDet
 /// Parses an Excel file and replaces unit rows on the HypothesisAnalysis.
 /// Validates file format per FSD column spec per variant.
 /// Deactivates the previously-active upload and activates the new one.
+/// Parse errors are collected and returned as a 400 with row/field/value detail.
 /// </summary>
 public class UploadHypothesisUnitDetailsCommandHandler(
     IPricingAnalysisRepository pricingAnalysisRepository,
@@ -94,6 +96,7 @@ public class UploadHypothesisUnitDetailsCommandHandler(
         var sellingPriceCol = Resolve(headers, "Selling Price", "Selling Price (Baht)", "SellingPrice");
 
         var rows = new List<LandBuildingUnitRow>();
+        var errors = new List<ParseRowError>();
         var lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
 
         for (var row = 2; row <= lastRow; row++)
@@ -101,25 +104,26 @@ public class UploadHypothesisUnitDetailsCommandHandler(
             var planNo = ws.Cell(row, planCol).GetString().Trim();
             var houseNo = ws.Cell(row, houseCol).GetString().Trim();
             var modelName = ws.Cell(row, modelCol).GetString().Trim();
-            var landAreaText = ws.Cell(row, landAreaCol).GetString().Trim();
-            var sellingPriceText = ws.Cell(row, sellingPriceCol).GetString().Trim();
 
             if (string.IsNullOrWhiteSpace(planNo) && string.IsNullOrWhiteSpace(houseNo))
                 continue;
 
-            decimal.TryParse(landAreaText, out var landArea);
-            decimal.TryParse(sellingPriceText, out var sellingPrice);
+            decimal? landArea = TryParseDecimal(ws.Cell(row, landAreaCol), row, "Land Area (Sq.Wa)", errors);
+            decimal? sellingPrice = TryParseDecimal(ws.Cell(row, sellingPriceCol), row, "Selling Price", errors);
 
             rows.Add(LandBuildingUnitRow.Create(
-                uploadId: Guid.Empty, // will be reassigned after upload is created
+                uploadId: Guid.Empty, // reassigned after upload is created
                 hypothesisAnalysisId: analysisId,
                 sequenceNumber: rows.Count + 1,
                 planNo: string.IsNullOrEmpty(planNo) ? null : planNo,
                 houseNo: string.IsNullOrEmpty(houseNo) ? null : houseNo,
                 modelName: string.IsNullOrEmpty(modelName) ? null : modelName,
-                landAreaSqWa: landArea != 0 ? landArea : null,
-                sellingPrice: sellingPrice != 0 ? sellingPrice : null));
+                landAreaSqWa: landArea,
+                sellingPrice: sellingPrice));
         }
+
+        if (errors.Count > 0)
+            throw new BadRequestException(BuildParseErrorMessage(errors));
 
         return rows;
     }
@@ -140,6 +144,7 @@ public class UploadHypothesisUnitDetailsCommandHandler(
         var sellingPriceCol = Resolve(headers, "Selling Price", "Selling Price (Baht)", "SellingPrice");
 
         var rows = new List<CondominiumUnitRow>();
+        var errors = new List<ParseRowError>();
         var lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
 
         for (var row = 2; row <= lastRow; row++)
@@ -148,30 +153,99 @@ public class UploadHypothesisUnitDetailsCommandHandler(
             var building = ws.Cell(row, buildingCol).GetString().Trim();
             var aptNo = ws.Cell(row, aptCol).GetString().Trim();
             var modelType = ws.Cell(row, modelCol).GetString().Trim();
-            var usableAreaText = ws.Cell(row, usableAreaCol).GetString().Trim();
-            var sellingPriceText = ws.Cell(row, sellingPriceCol).GetString().Trim();
 
             if (string.IsNullOrWhiteSpace(aptNo) && string.IsNullOrWhiteSpace(building))
                 continue;
 
-            int.TryParse(floorText, out var floor);
-            decimal.TryParse(usableAreaText, out var usableArea);
-            decimal.TryParse(sellingPriceText, out var sellingPrice);
+            int? floor = TryParseInt(ws.Cell(row, floorCol), row, "Floor No", errors);
+            decimal? usableArea = TryParseDecimal(ws.Cell(row, usableAreaCol), row, "Usable Area (Sq.M.)", errors);
+            decimal? sellingPrice = TryParseDecimal(ws.Cell(row, sellingPriceCol), row, "Selling Price", errors);
 
             rows.Add(CondominiumUnitRow.Create(
                 uploadId: Guid.Empty,
                 hypothesisAnalysisId: analysisId,
                 sequenceNumber: rows.Count + 1,
-                floorNo: floor != 0 ? floor : null,
+                floorNo: floor,
                 building: string.IsNullOrEmpty(building) ? null : building,
                 aptNo: string.IsNullOrEmpty(aptNo) ? null : aptNo,
                 modelType: string.IsNullOrEmpty(modelType) ? null : modelType,
-                usableAreaSqM: usableArea != 0 ? usableArea : null,
-                sellingPrice: sellingPrice != 0 ? sellingPrice : null));
+                usableAreaSqM: usableArea,
+                sellingPrice: sellingPrice));
         }
+
+        if (errors.Count > 0)
+            throw new BadRequestException(BuildParseErrorMessage(errors));
 
         return rows;
     }
+
+    // ── Parse helpers ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Tries to read a decimal from a cell using ClosedXML typed accessor first,
+    /// then falls back to InvariantCulture string parse.
+    /// Returns null for genuinely blank cells. Records an error for non-blank non-parseable values.
+    /// </summary>
+    private static decimal? TryParseDecimal(IXLCell cell, int rowNumber, string fieldName, List<ParseRowError> errors)
+    {
+        if (cell.IsEmpty())
+            return null;
+
+        // Prefer ClosedXML typed accessor (respects numeric cell format regardless of locale)
+        try
+        {
+            return cell.GetValue<decimal>();
+        }
+        catch
+        {
+            // Fall back: try invariant-culture string parse
+            var raw = cell.GetString().Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+                return null;
+
+            if (decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
+                return parsed;
+
+            errors.Add(new ParseRowError(rowNumber, fieldName, raw, "not a number"));
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Tries to read an int from a cell. Returns null for blank cells.
+    /// Records an error for non-blank non-parseable values.
+    /// </summary>
+    private static int? TryParseInt(IXLCell cell, int rowNumber, string fieldName, List<ParseRowError> errors)
+    {
+        if (cell.IsEmpty())
+            return null;
+
+        try
+        {
+            return cell.GetValue<int>();
+        }
+        catch
+        {
+            var raw = cell.GetString().Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+                return null;
+
+            if (int.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
+                return parsed;
+
+            errors.Add(new ParseRowError(rowNumber, fieldName, raw, "not an integer"));
+            return null;
+        }
+    }
+
+    private static string BuildParseErrorMessage(IReadOnlyList<ParseRowError> errors)
+    {
+        var lines = errors.Select(e =>
+            $"Row {e.Row}, Field '{e.Field}': value '{e.Value}' is {e.Reason}.");
+        return $"Excel parse errors:\n{string.Join("\n", lines)}";
+    }
+
+    private record ParseRowError(int Row, string Field, string Value, string Reason);
 
     // ── Header helpers (shared pattern from UploadProjectUnits) ───────────
 

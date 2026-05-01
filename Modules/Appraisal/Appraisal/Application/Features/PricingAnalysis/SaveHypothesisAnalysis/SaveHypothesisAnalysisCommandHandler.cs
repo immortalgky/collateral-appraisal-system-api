@@ -11,6 +11,11 @@ namespace Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis;
 /// <summary>
 /// Persists user inputs, runs the server-side calculation, and stores computed outputs.
 /// Backend is the sole source of truth for all computed fields.
+///
+/// Cost-item upsert semantics (mirror IncomeAnalysis):
+///   - Incoming row with Id that matches an existing row → UPDATE in place (stable Id).
+///   - Incoming row with Id not found (or null) → INSERT with Guid.CreateVersion7().
+///   - Existing rows whose Id is absent from the incoming set → DELETE.
 /// </summary>
 public class SaveHypothesisAnalysisCommandHandler(
     IPricingAnalysisRepository pricingAnalysisRepository,
@@ -39,14 +44,8 @@ public class SaveHypothesisAnalysisCommandHandler(
 
         method.SetRemark(command.Remark);
 
-        // ── Upsert cost items ─────────────────────────────────────────────
-        analysis.ClearAllCostItems();
-        foreach (var item in command.CostItems)
-        {
-            var costItem = analysis.AddCostItem(
-                item.Category, item.Description, item.DisplaySequence, item.ModelName);
-            costItem.SetAmounts(item.Amount, item.RateAmount, item.Quantity, item.RatePercent);
-        }
+        // ── Selective upsert cost items ───────────────────────────────────
+        SyncCostItems(analysis, command.CostItems);
 
         // ── Compute and persist ───────────────────────────────────────────
         if (analysis.Variant == HypothesisVariant.LandBuilding)
@@ -83,6 +82,47 @@ public class SaveHypothesisAnalysisCommandHandler(
 
             return new SaveHypothesisAnalysisResult(
                 analysis.Id, analysis.Variant, null, computedSummary);
+        }
+    }
+
+    // ── Selective upsert: UPDATE existing, INSERT new, DELETE orphans ─────
+    // clientId (input.Id) == entity.Id for rows the frontend received from prior save.
+    // New rows carry a fresh frontend-generated Guid that won't match any existing Id.
+    private static void SyncCostItems(
+        HypothesisAnalysis analysis,
+        IReadOnlyList<HypothesisCostItemInput> inputs)
+    {
+        var existingById = analysis.CostItems.ToDictionary(i => i.Id);
+        var processedIds = new HashSet<Guid>();
+
+        foreach (var input in inputs)
+        {
+            if (input.Id.HasValue && existingById.TryGetValue(input.Id.Value, out var existing))
+            {
+                // UPDATE in place — Id stays stable
+                existing.UpdateDescription(input.Description);
+                existing.UpdateSequence(input.DisplaySequence);
+                existing.SetAmounts(input.Amount, input.RateAmount, input.Quantity, input.RatePercent);
+                processedIds.Add(input.Id.Value);
+            }
+            else
+            {
+                // INSERT new row
+                var newItem = analysis.AddCostItem(
+                    input.Category,
+                    input.Kind,
+                    input.Description,
+                    input.DisplaySequence,
+                    input.ModelName);
+                newItem.SetAmounts(input.Amount, input.RateAmount, input.Quantity, input.RatePercent);
+            }
+        }
+
+        // DELETE rows that were not in the incoming set
+        foreach (var (id, _) in existingById)
+        {
+            if (!processedIds.Contains(id))
+                analysis.RemoveCostItem(id);
         }
     }
 

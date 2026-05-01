@@ -12,8 +12,9 @@ namespace Appraisal.Application.Features.PricingAnalysis.PreviewHypothesisAnalys
 
 /// <summary>
 /// Returns a full computed snapshot without persisting.
-/// Loads the current analysis from DB to get unit rows and existing cost items,
-/// then applies the user's in-flight inputs for computation.
+/// Loads the current analysis from DB to get unit rows,
+/// builds a transient cost-item list from the command,
+/// then passes both directly to the calculation service — no throwaway aggregate needed.
 /// </summary>
 public class PreviewHypothesisAnalysisCommandHandler(
     IPricingAnalysisRepository pricingAnalysisRepository
@@ -39,22 +40,15 @@ public class PreviewHypothesisAnalysisCommandHandler(
         var analysis = method.HypothesisAnalysis
                        ?? throw new InvalidOperationException("Hypothesis analysis not found.");
 
-        // Build a transient cost-item list from the command for preview only
-        var transientCostItems = command.CostItems.Select(i =>
-        {
-            var item = HypothesisCostItem.Create(analysis.Id, i.Category, i.Description, i.DisplaySequence, i.ModelName);
-            item.SetAmounts(i.Amount, i.RateAmount, i.Quantity, i.RatePercent);
-            return item;
-        }).ToList();
-
-        // Build a transient analysis with the preview cost items (without mutating the aggregate)
-        var previewAnalysis = BuildPreviewAnalysis(analysis, transientCostItems);
+        // Build a transient cost-item list from command inputs (no aggregate mutation)
+        var transientCostItems = BuildTransientCostItems(analysis.Id, command.CostItems);
 
         if (analysis.Variant == HypothesisVariant.LandBuilding)
         {
             var inputSummary = MapLandBuildingInput(command.LandBuildingSummary);
+            // Pass cost-item list directly — no throwaway aggregate
             var snapshot = _calcService.ComputeLandBuilding(
-                previewAnalysis, analysis.LandBuildingUnitRows, inputSummary);
+                transientCostItems, analysis.LandBuildingUnitRows, inputSummary);
 
             return new PreviewHypothesisAnalysisResult(
                 analysis.Variant, snapshot.Summary, snapshot.Models, null);
@@ -63,41 +57,26 @@ public class PreviewHypothesisAnalysisCommandHandler(
         {
             var inputSummary = MapCondominiumInput(command.CondominiumSummary);
             var computedSummary = _calcService.ComputeCondominium(
-                previewAnalysis, analysis.CondominiumUnitRows, inputSummary);
+                transientCostItems, analysis.CondominiumUnitRows, inputSummary);
 
             return new PreviewHypothesisAnalysisResult(
                 analysis.Variant, null, null, computedSummary);
         }
     }
 
-    /// <summary>
-    /// Creates a lightweight proxy aggregate that returns the transient cost items
-    /// without modifying the actual persisted aggregate.
-    /// We do this by temporarily replacing the internal list via reflection-free approach:
-    /// just pass items directly to the computation service instead of through the aggregate.
-    /// </summary>
-    private static HypothesisAnalysis BuildPreviewAnalysis(
-        HypothesisAnalysis source,
-        IReadOnlyList<HypothesisCostItem> transientCostItems)
+    private static IReadOnlyList<HypothesisCostItem> BuildTransientCostItems(
+        Guid analysisId,
+        IReadOnlyList<HypothesisCostItemInput> inputs)
     {
-        // We create a fresh in-memory analysis that mirrors the source's variant
-        // but exposes the transient cost items. This avoids mutating the tracked entity.
-        var preview = HypothesisAnalysis.Create(source.PricingMethodId, source.Variant);
-        // The calc service reads from analysis.CostItems for CostOfBuilding items;
-        // we add the transient items to the preview aggregate.
-        foreach (var item in transientCostItems.Where(i =>
-            i.Category == HypothesisCostCategory.CostOfBuilding ||
-            i.Category == HypothesisCostCategory.ProjectCost ||
-            i.Category == HypothesisCostCategory.ProjectDevCost ||
-            i.Category == HypothesisCostCategory.GovernmentTax ||
-            i.Category == HypothesisCostCategory.HardCost ||
-            i.Category == HypothesisCostCategory.SoftCost ||
-            i.Category == HypothesisCostCategory.CondoGovTax))
+        var result = new List<HypothesisCostItem>(inputs.Count);
+        foreach (var i in inputs)
         {
-            var ci = preview.AddCostItem(item.Category, item.Description, item.DisplaySequence, item.ModelName);
-            ci.SetAmounts(item.Amount, item.RateAmount, item.Quantity, item.RatePercent);
+            var item = HypothesisCostItem.Create(
+                analysisId, i.Category, i.Kind, i.Description, i.DisplaySequence, i.ModelName);
+            item.SetAmounts(i.Amount, i.RateAmount, i.Quantity, i.RatePercent);
+            result.Add(item);
         }
-        return preview;
+        return result;
     }
 
     private static LandBuildingSummary MapLandBuildingInput(LandBuildingSummaryInput? input) =>
