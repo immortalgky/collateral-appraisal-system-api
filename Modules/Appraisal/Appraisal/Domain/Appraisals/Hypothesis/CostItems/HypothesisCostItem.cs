@@ -10,6 +10,12 @@ public class HypothesisCostItem : Entity<Guid>
     public HypothesisCostCategory Category { get; private set; }
 
     /// <summary>
+    /// Stable semantic key used by the calculation service to locate this row.
+    /// Description is a mutable UI label; Kind is immutable after creation.
+    /// </summary>
+    public CostItemKind Kind { get; private set; }
+
+    /// <summary>
     /// Only populated when Category == CostOfBuilding (links to a specific house model).
     /// </summary>
     public string? ModelName { get; private set; }
@@ -51,6 +57,7 @@ public class HypothesisCostItem : Entity<Guid>
     public static HypothesisCostItem Create(
         Guid hypothesisAnalysisId,
         HypothesisCostCategory category,
+        CostItemKind kind,
         string description,
         int displaySequence,
         string? modelName = null)
@@ -65,14 +72,22 @@ public class HypothesisCostItem : Entity<Guid>
             Id = Guid.CreateVersion7(),
             HypothesisAnalysisId = hypothesisAnalysisId,
             Category = category,
+            Kind = kind,
             Description = description,
             DisplaySequence = displaySequence,
             ModelName = modelName
         };
     }
 
+    /// <summary>
+    /// Sets the monetary amounts for this cost item.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="amount"/> is negative.</exception>
     public void SetAmounts(decimal amount, decimal? rateAmount = null, decimal? quantity = null, decimal? ratePercent = null)
     {
+        if (amount < 0)
+            throw new ArgumentOutOfRangeException(nameof(amount), amount, "Cost item amount cannot be negative.");
+
         Amount = amount;
         RateAmount = rateAmount;
         Quantity = quantity;

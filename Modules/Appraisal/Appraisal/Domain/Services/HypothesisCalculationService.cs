@@ -15,31 +15,49 @@ namespace Appraisal.Domain.Services;
 ///   E58 = Round(E57, -4)
 ///   E59 = Round(E57 / E05, -2)
 ///
-/// Discount rate factor (confirmed PV formula):
-///   C79 = 1 / (1 + C78/100) ^ (C18/12)
-///   E56 = 1 / (1 + E55/100) ^ (E14/12)
+/// Discount rate factor (Reading 2 — literal FSD precedence):
+///   C79 = 1 / (1 + (C78/100)^(C18/12))
+///   E56 = 1 / (1 + (E55/100)^(E14/12))
 ///
-/// C77 conditional:
+/// C77 conditional (percentage applied when C78 ≠ 0):
 ///   if C78 = 0: C77 = C15 - C76
-///   if C78 ≠ 0: C77 = (C15 – C76) × C78
-///   Note: when C78 ≠ 0 the FSD formula multiplies the residual by C78 as a numeric factor (not a percent division).
-///   C80 = C77 × C79 so the double-application is intentional per FSD.
+///   if C78 ≠ 0: C77 = (C15 – C76) × (C78 / 100)
 ///
 /// E54 conditional (mirrors C77):
 ///   if E55 = 0: E54 = E13 – E53
-///   if E55 ≠ 0: E54 = (E13 – E53) × E55
+///   if E55 ≠ 0: E54 = (E13 – E53) × (E55 / 100)
 /// </summary>
 public class HypothesisCalculationService
 {
     // ── L&B public API ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Computes all L&B C-field formulas given the analysis and the per-model cost items.
+    /// Computes all L&amp;B C-field formulas given the analysis and the per-model cost items.
     /// Populates and returns an updated <see cref="LandBuildingSummary"/>.
     /// The per-model detail snapshot (A-fields, per-model C11-C26) is included in the result.
     /// </summary>
     public LandBuildingSnapshot ComputeLandBuilding(
         HypothesisAnalysis analysis,
+        IReadOnlyList<LandBuildingUnitRow> rows,
+        LandBuildingSummary input)
+    {
+        return ComputeLandBuildingCore(analysis.CostItems, rows, input);
+    }
+
+    /// <summary>
+    /// Overload that accepts a pre-resolved cost-item list directly.
+    /// Used by the preview handler to avoid building a throwaway aggregate.
+    /// </summary>
+    public LandBuildingSnapshot ComputeLandBuilding(
+        IReadOnlyList<HypothesisCostItem> costItems,
+        IReadOnlyList<LandBuildingUnitRow> rows,
+        LandBuildingSummary input)
+    {
+        return ComputeLandBuildingCore(costItems, rows, input);
+    }
+
+    private static LandBuildingSnapshot ComputeLandBuildingCore(
+        IReadOnlyList<HypothesisCostItem> costItems,
         IReadOnlyList<LandBuildingUnitRow> rows,
         LandBuildingSummary input)
     {
@@ -61,7 +79,6 @@ public class HypothesisCalculationService
         int c18 = c16 > 0 ? (int)Math.Ceiling((double)c17 / c16) : 0;
 
         // ── Step 4: Per-model construction cost from cost items ───────────
-        var costItems = analysis.CostItems;
         decimal sumBuildingCostAllModels = 0m; // C21+C25+...
 
         foreach (var model in models.Values)
@@ -87,6 +104,7 @@ public class HypothesisCalculationService
         decimal c33 = c31 * c32;
 
         decimal c35 = input.C35ContingencyPercent ?? 3m;
+        /// C36 = (sum of building costs + public utility + land filling) × C35 / 100
         decimal c36 = (sumBuildingCostAllModels + c29 + c33) * c35 / 100m;
 
         decimal c38 = sumBuildingCostAllModels + c29 + c33 + c36;
@@ -111,26 +129,26 @@ public class HypothesisCalculationService
         int c42 = c40 > 0 ? (int)Math.Ceiling((double)c41 / c40) : 0;
 
         // ── Step 7: Project Cost (C43-C65) ────────────────────────────────
-        // Allocation permit fee
-        decimal c43 = GetProjectCostAmount(costItems, HypothesisCostCategory.ProjectCost, "AllocationPermitFee");
+        // C44 — allocation permit fee: read from ProjectCost cost item by Kind
+        decimal c43 = GetProjectCostAmount(costItems, HypothesisCostCategory.ProjectCost, CostItemKind.AllocationPermitFee);
         decimal c44 = c43; // = C43
 
-        // Land title deed division fee
+        // C48 — land title deed division fee × total plots
         decimal c46 = input.C46LandTitleFeePerPlot ?? 0m;
         int c47 = c41; // = C41
         decimal c48 = c46 * c47;
 
-        // Professional service fees
+        // C52 — professional fee × months
         decimal c50 = input.C50ProfessionalFeePerMonth ?? 0m;
         int c51 = c42; // = C42
         decimal c52 = c50 * c51;
 
-        // Admin costs
+        // C56 — admin cost × months
         decimal c54 = input.C54AdminCostPerMonth ?? 0m;
         int c55 = c18; // = C18
         decimal c56 = c54 * c55;
 
-        // Selling/Adv
+        // C59 — selling/advertising as % of revenue
         decimal c58 = input.C58SellingAdvPercent ?? 0m;
         decimal c59 = c15 * c58 / 100m;
 
@@ -170,15 +188,26 @@ public class HypothesisCalculationService
         // ── Step 11: Current property value (C77-C82) ─────────────────────
         decimal c78 = input.C78DiscountRate ?? 0m;
 
+        // C77: if C78=0 → residual unchanged; else apply C78 as a percentage factor.
         decimal c77;
         if (c78 == 0m)
             c77 = c15 - c76;
         else
-            c77 = (c15 - c76) * c78;
+            c77 = (c15 - c76) * (c78 / 100m);
 
-        decimal c79 = c78 > 0m
-            ? 1m / (decimal)Math.Pow((double)(1m + c78 / 100m), (double)c18 / 12.0)
-            : 1m;
+        // C79 (Reading 2 — literal FSD precedence):
+        //   C79 = 1 / (1 + (C78/100)^(C18/12))
+        decimal c79;
+        if (c78 == 0m)
+        {
+            c79 = 1m;
+        }
+        else
+        {
+            var innerPow = (double)(c78 / 100m);
+            var exponent = (double)c18 / 12.0;
+            c79 = 1m / (1m + (decimal)Math.Pow(innerPow, exponent));
+        }
 
         decimal c80 = c77 * c79;
         decimal c81 = RoundToNearest(c80, 10000m);
@@ -268,8 +297,27 @@ public class HypothesisCalculationService
         IReadOnlyList<CondominiumUnitRow> rows,
         CondominiumSummary input)
     {
+        return ComputeCondominiumCore(analysis.CostItems, rows, input);
+    }
+
+    /// <summary>
+    /// Overload that accepts a pre-resolved cost-item list directly.
+    /// Used by the preview handler to avoid building a throwaway aggregate.
+    /// </summary>
+    public CondominiumSummary ComputeCondominium(
+        IReadOnlyList<HypothesisCostItem> costItems,
+        IReadOnlyList<CondominiumUnitRow> rows,
+        CondominiumSummary input)
+    {
+        return ComputeCondominiumCore(costItems, rows, input);
+    }
+
+    private static CondominiumSummary ComputeCondominiumCore(
+        IReadOnlyList<HypothesisCostItem> costItems,
+        IReadOnlyList<CondominiumUnitRow> rows,
+        CondominiumSummary input)
+    {
         // ── Step 1: Aggregate from upload (D01-D04 → E01/E09/E12/E18) ─────
-        decimal d01 = input.E01AreaTitleDeed ?? rows.FirstOrDefault()?.UsableAreaSqM ?? 0m; // title deed from input
         decimal d02 = rows.Sum(r => r.UsableAreaSqM ?? 0m); // total indoor sales area
         int d03 = rows.Count; // total units
         decimal d04 = rows.Sum(r => r.SellingPrice ?? 0m); // total selling price
@@ -299,11 +347,13 @@ public class HypothesisCalculationService
         decimal e16 = e05;
         decimal e17 = e15 * e16;
 
+        // E18 fallback: use d03 from rows; if no rows, fall back to manual input.
         int e18 = d03 > 0 ? d03 : (input.E18SetAvgRoomSizeUnits ?? 0);
         decimal e19 = e18 > 0 ? e09 / e18 : 0m;
 
         decimal e20 = input.E20FurniturePerUnit ?? 0m;
-        int e21 = d03;
+        // E21 follows same fallback as E18
+        int e21 = d03 > 0 ? d03 : (input.E18SetAvgRoomSizeUnits ?? 0);
         decimal e22 = e20 * e21;
 
         decimal e23 = input.E23ExternalUtilities ?? 0m;
@@ -359,15 +409,26 @@ public class HypothesisCalculationService
         // ── Step 9: Final value (E54-E59) ─────────────────────────────────
         decimal e55 = input.E55DiscountRate ?? 0m;
 
+        // E54: if E55=0 → residual unchanged; else apply E55 as a percentage factor.
         decimal e54;
         if (e55 == 0m)
             e54 = e13 - e53;
         else
-            e54 = (e13 - e53) * e55;
+            e54 = (e13 - e53) * (e55 / 100m);
 
-        decimal e56 = e55 > 0m
-            ? 1m / (decimal)Math.Pow((double)(1m + e55 / 100m), (double)e14 / 12.0)
-            : 1m;
+        // E56 (Reading 2 — literal FSD precedence):
+        //   E56 = 1 / (1 + (E55/100)^(E14/12))
+        decimal e56;
+        if (e55 == 0m)
+        {
+            e56 = 1m;
+        }
+        else
+        {
+            var innerPow = (double)(e55 / 100m);
+            var exponent = (double)e14 / 12.0;
+            e56 = 1m / (1m + (decimal)Math.Pow(innerPow, exponent));
+        }
 
         decimal e57 = e54 * e56;
         decimal e58 = RoundToNearest(e57, 10000m);
@@ -470,13 +531,17 @@ public class HypothesisCalculationService
         return models;
     }
 
+    /// <summary>
+    /// Returns the sum of amounts for cost items matching (category, kind).
+    /// Lookup is by stable <see cref="CostItemKind"/>, not by description text.
+    /// </summary>
     private static decimal GetProjectCostAmount(
         IReadOnlyList<HypothesisCostItem> costItems,
         HypothesisCostCategory category,
-        string description)
+        CostItemKind kind)
     {
         return costItems
-            .Where(i => i.Category == category && i.Description.Contains(description, StringComparison.OrdinalIgnoreCase))
+            .Where(i => i.Category == category && i.Kind == kind)
             .Sum(i => i.Amount);
     }
 

@@ -86,12 +86,18 @@ public class HypothesisAnalysis : Entity<Guid>
     }
 
     /// <summary>
-    /// Removes an upload. If it was active, no auto-promotion (user must re-upload).
+    /// Removes an upload and all unit rows that belong to it.
+    /// If the upload was active, no auto-promotion — user must re-upload.
     /// </summary>
     public void RemoveUpload(Guid uploadId)
     {
         var upload = _uploads.FirstOrDefault(u => u.Id == uploadId)
                      ?? throw new InvalidOperationException($"Upload {uploadId} not found.");
+
+        // Remove rows that belong to this upload so EF tracks the deletes.
+        _landBuildingUnitRows.RemoveAll(r => r.UploadId == uploadId);
+        _condominiumUnitRows.RemoveAll(r => r.UploadId == uploadId);
+
         _uploads.Remove(upload);
     }
 
@@ -129,13 +135,14 @@ public class HypothesisAnalysis : Entity<Guid>
 
     public HypothesisCostItem AddCostItem(
         HypothesisCostCategory category,
+        CostItemKind kind,
         string description,
         int displaySequence,
         string? modelName = null)
     {
         ValidateCostCategory(category);
 
-        var item = HypothesisCostItem.Create(Id, category, description, displaySequence, modelName);
+        var item = HypothesisCostItem.Create(Id, category, kind, description, displaySequence, modelName);
         _costItems.Add(item);
         return item;
     }
