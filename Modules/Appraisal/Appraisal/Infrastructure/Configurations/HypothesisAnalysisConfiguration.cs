@@ -96,7 +96,7 @@ public class HypothesisAnalysisConfiguration : IEntityTypeConfiguration<Hypothes
         {
             cs.Property(s => s.E01AreaTitleDeed).HasPrecision(7, 2).HasColumnName("E01AreaTitleDeed");
             cs.Property(s => s.E02AreaSqM).HasPrecision(7, 2).HasColumnName("E02AreaSqM");
-            cs.Property(s => s.E03FAR).HasPrecision(3, 0).HasColumnName("E03FAR");
+            cs.Property(s => s.E03FAR).HasPrecision(7, 2).HasColumnName("E03FAR");
             cs.Property(s => s.E04ConstructionAreaCityPlan).HasPrecision(7, 2).HasColumnName("E04ConstructionAreaCityPlan");
             cs.Property(s => s.E05TotalBuildingArea).HasPrecision(7, 2).HasColumnName("E05TotalBuildingArea");
             cs.Property(s => s.E06CommonAreaPercent).HasPrecision(5, 2).HasColumnName("E06CommonAreaPercent");
@@ -261,6 +261,7 @@ public class HypothesisCostItemConfiguration : IEntityTypeConfiguration<Hypothes
 
         builder.Property(i => i.HypothesisAnalysisId).IsRequired();
         builder.Property(i => i.Category).IsRequired().HasConversion<int>();
+        builder.Property(i => i.Kind).IsRequired().HasConversion<int>();
         builder.Property(i => i.ModelName).HasMaxLength(200);
         builder.Property(i => i.Description).IsRequired().HasMaxLength(500);
         builder.Property(i => i.DisplaySequence).IsRequired();
