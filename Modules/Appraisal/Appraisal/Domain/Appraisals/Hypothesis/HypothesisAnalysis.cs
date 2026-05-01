@@ -52,16 +52,16 @@ public class HypothesisAnalysis : Entity<Guid>
         {
             analysis.LandBuildingSummary = new LandBuildingSummary
             {
-                C35ContingencyPercent = 3m,
-                C61ProjectContingencyPercent = 3m
+                ContingencyPercent = 3m,           // FSD C35
+                ProjectContingencyPercent = 3m     // FSD C61
             };
         }
         else
         {
             analysis.CondominiumSummary = new CondominiumSummary
             {
-                E25HardCostContingencyPercent = 3m,
-                E46TransferFeePercent = 1m
+                HardCostContingencyPercent = 3m,   // FSD E25
+                TransferFeePercent = 1m            // FSD E46
             };
         }
 
