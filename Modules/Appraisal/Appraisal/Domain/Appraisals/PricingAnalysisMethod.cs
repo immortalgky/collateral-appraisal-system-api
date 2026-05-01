@@ -1,3 +1,4 @@
+using Appraisal.Domain.Appraisals.Hypothesis;
 using Appraisal.Domain.Appraisals.Income;
 
 namespace Appraisal.Domain.Appraisals;
@@ -47,6 +48,9 @@ public class PricingAnalysisMethod : Entity<Guid>
     // Income Analysis (1:1, Income only)
     public IncomeAnalysis? IncomeAnalysis { get; private set; }
 
+    // Hypothesis Analysis (1:1, HypothesisLandBuilding / HypothesisCondominium)
+    public HypothesisAnalysis? HypothesisAnalysis { get; private set; }
+
     private PricingAnalysisMethod()
     {
         // For EF Core
@@ -57,7 +61,7 @@ public class PricingAnalysisMethod : Entity<Guid>
         string methodType,
         string status = "Selected")
     {
-        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "MachineryCost", "Income", "Leasehold", "ProfitRent" };
+        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "MachineryCost", "Income", "Leasehold", "ProfitRent", "HypothesisLandBuilding", "HypothesisCondominium" };
         if (!validMethods.Contains(methodType))
             throw new ArgumentException($"MethodType must be one of: {string.Join(", ", validMethods)}");
 
@@ -155,6 +159,16 @@ public class PricingAnalysisMethod : Entity<Guid>
     public void ClearIncomeAnalysis()
     {
         IncomeAnalysis = null;
+    }
+
+    public void SetHypothesisAnalysis(HypothesisAnalysis analysis)
+    {
+        HypothesisAnalysis = analysis;
+    }
+
+    public void ClearHypothesisAnalysis()
+    {
+        HypothesisAnalysis = null;
     }
 
     /// <summary>
@@ -338,6 +352,7 @@ public class PricingAnalysisMethod : Entity<Guid>
         ClearLeaseholdAnalysis();
         ClearProfitRentAnalysis();
         ClearIncomeAnalysis();
+        ClearHypothesisAnalysis();
         MethodValue = null;
         ValuePerUnit = null;
         UnitType = null;

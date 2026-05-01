@@ -79,6 +79,8 @@ public static class AppraisalModule
         // PricingCalculationServiceResolver is also scoped because it holds a scoped dependency.
         services.AddScoped<IncomeCalculationService>();
         services.AddScoped<PricingCalculationServiceResolver>();
+        // HypothesisCalculationService is stateless; transient is fine.
+        services.AddTransient<HypothesisCalculationService>();
 
         // Register Data Seeders
         services.AddScoped<IDataSeeder<AppraisalDbContext>, AppendixTypeDataSeed>();
