@@ -65,29 +65,29 @@ public class SaveHypothesisAnalysisCommandValidator : AbstractValidator<SaveHypo
         // Percent fields range (0-100) on L&B summary
         When(x => x.LandBuildingSummary is not null, () =>
         {
-            RuleFor(x => x.LandBuildingSummary!.C78DiscountRate)
+            RuleFor(x => x.LandBuildingSummary!.DiscountRate)      // FSD C78
                 .InclusiveBetween(0m, 100m)
-                .When(x => x.LandBuildingSummary!.C78DiscountRate.HasValue)
-                .WithMessage("C78 DiscountRate must be between 0 and 100.");
+                .When(x => x.LandBuildingSummary!.DiscountRate.HasValue)
+                .WithMessage("DiscountRate must be between 0 and 100.");
 
-            RuleFor(x => x.LandBuildingSummary!.C74RiskPremiumPercent)
+            RuleFor(x => x.LandBuildingSummary!.RiskPremiumPercent) // FSD C74
                 .InclusiveBetween(0m, 100m)
-                .When(x => x.LandBuildingSummary!.C74RiskPremiumPercent.HasValue)
-                .WithMessage("C74 RiskPremiumPercent must be between 0 and 100.");
+                .When(x => x.LandBuildingSummary!.RiskPremiumPercent.HasValue)
+                .WithMessage("RiskPremiumPercent must be between 0 and 100.");
         });
 
         // Percent fields on Condo summary
         When(x => x.CondominiumSummary is not null, () =>
         {
-            RuleFor(x => x.CondominiumSummary!.E55DiscountRate)
+            RuleFor(x => x.CondominiumSummary!.DiscountRate)        // FSD E55
                 .InclusiveBetween(0m, 100m)
-                .When(x => x.CondominiumSummary!.E55DiscountRate.HasValue)
-                .WithMessage("E55 DiscountRate must be between 0 and 100.");
+                .When(x => x.CondominiumSummary!.DiscountRate.HasValue)
+                .WithMessage("DiscountRate must be between 0 and 100.");
 
-            RuleFor(x => x.CondominiumSummary!.E51RiskProfitPercent)
+            RuleFor(x => x.CondominiumSummary!.RiskProfitPercent)   // FSD E51
                 .InclusiveBetween(0m, 100m)
-                .When(x => x.CondominiumSummary!.E51RiskProfitPercent.HasValue)
-                .WithMessage("E51 RiskProfitPercent must be between 0 and 100.");
+                .When(x => x.CondominiumSummary!.RiskProfitPercent.HasValue)
+                .WithMessage("RiskProfitPercent must be between 0 and 100.");
         });
     }
 

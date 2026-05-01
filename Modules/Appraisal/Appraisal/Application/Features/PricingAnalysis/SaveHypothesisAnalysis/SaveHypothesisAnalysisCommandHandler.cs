@@ -56,8 +56,8 @@ public class SaveHypothesisAnalysisCommandHandler(
 
             analysis.UpdateLandBuildingSummary(snapshot.Summary);
 
-            // Set method value from C81
-            var finalValue = snapshot.Summary.C81TotalAssetValueRounded ?? 0m;
+            // Set method value from FSD C81 (TotalAssetValueRounded)
+            var finalValue = snapshot.Summary.TotalAssetValueRounded ?? 0m;
             method.SetValue(finalValue);
             PropagateValue(pricingAnalysis, method, finalValue);
 
@@ -74,7 +74,8 @@ public class SaveHypothesisAnalysisCommandHandler(
 
             analysis.UpdateCondominiumSummary(computedSummary);
 
-            var finalValue = computedSummary.E58TotalAssetValueRounded ?? 0m;
+            // Set method value from FSD E58 (TotalAssetValueRounded)
+            var finalValue = computedSummary.TotalAssetValueRounded ?? 0m;
             method.SetValue(finalValue);
             PropagateValue(pricingAnalysis, method, finalValue);
 
@@ -131,24 +132,24 @@ public class SaveHypothesisAnalysisCommandHandler(
             ? new LandBuildingSummary()
             : new LandBuildingSummary
             {
-                C01TotalArea = input.C01TotalArea,
-                C02SellingAreaPercent = input.C02SellingAreaPercent,
-                C10PublicUtilityAreaPercent = input.C10PublicUtilityAreaPercent,
-                C16EstSalesPeriod = input.C16EstSalesPeriod,
-                C27PublicUtilityRatePerSqWa = input.C27PublicUtilityRatePerSqWa,
-                C31LandFillingRatePerSqWa = input.C31LandFillingRatePerSqWa,
-                C35ContingencyPercent = input.C35ContingencyPercent ?? 3m,
-                C40EstConstructionPeriod = input.C40EstConstructionPeriod,
-                C44AllocationPermitFee = input.C44AllocationPermitFee,
-                C46LandTitleFeePerPlot = input.C46LandTitleFeePerPlot,
-                C50ProfessionalFeePerMonth = input.C50ProfessionalFeePerMonth,
-                C54AdminCostPerMonth = input.C54AdminCostPerMonth,
-                C58SellingAdvPercent = input.C58SellingAdvPercent,
-                C61ProjectContingencyPercent = input.C61ProjectContingencyPercent ?? 3m,
-                C66TransferFeePercent = input.C66TransferFeePercent,
-                C69SpecificBizTaxPercent = input.C69SpecificBizTaxPercent,
-                C74RiskPremiumPercent = input.C74RiskPremiumPercent,
-                C78DiscountRate = input.C78DiscountRate,
+                TotalArea = input.TotalArea,                                            // FSD C01
+                SellingAreaPercent = input.SellingAreaPercent,                          // FSD C02
+                PublicUtilityAreaPercent = input.PublicUtilityAreaPercent,              // FSD C10
+                EstSalesPeriod = input.EstSalesPeriod,                                  // FSD C16
+                PublicUtilityRatePerSqWa = input.PublicUtilityRatePerSqWa,              // FSD C27
+                LandFillingRatePerSqWa = input.LandFillingRatePerSqWa,                  // FSD C31
+                ContingencyPercent = input.ContingencyPercent ?? 3m,                    // FSD C35
+                EstConstructionPeriod = input.EstConstructionPeriod,                    // FSD C40
+                AllocationPermitFee = input.AllocationPermitFee,                        // FSD C44
+                LandTitleFeePerPlot = input.LandTitleFeePerPlot,                        // FSD C46
+                ProfessionalFeePerMonth = input.ProfessionalFeePerMonth,                // FSD C50
+                AdminCostPerMonth = input.AdminCostPerMonth,                            // FSD C54
+                SellingAdvPercent = input.SellingAdvPercent,                            // FSD C58
+                ProjectContingencyPercent = input.ProjectContingencyPercent ?? 3m,      // FSD C61
+                TransferFeePercent = input.TransferFeePercent,                          // FSD C66
+                SpecificBizTaxPercent = input.SpecificBizTaxPercent,                    // FSD C69
+                RiskPremiumPercent = input.RiskPremiumPercent,                          // FSD C74
+                DiscountRate = input.DiscountRate,                                      // FSD C78
                 Remark = input.Remark
             };
 
@@ -157,26 +158,26 @@ public class SaveHypothesisAnalysisCommandHandler(
             ? new CondominiumSummary()
             : new CondominiumSummary
             {
-                E01AreaTitleDeed = input.E01AreaTitleDeed,
-                E03FAR = input.E03FAR,
-                E05TotalBuildingArea = input.E05TotalBuildingArea,
-                E14EstSalesDurationMonths = input.E14EstSalesDurationMonths,
-                E15CondoBuildingCostPerSqM = input.E15CondoBuildingCostPerSqM,
-                E20FurniturePerUnit = input.E20FurniturePerUnit,
-                E23ExternalUtilities = input.E23ExternalUtilities,
-                E25HardCostContingencyPercent = input.E25HardCostContingencyPercent ?? 3m,
-                E28EstConstructionPeriodMonths = input.E28EstConstructionPeriodMonths,
-                E29ProfessionalFeePerMonth = input.E29ProfessionalFeePerMonth,
-                E32AdminCostPerMonth = input.E32AdminCostPerMonth,
-                E35SellingAdvPercent = input.E35SellingAdvPercent,
-                E37TitleDeedFee = input.E37TitleDeedFee,
-                E39EIACost = input.E39EIACost,
-                E41CondoRegistrationFee = input.E41CondoRegistrationFee,
-                E43OtherExpensesPercent = input.E43OtherExpensesPercent,
-                E46TransferFeePercent = input.E46TransferFeePercent ?? 1m,
-                E48SpecificBizTaxPercent = input.E48SpecificBizTaxPercent,
-                E51RiskProfitPercent = input.E51RiskProfitPercent,
-                E55DiscountRate = input.E55DiscountRate,
+                AreaTitleDeed = input.AreaTitleDeed,                                    // FSD E01
+                FAR = input.FAR,                                                        // FSD E03
+                TotalBuildingArea = input.TotalBuildingArea,                            // FSD E05
+                EstSalesDurationMonths = input.EstSalesDurationMonths,                  // FSD E14
+                CondoBuildingCostPerSqM = input.CondoBuildingCostPerSqM,                // FSD E15
+                FurniturePerUnit = input.FurniturePerUnit,                              // FSD E20
+                ExternalUtilities = input.ExternalUtilities,                            // FSD E23
+                HardCostContingencyPercent = input.HardCostContingencyPercent ?? 3m,    // FSD E25
+                EstConstructionPeriodMonths = input.EstConstructionPeriodMonths,        // FSD E28
+                ProfessionalFeePerMonth = input.ProfessionalFeePerMonth,                // FSD E29
+                AdminCostPerMonth = input.AdminCostPerMonth,                            // FSD E32
+                SellingAdvPercent = input.SellingAdvPercent,                            // FSD E35
+                TitleDeedFee = input.TitleDeedFee,                                      // FSD E37
+                EIACost = input.EIACost,                                                // FSD E39
+                CondoRegistrationFee = input.CondoRegistrationFee,                      // FSD E41
+                OtherExpensesPercent = input.OtherExpensesPercent,                      // FSD E43
+                TransferFeePercent = input.TransferFeePercent ?? 1m,                    // FSD E46
+                SpecificBizTaxPercent = input.SpecificBizTaxPercent,                    // FSD E48
+                RiskProfitPercent = input.RiskProfitPercent,                            // FSD E51
+                DiscountRate = input.DiscountRate,                                      // FSD E55
                 Remark = input.Remark
             };
 

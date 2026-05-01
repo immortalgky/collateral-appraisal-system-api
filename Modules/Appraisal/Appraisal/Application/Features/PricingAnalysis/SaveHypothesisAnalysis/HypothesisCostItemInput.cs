@@ -21,52 +21,54 @@ public record HypothesisCostItemInput(
 /// <summary>
 /// Input for Land &amp; Building summary fields (user-editable inputs only).
 /// Computed fields are populated by the server.
+/// FSD field codes are in XML doc comments on <see cref="Appraisal.Domain.Appraisals.Hypothesis.Summaries.LandBuildingSummary"/>.
 /// </summary>
 public record LandBuildingSummaryInput(
-    decimal? C01TotalArea,
-    decimal? C02SellingAreaPercent,
-    decimal? C10PublicUtilityAreaPercent,
-    int? C16EstSalesPeriod,
-    decimal? C27PublicUtilityRatePerSqWa,
-    decimal? C31LandFillingRatePerSqWa,
-    decimal? C35ContingencyPercent,
-    int? C40EstConstructionPeriod,
-    decimal? C44AllocationPermitFee,
-    decimal? C46LandTitleFeePerPlot,
-    decimal? C50ProfessionalFeePerMonth,
-    decimal? C54AdminCostPerMonth,
-    decimal? C58SellingAdvPercent,
-    decimal? C61ProjectContingencyPercent,
-    decimal? C66TransferFeePercent,
-    decimal? C69SpecificBizTaxPercent,
-    decimal? C74RiskPremiumPercent,
-    decimal? C78DiscountRate,
+    decimal? TotalArea,                      // FSD C01
+    decimal? SellingAreaPercent,             // FSD C02
+    decimal? PublicUtilityAreaPercent,       // FSD C10
+    int? EstSalesPeriod,                     // FSD C16
+    decimal? PublicUtilityRatePerSqWa,       // FSD C27
+    decimal? LandFillingRatePerSqWa,         // FSD C31
+    decimal? ContingencyPercent,             // FSD C35
+    int? EstConstructionPeriod,              // FSD C40
+    decimal? AllocationPermitFee,            // FSD C44
+    decimal? LandTitleFeePerPlot,            // FSD C46
+    decimal? ProfessionalFeePerMonth,        // FSD C50
+    decimal? AdminCostPerMonth,              // FSD C54
+    decimal? SellingAdvPercent,              // FSD C58
+    decimal? ProjectContingencyPercent,      // FSD C61
+    decimal? TransferFeePercent,             // FSD C66
+    decimal? SpecificBizTaxPercent,          // FSD C69
+    decimal? RiskPremiumPercent,             // FSD C74
+    decimal? DiscountRate,                   // FSD C78
     string? Remark
 );
 
 /// <summary>
 /// Input for Condominium summary fields (user-editable inputs only).
+/// FSD field codes are in XML doc comments on <see cref="Appraisal.Domain.Appraisals.Hypothesis.Summaries.CondominiumSummary"/>.
 /// </summary>
 public record CondominiumSummaryInput(
-    decimal? E01AreaTitleDeed,
-    decimal? E03FAR,
-    decimal? E05TotalBuildingArea,
-    int? E14EstSalesDurationMonths,
-    decimal? E15CondoBuildingCostPerSqM,
-    decimal? E20FurniturePerUnit,
-    decimal? E23ExternalUtilities,
-    decimal? E25HardCostContingencyPercent,
-    int? E28EstConstructionPeriodMonths,
-    decimal? E29ProfessionalFeePerMonth,
-    decimal? E32AdminCostPerMonth,
-    decimal? E35SellingAdvPercent,
-    decimal? E37TitleDeedFee,
-    decimal? E39EIACost,
-    decimal? E41CondoRegistrationFee,
-    decimal? E43OtherExpensesPercent,
-    decimal? E46TransferFeePercent,
-    decimal? E48SpecificBizTaxPercent,
-    decimal? E51RiskProfitPercent,
-    decimal? E55DiscountRate,
+    decimal? AreaTitleDeed,                  // FSD E01
+    decimal? FAR,                            // FSD E03
+    decimal? TotalBuildingArea,              // FSD E05
+    int? EstSalesDurationMonths,             // FSD E14
+    decimal? CondoBuildingCostPerSqM,        // FSD E15
+    decimal? FurniturePerUnit,               // FSD E20
+    decimal? ExternalUtilities,              // FSD E23
+    decimal? HardCostContingencyPercent,     // FSD E25
+    int? EstConstructionPeriodMonths,        // FSD E28
+    decimal? ProfessionalFeePerMonth,        // FSD E29
+    decimal? AdminCostPerMonth,              // FSD E32
+    decimal? SellingAdvPercent,              // FSD E35
+    decimal? TitleDeedFee,                   // FSD E37
+    decimal? EIACost,                        // FSD E39
+    decimal? CondoRegistrationFee,           // FSD E41
+    decimal? OtherExpensesPercent,           // FSD E43
+    decimal? TransferFeePercent,             // FSD E46
+    decimal? SpecificBizTaxPercent,          // FSD E48
+    decimal? RiskProfitPercent,              // FSD E51
+    decimal? DiscountRate,                   // FSD E55
     string? Remark
 );

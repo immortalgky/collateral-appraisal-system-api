@@ -10,14 +10,14 @@ namespace Appraisal.Tests.Domain.Services;
 /// Unit tests for <see cref="HypothesisCalculationService"/> FSD §2.1.3.7 formulas.
 ///
 /// Key invariants under test:
-///   - C77: if C78=0 → C15-C76; else (C15-C76)*(C78/100)   [percentage applied]
-///   - C79: Reading 2 — 1 / (1 + (C78/100)^(C18/12))
-///   - C81: Round(C80, 10000)
-///   - C82: Round(C81/C01, 100)
-///   - E54: mirrors C77 conditional with E55/100
-///   - E56: Reading 2 — 1 / (1 + (E55/100)^(E14/12))
-///   - E58: Round(E57, 10000)
-///   - E59: Round(E58/E05, 100)
+///   - FSD C77: if C78=0 → C15-C76; else (C15-C76)*(C78/100)   [percentage applied]
+///   - FSD C79: Reading 2 — 1 / (1 + (C78/100)^(C18/12))
+///   - FSD C81: Round(C80, 10000)
+///   - FSD C82: Round(C81/C01, 100)
+///   - FSD E54: mirrors C77 conditional with E55/100
+///   - FSD E56: Reading 2 — 1 / (1 + (E55/100)^(E14/12))
+///   - FSD E58: Round(E57, 10000)
+///   - FSD E59: Round(E58/E05, 100)
 ///   - SetAmounts rejects negative amount
 ///   - CostItem lookup by Kind is description-independent
 ///   - E21 follows same fallback as E18
@@ -40,7 +40,7 @@ public class HypothesisCalculationServiceTests
     private static CondominiumUnitRow MakeCondoRow(decimal usableArea, decimal price)
         => CondominiumUnitRow.Create(Guid.NewGuid(), Guid.NewGuid(), 1, 1, "A", "1A", "Studio", usableArea, price);
 
-    // ── RoundToNearest (via C81/E58 output) ──────────────────────────────────
+    // ── RoundToNearest (via FSD C81/E58 output) ──────────────────────────────────
 
     [Theory]
     [InlineData(123456, 10000, 120000)]   // round down
@@ -57,14 +57,14 @@ public class HypothesisCalculationServiceTests
 
         var input = new LandBuildingSummary
         {
-            C01TotalArea = 1000m,
-            C16EstSalesPeriod = 1,
-            C78DiscountRate = 0m
+            TotalArea = 1000m,              // FSD C01
+            EstSalesPeriod = 1,             // FSD C16
+            DiscountRate = 0m               // FSD C78
         };
 
         var result = Sut.ComputeLandBuilding(analysis, rows, input);
 
-        Assert.Equal(expected, result.Summary.C81TotalAssetValueRounded);
+        Assert.Equal(expected, result.Summary.TotalAssetValueRounded); // FSD C81
         _ = nearest;
     }
 
@@ -73,7 +73,7 @@ public class HypothesisCalculationServiceTests
     [Fact]
     public void LandBuilding_ZeroDiscountRate_C77EqualsC15MinusC76_C79EqualsOne()
     {
-        // C78 = 0 → C77 = C15 - C76; C79 = 1; C80 = C77
+        // FSD C78 = 0 → C77 = C15 - C76; C79 = 1; C80 = C77
         var analysis = CreateLandBuildingAnalysis();
 
         var rows = new[]
@@ -88,26 +88,26 @@ public class HypothesisCalculationServiceTests
 
         var input = new LandBuildingSummary
         {
-            C01TotalArea = 500m,
-            C16EstSalesPeriod = 1,
-            C35ContingencyPercent = 3m,
-            C61ProjectContingencyPercent = 3m,
-            C78DiscountRate = 0m
+            TotalArea = 500m,                    // FSD C01
+            EstSalesPeriod = 1,                  // FSD C16
+            ContingencyPercent = 3m,             // FSD C35
+            ProjectContingencyPercent = 3m,      // FSD C61
+            DiscountRate = 0m                    // FSD C78
         };
 
         var result = Sut.ComputeLandBuilding(analysis, rows, input);
         var s = result.Summary;
 
-        Assert.Equal(0m, s.C78DiscountRate);
-        Assert.Equal(1m, s.C79DiscountRateFactor);
+        Assert.Equal(0m, s.DiscountRate);           // FSD C78
+        Assert.Equal(1m, s.DiscountRateFactor);     // FSD C79
 
         decimal expectedC15 = 2_000_000m;
-        Assert.Equal(expectedC15, s.C15TotalRevenue);
+        Assert.Equal(expectedC15, s.TotalRevenue);  // FSD C15
 
-        var expectedC77 = s.C15TotalRevenue!.Value - s.C76TotalDevCostsAndExpenses!.Value;
-        Assert.Equal(expectedC77, s.C77CurrentPropertyValue);
+        var expectedC77 = s.TotalRevenue!.Value - s.TotalDevCostsAndExpenses!.Value;
+        Assert.Equal(expectedC77, s.CurrentPropertyValue); // FSD C77
 
-        Assert.Equal(expectedC77, s.C80FinalPropertyValue);
+        Assert.Equal(expectedC77, s.FinalPropertyValue);   // FSD C80
     }
 
     [Fact]
@@ -118,18 +118,18 @@ public class HypothesisCalculationServiceTests
 
         var input = new LandBuildingSummary
         {
-            C01TotalArea = 100m,
-            C16EstSalesPeriod = 1,
-            C35ContingencyPercent = 0m,
-            C61ProjectContingencyPercent = 0m,
-            C78DiscountRate = 0m
+            TotalArea = 100m,                    // FSD C01
+            EstSalesPeriod = 1,                  // FSD C16
+            ContingencyPercent = 0m,             // FSD C35
+            ProjectContingencyPercent = 0m,      // FSD C61
+            DiscountRate = 0m                    // FSD C78
         };
 
         var result = Sut.ComputeLandBuilding(analysis, rows, input);
         var s = result.Summary;
 
-        Assert.Equal(5_130_000m, s.C81TotalAssetValueRounded);
-        Assert.Equal(51_300m, s.C82TotalAssetValuePerSqWa);
+        Assert.Equal(5_130_000m, s.TotalAssetValueRounded);  // FSD C81
+        Assert.Equal(51_300m, s.TotalAssetValuePerSqWa);     // FSD C82
     }
 
     // ── L&B: Non-zero discount rate (Reading 2 formulas) ──────────────────────
@@ -137,7 +137,7 @@ public class HypothesisCalculationServiceTests
     [Fact]
     public void LandBuilding_NonZeroDiscountRate_C77AppliesPercentageFactor_C79IsReading2()
     {
-        // C78 = 10 (10%), C18 = 1 month (from 1 unit / 1 per period)
+        // FSD C78 = 10 (10%), C18 = 1 month (from 1 unit / 1 per period)
         // C77 = (C15 - C76) * (10/100) = residual * 0.10
         // C79 (Reading 2) = 1 / (1 + (10/100)^(1/12)) = 1 / (1 + 0.10^(1/12)) ≈ 0.548
         var analysis = CreateLandBuildingAnalysis();
@@ -145,67 +145,67 @@ public class HypothesisCalculationServiceTests
 
         var input = new LandBuildingSummary
         {
-            C01TotalArea = 200m,
-            C16EstSalesPeriod = 1,
-            C35ContingencyPercent = 0m,
-            C40EstConstructionPeriod = 1,
-            C61ProjectContingencyPercent = 0m,
-            C78DiscountRate = 10m
+            TotalArea = 200m,                    // FSD C01
+            EstSalesPeriod = 1,                  // FSD C16
+            ContingencyPercent = 0m,             // FSD C35
+            EstConstructionPeriod = 1,           // FSD C40
+            ProjectContingencyPercent = 0m,      // FSD C61
+            DiscountRate = 10m                   // FSD C78
         };
 
         var result = Sut.ComputeLandBuilding(analysis, rows, input);
         var s = result.Summary;
 
-        // C18 = ceil(1/1) = 1
-        Assert.Equal(1, s.C18EstimatedDurationMonths);
+        // FSD C18 = ceil(1/1) = 1
+        Assert.Equal(1, s.EstimatedDurationMonths); // FSD C18
 
-        // C77 = (C15 - C76) * (C78/100)
-        decimal residual = s.C15TotalRevenue!.Value - s.C76TotalDevCostsAndExpenses!.Value;
+        // FSD C77 = (C15 - C76) * (C78/100)
+        decimal residual = s.TotalRevenue!.Value - s.TotalDevCostsAndExpenses!.Value;
         decimal expectedC77 = residual * (10m / 100m);
-        Assert.Equal(expectedC77, s.C77CurrentPropertyValue);
+        Assert.Equal(expectedC77, s.CurrentPropertyValue); // FSD C77
 
-        // C79 Reading 2: 1 / (1 + (C78/100)^(C18/12)) = 1 / (1 + (0.10)^(1/12))
+        // FSD C79 Reading 2: 1 / (1 + (C78/100)^(C18/12)) = 1 / (1 + (0.10)^(1/12))
         double expectedC79 = 1.0 / (1.0 + Math.Pow(0.10, 1.0 / 12.0));
-        Assert.Equal(Math.Round((decimal)expectedC79, 6), Math.Round(s.C79DiscountRateFactor!.Value, 6));
-        Assert.True(s.C79DiscountRateFactor < 1m);
+        Assert.Equal(Math.Round((decimal)expectedC79, 6), Math.Round(s.DiscountRateFactor!.Value, 6));
+        Assert.True(s.DiscountRateFactor < 1m);
     }
 
     [Fact]
     public void LandBuilding_NonZeroDiscountRate_C79Reading2_DivergenceFrom_Reading1()
     {
-        // At C78=10, C18=24 the two readings differ:
+        // At FSD C78=10, C18=24 the two readings differ:
         // Reading 1: 1/(1.10)^2 = 0.826
         // Reading 2: 1/(1 + 0.10^2) = 1/(1.01) = 0.990
         var analysis = CreateLandBuildingAnalysis();
         var rows = new[] { MakeLbRow("M1", 50m, 1_000_000m) };
 
-        // To get C18=24 we need 24 units / 1 per period
+        // To get FSD C18=24 we need 24 units / 1 per period
         var manyRows = Enumerable.Range(1, 24).Select(_ => MakeLbRow("M1", 50m, 100_000m)).ToList();
 
         var input = new LandBuildingSummary
         {
-            C01TotalArea = 200m,
-            C16EstSalesPeriod = 1, // C18 = ceil(24/1) = 24
-            C35ContingencyPercent = 0m,
-            C61ProjectContingencyPercent = 0m,
-            C78DiscountRate = 10m
+            TotalArea = 200m,                    // FSD C01
+            EstSalesPeriod = 1,                  // FSD C16 — C18 = ceil(24/1) = 24
+            ContingencyPercent = 0m,             // FSD C35
+            ProjectContingencyPercent = 0m,      // FSD C61
+            DiscountRate = 10m                   // FSD C78
         };
 
         var result = Sut.ComputeLandBuilding(analysis, manyRows, input);
         var s = result.Summary;
 
-        Assert.Equal(24, s.C18EstimatedDurationMonths);
+        Assert.Equal(24, s.EstimatedDurationMonths); // FSD C18
 
         // Reading 2: (C78/100)^(C18/12) = (0.10)^(24/12) = (0.10)^2 = 0.01; C79 = 1/(1+0.01) ≈ 0.990
         double expectedC79 = 1.0 / (1.0 + Math.Pow(0.10, 24.0 / 12.0));
-        Assert.Equal(Math.Round((decimal)expectedC79, 6), Math.Round(s.C79DiscountRateFactor!.Value, 6));
+        Assert.Equal(Math.Round((decimal)expectedC79, 6), Math.Round(s.DiscountRateFactor!.Value, 6));
 
         // Reading 1 would give 1/(1.1^2) = 0.826 — assert we are NOT using Reading 1
         double reading1 = 1.0 / Math.Pow(1.10, 24.0 / 12.0);
-        Assert.NotEqual(Math.Round((decimal)reading1, 4), Math.Round(s.C79DiscountRateFactor!.Value, 4));
+        Assert.NotEqual(Math.Round((decimal)reading1, 4), Math.Round(s.DiscountRateFactor!.Value, 4));
     }
 
-    // ── L&B: Duration calculation (C18) ──────────────────────────────────────
+    // ── L&B: Duration calculation (FSD C18) ──────────────────────────────────
 
     [Fact]
     public void LandBuilding_C18IsCalculatedFromC17DividedByC16_CeilingApplied()
@@ -222,17 +222,17 @@ public class HypothesisCalculationServiceTests
 
         var input = new LandBuildingSummary
         {
-            C01TotalArea = 1000m,
-            C16EstSalesPeriod = 2,
-            C35ContingencyPercent = 0m,
-            C61ProjectContingencyPercent = 0m,
-            C78DiscountRate = 0m
+            TotalArea = 1000m,               // FSD C01
+            EstSalesPeriod = 2,              // FSD C16
+            ContingencyPercent = 0m,         // FSD C35
+            ProjectContingencyPercent = 0m,  // FSD C61
+            DiscountRate = 0m                // FSD C78
         };
 
         var result = Sut.ComputeLandBuilding(analysis, rows, input);
 
-        Assert.Equal(5, result.Summary.C17TotalUnits);
-        Assert.Equal(3, result.Summary.C18EstimatedDurationMonths);
+        Assert.Equal(5, result.Summary.TotalUnits);                    // FSD C17
+        Assert.Equal(3, result.Summary.EstimatedDurationMonths);       // FSD C18
     }
 
     // ── L&B: Cost item aggregation ────────────────────────────────────────────
@@ -259,16 +259,16 @@ public class HypothesisCalculationServiceTests
 
         var input = new LandBuildingSummary
         {
-            C01TotalArea = 500m,
-            C16EstSalesPeriod = 1,
-            C35ContingencyPercent = 0m,
-            C61ProjectContingencyPercent = 0m,
-            C78DiscountRate = 0m
+            TotalArea = 500m,                // FSD C01
+            EstSalesPeriod = 1,              // FSD C16
+            ContingencyPercent = 0m,         // FSD C35
+            ProjectContingencyPercent = 0m,  // FSD C61
+            DiscountRate = 0m                // FSD C78
         };
 
         var result = Sut.ComputeLandBuilding(analysis, rows, input);
 
-        Assert.Equal(700_000m, result.Summary.C38TotalProjectDevCost);
+        Assert.Equal(700_000m, result.Summary.TotalProjectDevCost); // FSD C38
         Assert.Equal(2, result.Models["A"].UnitCount);
         Assert.Equal(400_000m, result.Models["A"].TotalValueAfterDepreciationAllUnits);
         Assert.Equal(1, result.Models["B"].UnitCount);
@@ -285,18 +285,18 @@ public class HypothesisCalculationServiceTests
 
         var input = new LandBuildingSummary
         {
-            C01TotalArea = 400m,
-            C16EstSalesPeriod = 1,
-            C27PublicUtilityRatePerSqWa = 500m,
-            C35ContingencyPercent = 0m,
-            C61ProjectContingencyPercent = 0m,
-            C78DiscountRate = 0m
+            TotalArea = 400m,                        // FSD C01
+            EstSalesPeriod = 1,                      // FSD C16
+            PublicUtilityRatePerSqWa = 500m,          // FSD C27
+            ContingencyPercent = 0m,                 // FSD C35
+            ProjectContingencyPercent = 0m,          // FSD C61
+            DiscountRate = 0m                        // FSD C78
         };
 
         var result = Sut.ComputeLandBuilding(analysis, rows, input);
 
-        Assert.Equal(400m, result.Summary.C28PublicUtilityArea);
-        Assert.Equal(200_000m, result.Summary.C29PublicUtilityCost);
+        Assert.Equal(400m, result.Summary.PublicUtilityAreaForCost); // FSD C28
+        Assert.Equal(200_000m, result.Summary.PublicUtilityCost);    // FSD C29
     }
 
     // ── L&B: CostItemKind lookup is description-independent ──────────────────
@@ -304,7 +304,7 @@ public class HypothesisCalculationServiceTests
     [Fact]
     public void LandBuilding_AllocationPermitFee_LookedUpByKind_NotDescription()
     {
-        // C-3 fix: renaming the description must not drop the fee from calc.
+        // FSD C44 fix: renaming the description must not drop the fee from calc.
         var analysis = CreateLandBuildingAnalysis();
         var rows = new[] { MakeLbRow("M1", 100m, 1_000_000m) };
 
@@ -315,17 +315,17 @@ public class HypothesisCalculationServiceTests
 
         var input = new LandBuildingSummary
         {
-            C01TotalArea = 100m,
-            C16EstSalesPeriod = 1,
-            C35ContingencyPercent = 0m,
-            C61ProjectContingencyPercent = 0m,
-            C78DiscountRate = 0m
+            TotalArea = 100m,                // FSD C01
+            EstSalesPeriod = 1,              // FSD C16
+            ContingencyPercent = 0m,         // FSD C35
+            ProjectContingencyPercent = 0m,  // FSD C61
+            DiscountRate = 0m                // FSD C78
         };
 
         var result = Sut.ComputeLandBuilding(analysis, rows, input);
 
-        // C44 should equal 50,000 despite the renamed description
-        Assert.Equal(50_000m, result.Summary.C44AllocationPermitFee);
+        // FSD C44 should equal 50,000 despite the renamed description
+        Assert.Equal(50_000m, result.Summary.AllocationPermitFee); // FSD C44
     }
 
     // ── Condo: Zero discount rate ─────────────────────────────────────────────
@@ -342,25 +342,25 @@ public class HypothesisCalculationServiceTests
 
         var input = new CondominiumSummary
         {
-            E01AreaTitleDeed = 200m,
-            E03FAR = 5m,
-            E05TotalBuildingArea = 5000m,
-            E14EstSalesDurationMonths = 12,
-            E15CondoBuildingCostPerSqM = 20_000m,
-            E25HardCostContingencyPercent = 0m,
-            E28EstConstructionPeriodMonths = 12,
-            E46TransferFeePercent = 0m,
-            E55DiscountRate = 0m
+            AreaTitleDeed = 200m,                    // FSD E01
+            FAR = 5m,                                // FSD E03
+            TotalBuildingArea = 5000m,               // FSD E05
+            EstSalesDurationMonths = 12,             // FSD E14
+            CondoBuildingCostPerSqM = 20_000m,       // FSD E15
+            HardCostContingencyPercent = 0m,         // FSD E25
+            EstConstructionPeriodMonths = 12,        // FSD E28
+            TransferFeePercent = 0m,                 // FSD E46
+            DiscountRate = 0m                        // FSD E55
         };
 
         var result = Sut.ComputeCondominium(analysis, rows, input);
 
-        Assert.Equal(0m, result.E55DiscountRate);
-        Assert.Equal(1m, result.E56DiscountRateFactor);
+        Assert.Equal(0m, result.DiscountRate);           // FSD E55
+        Assert.Equal(1m, result.DiscountRateFactor);     // FSD E56
 
-        var expectedE54 = result.E13TotalRevenue!.Value - result.E53TotalDevCosts!.Value;
-        Assert.Equal(expectedE54, result.E54TotalRemainingValue);
-        Assert.Equal(expectedE54, result.E57FinalRemainingValue);
+        var expectedE54 = result.TotalRevenue!.Value - result.TotalDevCosts!.Value;
+        Assert.Equal(expectedE54, result.TotalRemainingValue);   // FSD E54
+        Assert.Equal(expectedE54, result.FinalRemainingValue);   // FSD E57
     }
 
     [Fact]
@@ -371,21 +371,21 @@ public class HypothesisCalculationServiceTests
 
         var input = new CondominiumSummary
         {
-            E01AreaTitleDeed = 100m,
-            E03FAR = 10m,
-            E05TotalBuildingArea = 1000m,
-            E14EstSalesDurationMonths = 1,
-            E15CondoBuildingCostPerSqM = 0m,
-            E25HardCostContingencyPercent = 0m,
-            E28EstConstructionPeriodMonths = 0,
-            E46TransferFeePercent = 0m,
-            E55DiscountRate = 0m
+            AreaTitleDeed = 100m,                    // FSD E01
+            FAR = 10m,                               // FSD E03
+            TotalBuildingArea = 1000m,               // FSD E05
+            EstSalesDurationMonths = 1,              // FSD E14
+            CondoBuildingCostPerSqM = 0m,            // FSD E15
+            HardCostContingencyPercent = 0m,         // FSD E25
+            EstConstructionPeriodMonths = 0,         // FSD E28
+            TransferFeePercent = 0m,                 // FSD E46
+            DiscountRate = 0m                        // FSD E55
         };
 
         var result = Sut.ComputeCondominium(analysis, rows, input);
 
-        Assert.Equal(5_130_000m, result.E58TotalAssetValueRounded);
-        Assert.Equal(5_100m, result.E59TotalAssetValuePerSqM);
+        Assert.Equal(5_130_000m, result.TotalAssetValueRounded); // FSD E58
+        Assert.Equal(5_100m, result.TotalAssetValuePerSqM);      // FSD E59
     }
 
     // ── Condo: Non-zero discount rate (Reading 2) ─────────────────────────────
@@ -393,7 +393,7 @@ public class HypothesisCalculationServiceTests
     [Fact]
     public void Condominium_NonZeroDiscountRate_E54AppliesPercentageFactor_E56IsReading2()
     {
-        // E55 = 12 (12%), E14 = 12 months
+        // FSD E55 = 12 (12%), E14 = 12 months
         // E54 = (E13 - E53) * (12/100) = residual * 0.12
         // E56 (Reading 2) = 1 / (1 + (0.12)^(12/12)) = 1 / (1.12) ≈ 0.8929
         var analysis = CreateCondoAnalysis();
@@ -401,27 +401,27 @@ public class HypothesisCalculationServiceTests
 
         var input = new CondominiumSummary
         {
-            E01AreaTitleDeed = 50m,
-            E03FAR = 5m,
-            E05TotalBuildingArea = 500m,
-            E14EstSalesDurationMonths = 12,
-            E15CondoBuildingCostPerSqM = 0m,
-            E25HardCostContingencyPercent = 0m,
-            E28EstConstructionPeriodMonths = 0,
-            E46TransferFeePercent = 0m,
-            E55DiscountRate = 12m
+            AreaTitleDeed = 50m,                     // FSD E01
+            FAR = 5m,                                // FSD E03
+            TotalBuildingArea = 500m,                // FSD E05
+            EstSalesDurationMonths = 12,             // FSD E14
+            CondoBuildingCostPerSqM = 0m,            // FSD E15
+            HardCostContingencyPercent = 0m,         // FSD E25
+            EstConstructionPeriodMonths = 0,         // FSD E28
+            TransferFeePercent = 0m,                 // FSD E46
+            DiscountRate = 12m                       // FSD E55
         };
 
         var result = Sut.ComputeCondominium(analysis, rows, input);
 
-        decimal residual = result.E13TotalRevenue!.Value - result.E53TotalDevCosts!.Value;
+        decimal residual = result.TotalRevenue!.Value - result.TotalDevCosts!.Value;
         decimal expectedE54 = residual * (12m / 100m);
-        Assert.Equal(expectedE54, result.E54TotalRemainingValue);
+        Assert.Equal(expectedE54, result.TotalRemainingValue); // FSD E54
 
         // Reading 2: (0.12)^(12/12) = 0.12; E56 = 1/(1+0.12) ≈ 0.8929
         double expectedE56 = 1.0 / (1.0 + Math.Pow(0.12, 1.0));
-        Assert.Equal(Math.Round((decimal)expectedE56, 6), Math.Round(result.E56DiscountRateFactor!.Value, 6));
-        Assert.True(result.E56DiscountRateFactor < 1m);
+        Assert.Equal(Math.Round((decimal)expectedE56, 6), Math.Round(result.DiscountRateFactor!.Value, 6));
+        Assert.True(result.DiscountRateFactor < 1m);
     }
 
     // ── Condo: Hard cost calculation ──────────────────────────────────────────
@@ -434,20 +434,20 @@ public class HypothesisCalculationServiceTests
 
         var input = new CondominiumSummary
         {
-            E01AreaTitleDeed = 100m,
-            E03FAR = 5m,
-            E05TotalBuildingArea = 800m,
-            E14EstSalesDurationMonths = 6,
-            E15CondoBuildingCostPerSqM = 25_000m,
-            E25HardCostContingencyPercent = 5m,
-            E28EstConstructionPeriodMonths = 6,
-            E46TransferFeePercent = 0m,
-            E55DiscountRate = 0m
+            AreaTitleDeed = 100m,                    // FSD E01
+            FAR = 5m,                                // FSD E03
+            TotalBuildingArea = 800m,                // FSD E05
+            EstSalesDurationMonths = 6,              // FSD E14
+            CondoBuildingCostPerSqM = 25_000m,       // FSD E15
+            HardCostContingencyPercent = 5m,         // FSD E25
+            EstConstructionPeriodMonths = 6,         // FSD E28
+            TransferFeePercent = 0m,                 // FSD E46
+            DiscountRate = 0m                        // FSD E55
         };
 
         var result = Sut.ComputeCondominium(analysis, rows, input);
 
-        Assert.Equal(20_000_000m, result.E17CondoBuildingCostTotal);
+        Assert.Equal(20_000_000m, result.CondoBuildingCostTotal); // FSD E17
     }
 
     // ── Condo: Revenue aggregation from rows ──────────────────────────────────
@@ -465,21 +465,21 @@ public class HypothesisCalculationServiceTests
 
         var input = new CondominiumSummary
         {
-            E01AreaTitleDeed = 200m,
-            E03FAR = 5m,
-            E05TotalBuildingArea = 5000m,
-            E14EstSalesDurationMonths = 6,
-            E15CondoBuildingCostPerSqM = 0m,
-            E25HardCostContingencyPercent = 0m,
-            E28EstConstructionPeriodMonths = 0,
-            E46TransferFeePercent = 0m,
-            E55DiscountRate = 0m
+            AreaTitleDeed = 200m,                    // FSD E01
+            FAR = 5m,                                // FSD E03
+            TotalBuildingArea = 5000m,               // FSD E05
+            EstSalesDurationMonths = 6,              // FSD E14
+            CondoBuildingCostPerSqM = 0m,            // FSD E15
+            HardCostContingencyPercent = 0m,         // FSD E25
+            EstConstructionPeriodMonths = 0,         // FSD E28
+            TransferFeePercent = 0m,                 // FSD E46
+            DiscountRate = 0m                        // FSD E55
         };
 
         var result = Sut.ComputeCondominium(analysis, rows, input);
 
-        Assert.Equal(6_000_000m, result.E12TotalProjectSellingPrice);
-        Assert.Equal(6_000_000m, result.E13TotalRevenue);
+        Assert.Equal(6_000_000m, result.TotalProjectSellingPrice); // FSD E12
+        Assert.Equal(6_000_000m, result.TotalRevenue);             // FSD E13
     }
 
     // ── Condo: Sales area comes from rows ─────────────────────────────────────
@@ -497,21 +497,21 @@ public class HypothesisCalculationServiceTests
 
         var input = new CondominiumSummary
         {
-            E01AreaTitleDeed = 100m,
-            E03FAR = 5m,
-            E05TotalBuildingArea = 1000m,
-            E14EstSalesDurationMonths = 3,
-            E15CondoBuildingCostPerSqM = 0m,
-            E25HardCostContingencyPercent = 0m,
-            E28EstConstructionPeriodMonths = 0,
-            E46TransferFeePercent = 0m,
-            E55DiscountRate = 0m
+            AreaTitleDeed = 100m,                    // FSD E01
+            FAR = 5m,                                // FSD E03
+            TotalBuildingArea = 1000m,               // FSD E05
+            EstSalesDurationMonths = 3,              // FSD E14
+            CondoBuildingCostPerSqM = 0m,            // FSD E15
+            HardCostContingencyPercent = 0m,         // FSD E25
+            EstConstructionPeriodMonths = 0,         // FSD E28
+            TransferFeePercent = 0m,                 // FSD E46
+            DiscountRate = 0m                        // FSD E55
         };
 
         var result = Sut.ComputeCondominium(analysis, rows, input);
 
-        Assert.Equal(120m, result.E09IndoorSalesArea);
-        Assert.Equal(120m, result.E10ProjectSalesArea);
+        Assert.Equal(120m, result.IndoorSalesArea);    // FSD E09
+        Assert.Equal(120m, result.ProjectSalesArea);   // FSD E10
     }
 
     // ── Condo: E21 fallback mirrors E18 (C-5 fix) ────────────────────────────
@@ -519,32 +519,32 @@ public class HypothesisCalculationServiceTests
     [Fact]
     public void Condominium_E21FallbackMirrorsE18_WhenNoRows()
     {
-        // With no rows uploaded, d03=0. E18 and E21 should both fall back to E18SetAvgRoomSizeUnits.
+        // With no rows uploaded, d03=0. FSD E18 and E21 should both fall back to SetAvgRoomSizeUnits.
         var analysis = CreateCondoAnalysis();
         var rows = new List<CondominiumUnitRow>();
 
         var input = new CondominiumSummary
         {
-            E01AreaTitleDeed = 100m,
-            E03FAR = 5m,
-            E05TotalBuildingArea = 1000m,
-            E14EstSalesDurationMonths = 6,
-            E15CondoBuildingCostPerSqM = 0m,
-            E18SetAvgRoomSizeUnits = 50,    // manual fallback
-            E20FurniturePerUnit = 10_000m,
-            E25HardCostContingencyPercent = 0m,
-            E28EstConstructionPeriodMonths = 0,
-            E46TransferFeePercent = 0m,
-            E55DiscountRate = 0m
+            AreaTitleDeed = 100m,                    // FSD E01
+            FAR = 5m,                                // FSD E03
+            TotalBuildingArea = 1000m,               // FSD E05
+            EstSalesDurationMonths = 6,              // FSD E14
+            CondoBuildingCostPerSqM = 0m,            // FSD E15
+            SetAvgRoomSizeUnits = 50,                // FSD E18 — manual fallback
+            FurniturePerUnit = 10_000m,              // FSD E20
+            HardCostContingencyPercent = 0m,         // FSD E25
+            EstConstructionPeriodMonths = 0,         // FSD E28
+            TransferFeePercent = 0m,                 // FSD E46
+            DiscountRate = 0m                        // FSD E55
         };
 
         var result = Sut.ComputeCondominium(analysis, rows, input);
 
-        // E18 and E21 should both be 50 (the manual fallback)
-        Assert.Equal(50, result.E18SetAvgRoomSizeUnits);
-        Assert.Equal(50, result.E21FurnitureQuantity);
-        // E22 = E20 * E21 = 10,000 * 50 = 500,000
-        Assert.Equal(500_000m, result.E22FurnitureTotal);
+        // FSD E18 and E21 should both be 50 (the manual fallback)
+        Assert.Equal(50, result.SetAvgRoomSizeUnits);    // FSD E18
+        Assert.Equal(50, result.FurnitureQuantity);      // FSD E21
+        // FSD E22 = E20 * E21 = 10,000 * 50 = 500,000
+        Assert.Equal(500_000m, result.FurnitureTotal);   // FSD E22
     }
 
     // ── L&B: Empty rows ───────────────────────────────────────────────────────
@@ -557,18 +557,18 @@ public class HypothesisCalculationServiceTests
 
         var input = new LandBuildingSummary
         {
-            C01TotalArea = 1000m,
-            C16EstSalesPeriod = 1,
-            C35ContingencyPercent = 3m,
-            C61ProjectContingencyPercent = 3m,
-            C78DiscountRate = 0m
+            TotalArea = 1000m,               // FSD C01
+            EstSalesPeriod = 1,              // FSD C16
+            ContingencyPercent = 3m,         // FSD C35
+            ProjectContingencyPercent = 3m,  // FSD C61
+            DiscountRate = 0m                // FSD C78
         };
 
         var result = Sut.ComputeLandBuilding(analysis, rows, input);
 
-        Assert.Equal(0m, result.Summary.C15TotalRevenue);
-        Assert.Equal(0, result.Summary.C17TotalUnits);
-        Assert.Equal(0m, result.Summary.C81TotalAssetValueRounded);
+        Assert.Equal(0m, result.Summary.TotalRevenue);               // FSD C15
+        Assert.Equal(0, result.Summary.TotalUnits);                  // FSD C17
+        Assert.Equal(0m, result.Summary.TotalAssetValueRounded);     // FSD C81
     }
 
     // ── Condo: Empty rows ─────────────────────────────────────────────────────
@@ -581,20 +581,20 @@ public class HypothesisCalculationServiceTests
 
         var input = new CondominiumSummary
         {
-            E01AreaTitleDeed = 500m,
-            E05TotalBuildingArea = 5000m,
-            E14EstSalesDurationMonths = 6,
-            E15CondoBuildingCostPerSqM = 0m,
-            E25HardCostContingencyPercent = 0m,
-            E28EstConstructionPeriodMonths = 0,
-            E46TransferFeePercent = 0m,
-            E55DiscountRate = 0m
+            AreaTitleDeed = 500m,                    // FSD E01
+            TotalBuildingArea = 5000m,               // FSD E05
+            EstSalesDurationMonths = 6,              // FSD E14
+            CondoBuildingCostPerSqM = 0m,            // FSD E15
+            HardCostContingencyPercent = 0m,         // FSD E25
+            EstConstructionPeriodMonths = 0,         // FSD E28
+            TransferFeePercent = 0m,                 // FSD E46
+            DiscountRate = 0m                        // FSD E55
         };
 
         var result = Sut.ComputeCondominium(analysis, rows, input);
 
-        Assert.Equal(0m, result.E12TotalProjectSellingPrice);
-        Assert.Equal(0m, result.E58TotalAssetValueRounded);
+        Assert.Equal(0m, result.TotalProjectSellingPrice); // FSD E12
+        Assert.Equal(0m, result.TotalAssetValueRounded);   // FSD E58
     }
 
     // ── SetAmounts guard (M-7) ─────────────────────────────────────────────────
