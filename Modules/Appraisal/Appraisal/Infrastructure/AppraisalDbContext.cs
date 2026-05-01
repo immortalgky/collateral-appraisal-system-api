@@ -1,3 +1,6 @@
+using Appraisal.Domain.Appraisals.Hypothesis;
+using Appraisal.Domain.Appraisals.Hypothesis.CostItems;
+using Appraisal.Domain.Appraisals.Hypothesis.Uploads;
 using Appraisal.Domain.Appraisals.Income;
 using Appraisal.Domain.ComparativeAnalysis;
 using Shared.Data.Outbox;
@@ -128,6 +131,15 @@ public class AppraisalDbContext : DbContext
     public DbSet<IncomeSection> IncomeSections => Set<IncomeSection>();
     public DbSet<IncomeCategory> IncomeCategories => Set<IncomeCategory>();
     public DbSet<IncomeAssumption> IncomeAssumptions => Set<IncomeAssumption>();
+
+    // =====================================================
+    // Hypothesis Analysis Entities
+    // =====================================================
+    public DbSet<HypothesisAnalysis> HypothesisAnalyses => Set<HypothesisAnalysis>();
+    public DbSet<HypothesisUnitDetailUpload> HypothesisUnitDetailUploads => Set<HypothesisUnitDetailUpload>();
+    public DbSet<LandBuildingUnitRow> HypothesisLandBuildingUnitRows => Set<LandBuildingUnitRow>();
+    public DbSet<CondominiumUnitRow> HypothesisCondominiumUnitRows => Set<CondominiumUnitRow>();
+    public DbSet<HypothesisCostItem> HypothesisCostItems => Set<HypothesisCostItem>();
 
     // =====================================================
     // Comparative Analysis Templates
