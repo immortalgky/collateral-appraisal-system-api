@@ -47,6 +47,7 @@ public record CondominiumUnitRowDto(
 public record CostItemDto(
     Guid Id,
     HypothesisCostCategory Category,
+    CostItemKind Kind,
     string Description,
     int DisplaySequence,
     decimal Amount,

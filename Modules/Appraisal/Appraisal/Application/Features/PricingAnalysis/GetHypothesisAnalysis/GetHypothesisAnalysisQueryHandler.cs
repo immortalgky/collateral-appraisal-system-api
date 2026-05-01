@@ -50,7 +50,7 @@ public class GetHypothesisAnalysisQueryHandler(
             .OrderBy(i => i.Category)
             .ThenBy(i => i.DisplaySequence)
             .Select(i => new CostItemDto(
-                i.Id, i.Category, i.Description, i.DisplaySequence,
+                i.Id, i.Category, i.Kind, i.Description, i.DisplaySequence,
                 i.Amount, i.RateAmount, i.Quantity, i.RatePercent, i.CategoryRatio, i.ModelName))
             .ToList();
 
