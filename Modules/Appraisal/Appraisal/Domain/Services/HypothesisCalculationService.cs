@@ -15,17 +15,14 @@ namespace Appraisal.Domain.Services;
 ///   E58 = Round(E57, -4)
 ///   E59 = Round(E57 / E05, -2)
 ///
-/// Discount rate factor (Reading 2 — literal FSD precedence):
-///   C79 = 1 / (1 + (C78/100)^(C18/12))
-///   E56 = 1 / (1 + (E55/100)^(E14/12))
+/// Discount rate factor — standard present-value factor:
+///   C79 = 1 / (1 + C78/100)^(C18/12)
+///   E56 = 1 / (1 + E55/100)^(E14/12)
+/// Both yield 1 when the discount rate is 0 (no discounting).
 ///
-/// C77 conditional (percentage applied when C78 ≠ 0):
-///   if C78 = 0: C77 = C15 - C76
-///   if C78 ≠ 0: C77 = (C15 – C76) × (C78 / 100)
-///
-/// E54 conditional (mirrors C77):
-///   if E55 = 0: E54 = E13 – E53
-///   if E55 ≠ 0: E54 = (E13 – E53) × (E55 / 100)
+/// Current Property Value (no discount applied — discount is applied via the factor below):
+///   C77 = C15 - C76
+///   E54 = E13 - E53
 /// </summary>
 public class HypothesisCalculationService
 {
@@ -36,12 +33,23 @@ public class HypothesisCalculationService
     /// Populates and returns an updated <see cref="LandBuildingSummary"/>.
     /// The per-model detail snapshot (A-fields, per-model C11-C26) is included in the result.
     /// </summary>
+    /// <param name="analysis">Hypothesis analysis aggregate (provides cost items).</param>
+    /// <param name="rows">Upload unit rows for this analysis.</param>
+    /// <param name="input">User-supplied inputs (TotalArea / SellingAreaPercent / PublicUtilityAreaPercent
+    ///   are legacy fallbacks only — see <paramref name="totalLandAreaFromTitles"/>).</param>
+    /// <param name="totalLandAreaFromTitles">
+    ///   System-derived C01: sum of LandAppraisalDetail.TotalLandAreaInSqWa across the property group's
+    ///   land titles. When non-null this takes precedence over input.TotalArea and the derived
+    ///   percentages (C02, C10) are computed from C01 and C03/C10A instead of from user input.
+    ///   Pass null when the analysis is for a ProjectModel (no land-title chain available).
+    /// </param>
     public LandBuildingSnapshot ComputeLandBuilding(
         HypothesisAnalysis analysis,
         IReadOnlyList<LandBuildingUnitRow> rows,
-        LandBuildingSummary input)
+        LandBuildingSummary input,
+        decimal? totalLandAreaFromTitles = null)
     {
-        return ComputeLandBuildingCore(analysis.CostItems, rows, input);
+        return ComputeLandBuildingCore(analysis.CostItems, rows, input, totalLandAreaFromTitles);
     }
 
     /// <summary>
@@ -51,30 +59,38 @@ public class HypothesisCalculationService
     public LandBuildingSnapshot ComputeLandBuilding(
         IReadOnlyList<HypothesisCostItem> costItems,
         IReadOnlyList<LandBuildingUnitRow> rows,
-        LandBuildingSummary input)
+        LandBuildingSummary input,
+        decimal? totalLandAreaFromTitles = null)
     {
-        return ComputeLandBuildingCore(costItems, rows, input);
+        return ComputeLandBuildingCore(costItems, rows, input, totalLandAreaFromTitles);
     }
 
     private static LandBuildingSnapshot ComputeLandBuildingCore(
         IReadOnlyList<HypothesisCostItem> costItems,
         IReadOnlyList<LandBuildingUnitRow> rows,
-        LandBuildingSummary input)
+        LandBuildingSummary input,
+        decimal? totalLandAreaFromTitles)
     {
         // ── Step 1: Aggregate per-model A/C fields from unit rows ─────────
         var models = AggregateModels(rows);
 
         // ── Step 2: Area calculations (C01-C10A) ──────────────────────────
-        // FSD C01: Total area
-        decimal c01 = input.TotalArea ?? 0m;
-        // FSD C02: Selling area percent
-        decimal c02 = input.SellingAreaPercent ?? 0m;
-        // FSD C03: Selling area = SUM of per-model total land areas
+        // FSD C01: Total area — system title-sum takes precedence; fall back to legacy user input.
+        decimal c01 = totalLandAreaFromTitles ?? input.TotalArea ?? 0m;
+        // FSD C03: Selling area = SUM of per-model total land areas (always from upload rows)
         decimal c03 = models.Values.Sum(m => m.TotalLandAreaSqWa);
-        // FSD C10: Public utility area percent
-        decimal c10 = input.PublicUtilityAreaPercent ?? 0m;
-        // FSD C10A: Public utility area
-        decimal c10a = c10 / 100m * c01;
+        // FSD C02: Selling area percent — DERIVED when title sum is available; else legacy input.
+        decimal c02 = totalLandAreaFromTitles.HasValue
+            ? (c01 > 0m ? c03 / c01 * 100m : 0m)
+            : (input.SellingAreaPercent ?? 0m);
+        // FSD C10A: Public utility area — DERIVED: max(0, C01 - C03)
+        decimal c10a = totalLandAreaFromTitles.HasValue
+            ? Math.Max(0m, c01 - c03)
+            : ((input.PublicUtilityAreaPercent ?? 0m) / 100m * c01);
+        // FSD C10: Public utility area percent — DERIVED when title sum is available; else legacy input.
+        decimal c10 = totalLandAreaFromTitles.HasValue
+            ? (c01 > 0m ? c10a / c01 * 100m : 0m)
+            : (input.PublicUtilityAreaPercent ?? 0m);
 
         // ── Step 3: Revenue (C11-C15) ─────────────────────────────────────
         // Per-model: C11 = units, C12 = total selling price (summed from rows)
@@ -87,45 +103,75 @@ public class HypothesisCalculationService
         // FSD C18: Estimated duration months
         int c18 = c16 > 0 ? (int)Math.Ceiling((double)c17 / c16) : 0;
 
+        // ── Step 3.5: Compute B03/B06/B07/B08 for each CostOfBuilding item ─
+        ComputeBuildingDepreciation(costItems);
+
         // ── Step 4: Per-model construction cost from cost items ───────────
         // FSD C21+C25+...: sum building cost all models
         decimal sumBuildingCostAllModels = 0m;
 
         foreach (var model in models.Values)
         {
-            // FSD C19: total value after depreciation for this model (from cost-of-building items)
-            decimal c19 = costItems
+            var modelItems = costItems
                 .Where(i => i.Category == HypothesisCostCategory.CostOfBuilding
                              && i.ModelName == model.ModelName)
-                .Sum(i => i.Amount);
-            model.TotalValueAfterDepreciation = c19;
+                .ToList();
+
+            // FSD B09: Total area = Σ B01
+            model.TotalBuildingAreaSqM = modelItems.Sum(i => i.Area ?? 0m);
+
+            // FSD B10: Total price before depreciation = Σ B03
+            model.TotalPriceBeforeDepreciation = modelItems.Sum(i => i.PriceBeforeDepreciation ?? 0m);
+
+            // FSD B11: Total value after depreciation = Σ B08
+            // Falls back to item.Amount for rows that pre-date the B-field addition.
+            decimal b11 = modelItems.Sum(i => i.ValueAfterDepreciation ?? i.Amount);
+            model.TotalBuildingValueAfterDepreciation = b11;
+
+            // FSD C19: per-unit value after depreciation (= B11 for this model)
+            model.TotalValueAfterDepreciation = b11;
             // FSD C21: C19 × C20 (C20 = unit count for the model)
-            model.TotalValueAfterDepreciationAllUnits = c19 * model.UnitCount;
+            model.TotalValueAfterDepreciationAllUnits = b11 * model.UnitCount;
             sumBuildingCostAllModels += model.TotalValueAfterDepreciationAllUnits;
         }
 
         // ── Step 5: Project Dev Cost (C27-C39) ────────────────────────────
         // FSD C27: Public utility rate per SqWa
         decimal c27 = input.PublicUtilityRatePerSqWa ?? 0m;
-        // FSD C28: Public utility area = C01
-        decimal c28 = c01;
+        // FSD C28: Public utility area = C10A (public utility area, NOT total land area)
+        decimal c28 = c10a;
         // FSD C29: Public utility cost
         decimal c29 = c27 * c28;
 
         // FSD C31: Land filling rate per SqWa
         decimal c31 = input.LandFillingRatePerSqWa ?? 0m;
-        // FSD C32: Land filling area = C01
+        // FSD C32: Land filling area = C01 (total land area)
         decimal c32 = c01;
         // FSD C33: Land filling cost
         decimal c33 = c31 * c32;
 
+        // ── User-added Project Dev Cost rows (kind = Other) ───────────────
+        // Excludes the seed kinds (PublicUtilityConstruction, LandFilling) since
+        // those are driven by C27/C31 summary inputs above.
+        //
+        // BUSINESS RULE: user-added rows ARE included in the contingency base,
+        // matching the FSD figure 57 layout where Contingency Allowance sits below
+        // the user-added rows and reflects the same percentage rule applied to all
+        // preceding dev-cost lines. If a user-added row is itself a buffer, the
+        // user should set ContingencyPercent to 0 to avoid double-stacking.
+        var userProjectDevItems = costItems
+            .Where(i => i.Category == HypothesisCostCategory.ProjectDevCost
+                        && i.Kind == CostItemKind.Other)
+            .ToList();
+        decimal sumUserProjectDevCost = userProjectDevItems.Sum(i => i.Amount);
+
         // FSD C35: Contingency percent
         decimal c35 = input.ContingencyPercent ?? 3m;
-        // FSD C36: Contingency = (sum of building costs + public utility + land filling) × C35 / 100
-        decimal c36 = (sumBuildingCostAllModels + c29 + c33) * c35 / 100m;
+        // FSD C36: Contingency = (building costs + public utility + land filling + user-added) × C35 / 100
+        decimal c36 = (sumBuildingCostAllModels + c29 + c33 + sumUserProjectDevCost) * c35 / 100m;
 
         // FSD C38: Total project dev cost
-        decimal c38 = sumBuildingCostAllModels + c29 + c33 + c36;
+        decimal c38 = sumBuildingCostAllModels + c29 + c33 + sumUserProjectDevCost + c36;
         // FSD C39: Total dev cost ratio
         decimal c39 = c38 > 0 ? 100m : 0m;
 
@@ -133,6 +179,12 @@ public class HypothesisCalculationService
         decimal c30 = c38 > 0 ? c29 * 100m / c38 : 0m;
         decimal c34 = c38 > 0 ? c33 * 100m / c38 : 0m;
         decimal c37 = c38 > 0 ? c36 * 100m / c38 : 0m;
+
+        // Per-row CategoryRatio for user-added Project Dev Cost rows (% of C38)
+        foreach (var item in userProjectDevItems)
+        {
+            item.SetCategoryRatio(c38 > 0 ? item.Amount * 100m / c38 : 0m);
+        }
 
         // Per-model dev cost ratios (C22, C26, ...)
         foreach (var model in models.Values)
@@ -151,9 +203,8 @@ public class HypothesisCalculationService
         int c42 = c40 > 0 ? (int)Math.Ceiling((double)c41 / c40) : 0;
 
         // ── Step 7: Project Cost (C43-C65) ────────────────────────────────
-        // FSD C44: Allocation permit fee — read from ProjectCost cost item by Kind
-        decimal c43 = GetProjectCostAmount(costItems, HypothesisCostCategory.ProjectCost, CostItemKind.AllocationPermitFee);
-        decimal c44 = c43; // = C43
+        // FSD C44: Allocation permit fee — direct summary input (was previously a cost item).
+        decimal c44 = input.AllocationPermitFee ?? 0m;
 
         // FSD C46: Land title deed division fee per plot
         decimal c46 = input.LandTitleFeePerPlot ?? 0m;
@@ -181,13 +232,23 @@ public class HypothesisCalculationService
         // FSD C59: Selling/adv total
         decimal c59 = c15 * c58 / 100m;
 
+        // ── User-added Project Cost rows (kind = Other) ───────────────────
+        // Same rule as Project Dev Cost rows: user-added entries are included
+        // in the C62 contingency base. Set ProjectContingencyPercent to 0 if a
+        // user row is itself a buffer.
+        var userProjectCostItems = costItems
+            .Where(i => i.Category == HypothesisCostCategory.ProjectCost
+                        && i.Kind == CostItemKind.Other)
+            .ToList();
+        decimal sumUserProjectCost = userProjectCostItems.Sum(i => i.Amount);
+
         // FSD C61: Project contingency percent
         decimal c61 = input.ProjectContingencyPercent ?? 3m;
-        // FSD C62: Project contingency amount
-        decimal c62 = (c44 + c48 + c52 + c56 + c59) * c61 / 100m;
+        // FSD C62: Project contingency amount (includes user-added rows in the base)
+        decimal c62 = (c44 + c48 + c52 + c56 + c59 + sumUserProjectCost) * c61 / 100m;
 
         // FSD C64: Total project cost
-        decimal c64 = c44 + c48 + c52 + c56 + c59 + c62;
+        decimal c64 = c44 + c48 + c52 + c56 + c59 + sumUserProjectCost + c62;
         // FSD C65: Total project cost ratio
         decimal c65 = c64 > 0 ? 100m : 0m;
 
@@ -198,6 +259,12 @@ public class HypothesisCalculationService
         decimal c57 = c64 > 0 ? c56 * 100m / c64 : 0m;
         decimal c60 = c64 > 0 ? c59 * 100m / c64 : 0m;
         decimal c63 = c64 > 0 ? c62 * 100m / c64 : 0m;
+
+        // Per-row CategoryRatio for user-added Project Cost rows (% of C64)
+        foreach (var item in userProjectCostItems)
+        {
+            item.SetCategoryRatio(c64 > 0 ? item.Amount * 100m / c64 : 0m);
+        }
 
         // ── Step 8: Government Taxes (C66-C73) ────────────────────────────
         // FSD C66: Transfer fee percent
@@ -231,16 +298,12 @@ public class HypothesisCalculationService
         // FSD C78: Discount rate
         decimal c78 = input.DiscountRate ?? 0m;
 
-        // FSD C77: Current Property Value
-        // if C78=0 → residual unchanged; else apply C78 as a percentage factor.
-        decimal c77;
-        if (c78 == 0m)
-            c77 = c15 - c76;
-        else
-            c77 = (c15 - c76) * (c78 / 100m);
+        // FSD C77: Current Property Value = revenue − total costs (no discount applied).
+        // The discount is applied only when computing C80 via C79 (discount factor).
+        decimal c77 = c15 - c76;
 
-        // FSD C79: Discount rate factor (Reading 2 — literal FSD precedence):
-        //   C79 = 1 / (1 + (C78/100)^(C18/12))
+        // FSD C79: Discount rate factor — standard PV factor:
+        //   C79 = 1 / (1 + C78/100)^(C18/12)
         decimal c79;
         if (c78 == 0m)
         {
@@ -248,9 +311,9 @@ public class HypothesisCalculationService
         }
         else
         {
-            var innerPow = (double)(c78 / 100m);
+            var basePart = 1.0 + (double)(c78 / 100m);
             var exponent = (double)c18 / 12.0;
-            c79 = 1m / (1m + (decimal)Math.Pow(innerPow, exponent));
+            c79 = 1m / (decimal)Math.Pow(basePart, exponent);
         }
 
         // FSD C80: Final property value
@@ -342,9 +405,10 @@ public class HypothesisCalculationService
     public CondominiumSummary ComputeCondominium(
         HypothesisAnalysis analysis,
         IReadOnlyList<CondominiumUnitRow> rows,
-        CondominiumSummary input)
+        CondominiumSummary input,
+        decimal? totalLandAreaFromTitles = null)
     {
-        return ComputeCondominiumCore(analysis.CostItems, rows, input);
+        return ComputeCondominiumCore(analysis.CostItems, rows, input, totalLandAreaFromTitles);
     }
 
     /// <summary>
@@ -354,15 +418,17 @@ public class HypothesisCalculationService
     public CondominiumSummary ComputeCondominium(
         IReadOnlyList<HypothesisCostItem> costItems,
         IReadOnlyList<CondominiumUnitRow> rows,
-        CondominiumSummary input)
+        CondominiumSummary input,
+        decimal? totalLandAreaFromTitles = null)
     {
-        return ComputeCondominiumCore(costItems, rows, input);
+        return ComputeCondominiumCore(costItems, rows, input, totalLandAreaFromTitles);
     }
 
     private static CondominiumSummary ComputeCondominiumCore(
         IReadOnlyList<HypothesisCostItem> costItems,
         IReadOnlyList<CondominiumUnitRow> rows,
-        CondominiumSummary input)
+        CondominiumSummary input,
+        decimal? totalLandAreaFromTitles)
     {
         // ── Step 1: Aggregate from upload (D01-D04 → E01/E09/E12/E18) ─────
         // FSD D02: total indoor sales area
@@ -373,14 +439,14 @@ public class HypothesisCalculationService
         decimal d04 = rows.Sum(r => r.SellingPrice ?? 0m);
 
         // ── Step 2: Land area details ─────────────────────────────────────
-        // FSD E01: Area title deed
-        decimal e01 = input.AreaTitleDeed ?? 0m;
+        // FSD E01: Area title deed — system title-sum takes precedence; fall back to legacy user input.
+        decimal e01 = totalLandAreaFromTitles ?? input.AreaTitleDeed ?? 0m;
         // FSD E02: Area SqM = E01 × 4
         decimal e02 = e01 * 4m;
         // FSD E03: FAR
         decimal e03 = input.FAR ?? 0m;
-        // FSD E04: Construction area city plan
-        decimal e04 = e03 > 0m ? Math.Round(e02 * e03, 0, MidpointRounding.AwayFromZero) : 0m;
+        // FSD E04: Construction area city plan = E02 × E03, rounded to nearest 1,000
+        decimal e04 = e03 > 0m ? RoundToNearest(e02 * e03, 1000m) : 0m;
         // FSD E05: Total building area
         decimal e05 = input.TotalBuildingArea ?? 0m;
 
@@ -511,16 +577,12 @@ public class HypothesisCalculationService
         // FSD E55: Discount rate
         decimal e55 = input.DiscountRate ?? 0m;
 
-        // FSD E54: Total remaining value
-        // if E55=0 → residual unchanged; else apply E55 as a percentage factor.
-        decimal e54;
-        if (e55 == 0m)
-            e54 = e13 - e53;
-        else
-            e54 = (e13 - e53) * (e55 / 100m);
+        // FSD E54: Total remaining value = revenue − total costs (no discount applied).
+        // The discount is applied only when computing E57 via E56 (discount factor).
+        decimal e54 = e13 - e53;
 
-        // FSD E56: Discount rate factor (Reading 2 — literal FSD precedence):
-        //   E56 = 1 / (1 + (E55/100)^(E14/12))
+        // FSD E56: Discount rate factor — standard PV factor:
+        //   E56 = 1 / (1 + E55/100)^(E14/12)
         decimal e56;
         if (e55 == 0m)
         {
@@ -528,9 +590,9 @@ public class HypothesisCalculationService
         }
         else
         {
-            var innerPow = (double)(e55 / 100m);
+            var basePart = 1.0 + (double)(e55 / 100m);
             var exponent = (double)e14 / 12.0;
-            e56 = 1m / (1m + (decimal)Math.Pow(innerPow, exponent));
+            e56 = 1m / (decimal)Math.Pow(basePart, exponent);
         }
 
         // FSD E57: Final remaining value
@@ -607,6 +669,63 @@ public class HypothesisCalculationService
 
     // ── Private helpers ───────────────────────────────────────────────────
 
+    /// <summary>
+    /// For every CostOfBuilding item, computes and stores the four derived B-fields:
+    ///   B03 = B01 × B02
+    ///   B06 (Gross)  = min(100, B04 × B05)
+    ///   B06 (Period) = min(100, Σ (ToYear − AtYear + 1) × DepreciationPerYear)
+    ///   B07 = B03 × B06 / 100
+    ///   B08 = B03 − B07
+    ///
+    /// Null inputs are treated as 0 for the computation, but only stored when at
+    /// least one non-null signal exists (B01/B02/B04/B05 or a non-empty period list).
+    /// This preserves the "not entered yet" state for truly empty rows.
+    /// </summary>
+    private static void ComputeBuildingDepreciation(IReadOnlyList<HypothesisCostItem> costItems)
+    {
+        foreach (var item in costItems)
+        {
+            if (item.Category != HypothesisCostCategory.CostOfBuilding)
+                continue;
+
+            bool hasPeriods = item.DepreciationPeriods.Count > 0;
+
+            // If all user inputs are null AND no periods, this row hasn't been configured yet — skip.
+            if (item.Area is null && item.PricePerSqM is null
+                && item.Year is null && item.AnnualDepreciationPercent is null
+                && !hasPeriods)
+            {
+                item.SetBuildingCostComputedFields(null, null, null, null);
+                continue;
+            }
+
+            decimal b01 = item.Area ?? 0m;
+            decimal b02 = item.PricePerSqM ?? 0m;
+            decimal b03 = b01 * b02;
+
+            decimal b06;
+            if (item.DepreciationMethod == DepreciationMethod.Period)
+            {
+                // B06 = min(100, Σ (ToYear − AtYear + 1) × DepreciationPerYear)
+                decimal periodSum = item.DepreciationPeriods
+                    .Sum(p => (p.ToYear - p.AtYear + 1) * p.DepreciationPerYear);
+                b06 = Math.Min(100m, periodSum);
+            }
+            else
+            {
+                // Gross (default): B06 = min(100, B04 × B05)
+                decimal b04 = item.Year ?? 0;
+                decimal b05 = item.AnnualDepreciationPercent ?? 0m;
+                b06 = Math.Min(100m, b04 * b05);
+            }
+
+            decimal b07 = b03 * b06 / 100m;
+            decimal b08 = b03 - b07;
+
+            item.SetBuildingCostComputedFields(b03, b06, b07, b08);
+        }
+    }
+
     private static Dictionary<string, LandBuildingModelAggregate> AggregateModels(
         IReadOnlyList<LandBuildingUnitRow> rows)
     {
@@ -635,20 +754,6 @@ public class HypothesisCalculationService
         }
 
         return models;
-    }
-
-    /// <summary>
-    /// Returns the sum of amounts for cost items matching (category, kind).
-    /// Lookup is by stable <see cref="CostItemKind"/>, not by description text.
-    /// </summary>
-    private static decimal GetProjectCostAmount(
-        IReadOnlyList<HypothesisCostItem> costItems,
-        HypothesisCostCategory category,
-        CostItemKind kind)
-    {
-        return costItems
-            .Where(i => i.Category == category && i.Kind == kind)
-            .Sum(i => i.Amount);
     }
 
     /// <summary>
@@ -688,5 +793,21 @@ public class HypothesisCalculationService
 
         /// <summary>FSD C22/C26/... — Dev cost ratio (%).</summary>
         public decimal DevCostRatioPercent { get; set; }
+
+        /// <summary>
+        /// FSD B09 — Sum of Area (B01) across all CostOfBuilding rows for this model (SqM).
+        /// </summary>
+        public decimal TotalBuildingAreaSqM { get; set; }
+
+        /// <summary>
+        /// FSD B10 — Sum of PriceBeforeDepreciation (B03) across all CostOfBuilding rows for this model.
+        /// </summary>
+        public decimal TotalPriceBeforeDepreciation { get; set; }
+
+        /// <summary>
+        /// FSD B11 — Sum of ValueAfterDepreciation (B08) across all CostOfBuilding rows for this model.
+        /// This is the source for FSD C19 (per-unit building value going into the dev-cost calc).
+        /// </summary>
+        public decimal TotalBuildingValueAfterDepreciation { get; set; }
     }
 }

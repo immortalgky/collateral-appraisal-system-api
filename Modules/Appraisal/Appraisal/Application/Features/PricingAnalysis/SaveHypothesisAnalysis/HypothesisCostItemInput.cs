@@ -4,6 +4,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis;
 
 /// <summary>
 /// Input DTO for a single cost item on the hypothesis analysis.
+/// For CostOfBuilding rows, B01/B02/B04/B05 are user inputs;
+/// B03/B06/B07/B08 are computed server-side and returned in the response.
 /// </summary>
 public record HypothesisCostItemInput(
     Guid? Id,
@@ -15,7 +17,26 @@ public record HypothesisCostItemInput(
     decimal? RateAmount,
     decimal? Quantity,
     decimal? RatePercent,
-    string? ModelName
+    string? ModelName,
+    // ── CostOfBuilding categorisation ────────────────────────────────────
+    bool IsBuilding,
+    string DepreciationMethod,
+    // ── CostOfBuilding B-field inputs (FSD B01/B02/B04/B05) ─────────────
+    decimal? Area,
+    decimal? PricePerSqM,
+    int? Year,
+    decimal? AnnualDepreciationPercent,
+    // ── Period depreciation rows (used when DepreciationMethod == "Period") ─
+    IReadOnlyList<DepreciationPeriodInput>? DepreciationPeriods
+);
+
+/// <summary>
+/// A single depreciation period input row.
+/// </summary>
+public record DepreciationPeriodInput(
+    int AtYear,
+    int ToYear,
+    decimal DepreciationPerYear
 );
 
 /// <summary>
@@ -55,6 +76,7 @@ public record CondominiumSummaryInput(
     decimal? TotalBuildingArea,              // FSD E05
     int? EstSalesDurationMonths,             // FSD E14
     decimal? CondoBuildingCostPerSqM,        // FSD E15
+    int? SetAvgRoomSizeUnits,                // FSD E18 (override unit count from upload)
     decimal? FurniturePerUnit,               // FSD E20
     decimal? ExternalUtilities,              // FSD E23
     decimal? HardCostContingencyPercent,     // FSD E25

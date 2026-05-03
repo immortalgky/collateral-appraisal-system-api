@@ -25,5 +25,8 @@ public record GetDecisionSummaryResponse(
     string? AppraiserOpinion,
     string? CommitteeOpinionType,
     string? CommitteeOpinion,
-    string? AdditionalAssumptions
+    string? AdditionalAssumptions,
+    bool IsBlock,
+    IReadOnlyList<BlockApproachMatrixRow>? BlockApproachMatrix,
+    IReadOnlyList<BlockModelPriceRow>? BlockModelPrices
 );

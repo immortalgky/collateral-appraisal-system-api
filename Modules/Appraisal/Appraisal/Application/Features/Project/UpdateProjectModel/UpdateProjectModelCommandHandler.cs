@@ -16,15 +16,16 @@ public class UpdateProjectModelCommandHandler(
         var project = await projectRepository.GetWithFullGraphAsync(command.AppraisalId, cancellationToken)
                       ?? throw new InvalidOperationException($"Project not found for appraisal {command.AppraisalId}");
 
-        var model = project.Models.FirstOrDefault(m => m.Id == command.ModelId)
-                    ?? throw new InvalidOperationException($"Project model {command.ModelId} not found");
+        // Domain re-validates tower membership and uniqueness, then returns the model for mutation.
+        var model = project.UpdateModel(
+            modelId: command.ModelId,
+            projectTowerId: command.ProjectTowerId,
+            modelName: command.ModelName);
 
         model.Update(
             modelName: command.ModelName,
             modelDescription: command.ModelDescription,
-            buildingNumber: command.BuildingNumber,
             numberOfHouse: command.NumberOfHouse,
-            startingPrice: command.StartingPrice,
             startingPriceMin: command.StartingPriceMin,
             startingPriceMax: command.StartingPriceMax,
             hasMezzanine: command.HasMezzanine,
@@ -41,9 +42,8 @@ public class UpdateProjectModelCommandHandler(
             bathroomFloorMaterialType: command.BathroomFloorMaterialType,
             bathroomFloorMaterialTypeOther: command.BathroomFloorMaterialTypeOther,
             remark: command.Remark,
-            landAreaRai: command.LandAreaRai,
-            landAreaNgan: command.LandAreaNgan,
-            landAreaWa: command.LandAreaWa,
+            landAreaMin: command.LandAreaMin,
+            landAreaMax: command.LandAreaMax,
             standardLandArea: command.StandardLandArea,
             buildingType: command.BuildingType,
             buildingTypeOther: command.BuildingTypeOther,

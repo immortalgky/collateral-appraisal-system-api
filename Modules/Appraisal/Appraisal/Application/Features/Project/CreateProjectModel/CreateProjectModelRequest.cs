@@ -4,14 +4,14 @@ namespace Appraisal.Application.Features.Project.CreateProjectModel;
 
 /// <summary>Request to create a project model (Condo or LandAndBuilding).</summary>
 public record CreateProjectModelRequest(
+    /// <summary>Required for Condo projects; must be null for LandAndBuilding projects.</summary>
+    Guid? ProjectTowerId = null,
     // Common
     string? ModelName = null,
     string? ModelDescription = null,
-    string? BuildingNumber = null,        // Condo
     int? NumberOfHouse = null,            // LB
-    decimal? StartingPrice = null,        // LB
-    decimal? StartingPriceMin = null,     // Condo
-    decimal? StartingPriceMax = null,     // Condo
+    decimal? StartingPriceMin = null,
+    decimal? StartingPriceMax = null,
     bool? HasMezzanine = null,
     decimal? UsableAreaMin = null,
     decimal? UsableAreaMax = null,
@@ -26,10 +26,9 @@ public record CreateProjectModelRequest(
     string? BathroomFloorMaterialType = null,
     string? BathroomFloorMaterialTypeOther = null,
     string? Remark = null,
-    // LB-specific
-    decimal? LandAreaRai = null,
-    decimal? LandAreaNgan = null,
-    decimal? LandAreaWa = null,
+    // LB-specific — land area is a min/max range plus a standard, all in sq.wa.
+    decimal? LandAreaMin = null,
+    decimal? LandAreaMax = null,
     decimal? StandardLandArea = null,
     string? BuildingType = null,
     string? BuildingTypeOther = null,

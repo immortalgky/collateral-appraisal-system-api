@@ -48,7 +48,7 @@ public class PricingAnalysisMethod : Entity<Guid>
     // Income Analysis (1:1, Income only)
     public IncomeAnalysis? IncomeAnalysis { get; private set; }
 
-    // Hypothesis Analysis (1:1, HypothesisLandBuilding / HypothesisCondominium)
+    // Hypothesis Analysis (1:1, Hypothesis — variant chosen at generate time)
     public HypothesisAnalysis? HypothesisAnalysis { get; private set; }
 
     private PricingAnalysisMethod()
@@ -61,7 +61,7 @@ public class PricingAnalysisMethod : Entity<Guid>
         string methodType,
         string status = "Selected")
     {
-        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "MachineryCost", "Income", "Leasehold", "ProfitRent", "HypothesisLandBuilding", "HypothesisCondominium" };
+        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "MachineryCost", "Income", "Leasehold", "ProfitRent", "Hypothesis" };
         if (!validMethods.Contains(methodType))
             throw new ArgumentException($"MethodType must be one of: {string.Join(", ", validMethods)}");
 

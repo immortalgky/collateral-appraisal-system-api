@@ -84,6 +84,12 @@ public class WorkflowEngine : IWorkflowEngine
             // 3. Get start activity or 1st activity if none is specified
             var startActivity = _flowControlManager.GetStartActivity(workflowSchema);
 
+            // 3.5 Publish the initial transition into the start activity. This is the only
+            // transition that doesn't flow through AdvanceWorkflowAsync (which fires from
+            // mid-flow advances), so it has its own dedicated publish call.
+            await _lifecycleManager.PublishInitialTransitionAsync(
+                workflowInstance, startActivity.Id, startedBy, cancellationToken);
+
             // 4. Execute the workflow from the start activity
             var executionResult =
                 await ExecuteWorkflowAsync(workflowSchema, workflowInstance, startActivity, null, false,
@@ -256,6 +262,11 @@ public class WorkflowEngine : IWorkflowEngine
         _logger.LogInformation("ORCHESTRATION: {Mode} workflow execution for instance {WorkflowInstanceId}",
             isResume ? "Resuming" : "Starting", workflowInstance.Id);
 
+        // Extract completedBy from resume input so it can be stamped on the first advance.
+        var completedBy = resumeInput?.TryGetValue("completedBy", out var cb) == true
+            ? cb?.ToString()
+            : null;
+
         var context = new WorkflowExecutionContext(workflowSchema, workflowInstance);
 
         var activitiesToExecute = new Queue<ActivityDefinition>();
@@ -315,11 +326,11 @@ public class WorkflowEngine : IWorkflowEngine
 
                     // Determine the next activity (normal single-path flow)
                     var nextActivity = await DetermineNextWorkflowActivityAsync(
-                        context, currentActivity, activityResult, cancellationToken);
+                        context, currentActivity, activityResult, completedBy, cancellationToken);
 
                     if (nextActivity == null)
                     {
-                        await _lifecycleManager.CompleteWorkflowAsync(workflowInstance, cancellationToken);
+                        await _lifecycleManager.CompleteWorkflowAsync(workflowInstance, completedBy, cancellationToken);
                         await _stateManager.CreateCheckpointAsync(workflowInstance,
                             "Workflow completed successfully", cancellationToken);
                         return WorkflowExecutionResult.Completed(workflowInstance);
@@ -372,7 +383,7 @@ public class WorkflowEngine : IWorkflowEngine
         _logger.LogInformation("ENGINE: Completing workflow {WorkflowInstanceId} (fallback)",
             workflowInstance.Id);
 
-        await _lifecycleManager.CompleteWorkflowAsync(workflowInstance, cancellationToken);
+        await _lifecycleManager.CompleteWorkflowAsync(workflowInstance, completedBy, cancellationToken);
 
         // Checkpoint fallback workflow completion
         await _stateManager.CreateCheckpointAsync(workflowInstance,
@@ -498,6 +509,7 @@ public class WorkflowEngine : IWorkflowEngine
         WorkflowExecutionContext context,
         ActivityDefinition currentActivity,
         ActivityResult activityResult,
+        string? completedBy = null,
         CancellationToken cancellationToken = default)
     {
         try
@@ -526,7 +538,7 @@ public class WorkflowEngine : IWorkflowEngine
 
             // Advance workflow to the next activity
             await _lifecycleManager.AdvanceWorkflowAsync(context.WorkflowInstance, nextActivityId,
-                cancellationToken: cancellationToken);
+                completedBy: completedBy, cancellationToken: cancellationToken);
 
             _logger.LogDebug("ENGINE: Successfully determined next activity {NextActivityId}", nextActivityId);
             return nextActivity;
@@ -688,7 +700,8 @@ public class WorkflowEngine : IWorkflowEngine
 
                 if (string.IsNullOrEmpty(afterJoinId))
                 {
-                    await _lifecycleManager.CompleteWorkflowAsync(workflowInstance, cancellationToken);
+                    // Branch/join completion is system-driven; no human actor in this scope.
+                    await _lifecycleManager.CompleteWorkflowAsync(workflowInstance, completedBy: null, cancellationToken);
                     await _stateManager.CreateCheckpointAsync(workflowInstance, "Workflow completed after join", cancellationToken);
                     return WorkflowExecutionResult.Completed(workflowInstance);
                 }

@@ -1,10 +1,12 @@
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Shared.CQRS;
 
 namespace Appraisal.Application.Features.PricingAnalysis.GetHypothesisAnalysis;
 
 public class GetHypothesisAnalysisQueryHandler(
-    IPricingAnalysisRepository repository
+    IPricingAnalysisRepository repository,
+    PricingPropertyDataService propertyDataService
 ) : IQueryHandler<GetHypothesisAnalysisQuery, GetHypothesisAnalysisResult>
 {
     public async Task<GetHypothesisAnalysisResult> Handle(
@@ -20,11 +22,17 @@ public class GetHypothesisAnalysisQueryHandler(
                          .FirstOrDefault(m => m.Id == query.MethodId)
                      ?? throw new InvalidOperationException($"Method {query.MethodId} not found");
 
+        // Fetch system land area from titles (PropertyGroup only)
+        decimal? totalLandAreaFromTitles = null;
+        if (pricingAnalysis.PropertyGroupId.HasValue)
+            totalLandAreaFromTitles = await propertyDataService.GetTotalLandAreaFromTitlesAsync(
+                pricingAnalysis.PropertyGroupId.Value, cancellationToken);
+
         if (method.HypothesisAnalysis is null)
         {
             return new GetHypothesisAnalysisResult(
                 null, null, null, null,
-                [], [], [], [], method.Remark);
+                [], [], [], [], method.Remark, totalLandAreaFromTitles);
         }
 
         var ha = method.HypothesisAnalysis;
@@ -37,13 +45,15 @@ public class GetHypothesisAnalysisQueryHandler(
         var lbRows = ha.LandBuildingUnitRows
             .OrderBy(r => r.SequenceNumber)
             .Select(r => new LandBuildingUnitRowDto(
-                r.SequenceNumber, r.PlanNo, r.HouseNo, r.ModelName, r.LandAreaSqWa, r.SellingPrice))
+                r.SequenceNumber, r.PlanNo, r.HouseNo, r.ModelName, r.Location, r.FloorNo,
+                r.LandAreaSqWa, r.UsableAreaSqM, r.SellingPrice, r.Remark1, r.Remark2))
             .ToList();
 
         var condoRows = ha.CondominiumUnitRows
             .OrderBy(r => r.SequenceNumber)
             .Select(r => new CondominiumUnitRowDto(
-                r.SequenceNumber, r.FloorNo, r.Building, r.AptNo, r.ModelType, r.UsableAreaSqM, r.SellingPrice))
+                r.SequenceNumber, r.FloorNo, r.Building, r.AptNo, r.Apartment, r.ModelType,
+                r.UsableAreaSqM, r.SellingPrice, r.Remark1, r.Remark2))
             .ToList();
 
         var costItems = ha.CostItems
@@ -51,7 +61,15 @@ public class GetHypothesisAnalysisQueryHandler(
             .ThenBy(i => i.DisplaySequence)
             .Select(i => new CostItemDto(
                 i.Id, i.Category, i.Kind, i.Description, i.DisplaySequence,
-                i.Amount, i.RateAmount, i.Quantity, i.RatePercent, i.CategoryRatio, i.ModelName))
+                i.Amount, i.RateAmount, i.Quantity, i.RatePercent, i.CategoryRatio, i.ModelName,
+                i.IsBuilding, i.DepreciationMethod,
+                i.Area, i.PricePerSqM, i.PriceBeforeDepreciation,
+                i.Year, i.AnnualDepreciationPercent,
+                i.TotalDepreciationPercent, i.DepreciationAmount, i.ValueAfterDepreciation,
+                i.DepreciationPeriods
+                    .OrderBy(p => p.Sequence)
+                    .Select(p => new DepreciationPeriodDto(p.Id, p.Sequence, p.AtYear, p.ToYear, p.DepreciationPerYear))
+                    .ToList()))
             .ToList();
 
         return new GetHypothesisAnalysisResult(
@@ -63,6 +81,7 @@ public class GetHypothesisAnalysisQueryHandler(
             lbRows,
             condoRows,
             costItems,
-            method.Remark);
+            method.Remark,
+            totalLandAreaFromTitles);
     }
 }

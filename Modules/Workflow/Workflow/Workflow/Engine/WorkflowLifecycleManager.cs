@@ -1,3 +1,5 @@
+using Shared.Data.Outbox;
+using Shared.Messaging.Events;
 using Workflow.Workflow.Models;
 using Workflow.Workflow.Schema;
 using Workflow.Workflow.Activities.Core;
@@ -15,6 +17,8 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
 {
     private readonly IWorkflowStateManager _stateManager;
     private readonly ISlaCalculator _slaCalculator;
+    private readonly IIntegrationEventOutbox _outbox;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<WorkflowLifecycleManager> _logger;
 
     // Define valid state transitions
@@ -33,17 +37,21 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
             WorkflowStatus.Cancelled
         },
         [WorkflowStatus.Completed] = new HashSet<WorkflowStatus>(), // Terminal state
-        [WorkflowStatus.Failed] = new HashSet<WorkflowStatus>(), // Terminal state  
+        [WorkflowStatus.Failed] = new HashSet<WorkflowStatus>(), // Terminal state
         [WorkflowStatus.Cancelled] = new HashSet<WorkflowStatus>() // Terminal state
     };
 
     public WorkflowLifecycleManager(
         IWorkflowStateManager stateManager,
         ISlaCalculator slaCalculator,
+        IIntegrationEventOutbox outbox,
+        IDateTimeProvider dateTimeProvider,
         ILogger<WorkflowLifecycleManager> logger)
     {
         _stateManager = stateManager;
         _slaCalculator = slaCalculator;
+        _outbox = outbox;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -136,6 +144,7 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
         WorkflowInstance workflowInstance,
         string nextActivityId,
         string? assignee = null,
+        string? completedBy = null,
         CancellationToken cancellationToken = default)
     {
         try
@@ -146,6 +155,15 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
             _logger.LogDebug(
                 "Advanced workflow {WorkflowInstanceId} from activity {PreviousActivity} to {NextActivity}",
                 workflowInstance.Id, previousActivityId, nextActivityId);
+
+            _outbox.Publish(new WorkflowTransitionedIntegrationEvent(
+                WorkflowInstanceId: workflowInstance.Id,
+                CorrelationId: ResolveCorrelationId(workflowInstance.CorrelationId, workflowInstance.Id),
+                AppraisalId: ResolveAppraisalId(workflowInstance.Variables),
+                SourceActivityId: previousActivityId,
+                DestinationActivityId: nextActivityId,
+                CompletedBy: completedBy,
+                CompletedAt: _dateTimeProvider.ApplicationNow));
 
             await Task.CompletedTask; // For future async operations
 
@@ -160,16 +178,46 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
         }
     }
 
+    public Task PublishInitialTransitionAsync(
+        WorkflowInstance workflowInstance,
+        string startActivityId,
+        string? startedBy,
+        CancellationToken cancellationToken = default)
+    {
+        _outbox.Publish(new WorkflowTransitionedIntegrationEvent(
+            WorkflowInstanceId: workflowInstance.Id,
+            CorrelationId: ResolveCorrelationId(workflowInstance.CorrelationId, workflowInstance.Id),
+            AppraisalId: ResolveAppraisalId(workflowInstance.Variables),
+            SourceActivityId: null,
+            DestinationActivityId: startActivityId,
+            CompletedBy: startedBy,
+            CompletedAt: _dateTimeProvider.ApplicationNow));
+
+        return Task.CompletedTask;
+    }
+
     public async Task<bool> CompleteWorkflowAsync(
         WorkflowInstance workflowInstance,
+        string? completedBy = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
+            var sourceActivityId = workflowInstance.CurrentActivityId;
+
             await TransitionWorkflowStateAsync(workflowInstance, WorkflowStatus.Completed,
                 "Workflow completed successfully", cancellationToken);
 
             _logger.LogInformation("Completed workflow {WorkflowInstanceId} (in-memory)", workflowInstance.Id);
+
+            _outbox.Publish(new WorkflowTransitionedIntegrationEvent(
+                WorkflowInstanceId: workflowInstance.Id,
+                CorrelationId: ResolveCorrelationId(workflowInstance.CorrelationId, workflowInstance.Id),
+                AppraisalId: ResolveAppraisalId(workflowInstance.Variables),
+                SourceActivityId: sourceActivityId,
+                DestinationActivityId: null,
+                CompletedBy: completedBy,
+                CompletedAt: _dateTimeProvider.ApplicationNow));
 
             return true;
         }
@@ -179,6 +227,28 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
 
             return false;
         }
+    }
+
+    private static Guid ResolveCorrelationId(string? raw, Guid fallback)
+    {
+        if (string.IsNullOrEmpty(raw) || !Guid.TryParse(raw, out var id))
+            return fallback;
+        return id;
+    }
+
+    private static Guid? ResolveAppraisalId(Dictionary<string, object>? variables)
+    {
+        if (variables is null || !variables.TryGetValue("appraisalId", out var aidObj))
+            return null;
+
+        return aidObj switch
+        {
+            Guid g => g,
+            string s when Guid.TryParse(s, out var parsed) => parsed,
+            JsonElement je when je.ValueKind == JsonValueKind.String
+                && Guid.TryParse(je.GetString(), out var jp) => jp,
+            _ => null
+        };
     }
 
     public async Task<bool> PauseWorkflowAsync(

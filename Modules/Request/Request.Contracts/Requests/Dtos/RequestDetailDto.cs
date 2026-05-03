@@ -7,5 +7,8 @@ public record RequestDetailDto(
     AddressDto? Address,
     ContactDto? Contact,
     AppointmentDto? Appointment,
-    FeeDto? Fee
+    FeeDto? Fee,
+    string? PrevAppraisalNumber = null,
+    decimal? PrevAppraisalValue = null,
+    DateTime? PrevAppraisalDate = null
 );

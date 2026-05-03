@@ -15,6 +15,9 @@ public class Appraisal : Aggregate<Guid>
     public IReadOnlyList<AppraisalProperty> Properties => _properties.AsReadOnly();
     public IReadOnlyList<PropertyGroup> Groups => _groups.AsReadOnly();
     public IReadOnlyList<AppraisalAssignment> Assignments => _assignments.AsReadOnly();
+    public bool HasActiveAssignment => _assignments.Any(a =>
+        a.AssignmentStatus == AssignmentStatus.Assigned ||
+        a.AssignmentStatus == AssignmentStatus.InProgress);
 
     // Core Properties
     public string? AppraisalNumber { get; private set; }
@@ -671,20 +674,39 @@ public class Appraisal : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Stamps committee approval evidence. Idempotent — no-op if already stamped.
-    /// Does NOT touch Status; status will be derived from workflow state later.
+    /// Stamps committee approval evidence and transitions Status to Completed.
+    /// Idempotent — no-op if already stamped (CompletedAt set).
+    /// In-progress / under-review statuses are still derived from workflow state,
+    /// but terminal Completed/Cancelled statuses are persisted on the row so
+    /// downstream queries can filter on Status directly without view-level CASE logic.
     /// </summary>
     public void MarkApprovedByCommittee(string committeeCode, DateTime approvedAt)
     {
         if (CompletedAt.HasValue) return; // idempotent guard — safe on pipeline retries
         CompletedAt = approvedAt;
         ApprovedByCommittee = committeeCode;
-        
+
         // Calculate actual days
         ActualDaysToComplete = CreatedAt.HasValue ? (DateTime.Now - CreatedAt.Value).Days : null;
         IsWithinSLA = !SLADueDate.HasValue || DateTime.Now <= SLADueDate.Value;
 
+        if (Status != AppraisalStatus.Completed)
+            UpdateStatus(AppraisalStatus.Completed);
+
         AddDomainEvent(new AppraisalCompletedEvent(this));
+    }
+
+    /// <summary>
+    /// Idempotently syncs the appraisal status from a workflow transition.
+    /// No-ops if the status is already the target, or if the appraisal is in a terminal state
+    /// (Completed / Cancelled) that workflow should not override.
+    /// </summary>
+    public void SyncStatusFromWorkflow(AppraisalStatus target)
+    {
+        if (Status == target) return;
+        if (Status == AppraisalStatus.Completed || Status == AppraisalStatus.Cancelled) return;
+
+        UpdateStatus(target);
     }
 
     /// <summary>
@@ -696,6 +718,8 @@ public class Appraisal : Aggregate<Guid>
 
         if (Status == AppraisalStatus.Completed)
             throw new InvalidAppraisalStateException("Cannot cancel a completed appraisal");
+
+        if (Status == AppraisalStatus.Cancelled) return; // idempotent — already cancelled
 
         CancelledBy = cancelledBy;
         CancelledAt = cancelledAt;

@@ -13,18 +13,22 @@ public class ProjectModel : Entity<Guid>
 {
     public Guid ProjectId { get; private set; }
 
+    /// <summary>
+    /// Condo only — FK to the tower this model belongs to.
+    /// Null for LandAndBuilding models.
+    /// </summary>
+    public Guid? ProjectTowerId { get; private set; }
+
     // ----- Common Fields -----
     public string? ModelName { get; private set; }
     public string? ModelDescription { get; private set; }
 
-    // Condo uses BuildingNumber; LB uses NumberOfHouse — both kept as nullable
-    public string? BuildingNumber { get; private set; }   // Condo
+    // LB uses NumberOfHouse
     public int? NumberOfHouse { get; private set; }       // LB
 
-    // Pricing — Condo has Min/Max; LB has a single StartingPrice
-    public decimal? StartingPrice { get; private set; }   // LB
-    public decimal? StartingPriceMin { get; private set; } // Condo
-    public decimal? StartingPriceMax { get; private set; } // Condo
+    // Pricing — both Condo and LB use Min/Max range.
+    public decimal? StartingPriceMin { get; private set; }
+    public decimal? StartingPriceMax { get; private set; }
 
     // Standard price is derived from PricingAnalysis.FinalAppraisedValue (no longer stored here).
     // Navigate via PricingAnalysis?.FinalAppraisedValue.
@@ -58,10 +62,10 @@ public class ProjectModel : Entity<Guid>
     // ----- LandAndBuilding-Specific Fields (nullable) -----
 
     // Land Area (LB)
-    public decimal? LandAreaRai { get; private set; }
-    public decimal? LandAreaNgan { get; private set; }
-    public decimal? LandAreaWa { get; private set; }
-    public decimal? StandardLandArea { get; private set; } // in Sq.wa
+    // LB land area (per-model plot) expressed as a range, all in sq.wa.
+    public decimal? LandAreaMin { get; private set; }
+    public decimal? LandAreaMax { get; private set; }
+    public decimal? StandardLandArea { get; private set; } // in sq.wa
 
     // Building Info (LB)
     public string? BuildingType { get; private set; }
@@ -143,14 +147,21 @@ public class ProjectModel : Entity<Guid>
         };
     }
 
+    /// <summary>
+    /// Sets the tower link (Condo only). Called by <see cref="Project.AddModel"/> and <see cref="Project.UpdateModel"/>
+    /// after the type/membership invariants have been validated.
+    /// </summary>
+    internal void SetProjectTowerId(Guid? towerId)
+    {
+        ProjectTowerId = towerId;
+    }
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public void Update(
         // Common
         string? modelName = null,
         string? modelDescription = null,
-        string? buildingNumber = null,
         int? numberOfHouse = null,
-        decimal? startingPrice = null,
         decimal? startingPriceMin = null,
         decimal? startingPriceMax = null,
         bool? hasMezzanine = null,
@@ -168,9 +179,8 @@ public class ProjectModel : Entity<Guid>
         string? bathroomFloorMaterialTypeOther = null,
         string? remark = null,
         // LB-specific (nullable — ignored when Condo)
-        decimal? landAreaRai = null,
-        decimal? landAreaNgan = null,
-        decimal? landAreaWa = null,
+        decimal? landAreaMin = null,
+        decimal? landAreaMax = null,
         decimal? standardLandArea = null,
         string? buildingType = null,
         string? buildingTypeOther = null,
@@ -214,12 +224,14 @@ public class ProjectModel : Entity<Guid>
             throw new ArgumentException("Usable area min cannot exceed usable area max", nameof(usableAreaMin));
         if (standardUsableArea is < 0)
             throw new ArgumentException("Standard usable area cannot be negative", nameof(standardUsableArea));
+        if (landAreaMin.HasValue && landAreaMax.HasValue && landAreaMin > landAreaMax)
+            throw new ArgumentException("Land area min cannot exceed land area max", nameof(landAreaMin));
+        if (standardLandArea is < 0)
+            throw new ArgumentException("Standard land area cannot be negative", nameof(standardLandArea));
         // Common
         ModelName = modelName;
         ModelDescription = modelDescription;
-        BuildingNumber = buildingNumber;
         NumberOfHouse = numberOfHouse;
-        StartingPrice = startingPrice;
         StartingPriceMin = startingPriceMin;
         StartingPriceMax = startingPriceMax;
         HasMezzanine = hasMezzanine;
@@ -238,9 +250,8 @@ public class ProjectModel : Entity<Guid>
         Remark = remark;
 
         // LB-specific
-        LandAreaRai = landAreaRai;
-        LandAreaNgan = landAreaNgan;
-        LandAreaWa = landAreaWa;
+        LandAreaMin = landAreaMin;
+        LandAreaMax = landAreaMax;
         StandardLandArea = standardLandArea;
         BuildingType = buildingType;
         BuildingTypeOther = buildingTypeOther;

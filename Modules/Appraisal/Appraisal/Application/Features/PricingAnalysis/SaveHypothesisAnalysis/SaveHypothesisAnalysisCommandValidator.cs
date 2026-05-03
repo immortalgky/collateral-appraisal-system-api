@@ -1,6 +1,7 @@
 using Appraisal.Domain.Appraisals.Hypothesis;
 using Appraisal.Domain.Appraisals.Hypothesis.CostItems;
 using FluentValidation;
+using DepreciationMethod = Appraisal.Domain.Appraisals.Hypothesis.CostItems.DepreciationMethod;
 
 namespace Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis;
 
@@ -49,6 +50,54 @@ public class SaveHypothesisAnalysisCommandValidator : AbstractValidator<SaveHypo
                 .NotEmpty()
                 .When(i => i.Category == HypothesisCostCategory.CostOfBuilding)
                 .WithMessage("ModelName is required for CostOfBuilding items.");
+
+            // CostOfBuilding B-field range validation (only enforced when supplied)
+            item.RuleFor(i => i.Area)
+                .GreaterThanOrEqualTo(0m)
+                .When(i => i.Category == HypothesisCostCategory.CostOfBuilding && i.Area.HasValue)
+                .WithMessage("Area (B01) must be >= 0 for CostOfBuilding items.");
+
+            item.RuleFor(i => i.PricePerSqM)
+                .GreaterThanOrEqualTo(0m)
+                .When(i => i.Category == HypothesisCostCategory.CostOfBuilding && i.PricePerSqM.HasValue)
+                .WithMessage("PricePerSqM (B02) must be >= 0 for CostOfBuilding items.");
+
+            item.RuleFor(i => i.Year)
+                .GreaterThanOrEqualTo(0)
+                .When(i => i.Category == HypothesisCostCategory.CostOfBuilding && i.Year.HasValue)
+                .WithMessage("Year (B04) must be >= 0 for CostOfBuilding items.");
+
+            item.RuleFor(i => i.AnnualDepreciationPercent)
+                .InclusiveBetween(0m, 100m)
+                .When(i => i.Category == HypothesisCostCategory.CostOfBuilding && i.AnnualDepreciationPercent.HasValue)
+                .WithMessage("AnnualDepreciationPercent (B05) must be between 0 and 100 for CostOfBuilding items.");
+
+            // CostOfBuilding depreciation method must be "Gross" or "Period"
+            item.RuleFor(i => i.DepreciationMethod)
+                .Must(DepreciationMethod.IsValid)
+                .When(i => i.Category == HypothesisCostCategory.CostOfBuilding)
+                .WithMessage("DepreciationMethod must be 'Gross' or 'Period' for CostOfBuilding items.");
+
+            // Period rows: validate each period when supplied
+            item.RuleForEach(i => i.DepreciationPeriods)
+                .ChildRules(period =>
+                {
+                    period.RuleFor(p => p.AtYear)
+                        .GreaterThanOrEqualTo(0)
+                        .WithMessage("Period AtYear must be >= 0.");
+
+                    period.RuleFor(p => p.ToYear)
+                        .GreaterThanOrEqualTo(0)
+                        .WithMessage("Period ToYear must be >= 0.")
+                        .Must((p, toYear) => toYear >= p.AtYear)
+                        .WithMessage("Period ToYear must be >= AtYear.");
+
+                    period.RuleFor(p => p.DepreciationPerYear)
+                        .InclusiveBetween(0m, 100m)
+                        .WithMessage("Period DepreciationPerYear must be between 0 and 100.");
+                })
+                .When(i => i.Category == HypothesisCostCategory.CostOfBuilding
+                           && i.DepreciationPeriods is not null);
 
             // Variant/category compatibility
             item.RuleFor(i => i.Category)

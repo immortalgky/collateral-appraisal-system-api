@@ -182,7 +182,6 @@ public static class WorkflowModule
         services.AddScoped<Appraisal.Contracts.Services.IPoolTaskClauseService, Tasks.Services.PoolTaskClauseService>();
 
         // Activity process pipeline (pluggable pipeline v2)
-        services.AddScoped<IActivityProcessStep, UpdateAppraisalStatusStep>();
         services.AddScoped<IActivityProcessStep, UpdateAssignmentStatusStep>();
         services.AddScoped<IActivityProcessStep, ValidateHasAppraisedValueStep>();
         services.AddScoped<IActivityProcessStep, ValidateTaskOwnershipStep>();

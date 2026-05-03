@@ -12,11 +12,11 @@ public record SaveProjectCommand(
     string? ProjectName = null,
     string? ProjectDescription = null,
     string? Developer = null,
-    DateTime? ProjectSaleLaunchDate = null,
+    string? ProjectSaleLaunchDate = null,
     // Land Area
     decimal? LandAreaRai = null,
     decimal? LandAreaNgan = null,
-    decimal? LandAreaWa = null,
+    decimal? LandAreaSquareWa = null,
     // Project Details
     int? UnitForSaleCount = null,
     int? NumberOfPhase = null,
@@ -28,7 +28,7 @@ public record SaveProjectCommand(
     string? District = null,
     string? Province = null,
     string? Postcode = null,
-    string? LocationNumber = null,
+    string? HouseNumber = null,
     string? Road = null,
     string? Soi = null,
     // Utilities & Facilities

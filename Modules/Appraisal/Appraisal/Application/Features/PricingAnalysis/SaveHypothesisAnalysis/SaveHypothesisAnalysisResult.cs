@@ -7,5 +7,6 @@ public record SaveHypothesisAnalysisResult(
     Guid HypothesisAnalysisId,
     HypothesisVariant Variant,
     LandBuildingSummary? LandBuildingSummary,
-    CondominiumSummary? CondominiumSummary
+    CondominiumSummary? CondominiumSummary,
+    decimal? TotalLandAreaFromTitles = null
 );

@@ -19,7 +19,6 @@ public record ProjectTowerDto(
     int? NumberOfUnits,
     int? NumberOfFloors,
     string? CondoRegistrationNumber,
-    List<Guid>? ModelTypeIds,
     // Condition & Obligation
     string? ConditionType,
     bool? HasObligation,
@@ -36,17 +35,10 @@ public record ProjectTowerDto(
     string? DecorationType,
     string? DecorationTypeOther,
     // Building Info
-    int? ConstructionYear,
-    int? TotalNumberOfFloors,
+    int? BuildingAge,
     string? BuildingFormType,
     string? ConstructionMaterialType,
     // Materials
-    string? GroundFloorMaterialType,
-    string? GroundFloorMaterialTypeOther,
-    string? UpperFloorMaterialType,
-    string? UpperFloorMaterialTypeOther,
-    string? BathroomFloorMaterialType,
-    string? BathroomFloorMaterialTypeOther,
     List<string>? RoofType,
     string? RoofTypeOther,
     // Legal Restrictions

@@ -1,3 +1,4 @@
+using Appraisal.Domain.Projects;
 using FluentValidation;
 
 namespace Appraisal.Application.Features.Project.SaveProject;
@@ -38,9 +39,9 @@ public class SaveProjectCommandValidator : AbstractValidator<SaveProjectCommand>
             .GreaterThanOrEqualTo(0).When(x => x.LandAreaNgan.HasValue)
             .WithMessage("LandAreaNgan cannot be negative.");
 
-        RuleFor(x => x.LandAreaWa)
-            .GreaterThanOrEqualTo(0).When(x => x.LandAreaWa.HasValue)
-            .WithMessage("LandAreaWa cannot be negative.");
+        RuleFor(x => x.LandAreaSquareWa)
+            .GreaterThanOrEqualTo(0).When(x => x.LandAreaSquareWa.HasValue)
+            .WithMessage("LandAreaSquareWa cannot be negative.");
 
         RuleFor(x => x.UnitForSaleCount)
             .GreaterThanOrEqualTo(0).When(x => x.UnitForSaleCount.HasValue)
@@ -49,5 +50,9 @@ public class SaveProjectCommandValidator : AbstractValidator<SaveProjectCommand>
         RuleFor(x => x.NumberOfPhase)
             .GreaterThanOrEqualTo(0).When(x => x.NumberOfPhase.HasValue)
             .WithMessage("NumberOfPhase cannot be negative.");
+
+        RuleFor(x => x.ProjectSaleLaunchDate)
+            .Must(PartialDate.IsValid)
+            .WithMessage("ProjectSaleLaunchDate must be 'YYYY', 'YYYY-MM', or 'YYYY-MM-DD'.");
     }
 }

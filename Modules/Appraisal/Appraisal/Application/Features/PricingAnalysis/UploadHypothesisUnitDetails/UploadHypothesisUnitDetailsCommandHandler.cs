@@ -56,7 +56,9 @@ public class UploadHypothesisUnitDetailsCommandHandler(
             // Assign upload ID to rows
             var rowsWithUpload = rows.Select(r => LandBuildingUnitRow.Create(
                 upload.Id, analysis.Id, r.SequenceNumber,
-                r.PlanNo, r.HouseNo, r.ModelName, r.LandAreaSqWa, r.SellingPrice)).ToList();
+                r.PlanNo, r.HouseNo, r.ModelName, r.Location, r.FloorNo,
+                r.LandAreaSqWa, r.UsableAreaSqM, r.SellingPrice,
+                r.Remark1, r.Remark2)).ToList();
 
             analysis.ReplaceLandBuildingRows(rowsWithUpload);
         }
@@ -71,7 +73,9 @@ public class UploadHypothesisUnitDetailsCommandHandler(
 
             var rowsWithUpload = rows.Select(r => CondominiumUnitRow.Create(
                 upload.Id, analysis.Id, r.SequenceNumber,
-                r.FloorNo, r.Building, r.AptNo, r.ModelType, r.UsableAreaSqM, r.SellingPrice)).ToList();
+                r.FloorNo, r.Building, r.AptNo, r.Apartment, r.ModelType,
+                r.UsableAreaSqM, r.SellingPrice,
+                r.Remark1, r.Remark2)).ToList();
 
             analysis.ReplaceCondominiumRows(rowsWithUpload);
         }
@@ -89,11 +93,16 @@ public class UploadHypothesisUnitDetailsCommandHandler(
         var ws = workbook.Worksheets.First();
         var headers = BuildHeaderMap(ws);
 
-        var planCol = Resolve(headers, "Plan No", "Plan Number", "PlanNo");
-        var houseCol = Resolve(headers, "House No", "House Number", "HouseNo");
+        var planCol = Resolve(headers, "Plan No.", "Plan No", "Plan Number", "PlanNo");
+        var houseCol = Resolve(headers, "House No.", "House No", "House Number", "HouseNo");
         var modelCol = Resolve(headers, "Model Name", "ModelName", "Model");
+        var locationCol = TryResolve(headers, "Location");
+        var floorCol = TryResolve(headers, "Floor No.", "Floor No", "FloorNo");
         var landAreaCol = Resolve(headers, "Land Area (Sq.Wa)", "Land Area", "LandArea");
-        var sellingPriceCol = Resolve(headers, "Selling Price", "Selling Price (Baht)", "SellingPrice");
+        var usableAreaCol = TryResolve(headers, "Usable Area (Sq.M)", "Usable Area (Sq.M.)", "Usable Area", "UsableArea");
+        var sellingPriceCol = Resolve(headers, "Selling Price (Baht)", "Selling Price", "SellingPrice");
+        var remark1Col = TryResolve(headers, "Remark 1", "Remark1");
+        var remark2Col = TryResolve(headers, "Remark 2", "Remark2");
 
         var rows = new List<LandBuildingUnitRow>();
         var errors = new List<ParseRowError>();
@@ -104,11 +113,18 @@ public class UploadHypothesisUnitDetailsCommandHandler(
             var planNo = ws.Cell(row, planCol).GetString().Trim();
             var houseNo = ws.Cell(row, houseCol).GetString().Trim();
             var modelName = ws.Cell(row, modelCol).GetString().Trim();
+            var location = locationCol is { } lc ? ws.Cell(row, lc).GetString().Trim() : string.Empty;
+            var remark1 = remark1Col is { } r1c ? ws.Cell(row, r1c).GetString().Trim() : string.Empty;
+            var remark2 = remark2Col is { } r2c ? ws.Cell(row, r2c).GetString().Trim() : string.Empty;
 
             if (string.IsNullOrWhiteSpace(planNo) && string.IsNullOrWhiteSpace(houseNo))
                 continue;
 
+            int? floorNo = floorCol is { } fc ? TryParseInt(ws.Cell(row, fc), row, "Floor No", errors) : null;
             decimal? landArea = TryParseDecimal(ws.Cell(row, landAreaCol), row, "Land Area (Sq.Wa)", errors);
+            decimal? usableArea = usableAreaCol is { } uac
+                ? TryParseDecimal(ws.Cell(row, uac), row, "Usable Area (Sq.M)", errors)
+                : null;
             decimal? sellingPrice = TryParseDecimal(ws.Cell(row, sellingPriceCol), row, "Selling Price", errors);
 
             rows.Add(LandBuildingUnitRow.Create(
@@ -118,8 +134,13 @@ public class UploadHypothesisUnitDetailsCommandHandler(
                 planNo: string.IsNullOrEmpty(planNo) ? null : planNo,
                 houseNo: string.IsNullOrEmpty(houseNo) ? null : houseNo,
                 modelName: string.IsNullOrEmpty(modelName) ? null : modelName,
+                location: string.IsNullOrEmpty(location) ? null : location,
+                floorNo: floorNo,
                 landAreaSqWa: landArea,
-                sellingPrice: sellingPrice));
+                usableAreaSqM: usableArea,
+                sellingPrice: sellingPrice,
+                remark1: string.IsNullOrEmpty(remark1) ? null : remark1,
+                remark2: string.IsNullOrEmpty(remark2) ? null : remark2));
         }
 
         if (errors.Count > 0)
@@ -136,12 +157,15 @@ public class UploadHypothesisUnitDetailsCommandHandler(
         var ws = workbook.Worksheets.First();
         var headers = BuildHeaderMap(ws);
 
-        var floorCol = Resolve(headers, "Floor No", "Floor", "FloorNo");
+        var floorCol = Resolve(headers, "Floor No", "Floor No.", "Floor", "FloorNo");
         var buildingCol = Resolve(headers, "Building", "Building Name");
-        var aptCol = Resolve(headers, "Apt No", "Room Number", "AptNo", "RoomNo");
-        var modelCol = Resolve(headers, "Model Type", "ModelType");
-        var usableAreaCol = Resolve(headers, "Usable Area (Sq.M.)", "Usable Area", "UsableArea");
-        var sellingPriceCol = Resolve(headers, "Selling Price", "Selling Price (Baht)", "SellingPrice");
+        var aptCol = Resolve(headers, "Apartment No.", "Apartment No", "Apt No", "Room Number", "AptNo", "RoomNo");
+        var apartmentCol = TryResolve(headers, "Apartment");
+        var modelCol = Resolve(headers, "Apartment Type", "Model Type", "ModelType");
+        var usableAreaCol = Resolve(headers, "Condo Area (Sq.M)", "Condo Area", "Usable Area (Sq.M.)", "Usable Area", "UsableArea");
+        var sellingPriceCol = Resolve(headers, "Selling Price (Baht)", "Selling Price", "SellingPrice");
+        var remark1Col = TryResolve(headers, "Remark 1", "Remark1");
+        var remark2Col = TryResolve(headers, "Remark 2", "Remark2");
 
         var rows = new List<CondominiumUnitRow>();
         var errors = new List<ParseRowError>();
@@ -149,16 +173,18 @@ public class UploadHypothesisUnitDetailsCommandHandler(
 
         for (var row = 2; row <= lastRow; row++)
         {
-            var floorText = ws.Cell(row, floorCol).GetString().Trim();
             var building = ws.Cell(row, buildingCol).GetString().Trim();
             var aptNo = ws.Cell(row, aptCol).GetString().Trim();
+            var apartment = apartmentCol is { } apc ? ws.Cell(row, apc).GetString().Trim() : string.Empty;
             var modelType = ws.Cell(row, modelCol).GetString().Trim();
+            var remark1 = remark1Col is { } r1c ? ws.Cell(row, r1c).GetString().Trim() : string.Empty;
+            var remark2 = remark2Col is { } r2c ? ws.Cell(row, r2c).GetString().Trim() : string.Empty;
 
             if (string.IsNullOrWhiteSpace(aptNo) && string.IsNullOrWhiteSpace(building))
                 continue;
 
             int? floor = TryParseInt(ws.Cell(row, floorCol), row, "Floor No", errors);
-            decimal? usableArea = TryParseDecimal(ws.Cell(row, usableAreaCol), row, "Usable Area (Sq.M.)", errors);
+            decimal? usableArea = TryParseDecimal(ws.Cell(row, usableAreaCol), row, "Condo Area (Sq.M)", errors);
             decimal? sellingPrice = TryParseDecimal(ws.Cell(row, sellingPriceCol), row, "Selling Price", errors);
 
             rows.Add(CondominiumUnitRow.Create(
@@ -168,9 +194,12 @@ public class UploadHypothesisUnitDetailsCommandHandler(
                 floorNo: floor,
                 building: string.IsNullOrEmpty(building) ? null : building,
                 aptNo: string.IsNullOrEmpty(aptNo) ? null : aptNo,
+                apartment: string.IsNullOrEmpty(apartment) ? null : apartment,
                 modelType: string.IsNullOrEmpty(modelType) ? null : modelType,
                 usableAreaSqM: usableArea,
-                sellingPrice: sellingPrice));
+                sellingPrice: sellingPrice,
+                remark1: string.IsNullOrEmpty(remark1) ? null : remark1,
+                remark2: string.IsNullOrEmpty(remark2) ? null : remark2));
         }
 
         if (errors.Count > 0)
@@ -250,7 +279,7 @@ public class UploadHypothesisUnitDetailsCommandHandler(
     // ── Header helpers (shared pattern from UploadProjectUnits) ───────────
 
     private static string NormalizeHeader(string raw) =>
-        new string((raw ?? string.Empty).Where(c => !char.IsWhiteSpace(c)).ToArray()).ToLowerInvariant();
+        new string((raw ?? string.Empty).Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
 
     private static Dictionary<string, int> BuildHeaderMap(IXLWorksheet ws)
     {
@@ -275,5 +304,15 @@ public class UploadHypothesisUnitDetailsCommandHandler(
         throw new BadRequestException(
             $"Required column '{aliases[0]}' is missing from the upload. " +
             $"Found columns: {string.Join(", ", headers.Keys)}");
+    }
+
+    private static int? TryResolve(Dictionary<string, int> headers, params string[] aliases)
+    {
+        foreach (var alias in aliases)
+        {
+            if (headers.TryGetValue(NormalizeHeader(alias), out var idx))
+                return idx;
+        }
+        return null;
     }
 }

@@ -23,6 +23,9 @@ public class RequestDetail : ValueObject
         HasAppraisalBook = data.HasAppraisalBook;
         LoanDetail = data.LoanDetail;
         PrevAppraisalId = data.PrevAppraisalId;
+        PrevAppraisalNumber = data.PrevAppraisalNumber;
+        PrevAppraisalValue = data.PrevAppraisalValue;
+        PrevAppraisalDate = data.PrevAppraisalDate;
         Address = data.Address;
         Contact = data.Contact;
         Appointment = data.Appointment;
@@ -57,5 +60,8 @@ public record RequestDetailData(
     Address? Address,
     Contact? Contact,
     Appointment? Appointment,
-    Fee? Fee
+    Fee? Fee,
+    string? PrevAppraisalNumber = null,
+    decimal? PrevAppraisalValue = null,
+    DateTime? PrevAppraisalDate = null
 );

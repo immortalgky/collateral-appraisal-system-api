@@ -11,43 +11,6 @@ namespace Appraisal.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "BathroomFloorMaterialType",
-                schema: "appraisal",
-                table: "ProjectTowers");
-
-            migrationBuilder.DropColumn(
-                name: "BathroomFloorMaterialTypeOther",
-                schema: "appraisal",
-                table: "ProjectTowers");
-
-            migrationBuilder.DropColumn(
-                name: "GroundFloorMaterialType",
-                schema: "appraisal",
-                table: "ProjectTowers");
-
-            migrationBuilder.DropColumn(
-                name: "GroundFloorMaterialTypeOther",
-                schema: "appraisal",
-                table: "ProjectTowers");
-
-            migrationBuilder.DropColumn(
-                name: "UpperFloorMaterialType",
-                schema: "appraisal",
-                table: "ProjectTowers");
-
-            migrationBuilder.DropColumn(
-                name: "UpperFloorMaterialTypeOther",
-                schema: "appraisal",
-                table: "ProjectTowers");
-
-            migrationBuilder.AddColumn<Guid>(
-                name: "ProjectTowerId",
-                schema: "appraisal",
-                table: "ProjectModels",
-                type: "uniqueidentifier",
-                nullable: true);
-
             migrationBuilder.CreateTable(
                 name: "HypothesisAnalyses",
                 schema: "appraisal",
@@ -334,19 +297,6 @@ namespace Appraisal.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_ProjectModels_ProjectTowerId",
-                schema: "appraisal",
-                table: "ProjectModels",
-                column: "ProjectTowerId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Appraisals_Status",
-                schema: "appraisal",
-                table: "Appraisals",
-                column: "Status",
-                filter: "[IsDeleted] = 0");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_HypothesisAnalyses_PricingMethodId",
                 schema: "appraisal",
                 table: "HypothesisAnalyses",
@@ -394,26 +344,11 @@ namespace Appraisal.Infrastructure.Migrations
                 schema: "appraisal",
                 table: "HypothesisUnitDetailUploads",
                 column: "HypothesisAnalysisId");
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_ProjectModels_ProjectTowers_ProjectTowerId",
-                schema: "appraisal",
-                table: "ProjectModels",
-                column: "ProjectTowerId",
-                principalSchema: "appraisal",
-                principalTable: "ProjectTowers",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.Restrict);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_ProjectModels_ProjectTowers_ProjectTowerId",
-                schema: "appraisal",
-                table: "ProjectModels");
-
             migrationBuilder.DropTable(
                 name: "HypothesisCondominiumUnitRows",
                 schema: "appraisal");
@@ -433,69 +368,6 @@ namespace Appraisal.Infrastructure.Migrations
             migrationBuilder.DropTable(
                 name: "HypothesisAnalyses",
                 schema: "appraisal");
-
-            migrationBuilder.DropIndex(
-                name: "IX_ProjectModels_ProjectTowerId",
-                schema: "appraisal",
-                table: "ProjectModels");
-
-            migrationBuilder.DropIndex(
-                name: "IX_Appraisals_Status",
-                schema: "appraisal",
-                table: "Appraisals");
-
-            migrationBuilder.DropColumn(
-                name: "ProjectTowerId",
-                schema: "appraisal",
-                table: "ProjectModels");
-
-            migrationBuilder.AddColumn<string>(
-                name: "BathroomFloorMaterialType",
-                schema: "appraisal",
-                table: "ProjectTowers",
-                type: "nvarchar(100)",
-                maxLength: 100,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "BathroomFloorMaterialTypeOther",
-                schema: "appraisal",
-                table: "ProjectTowers",
-                type: "nvarchar(4000)",
-                maxLength: 4000,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "GroundFloorMaterialType",
-                schema: "appraisal",
-                table: "ProjectTowers",
-                type: "nvarchar(100)",
-                maxLength: 100,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "GroundFloorMaterialTypeOther",
-                schema: "appraisal",
-                table: "ProjectTowers",
-                type: "nvarchar(4000)",
-                maxLength: 4000,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "UpperFloorMaterialType",
-                schema: "appraisal",
-                table: "ProjectTowers",
-                type: "nvarchar(100)",
-                maxLength: 100,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "UpperFloorMaterialTypeOther",
-                schema: "appraisal",
-                table: "ProjectTowers",
-                type: "nvarchar(4000)",
-                maxLength: 4000,
-                nullable: true);
         }
     }
 }

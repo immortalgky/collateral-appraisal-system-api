@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.PricingAnalysis.GetHypothesisAnalysis;
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Appraisals.Hypothesis;
 using Appraisal.Domain.Appraisals.Hypothesis.CostItems;
@@ -7,6 +9,7 @@ using Shared.CQRS;
 using LandBuildingSummaryInput = Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis.LandBuildingSummaryInput;
 using CondominiumSummaryInput = Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis.CondominiumSummaryInput;
 using HypothesisCostItemInput = Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis.HypothesisCostItemInput;
+using DepreciationPeriodInput = Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis.DepreciationPeriodInput;
 
 namespace Appraisal.Application.Features.PricingAnalysis.PreviewHypothesisAnalysis;
 
@@ -17,7 +20,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.PreviewHypothesisAnalys
 /// then passes both directly to the calculation service — no throwaway aggregate needed.
 /// </summary>
 public class PreviewHypothesisAnalysisCommandHandler(
-    IPricingAnalysisRepository pricingAnalysisRepository
+    IPricingAnalysisRepository pricingAnalysisRepository,
+    PricingPropertyDataService propertyDataService
 ) : IQueryHandler<PreviewHypothesisAnalysisCommand, PreviewHypothesisAnalysisResult>
 {
     private readonly HypothesisCalculationService _calcService = new();
@@ -40,29 +44,57 @@ public class PreviewHypothesisAnalysisCommandHandler(
         var analysis = method.HypothesisAnalysis
                        ?? throw new InvalidOperationException("Hypothesis analysis not found.");
 
+        // ── Fetch system land area from titles (PropertyGroup only) ───────
+        decimal? totalLandAreaFromTitles = null;
+        if (pricingAnalysis.PropertyGroupId.HasValue)
+            totalLandAreaFromTitles = await propertyDataService.GetTotalLandAreaFromTitlesAsync(
+                pricingAnalysis.PropertyGroupId.Value, cancellationToken);
+
         // Build a transient cost-item list from command inputs (no aggregate mutation)
         var transientCostItems = BuildTransientCostItems(analysis.Id, command.CostItems);
 
         if (analysis.Variant == HypothesisVariant.LandBuilding)
         {
             var inputSummary = MapLandBuildingInput(command.LandBuildingSummary);
-            // Pass cost-item list directly — no throwaway aggregate
+            // Pass cost-item list directly — no throwaway aggregate.
+            // ComputeLandBuilding also calls ComputeBuildingDepreciation internally,
+            // which populates B03/B06/B07/B08 on each transient item.
             var snapshot = _calcService.ComputeLandBuilding(
-                transientCostItems, analysis.LandBuildingUnitRows, inputSummary);
+                transientCostItems, analysis.LandBuildingUnitRows, inputSummary, totalLandAreaFromTitles);
+
+            var costItemDtos = MapCostItemDtos(transientCostItems);
 
             return new PreviewHypothesisAnalysisResult(
-                analysis.Variant, snapshot.Summary, snapshot.Models, null);
+                analysis.Variant, snapshot.Summary, snapshot.Models, null, costItemDtos,
+                totalLandAreaFromTitles);
         }
         else
         {
             var inputSummary = MapCondominiumInput(command.CondominiumSummary);
             var computedSummary = _calcService.ComputeCondominium(
-                transientCostItems, analysis.CondominiumUnitRows, inputSummary);
+                transientCostItems, analysis.CondominiumUnitRows, inputSummary, totalLandAreaFromTitles);
 
             return new PreviewHypothesisAnalysisResult(
-                analysis.Variant, null, null, computedSummary);
+                analysis.Variant, null, null, computedSummary, null, totalLandAreaFromTitles);
         }
     }
+
+    private static IReadOnlyList<CostItemDto> MapCostItemDtos(IReadOnlyList<HypothesisCostItem> items)
+        => items
+            .OrderBy(i => i.Category)
+            .ThenBy(i => i.DisplaySequence)
+            .Select(i => new CostItemDto(
+                i.Id, i.Category, i.Kind, i.Description, i.DisplaySequence,
+                i.Amount, i.RateAmount, i.Quantity, i.RatePercent, i.CategoryRatio, i.ModelName,
+                i.IsBuilding, i.DepreciationMethod,
+                i.Area, i.PricePerSqM, i.PriceBeforeDepreciation,
+                i.Year, i.AnnualDepreciationPercent,
+                i.TotalDepreciationPercent, i.DepreciationAmount, i.ValueAfterDepreciation,
+                i.DepreciationPeriods
+                    .OrderBy(p => p.Sequence)
+                    .Select(p => new DepreciationPeriodDto(p.Id, p.Sequence, p.AtYear, p.ToYear, p.DepreciationPerYear))
+                    .ToList()))
+            .ToList();
 
     private static IReadOnlyList<HypothesisCostItem> BuildTransientCostItems(
         Guid analysisId,
@@ -74,10 +106,20 @@ public class PreviewHypothesisAnalysisCommandHandler(
             var item = HypothesisCostItem.Create(
                 analysisId, i.Category, i.Kind, i.Description, i.DisplaySequence, i.ModelName);
             item.SetAmounts(i.Amount, i.RateAmount, i.Quantity, i.RatePercent);
+            if (i.Category == HypothesisCostCategory.CostOfBuilding)
+                item.SetBuildingCostInputs(
+                    i.Area, i.PricePerSqM, i.Year, i.AnnualDepreciationPercent,
+                    i.IsBuilding, i.DepreciationMethod,
+                    MapPeriods(i.DepreciationPeriods));
             result.Add(item);
         }
         return result;
     }
+
+    private static IReadOnlyList<(int, int, decimal)>? MapPeriods(IReadOnlyList<DepreciationPeriodInput>? inputs)
+        => inputs is null || inputs.Count == 0
+            ? null
+            : inputs.Select(p => (p.AtYear, p.ToYear, p.DepreciationPerYear)).ToList();
 
     private static LandBuildingSummary MapLandBuildingInput(LandBuildingSummaryInput? input) =>
         input is null
@@ -96,11 +138,11 @@ public class PreviewHypothesisAnalysisCommandHandler(
                 LandTitleFeePerPlot = input.LandTitleFeePerPlot,                        // FSD C46
                 ProfessionalFeePerMonth = input.ProfessionalFeePerMonth,                // FSD C50
                 AdminCostPerMonth = input.AdminCostPerMonth,                            // FSD C54
-                SellingAdvPercent = input.SellingAdvPercent,                            // FSD C58
+                SellingAdvPercent = input.SellingAdvPercent ?? 3m,                      // FSD C58 — soft default 3%
                 ProjectContingencyPercent = input.ProjectContingencyPercent ?? 3m,      // FSD C61
-                TransferFeePercent = input.TransferFeePercent,                          // FSD C66
-                SpecificBizTaxPercent = input.SpecificBizTaxPercent,                    // FSD C69
-                RiskPremiumPercent = input.RiskPremiumPercent,                          // FSD C74
+                TransferFeePercent = input.TransferFeePercent ?? 1m,                    // FSD C66 — soft default 1%
+                SpecificBizTaxPercent = input.SpecificBizTaxPercent ?? 3.30m,           // FSD C69 — soft default 3.30%
+                RiskPremiumPercent = input.RiskPremiumPercent ?? 30m,                   // FSD C74 — soft default 30%
                 DiscountRate = input.DiscountRate,                                      // FSD C78
                 Remark = input.Remark
             };
@@ -115,20 +157,21 @@ public class PreviewHypothesisAnalysisCommandHandler(
                 TotalBuildingArea = input.TotalBuildingArea,                            // FSD E05
                 EstSalesDurationMonths = input.EstSalesDurationMonths,                  // FSD E14
                 CondoBuildingCostPerSqM = input.CondoBuildingCostPerSqM,                // FSD E15
+                SetAvgRoomSizeUnits = input.SetAvgRoomSizeUnits,                        // FSD E18
                 FurniturePerUnit = input.FurniturePerUnit,                              // FSD E20
                 ExternalUtilities = input.ExternalUtilities,                            // FSD E23
                 HardCostContingencyPercent = input.HardCostContingencyPercent ?? 3m,    // FSD E25
                 EstConstructionPeriodMonths = input.EstConstructionPeriodMonths,        // FSD E28
                 ProfessionalFeePerMonth = input.ProfessionalFeePerMonth,                // FSD E29
                 AdminCostPerMonth = input.AdminCostPerMonth,                            // FSD E32
-                SellingAdvPercent = input.SellingAdvPercent,                            // FSD E35
+                SellingAdvPercent = input.SellingAdvPercent ?? 3m,                      // FSD E35 — soft default 3%
                 TitleDeedFee = input.TitleDeedFee,                                      // FSD E37
                 EIACost = input.EIACost,                                                // FSD E39
                 CondoRegistrationFee = input.CondoRegistrationFee,                      // FSD E41
-                OtherExpensesPercent = input.OtherExpensesPercent,                      // FSD E43
-                TransferFeePercent = input.TransferFeePercent ?? 1m,                    // FSD E46
-                SpecificBizTaxPercent = input.SpecificBizTaxPercent,                    // FSD E48
-                RiskProfitPercent = input.RiskProfitPercent,                            // FSD E51
+                OtherExpensesPercent = input.OtherExpensesPercent ?? 3m,                // FSD E43 — soft default 3%
+                TransferFeePercent = input.TransferFeePercent ?? 1m,                    // FSD E46 — soft default 1%
+                SpecificBizTaxPercent = input.SpecificBizTaxPercent ?? 3.30m,           // FSD E48 — soft default 3.30%
+                RiskProfitPercent = input.RiskProfitPercent ?? 30m,                     // FSD E51 — soft default 30%
                 DiscountRate = input.DiscountRate,                                      // FSD E55
                 Remark = input.Remark
             };
