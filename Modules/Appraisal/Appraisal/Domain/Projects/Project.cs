@@ -19,12 +19,17 @@ public class Project : Aggregate<Guid>
     public string? ProjectName { get; private set; }
     public string? ProjectDescription { get; private set; }
     public string? Developer { get; private set; }
-    public DateTime? ProjectSaleLaunchDate { get; private set; }
+    /// <summary>
+    /// Partial-precision launch date stored as a CE-canonical string. Allowed shapes:
+    /// "YYYY", "YYYY-MM", "YYYY-MM-DD", or null. See <see cref="PartialDate.IsValid"/>.
+    /// Display in BE/CE is a locale concern — converted at the UI boundary.
+    /// </summary>
+    public string? ProjectSaleLaunchDate { get; private set; }
 
     // Land Area
     public decimal? LandAreaRai { get; private set; }
     public decimal? LandAreaNgan { get; private set; }
-    public decimal? LandAreaWa { get; private set; }
+    public decimal? LandAreaSquareWa { get; private set; }
 
     // Project Details
     public int? UnitForSaleCount { get; private set; }
@@ -35,7 +40,7 @@ public class Project : Aggregate<Guid>
     public GpsCoordinate? Coordinates { get; private set; }
     public AdministrativeAddress? Address { get; private set; }
     public string? Postcode { get; private set; }
-    public string? LocationNumber { get; private set; }
+    public string? HouseNumber { get; private set; }
     public string? Road { get; private set; }
     public string? Soi { get; private set; }
 
@@ -91,11 +96,11 @@ public class Project : Aggregate<Guid>
         string? projectName = null,
         string? projectDescription = null,
         string? developer = null,
-        DateTime? projectSaleLaunchDate = null,
+        string? projectSaleLaunchDate = null,
         // Land Area
         decimal? landAreaRai = null,
         decimal? landAreaNgan = null,
-        decimal? landAreaWa = null,
+        decimal? landAreaSquareWa = null,
         // Project Details
         int? unitForSaleCount = null,
         int? numberOfPhase = null,
@@ -104,7 +109,7 @@ public class Project : Aggregate<Guid>
         GpsCoordinate? coordinates = null,
         AdministrativeAddress? address = null,
         string? postcode = null,
-        string? locationNumber = null,
+        string? houseNumber = null,
         string? road = null,
         string? soi = null,
         // Utilities & Facilities
@@ -118,7 +123,8 @@ public class Project : Aggregate<Guid>
         string? builtOnTitleDeedNumber = null,
         DateTime? licenseExpirationDate = null)
     {
-        ValidateSharedFields(landAreaRai, landAreaNgan, landAreaWa, unitForSaleCount, numberOfPhase);
+        ValidateSharedFields(landAreaRai, landAreaNgan, landAreaSquareWa, unitForSaleCount, numberOfPhase);
+        ValidateProjectSaleLaunchDate(projectSaleLaunchDate);
         ValidateTypeSpecificFields(projectType, builtOnTitleDeedNumber, licenseExpirationDate);
 
         var project = new Project
@@ -132,14 +138,14 @@ public class Project : Aggregate<Guid>
             ProjectSaleLaunchDate = projectSaleLaunchDate,
             LandAreaRai = landAreaRai,
             LandAreaNgan = landAreaNgan,
-            LandAreaWa = landAreaWa,
+            LandAreaSquareWa = landAreaSquareWa,
             UnitForSaleCount = unitForSaleCount,
             NumberOfPhase = numberOfPhase,
             LandOffice = landOffice,
             Coordinates = coordinates,
             Address = address,
             Postcode = postcode,
-            LocationNumber = locationNumber,
+            HouseNumber = houseNumber,
             Road = road,
             Soi = soi,
             Utilities = utilities,
@@ -165,11 +171,11 @@ public class Project : Aggregate<Guid>
         string? projectName = null,
         string? projectDescription = null,
         string? developer = null,
-        DateTime? projectSaleLaunchDate = null,
+        string? projectSaleLaunchDate = null,
         // Land Area
         decimal? landAreaRai = null,
         decimal? landAreaNgan = null,
-        decimal? landAreaWa = null,
+        decimal? landAreaSquareWa = null,
         // Project Details
         int? unitForSaleCount = null,
         int? numberOfPhase = null,
@@ -178,7 +184,7 @@ public class Project : Aggregate<Guid>
         GpsCoordinate? coordinates = null,
         AdministrativeAddress? address = null,
         string? postcode = null,
-        string? locationNumber = null,
+        string? houseNumber = null,
         string? road = null,
         string? soi = null,
         // Utilities & Facilities
@@ -192,7 +198,8 @@ public class Project : Aggregate<Guid>
         string? builtOnTitleDeedNumber = null,
         DateTime? licenseExpirationDate = null)
     {
-        ValidateSharedFields(landAreaRai, landAreaNgan, landAreaWa, unitForSaleCount, numberOfPhase);
+        ValidateSharedFields(landAreaRai, landAreaNgan, landAreaSquareWa, unitForSaleCount, numberOfPhase);
+        ValidateProjectSaleLaunchDate(projectSaleLaunchDate);
         ValidateTypeSpecificFields(ProjectType, builtOnTitleDeedNumber, licenseExpirationDate);
 
         ProjectName = projectName;
@@ -201,14 +208,14 @@ public class Project : Aggregate<Guid>
         ProjectSaleLaunchDate = projectSaleLaunchDate;
         LandAreaRai = landAreaRai;
         LandAreaNgan = landAreaNgan;
-        LandAreaWa = landAreaWa;
+        LandAreaSquareWa = landAreaSquareWa;
         UnitForSaleCount = unitForSaleCount;
         NumberOfPhase = numberOfPhase;
         LandOffice = landOffice;
         Coordinates = coordinates;
         Address = address;
         Postcode = postcode;
-        LocationNumber = locationNumber;
+        HouseNumber = houseNumber;
         Road = road;
         Soi = soi;
         Utilities = utilities;
@@ -252,6 +259,15 @@ public class Project : Aggregate<Guid>
         RequireCondo(nameof(RemoveTower));
         var tower = _towers.FirstOrDefault(t => t.Id == towerId)
                     ?? throw new InvalidProjectStateException($"Project tower {towerId} not found");
+
+        // Guard against the FK constraint: ProjectModels.ProjectTowerId is OnDelete=Restrict,
+        // so SaveChanges would throw if any model still points at this tower. Surface a clear
+        // domain error instead of letting the constraint violation bubble up.
+        if (_models.Any(m => m.ProjectTowerId == towerId))
+            throw new InvalidProjectStateException(
+                $"Cannot remove tower {towerId} — one or more models still reference it. " +
+                "Reassign or delete those models first.");
+
         _towers.Remove(tower);
     }
 
@@ -259,24 +275,44 @@ public class Project : Aggregate<Guid>
     // Model management (both types)
     // =========================================================================
 
-    public ProjectModel AddModel()
+    /// <summary>
+    /// Adds a new model to this project.
+    /// <para>
+    /// Condo: <paramref name="projectTowerId"/> must be non-null and must reference an existing tower in this project.
+    /// Uniqueness is enforced on <c>(ProjectTowerId, ModelName)</c> within the project.
+    /// </para>
+    /// <para>
+    /// LandAndBuilding: <paramref name="projectTowerId"/> must be null.
+    /// Uniqueness is enforced on <c>ModelName</c> within the project.
+    /// </para>
+    /// </summary>
+    public ProjectModel AddModel(Guid? projectTowerId = null, string? modelName = null)
     {
-        var model = ProjectModel.Create(Id);
+        ValidateModelTowerInvariant(projectTowerId, modelName, excludeModelId: null);
+
+        // Use the name factory so ModelName is set immediately for future uniqueness checks
+        // within the same unit of work (e.g. bulk import adding multiple models in one call).
+        var model = string.IsNullOrWhiteSpace(modelName)
+            ? ProjectModel.Create(Id)
+            : ProjectModel.Create(Id, modelName);
+        model.SetProjectTowerId(projectTowerId);
         _models.Add(model);
         return model;
     }
 
-    public ProjectModel AddModel(string modelName)
+    /// <summary>Retrieves an existing model for mutation and re-validates tower/uniqueness invariants.</summary>
+    /// <param name="modelId">The ID of the model to update.</param>
+    /// <param name="projectTowerId">The new tower ID (Condo) or null (LandAndBuilding).</param>
+    /// <param name="modelName">The new model name (used for uniqueness check).</param>
+    public ProjectModel UpdateModel(Guid modelId, Guid? projectTowerId = null, string? modelName = null)
     {
-        var model = ProjectModel.Create(Id, modelName);
-        _models.Add(model);
-        return model;
-    }
+        var model = _models.FirstOrDefault(m => m.Id == modelId)
+                    ?? throw new InvalidProjectStateException($"Project model {modelId} not found");
 
-    public ProjectModel UpdateModel(Guid modelId)
-    {
-        return _models.FirstOrDefault(m => m.Id == modelId)
-               ?? throw new InvalidProjectStateException($"Project model {modelId} not found");
+        ValidateModelTowerInvariant(projectTowerId, modelName, excludeModelId: modelId);
+
+        model.SetProjectTowerId(projectTowerId);
+        return model;
     }
 
     public void RemoveModel(Guid modelId)
@@ -646,6 +682,7 @@ public class Project : Aggregate<Guid>
     /// Applies the configured LocationMethod to a raw per-attribute adjustment.
     /// "AdjustPriceSqm"        → scales by area (Condo: UsableArea sq.m; LB: LandArea sq.wa).
     /// "AdjustPricePercentage" → percent of the area-based standard price.
+    /// "Lumpsum"               → flat baht amount, applied as-is (no area / percentage multiplier).
     /// otherwise               → treated as a flat baht amount (legacy default).
     /// </summary>
     private static decimal ApplyLocationMethod(
@@ -656,6 +693,7 @@ public class Project : Aggregate<Guid>
         {
             "AdjustPriceSqm" => rawAdjustment * areaMultiplier,
             "AdjustPricePercentage" => standardPriceTotal * rawAdjustment / 100m,
+            "Lumpsum" => rawAdjustment,
             _ => rawAdjustment,
         };
 
@@ -684,6 +722,51 @@ public class Project : Aggregate<Guid>
     // Private helpers
     // =========================================================================
 
+    private void ValidateModelTowerInvariant(Guid? projectTowerId, string? modelName, Guid? excludeModelId)
+    {
+        if (ProjectType == ProjectType.Condo)
+        {
+            if (projectTowerId is null)
+                throw new InvalidProjectStateException(
+                    "A Condo model must be linked to a tower. ProjectTowerId is required.");
+
+            if (!_towers.Any(t => t.Id == projectTowerId))
+                throw new InvalidProjectStateException(
+                    $"Tower {projectTowerId} does not exist in this project.");
+
+            // Uniqueness: (ProjectTowerId, ModelName) within project
+            if (!string.IsNullOrWhiteSpace(modelName))
+            {
+                var duplicate = _models.Any(m =>
+                    m.Id != excludeModelId &&
+                    m.ProjectTowerId == projectTowerId &&
+                    string.Equals(m.ModelName, modelName, StringComparison.OrdinalIgnoreCase));
+
+                if (duplicate)
+                    throw new InvalidProjectStateException(
+                        $"A model named '{modelName}' already exists in tower {projectTowerId}.");
+            }
+        }
+        else // LandAndBuilding
+        {
+            if (projectTowerId is not null)
+                throw new InvalidProjectStateException(
+                    "A LandAndBuilding model must not be linked to a tower. ProjectTowerId must be null.");
+
+            // Uniqueness: ModelName within project
+            if (!string.IsNullOrWhiteSpace(modelName))
+            {
+                var duplicate = _models.Any(m =>
+                    m.Id != excludeModelId &&
+                    string.Equals(m.ModelName, modelName, StringComparison.OrdinalIgnoreCase));
+
+                if (duplicate)
+                    throw new InvalidProjectStateException(
+                        $"A model named '{modelName}' already exists in this project.");
+            }
+        }
+    }
+
     private void AutoCreateCondoTowersAndModels()
     {
         // Auto-create placeholder towers from unique names in uploaded units
@@ -699,17 +782,30 @@ public class Project : Aggregate<Guid>
                 _towers.Add(ProjectTower.Create(Id, name));
         }
 
-        // Auto-create placeholder models from unique model types
-        var modelTypes = _units
+        // Auto-create placeholder models keyed by (TowerName, ModelType) — one model per tower+type pair.
+        var towerModelPairs = _units
             .Where(u => !string.IsNullOrWhiteSpace(u.ModelType))
-            .Select(u => u.ModelType!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(u => (TowerName: u.TowerName ?? string.Empty, ModelType: u.ModelType!))
+            .Distinct()
             .ToList();
 
-        foreach (var name in modelTypes)
+        foreach (var (towerName, modelType) in towerModelPairs)
         {
-            if (!_models.Any(m => string.Equals(m.ModelName, name, StringComparison.OrdinalIgnoreCase)))
-                _models.Add(ProjectModel.Create(Id, name));
+            var tower = _towers.FirstOrDefault(t =>
+                string.Equals(t.TowerName, towerName, StringComparison.OrdinalIgnoreCase));
+
+            if (tower is null) continue;
+
+            var alreadyExists = _models.Any(m =>
+                m.ProjectTowerId == tower.Id &&
+                string.Equals(m.ModelName, modelType, StringComparison.OrdinalIgnoreCase));
+
+            if (!alreadyExists)
+            {
+                var model = ProjectModel.Create(Id, modelType);
+                model.SetProjectTowerId(tower.Id);
+                _models.Add(model);
+            }
         }
     }
 
@@ -717,16 +813,21 @@ public class Project : Aggregate<Guid>
     {
         foreach (var unit in _units)
         {
+            Guid? towerIdForUnit = null;
+
             if (!string.IsNullOrWhiteSpace(unit.TowerName))
             {
                 var tower = _towers.First(t =>
                     string.Equals(t.TowerName, unit.TowerName, StringComparison.OrdinalIgnoreCase));
                 unit.SetProjectTowerId(tower.Id);
+                towerIdForUnit = tower.Id;
             }
 
             if (!string.IsNullOrWhiteSpace(unit.ModelType))
             {
+                // Match by (TowerId, ModelName) — models are now per-tower for Condo.
                 var model = _models.First(m =>
+                    m.ProjectTowerId == towerIdForUnit &&
                     string.Equals(m.ModelName, unit.ModelType, StringComparison.OrdinalIgnoreCase));
                 unit.SetProjectModelId(model.Id);
             }
@@ -766,16 +867,24 @@ public class Project : Aggregate<Guid>
     // Shared validation helpers
     // =========================================================================
 
+    private static void ValidateProjectSaleLaunchDate(string? projectSaleLaunchDate)
+    {
+        if (!PartialDate.IsValid(projectSaleLaunchDate))
+            throw new ArgumentException(
+                "Project sale launch date must be 'YYYY', 'YYYY-MM', or 'YYYY-MM-DD'",
+                nameof(projectSaleLaunchDate));
+    }
+
     private static void ValidateSharedFields(
-        decimal? landAreaRai, decimal? landAreaNgan, decimal? landAreaWa,
+        decimal? landAreaRai, decimal? landAreaNgan, decimal? landAreaSquareWa,
         int? unitForSaleCount, int? numberOfPhase)
     {
         if (landAreaRai is < 0)
             throw new ArgumentException("Land area (Rai) cannot be negative", nameof(landAreaRai));
         if (landAreaNgan is < 0)
             throw new ArgumentException("Land area (Ngan) cannot be negative", nameof(landAreaNgan));
-        if (landAreaWa is < 0)
-            throw new ArgumentException("Land area (Wa) cannot be negative", nameof(landAreaWa));
+        if (landAreaSquareWa is < 0)
+            throw new ArgumentException("Land area (Wa) cannot be negative", nameof(landAreaSquareWa));
         if (unitForSaleCount is < 0)
             throw new ArgumentException("Unit for sale count cannot be negative", nameof(unitForSaleCount));
         if (numberOfPhase is < 0)

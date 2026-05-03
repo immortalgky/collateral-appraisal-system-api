@@ -1956,6 +1956,12 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(50)")
                                 .HasColumnName("RegistrationNumber");
 
+                            b1.Property<bool>("RegistrationStatus")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("bit")
+                                .HasDefaultValue(false)
+                                .HasColumnName("RegistrationStatus");
+
                             b1.HasKey("TitleMachineId");
 
                             b1.ToTable("RequestTitles", "request");

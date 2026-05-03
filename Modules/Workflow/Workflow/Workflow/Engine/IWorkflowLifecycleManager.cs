@@ -50,6 +50,19 @@ public interface IWorkflowLifecycleManager
         WorkflowInstance workflowInstance,
         string nextActivityId,
         string? assignee = null,
+        string? completedBy = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Publishes the initial workflow transition into the start activity.
+    /// Called once by <see cref="IWorkflowEngine.StartWorkflowAsync"/> after the instance is initialized
+    /// and before the first activity executes — covers the only transition that doesn't flow through
+    /// <see cref="AdvanceWorkflowAsync"/>.
+    /// </summary>
+    Task PublishInitialTransitionAsync(
+        WorkflowInstance workflowInstance,
+        string startActivityId,
+        string? startedBy,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -57,6 +70,7 @@ public interface IWorkflowLifecycleManager
     /// </summary>
     Task<bool> CompleteWorkflowAsync(
         WorkflowInstance workflowInstance,
+        string? completedBy = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

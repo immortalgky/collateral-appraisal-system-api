@@ -206,7 +206,7 @@ public class WorkflowEngineTests
         result.WorkflowInstance.Should().Be(workflowInstance);
 
         // Verify workflow completion was called
-        await _lifecycleManager.Received(1).CompleteWorkflowAsync(workflowInstance, Arg.Any<CancellationToken>());
+        await _lifecycleManager.Received(1).CompleteWorkflowAsync(workflowInstance, Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -353,7 +353,7 @@ public class WorkflowEngineTests
         // Verify activity was resumed and workflow completed
         await _mockActivity.Received(1)
             .ResumeAsync(Arg.Any<ActivityContext>(), resumeInput, Arg.Any<CancellationToken>());
-        await _lifecycleManager.Received(1).CompleteWorkflowAsync(workflowInstance, Arg.Any<CancellationToken>());
+        await _lifecycleManager.Received(1).CompleteWorkflowAsync(workflowInstance, Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -911,7 +911,7 @@ public class WorkflowEngineTests
                 Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>())
             .Returns((string?)null); // No next activity = completion
 
-        _lifecycleManager.CompleteWorkflowAsync(Arg.Any<WorkflowInstance>(), Arg.Any<CancellationToken>())
+        _lifecycleManager.CompleteWorkflowAsync(Arg.Any<WorkflowInstance>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(true);
 
         _stateManager.CreateCheckpointAsync(
@@ -927,7 +927,7 @@ public class WorkflowEngineTests
 
         // Verify workflow was completed
         await _lifecycleManager.Received(1).CompleteWorkflowAsync(
-            workflowInstance, Arg.Any<CancellationToken>());
+            workflowInstance, Arg.Any<string?>(), Arg.Any<CancellationToken>());
 
         // Verify completion checkpoint was created
         await _stateManager.Received(1).CreateCheckpointAsync(
@@ -1011,7 +1011,7 @@ public class WorkflowEngineTests
                 Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>())
             .Returns((string?)null); // Workflow completes
 
-        _lifecycleManager.CompleteWorkflowAsync(Arg.Any<WorkflowInstance>(), Arg.Any<CancellationToken>())
+        _lifecycleManager.CompleteWorkflowAsync(Arg.Any<WorkflowInstance>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(true);
 
         _stateManager.CreateCheckpointAsync(

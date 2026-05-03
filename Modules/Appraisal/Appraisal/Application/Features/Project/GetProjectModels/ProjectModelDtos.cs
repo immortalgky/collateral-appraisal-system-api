@@ -49,7 +49,7 @@ public record ProjectModelDepreciationDetailDto(
     decimal DepreciationYearPct = 0,
     decimal TotalDepreciationPct = 0,
     decimal PriceDepreciation = 0,
-    List<ProjectModelDepreciationPeriodDto>? Periods = null
+    List<ProjectModelDepreciationPeriodDto>? DepreciationPeriods = null
 );
 
 /// <summary>
@@ -60,14 +60,14 @@ public record ProjectModelDepreciationDetailDto(
 public record ProjectModelDto(
     Guid Id,
     Guid ProjectId,
+    /// <summary>Condo only — the tower this model belongs to. Null for LandAndBuilding models.</summary>
+    Guid? ProjectTowerId,
     // Common
     string? ModelName,
     string? ModelDescription,
-    string? BuildingNumber,            // Condo
     int? NumberOfHouse,               // LB
-    decimal? StartingPrice,           // LB
-    decimal? StartingPriceMin,        // Condo
-    decimal? StartingPriceMax,        // Condo
+    decimal? StartingPriceMin,
+    decimal? StartingPriceMax,
     // StandardPrice removed — derived from PricingAnalysis.FinalAppraisedValue
     bool? HasMezzanine,
     decimal? UsableAreaMin,
@@ -83,10 +83,9 @@ public record ProjectModelDto(
     string? BathroomFloorMaterialType,
     string? BathroomFloorMaterialTypeOther,
     string? Remark,
-    // LB-specific
-    decimal? LandAreaRai,
-    decimal? LandAreaNgan,
-    decimal? LandAreaWa,
+    // LB-specific — land area is a min/max range plus a standard, all in sq.wa.
+    decimal? LandAreaMin,
+    decimal? LandAreaMax,
     decimal? StandardLandArea,
     string? BuildingType,
     string? BuildingTypeOther,

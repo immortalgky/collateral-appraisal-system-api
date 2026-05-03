@@ -30,15 +30,17 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.Property(p => p.ProjectDescription).HasMaxLength(500);
         builder.Property(p => p.Developer).HasMaxLength(200);
         builder.Property(p => p.LandOffice).HasMaxLength(200);
+        // Partial-precision date stored as CE-canonical string: "YYYY" | "YYYY-MM" | "YYYY-MM-DD"
+        builder.Property(p => p.ProjectSaleLaunchDate).HasMaxLength(10);
 
         // Land Area
         builder.Property(p => p.LandAreaRai).HasPrecision(10, 4);
         builder.Property(p => p.LandAreaNgan).HasPrecision(10, 4);
-        builder.Property(p => p.LandAreaWa).HasPrecision(10, 4);
+        builder.Property(p => p.LandAreaSquareWa).HasPrecision(10, 4);
 
         // Location
         builder.Property(p => p.Postcode).HasMaxLength(20);
-        builder.Property(p => p.LocationNumber).HasMaxLength(200);
+        builder.Property(p => p.HouseNumber).HasMaxLength(200);
         builder.Property(p => p.Road).HasMaxLength(200);
         builder.Property(p => p.Soi).HasMaxLength(200);
 

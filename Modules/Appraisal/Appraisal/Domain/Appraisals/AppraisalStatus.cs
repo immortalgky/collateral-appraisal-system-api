@@ -13,6 +13,7 @@ public class AppraisalStatus : ValueObject
     }
 
     // Predefined statuses
+    public static AppraisalStatus Submitted => new("Submitted");
     public static AppraisalStatus Pending => new("Pending");
     public static AppraisalStatus Assigned => new("Assigned");
     public static AppraisalStatus InProgress => new("InProgress");
@@ -25,6 +26,7 @@ public class AppraisalStatus : ValueObject
     {
         return code switch
         {
+            "Submitted" => Submitted,
             "Pending" => Pending,
             "Assigned" => Assigned,
             "InProgress" => InProgress,

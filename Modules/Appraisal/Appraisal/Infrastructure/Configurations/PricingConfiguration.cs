@@ -1,4 +1,5 @@
 using Appraisal.Domain.Appraisals;
+using Appraisal.Domain.Appraisals.Hypothesis;
 using Appraisal.Domain.Appraisals.Income;
 using Appraisal.Domain.ComparativeAnalysis;
 using Appraisal.Domain.Projects;
@@ -148,6 +149,12 @@ public class PricingAnalysisMethodConfiguration : IEntityTypeConfiguration<Prici
         builder.HasOne(m => m.IncomeAnalysis)
             .WithOne()
             .HasForeignKey<IncomeAnalysis>(i => i.PricingAnalysisMethodId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Hypothesis Analysis (1:1, HypothesisLandBuilding / HypothesisCondominium methods)
+        builder.HasOne(m => m.HypothesisAnalysis)
+            .WithOne()
+            .HasForeignKey<HypothesisAnalysis>(h => h.PricingMethodId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne<ComparativeAnalysisTemplate>()

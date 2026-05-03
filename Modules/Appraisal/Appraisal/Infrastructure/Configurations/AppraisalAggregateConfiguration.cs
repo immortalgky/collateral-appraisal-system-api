@@ -63,6 +63,10 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
                 .HasColumnName("Status")
                 .IsRequired()
                 .HasMaxLength(30);
+
+            status.HasIndex(s => s.Code)
+                .HasDatabaseName("IX_Appraisals_Status")
+                .HasFilter("[IsDeleted] = 0");
         });
 
         // Committee approval evidence

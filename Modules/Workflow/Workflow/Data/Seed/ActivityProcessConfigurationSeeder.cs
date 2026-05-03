@@ -21,7 +21,9 @@ public class ActivityProcessConfigurationSeeder(
 
         var configs = new List<ActivityProcessConfiguration>
         {
-            // site-inspection: validate value, then update appraisal to UnderReview, then complete assignment
+            // site-inspection: validate value, then complete assignment
+            // Note: status transition (→ UnderReview) is now handled by the WorkflowTransitionedIntegrationEvent
+            // consumer in the Appraisal module — no synchronous UpdateAppraisalStatus step needed.
             ActivityProcessConfiguration.Create(
                 "site-inspection",
                 "Validate appraised value",
@@ -30,16 +32,9 @@ public class ActivityProcessConfigurationSeeder(
                 "system"),
             ActivityProcessConfiguration.Create(
                 "site-inspection",
-                "Update appraisal status to UnderReview",
-                "UpdateAppraisalStatus",
-                2,
-                "system",
-                """{"targetStatus": "UnderReview"}"""),
-            ActivityProcessConfiguration.Create(
-                "site-inspection",
                 "Complete assignment",
                 "UpdateAssignmentStatus",
-                3,
+                2,
                 "system",
                 """{"targetStatus": "Completed"}"""),
 
@@ -51,15 +46,6 @@ public class ActivityProcessConfigurationSeeder(
                 1,
                 "system",
                 """{"decisionField":"decisionTaken","constraints":{"INT":"facilityLimit <= 50000000"}}"""),
-
-            // admin-review: update appraisal to InProgress
-            ActivityProcessConfiguration.Create(
-                "admin-review",
-                "Start appraisal work",
-                "UpdateAppraisalStatus",
-                1,
-                "system",
-                """{"targetStatus": "InProgress"}"""),
         };
 
         await context.ActivityProcessConfigurations.AddRangeAsync(configs);

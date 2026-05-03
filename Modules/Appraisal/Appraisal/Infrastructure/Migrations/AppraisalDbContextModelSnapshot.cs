@@ -1629,6 +1629,426 @@ namespace Appraisal.Infrastructure.Migrations
                     b.ToTable("GroupValuations", "appraisal");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.CostItems.HypothesisCostItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<decimal?>("AnnualDepreciationPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("Area")
+                        .HasPrecision(13, 2)
+                        .HasColumnType("decimal(13,2)");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("CategoryRatio")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("DepreciationAmount")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<string>("DepreciationMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasDefaultValue("Gross");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("DisplaySequence")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("HypothesisAnalysisId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsBuilding")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ModelName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("PriceBeforeDepreciation")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<decimal?>("PricePerSqM")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<decimal?>("Quantity")
+                        .HasPrecision(13, 2)
+                        .HasColumnType("decimal(13,2)");
+
+                    b.Property<decimal?>("RateAmount")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<decimal?>("RatePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("TotalDepreciationPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("ValueAfterDepreciation")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HypothesisAnalysisId");
+
+                    b.HasIndex("HypothesisAnalysisId", "Category");
+
+                    b.ToTable("HypothesisCostItems", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.CostItems.HypothesisCostItemDepreciationPeriod", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<int>("AtYear")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("CostItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("DepreciationPerYear")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ToYear")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CostItemId");
+
+                    b.ToTable("HypothesisCostItemDepreciationPeriods", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.HypothesisAnalysis", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("PricingMethodId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Variant")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PricingMethodId")
+                        .IsUnique();
+
+                    b.ToTable("HypothesisAnalyses", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.Uploads.CondominiumUnitRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("Apartment")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("AptNo")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Building")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("FloorNo")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("HypothesisAnalysisId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ModelType")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Remark1")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Remark2")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal?>("SellingPrice")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("UploadId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("UsableAreaSqM")
+                        .HasPrecision(13, 2)
+                        .HasColumnType("decimal(13,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HypothesisAnalysisId");
+
+                    b.HasIndex("UploadId");
+
+                    b.ToTable("HypothesisCondominiumUnitRows", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.Uploads.HypothesisUnitDetailUpload", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("HypothesisAnalysisId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("RowCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HypothesisAnalysisId");
+
+                    b.ToTable("HypothesisUnitDetailUploads", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.Uploads.LandBuildingUnitRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("FloorNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("HouseNo")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("HypothesisAnalysisId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("LandAreaSqWa")
+                        .HasPrecision(13, 2)
+                        .HasColumnType("decimal(13,2)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ModelName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PlanNo")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Remark1")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Remark2")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal?>("SellingPrice")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("UploadId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("UsableAreaSqM")
+                        .HasPrecision(13, 2)
+                        .HasColumnType("decimal(13,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HypothesisAnalysisId");
+
+                    b.HasIndex("UploadId");
+
+                    b.ToTable("HypothesisLandBuildingUnitRows", "appraisal");
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeAnalysis", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4402,6 +4822,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("HouseNumber")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<decimal?>("LandAreaNgan")
                         .HasPrecision(10, 4)
                         .HasColumnType("decimal(10,4)");
@@ -4410,7 +4834,7 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasPrecision(10, 4)
                         .HasColumnType("decimal(10,4)");
 
-                    b.Property<decimal?>("LandAreaWa")
+                    b.Property<decimal?>("LandAreaSquareWa")
                         .HasPrecision(10, 4)
                         .HasColumnType("decimal(10,4)");
 
@@ -4420,10 +4844,6 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<DateTime?>("LicenseExpirationDate")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("LocationNumber")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int?>("NumberOfPhase")
                         .HasColumnType("int");
@@ -4440,8 +4860,9 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<DateTime?>("ProjectSaleLaunchDate")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("ProjectSaleLaunchDate")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.Property<int>("ProjectType")
                         .HasColumnType("int");
@@ -4819,10 +5240,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("BuildingNumber")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<string>("BuildingStyleType")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -4929,15 +5346,11 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<bool?>("IsResidential")
                         .HasColumnType("bit");
 
-                    b.Property<decimal?>("LandAreaNgan")
+                    b.Property<decimal?>("LandAreaMax")
                         .HasPrecision(10, 4)
                         .HasColumnType("decimal(10,4)");
 
-                    b.Property<decimal?>("LandAreaRai")
-                        .HasPrecision(10, 4)
-                        .HasColumnType("decimal(10,4)");
-
-                    b.Property<decimal?>("LandAreaWa")
+                    b.Property<decimal?>("LandAreaMin")
                         .HasPrecision(10, 4)
                         .HasColumnType("decimal(10,4)");
 
@@ -4957,6 +5370,9 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ProjectTowerId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Remark")
@@ -4996,10 +5412,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<decimal?>("StandardUsableArea")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
-
-                    b.Property<decimal?>("StartingPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("StartingPriceMax")
                         .HasPrecision(18, 2)
@@ -5053,6 +5465,8 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ProjectId");
+
+                    b.HasIndex("ProjectTowerId");
 
                     b.ToTable("ProjectModels", "appraisal");
                 });
@@ -5193,13 +5607,8 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("BathroomFloorMaterialType")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("BathroomFloorMaterialTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                    b.Property<int?>("BuildingAge")
+                        .HasColumnType("int");
 
                     b.Property<string>("BuildingFormType")
                         .HasMaxLength(100)
@@ -5216,9 +5625,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("ConstructionMaterialType")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<int?>("ConstructionYear")
-                        .HasColumnType("int");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -5254,14 +5660,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
-                    b.Property<string>("GroundFloorMaterialType")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("GroundFloorMaterialTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
                     b.Property<bool?>("HasObligation")
                         .HasColumnType("bit");
 
@@ -5276,9 +5674,6 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<bool?>("IsLocationCorrect")
                         .HasColumnType("bit");
-
-                    b.Property<string>("ModelTypeIds")
-                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<int?>("NumberOfFloors")
                         .HasColumnType("int");
@@ -5324,9 +5719,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<int?>("TotalNumberOfFloors")
-                        .HasColumnType("int");
-
                     b.Property<string>("TowerName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -5340,14 +5732,6 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<string>("UpdatedWorkstation")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("UpperFloorMaterialType")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("UpperFloorMaterialTypeOther")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
 
                     b.HasKey("Id");
 
@@ -6740,6 +7124,10 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnName("Status");
 
                             b1.HasKey("AppraisalId");
+
+                            b1.HasIndex("Code")
+                                .HasDatabaseName("IX_Appraisals_Status")
+                                .HasFilter("[IsDeleted] = 0");
 
                             b1.ToTable("Appraisals", "appraisal");
 
@@ -9479,6 +9867,579 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.CostItems.HypothesisCostItem", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.Hypothesis.HypothesisAnalysis", null)
+                        .WithMany("CostItems")
+                        .HasForeignKey("HypothesisAnalysisId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.CostItems.HypothesisCostItemDepreciationPeriod", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.Hypothesis.CostItems.HypothesisCostItem", null)
+                        .WithMany("DepreciationPeriods")
+                        .HasForeignKey("CostItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.HypothesisAnalysis", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.PricingAnalysisMethod", null)
+                        .WithOne("HypothesisAnalysis")
+                        .HasForeignKey("Appraisal.Domain.Appraisals.Hypothesis.HypothesisAnalysis", "PricingMethodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Appraisal.Domain.Appraisals.Hypothesis.Summaries.CondominiumSummary", "CondominiumSummary", b1 =>
+                        {
+                            b1.Property<Guid>("HypothesisAnalysisId")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int?>("AdminCostMonths")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal?>("AdminCostPerMonth")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("AdminCostTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("AreaSqM")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("AreaTitleDeed")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("AveragePricePerSqM")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("AvgIndoorSalesAreaPerUnit")
+                                .HasPrecision(7, 2)
+                                .HasColumnType("decimal(7,2)");
+
+                            b1.Property<decimal?>("BuildingArea")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("CommonArea")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("CommonAreaPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("CondoBuildingCostPerSqM")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("CondoBuildingCostTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("CondoRegistrationFee")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("CondoRegistrationFeeTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("ConstructionAreaCityPlan")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("DiscountRate")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("DiscountRateFactor")
+                                .HasPrecision(18, 10)
+                                .HasColumnType("decimal(18,10)");
+
+                            b1.Property<decimal?>("EIACost")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("EIACostTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<int?>("EstConstructionPeriodMonths")
+                                .HasColumnType("int");
+
+                            b1.Property<int?>("EstSalesDurationMonths")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal?>("ExternalUtilities")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("ExternalUtilitiesTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("FAR")
+                                .HasPrecision(7, 2)
+                                .HasColumnType("decimal(7,2)");
+
+                            b1.Property<decimal?>("FinalRemainingValue")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("FurniturePerUnit")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<int?>("FurnitureQuantity")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal?>("FurnitureTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("HardCostContingencyAmount")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("HardCostContingencyPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("IndoorSalesArea")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("IndoorSalesAreaPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("OtherExpensesPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("OtherExpensesTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<int?>("ProfessionalFeeMonths")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal?>("ProfessionalFeePerMonth")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("ProfessionalFeeTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("ProjectSalesArea")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<string>("Remark")
+                                .HasMaxLength(4000)
+                                .HasColumnType("nvarchar(4000)")
+                                .HasColumnName("CondominiumSummary_Remark");
+
+                            b1.Property<decimal?>("RiskProfitPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("RiskProfitTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("SellingAdvPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("SellingAdvTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<int?>("SetAvgRoomSizeUnits")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal?>("SpecificBizTaxPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("SpecificBizTaxTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TitleDeedFee")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TitleDeedFeeTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalAssetValuePerSqM")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalAssetValueRounded")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalBuildingArea")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("TotalDevCosts")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalGovTax")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalHardCost")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalProjectSellingPrice")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalRemainingValue")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalRevenue")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalSoftCost")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TransferFeePercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("TransferFeeTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.HasKey("HypothesisAnalysisId");
+
+                            b1.ToTable("HypothesisAnalyses", "appraisal");
+
+                            b1.WithOwner()
+                                .HasForeignKey("HypothesisAnalysisId");
+                        });
+
+                    b.OwnsOne("Appraisal.Domain.Appraisals.Hypothesis.Summaries.LandBuildingSummary", "LandBuildingSummary", b1 =>
+                        {
+                            b1.Property<Guid>("HypothesisAnalysisId")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int?>("AdminCostMonths")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal?>("AdminCostPerMonth")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("AdminCostRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("AdminCostTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("AllocationPermitFee")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("AllocationPermitFeeRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("ContingencyAmount")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("ContingencyPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("ContingencyRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("CurrentPropertyValue")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("DiscountRate")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("DiscountRateFactor")
+                                .HasPrecision(18, 10)
+                                .HasColumnType("decimal(18,10)");
+
+                            b1.Property<int?>("EstConstructionPeriod")
+                                .HasColumnType("int");
+
+                            b1.Property<int?>("EstSalesPeriod")
+                                .HasColumnType("int");
+
+                            b1.Property<int?>("EstimatedConstructionDurationMonths")
+                                .HasColumnType("int");
+
+                            b1.Property<int?>("EstimatedDurationMonths")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal?>("FinalPropertyValue")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("LandFillingArea")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("LandFillingCost")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("LandFillingCostRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("LandFillingRatePerSqWa")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("LandTitleFeePerPlot")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("LandTitleFeeRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("LandTitleFeeTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<int?>("ProfessionalFeeMonths")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal?>("ProfessionalFeePerMonth")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("ProfessionalFeeRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("ProfessionalFeeTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("ProjectContingencyAmount")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("ProjectContingencyPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("ProjectContingencyRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("PublicUtilityArea")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("PublicUtilityAreaForCost")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("PublicUtilityAreaPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("PublicUtilityCost")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("PublicUtilityCostRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("PublicUtilityRatePerSqWa")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<string>("Remark")
+                                .HasMaxLength(4000)
+                                .HasColumnType("nvarchar(4000)")
+                                .HasColumnName("LandBuildingSummary_Remark");
+
+                            b1.Property<decimal?>("RiskPremiumAmount")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("RiskPremiumPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("SellingAdvPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("SellingAdvRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("SellingAdvTotal")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("SellingArea")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("SellingAreaPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("SpecificBizTaxAmount")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("SpecificBizTaxPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("SpecificBizTaxRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("TotalArea")
+                                .HasPrecision(13, 2)
+                                .HasColumnType("decimal(13,2)");
+
+                            b1.Property<decimal?>("TotalAssetValuePerSqWa")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalAssetValueRounded")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalDevCostRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("TotalDevCostsAndExpenses")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalGovTax")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalGovTaxRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<int?>("TotalPlots")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal?>("TotalProjectCost")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalProjectCostRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("TotalProjectDevCost")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TotalRevenue")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<int?>("TotalUnits")
+                                .HasColumnType("int");
+
+                            b1.Property<int?>("TotalUnitsForConstruction")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal?>("TransferFeeAmount")
+                                .HasPrecision(17, 2)
+                                .HasColumnType("decimal(17,2)");
+
+                            b1.Property<decimal?>("TransferFeePercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.Property<decimal?>("TransferFeeRatio")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("decimal(5,2)");
+
+                            b1.HasKey("HypothesisAnalysisId");
+
+                            b1.ToTable("HypothesisAnalyses", "appraisal");
+
+                            b1.WithOwner()
+                                .HasForeignKey("HypothesisAnalysisId");
+                        });
+
+                    b.Navigation("CondominiumSummary");
+
+                    b.Navigation("LandBuildingSummary");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.Uploads.CondominiumUnitRow", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.Hypothesis.HypothesisAnalysis", null)
+                        .WithMany("CondominiumUnitRows")
+                        .HasForeignKey("HypothesisAnalysisId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.Uploads.HypothesisUnitDetailUpload", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.Hypothesis.HypothesisAnalysis", null)
+                        .WithMany("Uploads")
+                        .HasForeignKey("HypothesisAnalysisId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.Uploads.LandBuildingUnitRow", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.Hypothesis.HypothesisAnalysis", null)
+                        .WithMany("LandBuildingUnitRows")
+                        .HasForeignKey("HypothesisAnalysisId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeAnalysis", b =>
                 {
                     b.HasOne("Appraisal.Domain.Appraisals.PricingAnalysisMethod", null)
@@ -10249,6 +11210,11 @@ namespace Appraisal.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Appraisal.Domain.Projects.ProjectTower", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectTowerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.OwnsMany("Appraisal.Domain.Projects.ProjectModelAreaDetail", "AreaDetails", b1 =>
                         {
                             b1.Property<Guid>("Id")
@@ -10735,6 +11701,22 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Navigation("PaymentHistory");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.CostItems.HypothesisCostItem", b =>
+                {
+                    b.Navigation("DepreciationPeriods");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.Hypothesis.HypothesisAnalysis", b =>
+                {
+                    b.Navigation("CondominiumUnitRows");
+
+                    b.Navigation("CostItems");
+
+                    b.Navigation("LandBuildingUnitRows");
+
+                    b.Navigation("Uploads");
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeAnalysis", b =>
                 {
                     b.Navigation("Sections");
@@ -10783,6 +11765,8 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Navigation("FactorScores");
 
                     b.Navigation("FinalValue");
+
+                    b.Navigation("HypothesisAnalysis");
 
                     b.Navigation("IncomeAnalysis");
 

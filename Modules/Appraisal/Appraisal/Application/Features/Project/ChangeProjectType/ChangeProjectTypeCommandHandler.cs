@@ -45,7 +45,7 @@ public class ChangeProjectTypeCommandHandler(
         var saleLaunchDate   = existing.ProjectSaleLaunchDate;
         var landAreaRai      = existing.LandAreaRai;
         var landAreaNgan     = existing.LandAreaNgan;
-        var landAreaWa       = existing.LandAreaWa;
+        var landAreaSquareWa       = existing.LandAreaSquareWa;
         var unitForSaleCount = existing.UnitForSaleCount;
         var numberOfPhase    = existing.NumberOfPhase;
         var landOffice       = existing.LandOffice;
@@ -57,7 +57,7 @@ public class ChangeProjectTypeCommandHandler(
         var district         = existing.Address?.District;
         var province         = existing.Address?.Province;
         var postcode         = existing.Postcode;
-        var locationNumber   = existing.LocationNumber;
+        var houseNumber      = existing.HouseNumber;
         var road             = existing.Road;
         var soi              = existing.Soi;
         // List<string> collections — copied to new lists so the new aggregate owns its own instances
@@ -95,14 +95,14 @@ public class ChangeProjectTypeCommandHandler(
                 projectSaleLaunchDate: saleLaunchDate,
                 landAreaRai:          landAreaRai,
                 landAreaNgan:         landAreaNgan,
-                landAreaWa:           landAreaWa,
+                landAreaSquareWa:           landAreaSquareWa,
                 unitForSaleCount:     unitForSaleCount,
                 numberOfPhase:        numberOfPhase,
                 landOffice:           landOffice,
                 coordinates:          coordinates,
                 address:              address,
                 postcode:             postcode,
-                locationNumber:       locationNumber,
+                houseNumber:          houseNumber,
                 road:                 road,
                 soi:                  soi,
                 utilities:            utilities,
@@ -138,7 +138,7 @@ public class ChangeProjectTypeCommandHandler(
             ProjectSaleLaunchDate: project.ProjectSaleLaunchDate,
             LandAreaRai:           project.LandAreaRai,
             LandAreaNgan:          project.LandAreaNgan,
-            LandAreaWa:            project.LandAreaWa,
+            LandAreaSquareWa:            project.LandAreaSquareWa,
             UnitForSaleCount:      project.UnitForSaleCount,
             NumberOfPhase:         project.NumberOfPhase,
             LandOffice:            project.LandOffice,
@@ -148,7 +148,7 @@ public class ChangeProjectTypeCommandHandler(
             District:              project.Address?.District,
             Province:              project.Address?.Province,
             Postcode:              project.Postcode,
-            LocationNumber:        project.LocationNumber,
+            HouseNumber:           project.HouseNumber,
             Road:                  project.Road,
             Soi:                   project.Soi,
             Utilities:             project.Utilities,

@@ -5,14 +5,7 @@ SELECT a.Id,
        a.AppraisalNumber,
        a.RequestId,
        r.RequestNumber,
-       -- Derive status: CompletedAt trumps all; then workflow activity; fallback to stored status
-       CASE
-           WHEN a.CompletedAt IS NOT NULL THEN 'Completed'
-           WHEN wpt.ActivityId IN ('appraisal-initiation-check', 'appraisal-assignment') THEN 'Pending'
-           WHEN wpt.ActivityId IN ('appraisal-book-verification', 'int-appraisal-check', 'int-appraisal-verification', 'pending-approval') THEN 'UnderReview'
-           WHEN wpt.ActivityId IS NOT NULL THEN 'InProgress'
-           ELSE a.Status
-       END AS Status,
+       a.Status AS Status,
        a.AppraisalType,
        a.Priority,
        a.IsPma,
@@ -80,9 +73,4 @@ FROM appraisal.Appraisals a
                       WHERE AssignmentId = la.Id
                         AND Status != 'Cancelled'
                       ORDER BY AppointmentDateTime DESC) apt
-         -- Current workflow activity for status derivation
-         OUTER APPLY (SELECT TOP 1 pt.ActivityId
-                      FROM workflow.PendingTasks pt
-                      WHERE pt.CorrelationId = a.RequestId
-                      ORDER BY pt.AssignedAt DESC) wpt
 WHERE a.IsDeleted = 0

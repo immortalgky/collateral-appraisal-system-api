@@ -312,7 +312,10 @@ public static class DtoExtensions
             dto?.Address?.ToDomain(),
             dto?.Contact?.ToDomain(),
             dto?.Appointment?.ToDomain(),
-            dto?.Fee?.ToDomain()
+            dto?.Fee?.ToDomain(),
+            dto?.PrevAppraisalNumber,
+            dto?.PrevAppraisalValue,
+            dto?.PrevAppraisalDate
         ));
     }
 

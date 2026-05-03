@@ -12,11 +12,11 @@ public record GetProjectResult(
     string? ProjectName,
     string? ProjectDescription,
     string? Developer,
-    DateTime? ProjectSaleLaunchDate,
+    string? ProjectSaleLaunchDate,
     // Land Area
     decimal? LandAreaRai,
     decimal? LandAreaNgan,
-    decimal? LandAreaWa,
+    decimal? LandAreaSquareWa,
     // Project Details
     int? UnitForSaleCount,
     int? NumberOfPhase,
@@ -28,7 +28,7 @@ public record GetProjectResult(
     string? District,
     string? Province,
     string? Postcode,
-    string? LocationNumber,
+    string? HouseNumber,
     string? Road,
     string? Soi,
     // Utilities & Facilities

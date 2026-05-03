@@ -67,7 +67,10 @@ public class CreateRequestService(
                 Fee.Create(
                     command.Detail.Fee?.FeePaymentType,
                     command.Detail.Fee?.FeeNotes,
-                    command.Detail.Fee?.AbsorbedAmount)
+                    command.Detail.Fee?.AbsorbedAmount),
+                command.Detail.PrevAppraisalNumber,
+                command.Detail.PrevAppraisalValue,
+                command.Detail.PrevAppraisalDate
             )));
 
         if (command.Customers is { Count: > 0 })
