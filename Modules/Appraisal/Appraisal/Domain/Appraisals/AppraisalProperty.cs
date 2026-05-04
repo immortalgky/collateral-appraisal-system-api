@@ -12,6 +12,12 @@ public class AppraisalProperty : Entity<Guid>
     public PropertyType PropertyType { get; private set; } = null!;
     public string? Description { get; private set; }
 
+    /// <summary>
+    /// Lifecycle status — Draft while data is being captured, Saved once the appraiser
+    /// is done. Pricing analysis cannot start until every property in the group is Saved.
+    /// </summary>
+    public PropertyStatus Status { get; private set; } = PropertyStatus.Draft;
+
     // Navigation Properties - 1:1 with detail tables (based on PropertyType)
     // For LandAndBuilding type, BOTH LandDetail AND BuildingDetail are populated
     public LandAppraisalDetail? LandDetail { get; private set; }
@@ -43,6 +49,7 @@ public class AppraisalProperty : Entity<Guid>
         SequenceNumber = sequenceNumber;
         PropertyType = propertyType;
         Description = description;
+        Status = PropertyStatus.Draft;
     }
 
     /// <summary>
@@ -73,6 +80,27 @@ public class AppraisalProperty : Entity<Guid>
     {
         Description = description;
     }
+
+    #region Status Transitions
+
+    /// <summary>
+    /// Mark this property as Saved. Called by the "Save property" command once
+    /// all per-type required fields have been entered. Idempotent.
+    /// </summary>
+    public void MarkAsSaved()
+    {
+        Status = PropertyStatus.Saved;
+    }
+
+    /// <summary>
+    /// Revert this property to Draft (e.g. when an appraiser opens it for further edits).
+    /// </summary>
+    public void RevertToDraft()
+    {
+        Status = PropertyStatus.Draft;
+    }
+
+    #endregion
 
     #region Set Detail Methods
 

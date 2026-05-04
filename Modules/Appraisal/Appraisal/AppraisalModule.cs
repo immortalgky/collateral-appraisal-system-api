@@ -1,5 +1,7 @@
 using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Application.Services;
+using Appraisal.Domain.Appraisals.Specifications;
+using Appraisal.Domain.Appraisals.Specifications.Rules;
 using Appraisal.Domain.ComparativeAnalysis;
 using Appraisal.Domain.Services;
 using Appraisal.Infrastructure.BackgroundServices;
@@ -79,6 +81,16 @@ public static class AppraisalModule
         // PricingCalculationServiceResolver is also scoped because it holds a scoped dependency.
         services.AddScoped<IncomeCalculationService>();
         services.AddScoped<PricingCalculationServiceResolver>();
+
+        // Pricing Analysis Readiness — domain rules + composing checker + Dapper-backed
+        // query service. Used by both the GET property-group endpoint (UI hint) and
+        // the create/start pricing-analysis commands (hard gate).
+        services.AddScoped<IPricingAnalysisPrecondition, MarketSurveyRequiredRule>();
+        services.AddScoped<IPricingAnalysisPrecondition, BuildingMustHaveBuildingDetailRule>();
+        services.AddScoped<IPricingAnalysisPrecondition, LeaseAgreementMustHaveRentalInfoRule>();
+        services.AddScoped<IPricingAnalysisPrecondition, PropertyMustBeSavedRule>();
+        services.AddScoped<PricingAnalysisReadinessChecker>();
+        services.AddScoped<IPricingAnalysisReadinessService, PricingAnalysisReadinessService>();
 
         // Register Data Seeders
         services.AddScoped<IDataSeeder<AppraisalDbContext>, AppendixTypeDataSeed>();

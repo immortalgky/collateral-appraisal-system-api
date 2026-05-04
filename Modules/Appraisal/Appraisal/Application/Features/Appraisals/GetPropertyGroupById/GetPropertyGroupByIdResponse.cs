@@ -6,5 +6,6 @@ public record GetPropertyGroupByIdResponse(
     string GroupName,
     string? Description,
     Guid? PricingAnalysisId,
-    List<PropertyGroupItemDto> Properties
+    List<PropertyGroupItemDto> Properties,
+    PricingAnalysisReadinessDto? Readiness
 );

@@ -29,6 +29,15 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status400BadRequest
             ),
+            // 422 Unprocessable Entity — well-formed request that failed business preconditions.
+            // Must precede the generic DomainException arm because UnprocessableEntityException
+            // inherits from it.
+            UnprocessableEntityException =>
+            (
+                exception.Message,
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status422UnprocessableEntity
+            ),
             DomainException =>
             (
                 exception.Message,
@@ -97,6 +106,17 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
 
         if (exception is ValidationException validationException)
             problemDetails.Extensions.Add("ValidationErrors", validationException.Errors);
+
+        // Surface the violation list so the React client can map codes -> i18n labels.
+        if (exception is UnprocessableEntityException unprocessable)
+        {
+            problemDetails.Extensions.Add("violations", unprocessable.Violations.Select(v => new
+            {
+                code = v.Code,
+                message = v.Message,
+                propertyId = v.PropertyId
+            }));
+        }
 
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
         return true;

@@ -1,13 +1,18 @@
+using Appraisal.Application.Services;
 using Dapper;
 
 namespace Appraisal.Application.Features.Appraisals.GetPropertyGroupById;
 
 /// <summary>
-/// Handler for getting a property group by ID
+/// Handler for getting a property group by ID. After loading the group via the
+/// existing Dapper view, runs the same pricing-analysis preconditions used by
+/// the write-side gate and attaches the result so the React "Analyze Price"
+/// button can be disabled and per-property warnings rendered.
 /// </summary>
 public class GetPropertyGroupByIdQueryHandler(
     IAppraisalRepository appraisalRepository,
-    ISqlConnectionFactory sqlConnectionFactory
+    ISqlConnectionFactory sqlConnectionFactory,
+    IPricingAnalysisReadinessService readinessService
 ) : IQueryHandler<GetPropertyGroupByIdQuery, GetPropertyGroupByIdResult>
 {
     public async Task<GetPropertyGroupByIdResult> Handle(
@@ -92,6 +97,18 @@ public class GetPropertyGroupByIdQueryHandler(
                         .ToList();
                 }
             }
+        }
+
+        // Readiness projection — same rules used on the write side. UI-only:
+        // never throw here; just return canStartPricingAnalysis + violations[].
+        var readiness = await readinessService.EvaluateByGroupIdAsync(query.GroupId, cancellationToken);
+        if (readiness is not null)
+        {
+            propertyGroup.Readiness = new PricingAnalysisReadinessDto(
+                CanStartPricingAnalysis: readiness.IsReady,
+                Violations: readiness.Violations
+                    .Select(v => new RuleViolationDto(v.Code, v.Message, v.PropertyId))
+                    .ToList());
         }
 
         return propertyGroup;

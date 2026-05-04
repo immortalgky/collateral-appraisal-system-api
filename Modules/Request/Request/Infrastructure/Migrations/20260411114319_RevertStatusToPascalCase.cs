@@ -28,21 +28,21 @@ namespace Request.Infrastructure.Migrations
                 """);
 
             // common.RequestStatusSummaries: UPPER → PascalCase (dashboard aggregation table)
-            migrationBuilder.Sql("""
-                UPDATE common.RequestStatusSummaries
-                SET Status = CASE Status
-                    WHEN 'DRAFT'        THEN 'Draft'
-                    WHEN 'NEW'          THEN 'New'
-                    WHEN 'SUBMITTED'    THEN 'Submitted'
-                    WHEN 'ASSIGNED'     THEN 'Assigned'
-                    WHEN 'IN_PROGRESS'  THEN 'InProgress'
-                    WHEN 'INPROGRESS'   THEN 'InProgress'
-                    WHEN 'COMPLETED'    THEN 'Completed'
-                    WHEN 'CANCELLED'    THEN 'Cancelled'
-                    ELSE Status
-                END
-                WHERE Status IN ('DRAFT','NEW','SUBMITTED','ASSIGNED','IN_PROGRESS','INPROGRESS','COMPLETED','CANCELLED')
-                """);
+            // migrationBuilder.Sql("""
+            //     UPDATE common.RequestStatusSummaries
+            //     SET Status = CASE Status
+            //         WHEN 'DRAFT'        THEN 'Draft'
+            //         WHEN 'NEW'          THEN 'New'
+            //         WHEN 'SUBMITTED'    THEN 'Submitted'
+            //         WHEN 'ASSIGNED'     THEN 'Assigned'
+            //         WHEN 'IN_PROGRESS'  THEN 'InProgress'
+            //         WHEN 'INPROGRESS'   THEN 'InProgress'
+            //         WHEN 'COMPLETED'    THEN 'Completed'
+            //         WHEN 'CANCELLED'    THEN 'Cancelled'
+            //         ELSE Status
+            //     END
+            //     WHERE Status IN ('DRAFT','NEW','SUBMITTED','ASSIGNED','IN_PROGRESS','INPROGRESS','COMPLETED','CANCELLED')
+            //     """);
         }
 
         /// <inheritdoc />

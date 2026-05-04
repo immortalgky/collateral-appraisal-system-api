@@ -37,6 +37,7 @@ global using Shared.Pagination;
 global using Appraisal.Domain.Appraisals;
 global using Appraisal.Domain.Appraisals.Events;
 global using Appraisal.Domain.Appraisals.Exceptions;
+global using Appraisal.Domain.Appraisals.Specifications;
 global using Appraisal.Domain.Committees;
 global using Appraisal.Domain.MarketComparables;
 global using Appraisal.Domain.Projects;
