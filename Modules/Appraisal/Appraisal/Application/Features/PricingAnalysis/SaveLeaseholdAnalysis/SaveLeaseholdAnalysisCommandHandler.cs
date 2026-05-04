@@ -108,7 +108,7 @@ public class SaveLeaseholdAnalysisCommandHandler(
                 LeaseholdCalculationService.CalculatePartialUsage(
                     calcResult.FinalValueRounded,
                     command.PartialRai, command.PartialNgan, command.PartialWa,
-                    command.PricePerSqWa);
+                    command.LandValuePerSqWa, propertyData.TotalLandAreaInSqWa);
 
             computedEstimatePriceRounded = estimatePriceRounded;
 
@@ -117,7 +117,7 @@ public class SaveLeaseholdAnalysisCommandHandler(
 
             analysis.SetPartialUsage(true,
                 command.PartialRai, command.PartialNgan, command.PartialWa,
-                partialLandArea, command.PricePerSqWa,
+                partialLandArea, command.LandValuePerSqWa,
                 partialLandPrice, estimateNetPrice, finalEstimate);
         }
         else
