@@ -110,6 +110,7 @@ public record GetLandAndBuildingPropertyResponse(
     string? ModelName,
     string? BuiltOnTitleNumber,
     string? HouseNumber,
+    string? NoHouseNumber,
     // Building Status
     string? BuildingConditionType,
     string? BuildingConditionTypeOther,

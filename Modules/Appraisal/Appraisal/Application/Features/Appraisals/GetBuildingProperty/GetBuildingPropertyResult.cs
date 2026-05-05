@@ -21,6 +21,7 @@ public record GetBuildingPropertyResult(
     string? OwnerName,
     bool? IsOwnerVerified,
     string? HouseNumber,
+    string? NoHouseNumber,
     // Building Status
     string? BuildingConditionType,
     string? BuildingConditionTypeOther,

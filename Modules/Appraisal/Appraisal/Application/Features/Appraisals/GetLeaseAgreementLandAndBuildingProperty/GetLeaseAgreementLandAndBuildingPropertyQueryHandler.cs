@@ -212,6 +212,7 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
             buildingDetail.ModelName,
             buildingDetail.BuiltOnTitleNumber,
             buildingDetail.HouseNumber,
+            buildingDetail.NoHouseNumber,
             // Building - Status
             buildingDetail.BuildingConditionType,
             buildingDetail.BuildingConditionTypeOther,

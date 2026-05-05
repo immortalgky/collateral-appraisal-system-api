@@ -211,6 +211,7 @@ public class GetLandAndBuildingPropertyQueryHandler(
             buildingDetail.ModelName,
             buildingDetail.BuiltOnTitleNumber,
             buildingDetail.HouseNumber,
+            buildingDetail.NoHouseNumber,
             // Building - Status
             buildingDetail.BuildingConditionType,
             buildingDetail.BuildingConditionTypeOther,

@@ -107,6 +107,7 @@ public record UpdateLandAndBuildingPropertyCommand(
     string? ModelName = null,
     string? BuiltOnTitleNumber = null,
     string? HouseNumber = null,
+    string? NoHouseNumber = null,
     // Building Status
     string? BuildingConditionType = null,
     string? BuildingConditionTypeOther = null,

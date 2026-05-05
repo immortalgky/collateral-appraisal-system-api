@@ -32,6 +32,7 @@ public class UpdateBuildingPropertyCommandHandler(
             modelName: command.ModelName,
             builtOnTitleNumber: command.BuiltOnTitleNumber,
             houseNumber: command.HouseNumber,
+            noHouseNumber: command.NoHouseNumber,
             ownerName: command.OwnerName,
             isOwnerVerified: command.IsOwnerVerified,
             hasObligation: command.HasObligation,
