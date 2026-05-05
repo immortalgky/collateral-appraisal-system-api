@@ -20,9 +20,6 @@ public class EditDraftQuotationCommandHandler(
         var quotation = await quotationRepository.GetByIdAsync(command.QuotationRequestId, cancellationToken)
                         ?? throw new NotFoundException($"Quotation request '{command.QuotationRequestId}' not found.");
 
-        if (quotation.RequestedBy != adminUsername)
-            throw new UnauthorizedAccessException("You can only modify your own Draft quotation.");
-
         if (quotation.Status != "Draft")
             throw new BadRequestException($"Cannot edit quotation in status '{quotation.Status}'. Only Draft quotations are editable.");
 

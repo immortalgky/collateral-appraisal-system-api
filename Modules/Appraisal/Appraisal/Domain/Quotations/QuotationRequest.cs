@@ -328,6 +328,9 @@ public class QuotationRequest : Aggregate<Guid>
             throw new InvalidOperationException("Cannot send RFQ without company invitations");
 
         Status = "Sent";
+
+        foreach (var invitation in _invitations)
+            invitation.MarkNotificationSent();
     }
 
     /// <summary>

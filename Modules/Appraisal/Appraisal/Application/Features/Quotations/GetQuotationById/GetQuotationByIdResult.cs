@@ -164,4 +164,4 @@ public record CompanyQuotationNegotiationResult(
     DateTime? RespondedAt
 );
 
-public sealed record InvitedCompanyResult(Guid CompanyId, string CompanyName);
+public sealed record InvitedCompanyResult(Guid CompanyId, string CompanyName, string? Email);

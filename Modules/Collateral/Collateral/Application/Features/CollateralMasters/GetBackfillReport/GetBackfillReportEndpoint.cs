@@ -23,11 +23,11 @@ public class GetBackfillReportEndpoint : ICarterModule
                         PaginationRequest: new PaginationRequest(page ?? 1, pageSize ?? 20));
 
                     var result = await sender.Send(query, cancellationToken);
-                    return Results.Ok(result);
+                    return Results.Ok(result.Items);
                 }
             )
             .WithName("GetCollateralBackfillReport")
-            .Produces<GetBackfillReportResult>(StatusCodes.Status200OK)
+            .Produces<PaginatedResult<BackfillReportItemDto>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithSummary("Get backfill report (admin)")
             .WithDescription("Paginated list of backfill outcomes. Filter by status: Processed, SkippedMissingKey, Error.")
