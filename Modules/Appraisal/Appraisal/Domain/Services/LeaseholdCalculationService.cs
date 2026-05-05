@@ -158,12 +158,12 @@ public class LeaseholdCalculationService
         if (partialLandArea == 0 || !pricePerSqWa.HasValue)
             return (partialLandArea > 0 ? partialLandArea : null, null, null, null);
 
-        var remainingLandArea = (totalLandAreaInSqWa ?? 0) - partialLandArea;
+        var remainingLandArea = Math.Max(0m, (totalLandAreaInSqWa ?? 0) - partialLandArea);;
         var remainingLandPrice = pricePerSqWa.Value * remainingLandArea;
         var estimateNetPrice = finalValueRounded + remainingLandPrice;
         var estimatePriceRounded = Math.Round(estimateNetPrice / 1000m, MidpointRounding.AwayFromZero) * 1000m;
 
-        return (partialLandArea, pricePerSqWa, Math.Round(estimateNetPrice, 2), estimatePriceRounded);
+        return (partialLandArea, Math.Round(remainingLandPrice, 2), Math.Round(estimateNetPrice, 2), estimatePriceRounded);
     }
 
     private static decimal CalculatePvFactor(decimal discountRate, decimal year)
