@@ -25,7 +25,7 @@ public class VillageProjectLand : Entity<Guid>
     // Owner
     public string? OwnerName { get; private set; } = null!;
     public bool? IsOwnerVerified { get; private set; }
-    public bool? HasObligation { get; private set; }
+    public string? HasObligation { get; private set; }
     public string? ObligationDetails { get; private set; }
 
     // Document Verification
@@ -144,7 +144,7 @@ public class VillageProjectLand : Entity<Guid>
         // Owner
         string? ownerName = null,
         bool? isOwnerVerified = null,
-        bool? hasObligation = null,
+        string? hasObligation = null,
         string? obligationDetails = null,
         // Document Verification
         bool? isLandLocationVerified = null,

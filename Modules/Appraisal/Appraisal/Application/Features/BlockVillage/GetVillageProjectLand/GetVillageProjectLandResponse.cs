@@ -13,7 +13,7 @@ public record GetVillageProjectLandResponse(
     string? LandOffice,
     string? OwnerName,
     bool? IsOwnerVerified,
-    bool? HasObligation,
+    string? HasObligation,
     string? ObligationDetails,
     bool? IsLandLocationVerified,
     string? LandCheckMethodType,

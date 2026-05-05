@@ -13,7 +13,7 @@ public record UpdateCondoTowerCommand(
     List<Guid>? ModelTypeIds = null,
     // Condition & Obligation
     string? ConditionType = null,
-    bool? HasObligation = null,
+    string? HasObligation = null,
     string? ObligationDetails = null,
     string? DocumentValidationType = null,
     // Location

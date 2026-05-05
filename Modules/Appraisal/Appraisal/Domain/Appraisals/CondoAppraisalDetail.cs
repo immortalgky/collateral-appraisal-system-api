@@ -32,7 +32,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     public bool? IsOwnerVerified { get; private set; }
     public string? BuildingConditionType { get; private set; }
     public string? BuildingConditionTypeOther { get; private set; }
-    public bool? HasObligation { get; private set; }
+    public string? HasObligation { get; private set; }
     public string? ObligationDetails { get; private set; }
     public string? DocumentValidationResultType { get; private set; }
 
@@ -130,7 +130,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         bool? isOwnerVerified = null,
         string? buildingConditionType = null,
         string? buildingConditionTypeOther = null,
-        bool? hasObligation = null,
+        string? hasObligation = null,
         string? obligationDetails = null,
         string? documentValidationResultType = null,
         // Location Details

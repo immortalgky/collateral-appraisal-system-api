@@ -13,7 +13,7 @@ public record CondoTowerDto(
     List<Guid>? ModelTypeIds,
     // Condition & Obligation
     string? ConditionType,
-    bool? HasObligation,
+    string? HasObligation,
     string? ObligationDetails,
     string? DocumentValidationType,
     // Location
