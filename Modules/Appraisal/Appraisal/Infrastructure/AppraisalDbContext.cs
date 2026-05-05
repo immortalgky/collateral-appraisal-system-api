@@ -101,6 +101,7 @@ public class AppraisalDbContext : DbContext
     public DbSet<QuotationNegotiation> QuotationNegotiations => Set<QuotationNegotiation>();
     public DbSet<QuotationSharedDocument> QuotationSharedDocuments => Set<QuotationSharedDocument>();
     public DbSet<QuotationActivityLog> QuotationActivityLogs => Set<QuotationActivityLog>();
+    public DbSet<QuotationEmail> QuotationEmails => Set<QuotationEmail>();
 
     // =====================================================
     // Appointment Entities (part of Appraisal aggregate)

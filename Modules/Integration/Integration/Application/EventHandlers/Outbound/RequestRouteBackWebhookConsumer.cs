@@ -42,6 +42,12 @@ public class RequestRouteBackWebhookConsumer(
             return;
         }
 
+        if (string.IsNullOrEmpty(keys.ExternalSystem))
+        {
+            logger.LogWarning("RequestRouteBackWebhookConsumer: ExternalSystem is null for AppraisalId {AppraisalId}, skipping", msg.AppraisalId);
+            return;
+        }
+
         var reasonCode = msg.ReasonCode;
         var reason = msg.Reason;
 
@@ -52,7 +58,7 @@ public class RequestRouteBackWebhookConsumer(
 
         await webhookService.SendAsync(
             eventId: context.Message.EventId,
-            systemCode: "LendingStudio",
+            systemCode: keys.ExternalSystem,
             eventType: "REQUEST_ROUTE_BACK",
             externalCaseKey: keys.ExternalCaseKey,
             occurredAt: msg.AssignedAt,

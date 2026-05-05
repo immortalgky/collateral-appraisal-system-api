@@ -624,17 +624,16 @@ public class Project : Aggregate<Guid>
                 modelAssumption = matchedAssumption;
 
             var standardLandArea = 0m;
-            var standardPricePerSqm = 0m;
+            var standardPrice = 0m;
             if (unit.ModelType != null && projectModelMap.TryGetValue(unit.ModelType, out var projectModel))
             {
                 standardLandArea = projectModel.StandardLandArea ?? 0m;
-                // StandardPrice is now derived from the model's PricingAnalysis.FinalAppraisedValue.
-                // When no analysis exists yet, the price is 0 (unit shows pending pricing).
-                standardPricePerSqm = projectModel.PricingAnalysis?.FinalAppraisedValue ?? 0m;
+                // StandardPrice is the model's total appraised value (Baht) — NOT per sq.m.
+                // Do not multiply by usable area for LB.
+                standardPrice = projectModel.PricingAnalysis?.FinalAppraisedValue ?? 0m;
             }
             var coverageAmount = modelAssumption?.CoverageAmount;
             var usableArea = unit.UsableArea ?? 0m;
-            var standardPrice = standardPricePerSqm * usableArea;
 
             var landArea = unit.LandArea ?? 0m;
             var landIncreaseDecreaseRate = assumption.LandIncreaseDecreaseRate ?? 0m;

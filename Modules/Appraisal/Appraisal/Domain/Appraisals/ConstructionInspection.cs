@@ -191,4 +191,52 @@ public class ConstructionInspection : Entity<Guid>
             detail.ComputeValues(TotalValue);
         }
     }
+
+    /// <summary>
+    /// Creates a new CI shell for the next inspection round from a prior inspection.
+    /// Prior's current % becomes the new previous %; current % resets to null/0 for the inspector to fill.
+    /// </summary>
+    public static ConstructionInspection CopyForNextInspection(
+        ConstructionInspection prior,
+        Guid newPropertyId)
+    {
+        if (!prior.IsFullDetail)
+        {
+            return CreateSummary(
+                newPropertyId,
+                totalValue: prior.TotalValue,
+                summaryDetail: prior.SummaryDetail,
+                summaryPreviousProgressPct: prior.SummaryCurrentProgressPct,
+                summaryPreviousValue: prior.SummaryCurrentValue,
+                summaryCurrentProgressPct: null,
+                summaryCurrentValue: null,
+                remark: null);
+        }
+
+        var newCi = CreateFullDetail(newPropertyId, prior.TotalValue);
+        foreach (var wd in prior.WorkDetails)
+        {
+            newCi.AddWorkDetail(
+                wd.ConstructionWorkGroupId,
+                wd.WorkItemName,
+                wd.DisplayOrder,
+                wd.ProportionPct,
+                previousProgressPct: wd.CurrentProgressPct,
+                currentProgressPct: 0m,
+                wd.ConstructionWorkItemId);
+        }
+        return newCi;
+    }
+
+    /// <summary>
+    /// Overall current construction progress as a single percentage.
+    /// Full-detail mode: weighted sum of (ProportionPct * CurrentProgressPct / 100) across all work details
+    ///   (i.e. sum of CurrentProportionPct — each item already carries its weighted contribution).
+    /// Summary mode: SummaryCurrentProgressPct, or 0 when not set.
+    /// Not stored in DB — computed at runtime.
+    /// </summary>
+    public decimal OverallCurrentProgressPercent =>
+        IsFullDetail
+            ? _workDetails.Sum(d => d.CurrentProportionPct)
+            : SummaryCurrentProgressPct ?? 0m;
 }

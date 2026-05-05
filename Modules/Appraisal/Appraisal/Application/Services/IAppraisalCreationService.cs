@@ -28,5 +28,7 @@ public interface IAppraisalCreationService
         bool hasAppraisalBook = false,
         string? requestedBy = null,
         DateTime? requestedAt = null,
+        Guid? prevAppraisalId = null,
+        string? appraisalType = null,
         CancellationToken cancellationToken = default);
 }

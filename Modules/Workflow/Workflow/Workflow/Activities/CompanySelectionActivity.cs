@@ -40,6 +40,7 @@ public class CompanySelectionActivity : WorkflowActivityBase
     {
         var selectionMethod = GetVariable<string>(context, "assignmentMethod", "round_robin");
         var loanType = GetVariable<string>(context, "loanType", "");
+        var excludedCompanyId = GetVariable<string>(context, "excludedCompanyId", "");
 
         var outputData = new Dictionary<string, object>
         {
@@ -47,6 +48,26 @@ public class CompanySelectionActivity : WorkflowActivityBase
             ["selectedAt"] = _dateTimeProvider.ApplicationNow,
             ["assignmentType"] = "External"
         };
+
+        // Construction Inspection: company is forced from the prior appraisal engagement.
+        // Short-circuit selection entirely — no round-robin, no exclusion check.
+        var forceCompanyId = GetVariable<string>(context, "forceCompanyId", "");
+        var forceCompanyName = GetVariable<string>(context, "forceCompanyName", "");
+
+        if (!string.IsNullOrEmpty(forceCompanyId) && Guid.TryParse(forceCompanyId, out _))
+        {
+            outputData["assignedCompanyId"] = forceCompanyId;
+            outputData["assignedCompanyName"] = forceCompanyName;
+            outputData["assignmentMethod"] = "Forced";
+            outputData["decision"] = "company_selected";
+
+            _logger.LogInformation(
+                "CompanySelectionActivity {ActivityId}: forced company {CompanyName} ({CompanyId}) for Construction Inspection",
+                context.ActivityId, forceCompanyName, forceCompanyId);
+
+            PublishCompanyAssignedEvent(context, forceCompanyId, forceCompanyName, "Forced");
+            return ActivityResult.Success(outputData);
+        }
 
         if (selectionMethod == "manual" || selectionMethod == "Quotation")
         {
@@ -62,6 +83,16 @@ public class CompanySelectionActivity : WorkflowActivityBase
                 _logger.LogWarning("CompanySelectionActivity {ActivityId}: {Method} selection but no company selected",
                     context.ActivityId, selectionMethod);
                 return ActivityResult.Failed($"No company selected for {selectionMethod} assignment");
+            }
+
+            if (Guid.TryParse(excludedCompanyId, out var excl) &&
+                Guid.TryParse(companyId, out var sel) &&
+                excl == sel)
+            {
+                _logger.LogWarning(
+                    "CompanySelectionActivity {ActivityId}: {Method} selected excluded company {CompanyId}",
+                    context.ActivityId, selectionMethod, companyId);
+                return ActivityResult.Failed("Selected company is excluded from this appraisal assignment.");
             }
 
             var normalizedMethod = selectionMethod == "Quotation" ? "Quotation" : "Manual";
@@ -104,10 +135,15 @@ public class CompanySelectionActivity : WorkflowActivityBase
             return ActivityResult.Success(outputData);
         }
 
-        // Round-robin selection, filtered by LoanType if available
-        var result = string.IsNullOrEmpty(loanType)
-            ? await _companyRoundRobinService.SelectCompanyAsync(cancellationToken)
-            : await _companyRoundRobinService.SelectCompanyAsync(loanType, cancellationToken);
+        // Round-robin selection with optional loanType filter and company exclusion
+        Guid? excludedId = null;
+        if (!string.IsNullOrEmpty(excludedCompanyId) && Guid.TryParse(excludedCompanyId, out var parsedExcluded))
+            excludedId = parsedExcluded;
+
+        var result = await _companyRoundRobinService.SelectCompanyAsync(
+            excludedId,
+            string.IsNullOrEmpty(loanType) ? null : loanType,
+            cancellationToken);
 
         if (result.IsSuccess)
         {

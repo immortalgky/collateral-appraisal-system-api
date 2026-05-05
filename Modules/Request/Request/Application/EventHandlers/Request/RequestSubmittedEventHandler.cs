@@ -59,7 +59,9 @@ public class RequestSubmittedEventHandler(
             FacilityLimit = notification.Request.Detail?.LoanDetail?.FacilityLimit,
             HasAppraisalBook = notification.Request.Detail?.HasAppraisalBook ?? false,
             RequestedBy = notification.Request.Requestor.UserId,
-            RequestedAt = notification.Request.RequestedAt
+            RequestedAt = notification.Request.RequestedAt,
+            PrevAppraisalId = notification.Request.Detail?.PrevAppraisalId,
+            AppraisalType = notification.Request.Purpose is "06" or "11" ? "ConstructionInspection" : null
         };
 
         outbox.Publish(integrationEvent, correlationId: notification.Request.Id.ToString());

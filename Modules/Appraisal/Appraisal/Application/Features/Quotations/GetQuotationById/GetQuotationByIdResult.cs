@@ -33,7 +33,6 @@ public record GetQuotationByIdResult(
     Guid? WorkflowInstanceId,
     Guid? TaskExecutionId,
     string? BankingSegment,
-    Guid? RmUserId,
     string? RmUserName,
     string? RmUserFullName,
     DateTime? SubmissionsClosedAt,

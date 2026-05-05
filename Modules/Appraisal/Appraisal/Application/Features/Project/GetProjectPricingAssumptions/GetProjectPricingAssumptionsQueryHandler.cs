@@ -110,8 +110,8 @@ public class GetProjectPricingAssumptionsQueryHandler(
             m.UsableAreaMax,
             // StandardLandArea is LB-only; null for Condo
             isCondo ? null : m.StandardLandArea,
-            // CoverageAmount: Condo derives from FireInsuranceCondition; LB has no model-level coverage
-            isCondo ? LookupCoverageAmount(m.FireInsuranceCondition) : null,
+            // CoverageAmount: both Condo and LB derive from FireInsuranceCondition via CoverageByCondition
+            LookupCoverageAmount(m.FireInsuranceCondition),
             m.FireInsuranceCondition,
             PricingAnalysisId: m.PricingAnalysis?.Id,
             PricingAnalysisStatus: m.PricingAnalysis?.Status,

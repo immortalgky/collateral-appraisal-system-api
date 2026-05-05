@@ -37,5 +37,10 @@ public record StartQuotationFromTaskCommand(
     int? MaxAppraisalDays = null,
     string? AssignmentType = null,
     string? AssignmentMethod = null,
-    string? InternalFollowupAssignmentMethod = null
+    string? InternalFollowupAssignmentMethod = null,
+    /// <summary>
+    /// Companies that previously appraised this collateral (appeal flow exclusion).
+    /// Server rejects if any InvitedCompanyId appears in this list.
+    /// </summary>
+    List<Guid>? ExcludedCompanyIds = null
 ) : ICommand<StartQuotationFromTaskResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

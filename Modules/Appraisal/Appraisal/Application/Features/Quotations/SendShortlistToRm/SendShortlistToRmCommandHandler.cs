@@ -33,21 +33,18 @@ public class SendShortlistToRmCommandHandler(
             .Select(q => q.Id)
             .ToArray();
 
-        if (quotation.RmUserId.HasValue)
-        {
-            var appraisalIds = quotation.Appraisals
-                .Select(a => a.AppraisalId)
-                .ToArray();
+        var appraisalIds = quotation.Appraisals
+            .Select(a => a.AppraisalId)
+            .ToArray();
 
-            outbox.Publish(new ShortlistSentToRmIntegrationEvent
-            {
-                QuotationRequestId = quotation.Id,
-                RequestId = quotation.RequestId ?? Guid.Empty,
-                RmUserId = quotation.RmUserId.Value,
-                ShortlistedCompanyQuotationIds = shortlistedIds,
-                AppraisalIds = appraisalIds
-            }, correlationId: quotation.Id.ToString());
-        }
+        outbox.Publish(new ShortlistSentToRmIntegrationEvent
+        {
+            QuotationRequestId = quotation.Id,
+            RequestId = quotation.RequestId ?? Guid.Empty,
+            RmUsername = quotation.RmUsername,
+            ShortlistedCompanyQuotationIds = shortlistedIds,
+            AppraisalIds = appraisalIds
+        }, correlationId: quotation.Id.ToString());
 
         // v4: resume admin-review-submissions step in quotation child workflow
         outbox.Publish(new QuotationWorkflowResumeIntegrationEvent

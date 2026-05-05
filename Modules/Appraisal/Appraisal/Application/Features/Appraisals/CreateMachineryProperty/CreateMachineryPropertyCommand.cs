@@ -17,6 +17,7 @@ public record CreateMachineryPropertyCommand(
     string? EngineNo = null,
     string? ChassisNo = null,
     string? RegistrationNo = null,
+    string? SerialNo = null,
     string? Description = null,
     // Machine Specifications
     string? Brand = null,

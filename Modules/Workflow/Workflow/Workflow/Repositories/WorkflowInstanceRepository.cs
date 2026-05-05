@@ -84,9 +84,11 @@ public class WorkflowInstanceRepository(WorkflowDbContext dbContext, IDateTimePr
     public async Task<IEnumerable<WorkflowInstance>> GetRunningInstances(CancellationToken cancellationToken = default)
     {
         return await dbContext.WorkflowInstances
+            .AsSplitQuery()
             .Where(x => x.Status == WorkflowStatus.Running)
             .Include(x => x.WorkflowDefinition)
             .Include(x => x.ActivityExecutions)
+            .OrderBy(x => x.StartedOn).ThenBy(x => x.Id)
             .ToListAsync(cancellationToken);
     }
 

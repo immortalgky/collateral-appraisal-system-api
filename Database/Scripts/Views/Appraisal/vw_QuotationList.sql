@@ -9,7 +9,7 @@ SELECT
     q.TotalAppraisals,
     q.TotalCompaniesInvited,
     q.TotalQuotationsReceived,
-    q.RmUserId
+    q.RmUsername
     -- v2: AppraisalId column dropped; use QuotationRequestAppraisals join table for filtering.
     -- TotalAppraisals reflects the join table row count (denormalised counter updated by domain methods).
     -- v4: FinalizedAckedAt dropped (AckFinalizedQuotation workflow task removed).

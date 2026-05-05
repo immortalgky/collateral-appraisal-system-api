@@ -88,10 +88,17 @@ builder.Services.AddMassTransit(config =>
 
         configurator.PrefetchCount = 16;
         configurator.ConfigureEndpoints(context);
-        configurator.UseMessageRetry(r => r.Exponential(5,
-            TimeSpan.FromSeconds(1),
-            TimeSpan.FromSeconds(30),
-            TimeSpan.FromSeconds(5)));
+        configurator.UseMessageRetry(r =>
+        {
+            r.Exponential(5,
+                TimeSpan.FromSeconds(1),
+                TimeSpan.FromSeconds(30),
+                TimeSpan.FromSeconds(5));
+            // Non-transient exceptions: data must change before retry can succeed.
+            // Skip retries — go straight to dead-letter for ops triage.
+            r.Ignore<Shared.Exceptions.ConflictException>();
+            r.Ignore<Collateral.CollateralMasters.Exceptions.MissingIdentityKeyException>();
+        });
 
         // In-memory outbox removed — using per-module persistent outbox via IntegrationEventDeliveryService
     });

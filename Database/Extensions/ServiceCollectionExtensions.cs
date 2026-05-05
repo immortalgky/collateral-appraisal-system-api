@@ -11,6 +11,11 @@ using Shared.Data;
 using Microsoft.AspNetCore.Identity;
 using Auth;
 using Auth.Domain.Identity;
+using Common.Infrastructure;
+using Parameter.Data;
+using Integration.Infrastructure;
+using Appraisal.Infrastructure;
+using Collateral.Data;
 
 namespace Database.Extensions;
 
@@ -104,6 +109,48 @@ public static class ServiceCollectionExtensions
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "auth");
             });
             options.UseOpenIddict();
+        });
+
+        services.AddDbContext<CommonDbContext>(options =>
+        {
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.MigrationsAssembly(typeof(CommonDbContext).Assembly.GetName().Name);
+                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "common");
+            });
+        });
+
+        // ParameterModule uses the default history table (no custom schema) — must match exactly
+        services.AddDbContext<ParameterDbContext>(options =>
+        {
+            options.UseSqlServer(connectionString);
+        });
+
+        services.AddDbContext<IntegrationDbContext>(options =>
+        {
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.MigrationsAssembly(typeof(IntegrationDbContext).Assembly.GetName().Name);
+                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "integration");
+            });
+        });
+
+        services.AddDbContext<AppraisalDbContext>(options =>
+        {
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.MigrationsAssembly(typeof(AppraisalDbContext).Assembly.GetName().Name);
+                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "appraisal");
+            });
+        });
+
+        services.AddDbContext<CollateralDbContext>(options =>
+        {
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.MigrationsAssembly(typeof(CollateralDbContext).Assembly.GetName().Name);
+                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "collateral");
+            });
         });
 
         return services;

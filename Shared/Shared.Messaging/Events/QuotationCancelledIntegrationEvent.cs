@@ -14,6 +14,6 @@ public record QuotationCancelledIntegrationEvent : IntegrationEvent
     /// <summary>Company IDs that were invited to this quotation.</summary>
     public Guid[] InvitedCompanyIds { get; init; } = [];
 
-    /// <summary>UserId of the RM who owns the linked Request.</summary>
-    public Guid? RmUserId { get; init; }
+    /// <summary>Username of the RM who owns the linked Request.</summary>
+    public string? RmUsername { get; init; }
 }

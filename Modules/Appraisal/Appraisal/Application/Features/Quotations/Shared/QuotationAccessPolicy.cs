@@ -25,8 +25,8 @@ public static class QuotationAccessPolicy
     }
 
     /// <summary>
-    /// Ensures the caller is an RM who matches the quotation's RmUserId, or an Admin (who may override).
-    /// Pass <paramref name="quotation"/> so the check uses the denormalized RmUserId field;
+    /// Ensures the caller is an RM who matches the quotation's RmUsername, or an Admin (who may override).
+    /// Pass <paramref name="quotation"/> so the check uses the denormalized RmUsername field;
     /// this avoids a cross-module Request lookup inside the handler.
     /// </summary>
     public static void EnsureRmOrAdmin(QuotationRequest quotation, ICurrentUserService user)
@@ -37,23 +37,7 @@ public static class QuotationAccessPolicy
         if (!user.IsInRole("RequestMaker"))
             throw new UnauthorizedAccessException("Only RM or Admin users can perform this operation");
 
-        if (user.UserId != quotation.RmUserId)
-            throw new UnauthorizedAccessException("RM can only perform this operation for their own requests");
-    }
-
-    /// <summary>
-    /// Overload that accepts a raw <paramref name="requestorId"/> for callers that do not have
-    /// the full aggregate (e.g., legacy code paths).
-    /// </summary>
-    public static void EnsureRmOrAdmin(Guid? requestorId, ICurrentUserService user)
-    {
-        if (user.IsInRole("Admin") || user.IsInRole("IntAdmin"))
-            return;
-
-        if (!user.IsInRole("RequestMaker"))
-            throw new UnauthorizedAccessException("Only RM or Admin users can perform this operation");
-
-        if (user.UserId != requestorId)
+        if (!string.Equals(user.Username, quotation.RmUsername, StringComparison.OrdinalIgnoreCase))
             throw new UnauthorizedAccessException("RM can only perform this operation for their own requests");
     }
 
@@ -74,7 +58,7 @@ public static class QuotationAccessPolicy
 
         if (user.IsInRole("RequestMaker"))
         {
-            if (user.UserId != quotation.RmUserId)
+            if (!string.Equals(user.Username, quotation.RmUsername, StringComparison.OrdinalIgnoreCase))
                 throw new UnauthorizedAccessException("RM can only view quotations for their own requests");
 
             var rmVisibleStatuses = new[]

@@ -24,10 +24,14 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
                            SELECT
                                t.[Id] AS [TitleId],
                                CASE
-                                   WHEN t.[CollateralType] IN ('L', 'B', 'LB', 'U', 'LSL', 'LSB', 'LS', 'LSU') THEN t.[TitleNumber]
-                                   WHEN t.[CollateralType] = 'VEH' THEN t.[LicensePlateNumber]
-                                   WHEN t.[CollateralType] = 'VES' THEN t.[VesselRegistrationNumber]
-                                   WHEN t.[CollateralType] = 'MAC' THEN t.[RegistrationNumber]
+                                   WHEN t.[CollateralType] IN (
+                                       '01','02','03','04','05','06','07','08','09',
+                                       '13','14','15','16','17','18','19','20','21','22','23','24','25',
+                                       '26','27','28','29','30','31','32','33'
+                                   ) THEN t.[TitleNumber]
+                                   WHEN t.[CollateralType] = '10' THEN t.[LicensePlateNumber]
+                                   WHEN t.[CollateralType] = '12' THEN t.[VesselRegistrationNumber]
+                                   WHEN t.[CollateralType] = '11' THEN t.[RegistrationNumber]
                                    ELSE t.[CollateralType]
                                END AS [TitleIdentifier],
                                t.[CollateralType],
@@ -130,12 +134,10 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
 
         return collateralType switch
         {
-            "VEH" => $"Vehicle · Plate {titleIdentifier}",
-            "VES" => $"Vessel · Reg. {titleIdentifier}",
-            "MAC" => $"Machine · Reg. {titleIdentifier}",
-            "L" or "LB" or "U" or "LSL" or "LS" or "LSU" or "LSB" or "B"
-                => $"{collateralTypeName} · Title No. {titleIdentifier}",
-            _ => titleIdentifier
+            "10" => $"Vehicle · Plate {titleIdentifier}",
+            "12" => $"Vessel · Reg. {titleIdentifier}",
+            "11" => $"Machine · Reg. {titleIdentifier}",
+            _ => $"{collateralTypeName} · Title No. {titleIdentifier}",
         };
     }
 }

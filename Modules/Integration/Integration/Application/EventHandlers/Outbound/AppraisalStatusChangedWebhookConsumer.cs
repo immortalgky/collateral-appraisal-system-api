@@ -9,20 +9,20 @@ public class AppraisalStatusChangedWebhookConsumer(
     IWebhookService webhookService,
     IAppraisalLookupService appraisalLookup,
     ILogger<AppraisalStatusChangedWebhookConsumer> logger)
-    : IConsumer<AppraisalActivityTransitionedIntegrationEvent>
+    : IConsumer<WorkflowTransitionedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<AppraisalActivityTransitionedIntegrationEvent> context)
+    public async Task Consume(ConsumeContext<WorkflowTransitionedIntegrationEvent> context)
     {
         var msg = context.Message;
 
-        var status = IntegrationStatusMap.Map(msg.ActivityId);
-        if (status is null)
-        {
-            // Activity not mapped to an external status; no webhook needed.
+        if (msg.AppraisalId is null)
             return;
-        }
 
-        var keys = await appraisalLookup.GetKeysAsync(msg.AppraisalId, context.CancellationToken);
+        var status = IntegrationStatusMap.Map(msg.DestinationActivityId);
+        if (status is null)
+            return;
+
+        var keys = await appraisalLookup.GetKeysAsync(msg.AppraisalId.Value, context.CancellationToken);
         if (keys is null)
         {
             logger.LogWarning("AppraisalStatusChangedWebhookConsumer: keys not found for AppraisalId {AppraisalId}, skipping", msg.AppraisalId);
@@ -41,12 +41,18 @@ public class AppraisalStatusChangedWebhookConsumer(
             return;
         }
 
+        if (string.IsNullOrEmpty(keys.ExternalSystem))
+        {
+            logger.LogWarning("AppraisalStatusChangedWebhookConsumer: ExternalSystem is null for AppraisalId {AppraisalId}, skipping", msg.AppraisalId);
+            return;
+        }
+
         await webhookService.SendAsync(
             eventId: msg.EventId,
-            systemCode: "LendingStudio",
+            systemCode: keys.ExternalSystem,
             eventType: "APPRAISAL_STATUS_CHANGED",
             externalCaseKey: keys.ExternalCaseKey,
-            occurredAt: msg.OccurredAt,
+            occurredAt: msg.CompletedAt,
             data: new { appraisalNumber = keys.AppraisalNumber, status },
             cancellationToken: context.CancellationToken);
     }

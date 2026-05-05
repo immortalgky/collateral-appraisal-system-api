@@ -17,4 +17,5 @@ public record StartQuotationFromTaskRequest(
     int? MaxAppraisalDays = null,
     string? AssignmentType = null,
     string? AssignmentMethod = null,
-    string? InternalFollowupAssignmentMethod = null);
+    string? InternalFollowupAssignmentMethod = null,
+    List<Guid>? ExcludedCompanyIds = null);

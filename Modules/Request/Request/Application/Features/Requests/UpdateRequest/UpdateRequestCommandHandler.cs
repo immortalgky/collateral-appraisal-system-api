@@ -1,8 +1,11 @@
+using Appraisal.Contracts.Appraisals;
+
 namespace Request.Application.Features.Requests.UpdateRequest;
 
 internal class UpdateRequestCommandHandler(
     IRequestRepository requestRepository,
-    IRequestSyncService syncService
+    IRequestSyncService syncService,
+    ISender mediator
 ) : ICommandHandler<UpdateRequestCommand, UpdateRequestResult>
 {
     public async Task<UpdateRequestResult> Handle(UpdateRequestCommand command, CancellationToken cancellationToken)
@@ -42,6 +45,11 @@ internal class UpdateRequestCommandHandler(
             command.IsPma
         ));
 
+        AppraisalReferenceResult? appraisalRef = null;
+        if (command.Detail?.PrevAppraisalId.HasValue == true)
+            appraisalRef = await mediator.Send(
+                new GetAppraisalReferenceQuery(command.Detail.PrevAppraisalId.Value), cancellationToken);
+
         request.SetDetail(RequestDetail.Create(new RequestDetailData(
             command.Detail?.HasAppraisalBook ?? false,
             LoanDetail.Create(new LoanDetailData(
@@ -74,7 +82,10 @@ internal class UpdateRequestCommandHandler(
             Fee.Create(
                 command.Detail?.Fee?.FeePaymentType,
                 command.Detail?.Fee?.FeeNotes,
-                command.Detail?.Fee?.AbsorbedAmount)
+                command.Detail?.Fee?.AbsorbedAmount),
+            PrevAppraisalNumber: appraisalRef?.AppraisalNumber,
+            PrevAppraisalValue: appraisalRef?.AppraisalValue,
+            PrevAppraisalDate: appraisalRef?.CompletedDate
         )));
 
         var customers = command.Customers?

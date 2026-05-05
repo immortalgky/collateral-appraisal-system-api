@@ -15,6 +15,7 @@ public class Appraisal : Aggregate<Guid>
     public IReadOnlyList<AppraisalProperty> Properties => _properties.AsReadOnly();
     public IReadOnlyList<PropertyGroup> Groups => _groups.AsReadOnly();
     public IReadOnlyList<AppraisalAssignment> Assignments => _assignments.AsReadOnly();
+
     public bool HasActiveAssignment => _assignments.Any(a =>
         a.AssignmentStatus == AssignmentStatus.Assigned ||
         a.AssignmentStatus == AssignmentStatus.InProgress);
@@ -81,7 +82,7 @@ public class Appraisal : Aggregate<Guid>
         RequestId = requestId;
         AppraisalType = appraisalType;
         Priority = priority;
-        Status = AppraisalStatus.Pending;
+        Status = AppraisalStatus.Submitted;
         SLADays = slaDays;
         IsPma = isPma;
         Purpose = purpose;
@@ -240,7 +241,6 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddVesselProperty()
     {
-
         var sequenceNumber = _properties.Count + 1;
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Vessel);
 
@@ -257,7 +257,6 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddMachineryProperty()
     {
-
         var sequenceNumber = _properties.Count + 1;
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Machinery);
 
@@ -364,13 +363,15 @@ public class Appraisal : Aggregate<Guid>
         else if (source.PropertyType == PropertyType.LeaseAgreementLand)
         {
             newProperty.SetLandDetail(LandAppraisalDetail.CopyFrom(source.LandDetail!, newProperty.Id));
-            newProperty.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail!, newProperty.Id));
+            newProperty.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail!,
+                newProperty.Id));
             newProperty.SetRentalInfo(RentalInfo.CopyFrom(source.RentalInfo!, newProperty.Id));
         }
         else if (source.PropertyType == PropertyType.LeaseAgreementBuilding)
         {
             newProperty.SetBuildingDetail(BuildingAppraisalDetail.CopyFrom(source.BuildingDetail!, newProperty.Id));
-            newProperty.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail!, newProperty.Id));
+            newProperty.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail!,
+                newProperty.Id));
             newProperty.SetRentalInfo(RentalInfo.CopyFrom(source.RentalInfo!, newProperty.Id));
         }
         else if (source.PropertyType == PropertyType.LeaseAgreementLandAndBuilding)
@@ -378,7 +379,8 @@ public class Appraisal : Aggregate<Guid>
             newProperty.SetLandAndBuildingDetails(
                 LandAppraisalDetail.CopyFrom(source.LandDetail!, newProperty.Id),
                 BuildingAppraisalDetail.CopyFrom(source.BuildingDetail!, newProperty.Id));
-            newProperty.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail!, newProperty.Id));
+            newProperty.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail!,
+                newProperty.Id));
             newProperty.SetRentalInfo(RentalInfo.CopyFrom(source.RentalInfo!, newProperty.Id));
         }
 
@@ -590,8 +592,8 @@ public class Appraisal : Aggregate<Guid>
         string registeredBy)
     {
         var assignment = AppraisalAssignment.Create(
-            appraisalId: Id,
-            assignmentType: assignmentType,
+            Id,
+            assignmentType,
             assignmentMethod: assignmentMethod,
             internalFollowupMethod: internalFollowupMethod,
             assignedBy: registeredBy);
@@ -664,7 +666,13 @@ public class Appraisal : Aggregate<Guid>
     {
         ValidateStatus(AppraisalStatus.UnderReview, "complete");
 
+        ValidateCollateralIdentityFields();
+
         UpdateStatus(AppraisalStatus.Completed);
+
+        // Stamp completion timestamp so downstream consumers (CollateralEngagement, time-series)
+        // get an accurate AppraisalDate. Only stamp on first transition; idempotent if re-entered.
+        CompletedAt ??= DateTime.UtcNow;
 
         // Calculate actual days
         ActualDaysToComplete = CreatedAt.HasValue ? (DateTime.Now - CreatedAt.Value).Days : null;
@@ -748,6 +756,221 @@ public class Appraisal : Aggregate<Guid>
         if (Status != expectedStatus)
             throw new InvalidAppraisalStateException(
                 $"Cannot {action} appraisal in status '{Status}'. Expected status: '{expectedStatus}'");
+    }
+
+    /// <summary>
+    /// Validates that each in-scope property carries the identity fields required for
+    /// Collateral master dedup before the appraisal is allowed to reach Completed.
+    ///
+    /// All four collateral types enforce strict identity field requirements per the v1 spec.
+    ///
+    ///   Land (L, LB):
+    ///     Required — LandTitle: at least one title with non-empty TitleNumber
+    ///     Required — Address.LandOffice (treated as LandOfficeCode — controlled-list dropdown value)
+    ///     Required — Address.Province
+    ///     Required — Address.District (Amphur)
+    ///     Required — Address.SubDistrict (Tambon)
+    ///
+    ///   Condo (U):
+    ///     Required — Address.LandOffice (controlled-list dropdown value = LandOfficeCode)
+    ///     Required — CondoRegistrationNumber
+    ///     Required — BuildingNumber
+    ///     Required — FloorNumber
+    ///     Required — RoomNumber (= UnitNumber in spec)
+    ///     Required — TitleNumber (unit deed number — new column)
+    ///     Required — TitleType (unit deed type — new column)
+    ///
+    ///   Leasehold (LSL, LSB, LS):
+    ///     Required — ContractNo (= LeaseRegistrationNo Tor Dor 11 reference)
+    ///     Required — LessorName
+    ///     Required — LesseeName
+    ///     Required — LeaseStartDate
+    ///     Required — at least one sibling Land/LB property in the same appraisal
+    ///                (UnderlyingMasterId is derived at upsert time by scanning siblings)
+    ///
+    ///   Machinery (MAC):
+    ///     Tier-1 — RegistrationNo present → sufficient on its own
+    ///     Tier-2 — when RegistrationNo is absent: all of (SerialNo, Brand, Model, Manufacturer) required
+    /// </summary>
+    private void ValidateCollateralIdentityFields()
+    {
+        for (var i = 0; i < _properties.Count; i++)
+        {
+            var property = _properties[i];
+            var propertyNum = i + 1;
+            var typeCode = property.PropertyType.Code;
+
+            if (property.PropertyType == PropertyType.Land ||
+                property.PropertyType == PropertyType.LandAndBuilding)
+            {
+                ValidateLandIdentityFields(property, propertyNum);
+            }
+            else if (property.PropertyType == PropertyType.Condo)
+            {
+                ValidateCondoIdentityFields(property, propertyNum);
+            }
+            else if (property.PropertyType.IsLeaseAgreement)
+            {
+                ValidateLeaseholdIdentityFields(property, propertyNum, _properties);
+            }
+            else if (property.PropertyType == PropertyType.Machinery)
+            {
+                ValidateMachineryIdentityFields(property, propertyNum);
+            }
+            // Building (B), Vehicle (VEH), Vessel (VES) — no collateral master dedup in v1
+        }
+    }
+
+    private static void ValidateLandIdentityFields(AppraisalProperty property, int propertyNum)
+    {
+        var missing = new List<string>();
+        var detail = property.LandDetail;
+
+        if (detail == null)
+        {
+            throw new InvalidAppraisalStateException(
+                $"Cannot complete appraisal: property #{propertyNum} (Land) is missing land detail.");
+        }
+
+        // Validate title: at least one title with a non-empty TitleNumber
+        if (detail.Titles.Count == 0 || detail.Titles.All(t => string.IsNullOrWhiteSpace(t.TitleNumber)))
+        {
+            missing.Add("TitleNumber (at least one title must have a non-empty TitleNumber)");
+        }
+
+        // LandOffice stored as controlled-list dropdown value — treated as LandOfficeCode
+        if (string.IsNullOrWhiteSpace(detail.Address?.LandOffice))
+            missing.Add("LandOffice (LandOfficeCode)");
+
+        if (string.IsNullOrWhiteSpace(detail.Address?.Province))
+            missing.Add("Province");
+
+        if (string.IsNullOrWhiteSpace(detail.Address?.District))
+            missing.Add("District (Amphur)");
+
+        if (string.IsNullOrWhiteSpace(detail.Address?.SubDistrict))
+            missing.Add("SubDistrict (Tambon)");
+
+        if (missing.Count > 0)
+        {
+            throw new InvalidAppraisalStateException(
+                $"Cannot complete appraisal: property #{propertyNum} (Land) is missing required fields: " +
+                string.Join(", ", missing) + ".");
+        }
+    }
+
+    private static void ValidateCondoIdentityFields(AppraisalProperty property, int propertyNum)
+    {
+        var missing = new List<string>();
+        var detail = property.CondoDetail;
+
+        if (detail == null)
+        {
+            throw new InvalidAppraisalStateException(
+                $"Cannot complete appraisal: property #{propertyNum} (Condo) is missing condo detail.");
+        }
+
+        // LandOffice stored as controlled-list dropdown value — treated as LandOfficeCode
+        if (string.IsNullOrWhiteSpace(detail.Address?.LandOffice))
+            missing.Add("LandOffice (LandOfficeCode)");
+
+        if (string.IsNullOrWhiteSpace(detail.CondoRegistrationNumber))
+            missing.Add("CondoRegistrationNumber");
+        if (string.IsNullOrWhiteSpace(detail.BuildingNumber))
+            missing.Add("BuildingNumber");
+        if (string.IsNullOrWhiteSpace(detail.FloorNumber))
+            missing.Add("FloorNumber");
+        if (string.IsNullOrWhiteSpace(detail.RoomNumber))
+            missing.Add("RoomNumber (UnitNumber)");
+
+        // Unit deed identifiers required for collateral master dedup
+        if (string.IsNullOrWhiteSpace(detail.TitleNumber))
+            missing.Add("TitleNumber (unit deed number)");
+        if (string.IsNullOrWhiteSpace(detail.TitleType))
+            missing.Add("TitleType (unit deed type)");
+
+        if (missing.Count > 0)
+        {
+            throw new InvalidAppraisalStateException(
+                $"Cannot complete appraisal: property #{propertyNum} (Condo) is missing required fields: " +
+                string.Join(", ", missing) + ".");
+        }
+    }
+
+    private static void ValidateLeaseholdIdentityFields(
+        AppraisalProperty property,
+        int propertyNum,
+        IReadOnlyList<AppraisalProperty> allProperties)
+    {
+        var missing = new List<string>();
+        var detail = property.LeaseAgreementDetail;
+
+        if (detail == null)
+        {
+            throw new InvalidAppraisalStateException(
+                $"Cannot complete appraisal: property #{propertyNum} (Leasehold) is missing lease agreement detail.");
+        }
+
+        // ContractNo is used as the Tor Dor 11 lease registration number (dedup key)
+        if (string.IsNullOrWhiteSpace(detail.ContractNo))
+            missing.Add("ContractNo (LeaseRegistrationNo / Tor Dor 11)");
+
+        if (string.IsNullOrWhiteSpace(detail.LessorName))
+            missing.Add("LessorName");
+        if (string.IsNullOrWhiteSpace(detail.LesseeName))
+            missing.Add("LesseeName");
+        if (!detail.LeaseStartDate.HasValue)
+            missing.Add("LeaseStartDate");
+
+        if (missing.Count > 0)
+        {
+            throw new InvalidAppraisalStateException(
+                $"Cannot complete appraisal: property #{propertyNum} (Leasehold) is missing required fields: " +
+                string.Join(", ", missing) + ".");
+        }
+
+        // Leasehold requires at least one underlying Land or LandAndBuilding property in the same appraisal
+        // so the upsert service can derive UnderlyingMasterId
+        var hasUnderlyingProperty = allProperties.Any(p =>
+            p.PropertyType == PropertyType.Land ||
+            p.PropertyType == PropertyType.LandAndBuilding);
+
+        if (!hasUnderlyingProperty)
+        {
+            throw new InvalidAppraisalStateException(
+                $"Cannot complete appraisal: property #{propertyNum} (Leasehold) requires at least one " +
+                "Land or LandAndBuilding property in the same appraisal to resolve the underlying collateral master.");
+        }
+    }
+
+    private static void ValidateMachineryIdentityFields(AppraisalProperty property, int propertyNum)
+    {
+        var detail = property.MachineryDetail;
+
+        if (detail == null)
+        {
+            throw new InvalidAppraisalStateException(
+                $"Cannot complete appraisal: property #{propertyNum} (Machinery) is missing machinery detail.");
+        }
+
+        // Tier-1: RegistrationNo present → sufficient
+        if (!string.IsNullOrWhiteSpace(detail.RegistrationNo))
+            return;
+
+        // Tier-2: require SerialNo + Brand + Model + Manufacturer (LocationOwner dropped per spec v1)
+        var missing = new List<string>();
+        if (string.IsNullOrWhiteSpace(detail.SerialNo)) missing.Add("SerialNo");
+        if (string.IsNullOrWhiteSpace(detail.Brand)) missing.Add("Brand");
+        if (string.IsNullOrWhiteSpace(detail.Model)) missing.Add("Model");
+        if (string.IsNullOrWhiteSpace(detail.Manufacturer)) missing.Add("Manufacturer");
+
+        if (missing.Count > 0)
+        {
+            throw new InvalidAppraisalStateException(
+                $"Cannot complete appraisal: property #{propertyNum} (Machinery) must have either " +
+                "RegistrationNo OR all of (SerialNo, Brand, Model, Manufacturer). Missing: " +
+                string.Join(", ", missing) + ".");
+        }
     }
 
     private AppraisalAssignment GetActiveAssignment()
