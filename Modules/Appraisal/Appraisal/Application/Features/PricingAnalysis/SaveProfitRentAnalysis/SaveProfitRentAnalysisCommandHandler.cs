@@ -2,6 +2,7 @@ using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Services;
 using Shared.CQRS;
+using Shared.Exceptions;
 
 namespace Appraisal.Application.Features.PricingAnalysis.SaveProfitRentAnalysis;
 
@@ -20,6 +21,11 @@ public class SaveProfitRentAnalysisCommandHandler(
                                  command.PricingAnalysisId, cancellationToken)
                              ?? throw new InvalidOperationException(
                                  $"PricingAnalysis {command.PricingAnalysisId} not found");
+
+        // Guard before any mutation: ProfitRent is only valid for PropertyGroup-subject analyses.
+        if (!pricingAnalysis.PropertyGroupId.HasValue)
+            throw new BadRequestException(
+                "ProfitRent analysis is only supported for PropertyGroup-subject pricing analyses.");
 
         var method = pricingAnalysis.Approaches
                          .SelectMany(a => a.Methods)
@@ -56,9 +62,8 @@ public class SaveProfitRentAnalysisCommandHandler(
         // Set remark
         method.SetRemark(command.Remark);
 
-        // Fetch property data using shared service
         var propertyData = await propertyDataService.GetPropertyDataAsync(
-            pricingAnalysis.PropertyGroupId, cancellationToken);
+            pricingAnalysis.PropertyGroupId.Value, cancellationToken);
 
         // Build appraisal schedule
         var schedule = PricingPropertyDataService.BuildAppraisalSchedule(

@@ -24,6 +24,46 @@ public class PricingPropertyDataService(
         decimal TotalBuildingCost);
 
     /// <summary>
+    /// Returns the sum of <c>LandAppraisalDetail.TotalLandAreaInSqWa</c> across all properties
+    /// in a property group (i.e. C01 from land titles).
+    /// Returns null when the group is empty or not found.
+    /// </summary>
+    public async Task<decimal?> GetTotalLandAreaFromTitlesAsync(
+        Guid propertyGroupId, CancellationToken cancellationToken)
+    {
+        using var connection = sqlConnectionFactory.GetOpenConnection();
+
+        var appraisalId = await connection.QueryFirstOrDefaultAsync<Guid?>(
+            "SELECT AppraisalId FROM appraisal.PropertyGroups WHERE Id = @PropertyGroupId",
+            new { PropertyGroupId = propertyGroupId });
+
+        if (appraisalId is null)
+            return null;
+
+        var propertyIds = (await connection.QueryAsync<Guid>(
+            "SELECT AppraisalPropertyId FROM appraisal.PropertyGroupItems WHERE PropertyGroupId = @PropertyGroupId",
+            new { PropertyGroupId = propertyGroupId })).ToHashSet();
+
+        if (propertyIds.Count == 0)
+            return null;
+
+        var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(
+            appraisalId.Value, cancellationToken);
+
+        if (appraisal is null)
+            return null;
+
+        var landProperties = appraisal.Properties
+            .Where(p => propertyIds.Contains(p.Id) && p.LandDetail is not null)
+            .ToList();
+
+        if (landProperties.Count == 0)
+            return null;
+
+        return landProperties.Sum(p => p.LandDetail!.TotalLandAreaInSqWa);
+    }
+
+    /// <summary>
     /// Fetches rental schedule, land area, and appointment date for a property group.
     /// </summary>
     public async Task<PropertyGroupData> GetPropertyDataAsync(

@@ -14,7 +14,10 @@ public static class DtoExtensions
             detail.Address?.ToDto(),
             detail.Contact?.ToDto(),
             detail.Appointment?.ToDto(),
-            detail.Fee?.ToDto()
+            detail.Fee?.ToDto(),
+            PrevAppraisalNumber: detail.PrevAppraisalNumber,
+            PrevAppraisalValue: detail.PrevAppraisalValue,
+            PrevAppraisalDate: detail.PrevAppraisalDate
         );
     }
 
@@ -312,7 +315,10 @@ public static class DtoExtensions
             dto?.Address?.ToDomain(),
             dto?.Contact?.ToDomain(),
             dto?.Appointment?.ToDomain(),
-            dto?.Fee?.ToDomain()
+            dto?.Fee?.ToDomain(),
+            dto?.PrevAppraisalNumber,
+            dto?.PrevAppraisalValue,
+            dto?.PrevAppraisalDate
         ));
     }
 

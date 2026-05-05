@@ -33,6 +33,8 @@ public class GetEligibleAppraisalsForQuotationEndpoint : ICarterModule
                     [FromQuery] string? subDistrict,
                     [FromQuery] string? district,
                     [FromQuery] string? province,
+                    // Edit-mode: allow appraisals attached to this quotation to pass through
+                    [FromQuery] Guid? excludeQuotationRequestId,
                     // Sorting
                     [FromQuery] string? sortBy,
                     [FromQuery] string? sortDir,
@@ -73,7 +75,7 @@ public class GetEligibleAppraisalsForQuotationEndpoint : ICarterModule
                     };
 
                     var result = await sender.Send(
-                        new GetEligibleAppraisalsForQuotationQuery(pagination, filter),
+                        new GetEligibleAppraisalsForQuotationQuery(pagination, filter, excludeQuotationRequestId),
                         cancellationToken);
 
                     return Results.Ok(result);

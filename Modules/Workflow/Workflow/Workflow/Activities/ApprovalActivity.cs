@@ -64,27 +64,43 @@ public class ApprovalActivity : WorkflowActivityBase
             var groupInfo = await _memberResolver.ResolveMembersAsync(
                 memberSourceConfig, context.Variables, inlineQuorum, inlineMajority, cancellationToken);
 
+            // Member override: if the pending-meeting step supplied a manual member list, use it
+            // instead of the committee's configured members. Quorum/majority still come from groupInfo.
+            var overrideMembers = GetVariable<List<MeetingMemberOverride>>(context, "meetingMemberOverrides", []);
+            var resolvedMembers = overrideMembers.Count > 0
+                ? overrideMembers.Select(m => new ApprovalMemberInfo(m.UserId, m.Role)).ToList()
+                : groupInfo.Members;
+
+            if (overrideMembers.Count > 0)
+            {
+                var requiredQuorum = GetRequiredQuorum(groupInfo.Quorum, overrideMembers.Count);
+                if (overrideMembers.Count < requiredQuorum)
+                    _logger.LogWarning(
+                        "ApprovalActivity {ActivityId}: override member count ({OverrideCount}) is below required quorum ({Quorum}); approval may never reach quorum",
+                        context.ActivityId, overrideMembers.Count, requiredQuorum);
+            }
+
             var activityName = GetProperty(context, "activityName", context.ActivityId);
             var voteOptions = GetProperty<List<string>>(context, "voteOptions",
                 new List<string> { "approve", "reject", "route_back" });
 
             // Build member assignments with unique task names
             var activityDisplayName = context.ActivityName;
-            var memberAssignments = groupInfo.Members
+            var memberAssignments = resolvedMembers
                 .Select(m => new ApprovalMemberAssignment(m.Username, $"{activityName}:{m.Username}", activityDisplayName))
                 .ToList();
 
             // Store resolved config in output data for ResumeActivityAsync
             var outputData = new Dictionary<string, object>
             {
-                [$"{NormalizeActivityId(context.ActivityId)}_members"] = groupInfo.Members,
+                [$"{NormalizeActivityId(context.ActivityId)}_members"] = resolvedMembers,
                 [$"{NormalizeActivityId(context.ActivityId)}_quorum"] = groupInfo.Quorum,
                 [$"{NormalizeActivityId(context.ActivityId)}_majority"] = groupInfo.Majority,
                 [$"{NormalizeActivityId(context.ActivityId)}_conditions"] = groupInfo.Conditions,
                 [$"{NormalizeActivityId(context.ActivityId)}_voteOptions"] = voteOptions,
                 [$"{NormalizeActivityId(context.ActivityId)}_committeeName"] = groupInfo.CommitteeName ?? "",
                 [$"{NormalizeActivityId(context.ActivityId)}_committeeCode"] = groupInfo.CommitteeCode ?? "",
-                [$"{NormalizeActivityId(context.ActivityId)}_totalMembers"] = groupInfo.Members.Count,
+                [$"{NormalizeActivityId(context.ActivityId)}_totalMembers"] = resolvedMembers.Count,
                 [$"{NormalizeActivityId(context.ActivityId)}_votesReceived"] = 0,
                 ["activityName"] = activityName
             };
@@ -127,8 +143,8 @@ public class ApprovalActivity : WorkflowActivityBase
                 context.Movement), cancellationToken);
 
             _logger.LogInformation(
-                "ApprovalActivity {ActivityId} started with {MemberCount} members, committee={CommitteeCode}",
-                context.ActivityId, groupInfo.Members.Count, groupInfo.CommitteeCode ?? "inline");
+                "ApprovalActivity {ActivityId} started with {MemberCount} members, committee={CommitteeCode}, memberOverride={IsOverride}",
+                context.ActivityId, resolvedMembers.Count, groupInfo.CommitteeCode ?? "inline", overrideMembers.Count > 0);
 
             return ActivityResult.Pending(outputData);
         }
@@ -529,4 +545,8 @@ public class ApprovalActivity : WorkflowActivityBase
             _ => null
         };
     }
+
+    // Deserialization target for meetingMemberOverrides passed from MeetingActivity.
+    // internal (not private) so System.Text.Json reflection can construct instances during variable rehydration.
+    internal record MeetingMemberOverride(string UserId, string Role);
 }

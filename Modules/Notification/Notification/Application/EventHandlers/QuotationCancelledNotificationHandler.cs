@@ -52,10 +52,10 @@ public class QuotationCancelledNotificationHandler(
             }
 
             // Notify RM if available
-            if (message.RmUserId.HasValue)
+            if (!string.IsNullOrEmpty(message.RmUsername))
             {
                 await notificationService.SendNotificationToUserAsync(
-                    message.RmUserId.Value.ToString(),
+                    message.RmUsername,
                     "Quotation Request Cancelled",
                     $"The quotation request for your appraisal has been cancelled by the admin. Reason: {reason}",
                     NotificationType.WorkflowTransition,

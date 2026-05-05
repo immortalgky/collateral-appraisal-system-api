@@ -64,6 +64,22 @@ public class PricingAnalysisRepository(AppraisalDbContext dbContext)
                         .ThenInclude(ia => ia.Sections)
                             .ThenInclude(s => s.Categories)
                                 .ThenInclude(c => c.Assumptions)
+            .Include(pa => pa.Approaches)
+                .ThenInclude(a => a.Methods)
+                    .ThenInclude(m => m.HypothesisAnalysis!)
+                        .ThenInclude(ha => ha.Uploads)
+            .Include(pa => pa.Approaches)
+                .ThenInclude(a => a.Methods)
+                    .ThenInclude(m => m.HypothesisAnalysis!)
+                        .ThenInclude(ha => ha.LandBuildingUnitRows)
+            .Include(pa => pa.Approaches)
+                .ThenInclude(a => a.Methods)
+                    .ThenInclude(m => m.HypothesisAnalysis!)
+                        .ThenInclude(ha => ha.CondominiumUnitRows)
+            .Include(pa => pa.Approaches)
+                .ThenInclude(a => a.Methods)
+                    .ThenInclude(m => m.HypothesisAnalysis!)
+                        .ThenInclude(ha => ha.CostItems)
             .AsSplitQuery()
             .FirstOrDefaultAsync(pa => pa.Id == id, cancellationToken);
     }
@@ -74,5 +90,21 @@ public class PricingAnalysisRepository(AppraisalDbContext dbContext)
     {
         return await _dbContext.PricingAnalyses
             .AnyAsync(pa => pa.PropertyGroupId == propertyGroupId, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<PricingAnalysis?> GetByProjectModelIdAsync(Guid projectModelId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.PricingAnalyses
+            .FirstOrDefaultAsync(pa => pa.ProjectModelId == projectModelId, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> ExistsByProjectModelIdAsync(Guid projectModelId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.PricingAnalyses
+            .AnyAsync(pa => pa.ProjectModelId == projectModelId, cancellationToken);
     }
 }

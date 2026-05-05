@@ -81,6 +81,8 @@ public static class AppraisalModule
         // PricingCalculationServiceResolver is also scoped because it holds a scoped dependency.
         services.AddScoped<IncomeCalculationService>();
         services.AddScoped<PricingCalculationServiceResolver>();
+        // HypothesisCalculationService is stateless; transient is fine.
+        services.AddTransient<HypothesisCalculationService>();
 
         // Pricing Analysis Readiness — domain rules + composing checker + Dapper-backed
         // query service. Used by both the GET property-group endpoint (UI hint) and

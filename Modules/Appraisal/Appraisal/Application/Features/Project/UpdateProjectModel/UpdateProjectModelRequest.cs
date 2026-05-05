@@ -4,14 +4,13 @@ namespace Appraisal.Application.Features.Project.UpdateProjectModel;
 
 /// <summary>Request to update an existing project model.</summary>
 public record UpdateProjectModelRequest(
+    /// <summary>Required for Condo projects; must be null for LandAndBuilding projects.</summary>
+    Guid? ProjectTowerId = null,
     string? ModelName = null,
     string? ModelDescription = null,
-    string? BuildingNumber = null,
     int? NumberOfHouse = null,
-    decimal? StartingPrice = null,
     decimal? StartingPriceMin = null,
     decimal? StartingPriceMax = null,
-    decimal? StandardPrice = null,
     bool? HasMezzanine = null,
     decimal? UsableAreaMin = null,
     decimal? UsableAreaMax = null,
@@ -25,11 +24,9 @@ public record UpdateProjectModelRequest(
     string? UpperFloorMaterialTypeOther = null,
     string? BathroomFloorMaterialType = null,
     string? BathroomFloorMaterialTypeOther = null,
-    List<Guid>? ImageDocumentIds = null,
     string? Remark = null,
-    decimal? LandAreaRai = null,
-    decimal? LandAreaNgan = null,
-    decimal? LandAreaWa = null,
+    decimal? LandAreaMin = null,
+    decimal? LandAreaMax = null,
     decimal? StandardLandArea = null,
     string? BuildingType = null,
     string? BuildingTypeOther = null,

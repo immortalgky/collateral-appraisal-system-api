@@ -21,6 +21,10 @@ public class CondoAppraisalDetail : Entity<Guid>
     public int? PhysicalFloorNumber { get; private set; }
     public decimal? UsableArea { get; private set; }
 
+    // Unit deed identifiers (required for Collateral master dedup key)
+    public string? TitleNumber { get; private set; }
+    public string? TitleType { get; private set; }
+
     // GPS Coordinates (Value Object)
     public GpsCoordinate? Coordinates { get; private set; }
 
@@ -122,6 +126,8 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? roomNumber = null,
         string? floorNumber = null,
         decimal? usableArea = null,
+        string? titleNumber = null,
+        string? titleType = null,
         // Value Objects
         GpsCoordinate? coordinates = null,
         AdministrativeAddress? address = null,
@@ -195,6 +201,8 @@ public class CondoAppraisalDetail : Entity<Guid>
         RoomNumber = roomNumber;
         FloorNumber = floorNumber;
         UsableArea = usableArea;
+        TitleNumber = titleNumber;
+        TitleType = titleType;
 
         // Value Objects
         Coordinates = coordinates;
@@ -285,6 +293,8 @@ public class CondoAppraisalDetail : Entity<Guid>
             FloorNumber = source.FloorNumber,
             PhysicalFloorNumber = source.PhysicalFloorNumber,
             UsableArea = source.UsableArea,
+            TitleNumber = source.TitleNumber,
+            TitleType = source.TitleType,
             Coordinates = source.Coordinates is not null
                 ? GpsCoordinate.Create(source.Coordinates.Latitude, source.Coordinates.Longitude)
                 : null,

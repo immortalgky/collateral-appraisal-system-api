@@ -1,11 +1,14 @@
+using Shared.Data.Interceptors;
+
 namespace Collateral;
 
 public static class CollateralModule
 {
     public static IServiceCollection AddCollateralModule(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddScoped<ICollateralRepository, CollateralRepository>();
-        services.AddScoped<ICollateralService, CollateralService>();
+        services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
+        services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventInterceptor>();
+
         services.AddDbContext<CollateralDbContext>((sp, options) =>
         {
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
@@ -15,6 +18,12 @@ public static class CollateralModule
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "collateral");
             });
         });
+
+        services.AddScoped<ICollateralMasterRepository, CollateralMasterRepository>();
+        services.AddScoped<ICollateralMasterUpsertService, CollateralMasterUpsertService>();
+
+        // Singleton: in-memory job state must survive across requests
+        services.AddSingleton<CollateralBackfillJob>();
 
         return services;
     }

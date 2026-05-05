@@ -132,4 +132,68 @@ public class CompanyRoundRobinService : ICompanyRoundRobinService
             return CompanySelectionResult.Failure($"Company selection failed: {ex.Message}");
         }
     }
+
+    public async Task<CompanySelectionResult> SelectCompanyAsync(
+        Guid? excludedCompanyId,
+        string? loanType,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var companies = string.IsNullOrEmpty(loanType)
+                ? await _companyRepository.GetAllAsync(activeOnly: true, cancellationToken)
+                : await _companyRepository.GetByLoanTypeAsync(loanType, activeOnly: true, cancellationToken);
+
+            if (excludedCompanyId.HasValue)
+                companies = companies.Where(c => c.Id != excludedCompanyId.Value).ToList();
+
+            if (companies.Count == 0)
+            {
+                _logger.LogWarning(
+                    "No eligible companies found for round-robin (excludedCompanyId={ExcludedId}, loanType={LoanType})",
+                    excludedCompanyId, loanType);
+                var msg = string.IsNullOrEmpty(loanType)
+                    ? "No active companies available for assignment"
+                    : $"No active companies available for loan type '{loanType}'";
+                return CompanySelectionResult.Failure(msg);
+            }
+
+            var groupKey = string.IsNullOrEmpty(loanType) ? GroupKey : $"LoanType_{loanType}";
+            var companyIds = companies.Select(c => c.Id.ToString()).ToList();
+            var groupsHash = _groupHashService.GenerateGroupsHash([groupKey]);
+            var groupsList = _groupHashService.GenerateGroupsList([groupKey]);
+
+            await _assignmentRepository.SyncUsersForGroupCombinationAsync(
+                ActivityName, groupsHash, groupsList, companyIds, cancellationToken);
+
+            var selectedId = await _assignmentRepository.SelectNextUserWithRoundResetAsync(
+                ActivityName, groupsHash, cancellationToken);
+
+            if (selectedId == null)
+            {
+                _logger.LogWarning("Round-robin returned no company selection (excludedCompanyId={ExcludedId}, loanType={LoanType})",
+                    excludedCompanyId, loanType);
+                return CompanySelectionResult.Failure("Round-robin selection returned no result");
+            }
+
+            var selectedCompany = companies.FirstOrDefault(c => c.Id.ToString() == selectedId);
+            if (selectedCompany == null)
+            {
+                _logger.LogWarning("Selected company ID {CompanyId} not found in eligible companies", selectedId);
+                return CompanySelectionResult.Failure($"Selected company {selectedId} not found");
+            }
+
+            _logger.LogInformation(
+                "Company round-robin selected {CompanyName} ({CompanyId}) from {TotalCompanies} eligible companies (loanType={LoanType}, excluded={ExcludedId})",
+                selectedCompany.Name, selectedCompany.Id, companies.Count, loanType ?? "any", excludedCompanyId);
+
+            return CompanySelectionResult.Success(selectedCompany.Id, selectedCompany.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to select company via round-robin (excludedCompanyId={ExcludedId}, loanType={LoanType})",
+                excludedCompanyId, loanType);
+            return CompanySelectionResult.Failure($"Company selection failed: {ex.Message}");
+        }
+    }
 }

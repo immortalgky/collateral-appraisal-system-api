@@ -103,7 +103,7 @@ public static class AuthModule
                 options.RegisterScopes(
                     OpenIddictConstants.Scopes.OpenId, OpenIddictConstants.Scopes.Profile,
                     OpenIddictConstants.Scopes.Email, OpenIddictConstants.Scopes.OfflineAccess,
-                    "appraisal.read", "request.write", "document.read", "document.write");
+                    "appraisal.read", "request.write", "document.read", "document.write", "integration");
 
                 if (environment == "Development")
                 {
@@ -242,6 +242,7 @@ public static class AuthModule
             .AddScopePolicy("ClsWriteRequest", "request.write")
             .AddScopePolicy("ClsReadDocument", "document.read")
             .AddScopePolicy("ClsWriteDocument", "document.write")
+            .AddScopePolicy("Integration", "integration")
             .AddUserPermissionPolicy("workflow.admin", "WORKFLOW_ADMIN");
 
         // In Development, don't pin policies to OpenIddict scheme so the

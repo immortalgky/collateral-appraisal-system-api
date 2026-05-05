@@ -9,6 +9,11 @@ using Notification.Data;
 using Auth.Infrastructure;
 using Auth;
 using Auth.Domain.Identity;
+using Appraisal.Infrastructure;
+using Collateral.Data;
+using Common.Infrastructure;
+using Parameter.Data;
+using Integration.Infrastructure;
 
 namespace Database.Migration;
 
@@ -57,7 +62,7 @@ public class EfCoreMigrationService : IEfCoreMigrationService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "EF Core migration failed for: {ContextType}", contextType.Name);
-                return false;
+                throw new InvalidOperationException($"EF Core migration failed for {contextType.Name}: {ex.Message}", ex);
             }
 
         return true;
@@ -65,14 +70,21 @@ public class EfCoreMigrationService : IEfCoreMigrationService
 
     private Type[] GetDbContextTypes()
     {
-        // Get all registered DbContext types
+        // Order matters: modules that are depended upon by migrations in other modules must run first.
+        // CommonDbContext creates common.RequestStatusSummaries used by a Request migration.
+        // ParameterDbContext creates parameter tables referenced by Appraisal.
         return new[]
         {
+            typeof(CommonDbContext),
+            typeof(ParameterDbContext),
             typeof(RequestDbContext),
             typeof(WorkflowDbContext),
             typeof(DocumentDbContext),
             typeof(NotificationDbContext),
-            typeof(AuthDbContext)
+            typeof(AuthDbContext),
+            typeof(IntegrationDbContext),
+            typeof(AppraisalDbContext),
+            typeof(CollateralDbContext)
         };
     }
 
@@ -80,11 +92,16 @@ public class EfCoreMigrationService : IEfCoreMigrationService
     {
         return contextType.Name switch
         {
+            nameof(CommonDbContext) => CreateCommonDbContext(connectionString),
+            nameof(ParameterDbContext) => CreateParameterDbContext(connectionString),
             nameof(RequestDbContext) => CreateRequestDbContext(connectionString),
             nameof(WorkflowDbContext) => CreateWorkflowDbContext(connectionString),
             nameof(DocumentDbContext) => CreateDocumentDbContext(connectionString),
             nameof(NotificationDbContext) => CreateNotificationDbContext(connectionString),
             nameof(AuthDbContext) => CreateAuthDbContext(connectionString),
+            nameof(IntegrationDbContext) => CreateIntegrationDbContext(connectionString),
+            nameof(AppraisalDbContext) => CreateAppraisalDbContext(connectionString),
+            nameof(CollateralDbContext) => CreateCollateralDbContext(connectionString),
             _ => throw new ArgumentException($"Unknown context type: {contextType.Name}")
         };
     }
@@ -148,6 +165,60 @@ public class EfCoreMigrationService : IEfCoreMigrationService
         });
         optionsBuilder.UseOpenIddict();
         return new AuthDbContext(optionsBuilder.Options);
+    }
+
+    private CommonDbContext CreateCommonDbContext(string connectionString)
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<CommonDbContext>();
+        optionsBuilder.UseSqlServer(connectionString, sqlOptions =>
+        {
+            sqlOptions.MigrationsAssembly(typeof(CommonDbContext).Assembly.GetName().Name);
+            sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "common");
+        });
+        return new CommonDbContext(optionsBuilder.Options);
+    }
+
+    private ParameterDbContext CreateParameterDbContext(string connectionString)
+    {
+        // ParameterModule registers ParameterDbContext with UseSqlServer only (no custom
+        // history table), so migrations are tracked in the default dbo.__EFMigrationsHistory.
+        // This factory must match that configuration exactly so the same history table is used.
+        var optionsBuilder = new DbContextOptionsBuilder<ParameterDbContext>();
+        optionsBuilder.UseSqlServer(connectionString);
+        return new ParameterDbContext(optionsBuilder.Options);
+    }
+
+    private IntegrationDbContext CreateIntegrationDbContext(string connectionString)
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<IntegrationDbContext>();
+        optionsBuilder.UseSqlServer(connectionString, sqlOptions =>
+        {
+            sqlOptions.MigrationsAssembly(typeof(IntegrationDbContext).Assembly.GetName().Name);
+            sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "integration");
+        });
+        return new IntegrationDbContext(optionsBuilder.Options);
+    }
+
+    private AppraisalDbContext CreateAppraisalDbContext(string connectionString)
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<AppraisalDbContext>();
+        optionsBuilder.UseSqlServer(connectionString, sqlOptions =>
+        {
+            sqlOptions.MigrationsAssembly(typeof(AppraisalDbContext).Assembly.GetName().Name);
+            sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "appraisal");
+        });
+        return new AppraisalDbContext(optionsBuilder.Options);
+    }
+
+    private CollateralDbContext CreateCollateralDbContext(string connectionString)
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<CollateralDbContext>();
+        optionsBuilder.UseSqlServer(connectionString, sqlOptions =>
+        {
+            sqlOptions.MigrationsAssembly(typeof(CollateralDbContext).Assembly.GetName().Name);
+            sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "collateral");
+        });
+        return new CollateralDbContext(optionsBuilder.Options);
     }
 
     private async Task ProcessMigrations(DbContext context, Type contextType)

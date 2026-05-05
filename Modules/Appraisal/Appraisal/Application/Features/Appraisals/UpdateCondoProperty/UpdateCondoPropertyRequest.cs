@@ -14,6 +14,9 @@ public record UpdateCondoPropertyRequest(
     string? RoomNumber = null,
     string? FloorNumber = null,
     decimal? UsableArea = null,
+    // Unit deed identifiers (collateral dedup key)
+    string? TitleNumber = null,
+    string? TitleType = null,
     // Coordinates
     decimal? Latitude = null,
     decimal? Longitude = null,

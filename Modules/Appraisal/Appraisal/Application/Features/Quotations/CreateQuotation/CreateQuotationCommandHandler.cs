@@ -57,8 +57,8 @@ public class CreateQuotationCommandHandler(
 
             if (firstRequestId != Guid.Empty)
             {
-                var (rmUserId, rmUsername) = await ResolveRmAsync(firstRequestId, cancellationToken);
-                quotation.SetRmInfo(rmUserId, rmUsername);
+                var rmUsername = await ResolveRmAsync(firstRequestId, cancellationToken);
+                quotation.SetRmInfo(rmUsername);
             }
         }
 
@@ -80,10 +80,9 @@ public class CreateQuotationCommandHandler(
     /// <summary>
     /// Resolves the RM username from the Request's Requestor column.
     /// Mirrors the logic in StartQuotationFromTaskCommandHandler.ResolveRmAsync.
-    /// Returns (null, null) on failure — quotation is still created without RM linkage.
+    /// Returns null on failure — quotation is still created without RM linkage.
     /// </summary>
-    private async Task<(Guid? RmUserId, string? RmUsername)> ResolveRmAsync(
-        Guid requestId, CancellationToken cancellationToken)
+    private async Task<string?> ResolveRmAsync(Guid requestId, CancellationToken cancellationToken)
     {
         try
         {
@@ -92,11 +91,11 @@ public class CreateQuotationCommandHandler(
                 "SELECT Requestor FROM [request].[Requests] WHERE Id = @RequestId",
                 new { RequestId = requestId });
 
-            return (null, string.IsNullOrWhiteSpace(rmUsername) ? null : rmUsername);
+            return string.IsNullOrWhiteSpace(rmUsername) ? null : rmUsername;
         }
         catch
         {
-            return (null, null);
+            return null;
         }
     }
 }

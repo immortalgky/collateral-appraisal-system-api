@@ -29,6 +29,7 @@ public record SaveProjectPricingAssumptionsRequest(
 /// Per-model assumption data.
 /// ProjectModelId links to ProjectModel.Id.
 /// StandardLandPrice is LB-only (null for Condo).
+/// StandardPrice has been removed — standard price is derived from PricingAnalysis.FinalAppraisedValue.
 /// </summary>
 public record ProjectModelAssumptionData(
     Guid ProjectModelId,
@@ -36,7 +37,6 @@ public record ProjectModelAssumptionData(
     string? ModelDescription = null,
     decimal? UsableAreaFrom = null,
     decimal? UsableAreaTo = null,
-    decimal? StandardPrice = null,
     decimal? StandardLandPrice = null,
     decimal? CoverageAmount = null,
     string? FireInsuranceCondition = null

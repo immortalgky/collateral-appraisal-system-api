@@ -1,13 +1,16 @@
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
+using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Shared.CQRS;
+using Shared.Data;
 
 namespace Appraisal.Application.Features.DecisionSummary.SaveDecisionSummary;
 
 public class SaveDecisionSummaryCommandHandler(
     IAppraisalDecisionRepository decisionRepository,
-    AppraisalDbContext db
+    AppraisalDbContext db,
+    ISqlConnectionFactory connectionFactory
 ) : ICommandHandler<SaveDecisionSummaryCommand, SaveDecisionSummaryResult>
 {
     public async Task<SaveDecisionSummaryResult> Handle(
@@ -91,15 +94,29 @@ public class SaveDecisionSummaryCommandHandler(
 
     private async Task<decimal> ComputeBuildingInsuranceAsync(Guid appraisalId, CancellationToken ct)
     {
-        // BuildingAppraisalDetail is owned by AppraisalProperty — reach via the nav.
-        var properties = await db.AppraisalProperties
-            .Where(ap => ap.AppraisalId == appraisalId)
-            .ToListAsync(ct);
+        // Block appraisal: insurance = SUM(ProjectUnitPrices.CoverageAmount)
+        var blockParam = new DynamicParameters();
+        blockParam.Add("AppraisalId", appraisalId);
 
-        return properties
-            .Where(ap => ap.BuildingDetail != null)
-            .SelectMany(ap => ap.BuildingDetail!.DepreciationDetails)
-            .Where(d => d.IsBuilding)
-            .Sum(d => d.PriceAfterDepreciation);
+        const string projectProbeSql = """
+            SELECT TOP 1 Id FROM appraisal.Projects WHERE AppraisalId = @AppraisalId
+            """;
+
+        var projectId = await connectionFactory.QueryFirstOrDefaultAsync<Guid?>(projectProbeSql, blockParam);
+
+        if (projectId.HasValue)
+        {
+            const string blockInsuranceSql = """
+                SELECT ISNULL(SUM(pup.CoverageAmount), 0)
+                FROM appraisal.ProjectUnitPrices pup
+                JOIN appraisal.ProjectUnits pu ON pu.Id = pup.ProjectUnitId
+                JOIN appraisal.Projects p ON p.Id = pu.ProjectId
+                WHERE p.AppraisalId = @AppraisalId
+                """;
+
+            return await connectionFactory.QueryFirstOrDefaultAsync<decimal>(blockInsuranceSql, blockParam);
+        }
+
+        return await BuildingInsuranceCalculator.ComputeAsync(connectionFactory, appraisalId);
     }
 }

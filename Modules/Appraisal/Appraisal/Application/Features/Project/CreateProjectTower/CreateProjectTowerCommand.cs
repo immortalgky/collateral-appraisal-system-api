@@ -7,7 +7,6 @@ public record CreateProjectTowerCommand(
     int? NumberOfUnits = null,
     int? NumberOfFloors = null,
     string? CondoRegistrationNumber = null,
-    List<Guid>? ModelTypeIds = null,
     string? ConditionType = null,
     bool? HasObligation = null,
     string? ObligationDetails = null,
@@ -20,16 +19,9 @@ public record CreateProjectTowerCommand(
     string? RoadSurfaceTypeOther = null,
     string? DecorationType = null,
     string? DecorationTypeOther = null,
-    int? ConstructionYear = null,
-    int? TotalNumberOfFloors = null,
+    int? BuildingAge = null,
     string? BuildingFormType = null,
     string? ConstructionMaterialType = null,
-    string? GroundFloorMaterialType = null,
-    string? GroundFloorMaterialTypeOther = null,
-    string? UpperFloorMaterialType = null,
-    string? UpperFloorMaterialTypeOther = null,
-    string? BathroomFloorMaterialType = null,
-    string? BathroomFloorMaterialTypeOther = null,
     List<string>? RoofType = null,
     string? RoofTypeOther = null,
     bool? IsExpropriated = null,
@@ -38,6 +30,5 @@ public record CreateProjectTowerCommand(
     string? RoyalDecree = null,
     bool? IsForestBoundary = null,
     string? ForestBoundaryRemark = null,
-    string? Remark = null,
-    List<Guid>? ImageDocumentIds = null
+    string? Remark = null
 ) : ICommand<CreateProjectTowerResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

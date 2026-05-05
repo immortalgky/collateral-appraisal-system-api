@@ -1,3 +1,4 @@
+using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Projects.Exceptions;
 
 namespace Appraisal.Domain.Projects;
@@ -12,19 +13,26 @@ public class ProjectModel : Entity<Guid>
 {
     public Guid ProjectId { get; private set; }
 
+    /// <summary>
+    /// Condo only — FK to the tower this model belongs to.
+    /// Null for LandAndBuilding models.
+    /// </summary>
+    public Guid? ProjectTowerId { get; private set; }
+
     // ----- Common Fields -----
     public string? ModelName { get; private set; }
     public string? ModelDescription { get; private set; }
 
-    // Condo uses BuildingNumber; LB uses NumberOfHouse — both kept as nullable
-    public string? BuildingNumber { get; private set; }   // Condo
+    // LB uses NumberOfHouse
     public int? NumberOfHouse { get; private set; }       // LB
 
-    // Pricing — Condo has Min/Max; LB has a single StartingPrice
-    public decimal? StartingPrice { get; private set; }   // LB
-    public decimal? StartingPriceMin { get; private set; } // Condo
-    public decimal? StartingPriceMax { get; private set; } // Condo
-    public decimal? StandardPrice { get; private set; }
+    // Pricing — both Condo and LB use Min/Max range.
+    public decimal? StartingPriceMin { get; private set; }
+    public decimal? StartingPriceMax { get; private set; }
+
+    // Standard price is derived from PricingAnalysis.FinalAppraisedValue (no longer stored here).
+    // Navigate via PricingAnalysis?.FinalAppraisedValue.
+    public PricingAnalysis? PricingAnalysis { get; private set; }
 
     public bool? HasMezzanine { get; private set; }
 
@@ -48,19 +56,16 @@ public class ProjectModel : Entity<Guid>
     public string? BathroomFloorMaterialType { get; private set; }
     public string? BathroomFloorMaterialTypeOther { get; private set; }
 
-    // Documents
-    public List<Guid>? ImageDocumentIds { get; private set; }
-
     // Other
     public string? Remark { get; private set; }
 
     // ----- LandAndBuilding-Specific Fields (nullable) -----
 
     // Land Area (LB)
-    public decimal? LandAreaRai { get; private set; }
-    public decimal? LandAreaNgan { get; private set; }
-    public decimal? LandAreaWa { get; private set; }
-    public decimal? StandardLandArea { get; private set; } // in Sq.wa
+    // LB land area (per-model plot) expressed as a range, all in sq.wa.
+    public decimal? LandAreaMin { get; private set; }
+    public decimal? LandAreaMax { get; private set; }
+    public decimal? StandardLandArea { get; private set; } // in sq.wa
 
     // Building Info (LB)
     public string? BuildingType { get; private set; }
@@ -106,6 +111,9 @@ public class ProjectModel : Entity<Guid>
 
     // ----- Owned Collections -----
 
+    private readonly List<ProjectModelImage> _images = [];
+    public IReadOnlyList<ProjectModelImage> Images => _images.AsReadOnly();
+
     private readonly List<ProjectModelAreaDetail> _areaDetails = [];
     public IReadOnlyList<ProjectModelAreaDetail> AreaDetails => _areaDetails.AsReadOnly();
 
@@ -139,17 +147,23 @@ public class ProjectModel : Entity<Guid>
         };
     }
 
+    /// <summary>
+    /// Sets the tower link (Condo only). Called by <see cref="Project.AddModel"/> and <see cref="Project.UpdateModel"/>
+    /// after the type/membership invariants have been validated.
+    /// </summary>
+    internal void SetProjectTowerId(Guid? towerId)
+    {
+        ProjectTowerId = towerId;
+    }
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public void Update(
         // Common
         string? modelName = null,
         string? modelDescription = null,
-        string? buildingNumber = null,
         int? numberOfHouse = null,
-        decimal? startingPrice = null,
         decimal? startingPriceMin = null,
         decimal? startingPriceMax = null,
-        decimal? standardPrice = null,
         bool? hasMezzanine = null,
         decimal? usableAreaMin = null,
         decimal? usableAreaMax = null,
@@ -163,12 +177,10 @@ public class ProjectModel : Entity<Guid>
         string? upperFloorMaterialTypeOther = null,
         string? bathroomFloorMaterialType = null,
         string? bathroomFloorMaterialTypeOther = null,
-        List<Guid>? imageDocumentIds = null,
         string? remark = null,
         // LB-specific (nullable — ignored when Condo)
-        decimal? landAreaRai = null,
-        decimal? landAreaNgan = null,
-        decimal? landAreaWa = null,
+        decimal? landAreaMin = null,
+        decimal? landAreaMax = null,
         decimal? standardLandArea = null,
         string? buildingType = null,
         string? buildingTypeOther = null,
@@ -212,18 +224,16 @@ public class ProjectModel : Entity<Guid>
             throw new ArgumentException("Usable area min cannot exceed usable area max", nameof(usableAreaMin));
         if (standardUsableArea is < 0)
             throw new ArgumentException("Standard usable area cannot be negative", nameof(standardUsableArea));
-        if (standardPrice is < 0)
-            throw new ArgumentException("Standard price cannot be negative", nameof(standardPrice));
-
+        if (landAreaMin.HasValue && landAreaMax.HasValue && landAreaMin > landAreaMax)
+            throw new ArgumentException("Land area min cannot exceed land area max", nameof(landAreaMin));
+        if (standardLandArea is < 0)
+            throw new ArgumentException("Standard land area cannot be negative", nameof(standardLandArea));
         // Common
         ModelName = modelName;
         ModelDescription = modelDescription;
-        BuildingNumber = buildingNumber;
         NumberOfHouse = numberOfHouse;
-        StartingPrice = startingPrice;
         StartingPriceMin = startingPriceMin;
         StartingPriceMax = startingPriceMax;
-        StandardPrice = standardPrice;
         HasMezzanine = hasMezzanine;
         UsableAreaMin = usableAreaMin;
         UsableAreaMax = usableAreaMax;
@@ -237,13 +247,11 @@ public class ProjectModel : Entity<Guid>
         UpperFloorMaterialTypeOther = upperFloorMaterialTypeOther;
         BathroomFloorMaterialType = bathroomFloorMaterialType;
         BathroomFloorMaterialTypeOther = bathroomFloorMaterialTypeOther;
-        ImageDocumentIds = imageDocumentIds;
         Remark = remark;
 
         // LB-specific
-        LandAreaRai = landAreaRai;
-        LandAreaNgan = landAreaNgan;
-        LandAreaWa = landAreaWa;
+        LandAreaMin = landAreaMin;
+        LandAreaMax = landAreaMax;
         StandardLandArea = standardLandArea;
         BuildingType = buildingType;
         BuildingTypeOther = buildingTypeOther;
@@ -354,5 +362,54 @@ public class ProjectModel : Entity<Guid>
                      ?? throw new InvalidProjectStateException(
                          $"Depreciation detail {depreciationDetailId} not found");
         _depreciationDetails.Remove(detail);
+    }
+
+    // --- Images ---
+
+    public ProjectModelImage AddImage(
+        Guid galleryPhotoId,
+        string? title = null,
+        string? description = null)
+    {
+        var nextSequence = _images.Count > 0 ? _images.Max(i => i.DisplaySequence) + 1 : 1;
+        var image = ProjectModelImage.Create(Id, nextSequence, galleryPhotoId, title, description);
+        if (!_images.Any(i => i.IsThumbnail)) image.SetAsThumbnail();
+        _images.Add(image);
+        return image;
+    }
+
+    public void RemoveImage(Guid imageId)
+    {
+        var image = _images.FirstOrDefault(i => i.Id == imageId)
+                    ?? throw new InvalidProjectStateException($"Image {imageId} not found on model {Id}");
+        _images.Remove(image);
+    }
+
+    public void ReorderImages(IEnumerable<(Guid ImageId, int NewSequence)> reorder)
+    {
+        foreach (var (imageId, newSequence) in reorder)
+        {
+            var image = _images.FirstOrDefault(i => i.Id == imageId);
+            image?.UpdateSequence(newSequence);
+        }
+    }
+
+    public void SetThumbnail(Guid imageId)
+    {
+        var target = _images.FirstOrDefault(i => i.Id == imageId)
+                     ?? throw new InvalidProjectStateException($"Image {imageId} not found on model {Id}");
+
+        // Enforce single-thumbnail invariant: unset any existing thumbnail first
+        foreach (var img in _images.Where(i => i.IsThumbnail))
+            img.UnsetAsThumbnail();
+
+        target.SetAsThumbnail();
+    }
+
+    public void UnsetThumbnail(Guid imageId)
+    {
+        var target = _images.FirstOrDefault(i => i.Id == imageId)
+                     ?? throw new InvalidProjectStateException($"Image {imageId} not found on model {Id}");
+        target.UnsetAsThumbnail();
     }
 }

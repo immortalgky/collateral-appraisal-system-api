@@ -48,4 +48,13 @@ public interface IQuotationTaskOwnershipService
         Guid quotationRequestId,
         string activityId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns true when the supplied username holds the active rm-pick-winner task for the given quotation.
+    /// Used by the CLS integration path where there is no HTTP principal.
+    /// </summary>
+    Task<bool> IsUserActiveRmPickTaskOwnerAsync(
+        Guid quotationRequestId,
+        string username,
+        CancellationToken cancellationToken = default);
 }

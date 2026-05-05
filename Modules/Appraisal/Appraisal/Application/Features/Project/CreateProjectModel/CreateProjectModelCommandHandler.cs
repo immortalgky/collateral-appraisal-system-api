@@ -18,17 +18,18 @@ public class CreateProjectModelCommandHandler(
         var project = await projectRepository.GetWithFullGraphAsync(command.AppraisalId, cancellationToken)
                       ?? throw new InvalidOperationException($"Project not found for appraisal {command.AppraisalId}");
 
-        var model = project.AddModel();
+        // Domain enforces: Condo requires non-null ProjectTowerId referencing an existing tower;
+        // LandAndBuilding requires null. Uniqueness is also validated inside AddModel.
+        var model = project.AddModel(
+            projectTowerId: command.ProjectTowerId,
+            modelName: command.ModelName);
 
         model.Update(
             modelName: command.ModelName,
             modelDescription: command.ModelDescription,
-            buildingNumber: command.BuildingNumber,
             numberOfHouse: command.NumberOfHouse,
-            startingPrice: command.StartingPrice,
             startingPriceMin: command.StartingPriceMin,
             startingPriceMax: command.StartingPriceMax,
-            standardPrice: command.StandardPrice,
             hasMezzanine: command.HasMezzanine,
             usableAreaMin: command.UsableAreaMin,
             usableAreaMax: command.UsableAreaMax,
@@ -42,11 +43,9 @@ public class CreateProjectModelCommandHandler(
             upperFloorMaterialTypeOther: command.UpperFloorMaterialTypeOther,
             bathroomFloorMaterialType: command.BathroomFloorMaterialType,
             bathroomFloorMaterialTypeOther: command.BathroomFloorMaterialTypeOther,
-            imageDocumentIds: command.ImageDocumentIds,
             remark: command.Remark,
-            landAreaRai: command.LandAreaRai,
-            landAreaNgan: command.LandAreaNgan,
-            landAreaWa: command.LandAreaWa,
+            landAreaMin: command.LandAreaMin,
+            landAreaMax: command.LandAreaMax,
             standardLandArea: command.StandardLandArea,
             buildingType: command.BuildingType,
             buildingTypeOther: command.BuildingTypeOther,
@@ -126,9 +125,9 @@ public class CreateProjectModelCommandHandler(
                 dto.PricePerSqMAfterDepreciation, dto.PriceAfterDepreciation,
                 dto.DepreciationYearPct, dto.TotalDepreciationPct, dto.PriceDepreciation);
 
-            if (dto.Periods is { Count: > 0 })
+            if (dto.DepreciationPeriods is { Count: > 0 })
             {
-                foreach (var p in dto.Periods)
+                foreach (var p in dto.DepreciationPeriods)
                     detail.AddPeriod(p.AtYear, p.ToYear, p.DepreciationPerYear, p.TotalDepreciationPct, p.PriceDepreciation);
             }
         }

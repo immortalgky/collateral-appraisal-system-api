@@ -13,6 +13,7 @@
         <ProjectReference Include="../Integration.Contracts/Integration.Contracts.csproj"/>
         <ProjectReference Include="../../Request/Request/Request.csproj"/>
         <ProjectReference Include="../../Document/Document/Document.csproj"/>
+        <ProjectReference Include="../../Appraisal/Appraisal/Appraisal.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

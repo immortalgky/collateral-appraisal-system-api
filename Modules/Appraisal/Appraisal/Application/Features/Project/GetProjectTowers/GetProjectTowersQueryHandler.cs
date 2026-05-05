@@ -27,7 +27,6 @@ public class GetProjectTowersQueryHandler(
             NumberOfUnits: t.NumberOfUnits,
             NumberOfFloors: t.NumberOfFloors,
             CondoRegistrationNumber: t.CondoRegistrationNumber,
-            ModelTypeIds: t.ModelTypeIds,
             ConditionType: t.ConditionType,
             HasObligation: t.HasObligation,
             ObligationDetails: t.ObligationDetails,
@@ -40,16 +39,9 @@ public class GetProjectTowersQueryHandler(
             RoadSurfaceTypeOther: t.RoadSurfaceTypeOther,
             DecorationType: t.DecorationType,
             DecorationTypeOther: t.DecorationTypeOther,
-            ConstructionYear: t.ConstructionYear,
-            TotalNumberOfFloors: t.TotalNumberOfFloors,
+            BuildingAge: t.BuildingAge,
             BuildingFormType: t.BuildingFormType,
             ConstructionMaterialType: t.ConstructionMaterialType,
-            GroundFloorMaterialType: t.GroundFloorMaterialType,
-            GroundFloorMaterialTypeOther: t.GroundFloorMaterialTypeOther,
-            UpperFloorMaterialType: t.UpperFloorMaterialType,
-            UpperFloorMaterialTypeOther: t.UpperFloorMaterialTypeOther,
-            BathroomFloorMaterialType: t.BathroomFloorMaterialType,
-            BathroomFloorMaterialTypeOther: t.BathroomFloorMaterialTypeOther,
             RoofType: t.RoofType,
             RoofTypeOther: t.RoofTypeOther,
             IsExpropriated: t.IsExpropriated,
@@ -59,6 +51,10 @@ public class GetProjectTowersQueryHandler(
             IsForestBoundary: t.IsForestBoundary,
             ForestBoundaryRemark: t.ForestBoundaryRemark,
             Remark: t.Remark,
-            ImageDocumentIds: t.ImageDocumentIds
+            Images: t.Images
+                .OrderBy(i => i.DisplaySequence)
+                .Select(i => new ProjectTowerImageDto(
+                    i.Id, i.GalleryPhotoId, i.DisplaySequence, i.Title, i.Description, i.IsThumbnail))
+                .ToList()
         );
 }

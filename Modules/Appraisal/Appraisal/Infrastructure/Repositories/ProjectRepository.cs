@@ -27,6 +27,9 @@ public class ProjectRepository(AppraisalDbContext dbContext) : IProjectRepositor
     {
         return await _dbContext.Projects
             .Include(p => p.Towers)
+                .ThenInclude(t => t.Images)
+            .Include(p => p.Models)
+                .ThenInclude(m => m.Images)
             .Include(p => p.Models)
                 .ThenInclude(m => m.AreaDetails)
             .Include(p => p.Models)
@@ -34,6 +37,8 @@ public class ProjectRepository(AppraisalDbContext dbContext) : IProjectRepositor
             .Include(p => p.Models)
                 .ThenInclude(m => m.DepreciationDetails)
                     .ThenInclude(d => d.DepreciationPeriods)
+            .Include(p => p.Models)
+                .ThenInclude(m => m.PricingAnalysis)
             .Include(p => p.Units)
             .Include(p => p.UnitUploads)
             // UnitPrices FK is ProjectUnitId → ProjectUnit (configured as 1:1).
@@ -44,6 +49,22 @@ public class ProjectRepository(AppraisalDbContext dbContext) : IProjectRepositor
                 .ThenInclude(l => l!.Titles)
             .AsSplitQuery()
             .FirstOrDefaultAsync(p => p.AppraisalId == appraisalId, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<ProjectModel?> GetModelByIdWithImagesAsync(Guid modelId, CancellationToken ct = default)
+    {
+        return await _dbContext.ProjectModels
+            .Include(m => m.Images)
+            .FirstOrDefaultAsync(m => m.Id == modelId, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<ProjectTower?> GetTowerByIdWithImagesAsync(Guid towerId, CancellationToken ct = default)
+    {
+        return await _dbContext.ProjectTowers
+            .Include(t => t.Images)
+            .FirstOrDefaultAsync(t => t.Id == towerId, ct);
     }
 
     /// <inheritdoc />

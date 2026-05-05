@@ -21,6 +21,9 @@ internal record RequestRow
     public decimal? PreviousFacilityLimit { get; set; }
     public decimal? TotalSellingPrice { get; set; }
     public Guid? PrevAppraisalId { get; set; }
+    public string? PrevAppraisalNumber { get; set; }
+    public decimal? PrevAppraisalValue { get; set; }
+    public DateTime? PrevAppraisalDate { get; set; }
     public string? HouseNumber { get; set; }
     public string? ProjectName { get; set; }
     public string? Moo { get; set; }

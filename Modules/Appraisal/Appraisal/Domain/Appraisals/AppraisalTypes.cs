@@ -11,9 +11,10 @@ public static class AppraisalTypes
     public const string ReAppraisal = "ReAppraisal";
     public const string Progressive = "Progressive";
     public const string PreAppraisal = "PreAppraisal";
+    public const string ConstructionInspection = "ConstructionInspection";
 
     public static readonly IReadOnlyList<string> ValidValues =
-        [New, ReAppraisal, Progressive, PreAppraisal];
+        [New, ReAppraisal, Progressive, PreAppraisal, ConstructionInspection];
 
     /// <summary>Returns true if <paramref name="value"/> is one of the four recognised appraisal types.</summary>
     public static bool IsValid(string? value) =>

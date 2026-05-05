@@ -34,9 +34,15 @@ public class DocumentFollowupRequiredWebhookConsumer(
             return;
         }
 
+        if (string.IsNullOrEmpty(keys.ExternalSystem))
+        {
+            logger.LogWarning("DocumentFollowupRequiredWebhookConsumer: ExternalSystem is null for AppraisalId {AppraisalId}, skipping", msg.AppraisalId);
+            return;
+        }
+
         await webhookService.SendAsync(
             eventId: msg.EventId,
-            systemCode: "LendingStudio",
+            systemCode: keys.ExternalSystem,
             eventType: "DOCUMENT_FOLLOWUP_REQUIRED",
             externalCaseKey: keys.ExternalCaseKey,
             occurredAt: msg.OccurredOn,

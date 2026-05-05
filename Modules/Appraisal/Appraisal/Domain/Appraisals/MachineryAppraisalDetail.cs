@@ -15,6 +15,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
     public string? EngineNo { get; private set; }
     public string? ChassisNo { get; private set; }
     public string? RegistrationNo { get; private set; }
+    public string? SerialNo { get; private set; }
 
     // Machine Specifications
     public string? Brand { get; private set; }
@@ -87,6 +88,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
             EngineNo = source.EngineNo,
             ChassisNo = source.ChassisNo,
             RegistrationNo = source.RegistrationNo,
+            SerialNo = source.SerialNo,
             Brand = source.Brand,
             Model = source.Model,
             Series = source.Series,
@@ -128,6 +130,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
         string? engineNo = null,
         string? chassisNo = null,
         string? registrationNo = null,
+        string? serialNo = null,
         // Machine Specifications
         string? brand = null,
         string? model = null,
@@ -174,6 +177,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
         if (engineNo is not null) EngineNo = engineNo;
         if (chassisNo is not null) ChassisNo = chassisNo;
         if (registrationNo is not null) RegistrationNo = registrationNo;
+        if (serialNo is not null) SerialNo = serialNo;
 
         // Machine Specifications
         if (brand is not null) Brand = brand;

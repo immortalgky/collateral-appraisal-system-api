@@ -34,9 +34,15 @@ public class AppraisalCreatedWebhookConsumer(
             return;
         }
 
+        if (string.IsNullOrEmpty(keys.ExternalSystem))
+        {
+            logger.LogWarning("AppraisalCreatedWebhookConsumer: ExternalSystem is null for AppraisalId {AppraisalId}, skipping", msg.AppraisalId);
+            return;
+        }
+
         await webhookService.SendAsync(
             eventId: msg.EventId,
-            systemCode: "LendingStudio",
+            systemCode: keys.ExternalSystem,
             eventType: "APPRAISAL_CREATED",
             externalCaseKey: keys.ExternalCaseKey,
             occurredAt: msg.OccurredOn,

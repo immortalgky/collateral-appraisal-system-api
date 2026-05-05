@@ -1,5 +1,15 @@
 namespace Appraisal.Application.Features.Project.GetProjectModels;
 
+/// <summary>DTO for a project model image.</summary>
+public record ProjectModelImageDto(
+    Guid Id,
+    Guid GalleryPhotoId,
+    int DisplaySequence,
+    string? Title,
+    string? Description,
+    bool IsThumbnail
+);
+
 /// <summary>
 /// DTO for a project model area detail (used in both create/update requests and query responses).
 /// </summary>
@@ -39,7 +49,7 @@ public record ProjectModelDepreciationDetailDto(
     decimal DepreciationYearPct = 0,
     decimal TotalDepreciationPct = 0,
     decimal PriceDepreciation = 0,
-    List<ProjectModelDepreciationPeriodDto>? Periods = null
+    List<ProjectModelDepreciationPeriodDto>? DepreciationPeriods = null
 );
 
 /// <summary>
@@ -50,15 +60,15 @@ public record ProjectModelDepreciationDetailDto(
 public record ProjectModelDto(
     Guid Id,
     Guid ProjectId,
+    /// <summary>Condo only — the tower this model belongs to. Null for LandAndBuilding models.</summary>
+    Guid? ProjectTowerId,
     // Common
     string? ModelName,
     string? ModelDescription,
-    string? BuildingNumber,            // Condo
     int? NumberOfHouse,               // LB
-    decimal? StartingPrice,           // LB
-    decimal? StartingPriceMin,        // Condo
-    decimal? StartingPriceMax,        // Condo
-    decimal? StandardPrice,
+    decimal? StartingPriceMin,
+    decimal? StartingPriceMax,
+    // StandardPrice removed — derived from PricingAnalysis.FinalAppraisedValue
     bool? HasMezzanine,
     decimal? UsableAreaMin,
     decimal? UsableAreaMax,
@@ -72,12 +82,10 @@ public record ProjectModelDto(
     string? UpperFloorMaterialTypeOther,
     string? BathroomFloorMaterialType,
     string? BathroomFloorMaterialTypeOther,
-    List<Guid>? ImageDocumentIds,
     string? Remark,
-    // LB-specific
-    decimal? LandAreaRai,
-    decimal? LandAreaNgan,
-    decimal? LandAreaWa,
+    // LB-specific — land area is a min/max range plus a standard, all in sq.wa.
+    decimal? LandAreaMin,
+    decimal? LandAreaMax,
     decimal? StandardLandArea,
     string? BuildingType,
     string? BuildingTypeOther,
@@ -113,8 +121,13 @@ public record ProjectModelDto(
     string? ConstructionTypeOther,
     string? UtilizationType,
     string? UtilizationTypeOther,
+    // PricingAnalysis (model-level; null when not yet created)
+    Guid? PricingAnalysisId,
+    string? PricingAnalysisStatus,
+    decimal? FinalAppraisedValue,
     // Owned collections
     List<ProjectModelAreaDetailDto> AreaDetails,
     List<ProjectModelSurfaceDto> Surfaces,
-    List<ProjectModelDepreciationDetailDto> DepreciationDetails
+    List<ProjectModelDepreciationDetailDto> DepreciationDetails,
+    List<ProjectModelImageDto> Images
 );

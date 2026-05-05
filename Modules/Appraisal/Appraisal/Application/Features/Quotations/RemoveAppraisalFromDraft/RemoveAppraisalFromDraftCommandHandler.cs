@@ -24,17 +24,43 @@ public class RemoveAppraisalFromDraftCommandHandler(
             ?? throw new UnauthorizedAccessException("Cannot resolve current user username from token");
         var adminUserId = currentUser.UserId; // for integration event only
 
+        // Only the quotation owner can remove appraisals
         if (quotation.RequestedBy != adminUsername)
             throw new UnauthorizedAccessException("You can only modify your own Draft quotation.");
 
-        // Domain method handles Draft-only guard and auto-cancel when last appraisal removed
-        quotation.RemoveAppraisal(command.AppraisalId);
+        if (quotation.Status != "Draft")
+            throw new BadRequestException($"Cannot remove appraisal from quotation in status '{quotation.Status}'.");
 
-        var autoCancelled = quotation.Status == "Cancelled";
+        // Domain guard: appraisal must be present on this quotation
+        try
+        {
+            quotation.RemoveAppraisal(command.AppraisalId);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("not part of this quotation"))
+        {
+            throw new NotFoundException($"Appraisal '{command.AppraisalId}' was not found on quotation '{command.QuotationRequestId}'.");
+        }
+
+        // Remove the matching display item (no-op if item was never created)
+        quotation.RemoveItem(command.AppraisalId);
+
+        // Remove shared-document selections keyed to this appraisal.
+        // Only possible while still Draft — if the quotation was just auto-cancelled (last appraisal
+        // removed), SetSharedDocuments would reject the call, so we skip it. The docs are effectively
+        // orphaned but harmless on a Cancelled quotation.
+        if (quotation.Status == "Draft")
+        {
+            var remainingDocs = quotation.SharedDocuments
+                .Where(d => d.AppraisalId != command.AppraisalId)
+                .Select(d => (d.AppraisalId, d.DocumentId, d.Level))
+                .ToList();
+
+            if (remainingDocs.Count != quotation.SharedDocuments.Count)
+                quotation.SetSharedDocuments(remainingDocs, adminUsername);
+        }
 
         quotationRepository.Update(quotation);
 
-        // M1: always publish the removal event
         outbox.Publish(new AppraisalRemovedFromQuotationIntegrationEvent
         {
             QuotationRequestId = quotation.Id,
@@ -42,26 +68,9 @@ public class RemoveAppraisalFromDraftCommandHandler(
             AdminUserId = adminUserId ?? Guid.Empty
         }, correlationId: quotation.Id.ToString());
 
-        // M1: when removing the last appraisal auto-cancels the quotation, also publish the cancel event
-        if (autoCancelled)
-        {
-            var invitedCompanyIds = quotation.Invitations
-                .Select(i => i.CompanyId)
-                .ToArray();
-
-            outbox.Publish(new QuotationCancelledIntegrationEvent
-            {
-                QuotationRequestId = quotation.Id,
-                TaskExecutionId = quotation.TaskExecutionId,
-                Reason = "Last appraisal removed",
-                InvitedCompanyIds = invitedCompanyIds,
-                RmUserId = quotation.RmUserId
-            }, correlationId: quotation.Id.ToString());
-        }
-
         return new RemoveAppraisalFromDraftResult(
             quotation.Id,
             quotation.TotalAppraisals,
-            autoCancelled);
+            quotation.Status);
     }
 }

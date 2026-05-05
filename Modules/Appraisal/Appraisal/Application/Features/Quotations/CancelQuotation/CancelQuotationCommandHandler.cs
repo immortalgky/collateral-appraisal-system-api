@@ -38,7 +38,7 @@ public class CancelQuotationCommandHandler(
                 TaskExecutionId = quotation.TaskExecutionId,
                 Reason = command.Reason,
                 InvitedCompanyIds = invitedCompanyIds,
-                RmUserId = quotation.RmUserId
+                RmUsername = quotation.RmUsername
             }, correlationId: quotation.Id.ToString());
 
             // v4: cancel the quotation child workflow via the current active step

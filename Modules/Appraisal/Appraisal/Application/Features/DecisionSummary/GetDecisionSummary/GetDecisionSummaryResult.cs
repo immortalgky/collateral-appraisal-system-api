@@ -1,7 +1,7 @@
 namespace Appraisal.Application.Features.DecisionSummary.GetDecisionSummary;
 
 public record GetDecisionSummaryResult(
-    // Approach Matrix (read-only)
+    // Approach Matrix (read-only) — empty list for block appraisals
     IReadOnlyList<ApproachMatrixGroup> ApproachMatrix,
 
     // Summary Totals (read-only, calculated)
@@ -36,7 +36,12 @@ public record GetDecisionSummaryResult(
     string? AppraiserOpinion,
     string? CommitteeOpinionType,
     string? CommitteeOpinion,
-    string? AdditionalAssumptions
+    string? AdditionalAssumptions,
+
+    // Block appraisal fields (null for normal appraisals)
+    bool IsBlock,
+    IReadOnlyList<BlockApproachMatrixRow>? BlockApproachMatrix,
+    IReadOnlyList<BlockModelPriceRow>? BlockModelPrices
 );
 
 public record ApproachMatrixGroup(
@@ -68,4 +73,24 @@ public record DecisionApprovalListItem(
     string VoteLabel,
     string? Remark,
     DateTime? VotedAt
+);
+
+public record BlockApproachMatrixRow(
+    Guid ProjectModelId,
+    string? ModelName,
+    decimal? MarketValue,
+    decimal? CostValue,
+    decimal? IncomeValue,
+    decimal? ResidualValue,
+    string? SelectedApproach,
+    decimal ModelTotalAppraisalPrice
+);
+
+public record BlockModelPriceRow(
+    Guid ProjectModelId,
+    string? ModelName,
+    int UnitCount,
+    decimal TotalAppraisalPrice,
+    decimal ForceSellingPrice,
+    decimal BuildingInsurance
 );

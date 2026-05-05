@@ -14,16 +14,7 @@ SELECT pt.Id                                                                    
        pt.TaskDescription,
        r.Purpose,
        p.PropertyType                                                                     AS PropertyType,
-       -- Derive appraisal status: CompletedAt trumps all; then workflow activity; fallback to request status
-       CASE
-           WHEN a.CompletedAt IS NOT NULL THEN 'Completed'
-           WHEN pt.ActivityId IN ('appraisal-initiation-check', 'appraisal-assignment') THEN 'Pending'
-           WHEN pt.ActivityId IN
-                ('appraisal-book-verification', 'int-appraisal-check', 'int-appraisal-verification', 'pending-approval')
-               THEN 'UnderReview'
-           WHEN a.Id IS NOT NULL THEN 'InProgress'
-           ELSE r.Status
-           END                                                                            AS Status,
+       a.Status                                                                           AS Status,
        pt.TaskStatus                                                                      AS PendingTaskStatus,
        ap.AppointmentDateTime,
        pt.AssignedTo                                                                      AS AssigneeUserId,
@@ -66,10 +57,10 @@ FROM workflow.PendingTasks pt
                       FROM workflow.DocumentFollowups
                       WHERE FollowupWorkflowInstanceId = pt.WorkflowInstanceId) df
          -- Quotation context: pt.CorrelationId = QuotationRequestId for quotation-workflow tasks
-         OUTER APPLY (SELECT TOP 1 qr2.Id, qr2.QuotationNumber, qr2.Status, qr2.DueDate, qr2.RmUserId
+         OUTER APPLY (SELECT TOP 1 qr2.Id, qr2.QuotationNumber, qr2.Status, qr2.DueDate, qr2.RmUsername
                       FROM appraisal.QuotationRequests qr2
                       WHERE qr2.Id = pt.CorrelationId) qr
-         LEFT JOIN auth.AspNetUsers qrm ON qrm.Id = TRY_CAST(qr.RmUserId AS nvarchar(450))
+         LEFT JOIN auth.AspNetUsers qrm ON qrm.UserName = qr.RmUsername
          -- Resolve the effective RequestId:
          --   1. document-followup tasks carry df.RequestId
          --   2. quotation-workflow tasks carry qr.RequestId (via QuotationRequestAppraisals)

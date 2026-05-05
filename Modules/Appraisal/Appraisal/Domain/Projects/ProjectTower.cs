@@ -1,3 +1,5 @@
+using Appraisal.Domain.Projects.Exceptions;
+
 namespace Appraisal.Domain.Projects;
 
 /// <summary>
@@ -13,7 +15,6 @@ public class ProjectTower : Entity<Guid>
     public int? NumberOfUnits { get; private set; }
     public int? NumberOfFloors { get; private set; }
     public string? CondoRegistrationNumber { get; private set; }
-    public List<Guid>? ModelTypeIds { get; private set; }
 
     // Condition & Obligation
     public string? ConditionType { get; private set; }
@@ -34,18 +35,11 @@ public class ProjectTower : Entity<Guid>
     public string? DecorationTypeOther { get; private set; }
 
     // Building Info
-    public int? ConstructionYear { get; private set; }
-    public int? TotalNumberOfFloors { get; private set; }
+    public int? BuildingAge { get; private set; }
     public string? BuildingFormType { get; private set; }
     public string? ConstructionMaterialType { get; private set; }
 
     // Materials
-    public string? GroundFloorMaterialType { get; private set; }
-    public string? GroundFloorMaterialTypeOther { get; private set; }
-    public string? UpperFloorMaterialType { get; private set; }
-    public string? UpperFloorMaterialTypeOther { get; private set; }
-    public string? BathroomFloorMaterialType { get; private set; }
-    public string? BathroomFloorMaterialTypeOther { get; private set; }
     public List<string>? RoofType { get; private set; }
     public string? RoofTypeOther { get; private set; }
 
@@ -59,7 +53,10 @@ public class ProjectTower : Entity<Guid>
 
     // Other
     public string? Remark { get; private set; }
-    public List<Guid>? ImageDocumentIds { get; private set; }
+
+    // ----- Images -----
+    private readonly List<ProjectTowerImage> _images = [];
+    public IReadOnlyList<ProjectTowerImage> Images => _images.AsReadOnly();
 
     private ProjectTower()
     {
@@ -91,7 +88,6 @@ public class ProjectTower : Entity<Guid>
         int? numberOfUnits = null,
         int? numberOfFloors = null,
         string? condoRegistrationNumber = null,
-        List<Guid>? modelTypeIds = null,
         // Condition & Obligation
         string? conditionType = null,
         bool? hasObligation = null,
@@ -108,17 +104,10 @@ public class ProjectTower : Entity<Guid>
         string? decorationType = null,
         string? decorationTypeOther = null,
         // Building Info
-        int? constructionYear = null,
-        int? totalNumberOfFloors = null,
+        int? buildingAge = null,
         string? buildingFormType = null,
         string? constructionMaterialType = null,
         // Materials
-        string? groundFloorMaterialType = null,
-        string? groundFloorMaterialTypeOther = null,
-        string? upperFloorMaterialType = null,
-        string? upperFloorMaterialTypeOther = null,
-        string? bathroomFloorMaterialType = null,
-        string? bathroomFloorMaterialTypeOther = null,
         List<string>? roofType = null,
         string? roofTypeOther = null,
         // Legal Restrictions
@@ -129,23 +118,21 @@ public class ProjectTower : Entity<Guid>
         bool? isForestBoundary = null,
         string? forestBoundaryRemark = null,
         // Other
-        string? remark = null,
-        List<Guid>? imageDocumentIds = null)
+        string? remark = null)
     {
         // Validation
         if (numberOfUnits is < 0)
             throw new ArgumentException("Number of units cannot be negative", nameof(numberOfUnits));
         if (numberOfFloors is < 0)
             throw new ArgumentException("Number of floors cannot be negative", nameof(numberOfFloors));
-        if (totalNumberOfFloors is < 0)
-            throw new ArgumentException("Total number of floors cannot be negative", nameof(totalNumberOfFloors));
+        if (buildingAge is < 0)
+            throw new ArgumentException("Building age cannot be negative", nameof(buildingAge));
 
         // Tower Identification
         TowerName = towerName;
         NumberOfUnits = numberOfUnits;
         NumberOfFloors = numberOfFloors;
         CondoRegistrationNumber = condoRegistrationNumber;
-        ModelTypeIds = modelTypeIds;
 
         // Condition & Obligation
         ConditionType = conditionType;
@@ -166,18 +153,11 @@ public class ProjectTower : Entity<Guid>
         DecorationTypeOther = decorationTypeOther;
 
         // Building Info
-        ConstructionYear = constructionYear;
-        TotalNumberOfFloors = totalNumberOfFloors;
+        BuildingAge = buildingAge;
         BuildingFormType = buildingFormType;
         ConstructionMaterialType = constructionMaterialType;
 
         // Materials
-        GroundFloorMaterialType = groundFloorMaterialType;
-        GroundFloorMaterialTypeOther = groundFloorMaterialTypeOther;
-        UpperFloorMaterialType = upperFloorMaterialType;
-        UpperFloorMaterialTypeOther = upperFloorMaterialTypeOther;
-        BathroomFloorMaterialType = bathroomFloorMaterialType;
-        BathroomFloorMaterialTypeOther = bathroomFloorMaterialTypeOther;
         RoofType = roofType;
         RoofTypeOther = roofTypeOther;
 
@@ -191,6 +171,54 @@ public class ProjectTower : Entity<Guid>
 
         // Other
         Remark = remark;
-        ImageDocumentIds = imageDocumentIds;
+    }
+
+    // --- Images ---
+
+    public ProjectTowerImage AddImage(
+        Guid galleryPhotoId,
+        string? title = null,
+        string? description = null)
+    {
+        var nextSequence = _images.Count > 0 ? _images.Max(i => i.DisplaySequence) + 1 : 1;
+        var image = ProjectTowerImage.Create(Id, nextSequence, galleryPhotoId, title, description);
+        if (!_images.Any(i => i.IsThumbnail)) image.SetAsThumbnail();
+        _images.Add(image);
+        return image;
+    }
+
+    public void RemoveImage(Guid imageId)
+    {
+        var image = _images.FirstOrDefault(i => i.Id == imageId)
+                    ?? throw new InvalidProjectStateException($"Image {imageId} not found on tower {Id}");
+        _images.Remove(image);
+    }
+
+    public void ReorderImages(IEnumerable<(Guid ImageId, int NewSequence)> reorder)
+    {
+        foreach (var (imageId, newSequence) in reorder)
+        {
+            var image = _images.FirstOrDefault(i => i.Id == imageId);
+            image?.UpdateSequence(newSequence);
+        }
+    }
+
+    public void SetThumbnail(Guid imageId)
+    {
+        var target = _images.FirstOrDefault(i => i.Id == imageId)
+                     ?? throw new InvalidProjectStateException($"Image {imageId} not found on tower {Id}");
+
+        // Enforce single-thumbnail invariant: unset any existing thumbnail first
+        foreach (var img in _images.Where(i => i.IsThumbnail))
+            img.UnsetAsThumbnail();
+
+        target.SetAsThumbnail();
+    }
+
+    public void UnsetThumbnail(Guid imageId)
+    {
+        var target = _images.FirstOrDefault(i => i.Id == imageId)
+                     ?? throw new InvalidProjectStateException($"Image {imageId} not found on tower {Id}");
+        target.UnsetAsThumbnail();
     }
 }

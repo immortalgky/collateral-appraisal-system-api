@@ -88,7 +88,6 @@ namespace Request.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("CollateralType")
-                        .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
@@ -112,6 +111,11 @@ namespace Request.Infrastructure.Migrations
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("TitleFamily")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -129,7 +133,7 @@ namespace Request.Infrastructure.Migrations
 
                     b.ToTable("RequestTitles", "request");
 
-                    b.HasDiscriminator<string>("CollateralType").HasValue("RequestTitle");
+                    b.HasDiscriminator<string>("TitleFamily").HasValue("RequestTitle");
 
                     b.UseTphMappingStrategy();
                 });
@@ -1955,6 +1959,12 @@ namespace Request.Infrastructure.Migrations
                                 .HasMaxLength(50)
                                 .HasColumnType("nvarchar(50)")
                                 .HasColumnName("RegistrationNumber");
+
+                            b1.Property<bool>("RegistrationStatus")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("bit")
+                                .HasDefaultValue(false)
+                                .HasColumnName("RegistrationStatus");
 
                             b1.HasKey("TitleMachineId");
 

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Appraisal.Domain.Appraisals;
+using Appraisal.Domain.Projects;
 
 namespace Appraisal.Infrastructure.Configurations.Projects;
 
@@ -16,16 +18,30 @@ public class ProjectModelConfiguration : IEntityTypeConfiguration<ProjectModel>
         builder.Property(e => e.ProjectId).IsRequired();
         builder.HasIndex(e => e.ProjectId);
 
+        // Optional FK to ProjectTower (Condo only; null for LandAndBuilding)
+        builder.Property(e => e.ProjectTowerId).IsRequired(false);
+        builder.HasOne<ProjectTower>()
+            .WithMany()
+            .HasForeignKey(e => e.ProjectTowerId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
+        builder.HasIndex(e => e.ProjectTowerId);
+
         // Model Info
         builder.Property(e => e.ModelName).HasMaxLength(200);
         builder.Property(e => e.ModelDescription).HasMaxLength(500);
-        builder.Property(e => e.BuildingNumber).HasMaxLength(50);
 
-        // Pricing — Condo (min/max) and LB (StartingPrice)
-        builder.Property(e => e.StartingPrice).HasPrecision(18, 2);
+        // Pricing — both Condo and LB use a min/max range.
         builder.Property(e => e.StartingPriceMin).HasPrecision(18, 2);
         builder.Property(e => e.StartingPriceMax).HasPrecision(18, 2);
-        builder.Property(e => e.StandardPrice).HasPrecision(18, 2);
+        // StandardPrice column dropped — standard price is now derived from PricingAnalysis.FinalAppraisedValue.
+
+        // 1:1 inverse navigation only — FK, cascade, and filtered unique index are all
+        // declared on the PricingAnalysis side in PricingConfiguration.cs.
+        builder.HasOne(e => e.PricingAnalysis)
+            .WithOne()
+            .HasForeignKey<PricingAnalysis>(pa => pa.ProjectModelId)
+            .IsRequired(false);
 
         // Usable Area
         builder.Property(e => e.UsableAreaMin).HasPrecision(10, 2);
@@ -47,10 +63,9 @@ public class ProjectModelConfiguration : IEntityTypeConfiguration<ProjectModel>
         builder.Property(e => e.BathroomFloorMaterialType).HasMaxLength(100);
         builder.Property(e => e.BathroomFloorMaterialTypeOther).HasMaxLength(4000);
 
-        // LB-specific fields
-        builder.Property(e => e.LandAreaRai).HasPrecision(10, 4);
-        builder.Property(e => e.LandAreaNgan).HasPrecision(10, 4);
-        builder.Property(e => e.LandAreaWa).HasPrecision(10, 4);
+        // LB-specific fields — land area is a min/max range plus a standard, all in sq.wa.
+        builder.Property(e => e.LandAreaMin).HasPrecision(10, 4);
+        builder.Property(e => e.LandAreaMax).HasPrecision(10, 4);
         builder.Property(e => e.StandardLandArea).HasPrecision(10, 4);
 
         builder.Property(e => e.BuildingType).HasMaxLength(100);
@@ -125,13 +140,6 @@ public class ProjectModelConfiguration : IEntityTypeConfiguration<ProjectModel>
         builder.Property(e => e.UtilizationType).HasMaxLength(100);
         builder.Property(e => e.UtilizationTypeOther).HasMaxLength(4000);
 
-        // Documents (JSON)
-        builder.Property(e => e.ImageDocumentIds)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<Guid>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(2000)");
-
         // Other
         builder.Property(e => e.Remark).HasMaxLength(4000);
 
@@ -205,6 +213,15 @@ public class ProjectModelConfiguration : IEntityTypeConfiguration<ProjectModel>
         });
 
         builder.Navigation(e => e.DepreciationDetails)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // Images (non-owned relationship — separate table, handled by ProjectModelImageConfiguration)
+        builder.HasMany(e => e.Images)
+            .WithOne()
+            .HasForeignKey(i => i.ProjectModelId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(e => e.Images)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

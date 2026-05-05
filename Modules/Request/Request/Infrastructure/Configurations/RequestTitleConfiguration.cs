@@ -6,20 +6,23 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
     {
         builder.HasKey(p => p.Id);
 
-        builder.HasDiscriminator<string>(nameof(CollateralType))
-            .HasValue<TitleLand>(CollateralType.Land)
-            .HasValue<TitleBuilding>(CollateralType.Building)
-            .HasValue<TitleLandBuilding>(CollateralType.LandAndBuilding)
-            .HasValue<TitleCondo>(CollateralType.Condo)
-            .HasValue<TitleLeaseAgreementLand>(CollateralType.LeaseAgreementLand)
-            .HasValue<TitleLeaseAgreementBuilding>(CollateralType.LeaseAgreementBuilding)
-            .HasValue<TitleLeaseAgreementLandBuilding>(CollateralType.LeaseAgreementLandAndBuilding)
-            .HasValue<TitleLeaseAgreementCondo>(CollateralType.LeaseAgreementCondo)
-            .HasValue<TitleMachine>(CollateralType.Machine)
-            .HasValue<TitleVehicle>(CollateralType.Vehicle)
-            .HasValue<TitleVessel>(CollateralType.Vessel);
+        builder.HasDiscriminator<string>("TitleFamily")
+            .HasValue<TitleLand>("L")
+            .HasValue<TitleLandBuilding>("LB")
+            .HasValue<TitleBuilding>("B")
+            .HasValue<TitleCondo>("U")
+            .HasValue<TitleLeaseAgreementLandBuilding>("LS")
+            .HasValue<TitleLeaseAgreementLand>("LSL")
+            .HasValue<TitleLeaseAgreementCondo>("LSU")
+            .HasValue<TitleLeaseAgreementBuilding>("LSB")
+            .HasValue<TitleVehicle>("VEH")
+            .HasValue<TitleMachine>("MAC")
+            .HasValue<TitleVessel>("VES");
 
         builder.Property(p => p.CollateralType)
+            .HasMaxLength(10);
+
+        builder.Property(p => p.TitleFamily)
             .HasMaxLength(10);
 
         builder.Property(p => p.CollateralStatus);
@@ -592,6 +595,10 @@ public class TitleMachineConfiguration : IEntityTypeConfiguration<TitleMachine>
     {
         builder.OwnsOne(p => p.MachineInfo, machinery =>
         {
+            machinery.Property(p => p.RegistrationStatus)
+                .HasColumnName("RegistrationStatus")
+                .HasDefaultValue(false);
+
             machinery.Property(p => p.RegistrationNumber)
                 .HasMaxLength(50)
                 .HasColumnName("RegistrationNumber");

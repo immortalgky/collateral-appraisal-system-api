@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Appraisal.Domain.Projects;
 
 namespace Appraisal.Infrastructure.Configurations.Projects;
 
@@ -41,32 +42,14 @@ public class ProjectTowerConfiguration : IEntityTypeConfiguration<ProjectTower>
         builder.Property(e => e.ConstructionMaterialType).HasMaxLength(100);
 
         // Materials
-        builder.Property(e => e.GroundFloorMaterialType).HasMaxLength(100);
-        builder.Property(e => e.GroundFloorMaterialTypeOther).HasMaxLength(4000);
-        builder.Property(e => e.UpperFloorMaterialType).HasMaxLength(100);
-        builder.Property(e => e.UpperFloorMaterialTypeOther).HasMaxLength(4000);
-        builder.Property(e => e.BathroomFloorMaterialType).HasMaxLength(100);
-        builder.Property(e => e.BathroomFloorMaterialTypeOther).HasMaxLength(4000);
         builder.Property(e => e.RoofTypeOther).HasMaxLength(4000);
 
         // JSON columns
-        builder.Property(e => e.ModelTypeIds)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<Guid>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(2000)");
-
         builder.Property(e => e.RoofType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
-
-        builder.Property(e => e.ImageDocumentIds)
-            .HasConversion(
-                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<Guid>>(v, (JsonSerializerOptions?)null))
-            .HasColumnType("nvarchar(2000)");
 
         // Legal Restrictions
         builder.Property(e => e.ExpropriationRemark).HasMaxLength(4000);
@@ -75,5 +58,14 @@ public class ProjectTowerConfiguration : IEntityTypeConfiguration<ProjectTower>
 
         // Other
         builder.Property(e => e.Remark).HasMaxLength(4000);
+
+        // Images (non-owned relationship — separate table, handled by ProjectTowerImageConfiguration)
+        builder.HasMany(e => e.Images)
+            .WithOne()
+            .HasForeignKey(i => i.ProjectTowerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(e => e.Images)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

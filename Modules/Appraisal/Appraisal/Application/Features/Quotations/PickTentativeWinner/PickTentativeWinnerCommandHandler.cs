@@ -75,7 +75,8 @@ public class PickTentativeWinnerCommandHandler(
             RequestId = quotation.RequestId ?? Guid.Empty,
             CompanyId = pickedQuotation.CompanyId,
             CompanyQuotationId = command.CompanyQuotationId,
-            PickedBy = currentUser.UserId!.Value,
+            PickedBy = currentUser.Username
+                ?? throw new InvalidOperationException("Cannot resolve username from token"),
             Role = role
         }, correlationId: quotation.Id.ToString());
 

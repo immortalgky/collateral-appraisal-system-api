@@ -21,40 +21,33 @@ public class QuotationReadyWebhookConsumer(
             return;
         }
 
-        // Fan out one webhook per appraisal in the quotation.
-        // Each fan-out needs a stable, unique eventId derived from (message.EventId, appraisalId)
-        // so MassTransit retries produce the same eventId and the external system can dedup.
+        // Find the first appraisal in the quotation that belongs to an external system.
+        AppraisalKeys? keys = null;
         foreach (var appraisalId in msg.AppraisalIds)
         {
-            var keys = await appraisalLookup.GetKeysAsync(appraisalId, context.CancellationToken);
-            if (keys is null)
+            var candidate = await appraisalLookup.GetKeysAsync(appraisalId, context.CancellationToken);
+            if (candidate is not null
+                && !string.IsNullOrEmpty(candidate.ExternalCaseKey)
+                && !string.IsNullOrEmpty(candidate.ExternalSystem))
             {
-                logger.LogWarning("QuotationReadyWebhookConsumer: keys not found for AppraisalId {AppraisalId}, skipping", appraisalId);
-                continue;
+                keys = candidate;
+                break;
             }
-
-            if (string.IsNullOrEmpty(keys.AppraisalNumber))
-            {
-                logger.LogWarning("QuotationReadyWebhookConsumer: AppraisalNumber is null for AppraisalId {AppraisalId}, skipping", appraisalId);
-                continue;
-            }
-
-            if (string.IsNullOrEmpty(keys.ExternalCaseKey))
-            {
-                logger.LogWarning("QuotationReadyWebhookConsumer: ExternalCaseKey is null for AppraisalId {AppraisalId}, skipping", appraisalId);
-                continue;
-            }
-
-            var fanOutEventId = DeterministicGuid.Create(msg.EventId, appraisalId);
-
-            await webhookService.SendAsync(
-                eventId: fanOutEventId,
-                systemCode: "LendingStudio",
-                eventType: "QUOTATION_READY",
-                externalCaseKey: keys.ExternalCaseKey,
-                occurredAt: msg.OccurredOn,
-                data: new { appraisalNumber = keys.AppraisalNumber },
-                cancellationToken: context.CancellationToken);
         }
+
+        if (keys is null)
+        {
+            logger.LogWarning("QuotationReadyWebhookConsumer: no appraisal with ExternalSystem found on QuotationRequestId {QuotationRequestId}, skipping", msg.QuotationRequestId);
+            return;
+        }
+
+        await webhookService.SendAsync(
+            eventId: msg.EventId,
+            systemCode: keys.ExternalSystem!,
+            eventType: "QUOTATION_READY",
+            externalCaseKey: keys.ExternalCaseKey!,
+            occurredAt: msg.OccurredOn,
+            data: new { quotationId = msg.QuotationRequestId, rmUsername = msg.RmUsername },
+            cancellationToken: context.CancellationToken);
     }
 }

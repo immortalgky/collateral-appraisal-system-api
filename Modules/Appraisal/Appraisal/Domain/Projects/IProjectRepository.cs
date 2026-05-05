@@ -19,6 +19,18 @@ public interface IProjectRepository
     /// </summary>
     Task<Project?> GetWithFullGraphAsync(Guid appraisalId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Gets a project model by its own Id with the Images collection eagerly loaded.
+    /// Used by image command handlers that need to mutate the model without loading the full project graph.
+    /// </summary>
+    Task<ProjectModel?> GetModelByIdWithImagesAsync(Guid modelId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets a project tower by its own Id with the Images collection eagerly loaded.
+    /// Used by image command handlers that need to mutate the tower without loading the full project graph.
+    /// </summary>
+    Task<ProjectTower?> GetTowerByIdWithImagesAsync(Guid towerId, CancellationToken ct = default);
+
     /// <summary>Stages a new project for insertion.</summary>
     void Add(Project project);
 

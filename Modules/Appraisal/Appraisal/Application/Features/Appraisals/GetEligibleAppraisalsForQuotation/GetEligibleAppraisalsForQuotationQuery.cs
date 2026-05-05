@@ -10,5 +10,6 @@ namespace Appraisal.Application.Features.Appraisals.GetEligibleAppraisalsForQuot
 /// </summary>
 public record GetEligibleAppraisalsForQuotationQuery(
     PaginationRequest PaginationRequest,
-    GetAppraisalsFilterRequest? Filter = null
+    GetAppraisalsFilterRequest? Filter = null,
+    Guid? ExcludeQuotationRequestId = null
 ) : IQuery<PaginatedResult<AppraisalDto>>;

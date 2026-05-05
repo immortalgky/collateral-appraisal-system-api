@@ -127,7 +127,7 @@ public class WorkflowCheckpointPerformanceTests
                 };
             });
 
-        _lifecycleManager.CompleteWorkflowAsync(Arg.Any<WorkflowInstance>(), Arg.Any<CancellationToken>())
+        _lifecycleManager.CompleteWorkflowAsync(Arg.Any<WorkflowInstance>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(true);
 
         var stopwatch = Stopwatch.StartNew();
@@ -220,7 +220,7 @@ public class WorkflowCheckpointPerformanceTests
                 Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>())
             .Returns((string?)null); // All workflows complete
 
-        _lifecycleManager.CompleteWorkflowAsync(Arg.Any<WorkflowInstance>(), Arg.Any<CancellationToken>())
+        _lifecycleManager.CompleteWorkflowAsync(Arg.Any<WorkflowInstance>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(true);
 
         var checkpointCallTimes = new List<DateTime>();
@@ -298,7 +298,7 @@ public class WorkflowCheckpointPerformanceTests
                 Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>())
             .Returns((string?)null); // Complete after resume
 
-        _lifecycleManager.CompleteWorkflowAsync(Arg.Any<WorkflowInstance>(), Arg.Any<CancellationToken>())
+        _lifecycleManager.CompleteWorkflowAsync(Arg.Any<WorkflowInstance>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(true);
 
         _stateManager.CreateCheckpointAsync(Arg.Any<WorkflowInstance>(), Arg.Any<string>(), Arg.Any<CancellationToken>())

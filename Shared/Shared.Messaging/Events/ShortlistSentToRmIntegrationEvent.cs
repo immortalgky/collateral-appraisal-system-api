@@ -9,8 +9,8 @@ public record ShortlistSentToRmIntegrationEvent : IntegrationEvent
     public Guid QuotationRequestId { get; init; }
     public Guid RequestId { get; init; }
 
-    /// <summary>UserId of the RM who owns the linked Request.</summary>
-    public Guid RmUserId { get; init; }
+    /// <summary>Username/staff code of the RM (e.g. "P5229") for CLS to echo back on selection.</summary>
+    public string? RmUsername { get; init; }
 
     public Guid[] ShortlistedCompanyQuotationIds { get; init; } = [];
 

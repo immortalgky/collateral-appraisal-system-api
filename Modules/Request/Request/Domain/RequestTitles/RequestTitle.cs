@@ -8,6 +8,7 @@ public abstract class RequestTitle : Aggregate<Guid>
 {
     public Guid RequestId { get; protected set; }
     public string? CollateralType { get; protected set; }
+    public string? TitleFamily { get; protected set; }
     public bool? CollateralStatus { get; protected set; }
     public string? OwnerName { get; protected set; }
     public Address TitleAddress { get; protected set; } = default!;
@@ -27,6 +28,20 @@ public abstract class RequestTitle : Aggregate<Guid>
         Id = Guid.CreateVersion7();
         RequestId = requestTitleData.RequestId;
         CollateralType = requestTitleData.CollateralType;
+        TitleFamily = requestTitleData.CollateralType switch
+        {
+            "01" or "13" or "14" or "17" or "19" or "21" or "26" or "27" => "L",
+            "02" or "03" or "04" or "23" or "24" or "32" => "LB",
+            "05" or "06" or "07" or "15" or "16" or "18" or "20" or "22" => "B",
+            "08" or "33" => "U",
+            "09" or "25" or "30" or "31" => "LS",
+            "29" => "LSL",
+            "28" => "LSU",
+            "10" => "VEH",
+            "11" => "MAC",
+            "12" => "VES",
+            _ => null
+        };
         CollateralStatus = requestTitleData.CollateralStatus;
         OwnerName = requestTitleData.OwnerName;
         TitleAddress = requestTitleData.TitleAddress;

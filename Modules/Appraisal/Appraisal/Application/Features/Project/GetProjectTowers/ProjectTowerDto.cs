@@ -1,5 +1,15 @@
 namespace Appraisal.Application.Features.Project.GetProjectTowers;
 
+/// <summary>DTO for a project tower image.</summary>
+public record ProjectTowerImageDto(
+    Guid Id,
+    Guid GalleryPhotoId,
+    int DisplaySequence,
+    string? Title,
+    string? Description,
+    bool IsThumbnail
+);
+
 /// <summary>DTO representing a project tower (Condo only).</summary>
 public record ProjectTowerDto(
     Guid Id,
@@ -9,7 +19,6 @@ public record ProjectTowerDto(
     int? NumberOfUnits,
     int? NumberOfFloors,
     string? CondoRegistrationNumber,
-    List<Guid>? ModelTypeIds,
     // Condition & Obligation
     string? ConditionType,
     bool? HasObligation,
@@ -26,17 +35,10 @@ public record ProjectTowerDto(
     string? DecorationType,
     string? DecorationTypeOther,
     // Building Info
-    int? ConstructionYear,
-    int? TotalNumberOfFloors,
+    int? BuildingAge,
     string? BuildingFormType,
     string? ConstructionMaterialType,
     // Materials
-    string? GroundFloorMaterialType,
-    string? GroundFloorMaterialTypeOther,
-    string? UpperFloorMaterialType,
-    string? UpperFloorMaterialTypeOther,
-    string? BathroomFloorMaterialType,
-    string? BathroomFloorMaterialTypeOther,
     List<string>? RoofType,
     string? RoofTypeOther,
     // Legal Restrictions
@@ -48,5 +50,5 @@ public record ProjectTowerDto(
     string? ForestBoundaryRemark,
     // Other
     string? Remark,
-    List<Guid>? ImageDocumentIds
+    List<ProjectTowerImageDto> Images
 );

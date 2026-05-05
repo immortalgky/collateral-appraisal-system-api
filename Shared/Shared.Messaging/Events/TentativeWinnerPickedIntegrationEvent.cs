@@ -10,7 +10,7 @@ public record TentativeWinnerPickedIntegrationEvent : IntegrationEvent
     public Guid RequestId { get; init; }
     public Guid CompanyId { get; init; }
     public Guid CompanyQuotationId { get; init; }
-    public Guid PickedBy { get; init; }
+    public string PickedBy { get; init; } = default!;
 
     /// <summary>"RM" or "Admin"</summary>
     public string Role { get; init; } = default!;

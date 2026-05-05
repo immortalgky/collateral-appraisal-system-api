@@ -25,6 +25,10 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.FloorNumber).HasMaxLength(50);
         builder.Property(e => e.UsableArea).HasPrecision(18, 4);
 
+        // Unit deed identifiers — required for Collateral master dedup
+        builder.Property(e => e.TitleNumber).HasMaxLength(50);
+        builder.Property(e => e.TitleType).HasMaxLength(20);
+
         // GPS Coordinates (Value Object)
         builder.OwnsOne(e => e.Coordinates, coord =>
         {

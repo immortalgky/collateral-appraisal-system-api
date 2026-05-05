@@ -22,8 +22,8 @@ public class CreatePricingAnalysisCommandHandler(
             cancellationToken);
 
         if (exists)
-            throw new InvalidOperationException(
-                $"Pricing analysis already exists for property group {command.PropertyGroupId}");
+            throw new ConflictException(
+                "PricingAnalysis", command.PropertyGroupId);
 
         // Readiness gate — same rules used by the GET projection so the React
         // client and the API always agree on whether the AP button can fire.

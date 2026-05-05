@@ -98,6 +98,14 @@ public class StartQuotationFromTaskCommandHandler(
         if (command.InvitedCompanyIds == null || command.InvitedCompanyIds.Count == 0)
             throw new BadRequestException("At least one company must be invited");
 
+        if (command.ExcludedCompanyIds is { Count: > 0 })
+        {
+            var excluded = command.ExcludedCompanyIds.Intersect(command.InvitedCompanyIds).ToList();
+            if (excluded.Count > 0)
+                throw new ConflictException(
+                    $"Cannot invite companies that previously appraised this collateral (appeal exclusion): {string.Join(", ", excluded)}");
+        }
+
         // Active-quotation uniqueness check
         var alreadyActive = await quotationRepository.HasActiveQuotationForAppraisalAsync(
             command.AppraisalId,
@@ -108,7 +116,7 @@ public class StartQuotationFromTaskCommandHandler(
             throw new ConflictException(
                 $"Appraisal '{command.AppraisalId}' is already part of another non-terminal quotation request.");
 
-        var (rmUserId, rmUsername) = await ResolveRmAsync(command.RequestId, cancellationToken);
+        var rmUsername = await ResolveRmAsync(command.RequestId, cancellationToken);
 
         var quotation = QuotationRequest.CreateFromTask(
             dueDate: command.DueDate,
@@ -119,7 +127,6 @@ public class StartQuotationFromTaskCommandHandler(
             taskExecutionId: command.TaskExecutionId,
             bankingSegment: command.BankingSegment,
             addedBy: requestedBy,
-            rmUserId: rmUserId,
             rmUsername: rmUsername,
             description: null,
             specialRequirements: command.SpecialRequirements);
@@ -166,13 +173,10 @@ public class StartQuotationFromTaskCommandHandler(
     }
 
     /// <summary>
-    /// Resolves the RM's identity from the linked request.
-    /// The 'Requestor' column stores the employee ID / username (a short string, e.g. "EMP001").
-    /// Returns (null, username) — RmUserId is kept null since username is the authoritative identifier
-    /// used by workflow task assignment.
+    /// Resolves the RM's username from the linked request's Requestor column (employee ID / login string).
+    /// Returns null on failure — quotation is still created without RM linkage.
     /// </summary>
-    private async Task<(Guid? RmUserId, string? RmUsername)> ResolveRmAsync(
-        Guid requestId, CancellationToken cancellationToken)
+    private async Task<string?> ResolveRmAsync(Guid requestId, CancellationToken cancellationToken)
     {
         try
         {
@@ -181,16 +185,14 @@ public class StartQuotationFromTaskCommandHandler(
                 "SELECT Requestor FROM request.Requests WHERE Id = @RequestId",
                 new { RequestId = requestId });
 
-            // Requestor column holds username (employee ID), not a Guid.
-            // We retain RmUserId as null — username is what the workflow assignee resolver needs.
-            return (null, string.IsNullOrWhiteSpace(rmUsername) ? null : rmUsername);
+            return string.IsNullOrWhiteSpace(rmUsername) ? null : rmUsername;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex,
                 "Failed to resolve RM identity for RequestId={RequestId}. Quotation will be created without RM linkage.",
                 requestId);
-            return (null, null);
+            return null;
         }
     }
 }

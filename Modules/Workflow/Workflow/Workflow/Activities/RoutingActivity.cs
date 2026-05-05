@@ -27,6 +27,28 @@ public class RoutingActivity : WorkflowActivityBase
         ActivityContext context,
         CancellationToken cancellationToken = default)
     {
+        // Replay guard: routing is a one-time decision for the workflow lifetime.
+        // Any re-execution (route-back or otherwise) reuses the original decision so the
+        // workflow cannot switch branches mid-lifecycle.
+        var existingDecision = GetVariable<string>(context, "routingDecision", "");
+        if (!string.IsNullOrEmpty(existingDecision))
+        {
+            var replayOutput = new Dictionary<string, object>
+            {
+                ["decision"] = existingDecision,
+                ["routingDecision"] = existingDecision,
+                ["routingPath"] = GetVariable<string>(context, "routingPath", "")
+            };
+            if (existingDecision == "auto_assign_external")
+                replayOutput["assignmentMethod"] = GetVariable<string>(context, "assignmentMethod", "roundrobin");
+
+            _logger.LogInformation(
+                "RoutingActivity {ActivityId}: replaying — reusing previous decision '{Decision}'",
+                context.ActivityId, existingDecision);
+
+            return Task.FromResult(ActivityResult.Success(replayOutput));
+        }
+
         var routingConditions = GetProperty<Dictionary<string, string>>(context, "routingConditions");
         var defaultDecision = GetProperty<string>(context, "defaultDecision", "admin_review");
 

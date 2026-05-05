@@ -46,10 +46,10 @@ public class QuotationFinalizedNotificationHandler(
                 metadata: metadata);
 
             // Notify RM if available
-            if (message.RmUserId.HasValue)
+            if (!string.IsNullOrEmpty(message.RmUsername))
             {
                 await notificationService.SendNotificationToUserAsync(
-                    message.RmUserId.Value.ToString(),
+                    message.RmUsername,
                     "Quotation Finalized",
                     "The appraisal quotation has been finalized. An external appraisal assignment has been created.",
                     NotificationType.WorkflowTransition,

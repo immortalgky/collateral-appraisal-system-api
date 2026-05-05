@@ -190,7 +190,7 @@ public class AppraisalAssignment : Entity<Guid>
         StartedAt = DateTime.Now;
     }
 
-    /// <summary>
+    /// <summary>r
     /// Update progress percentage
     /// </summary>
     public void UpdateProgress(int percent)

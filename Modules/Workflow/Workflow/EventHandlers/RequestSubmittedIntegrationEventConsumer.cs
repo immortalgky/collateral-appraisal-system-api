@@ -1,3 +1,5 @@
+using Collateral.Contracts.AppealExclusion;
+using Collateral.Contracts.ConstructionInspection;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
@@ -27,6 +29,7 @@ public class RequestSubmittedIntegrationEventConsumer(
     IWorkflowUnitOfWork unitOfWork,
     IIntegrationEventOutbox outbox,
     AppraisalCreationTriggerEvaluator triggerEvaluator,
+    ISender mediator,
     InboxGuard<WorkflowDbContext> inboxGuard) : IConsumer<RequestSubmittedIntegrationEvent>
 {
     private const string WorkflowName = "Collateral Appraisal Workflow";
@@ -60,6 +63,26 @@ public class RequestSubmittedIntegrationEventConsumer(
             // AppraisalCreationRequestedIntegrationEvent via the outbox if the
             // table-driven condition matches.
             var initialVariables = BuildInitialVariables(message);
+
+            // Appeal exclusion: derive the most-recent prior company for any of the
+            // request's titles. If found, seed the workflow variable that
+            // CompanySelectionActivity reads to reject re-engaging the same company.
+            var excludedCompanyId = await ResolveExcludedCompanyIdAsync(message, ct);
+            if (excludedCompanyId.HasValue)
+            {
+                initialVariables["excludedCompanyId"] = excludedCompanyId.Value.ToString();
+            }
+
+            // Construction Inspection: force the same company that appraised the prior appraisal.
+            if (message.AppraisalType == "ConstructionInspection" && message.PrevAppraisalId.HasValue)
+            {
+                var forced = await ResolveForceCompanyIdAsync(message.PrevAppraisalId.Value, ct);
+                if (forced.HasValue)
+                {
+                    initialVariables["forceCompanyId"] = forced.Value.CompanyId.ToString();
+                    initialVariables["forceCompanyName"] = forced.Value.CompanyName;
+                }
+            }
 
             var shouldEmit = await triggerEvaluator.ShouldEmitAsync(
                 "__on_workflow_start__", initialVariables, ct: ct);
@@ -135,6 +158,44 @@ public class RequestSubmittedIntegrationEventConsumer(
             existing.Id, message.RequestId);
     }
 
+    /// <summary>
+    /// Walks the request's titles and asks Collateral for the most-recent prior appraisal company
+    /// across any matching master. Stops at the first hit (rare to have multi-master overlap at
+    /// request time). Returns null when no prior engagement exists.
+    /// </summary>
+    private async Task<Guid?> ResolveExcludedCompanyIdAsync(
+        RequestSubmittedIntegrationEvent message,
+        CancellationToken ct)
+    {
+        if (message.RequestTitles is null) return null;
+
+        foreach (var t in message.RequestTitles)
+        {
+            if (string.IsNullOrWhiteSpace(t.TitleNumber)) continue;
+
+            var result = await mediator.Send(new GetMostRecentPriorCompanyQuery(
+                TitleNumber: t.TitleNumber!,
+                TitleType: t.TitleType,
+                Province: t.TitleAddress?.Province), ct);
+
+            if (result.HasValue) return result;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Looks up the company that appraised the prior appraisal, so a CI request
+    /// is routed to the same company without going through round-robin selection.
+    /// Returns null when the prior appraisal has no company engagement recorded.
+    /// </summary>
+    private async Task<(Guid CompanyId, string CompanyName)?> ResolveForceCompanyIdAsync(
+        Guid prevAppraisalId,
+        CancellationToken ct)
+    {
+        return await mediator.Send(new GetMostRecentCompanyForAppraisalQuery(prevAppraisalId), ct);
+    }
+
     private static Dictionary<string, object> BuildInitialVariables(RequestSubmittedIntegrationEvent message)
     {
         return new Dictionary<string, object>
@@ -169,7 +230,9 @@ public class RequestSubmittedIntegrationEventConsumer(
             FacilityLimit = message.FacilityLimit,
             HasAppraisalBook = message.HasAppraisalBook,
             RequestedBy = message.RequestedBy,
-            RequestedAt = message.RequestedAt
+            RequestedAt = message.RequestedAt,
+            PrevAppraisalId = message.PrevAppraisalId,
+            AppraisalType = message.AppraisalType
         };
     }
 

@@ -31,6 +31,8 @@ public record ProjectPricingAssumptionDto(
 /// <summary>
 /// Per-model assumption DTO.
 /// StandardLandPrice is LB-only (null for Condo).
+/// StandardPrice has been removed — standard price is derived from PricingAnalysis.FinalAppraisedValue.
+/// PricingAnalysisId/Status/FinalAppraisedValue are null when no model-level PricingAnalysis exists yet.
 /// </summary>
 public record ProjectModelAssumptionDto(
     Guid ProjectModelId,
@@ -38,8 +40,10 @@ public record ProjectModelAssumptionDto(
     string? ModelDescription,
     decimal? UsableAreaFrom,
     decimal? UsableAreaTo,
-    decimal? StandardPrice,
     decimal? StandardLandPrice,
     decimal? CoverageAmount,
-    string? FireInsuranceCondition
+    string? FireInsuranceCondition,
+    Guid? PricingAnalysisId,
+    string? PricingAnalysisStatus,
+    decimal? FinalAppraisedValue
 );

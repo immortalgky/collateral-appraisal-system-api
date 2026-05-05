@@ -26,26 +26,26 @@ public class DatabaseTestSetupService : IDatabaseTestSetupService
             // Step 1: Run EF Core migrations for all modules
             var efCoreMigrationService = CreateEfCoreMigrationService();
             var efResult = await efCoreMigrationService.MigrateAsync(connectionString, "Testing");
-            
+
             if (!efResult)
             {
                 _logger.LogError("EF Core migrations failed for test database setup");
-                return false;
+                throw new InvalidOperationException("Step 1 FAILED: EF Core migrations returned false");
             }
 
             // Step 2: Run database objects (views, stored procedures, functions)
-            var databaseMigrator = new DatabaseMigrator(CreateTestConfiguration(connectionString), 
+            var databaseMigrator = new DatabaseMigrator(CreateTestConfiguration(connectionString),
                 _loggerFactory.CreateLogger<DatabaseMigrator>());
-            var migrationService = new MigrationService(databaseMigrator, 
-                CreateTestConfiguration(connectionString), 
+            var migrationService = new MigrationService(databaseMigrator,
+                CreateTestConfiguration(connectionString),
                 _loggerFactory.CreateLogger<MigrationService>());
-                
+
             var dbObjectsResult = await migrationService.MigrateAsync("Testing");
-            
+
             if (!dbObjectsResult)
             {
                 _logger.LogError("Database objects migration failed for test database setup");
-                return false;
+                throw new InvalidOperationException("Step 2 FAILED: Database objects (views/SPs) migration returned false");
             }
 
             // Step 3: Validate that database objects were created successfully
@@ -64,7 +64,7 @@ public class DatabaseTestSetupService : IDatabaseTestSetupService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Database setup failed for test container");
-            return false;
+            throw new InvalidOperationException($"Database setup failed: {ex.Message}", ex);
         }
     }
 

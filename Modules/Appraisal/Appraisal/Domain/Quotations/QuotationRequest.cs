@@ -143,7 +143,6 @@ public class QuotationRequest : Aggregate<Guid>
         Guid? taskExecutionId,
         string bankingSegment,
         string addedBy,
-        Guid? rmUserId = null,
         string? rmUsername = null,
         string? description = null,
         string? specialRequirements = null)
@@ -164,7 +163,6 @@ public class QuotationRequest : Aggregate<Guid>
             WorkflowInstanceId = workflowInstanceId,
             TaskExecutionId = taskExecutionId,
             BankingSegment = bankingSegment,
-            RmUserId = rmUserId,
             RmUsername = rmUsername
         };
 
@@ -246,6 +244,17 @@ public class QuotationRequest : Aggregate<Guid>
         _items.Add(item);
         // TotalAppraisals is now driven by _appraisals count; items are display-only
         return item;
+    }
+
+    /// <summary>
+    /// Removes the display item associated with the given appraisal.
+    /// No-op if no matching item exists (e.g. item was never created via AddItem).
+    /// </summary>
+    public void RemoveItem(Guid appraisalId)
+    {
+        var item = _items.FirstOrDefault(i => i.AppraisalId == appraisalId);
+        if (item is not null)
+            _items.Remove(item);
     }
 
     public QuotationInvitation InviteCompany(Guid companyId)
@@ -667,13 +676,12 @@ public class QuotationRequest : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Stamps the RM identity on a standalone-created quotation (no RequestId context at Create time).
+    /// Stamps the RM username on a standalone-created quotation (no RequestId context at Create time).
     /// Called after resolving the RM from the linked appraisals' parent request.
-    /// No-op when both values are null (cross-request bundles or RM resolution failure).
+    /// No-op when rmUsername is null (cross-request bundles or RM resolution failure).
     /// </summary>
-    public void SetRmInfo(Guid? rmUserId, string? rmUsername)
+    public void SetRmInfo(string? rmUsername)
     {
-        if (rmUserId is not null) RmUserId = rmUserId;
         if (rmUsername is not null) RmUsername = rmUsername;
     }
 

@@ -9,6 +9,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Notification;
 using Request;
+using Appraisal;
+using Collateral;
+using Common;
+using Parameter;
+using Integration.Infrastructure;
 
 namespace Integration.WebApplicationFactories;
 
@@ -92,13 +97,23 @@ public static class WebApplicationFactoryHelper
         var notificationAssembly = typeof(NotificationModule).Assembly;
         var documentAssembly = typeof(DocumentModule).Assembly;
         var workflowAssembly = typeof(WorkflowModule).Assembly;
+        var appraisalAssembly = typeof(AppraisalModule).Assembly;
+        var collateralAssembly = typeof(CollateralModule).Assembly;
+        var commonAssembly = typeof(CommonModule).Assembly;
+        var parameterAssembly = typeof(ParameterModule).Assembly;
+        var integrationAssembly = typeof(IntegrationDbContext).Assembly;
 
         var dbContexts = GetDbContextsFromAssemblies(
             requestAssembly,
             authAssembly,
             notificationAssembly,
             documentAssembly,
-            workflowAssembly
+            workflowAssembly,
+            appraisalAssembly,
+            collateralAssembly,
+            commonAssembly,
+            parameterAssembly,
+            integrationAssembly
         );
         return dbContexts;
     }

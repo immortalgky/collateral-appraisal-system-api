@@ -24,7 +24,6 @@ public class CreateProjectTowerCommandHandler(
             numberOfUnits: command.NumberOfUnits,
             numberOfFloors: command.NumberOfFloors,
             condoRegistrationNumber: command.CondoRegistrationNumber,
-            modelTypeIds: command.ModelTypeIds,
             conditionType: command.ConditionType,
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,
@@ -37,16 +36,9 @@ public class CreateProjectTowerCommandHandler(
             roadSurfaceTypeOther: command.RoadSurfaceTypeOther,
             decorationType: command.DecorationType,
             decorationTypeOther: command.DecorationTypeOther,
-            constructionYear: command.ConstructionYear,
-            totalNumberOfFloors: command.TotalNumberOfFloors,
+            buildingAge: command.BuildingAge,
             buildingFormType: command.BuildingFormType,
             constructionMaterialType: command.ConstructionMaterialType,
-            groundFloorMaterialType: command.GroundFloorMaterialType,
-            groundFloorMaterialTypeOther: command.GroundFloorMaterialTypeOther,
-            upperFloorMaterialType: command.UpperFloorMaterialType,
-            upperFloorMaterialTypeOther: command.UpperFloorMaterialTypeOther,
-            bathroomFloorMaterialType: command.BathroomFloorMaterialType,
-            bathroomFloorMaterialTypeOther: command.BathroomFloorMaterialTypeOther,
             roofType: command.RoofType,
             roofTypeOther: command.RoofTypeOther,
             isExpropriated: command.IsExpropriated,
@@ -55,8 +47,7 @@ public class CreateProjectTowerCommandHandler(
             royalDecree: command.RoyalDecree,
             isForestBoundary: command.IsForestBoundary,
             forestBoundaryRemark: command.ForestBoundaryRemark,
-            remark: command.Remark,
-            imageDocumentIds: command.ImageDocumentIds);
+            remark: command.Remark);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

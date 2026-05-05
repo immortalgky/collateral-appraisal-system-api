@@ -58,7 +58,7 @@ public class FinalizeQuotationCommandHandler(
             WinningCompanyId = winningQuotation.CompanyId,
             WinningQuotationId = command.CompanyQuotationId,
             FinalFeeAmount = finalFeeAmount,
-            RmUserId = quotation.RmUserId
+            RmUsername = quotation.RmUsername
         }, correlationId: quotation.Id.ToString());
 
         // v4: resume admin-finalize step in quotation child workflow (Finalize path → finalized-end)
