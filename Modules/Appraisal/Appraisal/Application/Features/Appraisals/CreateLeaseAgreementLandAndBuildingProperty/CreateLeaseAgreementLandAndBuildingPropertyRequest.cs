@@ -105,6 +105,7 @@ public record CreateLeaseAgreementLandAndBuildingPropertyRequest(
     string? ModelName = null,
     string? BuiltOnTitleNumber = null,
     string? HouseNumber = null,
+    string? NoHouseNumber = null,
     // Building - Info
     string? BuildingType = null,
     string? BuildingTypeOther = null,

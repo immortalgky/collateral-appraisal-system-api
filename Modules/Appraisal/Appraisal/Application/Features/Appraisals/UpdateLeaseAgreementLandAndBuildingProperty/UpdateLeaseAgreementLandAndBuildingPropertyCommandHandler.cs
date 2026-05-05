@@ -144,6 +144,7 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             modelName: command.ModelName,
             builtOnTitleNumber: command.BuiltOnTitleNumber,
             houseNumber: command.HouseNumber,
+            noHouseNumber: command.NoHouseNumber,
             isOwnerVerified: command.IsOwnerVerified,
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,

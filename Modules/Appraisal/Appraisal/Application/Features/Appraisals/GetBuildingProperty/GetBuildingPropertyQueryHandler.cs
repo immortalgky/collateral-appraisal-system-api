@@ -83,6 +83,7 @@ public class GetBuildingPropertyQueryHandler(
             detail.ModelName,
             detail.BuiltOnTitleNumber,
             HouseNumber: detail.HouseNumber,
+            NoHouseNumber: detail.NoHouseNumber,
             OwnerName: detail.OwnerName,
             IsOwnerVerified: detail.IsOwnerVerified,
             HasObligation: detail.HasObligation,
