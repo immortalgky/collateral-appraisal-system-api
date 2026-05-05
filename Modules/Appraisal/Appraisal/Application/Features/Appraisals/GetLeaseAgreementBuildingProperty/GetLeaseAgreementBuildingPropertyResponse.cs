@@ -28,7 +28,7 @@ public record GetLeaseAgreementBuildingPropertyResponse(
     decimal? ConstructionCompletionPercent,
     DateTime? ConstructionLicenseExpirationDate,
     bool? IsAppraisable,
-    bool? HasObligation,
+    string? HasObligation,
     string? ObligationDetails,
     // Building Info
     string? BuildingType,

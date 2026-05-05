@@ -45,6 +45,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.OwnerName).IsRequired().HasMaxLength(200);
         builder.Property(e => e.BuildingConditionType).HasMaxLength(50);
         builder.Property(e => e.BuildingConditionTypeOther).HasMaxLength(4000);
+        builder.Property(e => e.HasObligation).HasMaxLength(100);
         builder.Property(e => e.ObligationDetails).HasMaxLength(4000);
 
         // Location Details

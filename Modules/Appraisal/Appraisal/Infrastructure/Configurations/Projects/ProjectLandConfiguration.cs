@@ -38,6 +38,7 @@ public class ProjectLandConfiguration : IEntityTypeConfiguration<ProjectLand>
 
         // Owner
         builder.Property(e => e.OwnerName).HasMaxLength(200);
+        builder.Property(e => e.HasObligation).HasMaxLength(100);
         builder.Property(e => e.ObligationDetails).HasMaxLength(500);
 
         // Document Verification

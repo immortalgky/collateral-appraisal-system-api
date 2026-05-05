@@ -23,7 +23,7 @@ public record GetLandPropertyResponse
     // Owner Details
     public string? OwnerName { get; init; }
     public bool IsOwnerVerified { get; init; }
-    public bool HasObligation { get; init; }
+    public string? HasObligation { get; init; }
     public string? ObligationDetails { get; init; }
 
     // Location

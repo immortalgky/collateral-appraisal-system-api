@@ -44,7 +44,7 @@ public class GetLandPropertyQueryHandler(
             LandDescription = landDetail?.LandDescription,
             OwnerName = landDetail?.OwnerName,
             IsOwnerVerified = landDetail?.IsOwnerVerified ?? false,
-            HasObligation = landDetail?.HasObligation ?? false,
+            HasObligation = landDetail?.HasObligation,
             ObligationDetails = landDetail?.ObligationDetails,
 
             Street = landDetail?.Street,

@@ -25,7 +25,7 @@ public record GetLandAndBuildingPropertyResult(
     // Owner Fields
     string? OwnerName,
     bool? IsOwnerVerified,
-    bool? HasObligation,
+    string? HasObligation,
     string? ObligationDetails,
     // Land - Document Verification
     bool? IsLandLocationVerified,

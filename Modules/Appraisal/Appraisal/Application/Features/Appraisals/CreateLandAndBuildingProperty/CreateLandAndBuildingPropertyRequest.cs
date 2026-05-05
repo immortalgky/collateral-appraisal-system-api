@@ -21,7 +21,7 @@ public record CreateLandAndBuildingPropertyRequest(
     // Owner Details
     string? OwnerName = null,
     bool? IsOwnerVerified = null,
-    bool? HasObligation = null,
+    string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification
     bool? IsLandLocationVerified = null,

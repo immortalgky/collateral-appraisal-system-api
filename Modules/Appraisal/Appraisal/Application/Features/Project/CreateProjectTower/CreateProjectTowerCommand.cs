@@ -8,7 +8,7 @@ public record CreateProjectTowerCommand(
     int? NumberOfFloors = null,
     string? CondoRegistrationNumber = null,
     string? ConditionType = null,
-    bool? HasObligation = null,
+    string? HasObligation = null,
     string? ObligationDetails = null,
     string? DocumentValidationType = null,
     bool? IsLocationCorrect = null,

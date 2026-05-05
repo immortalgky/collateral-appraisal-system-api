@@ -22,7 +22,7 @@ public record CreateBuildingPropertyRequest(
     decimal? ConstructionCompletionPercent = null,
     DateTime? ConstructionLicenseExpirationDate = null,
     bool? IsAppraisable = null,
-    bool? HasObligation = null,
+    string? HasObligation = null,
     string? ObligationDetails = null,
     // Building Info
     string? BuildingType = null,

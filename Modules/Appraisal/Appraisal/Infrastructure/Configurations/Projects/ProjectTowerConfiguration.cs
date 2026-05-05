@@ -23,6 +23,7 @@ public class ProjectTowerConfiguration : IEntityTypeConfiguration<ProjectTower>
 
         // Condition & Obligation
         builder.Property(e => e.ConditionType).HasMaxLength(100);
+        builder.Property(e => e.HasObligation).HasMaxLength(100);
         builder.Property(e => e.ObligationDetails).HasMaxLength(500);
         builder.Property(e => e.DocumentValidationType).HasMaxLength(100);
 
