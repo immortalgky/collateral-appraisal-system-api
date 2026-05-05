@@ -22,7 +22,7 @@ public record UpdateLandAndBuildingPropertyCommand(
     // Owner Details
     string? OwnerName = null,
     bool? IsOwnerVerified = null,
-    bool? HasObligation = null,
+    string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification
     bool? IsLandLocationVerified = null,
@@ -107,6 +107,7 @@ public record UpdateLandAndBuildingPropertyCommand(
     string? ModelName = null,
     string? BuiltOnTitleNumber = null,
     string? HouseNumber = null,
+    string? NoHouseNumber = null,
     // Building Status
     string? BuildingConditionType = null,
     string? BuildingConditionTypeOther = null,

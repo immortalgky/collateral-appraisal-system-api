@@ -15,6 +15,7 @@ public record CreateBuildingPropertyRequest(
     string? OwnerName = null,
     bool? IsOwnerVerified = null,
     string? HouseNumber = null,
+    string? NoHouseNumber = null,
     // Building Status
     string? BuildingConditionType = null,
     string? BuildingConditionTypeOther = null,
@@ -22,7 +23,7 @@ public record CreateBuildingPropertyRequest(
     decimal? ConstructionCompletionPercent = null,
     DateTime? ConstructionLicenseExpirationDate = null,
     bool? IsAppraisable = null,
-    bool? HasObligation = null,
+    string? HasObligation = null,
     string? ObligationDetails = null,
     // Building Info
     string? BuildingType = null,

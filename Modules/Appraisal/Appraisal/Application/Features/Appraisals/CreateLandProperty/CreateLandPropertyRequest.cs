@@ -20,7 +20,7 @@ public record CreateLandPropertyRequest(
     string? LandOffice = null,
     // Owner Details
     bool? IsOwnerVerified = null,
-    bool? HasObligation = null,
+    string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification
     bool? IsLandLocationVerified = null,

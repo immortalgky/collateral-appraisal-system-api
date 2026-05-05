@@ -25,7 +25,7 @@ public record GetLeaseAgreementLandAndBuildingPropertyResponse(
     // Owner Fields
     string? OwnerName,
     bool? IsOwnerVerified,
-    bool? HasObligation,
+    string? HasObligation,
     string? ObligationDetails,
     // Land - Document Verification
     bool? IsLandLocationVerified,
@@ -110,6 +110,7 @@ public record GetLeaseAgreementLandAndBuildingPropertyResponse(
     string? ModelName,
     string? BuiltOnTitleNumber,
     string? HouseNumber,
+    string? NoHouseNumber,
     // Building Status
     string? BuildingConditionType,
     string? BuildingConditionTypeOther,

@@ -18,7 +18,7 @@ public class ProjectTower : Entity<Guid>
 
     // Condition & Obligation
     public string? ConditionType { get; private set; }
-    public bool? HasObligation { get; private set; }
+    public string? HasObligation { get; private set; }
     public string? ObligationDetails { get; private set; }
     public string? DocumentValidationType { get; private set; }
 
@@ -90,7 +90,7 @@ public class ProjectTower : Entity<Guid>
         string? condoRegistrationNumber = null,
         // Condition & Obligation
         string? conditionType = null,
-        bool? hasObligation = null,
+        string? hasObligation = null,
         string? obligationDetails = null,
         string? documentValidationType = null,
         // Location
