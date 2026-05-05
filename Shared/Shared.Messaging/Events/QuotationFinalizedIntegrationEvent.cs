@@ -31,6 +31,6 @@ public record QuotationFinalizedIntegrationEvent : IntegrationEvent
     public Guid WinningQuotationId { get; init; }
     public decimal FinalFeeAmount { get; init; }
 
-    /// <summary>UserId of the RM who owns the Request. Used by Notification handler.</summary>
-    public Guid? RmUserId { get; init; }
+    /// <summary>Username of the RM who owns the Request. Used by Notification handler.</summary>
+    public string? RmUsername { get; init; }
 }

@@ -165,6 +165,9 @@ public static class MappingConfiguration
             .Map(dest => dest.Address, src => src.Adapt<AddressDto>())
             .Map(dest => dest.Contact, src => src.Adapt<ContactDto>())
             .Map(dest => dest.Appointment, src => src.Adapt<AppointmentDto>())
-            .Map(dest => dest.Fee, src => src.Adapt<FeeDto>());
+            .Map(dest => dest.Fee, src => src.Adapt<FeeDto>())
+            .Map(dest => dest.PrevAppraisalNumber, src => src.PrevAppraisalNumber)
+            .Map(dest => dest.PrevAppraisalValue, src => src.PrevAppraisalValue)
+            .Map(dest => dest.PrevAppraisalDate, src => src.PrevAppraisalDate);
     }
 }

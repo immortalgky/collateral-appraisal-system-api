@@ -23,4 +23,8 @@ public record RequestSubmittedIntegrationEvent : IntegrationEvent
     // Request metadata denormalized onto Appraisal
     public string? RequestedBy { get; set; }
     public DateTime? RequestedAt { get; set; }
+
+    // Construction Inspection fields
+    public Guid? PrevAppraisalId { get; set; }
+    public string? AppraisalType { get; set; }
 }

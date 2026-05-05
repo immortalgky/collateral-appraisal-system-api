@@ -40,6 +40,7 @@ public class UpdateMachineryPropertyCommandHandler(
             command.EngineNo,
             command.ChassisNo,
             command.RegistrationNo,
+            command.SerialNo,
             command.Brand,
             command.Model,
             command.Series,

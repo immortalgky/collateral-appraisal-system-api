@@ -23,13 +23,19 @@ public class ShortlistSentToRmNotificationHandler(
         var message = context.Message;
 
         logger.LogInformation(
-            "Processing ShortlistSentToRm notification for QuotationRequestId={QuotationRequestId}, RmUserId={RmUserId}",
-            message.QuotationRequestId, message.RmUserId);
+            "Processing ShortlistSentToRm notification for QuotationRequestId={QuotationRequestId}, RmUsername={RmUsername}",
+            message.QuotationRequestId, message.RmUsername);
 
         try
         {
+            if (string.IsNullOrEmpty(message.RmUsername))
+            {
+                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
+                return;
+            }
+
             await notificationService.SendNotificationToUserAsync(
-                message.RmUserId.ToString(),
+                message.RmUsername,
                 "Quotation Shortlist Ready for Review",
                 $"The admin has sent a shortlist of {message.ShortlistedCompanyQuotationIds.Length} quotation(s) for your selection. Please review and pick a tentative winner.",
                 NotificationType.WorkflowTransition,
@@ -41,8 +47,8 @@ public class ShortlistSentToRmNotificationHandler(
                 });
 
             logger.LogInformation(
-                "Sent ShortlistSentToRm notification to RM {RmUserId} for QuotationRequestId={QuotationRequestId}",
-                message.RmUserId, message.QuotationRequestId);
+                "Sent ShortlistSentToRm notification to RM {RmUsername} for QuotationRequestId={QuotationRequestId}",
+                message.RmUsername, message.QuotationRequestId);
 
             await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
         }

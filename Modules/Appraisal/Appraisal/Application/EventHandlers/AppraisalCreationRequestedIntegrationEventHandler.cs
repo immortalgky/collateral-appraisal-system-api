@@ -42,6 +42,8 @@ public class AppraisalCreationRequestedIntegrationEventHandler(
                 message.HasAppraisalBook,
                 message.RequestedBy,
                 message.RequestedAt,
+                message.PrevAppraisalId,
+                message.AppraisalType,
                 context.CancellationToken);
 
             logger.LogInformation(

@@ -139,6 +139,29 @@ public class QuotationTaskOwnershipService(
                 username));
     }
 
+    public async Task<bool> IsUserActiveRmPickTaskOwnerAsync(
+        Guid quotationRequestId,
+        string username,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(username))
+            return false;
+
+        var allActiveTasks = await assignmentRepository.GetPendingTasksByCorrelationIdAsync(
+            quotationRequestId, cancellationToken);
+
+        var groups = await userGroupService.GetGroupsForUserAsync(username, cancellationToken);
+        var team   = await teamService.GetTeamForUserAsync(username, cancellationToken);
+
+        return allActiveTasks.Any(t => PoolTaskAccess.IsOwner(
+            t.AssignedTo,
+            t.AssigneeCompanyId,
+            groups,
+            team?.TeamId,
+            callerCompanyId: null,
+            username));
+    }
+
     public async Task<bool> IsCallerHistoricalTaskOwnerAsync(
         Guid quotationRequestId,
         Guid companyId,

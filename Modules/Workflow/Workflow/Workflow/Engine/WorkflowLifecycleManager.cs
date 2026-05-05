@@ -65,8 +65,10 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
         string? correlationId = null,
         Dictionary<string, RuntimeOverride>? runtimeOverrides = null,
         CancellationToken cancellationToken = default)
-        => InitializeWorkflowAsync(workflowDefinitionId, Guid.NewGuid(), workflowSchema, instanceName, startedBy,
+    {
+        return InitializeWorkflowAsync(workflowDefinitionId, Guid.NewGuid(), workflowSchema, instanceName, startedBy,
             initialVariables, correlationId, runtimeOverrides, cancellationToken);
+    }
 
     public async Task<WorkflowInstance> InitializeWorkflowAsync(
         Guid workflowDefinitionId,
@@ -92,7 +94,8 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
 
             // Calculate workflow-level SLA
             var loanType = initialVariables?.TryGetValue("loanType", out var lt) == true
-                ? lt?.ToString() : null;
+                ? lt?.ToString()
+                : null;
             var workflowDueAt = await _slaCalculator.CalculateWorkflowDueAtAsync(
                 workflowDefinitionId, loanType, workflowInstance.StartedOn, cancellationToken);
             if (workflowDueAt.HasValue)
@@ -157,13 +160,14 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
                 workflowInstance.Id, previousActivityId, nextActivityId);
 
             _outbox.Publish(new WorkflowTransitionedIntegrationEvent(
-                WorkflowInstanceId: workflowInstance.Id,
-                CorrelationId: ResolveCorrelationId(workflowInstance.CorrelationId, workflowInstance.Id),
-                AppraisalId: ResolveAppraisalId(workflowInstance.Variables),
-                SourceActivityId: previousActivityId,
-                DestinationActivityId: nextActivityId,
-                CompletedBy: completedBy,
-                CompletedAt: _dateTimeProvider.ApplicationNow));
+                    workflowInstance.Id,
+                    ResolveCorrelationId(workflowInstance.CorrelationId, workflowInstance.Id),
+                    ResolveAppraisalId(workflowInstance.Variables),
+                    previousActivityId,
+                    nextActivityId,
+                    completedBy,
+                    _dateTimeProvider.ApplicationNow),
+                workflowInstance.Id.ToString());
 
             await Task.CompletedTask; // For future async operations
 
@@ -185,13 +189,13 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
         CancellationToken cancellationToken = default)
     {
         _outbox.Publish(new WorkflowTransitionedIntegrationEvent(
-            WorkflowInstanceId: workflowInstance.Id,
-            CorrelationId: ResolveCorrelationId(workflowInstance.CorrelationId, workflowInstance.Id),
-            AppraisalId: ResolveAppraisalId(workflowInstance.Variables),
-            SourceActivityId: null,
-            DestinationActivityId: startActivityId,
-            CompletedBy: startedBy,
-            CompletedAt: _dateTimeProvider.ApplicationNow));
+            workflowInstance.Id,
+            ResolveCorrelationId(workflowInstance.CorrelationId, workflowInstance.Id),
+            ResolveAppraisalId(workflowInstance.Variables),
+            null,
+            startActivityId,
+            startedBy,
+            _dateTimeProvider.ApplicationNow));
 
         return Task.CompletedTask;
     }
@@ -211,13 +215,13 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
             _logger.LogInformation("Completed workflow {WorkflowInstanceId} (in-memory)", workflowInstance.Id);
 
             _outbox.Publish(new WorkflowTransitionedIntegrationEvent(
-                WorkflowInstanceId: workflowInstance.Id,
-                CorrelationId: ResolveCorrelationId(workflowInstance.CorrelationId, workflowInstance.Id),
-                AppraisalId: ResolveAppraisalId(workflowInstance.Variables),
-                SourceActivityId: sourceActivityId,
-                DestinationActivityId: null,
-                CompletedBy: completedBy,
-                CompletedAt: _dateTimeProvider.ApplicationNow));
+                workflowInstance.Id,
+                ResolveCorrelationId(workflowInstance.CorrelationId, workflowInstance.Id),
+                ResolveAppraisalId(workflowInstance.Variables),
+                sourceActivityId,
+                null,
+                completedBy,
+                _dateTimeProvider.ApplicationNow));
 
             return true;
         }
@@ -246,7 +250,7 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
             Guid g => g,
             string s when Guid.TryParse(s, out var parsed) => parsed,
             JsonElement je when je.ValueKind == JsonValueKind.String
-                && Guid.TryParse(je.GetString(), out var jp) => jp,
+                                && Guid.TryParse(je.GetString(), out var jp) => jp,
             _ => null
         };
     }

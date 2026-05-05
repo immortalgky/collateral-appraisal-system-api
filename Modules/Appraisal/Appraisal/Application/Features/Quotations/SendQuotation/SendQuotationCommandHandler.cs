@@ -1,4 +1,6 @@
 using Appraisal.Application.Features.Quotations.Shared;
+using Appraisal.Domain.Quotations;
+using Appraisal.Infrastructure;
 using Dapper;
 using Shared.Data;
 using Shared.Data.Outbox;
@@ -17,7 +19,8 @@ public class SendQuotationCommandHandler(
     ICurrentUserService currentUser,
     ISqlConnectionFactory connectionFactory,
     IIntegrationEventOutbox outbox,
-    IQuotationActivityLogger activityLogger)
+    IQuotationActivityLogger activityLogger,
+    AppraisalDbContext dbContext)
     : ICommandHandler<SendQuotationCommand, SendQuotationResult>
 {
     public async Task<SendQuotationResult> Handle(
@@ -67,6 +70,15 @@ public class SendQuotationCommandHandler(
         // Domain method enforces: at least one appraisal + at least one invitation
         quotation.Send();
 
+        var emailLog = QuotationEmail.Create(
+            quotation.Id,
+            command.From,
+            command.To,
+            command.Cc,
+            command.Subject,
+            command.Content);
+        dbContext.QuotationEmails.Add(emailLog);
+
         var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
         activityLogger.Log(quotation.Id, null, null, QuotationActivityNames.QuotationSentToCompanies, actionByRole: adminRole);
 
@@ -92,7 +104,6 @@ public class SendQuotationCommandHandler(
             TaskExecutionId = quotation.TaskExecutionId ?? Guid.Empty,
             DueDate = quotation.DueDate,
             InvitedCompanyIds = invitedCompanyIds,
-            RmUserId = quotation.RmUserId,
             RmUsername = quotation.RmUsername,
             StartedByUsername = currentUser.Username
         }, correlationId: quotation.Id.ToString());

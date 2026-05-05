@@ -42,9 +42,6 @@ public class GetQuotationByIdQueryHandler(
             .ToArray();
         var negotiationUserNames = await ResolveUserNamesAsync(negotiationUserIds);
 
-        // Resolve the RM's display name so the FE can show it next to the username.
-        // RmUserId is always null on QuotationRequest (Requests.Requestor stores a username,
-        // not a Guid); resolve by username instead.
         var rmUserFullName = !string.IsNullOrWhiteSpace(quotation.RmUsername)
             ? await ResolveUserFullNameByUsernameAsync(quotation.RmUsername!)
             : null;
@@ -216,7 +213,6 @@ public class GetQuotationByIdQueryHandler(
             WorkflowInstanceId: quotation.WorkflowInstanceId,
             TaskExecutionId: quotation.TaskExecutionId,
             BankingSegment: quotation.BankingSegment,
-            RmUserId: quotation.RmUserId,
             RmUserName: quotation.RmUsername,
             RmUserFullName: rmUserFullName,
             SubmissionsClosedAt: quotation.SubmissionsClosedAt,
@@ -239,17 +235,39 @@ public class GetQuotationByIdQueryHandler(
 
     private static string? TranslateCollateralType(string? code) => code switch
     {
-        "L"   => "Land",
-        "B"   => "Building",
-        "LB"  => "Land and Building",
-        "U"   => "Condo",
-        "LSL" => "Lease Agreement Land",
-        "LSB" => "Lease Agreement Building",
-        "LS"  => "Lease Agreement Land and Building",
-        "LSU" => "Lease Agreement Condo",
-        "MAC" => "Machine",
-        "VEH" => "Vehicle",
-        "VES" => "Vessel",
+        "01" => "Land",
+        "02" => "Land with buildings",
+        "03" => "Land with buildings (blueprint)",
+        "04" => "Land allocation (whole project)",
+        "05" => "Buildings",
+        "06" => "Building (blueprint)",
+        "07" => "Building (whole project)",
+        "08" => "Apartment",
+        "09" => "Leasehold rights, real estate",
+        "10" => "Car",
+        "11" => "Machinery",
+        "12" => "Ship",
+        "13" => "Land (Part 1)",
+        "14" => "Land (Part 2)",
+        "15" => "Building (Part 1)",
+        "16" => "Building (Part 2)",
+        "17" => "Land (Part 2)",
+        "18" => "Building (Part 2)",
+        "19" => "Land (Group 1)",
+        "20" => "Building (Group 1)",
+        "21" => "Land (Group 2)",
+        "22" => "Building (Group 2)",
+        "23" => "Land with buildings (Group 1)",
+        "24" => "Land with buildings (Group 2)",
+        "25" => "Leasehold rights (land with buildings)",
+        "26" => "Land (Group 3)",
+        "27" => "Land (Group 4)",
+        "28" => "Leasehold rights (condominium)",
+        "29" => "Land lease rights",
+        "30" => "Leasehold rights",
+        "31" => "Lease rights for space within shopping center",
+        "32" => "Condominium (BlockLand)",
+        "33" => "Condominium (BlockCondo)",
         _ => code,
     };
 
@@ -387,17 +405,39 @@ public class GetQuotationByIdQueryHandler(
                        td.DocumentType AS DocumentTypeCode,
                        dt.Name AS DocumentTypeName,
                        CASE rt.CollateralType
-                           WHEN 'L'   THEN 'Land'
-                           WHEN 'B'   THEN 'Building'
-                           WHEN 'LB'  THEN 'Land and Building'
-                           WHEN 'U'   THEN 'Condo'
-                           WHEN 'LSL' THEN 'Lease Agreement Land'
-                           WHEN 'LSB' THEN 'Lease Agreement Building'
-                           WHEN 'LS'  THEN 'Lease Agreement Land and Building'
-                           WHEN 'LSU' THEN 'Lease Agreement Condo'
-                           WHEN 'MAC' THEN 'Machine'
-                           WHEN 'VEH' THEN 'Vehicle'
-                           WHEN 'VES' THEN 'Vessel'
+                           WHEN '01' THEN 'Land'
+                           WHEN '02' THEN 'Land with buildings'
+                           WHEN '03' THEN 'Land with buildings (blueprint)'
+                           WHEN '04' THEN 'Land allocation (whole project)'
+                           WHEN '05' THEN 'Buildings'
+                           WHEN '06' THEN 'Building (blueprint)'
+                           WHEN '07' THEN 'Building (whole project)'
+                           WHEN '08' THEN 'Apartment'
+                           WHEN '09' THEN 'Leasehold rights, real estate'
+                           WHEN '10' THEN 'Car'
+                           WHEN '11' THEN 'Machinery'
+                           WHEN '12' THEN 'Ship'
+                           WHEN '13' THEN 'Land (Part 1)'
+                           WHEN '14' THEN 'Land (Part 2)'
+                           WHEN '15' THEN 'Building (Part 1)'
+                           WHEN '16' THEN 'Building (Part 2)'
+                           WHEN '17' THEN 'Land (Part 2)'
+                           WHEN '18' THEN 'Building (Part 2)'
+                           WHEN '19' THEN 'Land (Group 1)'
+                           WHEN '20' THEN 'Building (Group 1)'
+                           WHEN '21' THEN 'Land (Group 2)'
+                           WHEN '22' THEN 'Building (Group 2)'
+                           WHEN '23' THEN 'Land with buildings (Group 1)'
+                           WHEN '24' THEN 'Land with buildings (Group 2)'
+                           WHEN '25' THEN 'Leasehold rights (land with buildings)'
+                           WHEN '26' THEN 'Land (Group 3)'
+                           WHEN '27' THEN 'Land (Group 4)'
+                           WHEN '28' THEN 'Leasehold rights (condominium)'
+                           WHEN '29' THEN 'Land lease rights'
+                           WHEN '30' THEN 'Leasehold rights'
+                           WHEN '31' THEN 'Lease rights for space within shopping center'
+                           WHEN '32' THEN 'Condominium (BlockLand)'
+                           WHEN '33' THEN 'Condominium (BlockCondo)'
                            ELSE rt.CollateralType
                        END + ' · Title No. ' + ISNULL(rt.TitleNumber, '') AS SectionLabel,
                        rt.TitleNumber AS TitleNumber,

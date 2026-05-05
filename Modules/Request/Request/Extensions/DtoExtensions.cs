@@ -14,7 +14,10 @@ public static class DtoExtensions
             detail.Address?.ToDto(),
             detail.Contact?.ToDto(),
             detail.Appointment?.ToDto(),
-            detail.Fee?.ToDto()
+            detail.Fee?.ToDto(),
+            PrevAppraisalNumber: detail.PrevAppraisalNumber,
+            PrevAppraisalValue: detail.PrevAppraisalValue,
+            PrevAppraisalDate: detail.PrevAppraisalDate
         );
     }
 

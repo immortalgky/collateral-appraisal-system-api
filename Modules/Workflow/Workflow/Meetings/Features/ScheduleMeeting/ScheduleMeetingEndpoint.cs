@@ -18,7 +18,8 @@ public class ScheduleMeetingEndpoint : ICarterModule
                 CancellationToken ct) =>
             {
                 // Delegate to SendInvitation — sets StartAt/EndAt separately via UpdateMeeting
-                var result = await sender.Send(new SendInvitationCommand(id), ct);
+                // DEPRECATED: email fields default to empty strings; clients should use the new endpoint
+                var result = await sender.Send(new SendInvitationCommand(id, string.Empty, string.Empty, string.Empty, null, null), ct);
                 return Results.Ok(result);
             })
             .WithName("ScheduleMeeting")

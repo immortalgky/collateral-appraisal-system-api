@@ -1,10 +1,13 @@
+using Appraisal.Contracts.Appraisals;
+
 namespace Request.Application.Services;
 
 public class CreateRequestService(
     IDateTimeProvider dateTimeProvider,
     IRequestRepository requestRepository,
     IRequestTitleRepository requestTitleRepository,
-    IRequestCommentRepository requestCommentRepository
+    IRequestCommentRepository requestCommentRepository,
+    ISender mediator
 ) : ICreateRequestService
 {
     public async Task<Request.Domain.Requests.Request> CreateRequestAsync(CreateRequestData data,
@@ -35,6 +38,12 @@ public class CreateRequestService(
         ));
 
         if (command.Detail is not null)
+        {
+            AppraisalReferenceResult? appraisalRef = null;
+            if (command.Detail.PrevAppraisalId.HasValue)
+                appraisalRef = await mediator.Send(
+                    new GetAppraisalReferenceQuery(command.Detail.PrevAppraisalId.Value), cancellationToken);
+
             request.SetDetail(RequestDetail.Create(new RequestDetailData(
                 command.Detail.HasAppraisalBook,
                 LoanDetail.Create(new LoanDetailData(
@@ -68,10 +77,11 @@ public class CreateRequestService(
                     command.Detail.Fee?.FeePaymentType,
                     command.Detail.Fee?.FeeNotes,
                     command.Detail.Fee?.AbsorbedAmount),
-                command.Detail.PrevAppraisalNumber,
-                command.Detail.PrevAppraisalValue,
-                command.Detail.PrevAppraisalDate
+                PrevAppraisalNumber: appraisalRef?.AppraisalNumber,
+                PrevAppraisalValue: appraisalRef?.AppraisalValue,
+                PrevAppraisalDate: appraisalRef?.CompletedDate
             )));
+        }
 
         if (command.Customers is { Count: > 0 })
         {

@@ -1,5 +1,12 @@
 namespace Appraisal.Application.Features.Quotations.SendQuotation;
 
+public record SendQuotationRequest(
+    string From,
+    string To,
+    string? Cc,
+    string Subject,
+    string? Content);
+
 /// <summary>
 /// POST /quotations/{id}/send — Admin explicitly sends a Draft quotation to invited companies.
 /// C8: Separate from the Draft creation so admin can assemble (add appraisals, adjust invitations) before committing.
@@ -12,11 +19,18 @@ public class SendQuotationEndpoint : ICarterModule
                 "/quotations/{id:guid}/send",
                 async (
                     Guid id,
+                    SendQuotationRequest request,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    var command = new SendQuotationCommand(id);
+                    var command = new SendQuotationCommand(
+                        id,
+                        request.From,
+                        request.To,
+                        request.Cc,
+                        request.Subject,
+                        request.Content);
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);
                 })

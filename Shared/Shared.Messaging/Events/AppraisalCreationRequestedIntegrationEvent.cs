@@ -24,4 +24,8 @@ public record AppraisalCreationRequestedIntegrationEvent : IntegrationEvent
     public bool HasAppraisalBook { get; set; }
     public string? RequestedBy { get; set; }
     public DateTime? RequestedAt { get; set; }
+
+    // Construction Inspection fields
+    public Guid? PrevAppraisalId { get; set; }
+    public string? AppraisalType { get; set; }
 }

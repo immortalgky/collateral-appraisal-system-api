@@ -156,6 +156,13 @@ public class MeetingActivity : WorkflowActivityBase
             outputData["meetingMemberUserIds"] = memberIds;
         }
 
+        // Propagate override member list so downstream ApprovalActivity can replace its committee members.
+        if (resumeInput.TryGetValue("meetingMemberOverrides", out var memberOverrides))
+        {
+            outputData[$"{normalized}_meetingMemberOverrides"] = memberOverrides;
+            outputData["meetingMemberOverrides"] = memberOverrides;
+        }
+
         if (resumeInput.TryGetValue("routeBackReason", out var routeBackReason))
             outputData[$"{normalized}_routeBackReason"] = routeBackReason;
 

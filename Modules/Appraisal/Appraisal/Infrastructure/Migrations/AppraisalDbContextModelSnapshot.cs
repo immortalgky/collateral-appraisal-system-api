@@ -6356,6 +6356,45 @@ namespace Appraisal.Infrastructure.Migrations
                     b.ToTable("QuotationActivityLogs", "appraisal");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Quotations.QuotationEmail", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Cc")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Content")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("From")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("QuotationRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("To")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuotationRequestId");
+
+                    b.ToTable("QuotationEmails", "appraisal");
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Quotations.QuotationInvitation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7996,6 +8035,14 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
+                            b1.Property<string>("TitleNumber")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)");
+
+                            b1.Property<string>("TitleType")
+                                .HasMaxLength(20)
+                                .HasColumnType("nvarchar(20)");
+
                             b1.Property<decimal?>("TotalBuildingArea")
                                 .HasPrecision(18, 4)
                                 .HasColumnType("decimal(18,4)");
@@ -9091,6 +9138,10 @@ namespace Appraisal.Infrastructure.Migrations
                             b1.Property<decimal?>("ReplacementValue")
                                 .HasPrecision(18, 2)
                                 .HasColumnType("decimal(18,2)");
+
+                            b1.Property<string>("SerialNo")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("Series")
                                 .HasMaxLength(200)

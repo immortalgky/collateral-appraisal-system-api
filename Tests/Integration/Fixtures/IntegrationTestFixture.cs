@@ -81,10 +81,18 @@ public class IntegrationTestFixture : IAsyncLifetime
         var testSetupService =
             scope.ServiceProvider.GetRequiredService<IDatabaseTestSetupService>();
 
-        var setupResult = await testSetupService.SetupDatabaseAsync(ConnectionString);
+        bool setupResult;
+        try
+        {
+            setupResult = await testSetupService.SetupDatabaseAsync(ConnectionString);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Database setup threw: {ex.GetType().Name}: {ex.Message}\nInner: {ex.InnerException?.Message}", ex);
+        }
         if (!setupResult)
         {
-            throw new InvalidOperationException("Failed to setup database for integration tests");
+            throw new InvalidOperationException("Failed to setup database for integration tests (returned false)");
         }
 
         IntegrationTestWebApplicationFactory = new IntegrationTestWebApplicationFactory(
