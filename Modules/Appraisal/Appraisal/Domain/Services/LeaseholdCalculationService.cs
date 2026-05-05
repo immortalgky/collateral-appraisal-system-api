@@ -52,7 +52,7 @@ public class LeaseholdCalculationService
         var depRate = analysis.DepreciationRate / 100m;
         var depInterval = analysis.DepreciationIntervalYears > 0 ? analysis.DepreciationIntervalYears : 1;
         
-        var baseLandValue = analysis.LandValuePerSqWa * (analysis.IsPartialUsage ? (analysis.PartialRai ?? 0) * 400m + (analysis.PartialNgan ?? 0) * 100m + (analysis.PartialWa ?? 0) : totalLandAreaInSqWa);
+        var baseLandValue = analysis.LandValuePerSqWa * (analysis.IsPartialUsage ? analysis.PartialLandArea ?? 0 : totalLandAreaInSqWa);
         var initialBuildingValue = analysis.InitialBuildingValue;
 
         var tableRows = new List<TableRowResult>();
@@ -163,7 +163,7 @@ public class LeaseholdCalculationService
         var estimateNetPrice = finalValueRounded + remainingLandPrice;
         var estimatePriceRounded = Math.Round(estimateNetPrice / 1000m, MidpointRounding.AwayFromZero) * 1000m;
 
-        return (partialLandArea, Math.Round(remainingLandPrice, 2), Math.Round(estimateNetPrice, 2), estimatePriceRounded);
+        return (partialLandArea, Math.Round(partialLandArea * pricePerSqWa.Value, 2), Math.Round(estimateNetPrice, 2), estimatePriceRounded);
     }
 
     private static decimal CalculatePvFactor(decimal discountRate, decimal year)
