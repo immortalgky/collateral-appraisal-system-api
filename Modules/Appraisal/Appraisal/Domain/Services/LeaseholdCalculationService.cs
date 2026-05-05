@@ -51,7 +51,8 @@ public class LeaseholdCalculationService
         var costIndex = analysis.ConstructionCostIndex / 100m;
         var depRate = analysis.DepreciationRate / 100m;
         var depInterval = analysis.DepreciationIntervalYears > 0 ? analysis.DepreciationIntervalYears : 1;
-        var baseLandValue = analysis.LandValuePerSqWa * totalLandAreaInSqWa;
+        
+        var baseLandValue = analysis.LandValuePerSqWa * (analysis.IsPartialUsage ? (analysis.PartialRai ?? 0) * 400m + (analysis.PartialNgan ?? 0) * 100m + (analysis.PartialWa ?? 0) : totalLandAreaInSqWa);
         var initialBuildingValue = analysis.InitialBuildingValue;
 
         var tableRows = new List<TableRowResult>();
@@ -149,17 +150,20 @@ public class LeaseholdCalculationService
             decimal? partialRai,
             decimal? partialNgan,
             decimal? partialWa,
-            decimal? pricePerSqWa)
+            decimal? pricePerSqWa,
+            decimal? totalLandAreaInSqWa
+            )
     {
         var partialLandArea = (partialRai ?? 0) * 400m + (partialNgan ?? 0) * 100m + (partialWa ?? 0);
         if (partialLandArea == 0 || !pricePerSqWa.HasValue)
             return (partialLandArea > 0 ? partialLandArea : null, null, null, null);
 
-        var partialLandPrice = pricePerSqWa.Value * partialLandArea;
-        var estimateNetPrice = finalValueRounded + partialLandPrice;
+        var remainingLandArea = (totalLandAreaInSqWa ?? 0) - partialLandArea;
+        var remainingLandPrice = pricePerSqWa.Value * remainingLandArea;
+        var estimateNetPrice = finalValueRounded + remainingLandPrice;
         var estimatePriceRounded = Math.Round(estimateNetPrice / 1000m, MidpointRounding.AwayFromZero) * 1000m;
 
-        return (partialLandArea, Math.Round(partialLandPrice, 2), Math.Round(estimateNetPrice, 2), estimatePriceRounded);
+        return (partialLandArea, pricePerSqWa, Math.Round(estimateNetPrice, 2), estimatePriceRounded);
     }
 
     private static decimal CalculatePvFactor(decimal discountRate, decimal year)
