@@ -4,6 +4,7 @@ VIEW appraisal.vw_AppraisalDetail AS
 SELECT a.Id,
        a.AppraisalNumber,
        a.RequestId,
+       a.RequestedAt,
        -- Derive status: CompletedAt trumps all; then workflow activity; fallback to stored status
        CASE
            WHEN a.CompletedAt IS NOT NULL THEN 'Completed'
