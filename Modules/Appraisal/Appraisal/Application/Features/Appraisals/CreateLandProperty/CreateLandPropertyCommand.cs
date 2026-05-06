@@ -5,6 +5,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLandProperty;
 /// </summary>
 public record CreateLandPropertyCommand(
     Guid AppraisalId,
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     Guid? GroupId = null,
     // Required
     string? OwnerName = null,

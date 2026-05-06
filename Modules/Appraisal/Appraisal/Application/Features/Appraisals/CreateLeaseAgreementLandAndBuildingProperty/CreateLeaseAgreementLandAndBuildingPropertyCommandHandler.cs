@@ -242,33 +242,38 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
                 command.LeaseAgreement.Remark);
         }
 
-        // 6e. Update rental info if provided
-        if (command.RentalInfo is not null)
-        {
-            var rentalInfo = property.RentalInfo!;
-            rentalInfo.Update(
-                command.RentalInfo.NumberOfYears, command.RentalInfo.FirstYearStartDate,
-                command.RentalInfo.ContractRentalFeePerYear, command.RentalInfo.UpFrontTotalAmount,
-                command.RentalInfo.GrowthRateType, command.RentalInfo.GrowthRatePercent,
-                command.RentalInfo.GrowthIntervalYears);
+    // 6e. Update rental info if provided
+    if (command.RentalInfo is not null)
+    {
+      var rentalInfo = property.RentalInfo!;
+      rentalInfo.Update(
+          command.RentalInfo.NumberOfYears, command.RentalInfo.FirstYearStartDate,
+          command.RentalInfo.ContractRentalFeePerYear, command.RentalInfo.UpFrontTotalAmount,
+          command.RentalInfo.GrowthRateType, command.RentalInfo.GrowthRatePercent,
+          command.RentalInfo.GrowthIntervalYears);
 
-            if (command.RentalInfo.UpFrontEntries is not null)
-            {
-                rentalInfo.ClearUpFrontEntries();
-                foreach (var entry in command.RentalInfo.UpFrontEntries)
-                    rentalInfo.AddUpFrontEntry(entry.AtYear, entry.UpFrontAmount);
-            }
+      if (command.RentalInfo.UpFrontEntries is not null)
+      {
+        rentalInfo.ClearUpFrontEntries();
+        foreach (var entry in command.RentalInfo.UpFrontEntries)
+          rentalInfo.AddUpFrontEntry(entry.AtYear, entry.UpFrontAmount);
+      }
 
-            if (command.RentalInfo.GrowthPeriodEntries is not null)
-            {
-                rentalInfo.ClearGrowthPeriodEntries();
-                foreach (var entry in command.RentalInfo.GrowthPeriodEntries)
-                    rentalInfo.AddGrowthPeriodEntry(entry.FromYear, entry.ToYear, entry.GrowthRate, entry.GrowthAmount, entry.TotalAmount);
-            }
+      if (command.RentalInfo.GrowthPeriodEntries is not null)
+      {
+        rentalInfo.ClearGrowthPeriodEntries();
+        foreach (var entry in command.RentalInfo.GrowthPeriodEntries)
+          rentalInfo.AddGrowthPeriodEntry(entry.FromYear, entry.ToYear, entry.GrowthRate, entry.GrowthAmount, entry.TotalAmount);
+      }
 
-            // Compute schedule server-side from rental info fields, apply overrides
-            Appraisal.Application.Features.Appraisals.Shared.RentalScheduleComputer.ComputeAndSave(rentalInfo, command.RentalInfo.ScheduleOverrides);
-        }
+      // Compute schedule server-side from rental info fields, apply overrides
+      Appraisal.Application.Features.Appraisals.Shared.RentalScheduleComputer.ComputeAndSave(rentalInfo, command.RentalInfo.ScheduleOverrides);
+    }
+
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
 
         // 7. Save aggregate
         await unitOfWork.SaveChangesAsync(cancellationToken);

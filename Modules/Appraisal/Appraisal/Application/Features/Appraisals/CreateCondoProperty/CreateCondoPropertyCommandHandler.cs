@@ -110,6 +110,11 @@ public class CreateCondoPropertyCommandHandler(
             }
         }
 
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else 
+            property.RevertToDraft();
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // 6. Assign property to a group

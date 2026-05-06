@@ -4,6 +4,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateCondoProperty;
 /// Request to create a condo property with its appraisal detail
 /// </summary>
 public record CreateCondoPropertyRequest(
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     string? PropertyName = null,
     string? CondoName = null,
     string? BuildingNumber = null,

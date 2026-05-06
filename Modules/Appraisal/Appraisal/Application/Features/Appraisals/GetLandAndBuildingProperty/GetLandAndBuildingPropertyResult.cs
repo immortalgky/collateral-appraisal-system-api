@@ -9,6 +9,8 @@ public record GetLandAndBuildingPropertyResult(
     // Property
     Guid PropertyId,
     Guid AppraisalId,
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     int SequenceNumber,
     string PropertyType,
     string? Description,

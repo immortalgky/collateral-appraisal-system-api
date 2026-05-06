@@ -9,6 +9,7 @@ namespace Appraisal.Application.Features.Appraisals.UpdateVesselProperty;
 public record UpdateVesselPropertyCommand(
     Guid AppraisalId,
     Guid PropertyId,
+    bool IsDraft,
     // Vessel Identification
     string? PropertyName = null,
     string? VesselName = null,

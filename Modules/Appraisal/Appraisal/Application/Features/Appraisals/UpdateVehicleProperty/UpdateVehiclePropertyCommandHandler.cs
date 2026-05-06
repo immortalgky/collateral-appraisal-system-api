@@ -65,6 +65,11 @@ public class UpdateVehiclePropertyCommandHandler(
             remark: command.Remark,
             other: command.Other,
             appraiserOpinion: command.AppraiserOpinion);
+        
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
 
         return MediatR.Unit.Value;
     }

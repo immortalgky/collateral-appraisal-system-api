@@ -4,6 +4,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateVesselProperty;
 /// Request to create a vessel property with its appraisal detail
 /// </summary>
 public record CreateVesselPropertyRequest(
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     // Required
     string OwnerName,
     // Vessel Identification

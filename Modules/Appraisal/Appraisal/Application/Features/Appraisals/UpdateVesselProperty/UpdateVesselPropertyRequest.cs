@@ -4,6 +4,7 @@ namespace Appraisal.Application.Features.Appraisals.UpdateVesselProperty;
 /// Request to update a vessel property detail
 /// </summary>
 public record UpdateVesselPropertyRequest(
+    bool IsDraft,
     // Vessel Identification
     string? PropertyName = null,
     string? VesselName = null,

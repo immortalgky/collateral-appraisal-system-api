@@ -88,6 +88,11 @@ public class CreateBuildingPropertyCommandHandler(
         // Add construction inspection if provided and building is under construction
         if (command.ConstructionInspection is { } ci && command.IsUnderConstruction != false)
             SetConstructionInspection(property, ci);
+        
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

@@ -217,6 +217,11 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
         else
             SyncConstructionInspection(property, command.ConstructionInspection);
 
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
+        
         // 9. Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 

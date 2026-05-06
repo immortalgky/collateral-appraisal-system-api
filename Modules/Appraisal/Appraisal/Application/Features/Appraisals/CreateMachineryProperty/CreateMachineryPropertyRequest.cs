@@ -4,6 +4,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateMachineryProperty;
 /// Request to create a machinery property with its appraisal detail
 /// </summary>
 public record CreateMachineryPropertyRequest(
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     // Required
     string? OwnerName,
     // Machine Identification

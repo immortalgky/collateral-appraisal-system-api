@@ -4,6 +4,8 @@ namespace Appraisal.Application.Features.Appraisals.UpdateCondoProperty;
 /// Request to update a condo property detail
 /// </summary>
 public record UpdateCondoPropertyRequest(
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     // Property Identification
     string? PropertyName = null,
     string? CondoName = null,

@@ -6,6 +6,8 @@ namespace Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingPropert
 /// Request to update a land and building property detail
 /// </summary>
 public record UpdateLandAndBuildingPropertyRequest(
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     // Property Identification
     string? PropertyName = null,
     string? LandDescription = null,

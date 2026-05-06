@@ -6,6 +6,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateBuildingProperty;
 /// Request to create a building property with its appraisal detail
 /// </summary>
 public record CreateBuildingPropertyRequest(
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     // Property Identification
     string? PropertyName = null,
     string? BuildingNumber = null,

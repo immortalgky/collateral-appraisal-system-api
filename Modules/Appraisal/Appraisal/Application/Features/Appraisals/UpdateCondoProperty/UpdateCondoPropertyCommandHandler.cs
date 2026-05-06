@@ -113,6 +113,11 @@ public class UpdateCondoPropertyCommandHandler(
 
         // 7. Update CondoAreaDetails if provided
         if (command.AreaDetails is not null)SyncAreaDetail(detail,command.AreaDetails);
+        
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
 
         // 8. Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);

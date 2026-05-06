@@ -226,6 +226,11 @@ public class CreateLandAndBuildingPropertyCommandHandler(
         // 6c. Add construction inspection if provided and building is under construction
         if (command.ConstructionInspection is { } ci && command.IsUnderConstruction != false)
             SetConstructionInspection(property, ci);
+        
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
 
         // 7. Save aggregate
         await unitOfWork.SaveChangesAsync(cancellationToken);

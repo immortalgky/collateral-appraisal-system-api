@@ -8,6 +8,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementLandAndB
 /// Request to create a lease agreement land and building property with its appraisal detail
 /// </summary>
 public record CreateLeaseAgreementLandAndBuildingPropertyRequest(
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     // Property Identification
     string? PropertyName = null,
     string? LandDescription = null,

@@ -4,6 +4,7 @@ namespace Appraisal.Application.Features.Appraisals.UpdateMachineryProperty;
 /// Request to update a machinery property detail
 /// </summary>
 public record UpdateMachineryPropertyRequest(
+    bool IsDraft,
     // Machine Identification
     string? PropertyName = null,
     string? MachineName = null,

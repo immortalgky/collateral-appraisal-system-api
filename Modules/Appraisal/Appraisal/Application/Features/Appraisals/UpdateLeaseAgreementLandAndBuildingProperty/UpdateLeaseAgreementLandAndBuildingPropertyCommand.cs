@@ -10,6 +10,7 @@ namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreementLandAndB
 public record UpdateLeaseAgreementLandAndBuildingPropertyCommand(
     Guid AppraisalId,
     Guid PropertyId,
+    bool IsDraft,
     // Property Identification
     string? PropertyName = null,
     string? LandDescription = null,

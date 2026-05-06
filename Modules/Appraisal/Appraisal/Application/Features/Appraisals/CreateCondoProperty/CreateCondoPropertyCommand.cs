@@ -5,6 +5,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateCondoProperty;
 /// </summary>
 public record CreateCondoPropertyCommand(
     Guid AppraisalId,
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     Guid? GroupId = null,
     string? PropertyName = null,
     string? CondoName = null,
