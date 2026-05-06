@@ -13,7 +13,7 @@ public record SaveProjectLandCommand(
     string? LandOffice = null,
     string? OwnerName = null,
     bool? IsOwnerVerified = null,
-    bool? HasObligation = null,
+    string? HasObligation = null,
     string? ObligationDetails = null,
     bool? IsLandLocationVerified = null,
     string? LandCheckMethodType = null,

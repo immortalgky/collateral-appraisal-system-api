@@ -322,6 +322,15 @@ public class Project : Aggregate<Guid>
         _models.Remove(model);
     }
 
+    public void RemoveUnitUpload(Guid uploadId)
+    {
+        var upload = _unitUploads.FirstOrDefault(u => u.Id == uploadId)
+                     ?? throw new InvalidProjectStateException($"Unit upload {uploadId} not found");
+
+        _units.RemoveAll(u => u.UploadBatchId == uploadId);
+        _unitUploads.Remove(upload);
+    }
+
     // =========================================================================
     // Unit import (branches internally on ProjectType)
     // =========================================================================
@@ -581,9 +590,9 @@ public class Project : Aggregate<Guid>
             }
 
             var totalAppraisalValue = standardPriceTotal + locationContribution + priceIncrementPerFloor;
-            var totalAppraisalValueRounded = Math.Round(totalAppraisalValue, 0);
+            var totalAppraisalValueRounded = Math.Round(totalAppraisalValue, 0, MidpointRounding.AwayFromZero);
             var forceSellingPrice = assumption.ForceSalePercentage.HasValue
-                ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m, 0)
+                ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m, 0, MidpointRounding.AwayFromZero)
                 : (decimal?)null;
 
             unitPrice.UpdateCondoCalculatedValues(
@@ -652,7 +661,7 @@ public class Project : Aggregate<Guid>
             var totalAppraisalValue = standardPrice + landIncreaseDecreaseAmount + locationContribution;
             var totalAppraisalValueRounded = RoundToNearest10000(totalAppraisalValue);
             var forceSellingPrice = assumption.ForceSalePercentage.HasValue
-                ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m, 0)
+                ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m, 0, MidpointRounding.AwayFromZero)
                 : (decimal?)null;
 
             unitPrice.UpdateLandAndBuildingCalculatedValues(
@@ -806,6 +815,46 @@ public class Project : Aggregate<Guid>
                 _models.Add(model);
             }
         }
+
+        // Stamp unit counts per tower
+        var unitCountByTower = _units
+            .Where(u => !string.IsNullOrWhiteSpace(u.TowerName))
+            .GroupBy(u => u.TowerName!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var tower in _towers)
+        {
+            if (tower.TowerName is not null && unitCountByTower.TryGetValue(tower.TowerName, out var count))
+                tower.StampUnitCount(count);
+        }
+
+        // Stamp price/area stats per model, grouped by (TowerName, ModelType)
+        var statsByTowerModel = _units
+            .Where(u => !string.IsNullOrWhiteSpace(u.ModelType))
+            .GroupBy(u => new
+            {
+                TowerName = (u.TowerName ?? string.Empty).ToUpperInvariant(),
+                ModelType = u.ModelType!.ToUpperInvariant(),
+            });
+
+        foreach (var group in statsByTowerModel)
+        {
+            var tower = _towers.FirstOrDefault(t =>
+                string.Equals(t.TowerName, group.Key.TowerName, StringComparison.OrdinalIgnoreCase));
+            if (tower is null) continue;
+
+            var model = _models.FirstOrDefault(m =>
+                m.ProjectTowerId == tower.Id &&
+                string.Equals(m.ModelName, group.Key.ModelType, StringComparison.OrdinalIgnoreCase));
+            if (model is null) continue;
+
+            var units = group.ToList();
+            model.StampStats(
+                startingPriceMin: units.Min(u => u.SellingPrice),
+                startingPriceMax: units.Max(u => u.SellingPrice),
+                usableAreaMin: units.Min(u => u.UsableArea),
+                usableAreaMax: units.Max(u => u.UsableArea));
+        }
     }
 
     private void LinkCondoUnitsToTowersAndModels()
@@ -846,6 +895,28 @@ public class Project : Aggregate<Guid>
         {
             if (!_models.Any(m => string.Equals(m.ModelName, name, StringComparison.OrdinalIgnoreCase)))
                 _models.Add(ProjectModel.Create(Id, name));
+        }
+
+        // Stamp price/area stats per model
+        var statsByModel = _units
+            .Where(u => !string.IsNullOrWhiteSpace(u.ModelType))
+            .GroupBy(u => u.ModelType!, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in statsByModel)
+        {
+            var model = _models.FirstOrDefault(m =>
+                string.Equals(m.ModelName, group.Key, StringComparison.OrdinalIgnoreCase));
+            if (model is null) continue;
+
+            var units = group.ToList();
+            model.StampStats(
+                startingPriceMin: units.Min(u => u.SellingPrice),
+                startingPriceMax: units.Max(u => u.SellingPrice),
+                usableAreaMin: units.Min(u => u.UsableArea),
+                usableAreaMax: units.Max(u => u.UsableArea),
+                landAreaMin: units.Min(u => u.LandArea),
+                landAreaMax: units.Max(u => u.LandArea),
+                numberOfHouse: units.Count);
         }
     }
 

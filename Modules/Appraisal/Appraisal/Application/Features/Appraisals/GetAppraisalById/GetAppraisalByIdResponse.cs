@@ -5,10 +5,13 @@ public record GetAppraisalByIdResponse
     public Guid Id { get; set; }
     public string? AppraisalNumber { get; set; }
     public Guid RequestId { get; set; }
+    public DateTime? RequestedAt { get; set; }
     public string Status { get; set; } = null!;
     public string AppraisalType { get; set; } = null!;
     public string Priority { get; set; } = null!;
     public bool IsPma { get; set; }
+    public bool IsBlock { get; set; }
+    public string? BlockProjectType { get; set; }
     public string? Purpose { get; set; }
     public string? Channel { get; set; }
     public string? BankingSegment { get; set; }
@@ -18,7 +21,7 @@ public record GetAppraisalByIdResponse
     public string? SLAStatus { get; set; }
     public int? ActualDaysToComplete { get; set; }
     public bool? IsWithinSLA { get; set; }
-    public int CollateralCount { get; set; }
+    public int PropertyCount { get; set; }
     public int GroupCount { get; set; }
     public int AssignmentCount { get; set; }
     public DateTime? CreatedOn { get; set; }

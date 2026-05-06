@@ -21,6 +21,7 @@ public record GetLeaseAgreementBuildingPropertyResponse(
     string? OwnerName,
     bool IsOwnerVerified,
     string? HouseNumber,
+    string? NoHouseNumber,
     // Building Status
     string? BuildingConditionType,
     string? BuildingConditionTypeOther,
@@ -28,7 +29,7 @@ public record GetLeaseAgreementBuildingPropertyResponse(
     decimal? ConstructionCompletionPercent,
     DateTime? ConstructionLicenseExpirationDate,
     bool? IsAppraisable,
-    bool? HasObligation,
+    string? HasObligation,
     string? ObligationDetails,
     // Building Info
     string? BuildingType,

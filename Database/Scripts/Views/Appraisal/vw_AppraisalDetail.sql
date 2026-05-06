@@ -4,6 +4,7 @@ VIEW appraisal.vw_AppraisalDetail AS
 SELECT a.Id,
        a.AppraisalNumber,
        a.RequestId,
+       a.RequestedAt,
        -- Derive status: CompletedAt trumps all; then workflow activity; fallback to stored status
        CASE
            WHEN a.CompletedAt IS NOT NULL THEN 'Completed'
@@ -25,9 +26,15 @@ SELECT a.Id,
        a.CreatedAt,
        a.CreatedBy,
        a.UpdatedAt,
-       a.UpdatedBy
+       a.UpdatedBy,
+       -- Block appraisal detection: presence of a Projects row is authoritative
+       CAST(CASE WHEN p.Id IS NOT NULL THEN 1 ELSE 0 END AS BIT)                           AS IsBlock,
+       CASE p.ProjectType WHEN 1 THEN 'Condo' WHEN 2 THEN 'LandAndBuilding' ELSE NULL END  AS BlockProjectType
 FROM appraisal.Appraisals a
          OUTER APPLY (SELECT TOP 1 pt.ActivityId
                       FROM workflow.PendingTasks pt
                       WHERE pt.CorrelationId = a.RequestId
                       ORDER BY pt.AssignedAt DESC) wpt
+         OUTER APPLY (SELECT TOP 1 ip.Id, ip.ProjectType
+                      FROM appraisal.Projects ip
+                      WHERE ip.AppraisalId = a.Id) p

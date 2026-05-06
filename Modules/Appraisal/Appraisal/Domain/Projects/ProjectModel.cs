@@ -156,6 +156,27 @@ public class ProjectModel : Entity<Guid>
         ProjectTowerId = towerId;
     }
 
+    /// <summary>Stamps price and area statistics derived from uploaded units. StandardUsableArea = min.</summary>
+    internal void StampStats(
+        decimal? startingPriceMin,
+        decimal? startingPriceMax,
+        decimal? usableAreaMin,
+        decimal? usableAreaMax,
+        decimal? landAreaMin = null,
+        decimal? landAreaMax = null,
+        int? numberOfHouse = null)
+    {
+        StartingPriceMin = startingPriceMin;
+        StartingPriceMax = startingPriceMax;
+        UsableAreaMin = usableAreaMin;
+        UsableAreaMax = usableAreaMax;
+        StandardUsableArea = usableAreaMin;
+        LandAreaMin = landAreaMin;
+        LandAreaMax = landAreaMax;
+        StandardLandArea = landAreaMin;
+        if (numberOfHouse.HasValue) NumberOfHouse = numberOfHouse;
+    }
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S107:Methods should not have too many parameters")]
     public void Update(
         // Common

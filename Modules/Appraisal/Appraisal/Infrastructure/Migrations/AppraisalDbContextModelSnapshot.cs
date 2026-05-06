@@ -4987,8 +4987,9 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<bool?>("HasElectricity")
                         .HasColumnType("bit");
 
-                    b.Property<bool?>("HasObligation")
-                        .HasColumnType("bit");
+                    b.Property<string>("HasObligation")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<bool?>("IsEncroached")
                         .HasColumnType("bit");
@@ -5660,8 +5661,9 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
-                    b.Property<bool?>("HasObligation")
-                        .HasColumnType("bit");
+                    b.Property<string>("HasObligation")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<bool?>("IsExpropriated")
                         .HasColumnType("bit");
@@ -6361,6 +6363,10 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Bcc")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Cc")
                         .HasMaxLength(500)
@@ -7473,8 +7479,9 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasPrecision(18, 2)
                                 .HasColumnType("decimal(18,2)");
 
-                            b1.Property<bool?>("HasObligation")
-                                .HasColumnType("bit");
+                            b1.Property<string>("HasObligation")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
 
                             b1.Property<string>("HouseNumber")
                                 .HasMaxLength(50)
@@ -7503,6 +7510,10 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("bit");
 
                             b1.Property<string>("ModelName")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
+
+                            b1.Property<string>("NoHouseNumber")
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
 
@@ -7932,8 +7943,9 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasMaxLength(4000)
                                 .HasColumnType("nvarchar(4000)");
 
-                            b1.Property<bool?>("HasObligation")
-                                .HasColumnType("bit");
+                            b1.Property<string>("HasObligation")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
 
                             b1.Property<bool?>("IsExpropriated")
                                 .HasColumnType("bit");
@@ -8458,8 +8470,9 @@ namespace Appraisal.Infrastructure.Migrations
                             b1.Property<bool?>("HasElectricity")
                                 .HasColumnType("bit");
 
-                            b1.Property<bool?>("HasObligation")
-                                .HasColumnType("bit");
+                            b1.Property<string>("HasObligation")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
 
                             b1.Property<bool?>("IsEncroached")
                                 .HasColumnType("bit");

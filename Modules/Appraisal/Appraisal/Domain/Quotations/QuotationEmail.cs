@@ -7,6 +7,7 @@ public class QuotationEmail
     public string From { get; private set; } = string.Empty;
     public string To { get; private set; } = string.Empty;
     public string? Cc { get; private set; }
+    public string? Bcc { get; private set; }
     public string Subject { get; private set; } = string.Empty;
     public string? Content { get; private set; }
 
@@ -14,7 +15,7 @@ public class QuotationEmail
 
     public static QuotationEmail Create(
         Guid quotationRequestId, string from, string to,
-        string? cc, string subject, string? content)
+        string? cc, string? bcc, string subject, string? content)
     {
         return new QuotationEmail
         {
@@ -23,6 +24,7 @@ public class QuotationEmail
             From = from,
             To = to,
             Cc = cc,
+            Bcc = bcc,
             Subject = subject,
             Content = content
         };

@@ -66,6 +66,7 @@ public class AuthDataSeed(
              "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE",
              "QUOTATION_VIEW", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT",
              "TASK_QUOTATION_REVIEW", "TASK_QUOTATION_FINALIZE",
+             "COLLATERAL_ADMIN",
              ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
             "External Company Admin — manages external company users and external appraisal assignments.",
@@ -465,6 +466,8 @@ public class AuthDataSeed(
             ("TASK_QUOTATION_REVIEW", "Task: Review Quotation Bids", "Access admin quotation review tasks", "Workflow"),
             ("TASK_QUOTATION_PICK_WINNER", "Task: Pick Quotation Winner", "Access RM pick winner tasks", "Workflow"),
             ("TASK_QUOTATION_FINALIZE", "Task: Finalize Quotation", "Access admin quotation finalization tasks", "Workflow"),
+            // Collateral Master admin
+            ("COLLATERAL_ADMIN", "Manage Collateral Masters", "Manage collateral catalog, master records, and backfill reports", "Collateral"),
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)

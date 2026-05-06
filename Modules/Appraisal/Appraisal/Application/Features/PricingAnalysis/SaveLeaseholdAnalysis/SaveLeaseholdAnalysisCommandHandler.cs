@@ -40,6 +40,18 @@ public class SaveLeaseholdAnalysisCommandHandler(
             analysis = LeaseholdAnalysis.Create(method.Id);
             method.SetLeaseholdAnalysis(analysis);
         }
+        
+        // Update partial usage (lease land area) to calculate leashold table first
+        if (command.IsPartialUsage)
+        {
+            analysis.SetPartialUsage(true,
+                  command.PartialRai, command.PartialNgan, command.PartialWa,
+                  (command.PartialRai ?? 0) * 400m + (command.PartialNgan ?? 0) * 100m + (command.PartialWa ?? 0), command.PricePerSqWa,
+                  null, null, null
+                  );
+        } else {
+            analysis.SetPartialUsage(false, null, null, null, null, null, null, null, null );
+        }
 
         // Update input fields
         analysis.Update(
@@ -108,7 +120,7 @@ public class SaveLeaseholdAnalysisCommandHandler(
                 LeaseholdCalculationService.CalculatePartialUsage(
                     calcResult.FinalValueRounded,
                     command.PartialRai, command.PartialNgan, command.PartialWa,
-                    command.PricePerSqWa);
+                    command.LandValuePerSqWa, propertyData.TotalLandAreaInSqWa);
 
             computedEstimatePriceRounded = estimatePriceRounded;
 
@@ -117,7 +129,7 @@ public class SaveLeaseholdAnalysisCommandHandler(
 
             analysis.SetPartialUsage(true,
                 command.PartialRai, command.PartialNgan, command.PartialWa,
-                partialLandArea, command.PricePerSqWa,
+                partialLandArea, command.LandValuePerSqWa,
                 partialLandPrice, estimateNetPrice, finalEstimate);
         }
         else

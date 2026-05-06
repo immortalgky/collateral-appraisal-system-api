@@ -31,7 +31,7 @@ public record CreateCondoPropertyCommand(
     bool? IsOwnerVerified = null,
     string? BuildingConditionType = null,
     string? BuildingConditionTypeOther = null,
-    bool? HasObligation = null,
+    string? HasObligation = null,
     string? ObligationDetails = null,
     string? DocumentValidationResultType = null,
     // Location Details

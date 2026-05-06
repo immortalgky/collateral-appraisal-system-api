@@ -21,9 +21,11 @@ public class
         builder.Property(e => e.ModelName).HasMaxLength(100);
         builder.Property(e => e.BuiltOnTitleNumber).HasMaxLength(100);
         builder.Property(e => e.HouseNumber).HasMaxLength(50);
+        builder.Property(e => e.NoHouseNumber).HasMaxLength(100);
 
         // Owner
         builder.Property(e => e.OwnerName).HasMaxLength(200); // should not require for land and building
+        builder.Property(e => e.HasObligation).HasMaxLength(100);
         builder.Property(e => e.ObligationDetails).HasMaxLength(500);
 
         // Building Status

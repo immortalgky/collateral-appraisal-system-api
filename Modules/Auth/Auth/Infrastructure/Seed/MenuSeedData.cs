@@ -94,6 +94,12 @@ public static class MenuSeedData
                 new("main.user-management.users", "Users", "circle-user", IconStyle.Solid, "text-violet-500", "/admin/users", "USER_MANAGE", null),
                 new("main.user-management.menus", "Menus", "bars", IconStyle.Solid, "text-violet-500", "/admin/menus", "MENU_MANAGE", "MENU_MANAGE"),
             }),
+        new("main.collateral-master", "Collateral Master", "buildings", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters", "COLLATERAL_ADMIN", null,
+            new List<MenuSeedNode>
+            {
+                new("main.collateral-master.catalog", "Catalog", "list", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters", "COLLATERAL_ADMIN", null),
+                new("main.collateral-master.backfill", "Backfill Report", "rotate", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters/backfill", "COLLATERAL_ADMIN", null),
+            }),
         new("main.workflow-builder", "Workflow Builder", "diagram-project", IconStyle.Solid, "text-orange-500", "/workflow-builder", "WORKFLOW_MANAGE", "WORKFLOW_MANAGE",
             new List<MenuSeedNode>
             {

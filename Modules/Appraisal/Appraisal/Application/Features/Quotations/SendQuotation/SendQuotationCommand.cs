@@ -11,6 +11,7 @@ public record SendQuotationCommand(
     string From,
     string To,
     string? Cc,
+    string? Bcc,
     string Subject,
     string? Content)
     : ICommand<SendQuotationResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

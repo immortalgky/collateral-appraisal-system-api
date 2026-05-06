@@ -26,6 +26,7 @@ public class CreateBuildingPropertyCommandHandler(
             command.ModelName,
             command.BuiltOnTitleNumber,
             command.HouseNumber,
+            command.NoHouseNumber,
             command.OwnerName,
             command.IsOwnerVerified,
             command.HasObligation,

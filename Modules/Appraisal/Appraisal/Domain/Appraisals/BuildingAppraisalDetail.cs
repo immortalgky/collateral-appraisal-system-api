@@ -16,11 +16,12 @@ public class BuildingAppraisalDetail : Entity<Guid>
     public string? ModelName { get; private set; }
     public string? BuiltOnTitleNumber { get; private set; }
     public string? HouseNumber { get; private set; }
+    public string? NoHouseNumber { get; private set; }
 
     // Owner
     public string? OwnerName { get; private set; }
     public bool? IsOwnerVerified { get; private set; }
-    public bool? HasObligation { get; private set; }
+    public string? HasObligation { get; private set; }
     public string? ObligationDetails { get; private set; }
 
     // Building Status
@@ -113,10 +114,11 @@ public class BuildingAppraisalDetail : Entity<Guid>
         string? modelName = null,
         string? builtOnTitleNumber = null,
         string? houseNumber = null,
+        string? noHouseNumber = null,
         // Owner
         string? ownerName = null,
         bool? isOwnerVerified = null,
-        bool? hasObligation = null,
+        string? hasObligation = null,
         string? obligationDetails = null,
         // Building Status
         string? buildingConditionType = null,
@@ -177,6 +179,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
         ModelName = modelName;
         BuiltOnTitleNumber = builtOnTitleNumber;
         HouseNumber = houseNumber;
+        NoHouseNumber = noHouseNumber;
 
         // Owner
         OwnerName = ownerName;
@@ -255,6 +258,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
             ModelName = source.ModelName,
             BuiltOnTitleNumber = source.BuiltOnTitleNumber,
             HouseNumber = source.HouseNumber,
+            NoHouseNumber = source.NoHouseNumber,
             OwnerName = source.OwnerName,
             IsOwnerVerified = source.IsOwnerVerified,
             HasObligation = source.HasObligation,
