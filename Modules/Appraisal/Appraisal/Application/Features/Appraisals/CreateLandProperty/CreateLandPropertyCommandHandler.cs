@@ -145,6 +145,11 @@ public class CreateLandPropertyCommandHandler(
                 landDetail.AddTitle(title);
             }
 
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);

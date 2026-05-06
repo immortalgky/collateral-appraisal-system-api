@@ -7,6 +7,8 @@ namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreementLandProp
 /// Request to update a lease agreement land property detail
 /// </summary>
 public record UpdateLeaseAgreementLandPropertyRequest(
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     // Property Identification
     string? PropertyName = null,
     string? LandDescription = null,

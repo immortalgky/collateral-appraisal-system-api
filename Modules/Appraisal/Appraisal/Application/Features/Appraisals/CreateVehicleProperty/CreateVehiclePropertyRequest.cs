@@ -4,6 +4,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateVehicleProperty;
 /// Request to create a vehicle property with its appraisal detail
 /// </summary>
 public record CreateVehiclePropertyRequest(
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     // Required
     string OwnerName,
     // Vehicle Identification

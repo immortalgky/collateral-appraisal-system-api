@@ -8,8 +8,10 @@ namespace Appraisal.Application.Features.Appraisals.UpdateBuildingProperty;
 public record UpdateBuildingPropertyCommand(
     Guid AppraisalId,
     Guid PropertyId,
-  // Property Identification
-  string? PropertyName = null,
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
+    // Property Identification
+    string? PropertyName = null,
     string? BuildingNumber = null,
     string? ModelName = null,
     string? BuiltOnTitleNumber = null,

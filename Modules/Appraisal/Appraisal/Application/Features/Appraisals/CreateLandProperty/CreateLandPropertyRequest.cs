@@ -4,6 +4,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLandProperty;
 /// Request to create a new land property with detail
 /// </summary>
 public record CreateLandPropertyRequest(
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     // Required
     string OwnerName,
     string? Description = null,

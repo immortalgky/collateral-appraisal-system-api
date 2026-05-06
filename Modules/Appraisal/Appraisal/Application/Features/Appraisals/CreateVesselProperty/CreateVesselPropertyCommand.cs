@@ -8,6 +8,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateVesselProperty;
 /// </summary>
 public record CreateVesselPropertyCommand(
     Guid AppraisalId,
+    bool IsDraft,
     Guid? GroupId,
     // Required
     string OwnerName,

@@ -60,6 +60,11 @@ public class CreateMachineryPropertyCommandHandler(
             remark: command.Remark,
             other: command.Other,
             appraiserOpinion: command.AppraiserOpinion);
+        
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
 
         // 4. Save aggregate
         await unitOfWork.SaveChangesAsync(cancellationToken);

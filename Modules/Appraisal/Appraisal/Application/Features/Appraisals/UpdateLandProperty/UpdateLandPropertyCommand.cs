@@ -8,6 +8,8 @@ namespace Appraisal.Application.Features.Appraisals.UpdateLandProperty;
 public record UpdateLandPropertyCommand(
     Guid AppraisalId,
     Guid PropertyId,
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     // Property Identification
     string? PropertyName = null,
     string? LandDescription = null,

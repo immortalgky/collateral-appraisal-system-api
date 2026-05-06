@@ -164,6 +164,11 @@ public class UpdateLeaseAgreementLandPropertyCommandHandler(
             Appraisal.Application.Features.Appraisals.Shared.RentalScheduleComputer.ComputeAndSave(rentalInfo, command.RentalInfo.ScheduleOverrides);
         }
 
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
+
         return Unit.Value;
     }
 

@@ -6,6 +6,8 @@ namespace Appraisal.Application.Features.Appraisals.UpdateBuildingProperty;
 /// Request to update a building property detail
 /// </summary>
 public record UpdateBuildingPropertyRequest(
+    // flag to indicate this property saved as draft (true) or saved (false). Default to true (draft)
+    bool IsDraft,
     // Property Identification
     string? PropertyName = null,
     string? BuildingNumber = null,

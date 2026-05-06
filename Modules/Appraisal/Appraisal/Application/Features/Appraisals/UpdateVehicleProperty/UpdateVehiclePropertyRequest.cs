@@ -4,6 +4,7 @@ namespace Appraisal.Application.Features.Appraisals.UpdateVehicleProperty;
 /// Request to update a vehicle property detail
 /// </summary>
 public record UpdateVehiclePropertyRequest(
+    bool IsDraft,
     // Vehicle Identification
     string? PropertyName = null,
     string? VehicleName = null,

@@ -9,6 +9,7 @@ namespace Appraisal.Application.Features.Appraisals.UpdateMachineryProperty;
 public record UpdateMachineryPropertyCommand(
     Guid AppraisalId,
     Guid PropertyId,
+    bool IsDraft,
     // Machine Identification
     string? PropertyName = null,
     string? MachineName = null,

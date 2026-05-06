@@ -8,6 +8,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateMachineryProperty;
 /// </summary>
 public record CreateMachineryPropertyCommand(
     Guid AppraisalId,
+    bool IsDraft,
     Guid? GroupId,
     // Required
     string? OwnerName,

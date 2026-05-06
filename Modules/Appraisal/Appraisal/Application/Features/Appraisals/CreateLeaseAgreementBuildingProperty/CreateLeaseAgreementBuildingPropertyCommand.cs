@@ -8,6 +8,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementBuilding
 /// </summary>
 public record CreateLeaseAgreementBuildingPropertyCommand(
     Guid AppraisalId,
+    bool IsDraft,
     Guid? GroupId = null,
     // Property Identification
     string? PropertyName = null,

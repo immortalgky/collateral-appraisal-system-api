@@ -11,6 +11,7 @@ public record GetLeaseAgreementLandPropertyResult
     // Property Info
     public Guid PropertyId { get; init; }
     public Guid AppraisalId { get; init; }
+    public bool IsDraft { get; init; }
     public int SequenceNumber { get; init; }
     public string PropertyType { get; init; } = null!;
     public string? Description { get; init; }

@@ -9,6 +9,7 @@ namespace Appraisal.Application.Features.Appraisals.UpdateVehicleProperty;
 public record UpdateVehiclePropertyCommand(
     Guid AppraisalId,
     Guid PropertyId,
+    bool IsDraft,
     // Vehicle Identification
     string? PropertyName = null,
     string? VehicleName = null,

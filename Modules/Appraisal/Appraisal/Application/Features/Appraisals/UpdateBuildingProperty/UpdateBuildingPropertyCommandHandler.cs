@@ -98,6 +98,11 @@ public class UpdateBuildingPropertyCommandHandler(
         else
             SyncConstructionInspection(property, command.ConstructionInspection);
 
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
+        
         return MediatR.Unit.Value;
     }
 

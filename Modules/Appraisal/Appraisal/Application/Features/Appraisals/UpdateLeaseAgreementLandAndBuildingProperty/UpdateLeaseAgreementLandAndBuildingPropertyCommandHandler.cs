@@ -260,6 +260,11 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             Appraisal.Application.Features.Appraisals.Shared.RentalScheduleComputer.ComputeAndSave(rentalInfo, command.RentalInfo.ScheduleOverrides);
         }
 
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
+
         // 11. Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 

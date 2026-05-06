@@ -122,6 +122,11 @@ public class UpdateLandPropertyCommandHandler(
         if (command.Titles is not null)
             SyncTitles(landDetail, command.Titles);
 
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
+
         return Unit.Value;
     }
 

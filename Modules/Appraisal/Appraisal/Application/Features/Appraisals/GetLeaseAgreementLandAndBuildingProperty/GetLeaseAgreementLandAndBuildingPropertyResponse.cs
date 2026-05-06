@@ -9,6 +9,7 @@ public record GetLeaseAgreementLandAndBuildingPropertyResponse(
     // Property
     Guid PropertyId,
     Guid AppraisalId,
+    bool IsDraft,
     int SequenceNumber,
     string PropertyType,
     string? Description,

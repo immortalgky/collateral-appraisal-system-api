@@ -87,6 +87,7 @@ public class GetLandAndBuildingPropertyQueryHandler(
             // Property
             property.Id,
             property.AppraisalId,
+            property.Status.Code == "Draft",
             property.SequenceNumber,
             property.PropertyType.ToString(),
             property.Description,

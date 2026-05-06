@@ -34,6 +34,16 @@ public class
                 .HasMaxLength(30);
         });
 
+        // Status Value Object (stored as string column "Status", default "Draft")
+        builder.OwnsOne(c => c.Status, st =>
+        {
+            st.Property(s => s.Code)
+                .HasColumnName("Status")
+                .IsRequired()
+                .HasMaxLength(20)
+                .HasDefaultValue("Draft");
+        });
+
         // Indexes
         builder.HasIndex(c => c.AppraisalId);
         builder.HasIndex(c => new { c.AppraisalId, c.SequenceNumber })

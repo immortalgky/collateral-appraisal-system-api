@@ -72,6 +72,11 @@ public class UpdateMachineryPropertyCommandHandler(
             command.Remark,
             command.Other,
             command.AppraiserOpinion);
+        
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
 
         return Unit.Value;
     }

@@ -36,6 +36,7 @@ public class GetVehiclePropertyQueryHandler(
         return new GetVehiclePropertyResult(
             PropertyId: property.Id,
             AppraisalId: property.AppraisalId,
+            IsDraft:property.Status.Code == "Draft",
             SequenceNumber: property.SequenceNumber,
             PropertyType: property.PropertyType.ToString(),
             Description: property.Description,

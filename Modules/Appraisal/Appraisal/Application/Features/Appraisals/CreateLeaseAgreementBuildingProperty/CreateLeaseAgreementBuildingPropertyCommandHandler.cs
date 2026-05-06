@@ -131,6 +131,11 @@ public class CreateLeaseAgreementBuildingPropertyCommandHandler(
             Appraisal.Application.Features.Appraisals.Shared.RentalScheduleComputer.ComputeAndSave(rentalInfo, command.RentalInfo.ScheduleOverrides);
         }
 
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
+        
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);

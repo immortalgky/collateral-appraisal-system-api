@@ -139,6 +139,11 @@ public class UpdateLeaseAgreementBuildingPropertyCommandHandler(
             // Compute schedule server-side from rental info fields, apply overrides
             Appraisal.Application.Features.Appraisals.Shared.RentalScheduleComputer.ComputeAndSave(rentalInfo, command.RentalInfo.ScheduleOverrides);
         }
+        
+        if (!command.IsDraft)
+            property.MarkAsSaved();
+        else
+            property.RevertToDraft();
 
         return MediatR.Unit.Value;
     }
