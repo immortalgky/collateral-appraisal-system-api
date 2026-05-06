@@ -4,6 +4,7 @@ public record SendQuotationRequest(
     string From,
     string To,
     string? Cc,
+    string? Bcc,
     string Subject,
     string? Content);
 
@@ -29,6 +30,7 @@ public class SendQuotationEndpoint : ICarterModule
                         request.From,
                         request.To,
                         request.Cc,
+                        request.Bcc,
                         request.Subject,
                         request.Content);
                     var result = await sender.Send(command, cancellationToken);

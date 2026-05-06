@@ -167,6 +167,40 @@ public class EmitAppraisalCreationRequestedStepTests
             Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>());
     }
 
+    [Fact]
+    public async Task ExecuteAsync_CiPayload_PropagatesPrevAppraisalIdAndAppraisalType()
+    {
+        var prevAppraisalId = Guid.NewGuid();
+        var payload = JsonSerializer.Serialize(new RequestSubmittedIntegrationEvent
+        {
+            RequestId = Guid.NewGuid(),
+            RequestTitles = [],
+            CreatedBy = "test.user",
+            Priority = "Normal",
+            IsPma = false,
+            Channel = "MANUAL",
+            PrevAppraisalId = prevAppraisalId,
+            AppraisalType = "ConstructionInspection"
+        });
+
+        var context = BuildContext(
+            variables: new Dictionary<string, object?>
+            {
+                ["channel"] = "MANUAL",
+                ["requestSubmissionPayload"] = payload
+            },
+            parametersJson: """{"condition": "channel == 'MANUAL'", "requireDecision": "P"}""",
+            input: new Dictionary<string, object?> { ["decisionTaken"] = "P" });
+
+        await _sut.ExecuteAsync(context, CancellationToken.None);
+
+        _outbox.Received(1).Publish(
+            Arg.Is<AppraisalCreationRequestedIntegrationEvent>(e =>
+                e.PrevAppraisalId == prevAppraisalId &&
+                e.AppraisalType == "ConstructionInspection"),
+            Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>());
+    }
+
     // ── Helpers ──
 
     private static ProcessStepContext BuildContext(

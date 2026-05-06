@@ -32,11 +32,6 @@ public class SendQuotationCommandHandler(
         var quotation = await quotationRepository.GetByIdWithSharedDocumentsAsync(command.QuotationRequestId, cancellationToken)
                         ?? throw new NotFoundException($"Quotation request '{command.QuotationRequestId}' not found.");
 
-        // m8: only the admin who owns the Draft may send it (parity with add-to-existing on StartQuotationFromTask)
-        if (quotation.RequestedBy != currentUser.Username)
-            throw new UnauthorizedAccessException(
-                "Only the admin who created this draft can send it.");
-
         if (quotation.Status != "Draft")
             throw new BadRequestException(
                 $"Cannot send quotation in status '{quotation.Status}'. Only Draft quotations can be sent.");
@@ -75,6 +70,7 @@ public class SendQuotationCommandHandler(
             command.From,
             command.To,
             command.Cc,
+            command.Bcc,
             command.Subject,
             command.Content);
         dbContext.QuotationEmails.Add(emailLog);

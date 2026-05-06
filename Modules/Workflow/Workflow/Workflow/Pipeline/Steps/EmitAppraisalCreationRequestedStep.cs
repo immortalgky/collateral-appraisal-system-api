@@ -105,7 +105,9 @@ public class EmitAppraisalCreationRequestedStep(
                 FacilityLimit = source.FacilityLimit,
                 HasAppraisalBook = source.HasAppraisalBook,
                 RequestedBy = source.RequestedBy,
-                RequestedAt = source.RequestedAt
+                RequestedAt = source.RequestedAt,
+                PrevAppraisalId = source.PrevAppraisalId,
+                AppraisalType = source.AppraisalType
             }, source.RequestId.ToString());
 
             // B5: Queue the write via SetVariable so it is persisted to the WorkflowInstance

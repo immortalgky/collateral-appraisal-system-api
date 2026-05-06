@@ -31,11 +31,11 @@ public class GetCollateralCatalogEndpoint : ICarterModule
 
                     var result = await sender.Send(query, cancellationToken);
 
-                    return Results.Ok(result);
+                    return Results.Ok(result.Items);
                 }
             )
             .WithName("GetCollateralCatalog")
-            .Produces<GetCollateralCatalogResult>(StatusCodes.Status200OK)
+            .Produces<PaginatedResult<CollateralCatalogItemDto>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithSummary("Get paginated collateral master catalog")

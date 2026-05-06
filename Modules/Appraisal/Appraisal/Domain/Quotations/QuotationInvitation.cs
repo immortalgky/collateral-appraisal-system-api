@@ -38,6 +38,7 @@ public class QuotationInvitation : Entity<Guid>
     {
         NotificationSent = true;
         NotificationSentAt = DateTime.Now;
+        InvitedAt = DateTime.Now;
     }
 
     public void MarkViewed()

@@ -173,6 +173,8 @@ public class ProjectTower : Entity<Guid>
         Remark = remark;
     }
 
+    public void StampUnitCount(int count) => NumberOfUnits = count;
+
     // --- Images ---
 
     public ProjectTowerImage AddImage(

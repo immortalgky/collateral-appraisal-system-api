@@ -147,7 +147,7 @@ public class GetQuotationByIdQueryHandler(
         // v7: enrich SharedDocuments with display metadata pulled from request documents.
         var sharedDocumentsEnriched = await EnrichSharedDocumentsAsync(quotation.SharedDocuments);
 
-        // Resolve invited companies — skip Expired invitations, enrich with CompanyName.
+        // Resolve invited companies — skip Expired invitations, enrich with CompanyName and Email.
         // External company users do not see the list of rival invitees; they get an empty list.
         List<InvitedCompanyResult> invitedCompanies;
         if (QuotationAccessPolicy.CanViewInvitedCompanies(currentUser))
@@ -156,10 +156,10 @@ public class GetQuotationByIdQueryHandler(
                 .Where(i => i.Status != "Expired")
                 .Select(i => i.CompanyId)
                 .ToArray();
-            var companyNamesMap = await ResolveCompanyNamesAsync(activeInvitationCompanyIds);
+            var companyInfoMap = await ResolveCompanyInfoAsync(activeInvitationCompanyIds);
             invitedCompanies = activeInvitationCompanyIds
-                .Where(id => companyNamesMap.ContainsKey(id))
-                .Select(id => new InvitedCompanyResult(id, companyNamesMap[id]))
+                .Where(id => companyInfoMap.ContainsKey(id))
+                .Select(id => new InvitedCompanyResult(id, companyInfoMap[id].Name, companyInfoMap[id].Email))
                 .OrderBy(r => r.CompanyName)
                 .ToList();
         }
@@ -371,6 +371,23 @@ public class GetQuotationByIdQueryHandler(
             new { CompanyIds = companyIds });
 
         return rows.ToDictionary(r => r.Id, r => r.Name);
+    }
+
+    private async Task<Dictionary<Guid, (string Name, string? Email)>> ResolveCompanyInfoAsync(Guid[] companyIds)
+    {
+        if (companyIds.Length == 0)
+            return new Dictionary<Guid, (string, string?)>();
+
+        var connection = connectionFactory.GetOpenConnection();
+        var rows = await connection.QueryAsync<(Guid Id, string Name, string? Email)>(
+            """
+            SELECT c.Id, c.Name, c.Email
+            FROM [auth].[Companies] c
+            WHERE c.Id IN @CompanyIds
+            """,
+            new { CompanyIds = companyIds });
+
+        return rows.ToDictionary(r => r.Id, r => (r.Name, r.Email));
     }
 
     private async Task<IReadOnlyList<QuotationSharedDocumentResult>> EnrichSharedDocumentsAsync(
