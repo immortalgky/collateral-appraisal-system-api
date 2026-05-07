@@ -37,7 +37,7 @@ public class CreatePricingAnalysisCommandHandler(
         if (!readiness.IsReady)
             throw new PricingAnalysisNotReadyException(readiness.Violations);
 
-        var pricingAnalysis = Domain.Appraisals.PricingAnalysis.Create(command.PropertyGroupId);
+        var pricingAnalysis = Domain.Appraisals.PricingAnalysis.CreateForPropertyGroup(command.PropertyGroupId);
         await pricingAnalysisRepository.AddAsync(pricingAnalysis, cancellationToken);
 
         return new CreatePricingAnalysisResult(pricingAnalysis.Id, pricingAnalysis.Status);

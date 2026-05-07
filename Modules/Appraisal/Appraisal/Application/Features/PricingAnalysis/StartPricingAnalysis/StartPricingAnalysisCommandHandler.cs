@@ -19,10 +19,13 @@ public class StartPricingAnalysisCommandHandler(
         var pricingAnalysis = await pricingAnalysisRepository.GetByIdAsync(command.Id, cancellationToken)
                               ?? throw new InvalidOperationException(
                                   $"Pricing analysis {command.Id} not found");
+        
+        if (pricingAnalysis.SubjectType != PricingAnalysisSubjectType.PropertyGroup || !pricingAnalysis.PropertyGroupId.HasValue)
+          throw new InvalidOperationException($"Pricing analysis {command.Id} is not a PropertyGroup analysis");
 
         // Re-check the same four rules before transitioning Draft -> InProgress.
         var readiness = await readinessService.EvaluateByGroupIdAsync(
-            pricingAnalysis.PropertyGroupId, cancellationToken);
+            pricingAnalysis.PropertyGroupId.Value, cancellationToken);
 
         if (readiness is null)
             throw new NotFoundException(
