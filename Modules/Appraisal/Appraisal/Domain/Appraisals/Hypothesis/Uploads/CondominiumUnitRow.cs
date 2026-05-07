@@ -54,4 +54,26 @@ public class CondominiumUnitRow : Entity<Guid>
             Remark2 = remark2
         };
     }
+
+    /// <summary>Deep-clone for CI carry-forward — newAnalysisId + the prior→new upload id map.</summary>
+    public static CondominiumUnitRow CloneForAnalysis(
+        CondominiumUnitRow source, Guid newAnalysisId, Guid newUploadId)
+    {
+        return new CondominiumUnitRow
+        {
+            Id = Guid.CreateVersion7(),
+            UploadId = newUploadId,
+            HypothesisAnalysisId = newAnalysisId,
+            SequenceNumber = source.SequenceNumber,
+            FloorNo = source.FloorNo,
+            Building = source.Building,
+            AptNo = source.AptNo,
+            Apartment = source.Apartment,
+            ModelType = source.ModelType,
+            UsableAreaSqM = source.UsableAreaSqM,
+            SellingPrice = source.SellingPrice,
+            Remark1 = source.Remark1,
+            Remark2 = source.Remark2
+        };
+    }
 }

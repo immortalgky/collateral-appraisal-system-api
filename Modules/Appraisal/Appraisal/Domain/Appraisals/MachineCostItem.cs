@@ -34,12 +34,37 @@ public class MachineCostItem : Entity<Guid>
     {
         return new MachineCostItem
         {
+            Id = Guid.CreateVersion7(),
             PricingMethodId = pricingMethodId,
             AppraisalPropertyId = appraisalPropertyId,
             DisplaySequence = displaySequence,
             ConditionFactor = 0m,
             FunctionalObsolescence = 1m,
             EconomicObsolescence = 1m
+        };
+    }
+
+    /// <summary>
+    /// Deep-clone for CI carry-forward. AppraisalPropertyId must be the NEW property's id —
+    /// caller maps prior property → new property using the priorToNewProperties dictionary built
+    /// during property copy.
+    /// </summary>
+    public static MachineCostItem CloneForMethod(MachineCostItem source, Guid newMethodId, Guid newAppraisalPropertyId)
+    {
+        return new MachineCostItem
+        {
+            Id = Guid.CreateVersion7(),
+            PricingMethodId = newMethodId,
+            AppraisalPropertyId = newAppraisalPropertyId,
+            DisplaySequence = source.DisplaySequence,
+            RcnReplacementCost = source.RcnReplacementCost,
+            LifeSpanYears = source.LifeSpanYears,
+            ConditionFactor = source.ConditionFactor,
+            FunctionalObsolescence = source.FunctionalObsolescence,
+            EconomicObsolescence = source.EconomicObsolescence,
+            FairMarketValue = source.FairMarketValue,
+            MarketDemandAvailable = source.MarketDemandAvailable,
+            Notes = source.Notes
         };
     }
 

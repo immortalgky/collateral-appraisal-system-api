@@ -18,8 +18,7 @@ public record ProfitRentAnalysisDto(
     decimal FinalValueRounded,
     decimal? EstimatePriceRounded,
     decimal? TotalBuildingCost,
-    decimal? AppraisalPriceWithBuilding,
-    decimal? AppraisalPriceWithBuildingRounded,
+    decimal? AppraisalPrice,
     List<ProfitRentGrowthPeriodDto> GrowthPeriods,
     List<ProfitRentCalculationDetailDto> CalculationDetails
 );

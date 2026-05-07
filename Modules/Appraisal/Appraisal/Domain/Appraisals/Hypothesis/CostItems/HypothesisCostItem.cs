@@ -290,4 +290,39 @@ public class HypothesisCostItem : Entity<Guid>
     {
         DisplaySequence = sequence;
     }
+
+    /// <summary>Deep-clone for CI carry-forward — copies scalars + DepreciationPeriods child collection.</summary>
+    public static HypothesisCostItem CloneForAnalysis(HypothesisCostItem source, Guid newAnalysisId)
+    {
+        var clone = new HypothesisCostItem
+        {
+            Id = Guid.CreateVersion7(),
+            HypothesisAnalysisId = newAnalysisId,
+            Category = source.Category,
+            Kind = source.Kind,
+            ModelName = source.ModelName,
+            Description = source.Description,
+            DisplaySequence = source.DisplaySequence,
+            IsBuilding = source.IsBuilding,
+            DepreciationMethod = source.DepreciationMethod,
+            RateAmount = source.RateAmount,
+            Quantity = source.Quantity,
+            Amount = source.Amount,
+            RatePercent = source.RatePercent,
+            CategoryRatio = source.CategoryRatio,
+            Area = source.Area,
+            PricePerSqM = source.PricePerSqM,
+            PriceBeforeDepreciation = source.PriceBeforeDepreciation,
+            Year = source.Year,
+            AnnualDepreciationPercent = source.AnnualDepreciationPercent,
+            TotalDepreciationPercent = source.TotalDepreciationPercent,
+            DepreciationAmount = source.DepreciationAmount,
+            ValueAfterDepreciation = source.ValueAfterDepreciation
+        };
+
+        foreach (var p in source.DepreciationPeriods)
+            clone._depreciationPeriods.Add(HypothesisCostItemDepreciationPeriod.CloneForCostItem(p, clone.Id));
+
+        return clone;
+    }
 }

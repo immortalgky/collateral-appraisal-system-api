@@ -37,6 +37,7 @@ public class ProfitRentCalculationDetail : Entity<Guid>
     {
         return new ProfitRentCalculationDetail
         {
+            Id = Guid.CreateVersion7(),
             ProfitRentAnalysisId = profitRentAnalysisId,
             DisplaySequence = displaySequence,
             Year = year,
@@ -49,6 +50,27 @@ public class ProfitRentCalculationDetail : Entity<Guid>
             ReturnsFromLease = returnsFromLease,
             PvFactor = pvFactor,
             PresentValue = presentValue
+        };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static ProfitRentCalculationDetail CloneForAnalysis(ProfitRentCalculationDetail source, Guid newAnalysisId)
+    {
+        return new ProfitRentCalculationDetail
+        {
+            Id = Guid.CreateVersion7(),
+            ProfitRentAnalysisId = newAnalysisId,
+            DisplaySequence = source.DisplaySequence,
+            Year = source.Year,
+            NumberOfMonths = source.NumberOfMonths,
+            MarketRentalFeePerSqWa = source.MarketRentalFeePerSqWa,
+            MarketRentalFeeGrowthPercent = source.MarketRentalFeeGrowthPercent,
+            MarketRentalFeePerMonth = source.MarketRentalFeePerMonth,
+            MarketRentalFeePerYear = source.MarketRentalFeePerYear,
+            ContractRentalFeePerYear = source.ContractRentalFeePerYear,
+            ReturnsFromLease = source.ReturnsFromLease,
+            PvFactor = source.PvFactor,
+            PresentValue = source.PresentValue
         };
     }
 }

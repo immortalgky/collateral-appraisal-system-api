@@ -132,4 +132,38 @@ public class PricingAnalysis : Aggregate<Guid>
     {
         UseSystemCalc = value;
     }
+
+    /// <summary>
+    /// Deep-clone for CI carry-forward — sets <see cref="Status"/> to "Draft" so the appraiser
+    /// must re-confirm the valuation against the new construction snapshot. Carries forward
+    /// FinalAppraisedValue and the entire Approaches/Methods chain (including 1:1 method analyses
+    /// and AppraisalComparable references via global MarketComparableId).
+    /// </summary>
+    public static PricingAnalysis CloneForGroup(
+        PricingAnalysis source,
+        Guid newPropertyGroupId,
+        IReadOnlyDictionary<Guid, Guid>? propertyIdMap = null)
+    {
+        var clone = new PricingAnalysis
+        {
+            Id = Guid.CreateVersion7(),
+            SubjectType = PricingAnalysisSubjectType.PropertyGroup,
+            PropertyGroupId = newPropertyGroupId,
+            ProjectModelId = null,
+            Status = "Draft",
+            FinalAppraisedValue = source.FinalAppraisedValue,
+            UseSystemCalc = source.UseSystemCalc
+        };
+
+        foreach (var a in source.Approaches)
+            clone._approaches.Add(PricingAnalysisApproach.CloneForAnalysis(a, clone.Id, propertyIdMap));
+
+        // Trigger ValuationAnalyses recalc if a final value carries over. The handler subscribes
+        // to AppraisalFinalValuesChangedEvent and sums all PricingAnalyses.FinalAppraisedValue
+        // for the appraisal — emitting on every cloned PA with a non-null value backfills the total.
+        if (clone.FinalAppraisedValue.HasValue)
+            clone.AddDomainEvent(new AppraisalFinalValuesChangedEvent(newPropertyGroupId));
+
+        return clone;
+    }
 }

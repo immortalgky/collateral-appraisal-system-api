@@ -9,6 +9,5 @@ public record SaveProfitRentAnalysisResponse(
     decimal TotalPresentValue,
     decimal FinalValueRounded,
     decimal? TotalBuildingCost,
-    decimal? AppraisalPriceWithBuilding,
-    decimal? AppraisalPriceWithBuildingRounded
+    decimal? AppraisalPrice
 );

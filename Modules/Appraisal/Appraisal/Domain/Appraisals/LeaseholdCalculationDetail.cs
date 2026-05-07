@@ -39,7 +39,7 @@ public class LeaseholdCalculationDetail : Entity<Guid>
     {
         return new LeaseholdCalculationDetail
         {
-            //Id = Guid.CreateVersion7(),
+            Id = Guid.CreateVersion7(),
             LeaseholdAnalysisId = leaseholdAnalysisId,
             DisplaySequence = displaySequence,
             Year = year,
@@ -53,6 +53,28 @@ public class LeaseholdCalculationDetail : Entity<Guid>
             RentalIncome = rentalIncome,
             PvFactor = pvFactor,
             NetCurrentRentalIncome = netCurrentRentalIncome,
+        };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static LeaseholdCalculationDetail CloneForAnalysis(LeaseholdCalculationDetail source, Guid newAnalysisId)
+    {
+        return new LeaseholdCalculationDetail
+        {
+            Id = Guid.CreateVersion7(),
+            LeaseholdAnalysisId = newAnalysisId,
+            DisplaySequence = source.DisplaySequence,
+            Year = source.Year,
+            LandValue = source.LandValue,
+            LandGrowthPercent = source.LandGrowthPercent,
+            BuildingValue = source.BuildingValue,
+            DepreciationAmount = source.DepreciationAmount,
+            DepreciationPercent = source.DepreciationPercent,
+            BuildingAfterDepreciation = source.BuildingAfterDepreciation,
+            TotalLandAndBuilding = source.TotalLandAndBuilding,
+            RentalIncome = source.RentalIncome,
+            PvFactor = source.PvFactor,
+            NetCurrentRentalIncome = source.NetCurrentRentalIncome,
         };
     }
 }

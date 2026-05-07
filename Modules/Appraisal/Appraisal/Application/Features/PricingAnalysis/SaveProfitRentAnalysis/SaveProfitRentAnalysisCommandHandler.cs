@@ -103,14 +103,13 @@ public class SaveProfitRentAnalysisCommandHandler(
 
         // Handle building cost on PricingFinalValue
         decimal? totalBuildingCost = null;
-        decimal? priceWithBuilding = null;
-        decimal? priceWithBuildingRounded = null;
+        decimal? appraisalPrice = null;
 
         if (command.IncludeBuildingCost && propertyData.TotalBuildingCost > 0)
         {
             totalBuildingCost = propertyData.TotalBuildingCost;
-            priceWithBuilding = finalPrice + totalBuildingCost.Value;
-            priceWithBuildingRounded = command.AppraisalPriceWithBuildingRounded ?? priceWithBuilding;
+            var priceWithBuilding = finalPrice + totalBuildingCost.Value;
+            appraisalPrice = command.AppraisalPrice ?? priceWithBuilding;
 
             var finalValue = method.FinalValue;
             if (finalValue is null)
@@ -123,13 +122,11 @@ public class SaveProfitRentAnalysisCommandHandler(
                 finalValue.UpdateFinalValue(finalPrice, finalPrice);
             }
 
-            finalValue.SetBuildingCost(
-                totalBuildingCost.Value,
-                priceWithBuilding.Value,
-                priceWithBuildingRounded.Value);
+            finalValue.SetBuildingCost(totalBuildingCost.Value);
+            finalValue.SetAppraisalPrice(appraisalPrice.Value);
 
             // Propagate building-inclusive price upward
-            method.SetValue(priceWithBuildingRounded.Value);
+            method.SetValue(appraisalPrice.Value);
         }
         else if (!command.IncludeBuildingCost && method.FinalValue?.HasBuildingCost == true)
         {
@@ -156,7 +153,6 @@ public class SaveProfitRentAnalysisCommandHandler(
             calcResult.TotalPresentValue,
             calcResult.FinalValueRounded,
             totalBuildingCost,
-            priceWithBuilding,
-            priceWithBuildingRounded);
+            appraisalPrice);
     }
 }

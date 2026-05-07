@@ -25,6 +25,26 @@ public class GetAppraisalFeesQueryHandler(ISqlConnectionFactory connectionFactor
         if (fees.Count == 0)
             return new GetAppraisalFeesResult([]);
 
+        // Drives FE visibility of the Construction Inspection Fee input.
+        // Building properties have type code 'B' (Building) or 'LB' (Land+Building) — both have a
+        // BuildingAppraisalDetail row keyed by AppraisalPropertyId; IsUnderConstruction lives there.
+        const string ucSql = """
+                             SELECT CASE WHEN EXISTS (
+                                 SELECT 1
+                                 FROM appraisal.BuildingAppraisalDetails bad
+                                 INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+                                 WHERE ap.AppraisalId = @AppraisalId
+                                   AND bad.IsUnderConstruction = 1
+                             ) THEN 1 ELSE 0 END
+                             """;
+        var hasBuildingUnderConstruction =
+            await connectionFactory.ExecuteScalarAsync<bool>(ucSql, parameters);
+
+        // Stamp the flag onto every fee row so the FE can read it directly off the loaded fee.
+        fees = fees
+            .Select(f => f with { HasBuildingUnderConstruction = hasBuildingUnderConstruction })
+            .ToList();
+
         // Get fee items for all fees of this appraisal
         var feeIds = fees.Select(f => f.Id).ToList();
 

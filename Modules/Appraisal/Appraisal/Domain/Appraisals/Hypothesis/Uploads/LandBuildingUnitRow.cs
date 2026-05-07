@@ -57,4 +57,27 @@ public class LandBuildingUnitRow : Entity<Guid>
             Remark2 = remark2
         };
     }
+
+    /// <summary>Deep-clone for CI carry-forward — newAnalysisId + the prior→new upload id map.</summary>
+    public static LandBuildingUnitRow CloneForAnalysis(
+        LandBuildingUnitRow source, Guid newAnalysisId, Guid newUploadId)
+    {
+        return new LandBuildingUnitRow
+        {
+            Id = Guid.CreateVersion7(),
+            UploadId = newUploadId,
+            HypothesisAnalysisId = newAnalysisId,
+            SequenceNumber = source.SequenceNumber,
+            PlanNo = source.PlanNo,
+            HouseNo = source.HouseNo,
+            ModelName = source.ModelName,
+            Location = source.Location,
+            FloorNo = source.FloorNo,
+            LandAreaSqWa = source.LandAreaSqWa,
+            UsableAreaSqM = source.UsableAreaSqM,
+            SellingPrice = source.SellingPrice,
+            Remark1 = source.Remark1,
+            Remark2 = source.Remark2
+        };
+    }
 }

@@ -645,6 +645,7 @@ public class CollateralMasterUpsertService(
             appraiserUserId: appraisal.AppraiserUserId,
             appraisalCompanyId: companyId,
             appraisalCompanyName: appraisal.CompanyName,
+            constructionInspectionFeeAmount: appraisal.ConstructionInspectionFeeAmount,
             snapshot: snapshot);
     }
 

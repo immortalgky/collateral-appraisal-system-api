@@ -21,7 +21,25 @@ public class PricingRsqResult : Entity<Guid>
     {
         return new PricingRsqResult
         {
+            Id = Guid.CreateVersion7(),
             PricingMethodId = pricingMethodId
+        };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static PricingRsqResult CloneForMethod(PricingRsqResult source, Guid newMethodId)
+    {
+        return new PricingRsqResult
+        {
+            Id = Guid.CreateVersion7(),
+            PricingMethodId = newMethodId,
+            CoefficientOfDecision = source.CoefficientOfDecision,
+            StandardError = source.StandardError,
+            IntersectionPoint = source.IntersectionPoint,
+            Slope = source.Slope,
+            RsqFinalValue = source.RsqFinalValue,
+            LowestEstimate = source.LowestEstimate,
+            HighestEstimate = source.HighestEstimate
         };
     }
 

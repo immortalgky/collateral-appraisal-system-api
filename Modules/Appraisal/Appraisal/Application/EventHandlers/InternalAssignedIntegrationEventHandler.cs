@@ -53,10 +53,13 @@ public class InternalAssignedIntegrationEventHandler(
             internalFollowupMethod: message.InternalFollowupAssignmentMethod,
             assignedBy: "System");
 
+        var feeSource = await feeService.ResolveSourceForAppraisalAsync(
+            appraisal, new AssignmentFeeSource.TierBased(), context.CancellationToken);
+
         await feeService.EnsureAssignmentFeeItemsAsync(
             appraisalId: message.AppraisalId,
             assignmentId: assignment.Id,
-            source: new AssignmentFeeSource.TierBased(),
+            source: feeSource,
             ct: context.CancellationToken);
 
         await appraisalRepository.UpdateAsync(appraisal, context.CancellationToken);

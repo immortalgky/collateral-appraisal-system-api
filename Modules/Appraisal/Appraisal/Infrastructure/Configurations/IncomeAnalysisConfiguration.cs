@@ -10,7 +10,7 @@ public class IncomeAnalysisConfiguration : IEntityTypeConfiguration<IncomeAnalys
         builder.ToTable("IncomeAnalyses");
 
         builder.HasKey(a => a.Id);
-        builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(a => a.PricingAnalysisMethodId).IsRequired();
         builder.HasIndex(a => a.PricingAnalysisMethodId).IsUnique();

@@ -10,7 +10,8 @@ public record GetComparativeFactorsResult(
     IReadOnlyList<ComparativeFactorDto> ComparativeFactors,
     IReadOnlyList<FactorScoreDto> FactorScores,
     IReadOnlyList<CalculationDto> Calculations,
-    RsqResultDto? RsqResult = null
+    RsqResultDto? RsqResult = null,
+    FinalValueDto? FinalValue = null
 );
 
 /// <summary>
@@ -99,4 +100,20 @@ public record RsqResultDto(
     decimal? RsqFinalValue,
     decimal? LowestEstimate,
     decimal? HighestEstimate
+);
+
+/// <summary>
+/// Final value with land and building cost breakdown
+/// </summary>
+public record FinalValueDto(
+    Guid Id,
+    decimal FinalValue,
+    decimal FinalValueRounded,
+    decimal? FinalValueAdjusted,
+    bool IncludeLandArea,
+    decimal? LandArea,
+    decimal? LandValue,       // user-edited land price
+    decimal? BuildingCost,    // user-edited building cost
+    decimal? AppraisalPrice,  // user-edited final total (hasBuildingCost only)
+    bool HasBuildingCost
 );

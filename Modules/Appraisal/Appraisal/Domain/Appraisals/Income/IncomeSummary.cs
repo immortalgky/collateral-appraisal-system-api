@@ -22,6 +22,18 @@ public class IncomeSummary
 
     public static IncomeSummary Empty() => new();
 
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    internal static IncomeSummary Clone(IncomeSummary source) => new()
+    {
+        ContractRentalFeeJson = source.ContractRentalFeeJson,
+        GrossRevenueJson = source.GrossRevenueJson,
+        GrossRevenueProportionalJson = source.GrossRevenueProportionalJson,
+        TerminalRevenueJson = source.TerminalRevenueJson,
+        TotalNetJson = source.TotalNetJson,
+        DiscountJson = source.DiscountJson,
+        PresentValueJson = source.PresentValueJson
+    };
+
     public static IncomeSummary Create(
         string contractRentalFeeJson,
         string grossRevenueJson,

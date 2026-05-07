@@ -57,4 +57,21 @@ public class ComparableAdjustment : Entity<Guid>
         SubjectValue = subjectValue;
         ComparableValue = comparableValue;
     }
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static ComparableAdjustment CloneForComparable(ComparableAdjustment source, Guid newAppraisalComparableId)
+    {
+        return new ComparableAdjustment
+        {
+            Id = Guid.CreateVersion7(),
+            AppraisalComparableId = newAppraisalComparableId,
+            AdjustmentCategory = source.AdjustmentCategory,
+            AdjustmentType = source.AdjustmentType,
+            AdjustmentPercent = source.AdjustmentPercent,
+            AdjustmentDirection = source.AdjustmentDirection,
+            SubjectValue = source.SubjectValue,
+            ComparableValue = source.ComparableValue,
+            Justification = source.Justification
+        };
+    }
 }

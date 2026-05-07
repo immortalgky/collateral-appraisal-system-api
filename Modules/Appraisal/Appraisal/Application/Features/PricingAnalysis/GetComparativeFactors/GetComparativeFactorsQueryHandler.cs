@@ -177,6 +177,25 @@ public class GetComparativeFactorsQueryHandler(
             );
         }
 
+        // Map final value section (land price + building cost)
+        FinalValueDto? finalValueDto = null;
+        if (method.FinalValue is not null)
+        {
+            var fv = method.FinalValue;
+            finalValueDto = new FinalValueDto(
+                fv.Id,
+                fv.FinalValue,
+                fv.FinalValueRounded,
+                fv.FinalValueAdjusted,
+                fv.IncludeLandArea,
+                fv.LandArea,
+                fv.LandValue,
+                fv.BuildingCost,
+                fv.AppraisalPrice,
+                fv.HasBuildingCost
+            );
+        }
+
         return new GetComparativeFactorsResult(
             query.PricingAnalysisId,
             query.MethodId,
@@ -187,7 +206,8 @@ public class GetComparativeFactorsQueryHandler(
             comparativeFactors,
             factorScores,
             calculations,
-            rsqResult
+            rsqResult,
+            finalValueDto
         );
     }
 }

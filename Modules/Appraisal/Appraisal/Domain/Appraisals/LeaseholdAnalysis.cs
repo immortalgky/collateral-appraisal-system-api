@@ -52,10 +52,50 @@ public class LeaseholdAnalysis : Entity<Guid>
     {
         return new LeaseholdAnalysis
         {
-            //Id = Guid.CreateVersion7(),
+            Id = Guid.CreateVersion7(),
             PricingMethodId = pricingMethodId,
             LandGrowthRateType = "Frequency"
         };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward — copies scalar inputs/computed values + child collections.</summary>
+    public static LeaseholdAnalysis CloneForMethod(LeaseholdAnalysis source, Guid newMethodId)
+    {
+        var clone = new LeaseholdAnalysis
+        {
+            Id = Guid.CreateVersion7(),
+            PricingMethodId = newMethodId,
+            LandValuePerSqWa = source.LandValuePerSqWa,
+            LandGrowthRateType = source.LandGrowthRateType,
+            LandGrowthRatePercent = source.LandGrowthRatePercent,
+            LandGrowthIntervalYears = source.LandGrowthIntervalYears,
+            ConstructionCostIndex = source.ConstructionCostIndex,
+            InitialBuildingValue = source.InitialBuildingValue,
+            DepreciationRate = source.DepreciationRate,
+            DepreciationIntervalYears = source.DepreciationIntervalYears,
+            BuildingCalcStartYear = source.BuildingCalcStartYear,
+            DiscountRate = source.DiscountRate,
+            TotalIncomeOverLeaseTerm = source.TotalIncomeOverLeaseTerm,
+            ValueAtLeaseExpiry = source.ValueAtLeaseExpiry,
+            FinalValue = source.FinalValue,
+            FinalValueRounded = source.FinalValueRounded,
+            IsPartialUsage = source.IsPartialUsage,
+            PartialRai = source.PartialRai,
+            PartialNgan = source.PartialNgan,
+            PartialWa = source.PartialWa,
+            PartialLandArea = source.PartialLandArea,
+            PricePerSqWa = source.PricePerSqWa,
+            PartialLandPrice = source.PartialLandPrice,
+            EstimateNetPrice = source.EstimateNetPrice,
+            EstimatePriceRounded = source.EstimatePriceRounded,
+        };
+
+        foreach (var p in source.LandGrowthPeriods)
+            clone._landGrowthPeriods.Add(LeaseholdLandGrowthPeriod.CloneForAnalysis(p, clone.Id));
+        foreach (var r in source.TableRows)
+            clone._tableRows.Add(LeaseholdCalculationDetail.CloneForAnalysis(r, clone.Id));
+
+        return clone;
     }
 
     public void Update(

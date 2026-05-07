@@ -18,7 +18,12 @@ public record AppraisalFeeDto
     public decimal TotalPaidAmount { get; set; }
     public decimal OutstandingAmount { get; set; }
     public string PaymentStatus { get; set; } = default!;
-    public decimal? InspectionFeeAmount { get; set; }
+    public decimal? ConstructionInspectionFeeAmount { get; set; }
+    /// <summary>
+    /// True when at least one Building or Land+Building property on this appraisal has
+    /// IsUnderConstruction = true. Drives FE visibility of the Construction Inspection Fee field.
+    /// </summary>
+    public bool HasBuildingUnderConstruction { get; set; }
     public DateTime? CreatedAt { get; set; }
     public List<AppraisalFeeItemDto> Items { get; set; } = [];
     public List<PaymentHistoryDto> PaymentHistory { get; set; } = [];

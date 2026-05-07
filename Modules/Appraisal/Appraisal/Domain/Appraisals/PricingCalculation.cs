@@ -52,8 +52,43 @@ public class PricingCalculation : Entity<Guid>
     {
         return new PricingCalculation
         {
+            Id = Guid.CreateVersion7(),
             PricingMethodId = pricingMethodId,
             MarketComparableId = marketComparableId
+        };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward — copies all calculation fields verbatim under a new method.</summary>
+    public static PricingCalculation CloneForMethod(PricingCalculation source, Guid newMethodId)
+    {
+        return new PricingCalculation
+        {
+            Id = Guid.CreateVersion7(),
+            PricingMethodId = newMethodId,
+            MarketComparableId = source.MarketComparableId,
+            OfferingPrice = source.OfferingPrice,
+            OfferingPriceUnit = source.OfferingPriceUnit,
+            AdjustOfferPricePct = source.AdjustOfferPricePct,
+            AdjustOfferPriceAmt = source.AdjustOfferPriceAmt,
+            SellingPrice = source.SellingPrice,
+            SellingPriceUnit = source.SellingPriceUnit,
+            BuySellYear = source.BuySellYear,
+            BuySellMonth = source.BuySellMonth,
+            AdjustedPeriodPct = source.AdjustedPeriodPct,
+            CumulativeAdjPeriod = source.CumulativeAdjPeriod,
+            LandAreaDeficient = source.LandAreaDeficient,
+            LandAreaDeficientUnit = source.LandAreaDeficientUnit,
+            LandPrice = source.LandPrice,
+            LandValueAdjustment = source.LandValueAdjustment,
+            UsableAreaDeficient = source.UsableAreaDeficient,
+            UsableAreaDeficientUnit = source.UsableAreaDeficientUnit,
+            UsableAreaPrice = source.UsableAreaPrice,
+            BuildingValueAdjustment = source.BuildingValueAdjustment,
+            TotalFactorDiffPct = source.TotalFactorDiffPct,
+            TotalFactorDiffAmt = source.TotalFactorDiffAmt,
+            TotalAdjustedValue = source.TotalAdjustedValue,
+            Weight = source.Weight,
+            WeightedAdjustedValue = source.WeightedAdjustedValue
         };
     }
 

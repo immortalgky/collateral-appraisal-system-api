@@ -28,5 +28,6 @@ public record GetDecisionSummaryResponse(
     string? AdditionalAssumptions,
     bool IsBlock,
     IReadOnlyList<BlockApproachMatrixRow>? BlockApproachMatrix,
-    IReadOnlyList<BlockModelPriceRow>? BlockModelPrices
+    IReadOnlyList<BlockModelPriceRow>? BlockModelPrices,
+    ConstructionSummaryData? ConstructionSummary
 );

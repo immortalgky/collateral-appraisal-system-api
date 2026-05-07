@@ -450,7 +450,7 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
             }
         };
 
-        // Join Activity Definition  
+        // Join Activity Definition
         _activityDefinitions[ActivityTypes.JoinActivity] = new ActivityTypeDefinition
         {
             Type = ActivityTypes.JoinActivity,
@@ -488,6 +488,35 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
                     Name = "timeoutAction", DisplayName = "Timeout Action", Type = "string", Required = false,
                     DefaultValue = "fail", Description = "Action to take on timeout",
                     Options = new List<string> { "fail", "proceed" }
+                }
+            }
+        };
+
+        // FanOut Task Activity Definition
+        _activityDefinitions[ActivityTypes.FanOutTaskActivity] = new ActivityTypeDefinition
+        {
+            Type = ActivityTypes.FanOutTaskActivity,
+            Name = "Fan-Out Task Activity",
+            Description = "Creates parallel tasks for multiple companies (e.g. quotation submissions). Resumes when all items reach a terminal stage.",
+            Category = "Tasks",
+            Icon = "arrows-pointing-out",
+            Color = "#f97316",
+            Properties = new List<ActivityPropertyDefinition>
+            {
+                new()
+                {
+                    Name = "stages", DisplayName = "Stages", Type = "array", Required = true,
+                    Description = "Ordered list of stage definitions that each fan-out item must progress through"
+                },
+                new()
+                {
+                    Name = "fanOutKey", DisplayName = "Fan-Out Key Variable", Type = "string", Required = true,
+                    Description = "Workflow variable holding the list of item keys to fan out over (e.g. 'companyIds')"
+                },
+                new()
+                {
+                    Name = "timeoutDuration", DisplayName = "Timeout Duration", Type = "string", Required = false,
+                    Description = "ISO 8601 duration for each stage timeout (e.g. PT72H)"
                 }
             }
         };

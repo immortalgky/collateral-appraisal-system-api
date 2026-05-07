@@ -21,10 +21,22 @@ public class PricingComparableLink : Entity<Guid>
     {
         return new PricingComparableLink
         {
-            // Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             PricingMethodId = pricingMethodId,
             MarketComparableId = marketComparableId,
             DisplaySequence = displaySequence
+        };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward — same MarketComparableId (global), new PK, new method FK.</summary>
+    public static PricingComparableLink CloneForMethod(PricingComparableLink source, Guid newMethodId)
+    {
+        return new PricingComparableLink
+        {
+            Id = Guid.CreateVersion7(),
+            PricingMethodId = newMethodId,
+            MarketComparableId = source.MarketComparableId,
+            DisplaySequence = source.DisplaySequence
         };
     }
 

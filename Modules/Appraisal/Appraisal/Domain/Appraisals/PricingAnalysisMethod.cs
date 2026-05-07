@@ -70,11 +70,78 @@ public class PricingAnalysisMethod : Entity<Guid>
 
         return new PricingAnalysisMethod
         {
-            // Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             ApproachId = approachId,
             MethodType = methodType,
             IsSelected = false
         };
+    }
+
+    /// <summary>
+    /// Deep-clone for CI carry-forward — copies all scalars, every child collection, and all 1:1 method analyses.
+    /// <paramref name="propertyIdMap"/> remaps prior AppraisalPropertyId → new id on MachineCostItems
+    /// (caller passes the prior→new property map built during property copy). Items whose property
+    /// is unmapped are dropped.
+    /// </summary>
+    public static PricingAnalysisMethod CloneForApproach(
+        PricingAnalysisMethod source,
+        Guid newApproachId,
+        IReadOnlyDictionary<Guid, Guid>? propertyIdMap = null)
+    {
+        var clone = new PricingAnalysisMethod
+        {
+            Id = Guid.CreateVersion7(),
+            ApproachId = newApproachId,
+            ComparativeAnalysisTemplateId = source.ComparativeAnalysisTemplateId,
+            MethodType = source.MethodType,
+            MethodValue = source.MethodValue,
+            ValuePerUnit = source.ValuePerUnit,
+            UnitType = source.UnitType,
+            IsSelected = source.IsSelected,
+            Remark = source.Remark
+        };
+
+        foreach (var l in source.ComparableLinks)
+            clone._comparableLinks.Add(PricingComparableLink.CloneForMethod(l, clone.Id));
+
+        foreach (var c in source.Calculations)
+            clone._calculations.Add(PricingCalculation.CloneForMethod(c, clone.Id));
+
+        foreach (var f in source.ComparativeFactors)
+            clone._comparativeFactors.Add(PricingComparativeFactor.CloneForMethod(f, clone.Id));
+
+        foreach (var s in source.FactorScores)
+            clone._factorScores.Add(PricingFactorScore.CloneForMethod(s, clone.Id));
+
+        foreach (var mci in source.MachineCostItems)
+        {
+            if (propertyIdMap is not null
+                && propertyIdMap.TryGetValue(mci.AppraisalPropertyId, out var newPropId))
+            {
+                clone._machineCostItems.Add(MachineCostItem.CloneForMethod(mci, clone.Id, newPropId));
+            }
+            // else: drop — no matching new property to attach to.
+        }
+
+        if (source.FinalValue is not null)
+            clone.FinalValue = PricingFinalValue.CloneForMethod(source.FinalValue, clone.Id);
+
+        if (source.RsqResult is not null)
+            clone.RsqResult = PricingRsqResult.CloneForMethod(source.RsqResult, clone.Id);
+
+        if (source.LeaseholdAnalysis is not null)
+            clone.LeaseholdAnalysis = LeaseholdAnalysis.CloneForMethod(source.LeaseholdAnalysis, clone.Id);
+
+        if (source.ProfitRentAnalysis is not null)
+            clone.ProfitRentAnalysis = ProfitRentAnalysis.CloneForMethod(source.ProfitRentAnalysis, clone.Id);
+
+        if (source.IncomeAnalysis is not null)
+            clone.IncomeAnalysis = Income.IncomeAnalysis.CloneForMethod(source.IncomeAnalysis, clone.Id);
+
+        if (source.HypothesisAnalysis is not null)
+            clone.HypothesisAnalysis = Hypothesis.HypothesisAnalysis.CloneForMethod(source.HypothesisAnalysis, clone.Id);
+
+        return clone;
     }
 
     public PricingComparableLink LinkComparable(Guid marketComparableId, int displaySequence, decimal? weight = null)

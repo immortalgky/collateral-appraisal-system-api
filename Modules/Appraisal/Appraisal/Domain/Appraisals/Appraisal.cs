@@ -27,6 +27,11 @@ public class Appraisal : Aggregate<Guid>
     public string AppraisalType { get; private set; } = null!; // Initial, Revaluation, Special
     public string Priority { get; private set; } = null!; // Normal, High
 
+    // For ConstructionInspection appraisals — the prior appraisal this CI is following up on.
+    // Used by AssignmentFeeService to seed the appraisal fee from the prior engagement's
+    // CI fee (CI bypasses the normal tier/quotation pipeline).
+    public Guid? PrevAppraisalId { get; private set; }
+
     // Request-level properties for workflow routing
     public bool IsPma { get; private set; }
     public string? Purpose { get; private set; }
@@ -76,7 +81,8 @@ public class Appraisal : Aggregate<Guid>
         decimal? facilityLimit,
         bool hasAppraisalBook,
         string? requestedBy,
-        DateTime? requestedAt)
+        DateTime? requestedAt,
+        Guid? prevAppraisalId)
     {
         Id = Guid.CreateVersion7();
         RequestId = requestId;
@@ -92,6 +98,7 @@ public class Appraisal : Aggregate<Guid>
         HasAppraisalBook = hasAppraisalBook;
         RequestedBy = requestedBy;
         RequestedAt = requestedAt;
+        PrevAppraisalId = prevAppraisalId;
 
         if (slaDays.HasValue)
         {
@@ -115,14 +122,15 @@ public class Appraisal : Aggregate<Guid>
         string? bankingSegment = null,
         decimal? facilityLimit = null,
         bool hasAppraisalBook = false,
-        DateTime? requestedAt = null)
+        DateTime? requestedAt = null,
+        Guid? prevAppraisalId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appraisalType);
         ArgumentException.ThrowIfNullOrWhiteSpace(priority);
 
         var appraisal = new Appraisal(requestId, appraisalType, priority, slaDays,
             isPma, purpose, channel, bankingSegment, facilityLimit, hasAppraisalBook,
-            requestedBy, requestedAt);
+            requestedBy, requestedAt, prevAppraisalId);
         appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal, requestedBy));
 
         return appraisal;

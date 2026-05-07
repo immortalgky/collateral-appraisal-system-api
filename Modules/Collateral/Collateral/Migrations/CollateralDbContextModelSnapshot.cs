@@ -90,6 +90,10 @@ namespace Collateral.Migrations
                     b.Property<Guid>("CollateralMasterId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("ConstructionInspectionFeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime>("CreatedOn")
                         .HasColumnType("datetime2");
 

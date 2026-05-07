@@ -31,8 +31,8 @@ public class AppraisalFeeConfiguration : IEntityTypeConfiguration<AppraisalFee>
         builder.Property(f => f.FeeNotes).HasMaxLength(4000);
         builder.Property(f => f.TotalSellingPrice).HasPrecision(18, 2);
 
-        // InspectionFee
-        builder.Property(f => f.InspectionFeeAmount).HasPrecision(18, 2);
+        // Construction Inspection Fee
+        builder.Property(f => f.ConstructionInspectionFeeAmount).HasPrecision(18, 2);
 
         // FK to AppraisalAssignment (1:1, cascade delete per spec)
         builder.HasOne<AppraisalAssignment>()

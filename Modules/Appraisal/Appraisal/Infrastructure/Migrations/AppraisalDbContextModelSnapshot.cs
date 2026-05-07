@@ -430,6 +430,9 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<bool?>("IsWithinSLA")
                         .HasColumnType("bit");
 
+                    b.Property<Guid?>("PrevAppraisalId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Priority")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -478,6 +481,9 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasIndex("Id")
                         .HasDatabaseName("IX_Appraisals_IsDeleted_NotDeleted")
                         .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("PrevAppraisalId")
+                        .HasFilter("[PrevAppraisalId] IS NOT NULL");
 
                     b.HasIndex("RequestId");
 
@@ -850,6 +856,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("decimal(18,2)")
                         .HasDefaultValue(0m);
 
+                    b.Property<decimal?>("ConstructionInspectionFeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -873,10 +883,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("FeePaymentType")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<decimal?>("InspectionFeeAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("OutstandingAmount")
                         .ValueGeneratedOnAdd()
@@ -3414,18 +3420,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal?>("AppraisalPriceRounded")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("AppraisalPriceWithBuilding")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("AppraisalPriceWithBuildingRounded")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<decimal?>("BuildingCost")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -3444,6 +3438,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("FinalValueAdjusted")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("FinalValueRounded")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -3458,7 +3456,7 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal?>("PriceDifferentiate")
+                    b.Property<decimal?>("LandValue")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 

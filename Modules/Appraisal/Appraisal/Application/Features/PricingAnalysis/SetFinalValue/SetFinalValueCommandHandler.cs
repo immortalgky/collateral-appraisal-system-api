@@ -74,28 +74,24 @@ public class SetFinalValueCommandHandler(
         pricingAnalysis.SetUseSystemCalc(false);
 
         // Handle land area
-        if (command.IncludeLandArea == true && command.LandArea.HasValue &&
-            command.AppraisalPrice.HasValue && command.AppraisalPriceRounded.HasValue)
+        if (command.IncludeLandArea == true && command.LandArea.HasValue && command.LandValue.HasValue)
         {
-            finalValue.SetLandAreaValues(
-                command.LandArea.Value,
-                command.AppraisalPrice.Value,
-                command.AppraisalPriceRounded.Value,
-                command.PriceDifferentiate);
+            finalValue.SetLandAreaValues(command.LandArea.Value, command.LandValue.Value);
         }
         else if (command.IncludeLandArea == false)
         {
             finalValue.ExcludeLandArea();
         }
 
-        // Handle building cost
-        if (command.HasBuildingCost == true && command.BuildingCost.HasValue &&
-            command.AppraisalPriceWithBuilding.HasValue && command.AppraisalPriceWithBuildingRounded.HasValue)
+        // Handle building cost (toggle + amount); AppraisalPrice persists independently below.
+        if (command.HasBuildingCost == true && command.BuildingCost.HasValue)
         {
-            finalValue.SetBuildingCost(
-                command.BuildingCost.Value,
-                command.AppraisalPriceWithBuilding.Value,
-                command.AppraisalPriceWithBuildingRounded.Value);
+            finalValue.SetBuildingCost(command.BuildingCost.Value);
+        }
+
+        if (command.AppraisalPrice.HasValue)
+        {
+            finalValue.SetAppraisalPrice(command.AppraisalPrice.Value);
         }
 
         return new SetFinalValueResult(
@@ -104,13 +100,10 @@ public class SetFinalValueCommandHandler(
             finalValue.FinalValueRounded,
             finalValue.IncludeLandArea,
             finalValue.LandArea,
-            finalValue.AppraisalPrice,
-            finalValue.AppraisalPriceRounded,
-            finalValue.PriceDifferentiate,
+            finalValue.LandValue,
             finalValue.HasBuildingCost,
             finalValue.BuildingCost,
-            finalValue.AppraisalPriceWithBuilding,
-            finalValue.AppraisalPriceWithBuildingRounded
+            finalValue.AppraisalPrice
         );
     }
 }

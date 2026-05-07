@@ -26,11 +26,32 @@ public class PricingAnalysisApproach : Entity<Guid>
     {
         return new PricingAnalysisApproach
         {
-            // Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             PricingAnalysisId = pricingAnalysisId,
             ApproachType = approachType,
             IsSelected = false
         };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward — rebuilds Methods chain. <paramref name="propertyIdMap"/> is threaded into MachineCostItem cloning.</summary>
+    public static PricingAnalysisApproach CloneForAnalysis(
+        PricingAnalysisApproach source,
+        Guid newAnalysisId,
+        IReadOnlyDictionary<Guid, Guid>? propertyIdMap = null)
+    {
+        var clone = new PricingAnalysisApproach
+        {
+            Id = Guid.CreateVersion7(),
+            PricingAnalysisId = newAnalysisId,
+            ApproachType = source.ApproachType,
+            ApproachValue = source.ApproachValue,
+            IsSelected = source.IsSelected
+        };
+
+        foreach (var m in source.Methods)
+            clone._methods.Add(PricingAnalysisMethod.CloneForApproach(m, clone.Id, propertyIdMap));
+
+        return clone;
     }
 
     public PricingAnalysisMethod AddMethod(string methodType, string status = "Selected")

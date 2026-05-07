@@ -21,7 +21,14 @@ public class SaveComparativeAnalysisEndpoint : ICarterModule
                         request.FactorScores,
                         request.Calculations,
                         request.ComparativeAnalysisTemplateId,
-                        request.AppraisalValue
+                        request.AppraisalValue,
+                        request.FinalValueAdjusted,
+                        request.HasBuildingCost,
+                        request.BuildingCost,
+                        request.AppraisalPrice,
+                        request.IncludeLandArea,
+                        request.LandArea,
+                        request.LandValue
                     );
 
                     var result = await sender.Send(command);

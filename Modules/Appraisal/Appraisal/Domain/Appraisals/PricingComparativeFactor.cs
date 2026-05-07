@@ -23,11 +23,26 @@ public class PricingComparativeFactor : Entity<Guid>
     {
         return new PricingComparativeFactor
         {
+            Id = Guid.CreateVersion7(),
             PricingMethodId = pricingMethodId,
             FactorId = factorId,
             DisplaySequence = displaySequence,
             IsSelectedForScoring = isSelectedForScoring,
             Remarks = remarks
+        };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static PricingComparativeFactor CloneForMethod(PricingComparativeFactor source, Guid newMethodId)
+    {
+        return new PricingComparativeFactor
+        {
+            Id = Guid.CreateVersion7(),
+            PricingMethodId = newMethodId,
+            FactorId = source.FactorId,
+            DisplaySequence = source.DisplaySequence,
+            IsSelectedForScoring = source.IsSelectedForScoring,
+            Remarks = source.Remarks
         };
     }
 

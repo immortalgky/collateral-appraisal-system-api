@@ -10,7 +10,7 @@ public record SaveProfitRentAnalysisRequest(
     IReadOnlyList<ProfitRentGrowthPeriodInput>? GrowthPeriods = null,
     string? Remark = null,
     decimal? EstimatePriceRounded = null,
-    decimal? AppraisalPriceWithBuildingRounded = null
+    decimal? AppraisalPrice = null
 );
 
 public record ProfitRentGrowthPeriodInput(
