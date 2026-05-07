@@ -44,8 +44,13 @@ public class AssignAppraisalCommandHandler(
                 assignedBy: command.AssignedBy);
         }
 
-        var feeSource = await ResolveFeeSourceAsync(
+        var baseFeeSource = await ResolveFeeSourceAsync(
             command, resolvedAssignment, cancellationToken);
+
+        // CI override — for ConstructionInspection appraisals, replace the resolved tier/quotation
+        // source with the CI source seeded from the prior engagement's CI fee.
+        var feeSource = await feeService.ResolveSourceForAppraisalAsync(
+            appraisal, baseFeeSource, cancellationToken);
 
         await feeService.EnsureAssignmentFeeItemsAsync(
             appraisalId: command.AppraisalId,

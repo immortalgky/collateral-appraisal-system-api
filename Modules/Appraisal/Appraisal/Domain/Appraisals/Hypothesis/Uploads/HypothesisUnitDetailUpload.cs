@@ -40,4 +40,18 @@ public class HypothesisUnitDetailUpload : Entity<Guid>
     {
         IsActive = true;
     }
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static HypothesisUnitDetailUpload CloneForAnalysis(HypothesisUnitDetailUpload source, Guid newAnalysisId)
+    {
+        return new HypothesisUnitDetailUpload
+        {
+            Id = Guid.CreateVersion7(),
+            HypothesisAnalysisId = newAnalysisId,
+            FileName = source.FileName,
+            UploadedAt = source.UploadedAt,
+            RowCount = source.RowCount,
+            IsActive = source.IsActive
+        };
+    }
 }

@@ -43,7 +43,7 @@ public class IncomeAssumption : Entity<Guid>
     {
         var entity = new IncomeAssumption
         {
-            // Id intentionally omitted — EF assigns it via HasDefaultValueSql("NEWSEQUENTIALID()") on insert.
+            Id = id ?? Guid.CreateVersion7(),
             IncomeCategoryId = incomeCategoryId,
             AssumptionType = assumptionType,
             AssumptionName = assumptionName,
@@ -51,9 +51,6 @@ public class IncomeAssumption : Entity<Guid>
             DisplaySeq = displaySeq,
             Method = IncomeMethod.Create(methodTypeCode, detailJson)
         };
-
-        if (id.HasValue)
-            entity.Id = id.Value;
 
         return entity;
     }
@@ -77,5 +74,21 @@ public class IncomeAssumption : Entity<Guid>
     {
         TotalAssumptionValuesJson = totalAssumptionValuesJson;
         Method.SetComputedValues(totalMethodValuesJson);
+    }
+
+    /// <summary>Deep-clone for CI carry-forward — new Id, new category FK, copied owned IncomeMethod.</summary>
+    public static IncomeAssumption CloneForCategory(IncomeAssumption source, Guid newCategoryId)
+    {
+        return new IncomeAssumption
+        {
+            Id = Guid.CreateVersion7(),
+            IncomeCategoryId = newCategoryId,
+            AssumptionType = source.AssumptionType,
+            AssumptionName = source.AssumptionName,
+            Identifier = source.Identifier,
+            DisplaySeq = source.DisplaySeq,
+            TotalAssumptionValuesJson = source.TotalAssumptionValuesJson,
+            Method = IncomeMethod.Clone(source.Method)
+        };
     }
 }

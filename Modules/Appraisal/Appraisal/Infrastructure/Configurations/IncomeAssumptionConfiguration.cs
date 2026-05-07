@@ -10,7 +10,7 @@ public class IncomeAssumptionConfiguration : IEntityTypeConfiguration<IncomeAssu
         builder.ToTable("IncomeAssumptions");
 
         builder.HasKey(a => a.Id);
-        builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(a => a.IncomeCategoryId).IsRequired();
         builder.Property(a => a.AssumptionType).IsRequired().HasMaxLength(20);

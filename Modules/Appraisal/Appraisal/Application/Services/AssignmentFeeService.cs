@@ -1,15 +1,19 @@
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
+using Collateral.Contracts.ConstructionInspection;
+using MediatR;
 
 namespace Appraisal.Application.Services;
 
 /// <summary>
 /// Materialises fee items on the AppraisalFee shell once the real assignee is known.
-/// Handles three paths: tier-based (internal/external manual), and quotation-price.
+/// Handles three paths: tier-based (internal/external manual), quotation-price, and
+/// construction-inspection (seeded from prior engagement, bypasses tier/quotation).
 /// Idempotent — safe to call multiple times for the same assignment.
 /// </summary>
 public class AssignmentFeeService(
     AppraisalDbContext dbContext,
+    ISender mediator,
     ILogger<AssignmentFeeService> logger) : IAssignmentFeeService
 {
     // Bank absorbs the full customer bill for these payment types.
@@ -123,6 +127,31 @@ public class AssignmentFeeService(
                 break;
             }
 
+            case AssignmentFeeSource.ConstructionInspection ciSource:
+            {
+                // CI bypasses tier/quotation. If no prior engagement carries a CI fee,
+                // leave the fee items empty per spec (no fallback to tier).
+                if (ciSource.Amount is null or <= 0m)
+                {
+                    logger.LogInformation(
+                        "Construction Inspection fee source has no amount for AppraisalId={AppraisalId}. Leaving fee items empty.",
+                        appraisalId);
+                    return;
+                }
+
+                // Use feeCode "01" so FE renders the row non-deletable, consistent with
+                // the quotation path. Amount is ex-VAT — RecalculateFromItems adds VAT on top.
+                fee.AddItem(
+                    feeCode: "01",
+                    feeDescription: "Construction inspection fee from prior engagement",
+                    feeAmount: ciSource.Amount.Value);
+
+                logger.LogInformation(
+                    "Construction Inspection fee created: fee {FeeId} assigned CI item (Amount={Amount}) for AssignmentId={AssignmentId}",
+                    fee.Id, ciSource.Amount.Value, assignmentId);
+                break;
+            }
+
             default:
                 logger.LogWarning(
                     "Unknown AssignmentFeeSource type {SourceType} for AssignmentId={AssignmentId}. Skipping.",
@@ -145,5 +174,26 @@ public class AssignmentFeeService(
         {
             fee.SetBankAbsorb(fee.BankAbsorbAmount);
         }
+    }
+
+    public async Task<AssignmentFeeSource> ResolveSourceForAppraisalAsync(
+        Domain.Appraisals.Appraisal appraisal,
+        AssignmentFeeSource defaultSource,
+        CancellationToken ct)
+    {
+        if (appraisal.AppraisalType != AppraisalTypes.ConstructionInspection ||
+            appraisal.PrevAppraisalId is not { } prevId)
+        {
+            return defaultSource;
+        }
+
+        var ciFee = await mediator.Send(
+            new GetConstructionInspectionFeeForAppraisalQuery(prevId), ct);
+
+        logger.LogInformation(
+            "Resolved Construction Inspection fee source for AppraisalId={AppraisalId} from PrevAppraisalId={PrevAppraisalId}: Amount={Amount}",
+            appraisal.Id, prevId, ciFee);
+
+        return new AssignmentFeeSource.ConstructionInspection(ciFee);
     }
 }

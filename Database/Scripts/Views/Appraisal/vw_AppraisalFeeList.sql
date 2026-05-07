@@ -14,7 +14,7 @@ SELECT f.Id,
        f.TotalPaidAmount,
        f.OutstandingAmount,
        f.PaymentStatus,
-       f.InspectionFeeAmount,
+       f.ConstructionInspectionFeeAmount,
        f.CreatedAt
 FROM appraisal.AppraisalFees f
          INNER JOIN appraisal.AppraisalAssignments aa ON aa.Id = f.AssignmentId

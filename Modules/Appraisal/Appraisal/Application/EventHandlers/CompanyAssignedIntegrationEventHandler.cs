@@ -98,10 +98,13 @@ public class CompanyAssignedIntegrationEventHandler(
                 internalFollowupMethod: assignment.InternalFollowupAssignmentMethod,
                 assignedBy: "System");
 
+            var feeSource = await feeService.ResolveSourceForAppraisalAsync(
+                appraisal, new AssignmentFeeSource.TierBased(), ct);
+
             await feeService.EnsureAssignmentFeeItemsAsync(
                 appraisalId: message.AppraisalId,
                 assignmentId: assignment.Id,
-                source: new AssignmentFeeSource.TierBased(),
+                source: feeSource,
                 ct: ct);
         }
 

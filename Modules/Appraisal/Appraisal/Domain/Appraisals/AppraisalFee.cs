@@ -28,8 +28,8 @@ public class AppraisalFee : Entity<Guid>
     public decimal OutstandingAmount { get; private set; }
     public string PaymentStatus { get; private set; } = "Pending"; // Pending, PartialPaid, FullyPaid
 
-    // InspectionFee
-    public decimal? InspectionFeeAmount { get; private set; }
+    // Construction Inspection Fee — only set when at least one property is a building under construction.
+    public decimal? ConstructionInspectionFeeAmount { get; private set; }
 
     // Fee Items
     private readonly List<AppraisalFeeItem> _items = [];
@@ -123,9 +123,9 @@ public class AppraisalFee : Entity<Guid>
         UpdatePaymentStatus();
     }
 
-    public void SetInspectionFee(decimal? amount)
+    public void SetConstructionInspectionFee(decimal? amount)
     {
-        InspectionFeeAmount = amount;
+        ConstructionInspectionFeeAmount = amount;
     }
 
     public void RecordPayment(decimal paymentAmount, DateTime paymentDate,

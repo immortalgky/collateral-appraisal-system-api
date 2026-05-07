@@ -52,4 +52,15 @@ public class IncomeMethod
     {
         DetailJson = detailJson;
     }
+
+    /// <summary>Deep-clone for CI carry-forward — owned, no FK rewrite needed.</summary>
+    internal static IncomeMethod Clone(IncomeMethod source)
+    {
+        return new IncomeMethod
+        {
+            MethodTypeCode = source.MethodTypeCode,
+            DetailJson = source.DetailJson,
+            TotalMethodValuesJson = source.TotalMethodValuesJson
+        };
+    }
 }

@@ -10,19 +10,17 @@ public class PricingFinalValue : Entity<Guid>
     // Final Value
     public decimal FinalValue { get; private set; }
     public decimal FinalValueRounded { get; private set; }
+    public decimal? FinalValueAdjusted { get; private set; }
 
     // Land Area Inclusion
     public bool IncludeLandArea { get; private set; } = true;
     public decimal? LandArea { get; private set; }
-    public decimal? AppraisalPrice { get; private set; }
-    public decimal? AppraisalPriceRounded { get; private set; }
-    public decimal? PriceDifferentiate { get; private set; }
+    public decimal? LandValue { get; private set; }   // user-edited land price
 
     // Building Cost (if applicable)
     public bool HasBuildingCost { get; private set; }
     public decimal? BuildingCost { get; private set; }
-    public decimal? AppraisalPriceWithBuilding { get; private set; }
-    public decimal? AppraisalPriceWithBuildingRounded { get; private set; }
+    public decimal? AppraisalPrice { get; private set; } // user-edited final total (HasBuildingCost only)
 
     private PricingFinalValue()
     {
@@ -35,7 +33,7 @@ public class PricingFinalValue : Entity<Guid>
     {
         return new PricingFinalValue
         {
-            // Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             PricingMethodId = pricingMethodId,
             FinalValue = finalValue,
             FinalValueRounded = finalValueRounded,
@@ -44,30 +42,43 @@ public class PricingFinalValue : Entity<Guid>
         };
     }
 
-    public void SetLandAreaValues(decimal landArea, decimal appraisalPrice, decimal appraisalPriceRounded,
-        decimal? priceDiff = null)
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static PricingFinalValue CloneForMethod(PricingFinalValue source, Guid newMethodId)
+    {
+        return new PricingFinalValue
+        {
+            Id = Guid.CreateVersion7(),
+            PricingMethodId = newMethodId,
+            FinalValue = source.FinalValue,
+            FinalValueRounded = source.FinalValueRounded,
+            FinalValueAdjusted = source.FinalValueAdjusted,
+            IncludeLandArea = source.IncludeLandArea,
+            LandArea = source.LandArea,
+            LandValue = source.LandValue,
+            HasBuildingCost = source.HasBuildingCost,
+            BuildingCost = source.BuildingCost,
+            AppraisalPrice = source.AppraisalPrice
+        };
+    }
+
+    public void SetLandAreaValues(decimal landArea, decimal landValue)
     {
         IncludeLandArea = true;
         LandArea = landArea;
-        AppraisalPrice = appraisalPrice;
-        AppraisalPriceRounded = appraisalPriceRounded;
-        PriceDifferentiate = priceDiff;
+        LandValue = landValue;
     }
 
     public void ExcludeLandArea()
     {
         IncludeLandArea = false;
         LandArea = null;
-        AppraisalPrice = null;
-        AppraisalPriceRounded = null;
+        LandValue = null;
     }
 
-    public void SetBuildingCost(decimal buildingCost, decimal priceWithBuilding, decimal priceWithBuildingRounded)
+    public void SetBuildingCost(decimal buildingCost)
     {
         HasBuildingCost = true;
         BuildingCost = buildingCost;
-        AppraisalPriceWithBuilding = priceWithBuilding;
-        AppraisalPriceWithBuildingRounded = priceWithBuildingRounded;
     }
 
     public void UpdateFinalValue(decimal finalValue, decimal finalValueRounded)
@@ -76,12 +87,25 @@ public class PricingFinalValue : Entity<Guid>
         FinalValueRounded = finalValueRounded;
     }
 
+    public void SetFinalValueAdjusted(decimal? value)
+    {
+        FinalValueAdjusted = value;
+    }
+
+    /// <summary>
+    /// Persists the user-rounded appraisal price independent of the building-cost toggle.
+    /// The same rounded number applies to land-only cost (unit 01/02), machinery (unit 03),
+    /// market approach, and the with-building-cost case.
+    /// </summary>
+    public void SetAppraisalPrice(decimal? appraisalPrice)
+    {
+        AppraisalPrice = appraisalPrice;
+    }
+
     public void ClearBuildingCost()
     {
         HasBuildingCost = false;
         BuildingCost = null;
-        AppraisalPriceWithBuilding = null;
-        AppraisalPriceWithBuildingRounded = null;
     }
 
 }

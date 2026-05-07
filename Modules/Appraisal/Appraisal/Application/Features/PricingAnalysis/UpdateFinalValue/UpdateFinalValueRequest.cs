@@ -8,11 +8,8 @@ public record UpdateFinalValueRequest(
     decimal FinalValueRounded,
     bool? IncludeLandArea = null,
     decimal? LandArea = null,
-    decimal? AppraisalPrice = null,
-    decimal? AppraisalPriceRounded = null,
-    decimal? PriceDifferentiate = null,
+    decimal? LandValue = null,
     bool? HasBuildingCost = null,
     decimal? BuildingCost = null,
-    decimal? AppraisalPriceWithBuilding = null,
-    decimal? AppraisalPriceWithBuildingRounded = null
+    decimal? AppraisalPrice = null
 );

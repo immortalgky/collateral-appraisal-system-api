@@ -41,7 +41,10 @@ public record GetDecisionSummaryResult(
     // Block appraisal fields (null for normal appraisals)
     bool IsBlock,
     IReadOnlyList<BlockApproachMatrixRow>? BlockApproachMatrix,
-    IReadOnlyList<BlockModelPriceRow>? BlockModelPrices
+    IReadOnlyList<BlockModelPriceRow>? BlockModelPrices,
+
+    // Construction summary (null when no under-construction buildings or block appraisal)
+    ConstructionSummaryData? ConstructionSummary
 );
 
 public record ApproachMatrixGroup(
@@ -93,4 +96,17 @@ public record BlockModelPriceRow(
     decimal TotalAppraisalPrice,
     decimal ForceSellingPrice,
     decimal BuildingInsurance
+);
+
+public record ConstructionSummaryData(
+    IReadOnlyList<ConstructionSummaryRow> Rows
+);
+
+public record ConstructionSummaryRow(
+    string Label,
+    decimal ConstructionProgressPct,
+    decimal TotalAppraisalValue,
+    decimal TotalLandValue,
+    decimal TotalBuildingValue,
+    decimal BuildingValueConstructing
 );

@@ -8,7 +8,14 @@ public record SaveComparativeAnalysisRequest(
     IReadOnlyList<FactorScoreInput> FactorScores,
     IReadOnlyList<CalculationInput> Calculations,
     Guid? ComparativeAnalysisTemplateId = null,
-    decimal? AppraisalValue = null
+    decimal? AppraisalValue = null,
+    decimal? FinalValueAdjusted = null,
+    bool? HasBuildingCost = null,
+    decimal? BuildingCost = null,
+    decimal? AppraisalPrice = null,
+    bool? IncludeLandArea = null,
+    decimal? LandArea = null,
+    decimal? LandValue = null
 );
 
 /// <summary>

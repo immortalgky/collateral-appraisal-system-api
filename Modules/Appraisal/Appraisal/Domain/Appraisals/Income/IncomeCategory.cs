@@ -43,16 +43,13 @@ public class IncomeCategory : Entity<Guid>
     {
         var entity = new IncomeCategory
         {
-            // Id intentionally omitted — EF assigns it via HasDefaultValueSql("NEWSEQUENTIALID()") on insert.
+            Id = id ?? Guid.CreateVersion7(),
             IncomeSectionId = incomeSectionId,
             CategoryType = categoryType,
             CategoryName = categoryName,
             Identifier = identifier,
             DisplaySeq = displaySeq
         };
-
-        if (id.HasValue)
-            entity.Id = id.Value;
 
         return entity;
     }
@@ -97,4 +94,24 @@ public class IncomeCategory : Entity<Guid>
     public void AttachAssumption(IncomeAssumption assumption) => _assumptions.Add(assumption);
 
     public void RemoveAssumption(IncomeAssumption assumption) => _assumptions.Remove(assumption);
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static IncomeCategory CloneForSection(IncomeCategory source, Guid newSectionId)
+    {
+        var clone = new IncomeCategory
+        {
+            Id = Guid.CreateVersion7(),
+            IncomeSectionId = newSectionId,
+            CategoryType = source.CategoryType,
+            CategoryName = source.CategoryName,
+            Identifier = source.Identifier,
+            DisplaySeq = source.DisplaySeq,
+            TotalCategoryValuesJson = source.TotalCategoryValuesJson
+        };
+
+        foreach (var a in source.Assumptions)
+            clone._assumptions.Add(IncomeAssumption.CloneForCategory(a, clone.Id));
+
+        return clone;
+    }
 }

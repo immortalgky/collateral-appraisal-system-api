@@ -14,7 +14,7 @@ public class GetAppraisalStatusQueryHandler(ISqlConnectionFactory connectionFact
         using var conn = connectionFactory.GetOpenConnection();
 
         const string sql = """
-            SELECT AppraisalNumber, Status, UpdatedOn
+            SELECT AppraisalNumber, Status, UpdatedOn 
             FROM appraisal.Appraisals
             WHERE AppraisalNumber = @appraisalNumber
             """;

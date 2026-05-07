@@ -78,7 +78,7 @@ public class IncomeAnalysis : Entity<Guid>
 
         var entity = new IncomeAnalysis
         {
-            // Id intentionally omitted — EF assigns it via HasDefaultValueSql("NEWSEQUENTIALID()") on insert.
+            Id = id ?? Guid.CreateVersion7(),
             PricingAnalysisMethodId = pricingAnalysisMethodId,
             TemplateCode = templateCode,
             TemplateName = templateName,
@@ -87,9 +87,6 @@ public class IncomeAnalysis : Entity<Guid>
             CapitalizeRate = capitalizeRate,
             DiscountedRate = discountedRate
         };
-
-        if (id.HasValue)
-            entity.Id = id.Value;
 
         return entity;
     }
@@ -186,6 +183,34 @@ public class IncomeAnalysis : Entity<Guid>
             presentValueJson: SerializeArray(result.PresentValue));
 
         SetComputedValues(result.FinalValue, result.FinalValueRounded, summary);
+    }
+
+    /// <summary>Deep-clone for CI carry-forward — copies parameters, computed values, owned value objects, and full Sections tree.</summary>
+    public static IncomeAnalysis CloneForMethod(IncomeAnalysis source, Guid newPricingMethodId)
+    {
+        var clone = new IncomeAnalysis
+        {
+            Id = Guid.CreateVersion7(),
+            PricingAnalysisMethodId = newPricingMethodId,
+            TemplateCode = source.TemplateCode,
+            TemplateName = source.TemplateName,
+            TotalNumberOfYears = source.TotalNumberOfYears,
+            TotalNumberOfDayInYear = source.TotalNumberOfDayInYear,
+            CapitalizeRate = source.CapitalizeRate,
+            DiscountedRate = source.DiscountedRate,
+            FinalValue = source.FinalValue,
+            FinalValueRounded = source.FinalValueRounded,
+            FinalValueAdjust = source.FinalValueAdjust,
+            IsHighestBestUsed = source.IsHighestBestUsed,
+            HighestBestUsed = HighestBestUsed.Clone(source.HighestBestUsed),
+            AppraisalPriceRounded = source.AppraisalPriceRounded,
+            Summary = IncomeSummary.Clone(source.Summary)
+        };
+
+        foreach (var s in source.Sections)
+            clone._sections.Add(IncomeSection.CloneForAnalysis(s, clone.Id));
+
+        return clone;
     }
 
     private static string SerializeArray(decimal[] arr)

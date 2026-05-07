@@ -71,7 +71,7 @@ public class AppraisalComparableConfiguration : IEntityTypeConfiguration<Apprais
         builder.ToTable("AppraisalComparables");
 
         builder.HasKey(a => a.Id);
-        builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(a => a.AppraisalId).IsRequired();
         builder.Property(a => a.MarketComparableId).IsRequired();
@@ -109,7 +109,7 @@ public class ComparableAdjustmentConfiguration : IEntityTypeConfiguration<Compar
         builder.ToTable("ComparableAdjustments");
 
         builder.HasKey(c => c.Id);
-        builder.Property(c => c.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(c => c.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(c => c.AppraisalComparableId).IsRequired();
         builder.Property(c => c.AdjustmentCategory).IsRequired().HasMaxLength(50);

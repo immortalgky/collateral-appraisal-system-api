@@ -20,11 +20,24 @@ public class LeaseholdLandGrowthPeriod : Entity<Guid>
     {
         return new LeaseholdLandGrowthPeriod
         {
-            //Id = Guid.CreateVersion7(),
+            Id = Guid.CreateVersion7(),
             LeaseholdAnalysisId = leaseholdAnalysisId,
             FromYear = fromYear,
             ToYear = toYear,
             GrowthRatePercent = growthRatePercent
+        };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static LeaseholdLandGrowthPeriod CloneForAnalysis(LeaseholdLandGrowthPeriod source, Guid newAnalysisId)
+    {
+        return new LeaseholdLandGrowthPeriod
+        {
+            Id = Guid.CreateVersion7(),
+            LeaseholdAnalysisId = newAnalysisId,
+            FromYear = source.FromYear,
+            ToYear = source.ToYear,
+            GrowthRatePercent = source.GrowthRatePercent
         };
     }
 }

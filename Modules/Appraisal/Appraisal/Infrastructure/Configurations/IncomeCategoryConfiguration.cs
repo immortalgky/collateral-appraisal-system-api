@@ -10,7 +10,7 @@ public class IncomeCategoryConfiguration : IEntityTypeConfiguration<IncomeCatego
         builder.ToTable("IncomeCategories");
 
         builder.HasKey(c => c.Id);
-        builder.Property(c => c.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(c => c.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(c => c.IncomeSectionId).IsRequired();
         builder.Property(c => c.CategoryType).IsRequired().HasMaxLength(50);

@@ -88,4 +88,31 @@ public class AppraisalComparable : Entity<Guid>
     {
         WeightedValue = AdjustedPricePerUnit * Weight / 100;
     }
+
+    /// <summary>
+    /// Deep-clone for CI carry-forward — copies all fields, all Adjustments, and re-points
+    /// to the new appraisal. MarketComparableId carries forward (global, stable).
+    /// </summary>
+    public static AppraisalComparable CloneForAppraisal(AppraisalComparable source, Guid newAppraisalId)
+    {
+        var clone = new AppraisalComparable
+        {
+            Id = Guid.CreateVersion7(),
+            AppraisalId = newAppraisalId,
+            MarketComparableId = source.MarketComparableId,
+            SequenceNumber = source.SequenceNumber,
+            Weight = source.Weight,
+            OriginalPricePerUnit = source.OriginalPricePerUnit,
+            AdjustedPricePerUnit = source.AdjustedPricePerUnit,
+            TotalAdjustmentPct = source.TotalAdjustmentPct,
+            WeightedValue = source.WeightedValue,
+            SelectionReason = source.SelectionReason,
+            Notes = source.Notes
+        };
+
+        foreach (var adj in source.Adjustments)
+            clone._adjustments.Add(ComparableAdjustment.CloneForComparable(adj, clone.Id));
+
+        return clone;
+    }
 }

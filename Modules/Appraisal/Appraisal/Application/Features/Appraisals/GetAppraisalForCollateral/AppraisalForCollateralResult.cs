@@ -18,6 +18,9 @@ public record AppraisalForCollateralResult(
     string? CompanyName,
     // Appraisal-level total from ValuationAnalyses (Σ PricingAnalyses.FinalAppraisedValue across all PropertyGroups).
     decimal? AppraisedValue,
+    // Construction Inspection Fee (per-assignment) — captured from the latest assignment's AppraisalFee.
+    // Stamped onto every CollateralEngagement so a future Construction Inspection appraisal can reuse it.
+    decimal? ConstructionInspectionFeeAmount,
     IReadOnlyList<AppraisalPropertyForCollateral> Properties
 );
 

@@ -17,6 +17,15 @@ public abstract record AssignmentFeeSource
     /// fee description.
     /// </summary>
     public sealed record Quotation(decimal Amount, Guid QuotationRequestId, string? QuotationNumber = null) : AssignmentFeeSource;
+
+    /// <summary>
+    /// Construction Inspection appraisal — the fee is seeded from the prior engagement's
+    /// CI fee captured on CollateralEngagement.ConstructionInspectionFeeAmount. CI bypasses
+    /// the normal tier/quotation pipeline entirely.
+    /// <paramref name="Amount"/> may be null when no prior engagement carries a CI fee — the
+    /// service then leaves the fee items empty (no fallback to tier).
+    /// </summary>
+    public sealed record ConstructionInspection(decimal? Amount) : AssignmentFeeSource;
 }
 
 /// <summary>
@@ -29,5 +38,16 @@ public interface IAssignmentFeeService
         Guid appraisalId,
         Guid assignmentId,
         AssignmentFeeSource source,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Returns a CI-aware fee source: when the appraisal is a Construction Inspection follow-up
+    /// (AppraisalType=ConstructionInspection AND PrevAppraisalId is set), looks up the prior
+    /// engagement's CI fee via Collateral and returns <see cref="AssignmentFeeSource.ConstructionInspection"/>.
+    /// Otherwise returns <paramref name="defaultSource"/> unchanged.
+    /// </summary>
+    Task<AssignmentFeeSource> ResolveSourceForAppraisalAsync(
+        Domain.Appraisals.Appraisal appraisal,
+        AssignmentFeeSource defaultSource,
         CancellationToken ct);
 }

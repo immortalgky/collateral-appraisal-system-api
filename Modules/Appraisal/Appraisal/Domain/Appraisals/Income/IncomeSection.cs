@@ -43,16 +43,13 @@ public class IncomeSection : Entity<Guid>
     {
         var entity = new IncomeSection
         {
-            // Id intentionally omitted — EF assigns it via HasDefaultValueSql("NEWSEQUENTIALID()") on insert.
+            Id = id ?? Guid.CreateVersion7(),
             IncomeAnalysisId = incomeAnalysisId,
             SectionType = sectionType,
             SectionName = sectionName,
             Identifier = identifier,
             DisplaySeq = displaySeq
         };
-
-        if (id.HasValue)
-            entity.Id = id.Value;
 
         return entity;
     }
@@ -94,4 +91,24 @@ public class IncomeSection : Entity<Guid>
     public void AttachCategory(IncomeCategory category) => _categories.Add(category);
 
     public void RemoveCategory(IncomeCategory category) => _categories.Remove(category);
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static IncomeSection CloneForAnalysis(IncomeSection source, Guid newAnalysisId)
+    {
+        var clone = new IncomeSection
+        {
+            Id = Guid.CreateVersion7(),
+            IncomeAnalysisId = newAnalysisId,
+            SectionType = source.SectionType,
+            SectionName = source.SectionName,
+            Identifier = source.Identifier,
+            DisplaySeq = source.DisplaySeq,
+            TotalSectionValuesJson = source.TotalSectionValuesJson
+        };
+
+        foreach (var c in source.Categories)
+            clone._categories.Add(IncomeCategory.CloneForSection(c, clone.Id));
+
+        return clone;
+    }
 }

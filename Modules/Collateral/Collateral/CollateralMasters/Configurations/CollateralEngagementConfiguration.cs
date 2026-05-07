@@ -22,6 +22,7 @@ public class CollateralEngagementConfiguration : IEntityTypeConfiguration<Collat
         builder.Property(e => e.AppraisedValue).HasPrecision(18, 2);
         builder.Property(e => e.AppraiserUserId).HasMaxLength(100);
         builder.Property(e => e.AppraisalCompanyName).HasMaxLength(200);
+        builder.Property(e => e.ConstructionInspectionFeeAmount).HasPrecision(18, 2);
         builder.Property(e => e.Snapshot).IsRequired().HasColumnType("nvarchar(max)");
         builder.Property(e => e.CreatedOn).IsRequired();
 

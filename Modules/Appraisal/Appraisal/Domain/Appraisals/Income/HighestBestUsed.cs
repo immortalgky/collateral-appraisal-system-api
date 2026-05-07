@@ -21,6 +21,15 @@ public class HighestBestUsed
 
     public static HighestBestUsed Empty() => new();
 
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    internal static HighestBestUsed Clone(HighestBestUsed source) => new()
+    {
+        AreaRai = source.AreaRai,
+        AreaNgan = source.AreaNgan,
+        AreaWa = source.AreaWa,
+        PricePerSqWa = source.PricePerSqWa
+    };
+
     public static HighestBestUsed Create(
         int? areaRai,
         int? areaNgan,

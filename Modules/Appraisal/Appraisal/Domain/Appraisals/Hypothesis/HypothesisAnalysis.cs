@@ -173,6 +173,52 @@ public class HypothesisAnalysis : Entity<Guid>
                 $"Operation requires variant {expected} but analysis has variant {Variant}.");
     }
 
+    /// <summary>
+    /// Deep-clone for CI carry-forward. Maps prior upload IDs to new ones so child
+    /// LandBuildingUnitRow/CondominiumUnitRow.UploadId references stay consistent.
+    /// </summary>
+    public static HypothesisAnalysis CloneForMethod(HypothesisAnalysis source, Guid newPricingMethodId)
+    {
+        var clone = new HypothesisAnalysis
+        {
+            Id = Guid.CreateVersion7(),
+            PricingMethodId = newPricingMethodId,
+            Variant = source.Variant,
+            LandBuildingSummary = source.LandBuildingSummary is null
+                ? null
+                : LandBuildingSummary.Clone(source.LandBuildingSummary),
+            CondominiumSummary = source.CondominiumSummary is null
+                ? null
+                : CondominiumSummary.Clone(source.CondominiumSummary)
+        };
+
+        // Build prior→new upload id map so unit rows can FK-rewrite.
+        var uploadIdMap = new Dictionary<Guid, Guid>();
+        foreach (var u in source.Uploads)
+        {
+            var newUpload = HypothesisUnitDetailUpload.CloneForAnalysis(u, clone.Id);
+            uploadIdMap[u.Id] = newUpload.Id;
+            clone._uploads.Add(newUpload);
+        }
+
+        foreach (var r in source.LandBuildingUnitRows)
+        {
+            if (!uploadIdMap.TryGetValue(r.UploadId, out var newUploadId)) continue;
+            clone._landBuildingUnitRows.Add(LandBuildingUnitRow.CloneForAnalysis(r, clone.Id, newUploadId));
+        }
+
+        foreach (var r in source.CondominiumUnitRows)
+        {
+            if (!uploadIdMap.TryGetValue(r.UploadId, out var newUploadId)) continue;
+            clone._condominiumUnitRows.Add(CondominiumUnitRow.CloneForAnalysis(r, clone.Id, newUploadId));
+        }
+
+        foreach (var ci in source.CostItems)
+            clone._costItems.Add(HypothesisCostItem.CloneForAnalysis(ci, clone.Id));
+
+        return clone;
+    }
+
     private void ValidateCostCategory(HypothesisCostCategory category)
     {
         var lbCategories = new[]

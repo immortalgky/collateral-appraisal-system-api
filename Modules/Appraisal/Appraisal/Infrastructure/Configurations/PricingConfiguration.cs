@@ -19,7 +19,7 @@ public class PricingAnalysisConfiguration : IEntityTypeConfiguration<PricingAnal
         });
 
         builder.HasKey(p => p.Id);
-        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(p => p.SubjectType).IsRequired();
 
@@ -62,7 +62,7 @@ public class PricingAnalysisApproachConfiguration : IEntityTypeConfiguration<Pri
         builder.ToTable("PricingAnalysisApproaches");
 
         builder.HasKey(a => a.Id);
-        builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(a => a.PricingAnalysisId).IsRequired();
         builder.Property(a => a.ApproachType).IsRequired().HasMaxLength(20);
@@ -84,7 +84,7 @@ public class PricingAnalysisMethodConfiguration : IEntityTypeConfiguration<Prici
         builder.ToTable("PricingAnalysisMethods");
 
         builder.HasKey(m => m.Id);
-        builder.Property(m => m.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(m => m.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(m => m.ApproachId).IsRequired();
         builder.Property(m => m.MethodType).IsRequired().HasMaxLength(50);
@@ -173,7 +173,7 @@ public class PricingComparableLinkConfiguration : IEntityTypeConfiguration<Prici
         builder.ToTable("PricingComparableLinks");
 
         builder.HasKey(c => c.Id);
-        builder.Property(c => c.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(c => c.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(c => c.PricingMethodId).IsRequired();
         builder.Property(c => c.MarketComparableId).IsRequired();
@@ -190,7 +190,7 @@ public class PricingCalculationConfiguration : IEntityTypeConfiguration<PricingC
         builder.ToTable("PricingCalculations");
 
         builder.HasKey(c => c.Id);
-        builder.Property(c => c.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(c => c.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(c => c.PricingMethodId).IsRequired();
         builder.Property(c => c.MarketComparableId).IsRequired();
@@ -233,7 +233,7 @@ public class PricingFactorScoreConfiguration : IEntityTypeConfiguration<PricingF
         builder.ToTable("PricingFactorScores");
 
         builder.HasKey(f => f.Id);
-        builder.Property(f => f.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(f => f.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(f => f.PricingMethodId).IsRequired();
         builder.Property(f => f.MarketComparableId); // Nullable - null = Collateral
@@ -263,7 +263,7 @@ public class PricingComparativeFactorConfiguration : IEntityTypeConfiguration<Pr
         builder.ToTable("PricingComparativeFactors");
 
         builder.HasKey(f => f.Id);
-        builder.Property(f => f.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(f => f.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(f => f.PricingMethodId).IsRequired();
         builder.Property(f => f.FactorId).IsRequired();
@@ -283,7 +283,7 @@ public class PricingRsqResultConfiguration : IEntityTypeConfiguration<PricingRsq
         builder.ToTable("PricingRsqResults");
 
         builder.HasKey(r => r.Id);
-        builder.Property(r => r.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(r => r.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(r => r.PricingMethodId).IsRequired();
         builder.HasIndex(r => r.PricingMethodId).IsUnique();
@@ -305,22 +305,20 @@ public class PricingFinalValueConfiguration : IEntityTypeConfiguration<PricingFi
         builder.ToTable("PricingFinalValues");
 
         builder.HasKey(f => f.Id);
-        builder.Property(f => f.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(f => f.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(f => f.PricingMethodId).IsRequired();
         builder.HasIndex(f => f.PricingMethodId).IsUnique();
 
         builder.Property(f => f.FinalValue).IsRequired().HasPrecision(18, 2);
         builder.Property(f => f.FinalValueRounded).IsRequired().HasPrecision(18, 2);
+        builder.Property(f => f.FinalValueAdjusted).HasPrecision(18, 2);
 
         builder.Property(f => f.LandArea).HasPrecision(18, 2);
-        builder.Property(f => f.AppraisalPrice).HasPrecision(18, 2);
-        builder.Property(f => f.AppraisalPriceRounded).HasPrecision(18, 2);
-        builder.Property(f => f.PriceDifferentiate).HasPrecision(18, 2);
+        builder.Property(f => f.LandValue).HasPrecision(18, 2);
 
         builder.Property(f => f.BuildingCost).HasPrecision(18, 2);
-        builder.Property(f => f.AppraisalPriceWithBuilding).HasPrecision(18, 2);
-        builder.Property(f => f.AppraisalPriceWithBuildingRounded).HasPrecision(18, 2);
+        builder.Property(f => f.AppraisalPrice).HasPrecision(18, 2);
     }
 }
 
@@ -331,7 +329,7 @@ public class MachineCostItemConfiguration : IEntityTypeConfiguration<MachineCost
         builder.ToTable("MachineCostItems");
 
         builder.HasKey(i => i.Id);
-        builder.Property(i => i.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(i => i.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(i => i.PricingMethodId).IsRequired();
         builder.Property(i => i.AppraisalPropertyId).IsRequired();
@@ -358,7 +356,7 @@ public class LeaseholdAnalysisConfiguration : IEntityTypeConfiguration<Leasehold
         builder.ToTable("LeaseholdAnalyses");
 
         builder.HasKey(l => l.Id);
-        builder.Property(l => l.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(l => l.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(l => l.PricingMethodId).IsRequired();
         builder.HasIndex(l => l.PricingMethodId).IsUnique();
@@ -410,7 +408,7 @@ public class LeaseholdLandGrowthPeriodConfiguration : IEntityTypeConfiguration<L
         builder.ToTable("LeaseholdLandGrowthPeriods");
 
         builder.HasKey(p => p.Id);
-        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(p => p.LeaseholdAnalysisId).IsRequired();
         builder.Property(p => p.FromYear);
@@ -428,7 +426,7 @@ public class LeaseholdCalculationDetailConfiguration : IEntityTypeConfiguration<
         builder.ToTable("LeaseholdCalculationDetails");
 
         builder.HasKey(r => r.Id);
-        builder.Property(r => r.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(r => r.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(r => r.LeaseholdAnalysisId).IsRequired();
         builder.Property(r => r.DisplaySequence);
@@ -455,7 +453,7 @@ public class ProfitRentAnalysisConfiguration : IEntityTypeConfiguration<ProfitRe
         builder.ToTable("ProfitRentAnalyses");
 
         builder.HasKey(p => p.Id);
-        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(p => p.PricingMethodId).IsRequired();
         builder.HasIndex(p => p.PricingMethodId).IsUnique();
@@ -494,7 +492,7 @@ public class ProfitRentGrowthPeriodConfiguration : IEntityTypeConfiguration<Prof
         builder.ToTable("ProfitRentGrowthPeriods");
 
         builder.HasKey(p => p.Id);
-        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(p => p.ProfitRentAnalysisId).IsRequired();
         builder.Property(p => p.FromYear);
@@ -512,7 +510,7 @@ public class ProfitRentCalculationDetailConfiguration : IEntityTypeConfiguration
         builder.ToTable("ProfitRentCalculationDetails");
 
         builder.HasKey(r => r.Id);
-        builder.Property(r => r.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(r => r.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(r => r.ProfitRentAnalysisId).IsRequired();
         builder.Property(r => r.DisplaySequence);

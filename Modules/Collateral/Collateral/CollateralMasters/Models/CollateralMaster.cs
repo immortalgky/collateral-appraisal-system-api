@@ -420,6 +420,7 @@ public class CollateralMaster : Aggregate<Guid>
         string? appraiserUserId,
         Guid? appraisalCompanyId,
         string? appraisalCompanyName,
+        decimal? constructionInspectionFeeAmount,
         string snapshot)
     {
         if (!IsMaster)
@@ -430,7 +431,8 @@ public class CollateralMaster : Aggregate<Guid>
         var engagement = new CollateralEngagement(
             Id, appraisalId, appraisalNumber, requestId, requestNumber,
             propertyId, appraisalType, appraisalDate, appraisedValue,
-            appraiserUserId, appraisalCompanyId, appraisalCompanyName, snapshot);
+            appraiserUserId, appraisalCompanyId, appraisalCompanyName,
+            constructionInspectionFeeAmount, snapshot);
 
         _engagements.Add(engagement);
         AddDomainEvent(new CollateralEngagementAddedEvent(Id, engagement.Id, appraisalId));

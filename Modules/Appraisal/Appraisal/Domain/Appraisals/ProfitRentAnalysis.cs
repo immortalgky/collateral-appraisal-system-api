@@ -39,9 +39,39 @@ public class ProfitRentAnalysis : Entity<Guid>
     {
         return new ProfitRentAnalysis
         {
+            Id = Guid.CreateVersion7(),
             PricingMethodId = pricingMethodId,
             GrowthRateType = "Frequency"
         };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward — copies scalar inputs/computed values + child collections.</summary>
+    public static ProfitRentAnalysis CloneForMethod(ProfitRentAnalysis source, Guid newMethodId)
+    {
+        var clone = new ProfitRentAnalysis
+        {
+            Id = Guid.CreateVersion7(),
+            PricingMethodId = newMethodId,
+            MarketRentalFeePerSqWa = source.MarketRentalFeePerSqWa,
+            GrowthRateType = source.GrowthRateType,
+            GrowthRatePercent = source.GrowthRatePercent,
+            GrowthIntervalYears = source.GrowthIntervalYears,
+            DiscountRate = source.DiscountRate,
+            IncludeBuildingCost = source.IncludeBuildingCost,
+            EstimatePriceRounded = source.EstimatePriceRounded,
+            TotalMarketRentalFee = source.TotalMarketRentalFee,
+            TotalContractRentalFee = source.TotalContractRentalFee,
+            TotalReturnsFromLease = source.TotalReturnsFromLease,
+            TotalPresentValue = source.TotalPresentValue,
+            FinalValueRounded = source.FinalValueRounded
+        };
+
+        foreach (var p in source.GrowthPeriods)
+            clone._growthPeriods.Add(ProfitRentGrowthPeriod.CloneForAnalysis(p, clone.Id));
+        foreach (var r in source.TableRows)
+            clone._tableRows.Add(ProfitRentCalculationDetail.CloneForAnalysis(r, clone.Id));
+
+        return clone;
     }
 
     public void Update(

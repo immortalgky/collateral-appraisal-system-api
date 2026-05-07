@@ -25,6 +25,12 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
             .IsRequired()
             .HasMaxLength(50);
 
+        // For ConstructionInspection appraisals — links to the prior appraisal whose
+        // engagement supplies the CI fee (and other CI-specific carry-overs).
+        builder.Property(a => a.PrevAppraisalId);
+        builder.HasIndex(a => a.PrevAppraisalId)
+            .HasFilter("[PrevAppraisalId] IS NOT NULL");
+
         builder.Property(a => a.Priority)
             .IsRequired()
             .HasMaxLength(20);
@@ -117,7 +123,8 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
             // Primary Key
             group.HasKey(g => g.Id);
             group.Property(g => g.Id)
-                .HasDefaultValueSql("NEWSEQUENTIALID()");
+                .HasDefaultValueSql("NEWSEQUENTIALID()")
+                .ValueGeneratedNever();
 
             // Core Properties
             group.Property(g => g.AppraisalId)
@@ -145,7 +152,8 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
                 // Primary Key
                 item.HasKey(i => i.Id);
                 item.Property(i => i.Id)
-                    .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    .HasDefaultValueSql("NEWSEQUENTIALID()")
+                    .ValueGeneratedNever();
 
                 // Core Properties
                 item.Property(i => i.PropertyGroupId)

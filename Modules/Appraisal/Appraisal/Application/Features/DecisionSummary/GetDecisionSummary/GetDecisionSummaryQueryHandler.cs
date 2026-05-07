@@ -167,6 +167,7 @@ public class GetDecisionSummaryQueryHandler(
 
         var flatRows = (await connectionFactory.QueryAsync<FlatApproachRow>(approachSql, param)).ToList();
         var buildingInsurance = await BuildingInsuranceCalculator.ComputeAsync(connectionFactory, appraisalId);
+        var constructionSummary = await BuildConstructionSummaryAsync(connectionFactory, appraisalId);
 
         // Group flat rows into nested approach matrix
         var approachMatrix = flatRows
@@ -210,7 +211,8 @@ public class GetDecisionSummaryQueryHandler(
             AdditionalAssumptions: decision?.AdditionalAssumptions,
             IsBlock: false,
             BlockApproachMatrix: null,
-            BlockModelPrices: null
+            BlockModelPrices: null,
+            ConstructionSummary: constructionSummary
         );
     }
 
@@ -339,9 +341,125 @@ public class GetDecisionSummaryQueryHandler(
             AdditionalAssumptions: decision?.AdditionalAssumptions,
             IsBlock: true,
             BlockApproachMatrix: blockApproachMatrix,
-            BlockModelPrices: blockModelPrices
+            BlockModelPrices: blockModelPrices,
+            ConstructionSummary: null
         );
     }
+
+    private static async Task<ConstructionSummaryData?> BuildConstructionSummaryAsync(
+        ISqlConnectionFactory connectionFactory,
+        Guid appraisalId)
+    {
+        var p = new DynamicParameters();
+        p.Add("AppraisalId", appraisalId);
+
+        const string landValueSql = """
+            SELECT ISNULL(SUM(pfv.LandValue), 0)
+            FROM appraisal.PricingFinalValues pfv
+            JOIN appraisal.PricingAnalysisMethods pam ON pam.Id = pfv.PricingMethodId
+            JOIN appraisal.PricingAnalysisApproaches paa ON paa.Id = pam.ApproachId
+            JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId
+            JOIN appraisal.PropertyGroups pg ON pg.Id = pa.PropertyGroupId
+            WHERE pg.AppraisalId = @AppraisalId
+            """;
+
+        const string nonCiBuildingValueSql = """
+            SELECT ISNULL(SUM(bdd.PriceAfterDepreciation), 0)
+            FROM appraisal.BuildingDepreciationDetails bdd
+            JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+              AND NOT EXISTS (
+                  SELECT 1 FROM appraisal.ConstructionInspections ci
+                  WHERE ci.AppraisalPropertyId = ap.Id
+              )
+            """;
+
+        const string ciAggregateSql = """
+            SELECT
+                ISNULL(SUM(ci.TotalValue), 0) AS CITotalValue,
+                ISNULL(SUM(
+                    CASE WHEN ci.IsFullDetail = 0
+                         THEN ISNULL(ci.SummaryPreviousValue, 0)
+                         ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
+                    END
+                ), 0) AS CIPreviousValue,
+                ISNULL(SUM(
+                    CASE WHEN ci.IsFullDetail = 0
+                         THEN ISNULL(ci.SummaryCurrentValue, 0)
+                         ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
+                    END
+                ), 0) AS CICurrentValue
+            FROM appraisal.ConstructionInspections ci
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
+            LEFT JOIN (
+                SELECT ConstructionInspectionId,
+                       SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
+                       SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum
+                FROM appraisal.ConstructionWorkDetails
+                GROUP BY ConstructionInspectionId
+            ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
+            WHERE ap.AppraisalId = @AppraisalId
+            """;
+
+        var landValue = await connectionFactory.QueryFirstOrDefaultAsync<decimal>(landValueSql, p);
+        var nonCiBuilding = await connectionFactory.QueryFirstOrDefaultAsync<decimal>(nonCiBuildingValueSql, p);
+        var ci = await connectionFactory.QueryFirstOrDefaultAsync<CiAggregateRow>(ciAggregateSql, p);
+
+        if (ci is null || ci.CITotalValue == 0m)
+            return null;
+
+        var ciTotal = ci.CITotalValue;
+        var ciPrev = ci.CIPreviousValue;
+        var ciCurrent = ci.CICurrentValue;
+
+        var prevPct = ciTotal > 0 ? ciPrev / ciTotal * 100m : 0m;
+        var currentPct = ciTotal > 0 ? ciCurrent / ciTotal * 100m : 0m;
+        var increasedPct = currentPct - prevPct;
+        var remainingPct = 100m - currentPct;
+
+        var rows = new List<ConstructionSummaryRow>
+        {
+            new("Previous",
+                prevPct,
+                landValue + nonCiBuilding + ciPrev,
+                landValue,
+                nonCiBuilding + ciPrev,
+                ciPrev),
+            new("Construction Increased",
+                increasedPct,
+                ciCurrent - ciPrev,
+                0m,
+                ciCurrent - ciPrev,
+                ciCurrent - ciPrev),
+            new("Current",
+                currentPct,
+                landValue + nonCiBuilding + ciCurrent,
+                landValue,
+                nonCiBuilding + ciCurrent,
+                ciCurrent),
+            new("Remaining construction",
+                remainingPct,
+                ciTotal - ciCurrent,
+                0m,
+                ciTotal - ciCurrent,
+                ciTotal - ciCurrent),
+            new("Complete ( 100% )",
+                100m,
+                landValue + nonCiBuilding + ciTotal,
+                landValue,
+                nonCiBuilding + ciTotal,
+                ciTotal),
+        };
+
+        return new ConstructionSummaryData(rows);
+    }
+
+    private record CiAggregateRow(
+        decimal CITotalValue,
+        decimal CIPreviousValue,
+        decimal CICurrentValue
+    );
 
     private record ValuationReviewRow(
         decimal? TotalAppraisalPriceReview,

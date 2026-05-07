@@ -42,11 +42,34 @@ public class PricingFactorScore : Entity<Guid>
 
         return new PricingFactorScore
         {
+            Id = Guid.CreateVersion7(),
             PricingMethodId = pricingMethodId,
             MarketComparableId = marketComparableId,
             FactorId = factorId,
             FactorWeight = factorWeight,
             DisplaySequence = displaySequence
+        };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static PricingFactorScore CloneForMethod(PricingFactorScore source, Guid newMethodId)
+    {
+        return new PricingFactorScore
+        {
+            Id = Guid.CreateVersion7(),
+            PricingMethodId = newMethodId,
+            MarketComparableId = source.MarketComparableId,
+            FactorId = source.FactorId,
+            FactorWeight = source.FactorWeight,
+            DisplaySequence = source.DisplaySequence,
+            Value = source.Value,
+            Score = source.Score,
+            WeightedScore = source.WeightedScore,
+            Intensity = source.Intensity,
+            AdjustmentPct = source.AdjustmentPct,
+            AdjustmentAmt = source.AdjustmentAmt,
+            ComparisonResult = source.ComparisonResult,
+            Remarks = source.Remarks
         };
     }
 

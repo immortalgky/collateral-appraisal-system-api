@@ -20,10 +20,24 @@ public class ProfitRentGrowthPeriod : Entity<Guid>
     {
         return new ProfitRentGrowthPeriod
         {
+            Id = Guid.CreateVersion7(),
             ProfitRentAnalysisId = profitRentAnalysisId,
             FromYear = fromYear,
             ToYear = toYear,
             GrowthRatePercent = growthRatePercent
+        };
+    }
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    public static ProfitRentGrowthPeriod CloneForAnalysis(ProfitRentGrowthPeriod source, Guid newAnalysisId)
+    {
+        return new ProfitRentGrowthPeriod
+        {
+            Id = Guid.CreateVersion7(),
+            ProfitRentAnalysisId = newAnalysisId,
+            FromYear = source.FromYear,
+            ToYear = source.ToYear,
+            GrowthRatePercent = source.GrowthRatePercent
         };
     }
 }

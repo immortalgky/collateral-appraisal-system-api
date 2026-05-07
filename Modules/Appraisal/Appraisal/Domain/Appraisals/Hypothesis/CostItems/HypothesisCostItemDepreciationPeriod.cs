@@ -42,4 +42,19 @@ public class HypothesisCostItemDepreciationPeriod : Entity<Guid>
             DepreciationPerYear = depreciationPerYear
         };
     }
+
+    /// <summary>Deep-clone for CI carry-forward.</summary>
+    internal static HypothesisCostItemDepreciationPeriod CloneForCostItem(
+        HypothesisCostItemDepreciationPeriod source, Guid newCostItemId)
+    {
+        return new HypothesisCostItemDepreciationPeriod
+        {
+            Id = Guid.CreateVersion7(),
+            CostItemId = newCostItemId,
+            Sequence = source.Sequence,
+            AtYear = source.AtYear,
+            ToYear = source.ToYear,
+            DepreciationPerYear = source.DepreciationPerYear
+        };
+    }
 }

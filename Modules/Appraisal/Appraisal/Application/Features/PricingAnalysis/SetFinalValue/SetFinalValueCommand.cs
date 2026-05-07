@@ -13,11 +13,8 @@ public record SetFinalValueCommand(
     decimal FinalValueRounded,
     bool? IncludeLandArea,
     decimal? LandArea,
-    decimal? AppraisalPrice,
-    decimal? AppraisalPriceRounded,
-    decimal? PriceDifferentiate,
+    decimal? LandValue,
     bool? HasBuildingCost,
     decimal? BuildingCost,
-    decimal? AppraisalPriceWithBuilding,
-    decimal? AppraisalPriceWithBuildingRounded
+    decimal? AppraisalPrice
 ) : ICommand<SetFinalValueResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

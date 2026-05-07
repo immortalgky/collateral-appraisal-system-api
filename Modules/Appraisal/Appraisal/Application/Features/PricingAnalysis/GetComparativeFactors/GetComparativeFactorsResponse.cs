@@ -10,5 +10,6 @@ public record GetComparativeFactorsResponse(
     IReadOnlyList<ComparativeFactorDto> ComparativeFactors,
     IReadOnlyList<FactorScoreDto> FactorScores,
     IReadOnlyList<CalculationDto> Calculations,
-    RsqResultDto? RsqResult = null
+    RsqResultDto? RsqResult = null,
+    FinalValueDto? FinalValue = null
 );

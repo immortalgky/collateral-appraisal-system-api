@@ -15,6 +15,10 @@ public class CollateralEngagement
     public string? AppraiserUserId { get; private set; }
     public Guid? AppraisalCompanyId { get; private set; }
     public string? AppraisalCompanyName { get; private set; }
+    // Construction Inspection Fee captured from this engagement's AppraisalFee.
+    // Reused as the appraisal fee when a future Construction Inspection appraisal is created
+    // for the same collateral (CI bypasses the normal tier/quotation pipeline).
+    public decimal? ConstructionInspectionFeeAmount { get; private set; }
     public string Snapshot { get; private set; } = null!;
     public DateTime CreatedOn { get; private set; }
 
@@ -33,6 +37,7 @@ public class CollateralEngagement
         string? appraiserUserId,
         Guid? appraisalCompanyId,
         string? appraisalCompanyName,
+        decimal? constructionInspectionFeeAmount,
         string snapshot)
     {
         Id = Guid.CreateVersion7();
@@ -48,6 +53,7 @@ public class CollateralEngagement
         AppraiserUserId = appraiserUserId;
         AppraisalCompanyId = appraisalCompanyId;
         AppraisalCompanyName = appraisalCompanyName;
+        ConstructionInspectionFeeAmount = constructionInspectionFeeAmount;
         Snapshot = snapshot;
         CreatedOn = DateTime.UtcNow;
     }

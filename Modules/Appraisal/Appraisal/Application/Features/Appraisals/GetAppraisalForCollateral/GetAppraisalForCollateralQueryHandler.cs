@@ -103,6 +103,19 @@ public class GetAppraisalForCollateralQueryHandler(
             .Select(v => (decimal?)v.AppraisedValue)
             .FirstOrDefaultAsync(cancellationToken);
 
+        // CI fee is captured on the AppraisalFee linked to the latest non-rejected assignment.
+        // Reused as the appraisal fee when a future CI appraisal targets the same collateral
+        // (CI bypasses normal tier/quotation pipeline).
+        decimal? constructionInspectionFee = null;
+        if (latestAssignment is not null)
+        {
+            constructionInspectionFee = await dbContext.AppraisalFees
+                .AsNoTracking()
+                .Where(f => f.AssignmentId == latestAssignment.Id)
+                .Select(f => f.ConstructionInspectionFeeAmount)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
         return new AppraisalForCollateralResult(
             AppraisalId: appraisal.Id,
             AppraisalNumber: appraisal.AppraisalNumber,
@@ -114,6 +127,7 @@ public class GetAppraisalForCollateralQueryHandler(
             CompanyId: companyId,
             CompanyName: companyName,
             AppraisedValue: appraisalTotal,
+            ConstructionInspectionFeeAmount: constructionInspectionFee,
             Properties: properties
         );
     }
