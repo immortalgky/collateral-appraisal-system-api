@@ -338,7 +338,11 @@ public static class AuthModule
             policy =>
             {
                 policy.RequireAuthenticatedUser();
-                policy.RequireClaim("scope", requiredScope);
+                policy.RequireAssertion(ctx =>
+                    ctx.User.Claims
+                        .Where(c => c.Type == "scope")
+                        .SelectMany(c => c.Value.Split(' '))
+                        .Contains(requiredScope));
             }
         );
         return authorizationBuilder;
