@@ -71,6 +71,7 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
             accessRoadWidth: command.AccessRoadWidth,
             rightOfWay: command.RightOfWay,
             roadSurfaceType: command.RoadSurfaceType,
+            roadSurfaceTypeOther: command.RoadSurfaceTypeOther,
             publicUtilityType: command.PublicUtilityType,
             publicUtilityTypeOther: command.PublicUtilityTypeOther,
             decorationType: command.DecorationType,
