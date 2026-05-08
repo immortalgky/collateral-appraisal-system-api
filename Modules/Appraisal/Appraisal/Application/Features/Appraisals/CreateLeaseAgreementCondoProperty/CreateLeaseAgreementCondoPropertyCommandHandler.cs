@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.Shared;
+using Request.Contracts.Requests.Dtos;
 
 namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementCondoProperty;
 
@@ -47,6 +48,8 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             command.RoomNumber,
             command.FloorNumber,
             command.UsableArea,
+            null,
+            "DEED",
             coordinates,
             address,
             command.OwnerName,
