@@ -318,6 +318,22 @@ public class Appraisal : Aggregate<Guid>
     }
 
     /// <summary>
+    /// Add a lease agreement condo property with condo detail, lease agreement, and rental info
+    /// </summary>
+    public AppraisalProperty AddLeaseAgreementCondoProperty()
+    {
+        var sequenceNumber = _properties.Count + 1;
+        var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LeaseAgreementCondo);
+
+        property.SetCondoDetail(CondoAppraisalDetail.Create(property.Id));
+        property.SetLeaseAgreementDetail(LeaseAgreementDetail.Create(property.Id));
+        property.SetRentalInfo(RentalInfo.Create(property.Id));
+
+        _properties.Add(property);
+        return property;
+    }
+
+    /// <summary>
     /// Add a lease agreement land and building property with both details, lease agreement, and rental info
     /// </summary>
     public AppraisalProperty AddLeaseAgreementLandAndBuildingProperty()
@@ -394,6 +410,12 @@ public class Appraisal : Aggregate<Guid>
             newProperty.SetLandAndBuildingDetails(
                 LandAppraisalDetail.CopyFrom(source.LandDetail!, newProperty.Id),
                 BuildingAppraisalDetail.CopyFrom(source.BuildingDetail!, newProperty.Id));
+            newProperty.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail!, newProperty.Id));
+            newProperty.SetRentalInfo(RentalInfo.CopyFrom(source.RentalInfo!, newProperty.Id));
+        }
+        else if (source.PropertyType == PropertyType.LeaseAgreementCondo)
+        {
+            newProperty.SetCondoDetail(CondoAppraisalDetail.CopyFrom(source.CondoDetail!, newProperty.Id));
             newProperty.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail!, newProperty.Id));
             newProperty.SetRentalInfo(RentalInfo.CopyFrom(source.RentalInfo!, newProperty.Id));
         }

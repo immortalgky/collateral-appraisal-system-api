@@ -1,74 +1,9 @@
 -- ----------------------------------------
--- Group: AC_Decision (EN=5, TH=5)
--- ----------------------------------------
-INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
-VALUES
-    (N'AC_Decision', N'TH', N'EN', N'01', N'Proceed', 1, 1),
-    (N'AC_Decision', N'TH', N'TH', N'01', N'Proceed', 1, 1),
-    (N'AC_Decision', N'TH', N'EN', N'02', N'Route Back to Appraisal Execution', 1, 2),
-    (N'AC_Decision', N'TH', N'TH', N'02', N'Route Back to Appraisal Execution', 1, 2),
-    (N'AC_Decision', N'TH', N'EN', N'03', N'Route Back to External Appraisal Check', 1, 3),
-    (N'AC_Decision', N'TH', N'TH', N'03', N'Route Back to External Appraisal Check', 1, 3),
-    (N'AC_Decision', N'TH', N'EN', N'04', N'Route Back to External Appraisal Assignment', 1, 4),
-    (N'AC_Decision', N'TH', N'TH', N'04', N'Route Back to External Appraisal Assignment', 1, 4),
-    (N'AC_Decision', N'TH', N'EN', N'05', N'Document Follow-up', 1, 5),
-    (N'AC_Decision', N'TH', N'TH', N'05', N'Document Follow-up', 1, 5);
-GO
-
--- ----------------------------------------
--- Group: AD_Decision (EN=5, TH=5)
--- ----------------------------------------
-INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
-VALUES
-    (N'AD_Decision', N'TH', N'EN', N'01', N'Proceed', 1, 1),
-    (N'AD_Decision', N'TH', N'TH', N'01', N'Proceed', 1, 1),
-    (N'AD_Decision', N'TH', N'EN', N'02', N'Route Back Follow-up', 1, 2),
-    (N'AD_Decision', N'TH', N'TH', N'02', N'Route Back Follow-up', 1, 2),
-    (N'AD_Decision', N'TH', N'EN', N'03', N'Route Back to Appraisal Initiation (Maker)', 1, 3),
-    (N'AD_Decision', N'TH', N'TH', N'03', N'Route Back to Appraisal Initiation (Maker)', 1, 3),
-    (N'AD_Decision', N'TH', N'EN', N'04', N'Route Back to Appraisal Initiation (Checker)', 1, 4),
-    (N'AD_Decision', N'TH', N'TH', N'04', N'Route Back to Appraisal Initiation (Checker)', 1, 4),
-    (N'AD_Decision', N'TH', N'EN', N'05', N'Cancel', 1, 5),
-    (N'AD_Decision', N'TH', N'TH', N'05', N'Cancel', 1, 5);
-GO
-
--- ----------------------------------------
--- Group: AS_Decision (EN=5, TH=5)
--- ----------------------------------------
-INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
-VALUES
-    (N'AS_Decision', N'TH', N'EN', N'01', N'Proceed', 1, 1),
-    (N'AS_Decision', N'TH', N'TH', N'01', N'Proceed', 1, 1),
-    (N'AS_Decision', N'TH', N'EN', N'02', N'Route Back Follow-up', 1, 2),
-    (N'AS_Decision', N'TH', N'TH', N'02', N'Route Back Follow-up', 1, 2),
-    (N'AS_Decision', N'TH', N'EN', N'03', N'Route Back to Appraisal Assignment', 1, 3),
-    (N'AS_Decision', N'TH', N'TH', N'03', N'Route Back to Appraisal Assignment', 1, 3),
-    (N'AS_Decision', N'TH', N'EN', N'04', N'Route Back to External Appraisal Assignment', 1, 4),
-    (N'AS_Decision', N'TH', N'TH', N'04', N'Route Back to External Appraisal Assignment', 1, 4),
-    (N'AS_Decision', N'TH', N'EN', N'05', N'Route Back to External Appraisal Check', 1, 5),
-    (N'AS_Decision', N'TH', N'TH', N'05', N'Route Back to External Appraisal Check', 1, 5);
-GO
-
--- ----------------------------------------
--- Group: AV_Decision (EN=3, TH=3)
--- ----------------------------------------
-INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
-VALUES
-    (N'AV_Decision', N'TH', N'EN', N'01', N'Proceed', 1, 1),
-    (N'AV_Decision', N'TH', N'TH', N'01', N'Proceed', 1, 1),
-    (N'AV_Decision', N'TH', N'EN', N'02', N'Route Back to Appraisal Check', 1, 2),
-    (N'AV_Decision', N'TH', N'TH', N'02', N'Route Back to Appraisal Check', 1, 2),
-    (N'AV_Decision', N'TH', N'EN', N'03', N'Document Follow-up', 1, 3),
-    (N'AV_Decision', N'TH', N'TH', N'03', N'Document Follow-up', 1, 3);
-GO
-
--- ----------------------------------------
 -- Group: AdjustedPeriodPct (EN=1, TH=1)
 -- ----------------------------------------
-INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
-VALUES
-    (N'AdjustedPeriodPct', N'TH', N'EN', N'01', N'Adjusted Period %', 1, 1),
-    (N'AdjustedPeriodPct', N'TH', N'TH', N'01', N'Adjusted Period %', 1, 1);
+INSERT INTO parameter.Parameters ([group], [country], [ language], [code], [description], [isactive], [seqno])
+VALUES (N'AdjustedPeriodPct', N'TH', N'EN', N'01', N'Adjusted Period %', 1, 1),
+       (N'AdjustedPeriodPct', N'TH', N'TH', N'01', N'Adjusted Period %', 1, 1);
 GO
 
 -- ----------------------------------------
@@ -1232,10 +1167,10 @@ VALUES
     (N'DeedType', N'TH', N'TH', N'NS3K', N'นส 3 ก', 1, 3),
     (N'DeedType', N'TH', N'EN', N'NS3KO', N'Nor Sor 3 Ko', 1, 4),
     (N'DeedType', N'TH', N'TH', N'NS3KO', N'นส 3 ข', 1, 4),
-    (N'DeedType', N'TH', N'EN', N'05', N'Document of possessory rights to land', 1, 5),
-    (N'DeedType', N'TH', N'TH', N'05', N'ตราจอง', 1, 5),
-    (N'DeedType', N'TH', N'EN', N'06', N'Other', 1, 6),
-    (N'DeedType', N'TH', N'TH', N'06', N'อื่นๆ', 1, 6);
+    (N'DeedType', N'TH', N'EN', N'POSR', N'Document of possessory rights to land', 1, 5),
+    (N'DeedType', N'TH', N'TH', N'POSR', N'ตราจอง', 1, 5),
+    (N'DeedType', N'TH', N'EN', N'OTHER', N'Other', 1, 6),
+    (N'DeedType', N'TH', N'TH', N'OTHER', N'อื่นๆ', 1, 6);
 GO
 
 -- ----------------------------------------
