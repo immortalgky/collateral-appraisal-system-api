@@ -21,7 +21,7 @@ public class TitleDeedInfo : ValueObject
         return new TitleDeedInfo(titleNumber, titleType);
     }
 
-    private static readonly string[] ValidDeedTypes = { "DEED", "NS3", "NS3K" };
+    private static readonly string[] ValidDeedTypes = { "DEED", "NS3", "NS3K", "NS3KO", "POSR", "OTHER" };
 
     public void Validate()
     {
