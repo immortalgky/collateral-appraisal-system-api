@@ -103,7 +103,7 @@ public class AppraisalProperty : Entity<Guid>
     /// </summary>
     public void SetCondoDetail(CondoAppraisalDetail detail)
     {
-        if (PropertyType != PropertyType.Condo)
+        if (!PropertyType.HasCondoDetail)
             throw new InvalidOperationException($"Cannot set condo detail for property type '{PropertyType}'");
 
         CondoDetail = detail;
