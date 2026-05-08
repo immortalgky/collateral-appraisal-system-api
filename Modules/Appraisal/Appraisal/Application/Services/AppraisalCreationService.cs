@@ -106,8 +106,8 @@ public class AppraisalCreationService(
         foreach (var title in titlesToProcess)
             switch (title.CollateralType)
             {
-                case "U":
-                case "LSU": CreateCondoProperty(appraisal, title); break;
+                case "U": CreateCondoProperty(appraisal, title); break;
+                case "LSU": CreateLeaseAgreementCondoProperty(appraisal, title); break;
                 case "VEH": CreateVehicleProperty(appraisal, title); break;
                 case "VES": CreateVesselProperty(appraisal, title); break;
                 case "MAC": CreateMachineryProperty(appraisal, title); break;
@@ -283,6 +283,34 @@ public class AppraisalCreationService(
 
         logger.LogInformation("Added condo property {PropertyId} for title {TitleNumber}",
             property.Id, requestTitle.TitleNumber);
+
+        var condoDetail = property.CondoDetail;
+        if (condoDetail == null) return;
+
+        var adminAddress = AdministrativeAddress.Create(
+            requestTitle.TitleAddress?.SubDistrict,
+            requestTitle.TitleAddress?.District,
+            requestTitle.TitleAddress?.Province);
+
+        condoDetail.Update(
+            requestTitle.TitleAddress?.ProjectName,
+            requestTitle.CondoName,
+            requestTitle.BuildingNumber,
+            roomNumber: requestTitle.RoomNumber,
+            floorNumber: requestTitle.FloorNumber,
+            usableArea: requestTitle.UsableArea,
+            address: adminAddress,
+            ownerName: requestTitle.OwnerName,
+            street: requestTitle.TitleAddress?.Road,
+            soi: requestTitle.TitleAddress?.Soi);
+    }
+
+    private void CreateLeaseAgreementCondoProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
+    {
+        var property = appraisal.AddLeaseAgreementCondoProperty();
+
+        logger.LogInformation("Added lease agreement condo property {PropertyId} for title {RoomNumber}",
+            property.Id, requestTitle.RoomNumber);
 
         var condoDetail = property.CondoDetail;
         if (condoDetail == null) return;
