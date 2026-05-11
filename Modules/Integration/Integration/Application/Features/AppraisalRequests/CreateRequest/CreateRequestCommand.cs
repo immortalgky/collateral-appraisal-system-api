@@ -17,5 +17,6 @@ public record CreateRequestCommand(
     List<RequestPropertyDto>? Properties,
     List<RequestTitleDto>? Titles,
     List<RequestDocumentDto>? Documents,
-    List<RequestCommentDto>? Comments
+    List<RequestCommentDto>? Comments,
+    string? ExternalCaseKey = null
 ) : ICommand<Guid>, ITransactionalCommand<IRequestUnitOfWork>;

@@ -4,7 +4,7 @@ public record LookupCollateralMasterResult(
     Guid Id,
     string CollateralType,
     string? OwnerName,
-    DateTime CreatedOn,
+    DateTime CreatedAt,
     // Last engagement summary
     int EngagementCount,
     DateTime? LastAppraisedDate,
@@ -25,7 +25,8 @@ public record LastEngagementSummaryDto(
     string AppraisalNumber,
     string AppraisalType,
     DateTime AppraisalDate,
-    decimal? AppraisedValue,
+    // AppraisedValue removed (PR-4): values now live on master detail rows (LandDetail.AppraisalValue etc.)
+    // and inside the engagement Snapshot JSON. Use the master-level LastAppraisedValue for display.
     Guid? AppraisalCompanyId,
     string? AppraisalCompanyName
 );
@@ -33,14 +34,13 @@ public record LastEngagementSummaryDto(
 public record LandDetailDto(
     string LandOfficeCode,
     string Province,
-    string Amphur,
-    string Tambon,
-    string TitleDeedType,
-    string TitleDeedNo,
-    string? SurveyOrParcelNo,
+    string District,
+    string SubDistrict,
+    string TitleType,
+    string TitleNumber,
+    string? SurveyNumber,
     string? Street,
     string? Village,
-    string? PostalCode,
     decimal? Latitude,
     decimal? Longitude,
     string? LandShapeType,
@@ -51,12 +51,14 @@ public record LandDetailDto(
     decimal? LandArea,
     bool IsUnderConstructionAtLastAppraisal,
     decimal? OverallConstructionProgressPercent,
-    Guid? LastConstructionInspectionId,
+    // PR-5: LastConstructionInspectionId removed — CI list is in the engagement snapshot.
     Guid? LastAppraisalId,
     string? LastAppraisalNumber,
     DateTime? LastAppraisedDate,
-    decimal? LastAppraisedValue,
-    decimal? LastTotalAppraisedValue,
+    // Three-value model (Phase C)
+    decimal? UnitPrice,
+    decimal? BuildingCost,
+    decimal? AppraisalValue,
     /// <summary>
     /// Alias titles belonging to the same multi-title group as this master.
     /// Empty for single-title properties (the common case).
@@ -68,9 +70,9 @@ public record LandDetailDto(
 /// Dedup-key fields for an alias title in a multi-title Land group.
 /// </summary>
 public record AliasTitleDto(
-    string TitleDeedType,
-    string TitleDeedNo,
-    string? SurveyOrParcelNo
+    string TitleType,
+    string TitleNumber,
+    string? SurveyNumber
 );
 
 public record CondoDetailDto(
@@ -78,7 +80,7 @@ public record CondoDetailDto(
     string CondoRegistrationNumber,
     string BuildingNumber,
     string FloorNumber,
-    string UnitNumber,
+    string RoomNumber,
     string TitleNumber,
     string TitleType,
     string? CondoName,
@@ -91,7 +93,10 @@ public record CondoDetailDto(
     Guid? LastAppraisalId,
     string? LastAppraisalNumber,
     DateTime? LastAppraisedDate,
-    decimal? LastAppraisedValue
+    // Three-value model (Phase C)
+    decimal? UnitPrice,
+    decimal? BuildingCost,
+    decimal? AppraisalValue
 );
 
 public record LeaseholdDetailDto(
@@ -102,12 +107,9 @@ public record LeaseholdDetailDto(
     DateOnly LeaseTermStart,
     DateOnly? LeaseTermEnd,
     int? LeaseTermMonths,
-    decimal? AnnualRent,
-    string? LeasePurpose,
     Guid? LastAppraisalId,
     string? LastAppraisalNumber,
-    DateTime? LastAppraisedDate,
-    decimal? LastAppraisedValue
+    DateTime? LastAppraisedDate
 );
 
 public record MachineDetailDto(
@@ -116,13 +118,7 @@ public record MachineDetailDto(
     string? Brand,
     string? Model,
     string? Manufacturer,
-    string? EngineNo,
-    string? ChassisNo,
-    int? YearOfManufacture,
-    string? MachineCondition,
-    decimal? MachineAge,
     Guid? LastAppraisalId,
     string? LastAppraisalNumber,
-    DateTime? LastAppraisedDate,
-    decimal? LastAppraisedValue
+    DateTime? LastAppraisedDate
 );

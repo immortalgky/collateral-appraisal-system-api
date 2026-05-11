@@ -4,6 +4,8 @@ public record GetEngagementsResult(PaginatedResult<EngagementListItemDto> Engage
 
 /// <summary>
 /// Metadata-only projection from vw_CollateralEngagements — no snapshot column.
+/// PR-4: PropertyId and AppraisedValue removed (engagement is now per-appraisal;
+/// values live on master detail rows and inside the engagement Snapshot JSON).
 /// </summary>
 public record EngagementListItemDto(
     Guid Id,
@@ -12,14 +14,13 @@ public record EngagementListItemDto(
     string AppraisalNumber,
     Guid RequestId,
     string RequestNumber,
-    Guid PropertyId,
     string AppraisalType,
     DateTime AppraisalDate,
-    decimal? AppraisedValue,
     string? AppraiserUserId,
     Guid? AppraisalCompanyId,
     string? AppraisalCompanyName,
-    DateTime CreatedOn,
+    decimal? ConstructionInspectionFeeAmount,
+    DateTime CreatedAt,
     string CollateralType,
     string? OwnerName
 );

@@ -13,13 +13,6 @@ public class MachineDetail
     public string? Model { get; private set; }
     public string? Manufacturer { get; private set; }
 
-    // Identity-extra & last-known
-    public string? EngineNo { get; private set; }
-    public string? ChassisNo { get; private set; }
-    public int? YearOfManufacture { get; private set; }
-    public string? MachineCondition { get; private set; }
-    public decimal? MachineAge { get; private set; }
-
     // Appraisal summary (owned)
     public AppraisalSummary AppraisalSummary { get; private set; } = null!;
 
@@ -43,31 +36,16 @@ public class MachineDetail
         Brand = brand;
         Model = model;
         Manufacturer = manufacturer;
-        AppraisalSummary = new AppraisalSummary(null, null, null, null);
+        AppraisalSummary = new AppraisalSummary(null, null, null);
         IsDeleted = isDeleted;
-    }
-
-    public void UpdateLastKnown(
-        string? engineNo,
-        string? chassisNo,
-        int? yearOfManufacture,
-        string? machineCondition,
-        decimal? machineAge)
-    {
-        EngineNo = engineNo;
-        ChassisNo = chassisNo;
-        YearOfManufacture = yearOfManufacture;
-        MachineCondition = machineCondition;
-        MachineAge = machineAge;
     }
 
     public void UpdateAppraisalSummary(
         Guid appraisalId,
         string appraisalNumber,
-        DateTime appraisedDate,
-        decimal appraisedValue)
+        DateTime appraisedDate)
     {
-        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate, appraisedValue);
+        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate);
     }
 
     public void PromoteToRegistration(string machineRegistrationNo)
@@ -103,31 +81,6 @@ public class MachineDetail
         {
             diff["Machine.Manufacturer"] = new { from = Manufacturer, to = edit.Manufacturer };
             Manufacturer = edit.Manufacturer;
-        }
-        if (edit.EngineNo is not null && edit.EngineNo != EngineNo)
-        {
-            diff["Machine.EngineNo"] = new { from = EngineNo, to = edit.EngineNo };
-            EngineNo = edit.EngineNo;
-        }
-        if (edit.ChassisNo is not null && edit.ChassisNo != ChassisNo)
-        {
-            diff["Machine.ChassisNo"] = new { from = ChassisNo, to = edit.ChassisNo };
-            ChassisNo = edit.ChassisNo;
-        }
-        if (edit.YearOfManufacture is not null && edit.YearOfManufacture != YearOfManufacture)
-        {
-            diff["Machine.YearOfManufacture"] = new { from = YearOfManufacture, to = edit.YearOfManufacture };
-            YearOfManufacture = edit.YearOfManufacture;
-        }
-        if (edit.MachineCondition is not null && edit.MachineCondition != MachineCondition)
-        {
-            diff["Machine.MachineCondition"] = new { from = MachineCondition, to = edit.MachineCondition };
-            MachineCondition = edit.MachineCondition;
-        }
-        if (edit.MachineAge is not null && edit.MachineAge != MachineAge)
-        {
-            diff["Machine.MachineAge"] = new { from = MachineAge, to = edit.MachineAge };
-            MachineAge = edit.MachineAge;
         }
     }
 }

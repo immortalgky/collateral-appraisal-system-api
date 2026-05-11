@@ -27,77 +27,45 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
 
     public async Task<CollateralMaster?> FindLandByDedupKey(
-        string landOfficeCode, string province, string amphur, string tambon,
-        string titleDeedType, string titleDeedNo, string? surveyOrParcelNo,
+        string landOfficeCode, string province, string district, string subDistrict,
+        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber,
         CancellationToken ct = default)
     {
-        // surveyOrParcelNo == null is a valid dedup component — must match exactly
-        var query = dbContext.CollateralMasters
+        // null is a valid dedup component for survey/parcel — must match exactly
+        return await dbContext.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .Where(m => !m.IsDeleted && m.CollateralType == CollateralTypes.Land && m.IsMaster);
-
-        if (surveyOrParcelNo is null)
-        {
-            query = query.Where(m =>
+            .Where(m => !m.IsDeleted && m.CollateralType == CollateralTypes.Land && m.IsMaster &&
                 m.LandDetail!.LandOfficeCode == landOfficeCode &&
                 m.LandDetail.Province == province &&
-                m.LandDetail.Amphur == amphur &&
-                m.LandDetail.Tambon == tambon &&
-                m.LandDetail.TitleDeedType == titleDeedType &&
-                m.LandDetail.TitleDeedNo == titleDeedNo &&
-                m.LandDetail.SurveyOrParcelNo == null);
-        }
-        else
-        {
-            query = query.Where(m =>
-                m.LandDetail!.LandOfficeCode == landOfficeCode &&
-                m.LandDetail.Province == province &&
-                m.LandDetail.Amphur == amphur &&
-                m.LandDetail.Tambon == tambon &&
-                m.LandDetail.TitleDeedType == titleDeedType &&
-                m.LandDetail.TitleDeedNo == titleDeedNo &&
-                m.LandDetail.SurveyOrParcelNo == surveyOrParcelNo);
-        }
-
-        return await query.FirstOrDefaultAsync(ct);
+                m.LandDetail.District == district &&
+                m.LandDetail.SubDistrict == subDistrict &&
+                m.LandDetail.TitleType == titleType &&
+                m.LandDetail.TitleNumber == titleNumber &&
+                m.LandDetail.SurveyNumber == surveyNumber &&
+                m.LandDetail.LandParcelNumber == landParcelNumber)
+            .FirstOrDefaultAsync(ct);
     }
 
     public async Task<CollateralMaster?> FindLandByDedupKeyIncludingAliases(
-        string landOfficeCode, string province, string amphur, string tambon,
-        string titleDeedType, string titleDeedNo, string? surveyOrParcelNo,
+        string landOfficeCode, string province, string district, string subDistrict,
+        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber,
         CancellationToken ct = default)
     {
         // Same as FindLandByDedupKey but includes alias rows (IsMaster=false).
-        var query = dbContext.CollateralMasters
+        return await dbContext.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .Where(m => !m.IsDeleted && m.CollateralType == CollateralTypes.Land);
-
-        if (surveyOrParcelNo is null)
-        {
-            query = query.Where(m =>
+            .Where(m => !m.IsDeleted && m.CollateralType == CollateralTypes.Land &&
                 m.LandDetail!.LandOfficeCode == landOfficeCode &&
                 m.LandDetail.Province == province &&
-                m.LandDetail.Amphur == amphur &&
-                m.LandDetail.Tambon == tambon &&
-                m.LandDetail.TitleDeedType == titleDeedType &&
-                m.LandDetail.TitleDeedNo == titleDeedNo &&
-                m.LandDetail.SurveyOrParcelNo == null);
-        }
-        else
-        {
-            query = query.Where(m =>
-                m.LandDetail!.LandOfficeCode == landOfficeCode &&
-                m.LandDetail.Province == province &&
-                m.LandDetail.Amphur == amphur &&
-                m.LandDetail.Tambon == tambon &&
-                m.LandDetail.TitleDeedType == titleDeedType &&
-                m.LandDetail.TitleDeedNo == titleDeedNo &&
-                m.LandDetail.SurveyOrParcelNo == surveyOrParcelNo);
-        }
-
-        return await query.FirstOrDefaultAsync(ct);
+                m.LandDetail.District == district &&
+                m.LandDetail.SubDistrict == subDistrict &&
+                m.LandDetail.TitleType == titleType &&
+                m.LandDetail.TitleNumber == titleNumber &&
+                m.LandDetail.SurveyNumber == surveyNumber &&
+                m.LandDetail.LandParcelNumber == landParcelNumber)
+            .FirstOrDefaultAsync(ct);
     }
 
     public async Task<CollateralMaster?> FindByIdWithEngagementsAsync(Guid id, CancellationToken ct = default)
@@ -114,7 +82,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
 
     public async Task<CollateralMaster?> FindCondoByDedupKey(
         string landOfficeCode, string condoRegistrationNumber,
-        string buildingNumber, string floorNumber, string unitNumber,
+        string buildingNumber, string floorNumber, string roomNumber,
         string titleNumber, string titleType,
         CancellationToken ct = default)
         => await dbContext.CollateralMasters
@@ -127,7 +95,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
                 m.CondoDetail.CondoRegistrationNumber == condoRegistrationNumber &&
                 m.CondoDetail.BuildingNumber == buildingNumber &&
                 m.CondoDetail.FloorNumber == floorNumber &&
-                m.CondoDetail.UnitNumber == unitNumber &&
+                m.CondoDetail.RoomNumber == roomNumber &&
                 m.CondoDetail.TitleNumber == titleNumber &&
                 m.CondoDetail.TitleType == titleType)
             .FirstOrDefaultAsync(ct);
@@ -216,43 +184,28 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
 
     public async Task<bool> LandDedupCollidesAsync(
         Guid excludeMasterId,
-        string landOfficeCode, string province, string amphur, string tambon,
-        string titleDeedType, string titleDeedNo, string? surveyOrParcelNo,
+        string landOfficeCode, string province, string district, string subDistrict,
+        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber,
         CancellationToken ct = default)
-    {
-        var query = dbContext.CollateralMasters
-            .Where(m => m.Id != excludeMasterId && !m.IsDeleted && m.CollateralType == CollateralTypes.Land);
-
-        if (surveyOrParcelNo is null)
-        {
-            query = query.Where(m =>
+        => await dbContext.CollateralMasters
+            .Where(m =>
+                m.Id != excludeMasterId &&
+                !m.IsDeleted &&
+                m.CollateralType == CollateralTypes.Land &&
                 m.LandDetail!.LandOfficeCode == landOfficeCode &&
                 m.LandDetail.Province == province &&
-                m.LandDetail.Amphur == amphur &&
-                m.LandDetail.Tambon == tambon &&
-                m.LandDetail.TitleDeedType == titleDeedType &&
-                m.LandDetail.TitleDeedNo == titleDeedNo &&
-                m.LandDetail.SurveyOrParcelNo == null);
-        }
-        else
-        {
-            query = query.Where(m =>
-                m.LandDetail!.LandOfficeCode == landOfficeCode &&
-                m.LandDetail.Province == province &&
-                m.LandDetail.Amphur == amphur &&
-                m.LandDetail.Tambon == tambon &&
-                m.LandDetail.TitleDeedType == titleDeedType &&
-                m.LandDetail.TitleDeedNo == titleDeedNo &&
-                m.LandDetail.SurveyOrParcelNo == surveyOrParcelNo);
-        }
-
-        return await query.AnyAsync(ct);
-    }
+                m.LandDetail.District == district &&
+                m.LandDetail.SubDistrict == subDistrict &&
+                m.LandDetail.TitleType == titleType &&
+                m.LandDetail.TitleNumber == titleNumber &&
+                m.LandDetail.SurveyNumber == surveyNumber &&
+                m.LandDetail.LandParcelNumber == landParcelNumber)
+            .AnyAsync(ct);
 
     public async Task<bool> CondoDedupCollidesAsync(
         Guid excludeMasterId,
         string landOfficeCode, string condoRegistrationNumber,
-        string buildingNumber, string floorNumber, string unitNumber,
+        string buildingNumber, string floorNumber, string roomNumber,
         string titleNumber, string titleType,
         CancellationToken ct = default)
         => await dbContext.CollateralMasters
@@ -264,7 +217,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
                 m.CondoDetail.CondoRegistrationNumber == condoRegistrationNumber &&
                 m.CondoDetail.BuildingNumber == buildingNumber &&
                 m.CondoDetail.FloorNumber == floorNumber &&
-                m.CondoDetail.UnitNumber == unitNumber &&
+                m.CondoDetail.RoomNumber == roomNumber &&
                 m.CondoDetail.TitleNumber == titleNumber &&
                 m.CondoDetail.TitleType == titleType)
             .AnyAsync(ct);

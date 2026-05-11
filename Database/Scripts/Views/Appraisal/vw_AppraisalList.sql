@@ -19,6 +19,7 @@ SELECT a.Id,
        a.SLADueDate,
        a.SLAStatus,
        a.CreatedAt,
+       va.AppraisedValue                                                                    AS AppraisalValue,
        (SELECT COUNT(*) FROM appraisal.AppraisalProperties ap WHERE ap.AppraisalId = a.Id) AS PropertyCount,
        -- Latest active assignment info
        la.AssigneeUserId,
@@ -73,4 +74,5 @@ FROM appraisal.Appraisals a
                       WHERE AssignmentId = la.Id
                         AND Status != 'Cancelled'
                       ORDER BY AppointmentDateTime DESC) apt
+         LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id
 WHERE a.IsDeleted = 0

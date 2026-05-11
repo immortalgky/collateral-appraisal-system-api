@@ -5,7 +5,7 @@ SELECT
     -- Appraisal snapshot (PrevAppraisal block)
     a.Id                    AS AppraisalId,
     a.AppraisalNumber,
-    a.CompletedAt           AS CompletedDate,
+    apt.AppointmentDateTime AS AppointmentDate,
     a.Status                AS Status,
     va.AppraisedValue       AS AppraisalValue,
 
@@ -43,5 +43,11 @@ FROM appraisal.Appraisals a
          JOIN request.Requests r ON r.Id = a.RequestId
          JOIN request.RequestDetails d ON d.RequestId = r.Id
          LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id
+         OUTER APPLY (SELECT TOP 1 ap.AppointmentDateTime
+                      FROM appraisal.Appointments ap
+                               JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
+                      WHERE aa.AppraisalId = a.Id
+                        AND ap.Status != 'Cancelled'
+                      ORDER BY ap.AppointmentDateTime DESC) apt
 WHERE a.IsDeleted = 0
   AND r.IsDeleted = 0

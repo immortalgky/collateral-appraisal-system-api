@@ -12,6 +12,7 @@ public record AppraisalForCollateralResult(
     string AppraisalType,
     DateTime? CompletedAt,
     Guid RequestId,
+    // Sourced from request.Requests via cross-module Dapper sub-query in the handler.
     string? RequestNumber,
     string? AppraiserUserId,
     string? CompanyId,
@@ -31,8 +32,20 @@ public record AppraisalForCollateralResult(
 public record AppraisalPropertyForCollateral(
     Guid PropertyId,
     string PropertyTypeCode,
+    // --- Group membership (from PropertyGroupItem) — null when property not in any group ---
+    // PropertyGroupId is the PropertyGroup.Id that contains this property.
+    // GroupNumber is the PropertyGroup.GroupNumber (sequence among groups in this appraisal).
+    // SequenceInGroup is the PropertyGroupItem.SequenceInGroup within its group.
+    Guid? PropertyGroupId,
+    int? GroupNumber,
+    int? SequenceInGroup,
     // --- Per-property final appraised value (from PricingAnalysis via PropertyGroup) ---
     decimal? AppraisedValue,
+    // --- Pricing values from the selected cost-approach method (null when non-cost) ---
+    // PricingInfo is set at the group level; every property in the group carries the same object.
+    // The upsert service decides which fields to stamp per-master (UnitPrice on all; BuildingCost +
+    // AppraisalValue on IsMaster only).
+    PricingInfoForCollateral? PricingInfo,
     // --- Land / LB fields ---
     LandIdentityForCollateral? LandIdentity,
     // --- Condo fields ---
@@ -48,17 +61,47 @@ public record AppraisalPropertyForCollateral(
 );
 
 /// <summary>
-/// Land-specific identity fields for collateral dedup.
+/// Pricing values derived from the selected approach's method FinalValue for a property group.
+/// Populated when a cost-approach method exists and is selected (HasBuildingCost = true on
+/// PricingFinalValue). NULL when non-cost approach or no pricing analysis present.
+///
+/// Field mappings from PricingAnalysisMethod / PricingFinalValue:
+///   UnitPrice     ← PricingFinalValue.FinalValueAdjusted  (the adjusted unit price per sq.wa)
+///   BuildingCost  ← PricingFinalValue.BuildingCost         (building cost component, cost approach)
+///   AppraisalValue ← PricingFinalValue.AppraisalPrice      (user-edited final total)
+///                    fallback: FinalValueAdjusted → FinalValueRounded
+/// </summary>
+public record PricingInfoForCollateral(
+    bool IsCostApproach,
+    decimal? UnitPrice,        // PricingFinalValue.FinalValueAdjusted (cost approach only)
+    decimal? BuildingCost,     // PricingFinalValue.BuildingCost (cost approach only)
+    decimal? AppraisalValue    // PricingFinalValue.AppraisalPrice (all approaches)
+);
+
+/// <summary>
+/// Land-specific identity fields for collateral dedup, plus last-known populate fields.
 /// LandOffice is a controlled-list dropdown value treated as LandOfficeCode.
 /// TitleType on LandTitle is a controlled-list string value.
 /// </summary>
 public record LandIdentityForCollateral(
-    // Available today — passed through directly
+    // Dedup fields
     string? Province,         // AdministrativeAddress.Province
     string? District,         // AdministrativeAddress.District (Amphur)
     string? SubDistrict,      // AdministrativeAddress.SubDistrict (Tambon)
     string? LandOffice,       // AdministrativeAddress.LandOffice (free-text — NOT a code)
-    IReadOnlyList<LandTitleForCollateral> Titles
+    IReadOnlyList<LandTitleForCollateral> Titles,
+    // Last-known populate fields (Phase C)
+    string? OwnerName,        // LandAppraisalDetail.OwnerName
+    string? Street,           // LandAppraisalDetail.Street
+    string? Village,          // LandAppraisalDetail.Village
+    decimal? Latitude,        // LandAppraisalDetail.Coordinates.Latitude
+    decimal? Longitude,       // LandAppraisalDetail.Coordinates.Longitude
+    string? LandShapeType,    // LandAppraisalDetail.LandShapeType
+    string? LandZoneType,     // LandAppraisalDetail.LandZoneType — first element of list (nullable)
+    string? UrbanPlanningType,// LandAppraisalDetail.UrbanPlanningType
+    decimal? AccessRoadWidth, // LandAppraisalDetail.AccessRoadWidth
+    decimal? RoadFrontage,    // LandAppraisalDetail.RoadFrontage
+    decimal? LandArea         // LandAppraisalDetail.TotalLandAreaInSqWa
 );
 
 public record LandTitleForCollateral(
@@ -68,20 +111,29 @@ public record LandTitleForCollateral(
 );
 
 /// <summary>
-/// Condo-specific identity fields for collateral dedup.
+/// Condo-specific identity fields for collateral dedup, plus last-known populate fields.
 /// All required dedup fields are present: LandOffice (treated as LandOfficeCode),
 /// CondoRegistrationNumber, BuildingNumber, FloorNumber, RoomNumber (UnitNumber),
-/// TitleNumber and TitleType (unit deed identifiers).
+/// TitleNumber (the underlying land title — BuiltOnTitleNumber) and TitleType (always DEED).
 /// </summary>
 public record CondoIdentityForCollateral(
+    // Dedup fields
     string? CondoRegistrationNumber, // CondoAppraisalDetail.CondoRegistrationNumber
     string? BuildingNumber,          // CondoAppraisalDetail.BuildingNumber
     string? FloorNumber,             // CondoAppraisalDetail.FloorNumber
     string? RoomNumber,              // CondoAppraisalDetail.RoomNumber (= UnitNumber in spec)
     string? Province,                // CondoAppraisalDetail.Address?.Province
     string? LandOffice,              // CondoAppraisalDetail.Address?.LandOffice (= LandOfficeCode)
-    string? TitleNumber,             // CondoAppraisalDetail.TitleNumber (unit deed number)
-    string? TitleType                // CondoAppraisalDetail.TitleType (unit deed type)
+    string? TitleNumber,             // CondoAppraisalDetail.BuiltOnTitleNumber (underlying land title)
+    string? TitleType,               // Constant "DEED" — condo collateral title type is always DEED
+    // Last-known populate fields (Phase C)
+    string? OwnerName,               // CondoAppraisalDetail.OwnerName
+    string? CondoName,               // CondoAppraisalDetail.CondoName
+    decimal? UsableArea,             // CondoAppraisalDetail.UsableArea
+    string? LocationType,            // CondoAppraisalDetail.LocationType
+    int? BuildingAge,                // CondoAppraisalDetail.BuildingAge
+    int? ConstructionYear,           // CondoAppraisalDetail.ConstructionYear
+    string? ModelName                // CondoAppraisalDetail.ModelName
 );
 
 /// <summary>

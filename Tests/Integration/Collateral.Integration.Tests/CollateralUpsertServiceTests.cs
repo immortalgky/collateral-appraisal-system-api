@@ -155,7 +155,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
             .Where(m => m.LandDetail != null &&
-                        m.LandDetail.TitleDeedNo == "12345" &&
+                        m.LandDetail.TitleNumber == "12345" &&
                         m.LandDetail.Province == "Bangkok")
             .ToListAsync(TestContext.Current.CancellationToken);
 
@@ -163,7 +163,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var master = masters[0];
         Assert.Equal("Land", master.CollateralType);
         Assert.True(master.LandDetail!.IsUnderConstructionAtLastAppraisal);
-        Assert.NotNull(master.LandDetail.LastConstructionInspectionId);
+        // PR-5: LastConstructionInspectionId removed from LandDetail; CI list is now in the engagement snapshot.
         Assert.NotNull(master.LandDetail.OverallConstructionProgressPercent);
         Assert.True(master.LandDetail.OverallConstructionProgressPercent < 100m);
 
@@ -171,9 +171,10 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         Assert.Single(master.Engagements);
         var engagement = master.Engagements[0];
         Assert.Equal(appraisal.Id, engagement.AppraisalId);
-        Assert.Equal(landProp.Id, engagement.PropertyId);
+        // PR-4: PropertyId dropped from CollateralEngagement (engagement is now per-appraisal).
         Assert.NotNull(engagement.Snapshot);
-        Assert.Contains("constructionInspection", engagement.Snapshot);
+        // PR-4/PR-5: snapshot uses groups-centric shape with constructionInspections nested per group
+        Assert.Contains("groups", engagement.Snapshot);
     }
 
     // -----------------------------------------------------------------------
@@ -210,7 +211,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
 
         var masterCount = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
-            .CountAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == "IDEM-001",
+            .CountAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == "IDEM-001",
                 TestContext.Current.CancellationToken);
         Assert.Equal(1, masterCount);
     }
@@ -224,7 +225,6 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var titleNo = "PROG-" + Guid.NewGuid().ToString("N")[..8];
         var wg = Guid.NewGuid();
         Guid a1Id, a2Id;
-        Guid insp2Id;
 
         // Seed appraisal 1 — 40% progress
         using (var seedScope = CreateScope())
@@ -255,7 +255,6 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             appraisalDb.Appraisals.Add(a2);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
             a2Id = a2.Id;
-            insp2Id = insp2.Id;
         }
         await ProcessAppraisalInNewScopeAsync(a2Id);
 
@@ -265,7 +264,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var masters = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .Where(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == titleNo)
+            .Where(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo)
             .ToListAsync(TestContext.Current.CancellationToken);
 
         Assert.Single(masters);
@@ -273,7 +272,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         Assert.Equal(2, master.Engagements.Count);
         Assert.True(master.LandDetail!.IsUnderConstructionAtLastAppraisal);
         Assert.Equal(70m, master.LandDetail.OverallConstructionProgressPercent);
-        Assert.Equal(insp2Id, master.LandDetail.LastConstructionInspectionId);
+        // PR-5: LastConstructionInspectionId removed from LandDetail; insp2Id is now traceable via engagement snapshot.
     }
 
     // -----------------------------------------------------------------------
@@ -324,7 +323,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == titleNo,
+            .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
 
         Assert.False(master.LandDetail!.IsUnderConstructionAtLastAppraisal,
@@ -365,7 +364,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == titleNo,
+            .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
 
         Assert.True(master.LandDetail!.IsUnderConstructionAtLastAppraisal);
@@ -416,7 +415,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == titleNo,
+            .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
 
         Assert.Equal(2, master.Engagements.Count);
@@ -484,7 +483,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var matched = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
             .Where(m => m.LandDetail != null &&
-                        m.LandDetail.TitleDeedNo == titleNo &&
+                        m.LandDetail.TitleNumber == titleNo &&
                         m.LandDetail.Province == "CMai" &&
                         !m.IsDeleted)
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -543,7 +542,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == titleNo,
+            .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
 
         Assert.NotNull(master);
@@ -582,7 +581,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var masterA = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == titleA,
+            .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleA,
                 TestContext.Current.CancellationToken);
 
         Assert.NotNull(masterA);
@@ -688,7 +687,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
 
         var landMaster = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
-            .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == titleNo,
+            .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
         Assert.NotNull(landMaster);
 
@@ -750,7 +749,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         // Still only 1 land master
         var landCount = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
-            .CountAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == titleNo,
+            .CountAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
         Assert.Equal(1, landCount);
 
@@ -989,9 +988,9 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
             .Where(m => m.LandDetail != null &&
-                        (m.LandDetail.TitleDeedNo == t1.Item1 ||
-                         m.LandDetail.TitleDeedNo == t2.Item1 ||
-                         m.LandDetail.TitleDeedNo == t3.Item1))
+                        (m.LandDetail.TitleNumber == t1.Item1 ||
+                         m.LandDetail.TitleNumber == t2.Item1 ||
+                         m.LandDetail.TitleNumber == t3.Item1))
             .ToListAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(3, allRows.Count);
@@ -1056,7 +1055,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
             .Where(m => m.LandDetail != null &&
-                        (m.LandDetail.TitleDeedNo == t1.Item1 || m.LandDetail.TitleDeedNo == t2.Item1))
+                        (m.LandDetail.TitleNumber == t1.Item1 || m.LandDetail.TitleNumber == t2.Item1))
             .ToListAsync(TestContext.Current.CancellationToken);
 
         // Still 2 rows — no new aliases created for the same titles
@@ -1110,9 +1109,9 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
             .Where(m => m.LandDetail != null &&
-                        (m.LandDetail.TitleDeedNo == t1.Item1 ||
-                         m.LandDetail.TitleDeedNo == t2.Item1 ||
-                         m.LandDetail.TitleDeedNo == t3.Item1))
+                        (m.LandDetail.TitleNumber == t1.Item1 ||
+                         m.LandDetail.TitleNumber == t2.Item1 ||
+                         m.LandDetail.TitleNumber == t3.Item1))
             .ToListAsync(TestContext.Current.CancellationToken);
 
         // All 3 rows still present (removed alias stays for audit)
@@ -1166,9 +1165,9 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
             .Where(m => m.LandDetail != null &&
-                        (m.LandDetail.TitleDeedNo == t1.Item1 ||
-                         m.LandDetail.TitleDeedNo == t2.Item1 ||
-                         m.LandDetail.TitleDeedNo == t3.Item1))
+                        (m.LandDetail.TitleNumber == t1.Item1 ||
+                         m.LandDetail.TitleNumber == t2.Item1 ||
+                         m.LandDetail.TitleNumber == t3.Item1))
             .ToListAsync(TestContext.Current.CancellationToken);
 
         // Now 3 rows — t3 alias was created on reappraisal
@@ -1178,7 +1177,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         Assert.Equal(2, master.Engagements.Count);
 
         // t3 alias exists and points at master
-        var t3Row = allRows.Single(m => m.LandDetail!.TitleDeedNo == t3.Item1);
+        var t3Row = allRows.Single(m => m.LandDetail!.TitleNumber == t3.Item1);
         Assert.False(t3Row.IsMaster);
         Assert.Equal(master.Id, t3Row.ParentMasterId);
     }
@@ -1215,13 +1214,12 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             Type: CollateralTypes.Land,
             LandOfficeCode: "LO-001",
             Province: "BKK",
-            Amphur: "D1",
-            Tambon: "S1",
-            TitleDeedType: t2.Item2,
-            TitleDeedNo: t2.Item1,
-            SurveyOrParcelNo: null,
-            CondoRegistrationNumber: null, Building: null, Floor: null,
-            Unit: null, TitleNumber: null, TitleType: null,
+            District: "D1",
+            SubDistrict: "S1",
+            TitleType: t2.Item2,
+            TitleNumber: t2.Item1,
+            SurveyNumber: null,
+            CondoRegistrationNumber: null, Building: null, Floor: null, Unit: null,
             ContractNo: null, UnderlyingMasterId: null,
             Lessor: null, Lessee: null, LeaseTermStart: null,
             MachineRegistrationNo: null, SerialNo: null,
@@ -1241,10 +1239,10 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
 
         var allGroupTitleNos = new HashSet<string>
         {
-            result.LandDetail.TitleDeedNo,          // master's own title
+            result.LandDetail.TitleNumber,          // master's own title
         };
         foreach (var at in result.LandDetail.AliasTitles)
-            allGroupTitleNos.Add(at.TitleDeedNo);
+            allGroupTitleNos.Add(at.TitleNumber);
 
         // All 3 original titles must appear somewhere in the group
         Assert.Contains(t1.Item1, allGroupTitleNos);
@@ -1302,13 +1300,13 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
                 .Include(m => m.LandDetail)
                 .FirstAsync(m => m.IsMaster
                     && m.LandDetail != null
-                    && (m.LandDetail.TitleDeedNo == tA.Item1
-                        || m.LandDetail.TitleDeedNo == tB.Item1
-                        || m.LandDetail.TitleDeedNo == tC.Item1),
+                    && (m.LandDetail.TitleNumber == tA.Item1
+                        || m.LandDetail.TitleNumber == tB.Item1
+                        || m.LandDetail.TitleNumber == tC.Item1),
                     TestContext.Current.CancellationToken);
             // Pick a title that is NOT the master's own — it must be an alias
             aliasTitleNo = new[] { tA.Item1, tB.Item1, tC.Item1 }
-                .First(t => t != masterRow.LandDetail!.TitleDeedNo);
+                .First(t => t != masterRow.LandDetail!.TitleNumber);
         }
 
         // Query by the alias title — must return the engagement's company id

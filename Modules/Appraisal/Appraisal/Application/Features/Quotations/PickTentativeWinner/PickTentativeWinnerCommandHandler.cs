@@ -1,14 +1,12 @@
 using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Contracts.Services;
 using Shared.Data.Outbox;
-using Shared.Identity;
 using Shared.Messaging.Events;
 
 namespace Appraisal.Application.Features.Quotations.PickTentativeWinner;
 
 public class PickTentativeWinnerCommandHandler(
     IQuotationRepository quotationRepository,
-    ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
     IQuotationTaskOwnershipService taskOwnership,
     IQuotationActivityLogger activityLogger)
@@ -32,12 +30,14 @@ public class PickTentativeWinnerCommandHandler(
         // original requestor pick even after the task was reassigned.
         if (startedFromAdminReview)
         {
-            QuotationAccessPolicy.EnsureAdmin(currentUser);
+            QuotationAccessPolicy.EnsureAdmin(command.Actor);
         }
-        else
+        else if (command.Actor.Role is not ("Admin" or "IntAdmin"))
         {
-            var isOwner = await taskOwnership.IsCallerActiveTaskOwnerAsync(
-                quotation.Id, companyId: Guid.Empty, expectedStageName: null, cancellationToken);
+            // Admin override preserved from the previous IsCallerActiveTaskOwnerAsync bypass:
+            // admins may pick on PendingRmSelection without holding the rm-pick-winner task.
+            var isOwner = await taskOwnership.IsUserActiveRmPickTaskOwnerAsync(
+                quotation.Id, command.Actor.Username, cancellationToken);
             if (!isOwner)
                 throw new UnauthorizedAccessException(
                     "Only the RM assigned to the active rm-pick-winner task can pick the winner");
@@ -45,11 +45,11 @@ public class PickTentativeWinnerCommandHandler(
 
         var role = startedFromAdminReview
             ? "Admin"
-            : currentUser.IsInRole("RequestMaker") ? "RM" : "Admin";
+            : command.Actor.Role == "RequestMaker" ? "RM" : "Admin";
 
         quotation.PickTentativeWinner(
             command.CompanyQuotationId,
-            currentUser.UserId!.Value,
+            command.Actor.UserId ?? Guid.Empty,
             role);
 
         // RM negotiation recommendation only makes sense when an RM picked. Skipping on admin-direct-pick
@@ -75,8 +75,7 @@ public class PickTentativeWinnerCommandHandler(
             RequestId = quotation.RequestId ?? Guid.Empty,
             CompanyId = pickedQuotation.CompanyId,
             CompanyQuotationId = command.CompanyQuotationId,
-            PickedBy = currentUser.Username
-                ?? throw new InvalidOperationException("Cannot resolve username from token"),
+            PickedBy = command.Actor.Username,
             Role = role
         }, correlationId: quotation.Id.ToString());
 
@@ -88,7 +87,7 @@ public class PickTentativeWinnerCommandHandler(
             QuotationRequestId = quotation.Id,
             ActivityId = startedFromAdminReview ? "admin-review-submissions" : "rm-pick-winner",
             DecisionTaken = startedFromAdminReview ? "SelectAsWinner" : "Pick",
-            CompletedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty,
+            CompletedBy = command.Actor.Username,
             TentativeWinnerCompanyQuotationId = command.CompanyQuotationId,
             TentativeWinnerCompanyId = pickedQuotation.CompanyId,
             // Suppress RM-only fields when admin picked directly so admin-finalize doesn't render

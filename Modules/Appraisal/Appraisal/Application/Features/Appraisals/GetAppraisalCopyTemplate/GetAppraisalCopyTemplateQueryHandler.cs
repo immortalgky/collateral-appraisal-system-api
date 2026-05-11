@@ -23,7 +23,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
 
         // ── 1. Header row (from the view we created) ──────────────────────
         const string headerSql = """
-            SELECT AppraisalId, AppraisalNumber, CompletedDate, [Status], AppraisalValue, RequestId,
+            SELECT AppraisalId, AppraisalNumber, AppointmentDate, [Status], AppraisalValue, RequestId,
                    HouseNumber, ProjectName, Moo, Soi, Road, SubDistrict, District, Province, Postcode,
                    ContactPersonName, ContactPersonPhone, DealerCode,
                    BankingSegment, LoanApplicationNumber, FacilityLimit,
@@ -120,7 +120,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
             header.AppraisalId,
             header.AppraisalNumber,
             header.AppraisalValue,       // From appraisal.ValuationAnalyses.AppraisedValue (LEFT JOIN; null if no valuation yet)
-            header.CompletedDate);
+            header.AppointmentDate);
 
         var detail = new RequestDetailCopyDto(
             header.HasAppraisalBook,
@@ -234,7 +234,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
     {
         public Guid AppraisalId { get; set; }
         public string? AppraisalNumber { get; set; }
-        public DateTime? CompletedDate { get; set; }
+        public DateTime? AppointmentDate { get; set; }
         public string Status { get; set; } = "";
         public decimal? AppraisalValue { get; set; }
         public Guid RequestId { get; set; }

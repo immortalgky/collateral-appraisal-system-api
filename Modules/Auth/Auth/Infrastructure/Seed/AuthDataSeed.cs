@@ -67,6 +67,7 @@ public class AuthDataSeed(
              "QUOTATION_VIEW", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT",
              "TASK_QUOTATION_REVIEW", "TASK_QUOTATION_FINALIZE",
              "COLLATERAL_ADMIN",
+             "INVOICE_VIEW", "INVOICE_APPROVE", "REPORT_EVALUATION_VIEW",
              ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
             "External Company Admin — manages external company users and external appraisal assignments.",
@@ -74,6 +75,7 @@ public class AuthDataSeed(
             ["DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
              "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE",
              "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
+             "INVOICE_EXT_VIEW", "INVOICE_CREATE",
              ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(RequestMakerRoleName,
             "Request Maker — creates appraisal requests and handles initiation tasks.",
@@ -101,7 +103,7 @@ public class AuthDataSeed(
             "Internal Appraisal Verifier — final verification of internal appraisal reports.",
             scope: "Bank",
             ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW",
+             "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW", "REPORT_EVALUATION_VIEW",
              ..appraisalSectionViews]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalStaffRoleName,
             "External Appraisal Staff — field appraisers from external companies who execute appraisals.",
@@ -126,7 +128,7 @@ public class AuthDataSeed(
             "Appraisal Committee — approves appraisals in committee meetings.",
             scope: "Bank",
             ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "MEETING_MANAGE", "COMMITTEE_MEMBER",
+             "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_EVALUATION_VIEW", "MEETING_MANAGE", "COMMITTEE_MEMBER",
              ..appraisalSectionViews]);
         await SeedUsersAsync();
         await SeedClientsAsync();
@@ -468,6 +470,13 @@ public class AuthDataSeed(
             ("TASK_QUOTATION_FINALIZE", "Task: Finalize Quotation", "Access admin quotation finalization tasks", "Workflow"),
             // Collateral Master admin
             ("COLLATERAL_ADMIN", "Manage Collateral Masters", "Manage collateral catalog, master records, and backfill reports", "Collateral"),
+            // Invoice feature
+            ("INVOICE_VIEW", "View Invoices", "View invoices in the admin portal", "Invoice"),
+            ("INVOICE_EXT_VIEW", "View External Invoice Portal", "Access the external company invoice portal", "Invoice"),
+            ("INVOICE_CREATE", "Create Invoices", "Create and submit invoices from the external portal", "Invoice"),
+            ("INVOICE_APPROVE", "Approve Invoices", "Approve or reject submitted invoices", "Invoice"),
+            // Service Quality Evaluation
+            ("REPORT_EVALUATION_VIEW", "View Service Quality Evaluation", "View service quality evaluation reports", "Common"),
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)

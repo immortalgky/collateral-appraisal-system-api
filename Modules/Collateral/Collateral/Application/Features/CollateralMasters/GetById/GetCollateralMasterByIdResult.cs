@@ -12,8 +12,8 @@ public record GetCollateralMasterByIdResult(
     Guid Id,
     string CollateralType,
     string? OwnerName,
-    DateTime CreatedOn,
-    DateTime? UpdatedOn,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt,
     int EngagementCount,
     DateTime? LastAppraisedDate,
     decimal? LastAppraisedValue,
@@ -32,7 +32,7 @@ public record UnderlyingMasterSummaryDto(
     string? OwnerName,
     // Only meaningful for Land or Condo underlying
     string? Province,
-    string? TitleDeedNo,
+    string? TitleNumber,
     DateTime? LastAppraisedDate,
     decimal? LastAppraisedValue
 );

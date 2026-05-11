@@ -101,7 +101,7 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
             .FirstAsync(m => m.LandDetail != null
-                             && m.LandDetail.TitleDeedNo == titleNo
+                             && m.LandDetail.TitleNumber == titleNo
                              && m.LandDetail.Province == province);
         return master.Id;
     }
@@ -118,10 +118,10 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
         var url = $"/collateral-masters/lookup?type=Land"
                   + $"&landOfficeCode=LO-READ"
                   + $"&province=Bangkok"
-                  + $"&amphur=Bangrak"
-                  + $"&tambon=Silom"
-                  + $"&titleDeedType=Chanote"
-                  + $"&titleDeedNo={titleNo}";
+                  + $"&district=Bangrak"
+                  + $"&subDistrict=Silom"
+                  + $"&titleType=Chanote"
+                  + $"&titleNumber={titleNo}";
 
         var response = await _client.GetAsync(url);
 
@@ -133,7 +133,7 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
         Assert.Equal(masterId.ToString(), root.GetProperty("id").GetString());
         Assert.Equal("Land", root.GetProperty("collateralType").GetString());
         Assert.True(root.TryGetProperty("landDetail", out var ld));
-        Assert.Equal(titleNo, ld.GetProperty("titleDeedNo").GetString());
+        Assert.Equal(titleNo, ld.GetProperty("titleNumber").GetString());
     }
 
     // ------------------------------------------------------------------
@@ -145,10 +145,10 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
         var url = "/collateral-masters/lookup?type=Land"
                   + "&landOfficeCode=LO-GHOST"
                   + "&province=Ghost Province"
-                  + "&amphur=Ghost Amphur"
-                  + "&tambon=Ghost Tambon"
-                  + "&titleDeedType=Chanote"
-                  + "&titleDeedNo=GHOST-99999";
+                  + "&district=Ghost Amphur"
+                  + "&subDistrict=Ghost Tambon"
+                  + "&titleType=Chanote"
+                  + "&titleNumber=GHOST-99999";
 
         var response = await _client.GetAsync(url);
 
@@ -176,7 +176,7 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
         // Land detail should be populated
         Assert.True(root.TryGetProperty("landDetail", out var ld));
         Assert.Equal("Chiang Mai", ld.GetProperty("province").GetString());
-        Assert.Equal(titleNo, ld.GetProperty("titleDeedNo").GetString());
+        Assert.Equal(titleNo, ld.GetProperty("titleNumber").GetString());
         // Other type details should be null
         Assert.True(root.GetProperty("condoDetail").ValueKind == JsonValueKind.Null);
         Assert.True(root.GetProperty("leaseholdDetail").ValueKind == JsonValueKind.Null);
@@ -243,7 +243,7 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
             var db = GetCollateralDbContext(queryScope);
             var m = await db.CollateralMasters
                 .Include(x => x.LandDetail)
-                .FirstAsync(x => x.LandDetail != null && x.LandDetail.TitleDeedNo == titleNo);
+                .FirstAsync(x => x.LandDetail != null && x.LandDetail.TitleNumber == titleNo);
             masterId = m.Id;
         }
 

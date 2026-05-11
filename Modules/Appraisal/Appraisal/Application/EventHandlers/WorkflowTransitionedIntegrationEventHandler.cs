@@ -93,7 +93,7 @@ public class WorkflowTransitionedIntegrationEventHandler(
                 : await appraisalRepository.GetByIdAsync(message.AppraisalId.Value, ct);
 
             var target = isTier1
-                ? (appraisal?.HasActiveAssignment == true ? AppraisalStatus.InProgress : AppraisalStatus.Submitted)
+                ? (appraisal?.HasActiveAssignment == true ? AppraisalStatus.InProgress : AppraisalStatus.InProgress)
                 : staticTarget!;
 
             if (appraisal is null)

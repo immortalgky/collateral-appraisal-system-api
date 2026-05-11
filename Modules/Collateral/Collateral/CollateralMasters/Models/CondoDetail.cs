@@ -9,7 +9,7 @@ public class CondoDetail
     public string CondoRegistrationNumber { get; private set; } = null!;
     public string BuildingNumber { get; private set; } = null!;
     public string FloorNumber { get; private set; } = null!;
-    public string UnitNumber { get; private set; } = null!;
+    public string RoomNumber { get; private set; } = null!;
     public string TitleNumber { get; private set; } = null!;
     public string TitleType { get; private set; } = null!;
 
@@ -23,6 +23,14 @@ public class CondoDetail
     public int? BuildingAge { get; private set; }
     public int? ConstructionYear { get; private set; }
     public string? ModelName { get; private set; }
+
+    // Three-value model (Phase C, wired in PR-8)
+    // UnitPrice: per-unit price — cost approach only. Source: PricingFinalValue.FinalValueAdjusted.
+    public decimal? UnitPrice { get; private set; }
+    // BuildingCost: IsMaster only — from PricingFinalValue.BuildingCost, cost approach only.
+    public decimal? BuildingCost { get; private set; }
+    // AppraisalValue: IsMaster only — from PricingFinalValue.AppraisalPrice (fallbacks: FinalValueAdjusted, FinalValueRounded).
+    public decimal? AppraisalValue { get; private set; }
 
     // Appraisal summary (owned)
     public AppraisalSummary AppraisalSummary { get; private set; } = null!;
@@ -38,7 +46,7 @@ public class CondoDetail
         string condoRegistrationNumber,
         string buildingNumber,
         string floorNumber,
-        string unitNumber,
+        string roomNumber,
         string titleNumber,
         string titleType,
         string? condoName,
@@ -50,12 +58,12 @@ public class CondoDetail
         CondoRegistrationNumber = condoRegistrationNumber;
         BuildingNumber = buildingNumber;
         FloorNumber = floorNumber;
-        UnitNumber = unitNumber;
+        RoomNumber = roomNumber;
         TitleNumber = titleNumber;
         TitleType = titleType;
         CondoName = condoName;
         Province = province;
-        AppraisalSummary = new AppraisalSummary(null, null, null, null);
+        AppraisalSummary = new AppraisalSummary(null, null, null);
         IsDeleted = isDeleted;
     }
 
@@ -80,10 +88,20 @@ public class CondoDetail
     public void UpdateAppraisalSummary(
         Guid appraisalId,
         string appraisalNumber,
-        DateTime appraisedDate,
-        decimal appraisedValue)
+        DateTime appraisedDate)
     {
-        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate, appraisedValue);
+        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate);
+    }
+
+    /// <summary>
+    /// Updates the three-value model fields.
+    /// <paramref name="buildingCost"/> and <paramref name="appraisalValue"/> are IsMaster only (pass null for aliases).
+    /// </summary>
+    public void UpdateValues(decimal? unitPrice, decimal? buildingCost, decimal? appraisalValue)
+    {
+        UnitPrice = unitPrice;
+        BuildingCost = buildingCost;
+        AppraisalValue = appraisalValue;
     }
 
     internal void SetIsDeleted(bool isDeleted) => IsDeleted = isDeleted;
@@ -110,10 +128,10 @@ public class CondoDetail
             diff["Condo.FloorNumber"] = new { from = FloorNumber, to = edit.FloorNumber };
             FloorNumber = edit.FloorNumber;
         }
-        if (edit.UnitNumber is not null && edit.UnitNumber != UnitNumber)
+        if (edit.RoomNumber is not null && edit.RoomNumber != RoomNumber)
         {
-            diff["Condo.UnitNumber"] = new { from = UnitNumber, to = edit.UnitNumber };
-            UnitNumber = edit.UnitNumber;
+            diff["Condo.RoomNumber"] = new { from = RoomNumber, to = edit.RoomNumber };
+            RoomNumber = edit.RoomNumber;
         }
         if (edit.TitleNumber is not null && edit.TitleNumber != TitleNumber)
         {

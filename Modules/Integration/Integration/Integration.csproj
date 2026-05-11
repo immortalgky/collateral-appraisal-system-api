@@ -8,6 +8,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.1.0" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="../../../Shared/Shared/Shared.csproj"/>
         <ProjectReference Include="../../../Shared/Shared.Messaging/Shared.Messaging.csproj"/>
         <ProjectReference Include="../Integration.Contracts/Integration.Contracts.csproj"/>

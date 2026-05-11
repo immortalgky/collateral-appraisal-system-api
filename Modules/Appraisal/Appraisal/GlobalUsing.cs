@@ -31,10 +31,12 @@ global using Shared.Data.Extensions;
 global using Shared.DDD;
 global using Shared.CQRS;
 global using Shared.Exceptions;
+global using Shared.Identity;
 global using Shared.Pagination;
 
 // Appraisal - Domain Aggregates
 global using Appraisal.Domain.Appraisals;
+global using Appraisal.Domain.Evaluations;
 global using Appraisal.Domain.Appraisals.Events;
 global using Appraisal.Domain.Appraisals.Exceptions;
 global using Appraisal.Domain.Committees;

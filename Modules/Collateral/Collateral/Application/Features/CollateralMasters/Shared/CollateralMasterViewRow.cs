@@ -12,9 +12,9 @@ public class CollateralMasterViewRow
     public string CollateralType { get; init; } = null!;
     public string? OwnerName { get; init; }
     public bool IsDeleted { get; init; }
-    public DateTime CreatedOn { get; init; }
+    public DateTime CreatedAt { get; init; }
     public string? CreatedBy { get; init; }
-    public DateTime? UpdatedOn { get; init; }
+    public DateTime? UpdatedAt { get; init; }
     public string? UpdatedBy { get; init; }
 
     // Engagement aggregates
@@ -25,14 +25,13 @@ public class CollateralMasterViewRow
     // Land columns
     public string? Land_LandOfficeCode { get; init; }
     public string? Land_Province { get; init; }
-    public string? Land_Amphur { get; init; }
-    public string? Land_Tambon { get; init; }
-    public string? Land_TitleDeedType { get; init; }
-    public string? Land_TitleDeedNo { get; init; }
-    public string? Land_SurveyOrParcelNo { get; init; }
+    public string? Land_District { get; init; }
+    public string? Land_SubDistrict { get; init; }
+    public string? Land_TitleType { get; init; }
+    public string? Land_TitleNumber { get; init; }
+    public string? Land_SurveyNumber { get; init; }
     public string? Land_Street { get; init; }
     public string? Land_Village { get; init; }
-    public string? Land_PostalCode { get; init; }
     public decimal? Land_Latitude { get; init; }
     public decimal? Land_Longitude { get; init; }
     public string? Land_LandShapeType { get; init; }
@@ -43,19 +42,21 @@ public class CollateralMasterViewRow
     public decimal? Land_LandArea { get; init; }
     public bool? IsUnderConstructionAtLastAppraisal { get; init; }
     public decimal? OverallConstructionProgressPercent { get; init; }
-    public Guid? Land_LastConstructionInspectionId { get; init; }
+    // PR-5: Land_LastConstructionInspectionId removed — CI list is in the engagement snapshot.
     public Guid? Land_LastAppraisalId { get; init; }
     public string? Land_LastAppraisalNumber { get; init; }
     public DateTime? Land_LastAppraisedDate { get; init; }
-    public decimal? Land_LastAppraisedValue { get; init; }
-    public decimal? Land_LastTotalAppraisedValue { get; init; }
+    // Three-value model
+    public decimal? Land_UnitPrice { get; init; }
+    public decimal? Land_BuildingCost { get; init; }
+    public decimal? Land_AppraisalValue { get; init; }
 
     // Condo columns
     public string? Condo_LandOfficeCode { get; init; }
     public string? Condo_CondoRegistrationNumber { get; init; }
     public string? Condo_BuildingNumber { get; init; }
     public string? Condo_FloorNumber { get; init; }
-    public string? Condo_UnitNumber { get; init; }
+    public string? Condo_RoomNumber { get; init; }
     public string? Condo_TitleNumber { get; init; }
     public string? Condo_TitleType { get; init; }
     public string? Condo_CondoName { get; init; }
@@ -68,7 +69,10 @@ public class CollateralMasterViewRow
     public Guid? Condo_LastAppraisalId { get; init; }
     public string? Condo_LastAppraisalNumber { get; init; }
     public DateTime? Condo_LastAppraisedDate { get; init; }
-    public decimal? Condo_LastAppraisedValue { get; init; }
+    // Three-value model
+    public decimal? Condo_UnitPrice { get; init; }
+    public decimal? Condo_BuildingCost { get; init; }
+    public decimal? Condo_AppraisalValue { get; init; }
 
     // Leasehold columns
     public string? Lh_LeaseRegistrationNo { get; init; }
@@ -78,12 +82,9 @@ public class CollateralMasterViewRow
     public DateTime? Lh_LeaseTermStart { get; init; }   // DateOnly stored as date → Dapper gives DateTime
     public DateTime? Lh_LeaseTermEnd { get; init; }
     public int? Lh_LeaseTermMonths { get; init; }
-    public decimal? Lh_AnnualRent { get; init; }
-    public string? Lh_LeasePurpose { get; init; }
     public Guid? Lh_LastAppraisalId { get; init; }
     public string? Lh_LastAppraisalNumber { get; init; }
     public DateTime? Lh_LastAppraisedDate { get; init; }
-    public decimal? Lh_LastAppraisedValue { get; init; }
 
     // Machine columns
     public string? Machine_MachineRegistrationNo { get; init; }
@@ -91,13 +92,7 @@ public class CollateralMasterViewRow
     public string? Machine_Brand { get; init; }
     public string? Machine_Model { get; init; }
     public string? Machine_Manufacturer { get; init; }
-    public string? Machine_EngineNo { get; init; }
-    public string? Machine_ChassisNo { get; init; }
-    public int? Machine_YearOfManufacture { get; init; }
-    public string? Machine_MachineCondition { get; init; }
-    public decimal? Machine_MachineAge { get; init; }
     public Guid? Machine_LastAppraisalId { get; init; }
     public string? Machine_LastAppraisalNumber { get; init; }
     public DateTime? Machine_LastAppraisedDate { get; init; }
-    public decimal? Machine_LastAppraisedValue { get; init; }
 }

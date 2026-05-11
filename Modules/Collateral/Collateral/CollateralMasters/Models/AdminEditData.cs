@@ -8,14 +8,14 @@ namespace Collateral.CollateralMasters.Models;
 public sealed record LandAdminEdit(
     string? LandOfficeCode,
     string? Province,
-    string? Amphur,
-    string? Tambon,
-    string? TitleDeedType,
-    string? TitleDeedNo,
-    string? SurveyOrParcelNo,
+    string? District,
+    string? SubDistrict,
+    string? TitleType,
+    string? TitleNumber,
+    string? SurveyNumber,
+    string? LandParcelNumber,
     string? Street,
     string? Village,
-    string? PostalCode,
     decimal? Latitude,
     decimal? Longitude,
     string? LandShapeType,
@@ -34,7 +34,7 @@ public sealed record CondoAdminEdit(
     string? CondoRegistrationNumber,
     string? BuildingNumber,
     string? FloorNumber,
-    string? UnitNumber,
+    string? RoomNumber,
     string? TitleNumber,
     string? TitleType,
     string? CondoName,
@@ -55,9 +55,7 @@ public sealed record LeaseholdAdminEdit(
     string? Lessee,
     DateOnly? LeaseTermStart,
     DateOnly? LeaseTermEnd,
-    int? LeaseTermMonths,
-    decimal? AnnualRent,
-    string? LeasePurpose
+    int? LeaseTermMonths
 );
 
 /// <summary>
@@ -68,10 +66,5 @@ public sealed record MachineAdminEdit(
     string? SerialNo,
     string? Brand,
     string? Model,
-    string? Manufacturer,
-    string? EngineNo,
-    string? ChassisNo,
-    int? YearOfManufacture,
-    string? MachineCondition,
-    decimal? MachineAge
+    string? Manufacturer
 );

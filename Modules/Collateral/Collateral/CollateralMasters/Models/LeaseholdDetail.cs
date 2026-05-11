@@ -14,8 +14,6 @@ public class LeaseholdDetail
     // Last-known
     public DateOnly? LeaseTermEnd { get; private set; }
     public int? LeaseTermMonths { get; private set; }
-    public decimal? AnnualRent { get; private set; }
-    public string? LeasePurpose { get; private set; }
 
     // Appraisal summary (owned)
     public AppraisalSummary AppraisalSummary { get; private set; } = null!;
@@ -40,29 +38,24 @@ public class LeaseholdDetail
         Lessor = lessor;
         Lessee = lessee;
         LeaseTermStart = leaseTermStart;
-        AppraisalSummary = new AppraisalSummary(null, null, null, null);
+        AppraisalSummary = new AppraisalSummary(null, null, null);
         IsDeleted = isDeleted;
     }
 
     public void UpdateLastKnown(
         DateOnly? leaseTermEnd,
-        int? leaseTermMonths,
-        decimal? annualRent,
-        string? leasePurpose)
+        int? leaseTermMonths)
     {
         LeaseTermEnd = leaseTermEnd;
         LeaseTermMonths = leaseTermMonths;
-        AnnualRent = annualRent;
-        LeasePurpose = leasePurpose;
     }
 
     public void UpdateAppraisalSummary(
         Guid appraisalId,
         string appraisalNumber,
-        DateTime appraisedDate,
-        decimal appraisedValue)
+        DateTime appraisedDate)
     {
-        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate, appraisedValue);
+        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate);
     }
 
     internal void SetIsDeleted(bool isDeleted) => IsDeleted = isDeleted;
@@ -98,16 +91,6 @@ public class LeaseholdDetail
         {
             diff["Leasehold.LeaseTermMonths"] = new { from = LeaseTermMonths, to = edit.LeaseTermMonths };
             LeaseTermMonths = edit.LeaseTermMonths;
-        }
-        if (edit.AnnualRent is not null && edit.AnnualRent != AnnualRent)
-        {
-            diff["Leasehold.AnnualRent"] = new { from = AnnualRent, to = edit.AnnualRent };
-            AnnualRent = edit.AnnualRent;
-        }
-        if (edit.LeasePurpose is not null && edit.LeasePurpose != LeasePurpose)
-        {
-            diff["Leasehold.LeasePurpose"] = new { from = LeasePurpose, to = edit.LeasePurpose };
-            LeasePurpose = edit.LeasePurpose;
         }
     }
 }

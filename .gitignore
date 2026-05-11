@@ -64,6 +64,9 @@ _ReSharper*/
 # Database backups
 Database/Backups/
 
+# SqlProj publish output
+Database/publish/
+
 # -------------------------------------
 # Docker (keep Dockerfile & docker-compose.yml)
 # -------------------------------------

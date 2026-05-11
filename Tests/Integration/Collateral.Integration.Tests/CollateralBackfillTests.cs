@@ -155,7 +155,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
 
         var landMaster = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
-            .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == $"T-{run}");
+            .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == $"T-{run}");
         Assert.NotNull(landMaster);
 
         var condoMaster = await collateralDb.CollateralMasters
@@ -191,7 +191,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
 
         using var scope1 = CreateScope();
         var db1 = GetCollateralDb(scope1);
-        var masterCountAfterRun1 = await db1.CollateralMasters.CountAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == $"T-{run}");
+        var masterCountAfterRun1 = await db1.CollateralMasters.CountAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == $"T-{run}");
         var engagementCountAfterRun1 = await db1.CollateralEngagements.CountAsync(e => e.AppraisalId == landId);
         var reportCountAfterRun1 = await db1.CollateralBackfillReports.CountAsync(r => r.AppraisalId == landId);
 
@@ -204,7 +204,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
 
         using var scope2 = CreateScope();
         var db2 = GetCollateralDb(scope2);
-        var masterCountAfterRun2 = await db2.CollateralMasters.CountAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == $"T-{run}");
+        var masterCountAfterRun2 = await db2.CollateralMasters.CountAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == $"T-{run}");
         var engagementCountAfterRun2 = await db2.CollateralEngagements.CountAsync(e => e.AppraisalId == landId);
         var reportCountAfterRun2 = await db2.CollateralBackfillReports.CountAsync(r => r.AppraisalId == landId && r.Status == "Processed");
 
@@ -303,7 +303,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
 
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
-            .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == $"T-FIX-{run}");
+            .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == $"T-FIX-{run}");
         Assert.NotNull(master);
 
         // Assert: 2 BackfillReport rows (SkippedMissingKey + Processed)
@@ -424,7 +424,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
         var collateralDb = GetCollateralDb(queryScope);
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
-            .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleDeedNo == $"T-{run}");
+            .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == $"T-{run}");
         Assert.NotNull(master);
 
         // Verify report row

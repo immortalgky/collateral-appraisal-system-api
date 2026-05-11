@@ -3,6 +3,8 @@ using Appraisal.Domain.Appraisals.Hypothesis.CostItems;
 using Appraisal.Domain.Appraisals.Hypothesis.Uploads;
 using Appraisal.Domain.Appraisals.Income;
 using Appraisal.Domain.ComparativeAnalysis;
+using Appraisal.Domain.Evaluations;
+using Appraisal.Domain.Invoices;
 using Shared.Data.Outbox;
 
 namespace Appraisal.Infrastructure;
@@ -21,6 +23,11 @@ public class AppraisalDbContext : DbContext
     public DbSet<PropertyGroup> PropertyGroups => Set<PropertyGroup>();
     public DbSet<PropertyGroupItem> PropertyGroupItems => Set<PropertyGroupItem>();
     public DbSet<AppraisalAssignment> AppraisalAssignments => Set<AppraisalAssignment>();
+
+    // =====================================================
+    // Evaluation Entities
+    // =====================================================
+    public DbSet<AppraisalEvaluation> AppraisalEvaluations => Set<AppraisalEvaluation>();
 
     // =====================================================
     // Property Detail Entities
@@ -174,6 +181,12 @@ public class AppraisalDbContext : DbContext
     public DbSet<CondoAppraisalAreaDetail> CondoAppraisalAreaDetails => Set<CondoAppraisalAreaDetail>();
     public DbSet<LawAndRegulation> LawAndRegulations => Set<LawAndRegulation>();
     public DbSet<LawAndRegulationImage> LawAndRegulationImages => Set<LawAndRegulationImage>();
+
+    // =====================================================
+    // Invoice Entities
+    // =====================================================
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
 
     // =====================================================
     // Appendix Entities

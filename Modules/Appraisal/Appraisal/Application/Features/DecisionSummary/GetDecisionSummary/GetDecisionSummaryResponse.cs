@@ -29,5 +29,6 @@ public record GetDecisionSummaryResponse(
     bool IsBlock,
     IReadOnlyList<BlockApproachMatrixRow>? BlockApproachMatrix,
     IReadOnlyList<BlockModelPriceRow>? BlockModelPrices,
-    ConstructionSummaryData? ConstructionSummary
+    ConstructionSummaryData? ConstructionSummary,
+    DateTime? AppraisalDate
 );

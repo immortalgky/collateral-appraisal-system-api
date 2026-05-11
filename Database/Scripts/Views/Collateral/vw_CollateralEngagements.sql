@@ -7,14 +7,15 @@ SELECT
     e.AppraisalNumber,
     e.RequestId,
     e.RequestNumber,
-    e.PropertyId,
+    -- PropertyId dropped (PR-4): engagement is now per-appraisal. Members live in Snapshot.
+    -- AppraisedValue dropped (PR-4): values live on master detail rows and in Snapshot.
     e.AppraisalType,
     e.AppraisalDate,
-    e.AppraisedValue,
     e.AppraiserUserId,
     e.AppraisalCompanyId,
     e.AppraisalCompanyName,
-    e.CreatedOn,
+    e.ConstructionInspectionFeeAmount,
+    e.CreatedAt,
 
     -- Master metadata (denormalised for fast listing — no snapshot column here)
     m.CollateralType,

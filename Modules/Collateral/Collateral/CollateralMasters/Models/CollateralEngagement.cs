@@ -8,10 +8,12 @@ public class CollateralEngagement
     public string AppraisalNumber { get; private set; } = null!;
     public Guid RequestId { get; private set; }
     public string RequestNumber { get; private set; } = null!;
-    public Guid PropertyId { get; private set; }
+    // PropertyId dropped (PR-4): engagement is now per-appraisal, not per-property.
+    // Members live inside the Snapshot's groups[*].properties[] array.
     public string AppraisalType { get; private set; } = null!;
     public DateTime AppraisalDate { get; private set; }
-    public decimal? AppraisedValue { get; private set; }
+    // AppraisedValue dropped (PR-4): group-level values live on master detail rows
+    // (LandDetail.AppraisalValue etc.) and inside the engagement Snapshot JSON.
     public string? AppraiserUserId { get; private set; }
     public Guid? AppraisalCompanyId { get; private set; }
     public string? AppraisalCompanyName { get; private set; }
@@ -20,7 +22,7 @@ public class CollateralEngagement
     // for the same collateral (CI bypasses the normal tier/quotation pipeline).
     public decimal? ConstructionInspectionFeeAmount { get; private set; }
     public string Snapshot { get; private set; } = null!;
-    public DateTime CreatedOn { get; private set; }
+    public DateTime CreatedAt { get; private set; }
 
     private CollateralEngagement() { }
 
@@ -30,10 +32,8 @@ public class CollateralEngagement
         string appraisalNumber,
         Guid requestId,
         string requestNumber,
-        Guid propertyId,
         string appraisalType,
         DateTime appraisalDate,
-        decimal? appraisedValue,
         string? appraiserUserId,
         Guid? appraisalCompanyId,
         string? appraisalCompanyName,
@@ -46,15 +46,13 @@ public class CollateralEngagement
         AppraisalNumber = appraisalNumber;
         RequestId = requestId;
         RequestNumber = requestNumber;
-        PropertyId = propertyId;
         AppraisalType = appraisalType;
         AppraisalDate = appraisalDate;
-        AppraisedValue = appraisedValue;
         AppraiserUserId = appraiserUserId;
         AppraisalCompanyId = appraisalCompanyId;
         AppraisalCompanyName = appraisalCompanyName;
         ConstructionInspectionFeeAmount = constructionInspectionFeeAmount;
         Snapshot = snapshot;
-        CreatedOn = DateTime.UtcNow;
+        CreatedAt = DateTime.UtcNow;
     }
 }

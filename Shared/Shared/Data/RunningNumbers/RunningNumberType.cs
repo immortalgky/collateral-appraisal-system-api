@@ -6,5 +6,6 @@ public enum RunningNumberType
     APPRAISAL = 2,
     MARKET_COMPARABLE = 3,
     QUOTATION = 4,
-    MEETING = 5
+    MEETING = 5,
+    INVOICE = 6
 }

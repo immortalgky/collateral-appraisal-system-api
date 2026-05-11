@@ -25,8 +25,8 @@ public class GetMostRecentPriorCompanyQueryHandler(
         // the engagement lookup hits the IsMaster row that actually carries the engagements.
         var landMatches = await db.CollateralMasters
             .Where(m => !m.IsDeleted && m.CollateralType == "Land")
-            .Where(m => m.LandDetail!.TitleDeedNo == query.TitleNumber
-                && (query.TitleType == null || m.LandDetail.TitleDeedType == query.TitleType)
+            .Where(m => m.LandDetail!.TitleNumber == query.TitleNumber
+                && (query.TitleType == null || m.LandDetail.TitleType == query.TitleType)
                 && (query.Province == null || m.LandDetail.Province == query.Province))
             .Select(m => m.IsMaster ? m.Id : m.ParentMasterId!.Value)
             .ToListAsync(ct);

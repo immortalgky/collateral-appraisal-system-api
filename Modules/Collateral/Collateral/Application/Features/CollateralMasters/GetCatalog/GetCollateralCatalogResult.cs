@@ -10,7 +10,7 @@ public record CollateralCatalogItemDto(
     Guid Id,
     string CollateralType,
     string? OwnerName,
-    DateTime CreatedOn,
+    DateTime CreatedAt,
     int EngagementCount,
     DateTime? LastAppraisedDate,
     decimal? LastAppraisedValue,

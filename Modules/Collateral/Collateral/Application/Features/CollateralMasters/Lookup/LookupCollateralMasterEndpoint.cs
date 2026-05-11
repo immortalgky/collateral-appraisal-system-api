@@ -12,21 +12,19 @@ public class LookupCollateralMasterEndpoint : ICarterModule
                 "/collateral-masters/lookup",
                 async (
                     string type,
-                    // Land
+                    // Land (province, district, subDistrict, titleType, titleNumber, surveyNumber are shared with Condo)
                     string? landOfficeCode,
                     string? province,
-                    string? amphur,
-                    string? tambon,
-                    string? titleDeedType,
-                    string? titleDeedNo,
-                    string? surveyOrParcelNo,
+                    string? district,
+                    string? subDistrict,
+                    string? titleType,
+                    string? titleNumber,
+                    string? surveyNumber,
                     // Condo
                     string? condoRegistrationNumber,
                     string? building,
                     string? floor,
                     string? unit,
-                    string? titleNumber,
-                    string? titleType,
                     // Leasehold
                     string? contractNo,
                     Guid? underlyingMasterId,
@@ -46,8 +44,8 @@ public class LookupCollateralMasterEndpoint : ICarterModule
                 {
                     var query = new LookupCollateralMasterQuery(
                         type,
-                        landOfficeCode, province, amphur, tambon, titleDeedType, titleDeedNo, surveyOrParcelNo,
-                        condoRegistrationNumber, building, floor, unit, titleNumber, titleType,
+                        landOfficeCode, province, district, subDistrict, titleType, titleNumber, surveyNumber,
+                        condoRegistrationNumber, building, floor, unit,
                         contractNo, underlyingMasterId, lessor, lessee, leaseTermStart,
                         machineRegistrationNo,
                         serialNo, brand, model, manufacturer);

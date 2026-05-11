@@ -17,14 +17,14 @@ public record EditCollateralMasterRequest(
 public record LandEditFields(
     string? LandOfficeCode,
     string? Province,
-    string? Amphur,
-    string? Tambon,
-    string? TitleDeedType,
-    string? TitleDeedNo,
-    string? SurveyOrParcelNo,
+    string? District,
+    string? SubDistrict,
+    string? TitleType,
+    string? TitleNumber,
+    string? SurveyNumber,
+    string? LandParcelNumber,
     string? Street,
     string? Village,
-    string? PostalCode,
     decimal? Latitude,
     decimal? Longitude,
     string? LandShapeType,
@@ -40,7 +40,7 @@ public record CondoEditFields(
     string? CondoRegistrationNumber,
     string? BuildingNumber,
     string? FloorNumber,
-    string? UnitNumber,
+    string? RoomNumber,
     string? TitleNumber,
     string? TitleType,
     string? CondoName,
@@ -58,9 +58,7 @@ public record LeaseholdEditFields(
     string? Lessee,
     DateOnly? LeaseTermStart,
     DateOnly? LeaseTermEnd,
-    int? LeaseTermMonths,
-    decimal? AnnualRent,
-    string? LeasePurpose
+    int? LeaseTermMonths
 );
 
 public record MachineEditFields(
@@ -68,10 +66,5 @@ public record MachineEditFields(
     string? SerialNo,
     string? Brand,
     string? Model,
-    string? Manufacturer,
-    string? EngineNo,
-    string? ChassisNo,
-    int? YearOfManufacture,
-    string? MachineCondition,
-    decimal? MachineAge
+    string? Manufacturer
 );

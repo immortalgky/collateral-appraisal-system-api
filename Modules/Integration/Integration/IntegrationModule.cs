@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 using Request.Application.Services;
 using Shared.Data;
 using Shared.Data.Extensions;
@@ -33,7 +34,10 @@ public static class IntegrationModule
         services.AddScoped<IWebhookService, WebhookService>();
         services.AddScoped<IAppraisalLookupService, AppraisalLookupService>();
         services.AddTransient<IUpdateRequestService, UpdateRequestService>();
-        services.AddHttpClient("Webhook");
+        services.AddTransient<WebhookAttemptCounterHandler>();
+        var webhookClientBuilder = services.AddHttpClient("Webhook");
+        webhookClientBuilder.AddStandardResilienceHandler();
+        webhookClientBuilder.AddHttpMessageHandler<WebhookAttemptCounterHandler>();
 
         // Register unit of work
         services.AddScoped<IIntegrationUnitOfWork>(sp =>

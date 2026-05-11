@@ -65,8 +65,13 @@ public static class MenuSeedData
             new List<MenuSeedNode>
             {
                 new("main.quotation.list", "All Quotations", "list", IconStyle.Solid, "text-pink-500", "/quotations", "QUOTATION_VIEW", null),
-                new("main.quotation.drafts", "My Drafts", "file-pen", IconStyle.Solid, "text-pink-500", "/quotations/drafts", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT"),
                 new("main.quotation.external", "External Co. Portal", "building", IconStyle.Solid, "text-pink-500", "/ext/quotations", "QUOTATION_EXT_VIEW", null),
+            }),
+        new("main.invoice", "Invoice", "file-invoice", IconStyle.Solid, "text-lime-500", "/admin/invoices", "INVOICE_VIEW", null,
+            new List<MenuSeedNode>
+            {
+                new("main.invoice.list", "All Invoices", "list", IconStyle.Solid, "text-lime-500", "/admin/invoices", "INVOICE_VIEW", null),
+                new("main.invoice.external", "External Co. Portal", "building", IconStyle.Solid, "text-lime-500", "/ext/invoices", "INVOICE_EXT_VIEW", null),
             }),
         new("main.reports", "Reports", "chart-line", IconStyle.Solid, "text-indigo-500", "/reports", "REPORT_VIEW", null,
             new List<MenuSeedNode>
@@ -81,7 +86,11 @@ public static class MenuSeedData
                 new("main.meetings.queue", "Awaiting Meeting Queue", "hourglass-half", IconStyle.Solid, "text-blue-500", "/meetings/queue", "MEETING_MANAGE", null),
             }),
         new("main.notification", "Notification", "bell", IconStyle.Solid, "text-amber-500", "/notifications", "DASHBOARD_VIEW", null),
-        new("main.standalone", "Standalone", "puzzle-piece", IconStyle.Solid, "text-teal-500", "/standalone", "STANDALONE_USE", null),
+        new("main.standalone", "Standalone", "puzzle-piece", IconStyle.Solid, "text-teal-500", "/standalone", "STANDALONE_USE", null,
+            new List<MenuSeedNode>
+            {
+                new("main.standalone.service-quality-evaluation", "Service Quality Evaluation", "star", IconStyle.Solid, "text-teal-500", "/standalone/service-quality-evaluation", "REPORT_EVALUATION_VIEW", null),
+            }),
         new("main.parameter", "Parameter", "sliders", IconStyle.Solid, "text-rose-500", "/parameter", "PARAMETER_MANAGE", null),
         new("main.user-management", "User Management", "users", IconStyle.Solid, "text-violet-500", "/users", "USER_MANAGE", null,
             new List<MenuSeedNode>

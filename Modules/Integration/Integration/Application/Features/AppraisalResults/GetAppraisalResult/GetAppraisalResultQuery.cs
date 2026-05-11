@@ -41,7 +41,7 @@ public record AppraisalResultCollateral(
     string? HouseNo,
     string? BuildingType,
     int? BuildingAge,
-    int? TotalFloor,
+    decimal? TotalFloor,
     // Condo
     string? RoomNo,
     string? FloorNo,

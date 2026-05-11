@@ -5,27 +5,28 @@ SELECT
     m.CollateralType,
     m.OwnerName,
     m.IsDeleted,
-    m.CreatedOn,
+    m.CreatedAt,
     m.CreatedBy,
-    m.UpdatedOn,
+    m.UpdatedAt,
     m.UpdatedBy,
 
     -- Engagement aggregates (across all engagements for this master)
     agg.EngagementCount,
     agg.LastAppraisedDate,
-    agg.LastAppraisedValue,
+    -- PR-4: LastAppraisedValue now sourced from master detail AppraisalValue (IsMaster only).
+    -- AppraisedValue column dropped from CollateralEngagements in PR-4.
+    COALESCE(ld.AppraisalValue, cd.AppraisalValue) AS LastAppraisedValue,
 
     -- Land-specific columns (NULL when not Land type)
     ld.LandOfficeCode          AS Land_LandOfficeCode,
     ld.Province                AS Land_Province,
-    ld.Amphur                  AS Land_Amphur,
-    ld.Tambon                  AS Land_Tambon,
-    ld.TitleDeedType           AS Land_TitleDeedType,
-    ld.TitleDeedNo             AS Land_TitleDeedNo,
-    ld.SurveyOrParcelNo        AS Land_SurveyOrParcelNo,
+    ld.District                AS Land_District,
+    ld.SubDistrict             AS Land_SubDistrict,
+    ld.TitleType               AS Land_TitleType,
+    ld.TitleNumber             AS Land_TitleNumber,
+    ld.SurveyNumber            AS Land_SurveyNumber,
     ld.Street                  AS Land_Street,
     ld.Village                 AS Land_Village,
-    ld.PostalCode              AS Land_PostalCode,
     ld.Latitude                AS Land_Latitude,
     ld.Longitude               AS Land_Longitude,
     ld.LandShapeType           AS Land_LandShapeType,
@@ -36,19 +37,20 @@ SELECT
     ld.LandArea                AS Land_LandArea,
     ld.IsUnderConstructionAtLastAppraisal,
     ld.OverallConstructionProgressPercent,
-    ld.LastConstructionInspectionId AS Land_LastConstructionInspectionId,
+    -- PR-5: LastConstructionInspectionId removed from LandDetails — CI list is in the engagement snapshot.
     ld.LastAppraisalId         AS Land_LastAppraisalId,
     ld.LastAppraisalNumber     AS Land_LastAppraisalNumber,
     ld.LastAppraisedDate       AS Land_LastAppraisedDate,
-    ld.LastAppraisedValue      AS Land_LastAppraisedValue,
-    ld.LastTotalAppraisedValue AS Land_LastTotalAppraisedValue,
+    ld.UnitPrice               AS Land_UnitPrice,
+    ld.BuildingCost            AS Land_BuildingCost,
+    ld.AppraisalValue          AS Land_AppraisalValue,
 
     -- Condo-specific columns (NULL when not Condo type)
     cd.LandOfficeCode          AS Condo_LandOfficeCode,
     cd.CondoRegistrationNumber AS Condo_CondoRegistrationNumber,
     cd.BuildingNumber          AS Condo_BuildingNumber,
     cd.FloorNumber             AS Condo_FloorNumber,
-    cd.UnitNumber              AS Condo_UnitNumber,
+    cd.RoomNumber              AS Condo_RoomNumber,
     cd.TitleNumber             AS Condo_TitleNumber,
     cd.TitleType               AS Condo_TitleType,
     cd.CondoName               AS Condo_CondoName,
@@ -61,7 +63,9 @@ SELECT
     cd.LastAppraisalId         AS Condo_LastAppraisalId,
     cd.LastAppraisalNumber     AS Condo_LastAppraisalNumber,
     cd.LastAppraisedDate       AS Condo_LastAppraisedDate,
-    cd.LastAppraisedValue      AS Condo_LastAppraisedValue,
+    cd.UnitPrice               AS Condo_UnitPrice,
+    cd.BuildingCost            AS Condo_BuildingCost,
+    cd.AppraisalValue          AS Condo_AppraisalValue,
 
     -- Leasehold-specific columns (NULL when not Leasehold type)
     lhd.LeaseRegistrationNo    AS Lh_LeaseRegistrationNo,
@@ -71,12 +75,9 @@ SELECT
     lhd.LeaseTermStart         AS Lh_LeaseTermStart,
     lhd.LeaseTermEnd           AS Lh_LeaseTermEnd,
     lhd.LeaseTermMonths        AS Lh_LeaseTermMonths,
-    lhd.AnnualRent             AS Lh_AnnualRent,
-    lhd.LeasePurpose           AS Lh_LeasePurpose,
     lhd.LastAppraisalId        AS Lh_LastAppraisalId,
     lhd.LastAppraisalNumber    AS Lh_LastAppraisalNumber,
     lhd.LastAppraisedDate      AS Lh_LastAppraisedDate,
-    lhd.LastAppraisedValue     AS Lh_LastAppraisedValue,
 
     -- Machine-specific columns (NULL when not Machine type)
     md.MachineRegistrationNo   AS Machine_MachineRegistrationNo,
@@ -84,15 +85,9 @@ SELECT
     md.Brand                   AS Machine_Brand,
     md.Model                   AS Machine_Model,
     md.Manufacturer            AS Machine_Manufacturer,
-    md.EngineNo                AS Machine_EngineNo,
-    md.ChassisNo               AS Machine_ChassisNo,
-    md.YearOfManufacture       AS Machine_YearOfManufacture,
-    md.MachineCondition        AS Machine_MachineCondition,
-    md.MachineAge              AS Machine_MachineAge,
     md.LastAppraisalId         AS Machine_LastAppraisalId,
     md.LastAppraisalNumber     AS Machine_LastAppraisalNumber,
-    md.LastAppraisedDate       AS Machine_LastAppraisedDate,
-    md.LastAppraisedValue      AS Machine_LastAppraisedValue
+    md.LastAppraisedDate       AS Machine_LastAppraisedDate
 
 FROM collateral.CollateralMasters m
 
@@ -100,15 +95,8 @@ FROM collateral.CollateralMasters m
 LEFT JOIN (
     SELECT
         CollateralMasterId,
-        COUNT(*)        AS EngagementCount,
-        MAX(AppraisalDate) AS LastAppraisedDate,
-        -- Last-appraised value taken from the engagement with the latest AppraisalDate
-        (
-            SELECT TOP 1 e2.AppraisedValue
-            FROM collateral.CollateralEngagements e2
-            WHERE e2.CollateralMasterId = e.CollateralMasterId
-            ORDER BY e2.AppraisalDate DESC
-        )               AS LastAppraisedValue
+        COUNT(*)           AS EngagementCount,
+        MAX(AppraisalDate) AS LastAppraisedDate
     FROM collateral.CollateralEngagements e
     GROUP BY CollateralMasterId
 ) agg ON agg.CollateralMasterId = m.Id

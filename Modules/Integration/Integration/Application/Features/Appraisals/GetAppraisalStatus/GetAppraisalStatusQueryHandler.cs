@@ -14,7 +14,7 @@ public class GetAppraisalStatusQueryHandler(ISqlConnectionFactory connectionFact
         using var conn = connectionFactory.GetOpenConnection();
 
         const string sql = """
-            SELECT AppraisalNumber, Status, UpdatedOn 
+            SELECT AppraisalNumber, Status, UpdatedAt, CreatedAt
             FROM appraisal.Appraisals
             WHERE AppraisalNumber = @appraisalNumber
             """;
@@ -33,8 +33,9 @@ public class GetAppraisalStatusQueryHandler(ISqlConnectionFactory connectionFact
             _ => "IN_PROGRESS"
         };
 
-        return new GetAppraisalStatusResponse(row.AppraisalNumber, status, row.UpdatedOn);
+        var lastUpdatedAt = row.UpdatedAt ?? row.CreatedAt ?? DateTime.UtcNow;
+        return new GetAppraisalStatusResponse(row.AppraisalNumber, status, lastUpdatedAt);
     }
 
-    private record SqlAppraisalRow(string AppraisalNumber, string Status, DateTime UpdatedOn);
+    private record SqlAppraisalRow(string AppraisalNumber, string Status, DateTime? UpdatedAt, DateTime? CreatedAt);
 }

@@ -16,20 +16,21 @@ public class CollateralEngagementConfiguration : IEntityTypeConfiguration<Collat
         builder.Property(e => e.AppraisalNumber).IsRequired().HasMaxLength(50);
         builder.Property(e => e.RequestId).IsRequired();
         builder.Property(e => e.RequestNumber).IsRequired().HasMaxLength(50);
-        builder.Property(e => e.PropertyId).IsRequired();
+        // PropertyId column dropped in PR-4 (engagement is now per-appraisal, not per-property).
         builder.Property(e => e.AppraisalType).IsRequired().HasMaxLength(20);
         builder.Property(e => e.AppraisalDate).IsRequired();
-        builder.Property(e => e.AppraisedValue).HasPrecision(18, 2);
+        // AppraisedValue column dropped in PR-4 (values live on master detail rows + snapshot).
         builder.Property(e => e.AppraiserUserId).HasMaxLength(100);
         builder.Property(e => e.AppraisalCompanyName).HasMaxLength(200);
         builder.Property(e => e.ConstructionInspectionFeeAmount).HasPrecision(18, 2);
         builder.Property(e => e.Snapshot).IsRequired().HasColumnType("nvarchar(max)");
-        builder.Property(e => e.CreatedOn).IsRequired();
+        builder.Property(e => e.CreatedAt).IsRequired().HasColumnName("CreatedAt");
 
-        // Idempotency: one engagement per (appraisal, property)
-        builder.HasIndex(e => new { e.AppraisalId, e.PropertyId })
+        // PR-4: Idempotency — one engagement per appraisal (unique by AppraisalId).
+        // Replaces the old (AppraisalId, PropertyId) composite unique index.
+        builder.HasIndex(e => e.AppraisalId)
             .IsUnique()
-            .HasDatabaseName("UX_CollateralEngagements_AppraisalProperty");
+            .HasDatabaseName("UX_CollateralEngagements_Appraisal");
 
         // History pagination: newest first per master
         builder.HasIndex(e => new { e.CollateralMasterId, e.AppraisalDate })

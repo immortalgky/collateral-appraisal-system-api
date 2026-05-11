@@ -19,8 +19,6 @@ public class LeaseholdDetailConfiguration : IEntityTypeConfiguration<LeaseholdDe
 
         // Last-known
         builder.Property(d => d.LeaseTermMonths);
-        builder.Property(d => d.AnnualRent).HasPrecision(18, 2);
-        builder.Property(d => d.LeasePurpose).HasMaxLength(200);
 
         // AppraisalSummary (owned — flat columns)
         builder.OwnsOne(d => d.AppraisalSummary, s =>
@@ -28,7 +26,6 @@ public class LeaseholdDetailConfiguration : IEntityTypeConfiguration<LeaseholdDe
             s.Property(x => x.LastAppraisalId).HasColumnName("LastAppraisalId");
             s.Property(x => x.LastAppraisalNumber).HasColumnName("LastAppraisalNumber").HasMaxLength(50);
             s.Property(x => x.LastAppraisedDate).HasColumnName("LastAppraisedDate");
-            s.Property(x => x.LastAppraisedValue).HasColumnName("LastAppraisedValue").HasPrecision(18, 2);
         });
 
         builder.Property(d => d.IsDeleted).IsRequired().HasDefaultValue(false);

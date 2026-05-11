@@ -17,7 +17,7 @@ public record GetEngagementSnapshotResult(
     string? AppraiserUserId,
     Guid? AppraisalCompanyId,
     string? AppraisalCompanyName,
-    DateTime CreatedOn,
+    DateTime CreatedAt,
     /// <summary>Raw JSON snapshot — returned as-is for the FE to parse.</summary>
     string Snapshot
 );

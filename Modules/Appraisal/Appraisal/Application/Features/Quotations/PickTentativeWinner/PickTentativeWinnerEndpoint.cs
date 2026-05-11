@@ -1,3 +1,6 @@
+using Appraisal.Application.Features.Quotations.Shared;
+using Shared.Identity;
+
 namespace Appraisal.Application.Features.Quotations.PickTentativeWinner;
 
 public class PickTentativeWinnerEndpoint : ICarterModule
@@ -9,12 +12,23 @@ public class PickTentativeWinnerEndpoint : ICarterModule
                 async (
                     Guid id,
                     PickTentativeWinnerRequest request,
+                    ICurrentUserService currentUser,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    var command = new PickTentativeWinnerCommand(id, request.CompanyQuotationId, request.Reason,
-                        request.RequestNegotiation, request.NegotiationNote);
+                    var role = currentUser.IsInRole("RequestMaker") ? "RequestMaker"
+                             : currentUser.IsInRole("IntAdmin")     ? "IntAdmin"
+                             : currentUser.IsInRole("Admin")        ? "Admin"
+                             : throw new UnauthorizedAccessException("Caller has no recognised role for this action");
+
+                    var actor = new QuotationActor(
+                        Username: currentUser.Username ?? throw new UnauthorizedAccessException("Cannot resolve username from token"),
+                        Role: role,
+                        UserId: currentUser.UserId);
+
+                    var command = new PickTentativeWinnerCommand(id, request.CompanyQuotationId, actor,
+                        request.Reason, request.RequestNegotiation, request.NegotiationNote);
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);
                 })

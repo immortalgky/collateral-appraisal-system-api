@@ -29,8 +29,5 @@ public class WebhookDeliveryConfiguration : IEntityTypeConfiguration<WebhookDeli
 
         builder.HasIndex(x => x.Status)
             .HasDatabaseName("IX_WebhookDelivery_Status");
-
-        builder.HasIndex(x => new { x.Status, x.NextRetryAt })
-            .HasDatabaseName("IX_WebhookDelivery_Status_NextRetryAt");
     }
 }
