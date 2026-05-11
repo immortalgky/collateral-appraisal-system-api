@@ -2,6 +2,7 @@ using Integration.Domain.WebhookDeliveries;
 using Integration.Domain.WebhookSubscriptions;
 using Integration.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
+using Shared.Exceptions;
 using Shared.Time;
 using System.Globalization;
 using System.Net.Http.Headers;
@@ -54,6 +55,27 @@ public class WebhookService(
         var delivery = WebhookDelivery.Create(subscription.Id, eventType, envelopeJson);
 
         await deliveryRepository.AddAsync(delivery, cancellationToken);
+        await deliveryRepository.SaveChangesAsync(cancellationToken);
+
+        await DeliverWebhookAsync(subscription, delivery, cancellationToken);
+    }
+
+    public async Task ResendAsync(Guid deliveryId, CancellationToken cancellationToken = default)
+    {
+        var delivery = await deliveryRepository.GetByIdAsync(deliveryId, cancellationToken);
+        if (delivery is null)
+            throw new NotFoundException(nameof(WebhookDelivery), deliveryId);
+
+        if (delivery.Status != DeliveryStatus.Failed)
+            throw new BadRequestException(
+                $"Only failed deliveries can be retried. Current status: {delivery.Status}.");
+
+        var subscription = await subscriptionRepository.GetByIdAsync(delivery.SubscriptionId, cancellationToken);
+        if (subscription is null || !subscription.IsActive)
+            throw new BadRequestException(
+                "Cannot retry delivery: the associated webhook subscription is inactive or missing.");
+
+        delivery.BeginRetry();
         await deliveryRepository.SaveChangesAsync(cancellationToken);
 
         await DeliverWebhookAsync(subscription, delivery, cancellationToken);

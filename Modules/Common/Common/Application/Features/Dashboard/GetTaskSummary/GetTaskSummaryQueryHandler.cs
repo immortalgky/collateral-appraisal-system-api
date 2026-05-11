@@ -18,23 +18,35 @@ public class GetTaskSummaryQueryHandler(
         if (string.IsNullOrEmpty(username))
             return new GetTaskSummaryResult(0, 0, 0, 0);
 
-        // ISO week starts on Monday.  DATEADD(wk, DATEDIFF(wk, 0, GETUTCDATE()), 0)
-        // gives Monday 00:00:00 UTC of the current week because SQL Server week-0
-        // anchor (1900-01-01) is a Monday.
+        // Default to the trailing 7 days (today - 7 .. today) when no range is supplied,
+        // preserving the original "this week" feel while allowing callers to override.
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var from = query.From ?? today.AddDays(-7);
+        var to = query.To ?? today;
+
+        // vw_UserTaskSummary exposes EventAt for all buckets:
+        //   active/overdue tasks → EventAt = AssignedAt
+        //   completed tasks      → EventAt = CompletedAt
+        // We filter every bucket by EventAt so the cohort is consistent with the
+        // period the caller chose. "Overdue" is an overlapping flag row (same task
+        // can appear in both NotStarted/InProgress AND Overdue), so it is counted
+        // separately as per the existing view design.
         const string sql = """
             SELECT
-                SUM(CASE WHEN Bucket = 'NotStarted'  THEN 1 ELSE 0 END) AS NotStarted,
-                SUM(CASE WHEN Bucket = 'InProgress'  THEN 1 ELSE 0 END) AS InProgress,
-                SUM(CASE WHEN Bucket = 'Overdue'     THEN 1 ELSE 0 END) AS Overdue,
-                SUM(CASE WHEN Bucket = 'Completed'
-                          AND EventAt >= DATEADD(wk, DATEDIFF(wk, 0, GETUTCDATE()), 0)
-                         THEN 1 ELSE 0 END)                              AS CompletedThisWeek
+                SUM(CASE WHEN Bucket = 'NotStarted' THEN 1 ELSE 0 END) AS NotStarted,
+                SUM(CASE WHEN Bucket = 'InProgress' THEN 1 ELSE 0 END) AS InProgress,
+                SUM(CASE WHEN Bucket = 'Overdue'    THEN 1 ELSE 0 END) AS Overdue,
+                SUM(CASE WHEN Bucket = 'Completed'  THEN 1 ELSE 0 END) AS Completed
             FROM workflow.vw_UserTaskSummary
             WHERE Username = @Username
+              AND EventAt >= @From
+              AND EventAt <  DATEADD(day, 1, @To)
             """;
 
         var parameters = new DynamicParameters();
         parameters.Add("Username", username);
+        parameters.Add("From", from.ToDateTime(TimeOnly.MinValue));
+        parameters.Add("To", to.ToDateTime(TimeOnly.MinValue));
 
         var connection = connectionFactory.GetOpenConnection();
         var row = await connection.QuerySingleOrDefaultAsync<GetTaskSummaryResult>(sql, parameters);

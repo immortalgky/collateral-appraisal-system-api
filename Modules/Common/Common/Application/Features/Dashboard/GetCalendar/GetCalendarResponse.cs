@@ -7,9 +7,10 @@ public sealed record CalendarDayDto(
     List<CalendarItemDto> Items);
 
 public sealed record CalendarItemDto(
-    string Type,           // "meeting" | "task_due" | "sla_deadline"
+    string Type,           // "meeting" | "task_due"
     string Title,
     TimeOnly? Time,
     string LinkEntityType,
     Guid LinkEntityId,
-    string? AppraisalNumber = null);
+    string? AppraisalNumber = null,
+    bool IsSlaCritical = false);  // task_due whose SLA is AtRisk or Breached

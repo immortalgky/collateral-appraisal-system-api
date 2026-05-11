@@ -527,7 +527,12 @@ public class AuthDataSeed(
             ("INVOICE_APPROVE", "Approve Invoices", "Approve or reject submitted invoices", "Invoice"),
             // Service Quality Evaluation
             ("REPORT_EVALUATION_VIEW", "View Service Quality Evaluation", "View service quality evaluation reports",
-                "Common")
+                "Common"),
+            // Webhook Deliveries admin
+            ("WEBHOOK_DELIVERIES_VIEW", "View Webhook Deliveries",
+                "View paginated webhook delivery list and delivery details", "Integration"),
+            ("WEBHOOK_DELIVERIES_RETRY", "Retry Webhook Deliveries",
+                "Manually retry a failed webhook delivery", "Integration")
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)

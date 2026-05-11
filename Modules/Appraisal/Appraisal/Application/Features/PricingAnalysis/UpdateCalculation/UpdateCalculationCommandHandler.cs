@@ -34,7 +34,7 @@ public class UpdateCalculationCommandHandler(
         {
             calculation.SetOfferingPrice(
                 command.OfferingPrice.Value,
-                command.OfferingPriceUnit ?? "PerSqm",
+                command.OfferingPriceUnit,
                 command.AdjustOfferPricePct,
                 command.AdjustOfferPriceAmt);
         }

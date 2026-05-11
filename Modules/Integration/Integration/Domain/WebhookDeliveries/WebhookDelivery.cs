@@ -39,9 +39,20 @@ public class WebhookDelivery : Entity<Guid>
         return new WebhookDelivery(subscriptionId, eventType, payload);
     }
 
+    public void BeginRetry()
+    {
+        if (Status != DeliveryStatus.Failed)
+            throw new InvalidOperationException("Only failed deliveries can be retried.");
+
+        Status = DeliveryStatus.Pending;
+        LastStatusCode = null;
+        LastError = null;
+        DeliveredAt = null;
+    }
+
     public void RecordSuccess(int statusCode, int attempts, DateTime deliveredAt)
     {
-        AttemptCount = attempts;
+        AttemptCount += attempts;
         LastStatusCode = statusCode;
         LastError = null;
         Status = DeliveryStatus.Delivered;
@@ -50,7 +61,7 @@ public class WebhookDelivery : Entity<Guid>
 
     public void RecordFailure(int statusCode, int attempts, string? error)
     {
-        AttemptCount = attempts;
+        AttemptCount += attempts;
         LastStatusCode = statusCode;
         LastError = error;
         Status = DeliveryStatus.Failed;

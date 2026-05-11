@@ -88,6 +88,10 @@ public class SetFinalValueCommandHandler(
         {
             finalValue.SetBuildingCost(command.BuildingCost.Value);
         }
+        else if (command.HasBuildingCost == false)
+        {
+            finalValue.ClearBuildingCost();
+        }
 
         if (command.AppraisalPrice.HasValue)
         {

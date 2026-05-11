@@ -18,33 +18,19 @@ public class GetCalendarQueryHandler(
         if (string.IsNullOrEmpty(username))
             return new GetCalendarResponse(new List<CalendarDayDto>());
 
-        // Parse YYYY-MM into a [firstOfMonth, firstOfNextMonth) range.
-        if (!TryParseMonth(query.Month, out var firstOfMonth, out var firstOfNextMonth))
-            throw new ArgumentException($"Invalid month format '{query.Month}'. Expected YYYY-MM.");
+        // Parse the optional Type CSV into a set for O(1) lookup.
+        // null/empty means all sources are included.
+        var types = ParseTypes(query.Type);
+        var includeMeeting = types is null || types.Contains("meeting");
+        var includeTaskDue = types is null || types.Contains("task_due");
 
-        // UNION three calendar event sources:
-        //
-        // Source 1: Meetings where I am a member (workflow.Meetings + workflow.MeetingMembers).
-        //           Meetings are in statuses Draft or Scheduled (active). StartAt drives the date.
-        //
-        // Source 2: My task due dates from workflow.vw_TaskList filtered by AssigneeUserId
-        //           and DueAt within the month.
-        //
-        // Source 3: SLA deadline — workflow.vw_SlaTaskList surfaces DueAt per task; we reuse
-        //           it for tasks with SlaStatus = 'AtRisk' or 'Breached' assigned to me.
-        //           This gives a "SLA deadline" entry on the day the task is due.
-        //
-        // Cap at 200 rows to prevent oversized payloads.
-        const string sql = """
-            SELECT TOP 200
-                EventDate,
-                Type,
-                Title,
-                EventTime,
-                LinkEntityType,
-                LinkEntityId,
-                AppraisalNumber
-            FROM (
+        // Build a UNION of only the requested event sources.
+        // Skipping branches that aren't requested avoids scanning their tables,
+        // which is especially helpful for Day/Week views with narrow ranges.
+        var branches = new List<string>();
+
+        if (includeMeeting)
+            branches.Add("""
                 -- Source 1: meetings I am a member of (not appraisal-scoped)
                 SELECT
                     CAST(m.StartAt AS date)                  AS EventDate,
@@ -53,19 +39,23 @@ public class GetCalendarQueryHandler(
                     CAST(m.StartAt AS time)                  AS EventTime,
                     'meeting'                                AS LinkEntityType,
                     m.Id                                     AS LinkEntityId,
-                    CAST(NULL AS nvarchar(50))               AS AppraisalNumber
+                    CAST(NULL AS nvarchar(50))               AS AppraisalNumber,
+                    CAST(0 AS bit)                           AS IsSlaCritical
                 FROM workflow.Meetings m
                 INNER JOIN workflow.MeetingMembers mm
                     ON mm.MeetingId = m.Id
                    AND mm.UserId    = @Username
                 WHERE m.Status IN ('Draft', 'Scheduled')
                   AND m.StartAt IS NOT NULL
-                  AND m.StartAt >= @FirstOfMonth
-                  AND m.StartAt <  @FirstOfNextMonth
+                  AND m.StartAt >= @From
+                  AND m.StartAt <  DATEADD(day, 1, @To)
+                """);
 
-                UNION ALL
-
-                -- Source 2: my task due dates
+        if (includeTaskDue)
+            branches.Add("""
+                -- Source 2: my task due dates. IsSlaCritical flags tasks whose SLA
+                -- is AtRisk or Breached so the UI can color the dot red instead of
+                -- yellow. No separate SLA branch — one row per task, urgency on top.
                 SELECT
                     CAST(tl.DueAt AS date)                   AS EventDate,
                     'task_due'                               AS Type,
@@ -80,47 +70,50 @@ public class GetCalendarQueryHandler(
                         ELSE 'task'
                     END                                      AS LinkEntityType,
                     COALESCE(tl.AppraisalId, tl.RequestId, tl.Id) AS LinkEntityId,
-                    tl.AppraisalNumber                       AS AppraisalNumber
+                    tl.AppraisalNumber                       AS AppraisalNumber,
+                    CAST(
+                        CASE WHEN EXISTS (
+                            SELECT 1
+                            FROM workflow.vw_SlaTaskList sla
+                            WHERE sla.TaskId      = tl.Id
+                              AND sla.AssignedTo  = @Username
+                              AND sla.SlaStatus   IN ('AtRisk', 'Breached')
+                        ) THEN 1 ELSE 0 END
+                        AS bit
+                    )                                        AS IsSlaCritical
                 FROM workflow.vw_TaskList tl
                 WHERE tl.AssigneeUserId  = @Username
                   AND tl.DueAt          IS NOT NULL
-                  AND tl.DueAt          >= @FirstOfMonth
-                  AND tl.DueAt          <  @FirstOfNextMonth
+                  AND tl.DueAt          >= @From
+                  AND tl.DueAt          <  DATEADD(day, 1, @To)
+                """);
 
-                UNION ALL
+        // If somehow no branch is included (should not happen after endpoint validation),
+        // return an empty response rather than building invalid SQL.
+        if (branches.Count == 0)
+            return new GetCalendarResponse(new List<CalendarDayDto>());
 
-                -- Source 3: SLA deadlines for tasks assigned to me (AtRisk or Breached)
-                SELECT
-                    CAST(sl.DueAt AS date)                   AS EventDate,
-                    'sla_deadline'                           AS Type,
-                    CONCAT(
-                        'SLA deadline: ',
-                        COALESCE(
-                            sl.TaskDescription,
-                            CAST(sl.TaskName AS nvarchar(200))
-                        )
-                    )                                        AS Title,
-                    CAST(sl.DueAt AS time)                   AS EventTime,
-                    CASE
-                        WHEN sl.AppraisalId IS NOT NULL THEN 'appraisal'
-                        WHEN sl.RequestId   IS NOT NULL THEN 'request'
-                        ELSE 'task'
-                    END                                      AS LinkEntityType,
-                    COALESCE(sl.AppraisalId, sl.RequestId, sl.TaskId) AS LinkEntityId,
-                    sl.AppraisalNumber                       AS AppraisalNumber
-                FROM workflow.vw_SlaTaskList sl
-                WHERE sl.AssignedTo     = @Username
-                  AND sl.SlaStatus      IN ('AtRisk', 'Breached')
-                  AND sl.DueAt         >= @FirstOfMonth
-                  AND sl.DueAt         <  @FirstOfNextMonth
+        var unionSql = string.Join("\n\nUNION ALL\n\n", branches);
+        var sql = $"""
+            SELECT TOP 200
+                EventDate,
+                Type,
+                Title,
+                EventTime,
+                LinkEntityType,
+                LinkEntityId,
+                AppraisalNumber,
+                IsSlaCritical
+            FROM (
+            {unionSql}
             ) src
             ORDER BY EventDate, EventTime
             """;
 
         var parameters = new DynamicParameters();
         parameters.Add("Username", username);
-        parameters.Add("FirstOfMonth", firstOfMonth.ToDateTime(TimeOnly.MinValue));
-        parameters.Add("FirstOfNextMonth", firstOfNextMonth.ToDateTime(TimeOnly.MinValue));
+        parameters.Add("From", query.From.ToDateTime(TimeOnly.MinValue));
+        parameters.Add("To", query.To.ToDateTime(TimeOnly.MinValue));
 
         var connection = connectionFactory.GetOpenConnection();
         var rows = await connection.QueryAsync<CalendarRow>(sql, parameters);
@@ -138,32 +131,27 @@ public class GetCalendarQueryHandler(
                     r.EventTime.HasValue ? TimeOnly.FromTimeSpan(r.EventTime.Value) : null,
                     r.LinkEntityType,
                     r.LinkEntityId,
-                    r.AppraisalNumber))
+                    r.AppraisalNumber,
+                    r.IsSlaCritical))
                 .ToList()))
             .ToList();
 
         return new GetCalendarResponse(days);
     }
 
-    private static bool TryParseMonth(
-        string? month,
-        out DateOnly firstOfMonth,
-        out DateOnly firstOfNextMonth)
+    /// <summary>
+    /// Parses a comma-separated type string into a lowercase set.
+    /// Returns null when the input is null or empty (meaning "all types").
+    /// </summary>
+    private static HashSet<string>? ParseTypes(string? type)
     {
-        firstOfMonth = default;
-        firstOfNextMonth = default;
+        if (string.IsNullOrWhiteSpace(type))
+            return null;
 
-        if (string.IsNullOrWhiteSpace(month))
-            return false;
-
-        if (!DateOnly.TryParseExact(month + "-01", "yyyy-MM-dd",
-                System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.None,
-                out firstOfMonth))
-            return false;
-
-        firstOfNextMonth = firstOfMonth.AddMonths(1);
-        return true;
+        return type
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(t => t.ToLowerInvariant())
+            .ToHashSet();
     }
 
     // Private projection for Dapper mapping.
@@ -178,5 +166,6 @@ public class GetCalendarQueryHandler(
         public string LinkEntityType { get; init; } = string.Empty;
         public Guid LinkEntityId { get; init; }
         public string? AppraisalNumber { get; init; }
+        public bool IsSlaCritical { get; init; }
     }
 }

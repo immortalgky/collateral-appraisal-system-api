@@ -10,4 +10,6 @@ public interface IWebhookService
         DateTime occurredAt,
         object data,
         CancellationToken cancellationToken = default);
+
+    Task ResendAsync(Guid deliveryId, CancellationToken cancellationToken = default);
 }
