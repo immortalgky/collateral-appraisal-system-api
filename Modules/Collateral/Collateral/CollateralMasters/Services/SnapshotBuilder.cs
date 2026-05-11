@@ -5,7 +5,35 @@ namespace Collateral.CollateralMasters.Services;
 
 /// <summary>
 /// Builds the immutable JSON snapshot stored on CollateralEngagement.
-/// One static method per collateral type.
+///
+/// PR-4 shape (single engagement per appraisal):
+/// {
+///   "groups": [
+///     {
+///       "groupId": "...",          // PropertyGroup.Id (null for ungrouped)
+///       "groupNumber": 1,          // PropertyGroup.GroupNumber
+///       "isMasterId": "...",        // CollateralMaster.Id of the IsMaster row
+///       "isPrimary": true,         // true for the principal group (engagement anchor)
+///       "buildingCost": 1234.00,   // sum of building values (IsMaster only)
+///       "appraisalValue": 5678.00, // group's final appraised value (IsMaster only)
+///       "properties": [
+///         {
+///           "role": "isMaster",    // or "alias"
+///           "propertyId": "...",   // AppraisalProperty.Id
+///           "unitPrice": 50000,    // cost-approach per sq.wa (null until PR-2-pricing wired)
+///           "titleNumber": "...",  // first title (or condo unit title)
+///           "titleType": "...",
+///           "province": "...",
+///           ... type-specific fields ...
+///         }
+///       ],
+///       "constructionInspections": [ ... ]   // PR-5: list of CIs for properties in this group
+///     }
+///   ]
+/// }
+///
+/// For backward compatibility with consumers that read flat snapshots, this builder always
+/// wraps everything in the groups[] array. A single-group appraisal produces groups with one entry.
 /// </summary>
 internal static class SnapshotBuilder
 {
@@ -15,136 +43,98 @@ internal static class SnapshotBuilder
         WriteIndented = false
     };
 
-    public static string BuildLand(
+    /// <summary>
+    /// Builds the full groups-based snapshot for an engagement that covers an entire appraisal.
+    /// Each group has one entry. isPrimary=true marks the anchor group.
+    /// </summary>
+    public static string BuildAppraisalSnapshot(
+        IReadOnlyList<PropertyGroupSnapshot> groups)
+    {
+        var snapshot = new { groups };
+        return JsonSerializer.Serialize(snapshot, JsonOptions);
+    }
+
+    // -----------------------------------------------------------------------
+    // Per-master helper methods — build the per-group snapshot entries.
+    // Each entry represents exactly ONE CollateralMaster row (IsMaster or alias).
+    // collateralMasterId is always included so consumers can correlate snapshot entries
+    // back to the CollateralMaster table without an additional join. (Fix: MAJOR 3)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Builds the snapshot entry for a single Land CollateralMaster row (IsMaster or alias).
+    /// Each entry carries its own collateralMasterId and the specific title for that master,
+    /// so multi-title groups emit one entry per master rather than collapsing all titles
+    /// into a single entry. (Fix: MAJOR 2)
+    /// </summary>
+    public static object BuildLandMasterEntry(
+        Guid collateralMasterId,
         AppraisalPropertyForCollateral property,
-        IEnumerable<AppraisalPropertyForCollateral> buildingsOnLand,
-        decimal totalAppraisedValue)
+        string role,
+        string titleNumber,
+        string titleType,
+        decimal? unitPrice = null)
     {
         var land = property.LandIdentity!;
-        var title = land.Titles.FirstOrDefault();
 
-        var buildingSnapshots = buildingsOnLand.Select(b => new
+        return new
         {
-            appraisalPropertyId = b.PropertyId.ToString()
-        }).ToList();
-
-        object? constructionInspection = null;
-        if (property.ConstructionInspection is { } ci)
-        {
-            if (ci.IsFullDetail)
-            {
-                constructionInspection = new
-                {
-                    inspectionId = ci.InspectionId.ToString(),
-                    isFullDetail = true,
-                    overallCurrentProgressPercent = ci.OverallCurrentProgressPercent,
-                    remark = ci.Remark,
-                    workDetails = ci.WorkDetails?.Select(d => new
-                    {
-                        workDetailId = d.WorkDetailId.ToString(),
-                        constructionWorkGroupId = d.ConstructionWorkGroupId.ToString(),
-                        constructionWorkItemId = d.ConstructionWorkItemId?.ToString(),
-                        workItemName = d.WorkItemName,
-                        displayOrder = d.DisplayOrder,
-                        proportionPct = d.ProportionPct,
-                        previousProgressPct = d.PreviousProgressPct,
-                        currentProgressPct = d.CurrentProgressPct,
-                        currentProportionPct = d.CurrentProportionPct,
-                        constructionValue = d.ConstructionValue
-                    }).ToList()
-                };
-            }
-            else
-            {
-                constructionInspection = new
-                {
-                    inspectionId = ci.InspectionId.ToString(),
-                    isFullDetail = false,
-                    overallCurrentProgressPercent = ci.OverallCurrentProgressPercent,
-                    summaryDetail = ci.SummaryDetail,
-                    summaryPreviousProgressPct = ci.SummaryPreviousProgressPct,
-                    summaryPreviousValue = ci.SummaryPreviousValue,
-                    summaryCurrentProgressPct = ci.SummaryCurrentProgressPct,
-                    summaryCurrentValue = ci.SummaryCurrentValue,
-                    remark = ci.Remark
-                };
-            }
-        }
-
-        // Emit all titles in the appraisal for this property (multi-title support)
-        var titlesSnapshot = land.Titles
-            .Where(t => !string.IsNullOrWhiteSpace(t.TitleNumber))
-            .Select(t => new { titleDeedNo = t.TitleNumber, titleDeedType = t.TitleType })
-            .ToList();
-
-        var snapshot = new
-        {
+            collateralMasterId = collateralMasterId.ToString(),
+            role,
+            propertyId = property.PropertyId.ToString(),
             type = "Land",
-            // Legacy single-title fields (kept for backwards compat with consumers reading existing snapshots)
-            titleNumber = title?.TitleNumber,
-            titleType = title?.TitleType,
-            // Multi-title array — all titles in this appraisal for this property
-            titles = titlesSnapshot,
+            titleNumber,
+            titleType,
             province = land.Province,
             landOffice = land.LandOffice,
             district = land.District,
             subDistrict = land.SubDistrict,
-            buildingsOnLand = buildingSnapshots,
-            totalAppraisedValue,
-            constructionInspection
+            unitPrice
         };
-
-        return JsonSerializer.Serialize(snapshot, JsonOptions);
     }
 
-    public static string BuildCondo(AppraisalPropertyForCollateral property)
+    /// <summary>
+    /// Builds the property entry for a Condo property.
+    /// </summary>
+    public static object BuildCondoPropertyEntry(
+        Guid collateralMasterId,
+        AppraisalPropertyForCollateral property,
+        string role,
+        decimal? unitPrice = null)
     {
         var condo = property.CondoIdentity!;
-
-        var snapshot = new
+        return new
         {
+            collateralMasterId = collateralMasterId.ToString(),
+            role,
+            propertyId = property.PropertyId.ToString(),
             type = "Condo",
             landOffice = condo.LandOffice,
             condoRegistrationOrProject = condo.CondoRegistrationNumber,
             building = condo.BuildingNumber,
             floor = condo.FloorNumber,
             unit = condo.RoomNumber,
-            condoTitleDeedNo = condo.TitleNumber,
-            condoTitleType = condo.TitleType,
-            province = condo.Province
+            titleNumber = condo.TitleNumber,
+            titleType = condo.TitleType,
+            province = condo.Province,
+            unitPrice
         };
-
-        return JsonSerializer.Serialize(snapshot, JsonOptions);
     }
 
-    public static string BuildLeasehold(
+    /// <summary>
+    /// Builds the property entry for a Machine property.
+    /// </summary>
+    public static object BuildMachinePropertyEntry(
+        Guid collateralMasterId,
         AppraisalPropertyForCollateral property,
-        Guid underlyingMasterId,
-        string underlyingType)
-    {
-        var lh = property.LeaseholdIdentity!;
-
-        var snapshot = new
-        {
-            type = "Leasehold",
-            leaseRegistrationNo = lh.ContractNo,
-            underlyingMasterId = underlyingMasterId.ToString(),
-            underlyingType,
-            lessor = lh.LessorName,
-            lessee = lh.LesseeName,
-            leaseTermStart = lh.LeaseStartDate?.ToString("yyyy-MM-dd"),
-            leaseTermEnd = lh.LeaseEndDate?.ToString("yyyy-MM-dd")
-        };
-
-        return JsonSerializer.Serialize(snapshot, JsonOptions);
-    }
-
-    public static string BuildMachine(AppraisalPropertyForCollateral property)
+        string role)
     {
         var m = property.MachineryIdentity!;
-
-        var snapshot = new
+        return new
         {
+            collateralMasterId = collateralMasterId.ToString(),
+            role,
+            propertyId = property.PropertyId.ToString(),
             type = "Machine",
             machineRegistrationNo = m.RegistrationNo,
             serialNo = m.SerialNo,
@@ -154,7 +144,104 @@ internal static class SnapshotBuilder
             location = m.Location,
             ownerName = m.OwnerName
         };
-
-        return JsonSerializer.Serialize(snapshot, JsonOptions);
     }
+
+    /// <summary>
+    /// Builds the property entry for a Leasehold property.
+    /// </summary>
+    public static object BuildLeaseholdPropertyEntry(
+        Guid collateralMasterId,
+        AppraisalPropertyForCollateral property,
+        string role,
+        Guid underlyingMasterId,
+        string underlyingType)
+    {
+        var lh = property.LeaseholdIdentity!;
+        return new
+        {
+            collateralMasterId = collateralMasterId.ToString(),
+            role,
+            propertyId = property.PropertyId.ToString(),
+            type = "Leasehold",
+            leaseRegistrationNo = lh.ContractNo,
+            underlyingMasterId = underlyingMasterId.ToString(),
+            underlyingType,
+            lessor = lh.LessorName,
+            lessee = lh.LesseeName,
+            leaseTermStart = lh.LeaseStartDate?.ToString("yyyy-MM-dd"),
+            leaseTermEnd = lh.LeaseEndDate?.ToString("yyyy-MM-dd")
+        };
+    }
+
+    /// <summary>
+    /// Builds the constructionInspections[] list for a group, gathering CIs from a set of
+    /// relevant properties (land + buildings on that land).
+    /// </summary>
+    public static IReadOnlyList<object> BuildConstructionInspectionsForGroup(
+        IEnumerable<AppraisalPropertyForCollateral> groupProperties)
+    {
+        return groupProperties
+            .Where(p => p.ConstructionInspection is not null)
+            .Select(p =>
+            {
+                var ci = p.ConstructionInspection!;
+                if (ci.IsFullDetail)
+                {
+                    return (object)new
+                    {
+                        propertyId = p.PropertyId.ToString(),
+                        inspectionId = ci.InspectionId.ToString(),
+                        isFullDetail = true,
+                        overallCurrentProgressPercent = ci.OverallCurrentProgressPercent,
+                        remark = ci.Remark,
+                        workDetails = ci.WorkDetails?.Select(d => new
+                        {
+                            workDetailId = d.WorkDetailId.ToString(),
+                            constructionWorkGroupId = d.ConstructionWorkGroupId.ToString(),
+                            constructionWorkItemId = d.ConstructionWorkItemId?.ToString(),
+                            workItemName = d.WorkItemName,
+                            displayOrder = d.DisplayOrder,
+                            proportionPct = d.ProportionPct,
+                            previousProgressPct = d.PreviousProgressPct,
+                            currentProgressPct = d.CurrentProgressPct,
+                            currentProportionPct = d.CurrentProportionPct,
+                            constructionValue = d.ConstructionValue
+                        }).ToList()
+                    };
+                }
+                else
+                {
+                    return (object)new
+                    {
+                        propertyId = p.PropertyId.ToString(),
+                        inspectionId = ci.InspectionId.ToString(),
+                        isFullDetail = false,
+                        overallCurrentProgressPercent = ci.OverallCurrentProgressPercent,
+                        summaryDetail = ci.SummaryDetail,
+                        summaryPreviousProgressPct = ci.SummaryPreviousProgressPct,
+                        summaryPreviousValue = ci.SummaryPreviousValue,
+                        summaryCurrentProgressPct = ci.SummaryCurrentProgressPct,
+                        summaryCurrentValue = ci.SummaryCurrentValue,
+                        remark = ci.Remark
+                    };
+                }
+            })
+            .ToList();
+    }
+}
+
+/// <summary>
+/// Represents a single property group entry within the snapshot's groups[] array.
+/// Serialized as part of the engagement snapshot JSON.
+/// </summary>
+internal sealed class PropertyGroupSnapshot
+{
+    public string? GroupId { get; init; }
+    public int? GroupNumber { get; init; }
+    public string IsMasterId { get; init; } = null!;
+    public bool IsPrimary { get; init; }
+    public decimal? BuildingCost { get; init; }
+    public decimal? AppraisalValue { get; init; }
+    public IReadOnlyList<object> Properties { get; init; } = [];
+    public IReadOnlyList<object> ConstructionInspections { get; init; } = [];
 }

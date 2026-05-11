@@ -24,7 +24,7 @@ public record PrevAppraisalSnapshotDto(
     Guid AppraisalId,
     string? AppraisalNumber,
     decimal? AppraisalValue,
-    DateTime? CompletedDate
+    DateTime? AppointmentDate
 );
 
 /// <summary>

@@ -23,8 +23,10 @@ public class CollateralMasterConfiguration : IEntityTypeConfiguration<Collateral
             .HasColumnType("uniqueidentifier")
             .IsRequired(false);
 
-        builder.Property(m => m.CreatedAt).HasColumnName("CreatedOn");
-        builder.Property(m => m.UpdatedAt).HasColumnName("UpdatedOn");
+        builder.Property(m => m.RowVersion).IsRowVersion();
+
+        builder.Property(m => m.CreatedAt).HasColumnName("CreatedAt");
+        builder.Property(m => m.UpdatedAt).HasColumnName("UpdatedAt");
         builder.Property(m => m.CreatedBy).HasMaxLength(100);
         builder.Property(m => m.UpdatedBy).HasMaxLength(100);
 

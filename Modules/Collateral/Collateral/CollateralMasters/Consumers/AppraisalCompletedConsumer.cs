@@ -1,6 +1,7 @@
 using MassTransit;
 using Shared.Exceptions;
 using Shared.Messaging.Events;
+using Shared.Messaging.Filters;
 
 namespace Collateral.CollateralMasters.Consumers;
 
@@ -11,14 +12,20 @@ namespace Collateral.CollateralMasters.Consumers;
 /// won't help since the data won't change without admin merge — and configured to skip retry
 /// in MassTransitConfiguration via UseMessageRetry.Ignore<ConflictException>().
 /// Auto-registered via the collateralAssembly scan in Program.cs.
+/// InboxGuard deduplicates concurrent/retried delivery so last-known field updates are not
+/// silently lost on second-receipt unique-violation paths.
 /// </summary>
 public class AppraisalCompletedConsumer(
     ICollateralMasterUpsertService upsertService,
-    ILogger<AppraisalCompletedConsumer> logger)
+    ILogger<AppraisalCompletedConsumer> logger,
+    InboxGuard<CollateralDbContext> inboxGuard)
     : IConsumer<AppraisalCompletedIntegrationEvent>
 {
     public async Task Consume(ConsumeContext<AppraisalCompletedIntegrationEvent> context)
     {
+        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
+            return;
+
         var msg = context.Message;
 
         logger.LogInformation(
@@ -45,5 +52,7 @@ public class AppraisalCompletedConsumer(
         logger.LogInformation(
             "AppraisalCompletedConsumer: completed for AppraisalId={AppraisalId}",
             msg.AppraisalId);
+
+        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 }

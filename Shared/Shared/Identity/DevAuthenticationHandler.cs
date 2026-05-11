@@ -53,6 +53,7 @@ public class DevAuthenticationHandler(
             new Claim("scope", "request.write"),
             new Claim("scope", "document.read"),
             new Claim("scope", "document.write"),
+            new Claim("scope", "integration"),
         };
 
         var identity = new ClaimsIdentity(claims, SchemeName);

@@ -119,9 +119,6 @@ namespace Integration.Infrastructure.Migrations
                     b.Property<int?>("LastStatusCode")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("NextRetryAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("Payload")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -151,9 +148,6 @@ namespace Integration.Infrastructure.Migrations
 
                     b.HasIndex("SubscriptionId")
                         .HasDatabaseName("IX_WebhookDelivery_SubscriptionId");
-
-                    b.HasIndex("Status", "NextRetryAt")
-                        .HasDatabaseName("IX_WebhookDelivery_Status_NextRetryAt");
 
                     b.ToTable("WebhookDeliveries", "integration");
                 });

@@ -9,7 +9,6 @@ public class WebhookDelivery : Entity<Guid>
     public int AttemptCount { get; private set; }
     public int? LastStatusCode { get; private set; }
     public string? LastError { get; private set; }
-    public DateTime? NextRetryAt { get; private set; }
     public DateTime? DeliveredAt { get; private set; }
 
     private WebhookDelivery()
@@ -40,45 +39,27 @@ public class WebhookDelivery : Entity<Guid>
         return new WebhookDelivery(subscriptionId, eventType, payload);
     }
 
-    public void RecordAttempt(int statusCode, string? error = null)
+    public void RecordSuccess(int statusCode, int attempts, DateTime deliveredAt)
     {
-        AttemptCount++;
+        AttemptCount = attempts;
         LastStatusCode = statusCode;
-        LastError = error;
-
-        if (statusCode >= 200 && statusCode < 300)
-        {
-            Status = DeliveryStatus.Delivered;
-            DeliveredAt = DateTime.Now;
-            NextRetryAt = null;
-        }
-        else if (AttemptCount >= 3)
-        {
-            Status = DeliveryStatus.Failed;
-            NextRetryAt = null;
-        }
-        else
-        {
-            Status = DeliveryStatus.Retrying;
-            NextRetryAt = DateTime.Now.Add(GetRetryDelay(AttemptCount));
-        }
+        LastError = null;
+        Status = DeliveryStatus.Delivered;
+        DeliveredAt = deliveredAt;
     }
 
-    private static TimeSpan GetRetryDelay(int attemptCount)
+    public void RecordFailure(int statusCode, int attempts, string? error)
     {
-        return attemptCount switch
-        {
-            1 => TimeSpan.FromSeconds(30),
-            2 => TimeSpan.FromMinutes(5),
-            _ => TimeSpan.FromMinutes(30)
-        };
+        AttemptCount = attempts;
+        LastStatusCode = statusCode;
+        LastError = error;
+        Status = DeliveryStatus.Failed;
     }
 }
 
 public static class DeliveryStatus
 {
     public const string Pending = "Pending";
-    public const string Retrying = "Retrying";
     public const string Delivered = "Delivered";
     public const string Failed = "Failed";
 }

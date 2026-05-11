@@ -37,6 +37,12 @@ public class CreateRequestCommandHandler(
         var createRequestData = command.Adapt<CreateRequestData>();
         var request = await createRequestService.CreateRequestAsync(createRequestData, cancellationToken);
 
+        if (!string.IsNullOrWhiteSpace(command.ExternalCaseKey)
+            && !string.IsNullOrWhiteSpace(command.Channel))
+        {
+            request.SetExternalReference(command.ExternalCaseKey, command.Channel);
+        }
+
         request.Submit(dateTimeProvider.Now);
 
         return request.Id;

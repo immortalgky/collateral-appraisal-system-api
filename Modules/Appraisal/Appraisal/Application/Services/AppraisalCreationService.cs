@@ -72,7 +72,8 @@ public class AppraisalCreationService(
                                        && prevAppraisalId.HasValue;
 
         // Step 3: Create Appraisal aggregate
-        var resolvedAppraisalType = isConstructionInspection ? AppraisalTypes.ConstructionInspection : AppraisalTypes.New;
+        var resolvedAppraisalType =
+            isConstructionInspection ? AppraisalTypes.ConstructionInspection : AppraisalTypes.New;
         var appraisal = Domain.Appraisals.Appraisal.Create(
             requestId,
             resolvedAppraisalType,
@@ -123,16 +124,14 @@ public class AppraisalCreationService(
                 CreateLeaseLandFamilyProperty(appraisal, leaseLandFamily);
 
             foreach (var title in titlesToProcess)
-            {
                 switch (GetAppraisalFamily(title))
                 {
-                    case "U":   
-                    case "LSU": CreateCondoProperty(appraisal, title); break;
+                    case "U": CreateCondoProperty(appraisal, title); break;
+                    case "LSU": CreateLeaseAgreementCondoProperty(appraisal, title); break;
                     case "VEH": CreateVehicleProperty(appraisal, title); break;
                     case "VES": CreateVesselProperty(appraisal, title); break;
                     case "MAC": CreateMachineryProperty(appraisal, title); break;
                 }
-            }
         }
 
         // Wrap all saves in an explicit transaction to prevent partial success.
@@ -153,9 +152,7 @@ public class AppraisalCreationService(
             // Reuses the same GalleryPhotoId (mapping is a join row, not a blob copy).
             // Done after Phase 1 SaveChanges so newProperty.Id is populated.
             if (priorToNewProperties.Count > 0)
-            {
                 await CopyPhotoMappingsFromPriorAsync(priorToNewProperties, cancellationToken);
-            }
 
             // Pre-generate appendices from active AppendixType configuration
             var activeAppendixTypes = await dbContext.AppendixTypes
@@ -184,7 +181,8 @@ public class AppraisalCreationService(
                 var project = Project.Create(appraisal.Id, projectType);
                 dbContext.Projects.Add(project);
                 await unitOfWork.SaveChangesAsync(cancellationToken);
-                logger.LogInformation("Initialized Project {ProjectId} (type={ProjectType}) for appraisal {AppraisalId}",
+                logger.LogInformation(
+                    "Initialized Project {ProjectId} (type={ProjectType}) for appraisal {AppraisalId}",
                     project.Id, projectType, appraisal.Id);
             }
 
@@ -244,10 +242,10 @@ public class AppraisalCreationService(
             if (fee is not null)
             {
                 var appraisalFee = AppraisalFee.Create(
-                    assignmentId: assignment.Id,
-                    feePaymentType: fee.FeePaymentType,
-                    feeNotes: fee.FeeNotes,
-                    totalSellingPrice: fee.TotalSellingPrice);
+                    assignment.Id,
+                    fee.FeePaymentType,
+                    fee.FeeNotes,
+                    fee.TotalSellingPrice);
                 if (fee.AbsorbedAmount is > 0m)
                     appraisalFee.SetBankAbsorb(fee.AbsorbedAmount.Value);
                 dbContext.AppraisalFees.Add(appraisalFee);
@@ -293,26 +291,28 @@ public class AppraisalCreationService(
     // Family codes mirror the old letter codes used internally in the Appraisal domain.
     private static readonly Dictionary<string, string> CodeToAppraisalFamily = new()
     {
-        ["01"] = "L",   ["13"] = "L",   ["14"] = "L",   ["17"] = "L",
-        ["19"] = "L",   ["21"] = "L",   ["26"] = "L",   ["27"] = "L",
-        ["02"] = "LB",  ["03"] = "LB",  ["04"] = "LB",  ["23"] = "LB",
-        ["24"] = "LB",  ["32"] = "LB",
-        ["05"] = "B",   ["06"] = "B",   ["07"] = "B",   ["15"] = "B",
-        ["16"] = "B",   ["18"] = "B",   ["20"] = "B",   ["22"] = "B",
-        ["08"] = "U",   ["33"] = "U",
-        ["09"] = "LS",  ["25"] = "LS",  ["30"] = "LS",  ["31"] = "LS",
+        ["01"] = "L", ["13"] = "L", ["14"] = "L", ["17"] = "L",
+        ["19"] = "L", ["21"] = "L", ["26"] = "L", ["27"] = "L",
+        ["02"] = "LB", ["03"] = "LB", ["04"] = "LB", ["23"] = "LB",
+        ["24"] = "LB", ["32"] = "LB",
+        ["05"] = "B", ["06"] = "B", ["07"] = "B", ["15"] = "B",
+        ["16"] = "B", ["18"] = "B", ["20"] = "B", ["22"] = "B",
+        ["08"] = "U", ["33"] = "U",
+        ["09"] = "LS", ["25"] = "LS", ["30"] = "LS", ["31"] = "LS",
         ["10"] = "VEH",
         ["11"] = "MAC",
         ["12"] = "VES",
         ["28"] = "LSU",
-        ["29"] = "LSL",
+        ["29"] = "LSL"
     };
 
     // Codes that require Project aggregate initialization alongside the Appraisal
     private static readonly HashSet<string> ProjectCodes = ["32", "33"];
 
-    private static string GetAppraisalFamily(RequestTitleDto t) =>
-        CodeToAppraisalFamily.TryGetValue(t.CollateralType ?? "", out var family) ? family : "";
+    private static string GetAppraisalFamily(RequestTitleDto t)
+    {
+        return CodeToAppraisalFamily.TryGetValue(t.CollateralType ?? "", out var family) ? family : "";
+    }
 
     private void CreateLandFamilyProperty(Domain.Appraisals.Appraisal appraisal, List<RequestTitleDto> titles)
     {
@@ -374,9 +374,37 @@ public class AppraisalCreationService(
             requestTitle.TitleAddress?.Province);
 
         condoDetail.Update(
-            propertyName: requestTitle.TitleAddress?.ProjectName,
-            condoName: requestTitle.CondoName,
-            buildingNumber: requestTitle.BuildingNumber,
+            requestTitle.TitleAddress?.ProjectName,
+            requestTitle.CondoName,
+            requestTitle.BuildingNumber,
+            roomNumber: requestTitle.RoomNumber,
+            floorNumber: requestTitle.FloorNumber,
+            usableArea: requestTitle.UsableArea,
+            address: adminAddress,
+            ownerName: requestTitle.OwnerName,
+            street: requestTitle.TitleAddress?.Road,
+            soi: requestTitle.TitleAddress?.Soi);
+    }
+
+    private void CreateLeaseAgreementCondoProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
+    {
+        var property = appraisal.AddLeaseAgreementCondoProperty();
+
+        logger.LogInformation("Added lease agreement condo property {PropertyId} for title {RoomNumber}",
+            property.Id, requestTitle.RoomNumber);
+
+        var condoDetail = property.CondoDetail;
+        if (condoDetail == null) return;
+
+        var adminAddress = AdministrativeAddress.Create(
+            requestTitle.TitleAddress?.SubDistrict,
+            requestTitle.TitleAddress?.District,
+            requestTitle.TitleAddress?.Province);
+
+        condoDetail.Update(
+            requestTitle.TitleAddress?.ProjectName,
+            requestTitle.CondoName,
+            requestTitle.BuildingNumber,
             roomNumber: requestTitle.RoomNumber,
             floorNumber: requestTitle.FloorNumber,
             usableArea: requestTitle.UsableArea,
@@ -482,7 +510,8 @@ public class AppraisalCreationService(
         var otherParts = new List<string>();
         otherParts.Add($"RegistrationStatus={requestTitle.RegistrationStatus}");
         if (requestTitle.InvoiceNumber is not null) otherParts.Add($"Invoice={requestTitle.InvoiceNumber}");
-        if (requestTitle.InstallationStatus is not null) otherParts.Add($"InstallationStatus={requestTitle.InstallationStatus}");
+        if (requestTitle.InstallationStatus is not null)
+            otherParts.Add($"InstallationStatus={requestTitle.InstallationStatus}");
 
         machineryDetail.Update(
             registrationNo: requestTitle.RegistrationNo,
@@ -497,35 +526,36 @@ public class AppraisalCreationService(
     /// Uses the same CopyFrom static factories as Appraisal.CopyProperty().
     /// ConstructionInspection detail is excluded — it starts empty for fresh CI tracking.
     /// </summary>
-    private async Task<List<(Guid PriorPropertyId, AppraisalProperty NewProperty)>> CopyPropertiesFromPriorAppraisalAsync(
-        Domain.Appraisals.Appraisal appraisal,
-        Guid prevAppraisalId,
-        CancellationToken cancellationToken)
+    private async Task<List<(Guid PriorPropertyId, AppraisalProperty NewProperty)>>
+        CopyPropertiesFromPriorAppraisalAsync(
+            Domain.Appraisals.Appraisal appraisal,
+            Guid prevAppraisalId,
+            CancellationToken cancellationToken)
     {
         var priorToNew = new List<(Guid, AppraisalProperty)>();
         var priorAppraisal = await dbContext.Appraisals
             .AsNoTracking()
             .AsSplitQuery()
             .Include(a => a.Properties)
-                .ThenInclude(p => p.LandDetail)
-                    .ThenInclude(l => l!.Titles)
+            .ThenInclude(p => p.LandDetail)
+            .ThenInclude(l => l!.Titles)
             .Include(a => a.Properties)
-                .ThenInclude(p => p.BuildingDetail)
+            .ThenInclude(p => p.BuildingDetail)
             .Include(a => a.Properties)
-                .ThenInclude(p => p.CondoDetail)
+            .ThenInclude(p => p.CondoDetail)
             .Include(a => a.Properties)
-                .ThenInclude(p => p.VehicleDetail)
+            .ThenInclude(p => p.VehicleDetail)
             .Include(a => a.Properties)
-                .ThenInclude(p => p.VesselDetail)
+            .ThenInclude(p => p.VesselDetail)
             .Include(a => a.Properties)
-                .ThenInclude(p => p.MachineryDetail)
+            .ThenInclude(p => p.MachineryDetail)
             .Include(a => a.Properties)
-                .ThenInclude(p => p.LeaseAgreementDetail)
+            .ThenInclude(p => p.LeaseAgreementDetail)
             .Include(a => a.Properties)
-                .ThenInclude(p => p.RentalInfo)
+            .ThenInclude(p => p.RentalInfo)
             .Include(a => a.Properties)
-                .ThenInclude(p => p.ConstructionInspection)
-                    .ThenInclude(ci => ci!.WorkDetails)
+            .ThenInclude(p => p.ConstructionInspection)
+            .ThenInclude(ci => ci!.WorkDetails)
             .FirstOrDefaultAsync(a => a.Id == prevAppraisalId, cancellationToken);
 
         if (priorAppraisal is null)
@@ -593,7 +623,8 @@ public class AppraisalCreationService(
                 if (prior.LandDetail is not null)
                     newProp.SetLandDetail(LandAppraisalDetail.CopyFrom(prior.LandDetail, newProp.Id));
                 if (prior.LeaseAgreementDetail is not null)
-                    newProp.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(prior.LeaseAgreementDetail, newProp.Id));
+                    newProp.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(prior.LeaseAgreementDetail,
+                        newProp.Id));
                 if (prior.RentalInfo is not null)
                     newProp.SetRentalInfo(RentalInfo.CopyFrom(prior.RentalInfo, newProp.Id));
             }
@@ -603,7 +634,8 @@ public class AppraisalCreationService(
                 if (prior.BuildingDetail is not null)
                     newProp.SetBuildingDetail(BuildingAppraisalDetail.CopyFrom(prior.BuildingDetail, newProp.Id));
                 if (prior.LeaseAgreementDetail is not null)
-                    newProp.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(prior.LeaseAgreementDetail, newProp.Id));
+                    newProp.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(prior.LeaseAgreementDetail,
+                        newProp.Id));
                 if (prior.RentalInfo is not null)
                     newProp.SetRentalInfo(RentalInfo.CopyFrom(prior.RentalInfo, newProp.Id));
             }
@@ -615,7 +647,8 @@ public class AppraisalCreationService(
                         LandAppraisalDetail.CopyFrom(prior.LandDetail, newProp.Id),
                         BuildingAppraisalDetail.CopyFrom(prior.BuildingDetail, newProp.Id));
                 if (prior.LeaseAgreementDetail is not null)
-                    newProp.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(prior.LeaseAgreementDetail, newProp.Id));
+                    newProp.SetLeaseAgreementDetail(LeaseAgreementDetail.CopyFrom(prior.LeaseAgreementDetail,
+                        newProp.Id));
                 if (prior.RentalInfo is not null)
                     newProp.SetRentalInfo(RentalInfo.CopyFrom(prior.RentalInfo, newProp.Id));
             }
@@ -673,10 +706,10 @@ public class AppraisalCreationService(
                 continue;
 
             var copy = PropertyPhotoMapping.Create(
-                galleryPhotoId: src.GalleryPhotoId,
-                appraisalPropertyId: newProp.Id,
-                photoPurpose: src.PhotoPurpose,
-                linkedBy: linkedBy);
+                src.GalleryPhotoId,
+                newProp.Id,
+                src.PhotoPurpose,
+                linkedBy);
             copy.SetSection(src.SectionReference);
             copy.SetSequence(src.SequenceNumber);
             if (src.IsThumbnail)
@@ -769,65 +802,65 @@ public class AppraisalCreationService(
             .AsNoTracking()
             .AsSplitQuery()
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.ComparableLinks)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.ComparableLinks)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.Calculations)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.Calculations)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.ComparativeFactors)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.ComparativeFactors)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.FactorScores)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.FactorScores)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.MachineCostItems)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.MachineCostItems)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.FinalValue)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.FinalValue)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.RsqResult)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.RsqResult)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.LeaseholdAnalysis!)
-                        .ThenInclude(l => l.LandGrowthPeriods)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.LeaseholdAnalysis!)
+            .ThenInclude(l => l.LandGrowthPeriods)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.LeaseholdAnalysis!)
-                        .ThenInclude(l => l.TableRows)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.LeaseholdAnalysis!)
+            .ThenInclude(l => l.TableRows)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.ProfitRentAnalysis!)
-                        .ThenInclude(pr => pr.GrowthPeriods)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.ProfitRentAnalysis!)
+            .ThenInclude(pr => pr.GrowthPeriods)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.ProfitRentAnalysis!)
-                        .ThenInclude(pr => pr.TableRows)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.ProfitRentAnalysis!)
+            .ThenInclude(pr => pr.TableRows)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.IncomeAnalysis!)
-                        .ThenInclude(i => i.Sections)
-                            .ThenInclude(s => s.Categories)
-                                .ThenInclude(c => c.Assumptions)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.IncomeAnalysis!)
+            .ThenInclude(i => i.Sections)
+            .ThenInclude(s => s.Categories)
+            .ThenInclude(c => c.Assumptions)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.HypothesisAnalysis!)
-                        .ThenInclude(h => h.Uploads)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.HypothesisAnalysis!)
+            .ThenInclude(h => h.Uploads)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.HypothesisAnalysis!)
-                        .ThenInclude(h => h.LandBuildingUnitRows)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.HypothesisAnalysis!)
+            .ThenInclude(h => h.LandBuildingUnitRows)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.HypothesisAnalysis!)
-                        .ThenInclude(h => h.CondominiumUnitRows)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.HypothesisAnalysis!)
+            .ThenInclude(h => h.CondominiumUnitRows)
             .Include(p => p.Approaches)
-                .ThenInclude(a => a.Methods)
-                    .ThenInclude(m => m.HypothesisAnalysis!)
-                        .ThenInclude(h => h.CostItems)
-                            .ThenInclude(ci => ci.DepreciationPeriods)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.HypothesisAnalysis!)
+            .ThenInclude(h => h.CostItems)
+            .ThenInclude(ci => ci.DepreciationPeriods)
             .Where(p => p.PropertyGroupId != null && priorGroupIds.Contains(p.PropertyGroupId.Value))
             .ToListAsync(cancellationToken);
 
@@ -871,5 +904,4 @@ public class AppraisalCreationService(
             "CI comparables clone: cloned {Count} AppraisalComparable row(s) from prior {PrevAppraisalId}.",
             priorComparables.Count, prevAppraisalId);
     }
-
 }

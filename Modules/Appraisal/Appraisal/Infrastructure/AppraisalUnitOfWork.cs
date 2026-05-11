@@ -123,6 +123,20 @@ public class AppraisalUnitOfWork : IAppraisalUnitOfWork
             var next = await GetNextRunningNumberAsync(RunningNumberType.QUOTATION, thaiYear, cancellationToken);
             quotation.SetQuotationNumber($"QTN-{next:D6}-{thaiYear}");
         }
+
+        // Invoices: format INV-{thaiYY}/{NNNN:D4}
+        var newInvoices = _context.ChangeTracker
+            .Entries<Domain.Invoices.Invoice>()
+            .Where(e => e.State == EntityState.Added && e.Entity.InvoiceNumber == null)
+            .Select(e => e.Entity)
+            .ToList();
+
+        foreach (var invoice in newInvoices)
+        {
+            var next = await GetNextRunningNumberAsync(RunningNumberType.INVOICE, thaiYear, cancellationToken);
+            var thaiYearShort = thaiYear % 100;
+            invoice.SetInvoiceNumber($"INV-{thaiYearShort:D2}/{next:D4}");
+        }
     }
 
     private async Task<int> GetNextRunningNumberAsync(
@@ -153,6 +167,7 @@ public class AppraisalUnitOfWork : IAppraisalUnitOfWork
             RunningNumberType.APPRAISAL => ("APPRAISAL", "A"),
             RunningNumberType.MARKET_COMPARABLE => ("MARKET_COMPARABLE", "MKC"),
             RunningNumberType.QUOTATION => ("QUOTATION", "QTN"),
+            RunningNumberType.INVOICE => ("INVOICE", "INV"),
             _ => throw new ArgumentOutOfRangeException(nameof(type))
         };
 

@@ -6,6 +6,8 @@ namespace Collateral.CollateralMasters.Models;
 /// Parameters passed by the upsert service when updating a Land master from an appraisal.
 /// </summary>
 public sealed record LandUpsertData(
+    // Owner
+    string? OwnerName,
     // Last-known land context
     string? LandShapeType,
     string? LandZoneType,
@@ -15,25 +17,31 @@ public sealed record LandUpsertData(
     decimal? LandArea,
     string? Street,
     string? Village,
-    string? PostalCode,
     decimal? Latitude,
     decimal? Longitude,
     // Appraisal summary
     Guid AppraisalId,
     string AppraisalNumber,
     DateTime AppraisalDate,
-    decimal? AppraisedValue,
-    decimal TotalAppraisedValue,
     // Construction tracking
     bool IsUnderConstruction,
     decimal? OverallConstructionProgressPercent,
-    Guid? LastConstructionInspectionId
+    // Three-value model (Phase C, wired in PR-8)
+    // UnitPrice: cost-approach only — from PricingFinalValue.FinalValueAdjusted. IsMaster + aliases.
+    decimal? UnitPrice,
+    // BuildingCost: cost-approach only — from PricingFinalValue.BuildingCost. IsMaster only.
+    decimal? BuildingCost,
+    // AppraisalValue: all approaches — from PricingFinalValue.AppraisalPrice (fallbacks: FinalValueAdjusted, FinalValueRounded). IsMaster only.
+    decimal? AppraisalValue
 );
 
 /// <summary>
 /// Parameters passed by the upsert service when updating a Condo master from an appraisal.
 /// </summary>
 public sealed record CondoUpsertData(
+    // Owner
+    string? OwnerName,
+    // Last-known
     string? CondoName,
     string? Province,
     decimal? UsableArea,
@@ -41,10 +49,14 @@ public sealed record CondoUpsertData(
     int? BuildingAge,
     int? ConstructionYear,
     string? ModelName,
+    // Appraisal summary
     Guid AppraisalId,
     string AppraisalNumber,
     DateTime AppraisalDate,
-    decimal? AppraisedValue
+    // Three-value model (Phase C, wired in PR-8)
+    decimal? UnitPrice,    // cost-approach only — PricingFinalValue.FinalValueAdjusted
+    decimal? BuildingCost, // cost-approach only — PricingFinalValue.BuildingCost
+    decimal? AppraisalValue // all approaches — PricingFinalValue.AppraisalPrice (with fallbacks)
 );
 
 /// <summary>
@@ -53,28 +65,19 @@ public sealed record CondoUpsertData(
 public sealed record LeaseholdUpsertData(
     DateOnly? LeaseTermEnd,
     int? LeaseTermMonths,
-    decimal? AnnualRent,
-    string? LeasePurpose,
     Guid AppraisalId,
     string AppraisalNumber,
-    DateTime AppraisalDate,
-    decimal? AppraisedValue
+    DateTime AppraisalDate
 );
 
 /// <summary>
 /// Parameters passed by the upsert service when updating a Machine master from an appraisal.
 /// </summary>
 public sealed record MachineUpsertData(
-    string? EngineNo,
-    string? ChassisNo,
-    int? YearOfManufacture,
-    string? MachineCondition,
-    decimal? MachineAge,
     string? IncomingRegistrationNo,
     Guid AppraisalId,
     string AppraisalNumber,
-    DateTime AppraisalDate,
-    decimal? AppraisedValue
+    DateTime AppraisalDate
 );
 
 public class CollateralMaster : Aggregate<Guid>
@@ -101,6 +104,12 @@ public class CollateralMaster : Aggregate<Guid>
     /// </summary>
     public Guid? ParentMasterId { get; private set; }
 
+    /// <summary>
+    /// Optimistic concurrency token. Updated automatically by SQL Server on every write.
+    /// EditCollateralMasterCommandHandler returns 409 on DbUpdateConcurrencyException.
+    /// </summary>
+    public byte[]? RowVersion { get; private set; }
+
     public LandDetail? LandDetail { get; private set; }
     public CondoDetail? CondoDetail { get; private set; }
     public LeaseholdDetail? LeaseholdDetail { get; private set; }
@@ -112,14 +121,14 @@ public class CollateralMaster : Aggregate<Guid>
         string ownerName,
         string landOfficeCode,
         string province,
-        string amphur,
-        string tambon,
-        string titleDeedType,
-        string titleDeedNo,
-        string? surveyOrParcelNo,
+        string district,
+        string subDistrict,
+        string titleType,
+        string titleNumber,
+        string? surveyNumber,
+        string? landParcelNumber,
         string? street,
         string? village,
-        string? postalCode,
         decimal? latitude,
         decimal? longitude)
     {
@@ -135,8 +144,9 @@ public class CollateralMaster : Aggregate<Guid>
 
         master.LandDetail = new LandDetail(
             master.Id,
-            landOfficeCode, province, amphur, tambon, titleDeedType, titleDeedNo, surveyOrParcelNo,
-            street, village, postalCode, latitude, longitude,
+            landOfficeCode, province, district, subDistrict, titleType, titleNumber,
+            surveyNumber, landParcelNumber,
+            street, village, latitude, longitude,
             isDeleted: false);
 
         master.AddDomainEvent(new CollateralMasterCreatedEvent(master.Id, master.CollateralType));
@@ -152,11 +162,12 @@ public class CollateralMaster : Aggregate<Guid>
         Guid parentMasterId,
         string landOfficeCode,
         string province,
-        string amphur,
-        string tambon,
-        string titleDeedType,
-        string titleDeedNo,
-        string? surveyOrParcelNo)
+        string district,
+        string subDistrict,
+        string titleType,
+        string titleNumber,
+        string? surveyNumber,
+        string? landParcelNumber)
     {
         var alias = new CollateralMaster
         {
@@ -171,8 +182,9 @@ public class CollateralMaster : Aggregate<Guid>
         // Alias LandDetail carries only the dedup key; last-known fields stay null.
         alias.LandDetail = new LandDetail(
             alias.Id,
-            landOfficeCode, province, amphur, tambon, titleDeedType, titleDeedNo, surveyOrParcelNo,
-            street: null, village: null, postalCode: null,
+            landOfficeCode, province, district, subDistrict, titleType, titleNumber,
+            surveyNumber, landParcelNumber,
+            street: null, village: null,
             latitude: null, longitude: null,
             isDeleted: false);
 
@@ -186,7 +198,7 @@ public class CollateralMaster : Aggregate<Guid>
         string condoRegistrationNumber,
         string buildingNumber,
         string floorNumber,
-        string unitNumber,
+        string roomNumber,
         string titleNumber,
         string titleType,
         string? condoName,
@@ -204,7 +216,7 @@ public class CollateralMaster : Aggregate<Guid>
 
         master.CondoDetail = new CondoDetail(
             master.Id,
-            landOfficeCode, condoRegistrationNumber, buildingNumber, floorNumber, unitNumber, titleNumber, titleType,
+            landOfficeCode, condoRegistrationNumber, buildingNumber, floorNumber, roomNumber, titleNumber, titleType,
             condoName, province,
             isDeleted: false);
 
@@ -279,20 +291,24 @@ public class CollateralMaster : Aggregate<Guid>
                 $"UpsertFromLandAppraisal must be called on the IsMaster row (Id={Id}). " +
                 $"This row is an alias; its master is ParentMasterId={ParentMasterId}.");
 
+        // Populate OwnerName on the IsMaster aggregate root
+        if (!string.IsNullOrWhiteSpace(data.OwnerName))
+            OwnerName = data.OwnerName;
+
         LandDetail.UpdateLastKnown(
             data.LandShapeType, data.LandZoneType, data.UrbanPlanningType,
             data.AccessRoadWidth, data.RoadFrontage, data.LandArea,
-            data.Street, data.Village, data.PostalCode,
+            data.Street, data.Village,
             data.Latitude, data.Longitude);
+
+        LandDetail.UpdateValues(data.UnitPrice, data.BuildingCost, data.AppraisalValue);
 
         bool wasUnderConstruction = LandDetail.IsUnderConstructionAtLastAppraisal;
         decimal? fromPercent = LandDetail.OverallConstructionProgressPercent;
 
         LandDetail.UpdateAppraisalSummary(
             data.AppraisalId, data.AppraisalNumber, data.AppraisalDate,
-            data.AppraisedValue ?? 0m, data.TotalAppraisedValue,
-            data.IsUnderConstruction, data.OverallConstructionProgressPercent,
-            data.LastConstructionInspectionId);
+            data.IsUnderConstruction, data.OverallConstructionProgressPercent);
 
         // Raise domain event when construction flag changes
         if (wasUnderConstruction != data.IsUnderConstruction)
@@ -314,12 +330,18 @@ public class CollateralMaster : Aggregate<Guid>
         if (CondoDetail is null)
             throw new InvalidOperationException("UpsertFromCondoAppraisal called on a non-Condo master.");
 
+        // Populate OwnerName on the aggregate root
+        if (!string.IsNullOrWhiteSpace(data.OwnerName))
+            OwnerName = data.OwnerName;
+
         CondoDetail.UpdateLastKnown(
             data.CondoName, data.Province, data.UsableArea, data.LocationType,
             data.BuildingAge, data.ConstructionYear, data.ModelName);
 
+        CondoDetail.UpdateValues(data.UnitPrice, data.BuildingCost, data.AppraisalValue);
+
         CondoDetail.UpdateAppraisalSummary(
-            data.AppraisalId, data.AppraisalNumber, data.AppraisalDate, data.AppraisedValue ?? 0m);
+            data.AppraisalId, data.AppraisalNumber, data.AppraisalDate);
     }
 
     /// <summary>
@@ -330,11 +352,9 @@ public class CollateralMaster : Aggregate<Guid>
         if (LeaseholdDetail is null)
             throw new InvalidOperationException("UpsertFromLeaseholdAppraisal called on a non-Leasehold master.");
 
-        LeaseholdDetail.UpdateLastKnown(
-            data.LeaseTermEnd, data.LeaseTermMonths, data.AnnualRent, data.LeasePurpose);
+        LeaseholdDetail.UpdateLastKnown(data.LeaseTermEnd, data.LeaseTermMonths);
 
-        LeaseholdDetail.UpdateAppraisalSummary(
-            data.AppraisalId, data.AppraisalNumber, data.AppraisalDate, data.AppraisedValue ?? 0m);
+        LeaseholdDetail.UpdateAppraisalSummary(data.AppraisalId, data.AppraisalNumber, data.AppraisalDate);
     }
 
     /// <summary>
@@ -354,12 +374,7 @@ public class CollateralMaster : Aggregate<Guid>
             MachineDetail.PromoteToRegistration(data.IncomingRegistrationNo);
         }
 
-        MachineDetail.UpdateLastKnown(
-            data.EngineNo, data.ChassisNo, data.YearOfManufacture,
-            data.MachineCondition, data.MachineAge);
-
-        MachineDetail.UpdateAppraisalSummary(
-            data.AppraisalId, data.AppraisalNumber, data.AppraisalDate, data.AppraisedValue ?? 0m);
+        MachineDetail.UpdateAppraisalSummary(data.AppraisalId, data.AppraisalNumber, data.AppraisalDate);
     }
 
     /// <summary>
@@ -370,6 +385,11 @@ public class CollateralMaster : Aggregate<Guid>
         LeaseholdAdminEdit? leasehold, MachineAdminEdit? machine,
         string reason, string by)
     {
+        if (!IsMaster)
+            throw new InvalidOperationException(
+                $"Edit must be called on the IsMaster row (Id={Id}). " +
+                $"This row is an alias; its master is ParentMasterId={ParentMasterId}.");
+
         var diff = new System.Collections.Generic.Dictionary<string, object?>();
 
         if (ownerName is not null && ownerName != OwnerName)
@@ -413,10 +433,8 @@ public class CollateralMaster : Aggregate<Guid>
         string appraisalNumber,
         Guid requestId,
         string requestNumber,
-        Guid propertyId,
         string appraisalType,
         DateTime appraisalDate,
-        decimal? appraisedValue,
         string? appraiserUserId,
         Guid? appraisalCompanyId,
         string? appraisalCompanyName,
@@ -430,7 +448,7 @@ public class CollateralMaster : Aggregate<Guid>
 
         var engagement = new CollateralEngagement(
             Id, appraisalId, appraisalNumber, requestId, requestNumber,
-            propertyId, appraisalType, appraisalDate, appraisedValue,
+            appraisalType, appraisalDate,
             appraiserUserId, appraisalCompanyId, appraisalCompanyName,
             constructionInspectionFeeAmount, snapshot);
 

@@ -27,7 +27,7 @@ public class GetCollateralCatalogQueryHandler(
             Id,
             CollateralType,
             OwnerName,
-            CreatedOn,
+            CreatedAt,
             ISNULL(EngagementCount, 0)      AS EngagementCount,
             LastAppraisedDate,
             LastAppraisedValue,
@@ -92,7 +92,7 @@ public class GetCollateralCatalogQueryHandler(
 
         var orderBy = SortMap.TryGetValue(query.Sort ?? "", out var col)
             ? col
-            : "CreatedOn DESC";
+            : "CreatedAt DESC";
 
         var result = await connectionFactory.QueryPaginatedAsync<CollateralCatalogItemDto>(
             sql,

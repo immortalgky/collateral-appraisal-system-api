@@ -4,14 +4,15 @@ public class LandDetail
 {
     public Guid CollateralMasterId { get; private set; }
 
-    // Dedup key (7 columns)
+    // Dedup key (8 columns — SurveyOrParcelNo was split into SurveyNumber + LandParcelNumber)
     public string LandOfficeCode { get; private set; } = null!;
     public string Province { get; private set; } = null!;
-    public string Amphur { get; private set; } = null!;
-    public string Tambon { get; private set; } = null!;
-    public string TitleDeedType { get; private set; } = null!;
-    public string TitleDeedNo { get; private set; } = null!;
-    public string? SurveyOrParcelNo { get; private set; }
+    public string District { get; private set; } = null!;
+    public string SubDistrict { get; private set; } = null!;
+    public string TitleType { get; private set; } = null!;
+    public string TitleNumber { get; private set; } = null!;
+    public string? SurveyNumber { get; private set; }
+    public string? LandParcelNumber { get; private set; }
 
     // Address (owned)
     public Address Address { get; private set; } = null!;
@@ -27,14 +28,21 @@ public class LandDetail
     public decimal? RoadFrontage { get; private set; }
     public decimal? LandArea { get; private set; }
 
-    // Construction tracking trio
+    // Construction tracking
     public bool IsUnderConstructionAtLastAppraisal { get; private set; }
     public decimal? OverallConstructionProgressPercent { get; private set; }
-    public Guid? LastConstructionInspectionId { get; private set; }
 
-    // Appraisal summary (owned) — plus land-specific LastTotalAppraisedValue
+    // Three-value model (Phase C, wired in PR-8)
+    // UnitPrice: populated on every land master (IsMaster + aliases) — cost approach only, null otherwise.
+    // Source: PricingFinalValue.FinalValueAdjusted (the adjusted unit price per sq.wa).
+    public decimal? UnitPrice { get; private set; }
+    // BuildingCost: IsMaster only — from PricingFinalValue.BuildingCost, cost approach only.
+    public decimal? BuildingCost { get; private set; }
+    // AppraisalValue: IsMaster only — from PricingFinalValue.AppraisalPrice (fallbacks: FinalValueAdjusted, FinalValueRounded).
+    public decimal? AppraisalValue { get; private set; }
+
+    // Appraisal summary (owned)
     public AppraisalSummary AppraisalSummary { get; private set; } = null!;
-    public decimal? LastTotalAppraisedValue { get; private set; }
 
     // Synced from CollateralMaster for filtered unique index support
     public bool IsDeleted { get; private set; }
@@ -45,14 +53,14 @@ public class LandDetail
         Guid collateralMasterId,
         string landOfficeCode,
         string province,
-        string amphur,
-        string tambon,
-        string titleDeedType,
-        string titleDeedNo,
-        string? surveyOrParcelNo,
+        string district,
+        string subDistrict,
+        string titleType,
+        string titleNumber,
+        string? surveyNumber,
+        string? landParcelNumber,
         string? street,
         string? village,
-        string? postalCode,
         decimal? latitude,
         decimal? longitude,
         bool isDeleted)
@@ -60,14 +68,15 @@ public class LandDetail
         CollateralMasterId = collateralMasterId;
         LandOfficeCode = landOfficeCode;
         Province = province;
-        Amphur = amphur;
-        Tambon = tambon;
-        TitleDeedType = titleDeedType;
-        TitleDeedNo = titleDeedNo;
-        SurveyOrParcelNo = surveyOrParcelNo;
-        Address = new Address(street, village, postalCode);
+        District = district;
+        SubDistrict = subDistrict;
+        TitleType = titleType;
+        TitleNumber = titleNumber;
+        SurveyNumber = surveyNumber;
+        LandParcelNumber = landParcelNumber;
+        Address = new Address(street, village);
         Coordinates = new Coordinates(latitude, longitude);
-        AppraisalSummary = new AppraisalSummary(null, null, null, null);
+        AppraisalSummary = new AppraisalSummary(null, null, null);
         IsUnderConstructionAtLastAppraisal = false;
         IsDeleted = isDeleted;
     }
@@ -81,7 +90,6 @@ public class LandDetail
         decimal? landArea,
         string? street,
         string? village,
-        string? postalCode,
         decimal? latitude,
         decimal? longitude)
     {
@@ -91,7 +99,7 @@ public class LandDetail
         AccessRoadWidth = accessRoadWidth;
         RoadFrontage = roadFrontage;
         LandArea = landArea;
-        Address.Update(street, village, postalCode);
+        Address.Update(street, village);
         Coordinates.Update(latitude, longitude);
     }
 
@@ -99,17 +107,24 @@ public class LandDetail
         Guid appraisalId,
         string appraisalNumber,
         DateTime appraisedDate,
-        decimal appraisedValue,
-        decimal totalAppraisedValue,
         bool isUnderConstruction,
-        decimal? overallConstructionProgressPercent,
-        Guid? lastConstructionInspectionId)
+        decimal? overallConstructionProgressPercent)
     {
-        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate, appraisedValue);
-        LastTotalAppraisedValue = totalAppraisedValue;
+        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate);
         IsUnderConstructionAtLastAppraisal = isUnderConstruction;
         OverallConstructionProgressPercent = overallConstructionProgressPercent;
-        LastConstructionInspectionId = lastConstructionInspectionId;
+    }
+
+    /// <summary>
+    /// Updates the three-value model fields.
+    /// <paramref name="unitPrice"/> is set on every land master (IsMaster + aliases).
+    /// <paramref name="buildingCost"/> and <paramref name="appraisalValue"/> are IsMaster only (pass null for aliases).
+    /// </summary>
+    public void UpdateValues(decimal? unitPrice, decimal? buildingCost, decimal? appraisalValue)
+    {
+        UnitPrice = unitPrice;
+        BuildingCost = buildingCost;
+        AppraisalValue = appraisalValue;
     }
 
     internal void SetIsDeleted(bool isDeleted) => IsDeleted = isDeleted;
@@ -131,45 +146,45 @@ public class LandDetail
             diff["Land.Province"] = new { from = Province, to = edit.Province };
             Province = edit.Province;
         }
-        if (edit.Amphur is not null && edit.Amphur != Amphur)
+        if (edit.District is not null && edit.District != District)
         {
-            diff["Land.Amphur"] = new { from = Amphur, to = edit.Amphur };
-            Amphur = edit.Amphur;
+            diff["Land.District"] = new { from = District, to = edit.District };
+            District = edit.District;
         }
-        if (edit.Tambon is not null && edit.Tambon != Tambon)
+        if (edit.SubDistrict is not null && edit.SubDistrict != SubDistrict)
         {
-            diff["Land.Tambon"] = new { from = Tambon, to = edit.Tambon };
-            Tambon = edit.Tambon;
+            diff["Land.SubDistrict"] = new { from = SubDistrict, to = edit.SubDistrict };
+            SubDistrict = edit.SubDistrict;
         }
-        if (edit.TitleDeedType is not null && edit.TitleDeedType != TitleDeedType)
+        if (edit.TitleType is not null && edit.TitleType != TitleType)
         {
-            diff["Land.TitleDeedType"] = new { from = TitleDeedType, to = edit.TitleDeedType };
-            TitleDeedType = edit.TitleDeedType;
+            diff["Land.TitleType"] = new { from = TitleType, to = edit.TitleType };
+            TitleType = edit.TitleType;
         }
-        if (edit.TitleDeedNo is not null && edit.TitleDeedNo != TitleDeedNo)
+        if (edit.TitleNumber is not null && edit.TitleNumber != TitleNumber)
         {
-            diff["Land.TitleDeedNo"] = new { from = TitleDeedNo, to = edit.TitleDeedNo };
-            TitleDeedNo = edit.TitleDeedNo;
+            diff["Land.TitleNumber"] = new { from = TitleNumber, to = edit.TitleNumber };
+            TitleNumber = edit.TitleNumber;
         }
-        if (edit.SurveyOrParcelNo is not null && edit.SurveyOrParcelNo != SurveyOrParcelNo)
+        if (edit.SurveyNumber is not null && edit.SurveyNumber != SurveyNumber)
         {
-            diff["Land.SurveyOrParcelNo"] = new { from = SurveyOrParcelNo, to = edit.SurveyOrParcelNo };
-            SurveyOrParcelNo = edit.SurveyOrParcelNo;
+            diff["Land.SurveyNumber"] = new { from = SurveyNumber, to = edit.SurveyNumber };
+            SurveyNumber = edit.SurveyNumber;
+        }
+        if (edit.LandParcelNumber is not null && edit.LandParcelNumber != LandParcelNumber)
+        {
+            diff["Land.LandParcelNumber"] = new { from = LandParcelNumber, to = edit.LandParcelNumber };
+            LandParcelNumber = edit.LandParcelNumber;
         }
         if (edit.Street is not null && edit.Street != Address.Street)
         {
             diff["Land.Street"] = new { from = Address.Street, to = edit.Street };
-            Address.Update(edit.Street, Address.Village, Address.PostalCode);
+            Address.Update(edit.Street, Address.Village);
         }
         if (edit.Village is not null && edit.Village != Address.Village)
         {
             diff["Land.Village"] = new { from = Address.Village, to = edit.Village };
-            Address.Update(Address.Street, edit.Village, Address.PostalCode);
-        }
-        if (edit.PostalCode is not null && edit.PostalCode != Address.PostalCode)
-        {
-            diff["Land.PostalCode"] = new { from = Address.PostalCode, to = edit.PostalCode };
-            Address.Update(Address.Street, Address.Village, edit.PostalCode);
+            Address.Update(Address.Street, edit.Village);
         }
         if (edit.Latitude is not null && edit.Latitude != Coordinates.Latitude)
         {

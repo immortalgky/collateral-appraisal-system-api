@@ -685,7 +685,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalComparable", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -1339,7 +1338,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.ComparableAdjustment", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -2058,7 +2056,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeAnalysis", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -2143,7 +2140,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeAssumption", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -2204,7 +2200,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeCategory", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -2265,7 +2260,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.Income.IncomeSection", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -2424,7 +2418,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.LeaseholdAnalysis", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -2551,7 +2544,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.LeaseholdCalculationDetail", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -2635,7 +2627,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.LeaseholdLandGrowthPeriod", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -2682,7 +2673,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.MachineCostItem", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -2916,7 +2906,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingAnalysis", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -2982,7 +2971,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingAnalysisApproach", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -3031,7 +3019,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingAnalysisMethod", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -3097,7 +3084,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingCalculation", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -3227,7 +3213,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingComparableLink", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -3271,7 +3256,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingComparativeFactor", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -3326,7 +3310,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingFactorScore", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -3412,7 +3395,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingFinalValue", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -3484,7 +3466,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.PricingRsqResult", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -3550,7 +3531,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.ProfitRentAnalysis", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -3635,7 +3615,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.ProfitRentCalculationDetail", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -3715,7 +3694,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.ProfitRentGrowthPeriod", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -4401,6 +4379,294 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("ComparativeAnalysisTemplateFactors", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Evaluations.AppraisalEvaluation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("AdditionalComments")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("AdditionalComments");
+
+                    b.Property<Guid>("AppraisalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AppraisalNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("AppraisalNumber");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Criteria1Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Criteria1Description");
+
+                    b.Property<int>("Criteria1Rating")
+                        .HasColumnType("int")
+                        .HasColumnName("Criteria1Rating");
+
+                    b.Property<string>("Criteria2Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Criteria2Description");
+
+                    b.Property<decimal?>("Criteria2DetectedDays")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("Criteria2DetectedDays");
+
+                    b.Property<bool>("Criteria2IsAutoDetected")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("Criteria2IsAutoDetected");
+
+                    b.Property<int>("Criteria2Rating")
+                        .HasColumnType("int")
+                        .HasColumnName("Criteria2Rating");
+
+                    b.Property<string>("Criteria3Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Criteria3Description");
+
+                    b.Property<int>("Criteria3Rating")
+                        .HasColumnType("int")
+                        .HasColumnName("Criteria3Rating");
+
+                    b.Property<string>("Criteria4Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Criteria4Description");
+
+                    b.Property<int>("Criteria4Rating")
+                        .HasColumnType("int")
+                        .HasColumnName("Criteria4Rating");
+
+                    b.Property<string>("Criteria5Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Criteria5Description");
+
+                    b.Property<int>("Criteria5Rating")
+                        .HasColumnType("int")
+                        .HasColumnName("Criteria5Rating");
+
+                    b.Property<DateTime?>("EvaluatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("EvaluatedAt");
+
+                    b.Property<string>("EvaluatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("EvaluatedBy");
+
+                    b.Property<string>("EvaluationStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("EvaluationStatus");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Note");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppraisalId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AppraisalEvaluations_AppraisalId");
+
+                    b.ToTable("AppraisalEvaluations", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Invoices.Invoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InvoiceNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateOnly?>("PaymentDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("PaymentMethod")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PaymentReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Draft");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("TotalAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("InvoiceNumber")
+                        .IsUnique()
+                        .HasFilter("[InvoiceNumber] IS NOT NULL");
+
+                    b.ToTable("Invoices", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Invoices.InvoiceItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<Guid>("AppraisalFeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AppraisalNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("BankAbsorbAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CustomerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("FeeBeforeVAT")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProductType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("ReceivedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("TotalFeeAfterVAT")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("VATAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("VATRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignmentId")
+                        .IsUnique();
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("InvoiceItems", "appraisal");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparable", b =>
@@ -7181,7 +7447,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.OwnsMany("Appraisal.Domain.Appraisals.PropertyGroup", "Groups", b1 =>
                         {
                             b1.Property<Guid>("Id")
-                                .ValueGeneratedOnAdd()
                                 .HasColumnType("uniqueidentifier")
                                 .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -7239,7 +7504,6 @@ namespace Appraisal.Infrastructure.Migrations
                             b1.OwnsMany("Appraisal.Domain.Appraisals.PropertyGroupItem", "Items", b2 =>
                                 {
                                     b2.Property<Guid>("Id")
-                                        .ValueGeneratedOnAdd()
                                         .HasColumnType("uniqueidentifier")
                                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -10878,6 +11142,15 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Invoices.InvoiceItem", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Invoices.Invoice", null)
+                        .WithMany("Items")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparable", b =>
                 {
                     b.HasOne("Appraisal.Domain.MarketComparables.MarketComparableTemplate", null)
@@ -11865,6 +12138,11 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.ComparativeAnalysis.ComparativeAnalysisTemplate", b =>
                 {
                     b.Navigation("Factors");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Invoices.Invoice", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.MarketComparables.MarketComparable", b =>

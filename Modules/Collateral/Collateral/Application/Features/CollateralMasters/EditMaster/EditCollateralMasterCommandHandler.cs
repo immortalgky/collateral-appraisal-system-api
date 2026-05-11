@@ -25,15 +25,16 @@ public class EditCollateralMasterCommandHandler(
             var ld = master.LandDetail;
             var targetLoc = d.LandOfficeCode ?? ld.LandOfficeCode;
             var targetProv = d.Province ?? ld.Province;
-            var targetAmphur = d.Amphur ?? ld.Amphur;
-            var targetTambon = d.Tambon ?? ld.Tambon;
-            var targetType = d.TitleDeedType ?? ld.TitleDeedType;
-            var targetNo = d.TitleDeedNo ?? ld.TitleDeedNo;
-            var targetSurvey = d.SurveyOrParcelNo ?? ld.SurveyOrParcelNo;
+            var targetDistrict = d.District ?? ld.District;
+            var targetSubDistrict = d.SubDistrict ?? ld.SubDistrict;
+            var targetType = d.TitleType ?? ld.TitleType;
+            var targetNo = d.TitleNumber ?? ld.TitleNumber;
+            var targetSurvey = d.SurveyNumber ?? ld.SurveyNumber;
+            var targetParcel = d.LandParcelNumber ?? ld.LandParcelNumber;
 
             bool collides = await repository.LandDedupCollidesAsync(
-                master.Id, targetLoc, targetProv, targetAmphur, targetTambon,
-                targetType, targetNo, targetSurvey, cancellationToken);
+                master.Id, targetLoc, targetProv, targetDistrict, targetSubDistrict,
+                targetType, targetNo, targetSurvey, targetParcel, cancellationToken);
 
             if (collides)
                 throw new ConflictException(
@@ -50,7 +51,7 @@ public class EditCollateralMasterCommandHandler(
                 d.CondoRegistrationNumber ?? cd.CondoRegistrationNumber,
                 d.BuildingNumber ?? cd.BuildingNumber,
                 d.FloorNumber ?? cd.FloorNumber,
-                d.UnitNumber ?? cd.UnitNumber,
+                d.RoomNumber ?? cd.RoomNumber,
                 d.TitleNumber ?? cd.TitleNumber,
                 d.TitleType ?? cd.TitleType,
                 cancellationToken);
@@ -107,7 +108,15 @@ public class EditCollateralMasterCommandHandler(
             command.Reason,
             by);
 
-        await repository.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await repository.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConflictException(
+                "CollateralMaster was modified by another request. Please reload and retry.");
+        }
 
         return new EditCollateralMasterResult(master.Id);
     }

@@ -88,7 +88,7 @@ public class Appraisal : Aggregate<Guid>
         RequestId = requestId;
         AppraisalType = appraisalType;
         Priority = priority;
-        Status = AppraisalStatus.Submitted;
+        Status = AppraisalStatus.Pending;
         SLADays = slaDays;
         IsPma = isPma;
         Purpose = purpose;

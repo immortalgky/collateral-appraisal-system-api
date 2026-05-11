@@ -30,14 +30,14 @@ public class EditCollateralMasterEndpoint : ICarterModule
                             : new LandAdminEdit(
                                 request.LandDetail.LandOfficeCode,
                                 request.LandDetail.Province,
-                                request.LandDetail.Amphur,
-                                request.LandDetail.Tambon,
-                                request.LandDetail.TitleDeedType,
-                                request.LandDetail.TitleDeedNo,
-                                request.LandDetail.SurveyOrParcelNo,
+                                request.LandDetail.District,
+                                request.LandDetail.SubDistrict,
+                                request.LandDetail.TitleType,
+                                request.LandDetail.TitleNumber,
+                                request.LandDetail.SurveyNumber,
+                                request.LandDetail.LandParcelNumber,
                                 request.LandDetail.Street,
                                 request.LandDetail.Village,
-                                request.LandDetail.PostalCode,
                                 request.LandDetail.Latitude,
                                 request.LandDetail.Longitude,
                                 request.LandDetail.LandShapeType,
@@ -53,7 +53,7 @@ public class EditCollateralMasterEndpoint : ICarterModule
                                 request.CondoDetail.CondoRegistrationNumber,
                                 request.CondoDetail.BuildingNumber,
                                 request.CondoDetail.FloorNumber,
-                                request.CondoDetail.UnitNumber,
+                                request.CondoDetail.RoomNumber,
                                 request.CondoDetail.TitleNumber,
                                 request.CondoDetail.TitleType,
                                 request.CondoDetail.CondoName,
@@ -71,9 +71,7 @@ public class EditCollateralMasterEndpoint : ICarterModule
                                 request.LeaseholdDetail.Lessee,
                                 request.LeaseholdDetail.LeaseTermStart,
                                 request.LeaseholdDetail.LeaseTermEnd,
-                                request.LeaseholdDetail.LeaseTermMonths,
-                                request.LeaseholdDetail.AnnualRent,
-                                request.LeaseholdDetail.LeasePurpose),
+                                request.LeaseholdDetail.LeaseTermMonths),
                         request.MachineDetail is null
                             ? null
                             : new MachineAdminEdit(
@@ -81,12 +79,7 @@ public class EditCollateralMasterEndpoint : ICarterModule
                                 request.MachineDetail.SerialNo,
                                 request.MachineDetail.Brand,
                                 request.MachineDetail.Model,
-                                request.MachineDetail.Manufacturer,
-                                request.MachineDetail.EngineNo,
-                                request.MachineDetail.ChassisNo,
-                                request.MachineDetail.YearOfManufacture,
-                                request.MachineDetail.MachineCondition,
-                                request.MachineDetail.MachineAge));
+                                request.MachineDetail.Manufacturer));
 
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);

@@ -72,9 +72,20 @@ public class GetDecisionSummaryQueryHandler(
             ORDER BY cm.MemberName
             """;
 
+        // Query 5: Appraisal date — most recent non-cancelled appointment for this appraisal
+        const string appraisalDateSql = """
+            SELECT TOP 1 ap.AppointmentDateTime
+            FROM appraisal.Appointments ap
+            JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
+            WHERE aa.AppraisalId = @AppraisalId
+              AND ap.Status <> 'Cancelled'
+            ORDER BY ap.AppointmentDateTime DESC
+            """;
+
         var valuationReview = await connectionFactory.QueryFirstOrDefaultAsync<ValuationReviewRow>(valuationReviewSql, param);
         var governmentPrices = (await connectionFactory.QueryAsync<GovernmentPriceRow>(govPriceSql, param)).ToList();
         var approvalRows = (await connectionFactory.QueryAsync<ApprovalRow>(approvalSql, param)).ToList();
+        var appraisalDate = await connectionFactory.QueryFirstOrDefaultAsync<DateTime?>(appraisalDateSql, param);
 
         // Stored decision
         var decision = await decisionRepository.GetByAppraisalIdAsync(query.AppraisalId, cancellationToken);
@@ -115,6 +126,7 @@ public class GetDecisionSummaryQueryHandler(
                 reviewId,
                 approvalList,
                 decision,
+                appraisalDate,
                 cancellationToken);
         }
 
@@ -132,6 +144,7 @@ public class GetDecisionSummaryQueryHandler(
             reviewId,
             approvalList,
             decision,
+            appraisalDate,
             cancellationToken);
     }
 
@@ -149,6 +162,7 @@ public class GetDecisionSummaryQueryHandler(
         Guid? reviewId,
         List<DecisionApprovalListItem>? approvalList,
         AppraisalDecision? decision,
+        DateTime? appraisalDate,
         CancellationToken cancellationToken)
     {
         // Query 1: Approach matrix (flat rows to be grouped)
@@ -212,7 +226,8 @@ public class GetDecisionSummaryQueryHandler(
             IsBlock: false,
             BlockApproachMatrix: null,
             BlockModelPrices: null,
-            ConstructionSummary: constructionSummary
+            ConstructionSummary: constructionSummary,
+            AppraisalDate: appraisalDate
         );
     }
 
@@ -229,6 +244,7 @@ public class GetDecisionSummaryQueryHandler(
         Guid? reviewId,
         List<DecisionApprovalListItem>? approvalList,
         AppraisalDecision? decision,
+        DateTime? appraisalDate,
         CancellationToken cancellationToken)
     {
         var blockParam = new DynamicParameters();
@@ -342,7 +358,8 @@ public class GetDecisionSummaryQueryHandler(
             IsBlock: true,
             BlockApproachMatrix: blockApproachMatrix,
             BlockModelPrices: blockModelPrices,
-            ConstructionSummary: null
+            ConstructionSummary: null,
+            AppraisalDate: appraisalDate
         );
     }
 

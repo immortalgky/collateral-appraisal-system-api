@@ -29,7 +29,7 @@ public class GetEngagementSnapshotQueryHandler(
                 e.AppraiserUserId,
                 e.AppraisalCompanyId,
                 e.AppraisalCompanyName,
-                e.CreatedOn,
+                e.CreatedAt,
                 e.Snapshot
             FROM collateral.CollateralEngagements e
             INNER JOIN collateral.CollateralMasters m ON m.Id = e.CollateralMasterId
@@ -61,7 +61,7 @@ public class GetEngagementSnapshotQueryHandler(
             row.AppraiserUserId,
             row.AppraisalCompanyId,
             row.AppraisalCompanyName,
-            row.CreatedOn,
+            row.CreatedAt,
             row.Snapshot ?? "{}");
     }
 
@@ -80,7 +80,7 @@ public class GetEngagementSnapshotQueryHandler(
         public string? AppraiserUserId { get; init; }
         public Guid? AppraisalCompanyId { get; init; }
         public string? AppraisalCompanyName { get; init; }
-        public DateTime CreatedOn { get; init; }
+        public DateTime CreatedAt { get; init; }
         public string? Snapshot { get; init; }
     }
 }

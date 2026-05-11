@@ -11,19 +11,18 @@ public record LookupCollateralMasterQuery(
     // Land dedup params
     string? LandOfficeCode,
     string? Province,
-    string? Amphur,
-    string? Tambon,
-    string? TitleDeedType,
-    string? TitleDeedNo,
-    string? SurveyOrParcelNo,
+    string? District,
+    string? SubDistrict,
+    string? TitleType,
+    string? TitleNumber,
+    string? SurveyNumber,
 
     // Condo dedup params
     string? CondoRegistrationNumber,
     string? Building,
     string? Floor,
     string? Unit,
-    string? TitleNumber,
-    string? TitleType,
+    // TitleNumber and TitleType are shared with Land dedup params above
 
     // Leasehold dedup params
     string? ContractNo,

@@ -13,18 +13,18 @@ public class LandDetailConfiguration : IEntityTypeConfiguration<LandDetail>
         // Dedup key columns
         builder.Property(d => d.LandOfficeCode).IsRequired().HasMaxLength(20);
         builder.Property(d => d.Province).IsRequired().HasMaxLength(100);
-        builder.Property(d => d.Amphur).IsRequired().HasMaxLength(100);
-        builder.Property(d => d.Tambon).IsRequired().HasMaxLength(100);
-        builder.Property(d => d.TitleDeedType).IsRequired().HasMaxLength(20);
-        builder.Property(d => d.TitleDeedNo).IsRequired().HasMaxLength(50);
-        builder.Property(d => d.SurveyOrParcelNo).HasMaxLength(50);
+        builder.Property(d => d.District).IsRequired().HasMaxLength(100);
+        builder.Property(d => d.SubDistrict).IsRequired().HasMaxLength(100);
+        builder.Property(d => d.TitleType).IsRequired().HasMaxLength(20);
+        builder.Property(d => d.TitleNumber).IsRequired().HasMaxLength(50);
+        builder.Property(d => d.SurveyNumber).HasMaxLength(50);
+        builder.Property(d => d.LandParcelNumber).HasMaxLength(50);
 
         // Address (owned — flat columns)
         builder.OwnsOne(d => d.Address, a =>
         {
             a.Property(x => x.Street).HasColumnName("Street").HasMaxLength(200);
             a.Property(x => x.Village).HasColumnName("Village").HasMaxLength(200);
-            a.Property(x => x.PostalCode).HasColumnName("PostalCode").HasMaxLength(20);
         });
 
         // Coordinates (owned — flat columns)
@@ -46,31 +46,34 @@ public class LandDetailConfiguration : IEntityTypeConfiguration<LandDetail>
         builder.Property(d => d.IsUnderConstructionAtLastAppraisal).IsRequired().HasDefaultValue(false);
         builder.Property(d => d.OverallConstructionProgressPercent).HasPrecision(7, 4);
 
+        // Three-value model (Phase C)
+        builder.Property(d => d.UnitPrice).HasPrecision(18, 2);
+        builder.Property(d => d.BuildingCost).HasPrecision(18, 2);
+        builder.Property(d => d.AppraisalValue).HasPrecision(18, 2);
+
         // AppraisalSummary (owned — flat columns)
         builder.OwnsOne(d => d.AppraisalSummary, s =>
         {
             s.Property(x => x.LastAppraisalId).HasColumnName("LastAppraisalId");
             s.Property(x => x.LastAppraisalNumber).HasColumnName("LastAppraisalNumber").HasMaxLength(50);
             s.Property(x => x.LastAppraisedDate).HasColumnName("LastAppraisedDate");
-            s.Property(x => x.LastAppraisedValue).HasColumnName("LastAppraisedValue").HasPrecision(18, 2);
         });
 
-        builder.Property(d => d.LastTotalAppraisedValue).HasPrecision(18, 2);
         builder.Property(d => d.IsDeleted).IsRequired().HasDefaultValue(false);
 
         // Filtered unique index for dedup — uses IsDeleted on THIS table (denormalized from master)
         builder.HasIndex(d => new
             {
-                d.LandOfficeCode, d.Province, d.Amphur, d.Tambon,
-                d.TitleDeedType, d.TitleDeedNo, d.SurveyOrParcelNo
+                d.LandOfficeCode, d.Province, d.District, d.SubDistrict,
+                d.TitleType, d.TitleNumber, d.SurveyNumber, d.LandParcelNumber
             })
             .IsUnique()
             .HasFilter("[IsDeleted] = 0")
             .HasDatabaseName("UX_LandDetails_DedupKey_Active");
 
         // Partial-key lookup support
-        builder.HasIndex(d => new { d.LandOfficeCode, d.TitleDeedNo })
-            .HasDatabaseName("IX_LandDetails_LandOffice_TitleDeedNo");
+        builder.HasIndex(d => new { d.LandOfficeCode, d.TitleNumber })
+            .HasDatabaseName("IX_LandDetails_LandOffice_TitleNumber");
 
         // Analytics: under-construction filter
         builder.HasIndex(d => d.IsUnderConstructionAtLastAppraisal)

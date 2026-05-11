@@ -64,33 +64,37 @@ public class WebhookService(
         WebhookDelivery delivery,
         CancellationToken cancellationToken)
     {
+        var unixTimestamp = ((DateTimeOffset)dateTimeProvider.ApplicationNow.ToUniversalTime()).ToUnixTimeSeconds();
+        var signedPayload = $"{unixTimestamp}.{delivery.Payload}";
+        var signature = GenerateSignature(signedPayload, subscription.SecretKey);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, subscription.CallbackUrl)
+        {
+            Content = new StringContent(delivery.Payload, Encoding.UTF8, "application/json")
+        };
+
+        request.Headers.Add("X-Timestamp", unixTimestamp.ToString(CultureInfo.InvariantCulture));
+        request.Headers.Add("X-Signature", $"sha256={signature}");
+        request.Headers.Add("X-Event-Type", delivery.EventType);
+
         try
         {
             var client = httpClientFactory.CreateClient("Webhook");
 
-            var unixTimestamp = ((DateTimeOffset)dateTimeProvider.ApplicationNow.ToUniversalTime()).ToUnixTimeSeconds();
-            var signedPayload = $"{unixTimestamp}.{delivery.Payload}";
-            var signature = GenerateSignature(signedPayload, subscription.SecretKey);
-
-            var request = new HttpRequestMessage(HttpMethod.Post, subscription.CallbackUrl)
-            {
-                Content = new StringContent(delivery.Payload, Encoding.UTF8, "application/json")
-            };
-
-            request.Headers.Add("X-Timestamp", unixTimestamp.ToString(CultureInfo.InvariantCulture));
-            request.Headers.Add("X-Signature", $"sha256={signature}");
-            request.Headers.Add("X-Event-Type", delivery.EventType);
-
+            // The resilience pipeline retries internally; when SendAsync returns we have the final outcome.
+            // WebhookAttemptCounterHandler increments the count on each wire attempt.
             var response = await client.SendAsync(request, cancellationToken);
 
-            delivery.RecordAttempt((int)response.StatusCode);
+            var attempts = ReadAttemptCount(request);
             subscription.RecordDelivery(dateTimeProvider.ApplicationNow);
-
-            await deliveryRepository.SaveChangesAsync(cancellationToken);
-            await subscriptionRepository.SaveChangesAsync(cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
+                delivery.RecordSuccess((int)response.StatusCode, attempts, dateTimeProvider.ApplicationNow);
+
+                await PersistDeliveryAsync(delivery, cancellationToken);
+                await subscriptionRepository.SaveChangesAsync(cancellationToken);
+
                 logger.LogInformation(
                     "Webhook delivered successfully to {Url} for event {EventType}",
                     subscription.CallbackUrl,
@@ -98,6 +102,11 @@ public class WebhookService(
             }
             else
             {
+                delivery.RecordFailure((int)response.StatusCode, attempts, null);
+
+                await PersistDeliveryAsync(delivery, cancellationToken);
+                await subscriptionRepository.SaveChangesAsync(cancellationToken);
+
                 logger.LogWarning(
                     "Webhook delivery failed with status {StatusCode} to {Url} for event {EventType}",
                     (int)response.StatusCode,
@@ -112,8 +121,33 @@ public class WebhookService(
                 subscription.CallbackUrl,
                 delivery.EventType);
 
-            delivery.RecordAttempt(0, ex.Message);
+            delivery.RecordFailure(0, ReadAttemptCount(request), ex.Message);
+            await PersistDeliveryAsync(delivery, cancellationToken);
+        }
+    }
+
+    private static int ReadAttemptCount(HttpRequestMessage request)
+    {
+        request.Options.TryGetValue(WebhookAttemptCounterHandler.AttemptCountKey, out var attempts);
+        return attempts;
+    }
+
+    // Guards against permanently stranding the row at Status='Pending'.
+    // Without an out-of-process retry drainer, a thrown SaveChangesAsync would otherwise be invisible.
+    private async Task PersistDeliveryAsync(WebhookDelivery delivery, CancellationToken cancellationToken)
+    {
+        try
+        {
             await deliveryRepository.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception saveEx)
+        {
+            logger.LogCritical(saveEx,
+                "Failed to persist webhook delivery outcome for delivery {DeliveryId} (Status={Status}, AttemptCount={AttemptCount}). Row may remain stuck in its prior state.",
+                delivery.Id,
+                delivery.Status,
+                delivery.AttemptCount);
+            throw;
         }
     }
 

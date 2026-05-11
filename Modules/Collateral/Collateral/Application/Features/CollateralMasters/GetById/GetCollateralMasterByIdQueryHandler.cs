@@ -41,7 +41,7 @@ public class GetCollateralMasterByIdQueryHandler(
                 CollateralType,
                 OwnerName,
                 Land_Province     AS Province,
-                Land_TitleDeedNo  AS TitleDeedNo,
+                Land_TitleNumber  AS TitleNumber,
                 LastAppraisedDate,
                 LastAppraisedValue
             FROM collateral.vw_CollateralMasters
@@ -58,7 +58,7 @@ public class GetCollateralMasterByIdQueryHandler(
             row.CollateralType,
             row.OwnerName,
             row.Province,
-            row.TitleDeedNo,
+            row.TitleNumber,
             row.LastAppraisedDate,
             row.LastAppraisedValue);
     }
@@ -78,14 +78,13 @@ public class GetCollateralMasterByIdQueryHandler(
                 landDetail = new LandDetailDto(
                     row.Land_LandOfficeCode!,
                     row.Land_Province!,
-                    row.Land_Amphur!,
-                    row.Land_Tambon!,
-                    row.Land_TitleDeedType!,
-                    row.Land_TitleDeedNo!,
-                    row.Land_SurveyOrParcelNo,
+                    row.Land_District!,
+                    row.Land_SubDistrict!,
+                    row.Land_TitleType!,
+                    row.Land_TitleNumber!,
+                    row.Land_SurveyNumber,
                     row.Land_Street,
                     row.Land_Village,
-                    row.Land_PostalCode,
                     row.Land_Latitude,
                     row.Land_Longitude,
                     row.Land_LandShapeType,
@@ -96,12 +95,13 @@ public class GetCollateralMasterByIdQueryHandler(
                     row.Land_LandArea,
                     row.IsUnderConstructionAtLastAppraisal ?? false,
                     row.OverallConstructionProgressPercent,
-                    row.Land_LastConstructionInspectionId,
+                    // PR-5: Land_LastConstructionInspectionId removed — CI list is in the engagement snapshot.
                     row.Land_LastAppraisalId,
                     row.Land_LastAppraisalNumber,
                     row.Land_LastAppraisedDate,
-                    row.Land_LastAppraisedValue,
-                    row.Land_LastTotalAppraisedValue,
+                    row.Land_UnitPrice,
+                    row.Land_BuildingCost,
+                    row.Land_AppraisalValue,
                     AliasTitles: []);   // GetById does not load alias titles — FE uses Lookup for that
                 break;
 
@@ -111,7 +111,7 @@ public class GetCollateralMasterByIdQueryHandler(
                     row.Condo_CondoRegistrationNumber!,
                     row.Condo_BuildingNumber!,
                     row.Condo_FloorNumber!,
-                    row.Condo_UnitNumber!,
+                    row.Condo_RoomNumber!,
                     row.Condo_TitleNumber!,
                     row.Condo_TitleType!,
                     row.Condo_CondoName,
@@ -124,7 +124,9 @@ public class GetCollateralMasterByIdQueryHandler(
                     row.Condo_LastAppraisalId,
                     row.Condo_LastAppraisalNumber,
                     row.Condo_LastAppraisedDate,
-                    row.Condo_LastAppraisedValue);
+                    row.Condo_UnitPrice,
+                    row.Condo_BuildingCost,
+                    row.Condo_AppraisalValue);
                 break;
 
             case CollateralTypes.Leasehold:
@@ -136,12 +138,9 @@ public class GetCollateralMasterByIdQueryHandler(
                     DateOnly.FromDateTime(row.Lh_LeaseTermStart!.Value),
                     row.Lh_LeaseTermEnd.HasValue ? DateOnly.FromDateTime(row.Lh_LeaseTermEnd.Value) : null,
                     row.Lh_LeaseTermMonths,
-                    row.Lh_AnnualRent,
-                    row.Lh_LeasePurpose,
                     row.Lh_LastAppraisalId,
                     row.Lh_LastAppraisalNumber,
-                    row.Lh_LastAppraisedDate,
-                    row.Lh_LastAppraisedValue);
+                    row.Lh_LastAppraisedDate);
                 break;
 
             case CollateralTypes.Machine:
@@ -151,15 +150,9 @@ public class GetCollateralMasterByIdQueryHandler(
                     row.Machine_Brand,
                     row.Machine_Model,
                     row.Machine_Manufacturer,
-                    row.Machine_EngineNo,
-                    row.Machine_ChassisNo,
-                    row.Machine_YearOfManufacture,
-                    row.Machine_MachineCondition,
-                    row.Machine_MachineAge,
                     row.Machine_LastAppraisalId,
                     row.Machine_LastAppraisalNumber,
-                    row.Machine_LastAppraisedDate,
-                    row.Machine_LastAppraisedValue);
+                    row.Machine_LastAppraisedDate);
                 break;
         }
 
@@ -167,8 +160,8 @@ public class GetCollateralMasterByIdQueryHandler(
             row.Id,
             row.CollateralType,
             row.OwnerName,
-            row.CreatedOn,
-            row.UpdatedOn,
+            row.CreatedAt,
+            row.UpdatedAt,
             row.EngagementCount ?? 0,
             row.LastAppraisedDate,
             row.LastAppraisedValue,
@@ -186,7 +179,7 @@ public class GetCollateralMasterByIdQueryHandler(
         public string CollateralType { get; init; } = null!;
         public string? OwnerName { get; init; }
         public string? Province { get; init; }
-        public string? TitleDeedNo { get; init; }
+        public string? TitleNumber { get; init; }
         public DateTime? LastAppraisedDate { get; init; }
         public decimal? LastAppraisedValue { get; init; }
     }

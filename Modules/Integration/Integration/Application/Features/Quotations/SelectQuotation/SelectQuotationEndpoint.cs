@@ -1,4 +1,5 @@
-using Appraisal.Application.Features.Quotations.SelectQuotationFromIntegration;
+using Appraisal.Application.Features.Quotations.PickTentativeWinner;
+using Appraisal.Application.Features.Quotations.Shared;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
@@ -23,12 +24,9 @@ public class SelectQuotationEndpoint : ICarterModule
             if (string.IsNullOrWhiteSpace(request.RmUsername))
                 return Results.BadRequest(new SelectQuotationResponse("ERROR", "rmUsername is required"));
 
-            var command = new SelectQuotationFromIntegrationCommand(
-                QuotationRequestId: quotationId,
-                CompanyQuotationId: companyQuotationId,
-                RmUsername: request.RmUsername,
-                RequestNegotiation: request.RequestNegotiation,
-                NegotiationNote: request.NegotiationNote);
+            var actor = new QuotationActor(Username: request.RmUsername, Role: "RequestMaker", UserId: null);
+            var command = new PickTentativeWinnerCommand(quotationId, companyQuotationId, actor,
+                Reason: null, request.RequestNegotiation, request.NegotiationNote);
 
             await sender.Send(command, cancellationToken);
 

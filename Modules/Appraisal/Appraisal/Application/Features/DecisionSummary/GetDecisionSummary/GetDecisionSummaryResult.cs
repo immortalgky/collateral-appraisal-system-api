@@ -44,7 +44,10 @@ public record GetDecisionSummaryResult(
     IReadOnlyList<BlockModelPriceRow>? BlockModelPrices,
 
     // Construction summary (null when no under-construction buildings or block appraisal)
-    ConstructionSummaryData? ConstructionSummary
+    ConstructionSummaryData? ConstructionSummary,
+
+    // Appraisal date — most recent non-cancelled appointment date
+    DateTime? AppraisalDate
 );
 
 public record ApproachMatrixGroup(

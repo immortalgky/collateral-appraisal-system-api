@@ -43,8 +43,8 @@ public class MigrationService : IMigrationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Migration service failed");
-            return false;
+            _logger.LogError(ex, "Migration service failed: {Message}", ex.Message);
+            throw; // re-throw so DatabaseTestSetupService can surface the actual error
         }
     }
 

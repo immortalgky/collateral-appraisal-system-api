@@ -19,19 +19,12 @@ public class MachineDetailConfiguration : IEntityTypeConfiguration<MachineDetail
         builder.Property(d => d.Model).HasMaxLength(100);
         builder.Property(d => d.Manufacturer).HasMaxLength(200);
 
-        // Identity-extra & last-known
-        builder.Property(d => d.EngineNo).HasMaxLength(100);
-        builder.Property(d => d.ChassisNo).HasMaxLength(100);
-        builder.Property(d => d.MachineCondition).HasMaxLength(50);
-        builder.Property(d => d.MachineAge).HasPrecision(5, 2);
-
         // AppraisalSummary (owned — flat columns)
         builder.OwnsOne(d => d.AppraisalSummary, s =>
         {
             s.Property(x => x.LastAppraisalId).HasColumnName("LastAppraisalId");
             s.Property(x => x.LastAppraisalNumber).HasColumnName("LastAppraisalNumber").HasMaxLength(50);
             s.Property(x => x.LastAppraisedDate).HasColumnName("LastAppraisedDate");
-            s.Property(x => x.LastAppraisedValue).HasColumnName("LastAppraisedValue").HasPrecision(18, 2);
         });
 
         builder.Property(d => d.IsDeleted).IsRequired().HasDefaultValue(false);

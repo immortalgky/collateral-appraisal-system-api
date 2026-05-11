@@ -25,6 +25,16 @@ public static class QuotationAccessPolicy
     }
 
     /// <summary>
+    /// Ensures the actor is an internal admin (role "Admin" or "IntAdmin").
+    /// Throws UnauthorizedAccessException if not.
+    /// </summary>
+    public static void EnsureAdmin(QuotationActor actor)
+    {
+        if (actor.Role != "Admin" && actor.Role != "IntAdmin")
+            throw new UnauthorizedAccessException("Only Admin users can perform this operation");
+    }
+
+    /// <summary>
     /// Ensures the caller is an RM who matches the quotation's RmUsername, or an Admin (who may override).
     /// Pass <paramref name="quotation"/> so the check uses the denormalized RmUsername field;
     /// this avoids a cross-module Request lookup inside the handler.

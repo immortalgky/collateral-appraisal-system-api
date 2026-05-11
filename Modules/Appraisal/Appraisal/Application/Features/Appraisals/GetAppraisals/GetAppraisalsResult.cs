@@ -32,6 +32,7 @@ public record AppraisalDto
     public string? SLAStatus { get; init; }
     public int PropertyCount { get; init; }
     public DateTime? CreatedAt { get; init; }
+    public decimal? AppraisalValue { get; init; }
 
     // Assignment Info (from latest active assignment — stores username like "P5229")
     public string? AssigneeUserId { get; init; }

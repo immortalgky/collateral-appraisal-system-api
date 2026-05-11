@@ -47,6 +47,7 @@ public static class AppraisalModule
 
         // Register additional aggregate repositories
         services.AddScoped<IQuotationRepository, QuotationRepository>();
+        services.AddScoped<Appraisal.Domain.Invoices.IInvoiceRepository, InvoiceRepository>();
 
         // Register quotation activity logger (audit trail for quotation lifecycle)
         services.AddScoped<IQuotationActivityLogger, QuotationActivityLogger>();

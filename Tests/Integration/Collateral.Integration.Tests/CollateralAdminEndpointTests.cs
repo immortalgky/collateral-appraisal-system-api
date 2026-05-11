@@ -96,7 +96,7 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
             .FirstAsync(m => m.LandDetail != null
-                             && m.LandDetail.TitleDeedNo == titleNo
+                             && m.LandDetail.TitleNumber == titleNo
                              && m.LandDetail.Province == province);
         return master.Id;
     }
@@ -229,10 +229,10 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
         var lookupUrl = $"/collateral-masters/lookup?type=Land"
                         + $"&landOfficeCode=LO-A07"
                         + $"&province=Chiang+Mai"
-                        + $"&amphur=Mueang"
-                        + $"&tambon=Suthep"
-                        + $"&titleDeedType=Chanote"
-                        + $"&titleDeedNo={titleNo}";
+                        + $"&district=Mueang"
+                        + $"&subDistrict=Suthep"
+                        + $"&titleType=Chanote"
+                        + $"&titleNumber={titleNo}";
         var lookupResponse = await _client.GetAsync(lookupUrl);
         Assert.Equal(HttpStatusCode.NotFound, lookupResponse.StatusCode);
 
@@ -298,10 +298,10 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
         var lookupUrl = $"/collateral-masters/lookup?type=Land"
                         + $"&landOfficeCode=LO-A08"
                         + $"&province=Phuket"
-                        + $"&amphur=Mueang"
-                        + $"&tambon=Talat+Yai"
-                        + $"&titleDeedType=Chanote"
-                        + $"&titleDeedNo={titleNo}";
+                        + $"&district=Mueang"
+                        + $"&subDistrict=Talat+Yai"
+                        + $"&titleType=Chanote"
+                        + $"&titleNumber={titleNo}";
         var lookupResponse = await _client.GetAsync(lookupUrl);
         Assert.Equal(HttpStatusCode.OK, lookupResponse.StatusCode);
 
@@ -337,14 +337,14 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
                 land: new LandAdminEdit(
                     LandOfficeCode: null,
                     Province: null,
-                    Amphur: null,
-                    Tambon: null,
-                    TitleDeedType: null,
-                    TitleDeedNo: null,
-                    SurveyOrParcelNo: null,
+                    District: null,
+                    SubDistrict: null,
+                    TitleType: null,
+                    TitleNumber: null,
+                    SurveyNumber: null,
+                    LandParcelNumber: null,
                     Street: "123 Test Street",
                     Village: null,
-                    PostalCode: null,
                     Latitude: null,
                     Longitude: null,
                     LandShapeType: null,
@@ -455,8 +455,8 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
 
             var collides = await repo.LandDedupCollidesAsync(
                 master.Id,
-                ld.LandOfficeCode, ld.Province, ld.Amphur, ld.Tambon,
-                ld.TitleDeedType, ld.TitleDeedNo, ld.SurveyOrParcelNo,
+                ld.LandOfficeCode, ld.Province, ld.District, ld.SubDistrict,
+                ld.TitleType, ld.TitleNumber, ld.SurveyNumber, ld.LandParcelNumber,
                 TestContext.Current.CancellationToken);
 
             Assert.True(collides,
@@ -487,14 +487,14 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
 
             var collides = await repo.LandDedupCollidesAsync(
                 masterIdA,
-                ld.LandOfficeCode, ld.Province, ld.Amphur, ld.Tambon,
-                ld.TitleDeedType,
+                ld.LandOfficeCode, ld.Province, ld.District, ld.SubDistrict,
+                ld.TitleType,
                 titleNoB,   // would match master B
-                ld.SurveyOrParcelNo,
+                ld.SurveyNumber, ld.LandParcelNumber,
                 TestContext.Current.CancellationToken);
 
             Assert.True(collides,
-                "Changing TitleDeedNo to match another active master should be detected as a collision.");
+                "Changing TitleNumber to match another active master should be detected as a collision.");
         }
     }
 }

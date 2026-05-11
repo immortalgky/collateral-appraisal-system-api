@@ -18,14 +18,14 @@ public class GetEngagementsQueryHandler(
             AppraisalNumber,
             RequestId,
             RequestNumber,
-            PropertyId,
+            -- PropertyId and AppraisedValue removed in PR-4 (engagement is per-appraisal now)
             AppraisalType,
             AppraisalDate,
-            AppraisedValue,
             AppraiserUserId,
             AppraisalCompanyId,
             AppraisalCompanyName,
-            CreatedOn,
+            ConstructionInspectionFeeAmount,
+            CreatedAt,
             CollateralType,
             OwnerName
         """;

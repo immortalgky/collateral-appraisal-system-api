@@ -51,10 +51,11 @@ public class LookupCollateralMasterQueryHandler(
             .ToList();
 
         // Most recent engagement — drives FE's most-recent-only appeal exclusion store
+        // PR-4: AppraisedValue column dropped from CollateralEngagements; removed from this query.
         var lastEngagementSql = """
             SELECT TOP 1
                 AppraisalId, AppraisalNumber, AppraisalType, AppraisalDate,
-                AppraisedValue, AppraisalCompanyId, AppraisalCompanyName
+                AppraisalCompanyId, AppraisalCompanyName
             FROM collateral.CollateralEngagements
             WHERE CollateralMasterId = @MasterId
             ORDER BY AppraisalDate DESC
@@ -67,7 +68,7 @@ public class LookupCollateralMasterQueryHandler(
         if (type == CollateralTypes.Land)
         {
             var aliasSql = """
-                SELECT ld.TitleDeedType, ld.TitleDeedNo, ld.SurveyOrParcelNo
+                SELECT ld.TitleType, ld.TitleNumber, ld.SurveyNumber, ld.LandParcelNumber
                 FROM collateral.CollateralMasters m
                 INNER JOIN collateral.LandDetails ld ON ld.CollateralMasterId = m.Id
                 WHERE m.IsDeleted = 0
@@ -77,7 +78,7 @@ public class LookupCollateralMasterQueryHandler(
             var aliasRows = await connectionFactory.QueryAsync<AliasTitleRow>(
                 aliasSql, new { MasterId = masterId.Value });
             aliasTitles = aliasRows
-                .Select(r => new AliasTitleDto(r.TitleDeedType, r.TitleDeedNo, r.SurveyOrParcelNo))
+                .Select(r => new AliasTitleDto(r.TitleType, r.TitleNumber, r.SurveyNumber))
                 .ToList();
         }
 
@@ -99,23 +100,23 @@ public class LookupCollateralMasterQueryHandler(
             FROM collateral.CollateralMasters m
             INNER JOIN collateral.LandDetails ld ON ld.CollateralMasterId = m.Id
             WHERE m.IsDeleted = 0
-              AND (@LandOfficeCode    IS NULL OR ld.LandOfficeCode    = @LandOfficeCode)
-              AND (@Province          IS NULL OR ld.Province          = @Province)
-              AND (@Amphur            IS NULL OR ld.Amphur            = @Amphur)
-              AND (@Tambon            IS NULL OR ld.Tambon            = @Tambon)
-              AND (@TitleDeedType     IS NULL OR ld.TitleDeedType     = @TitleDeedType)
-              AND (@TitleDeedNo       IS NULL OR ld.TitleDeedNo       = @TitleDeedNo)
-              AND (@SurveyOrParcelNo  IS NULL OR ld.SurveyOrParcelNo  = @SurveyOrParcelNo)
+              AND (@LandOfficeCode  IS NULL OR ld.LandOfficeCode  = @LandOfficeCode)
+              AND (@Province        IS NULL OR ld.Province        = @Province)
+              AND (@District        IS NULL OR ld.District        = @District)
+              AND (@SubDistrict     IS NULL OR ld.SubDistrict     = @SubDistrict)
+              AND (@TitleType       IS NULL OR ld.TitleType       = @TitleType)
+              AND (@TitleNumber     IS NULL OR ld.TitleNumber     = @TitleNumber)
+              AND (@SurveyNumber    IS NULL OR ld.SurveyNumber    = @SurveyNumber)
             """;
 
         var p = new DynamicParameters();
-        p.Add("LandOfficeCode",  q.LandOfficeCode);
-        p.Add("Province",        q.Province);
-        p.Add("Amphur",          q.Amphur);
-        p.Add("Tambon",          q.Tambon);
-        p.Add("TitleDeedType",   q.TitleDeedType);
-        p.Add("TitleDeedNo",     q.TitleDeedNo);
-        p.Add("SurveyOrParcelNo", q.SurveyOrParcelNo);
+        p.Add("LandOfficeCode", q.LandOfficeCode);
+        p.Add("Province",       q.Province);
+        p.Add("District",       q.District);
+        p.Add("SubDistrict",    q.SubDistrict);
+        p.Add("TitleType",      q.TitleType);
+        p.Add("TitleNumber",    q.TitleNumber);
+        p.Add("SurveyNumber",   q.SurveyNumber);
 
         return await connectionFactory.QueryFirstOrDefaultAsync<Guid?>(sql, p);
     }
@@ -133,7 +134,7 @@ public class LookupCollateralMasterQueryHandler(
               AND (@CondoRegistrationNumber IS NULL OR cd.CondoRegistrationNumber = @CondoRegistrationNumber)
               AND (@Building                IS NULL OR cd.BuildingNumber          = @Building)
               AND (@Floor                   IS NULL OR cd.FloorNumber             = @Floor)
-              AND (@Unit                    IS NULL OR cd.UnitNumber              = @Unit)
+              AND (@Unit                    IS NULL OR cd.RoomNumber              = @Unit)
               AND (@TitleNumber             IS NULL OR cd.TitleNumber             = @TitleNumber)
               AND (@TitleType               IS NULL OR cd.TitleType               = @TitleType)
             """;
@@ -226,9 +227,10 @@ public class LookupCollateralMasterQueryHandler(
     // with sealed classes that use init-only properties.
     private class AliasTitleRow
     {
-        public string TitleDeedType { get; set; } = null!;
-        public string TitleDeedNo { get; set; } = null!;
-        public string? SurveyOrParcelNo { get; set; }
+        public string TitleType { get; set; } = null!;
+        public string TitleNumber { get; set; } = null!;
+        public string? SurveyNumber { get; set; }
+        public string? LandParcelNumber { get; set; }
     }
 
     private static LookupCollateralMasterResult BuildResult(
@@ -248,14 +250,13 @@ public class LookupCollateralMasterQueryHandler(
                 landDetail = new LandDetailDto(
                     row.Land_LandOfficeCode!,
                     row.Land_Province!,
-                    row.Land_Amphur!,
-                    row.Land_Tambon!,
-                    row.Land_TitleDeedType!,
-                    row.Land_TitleDeedNo!,
-                    row.Land_SurveyOrParcelNo,
+                    row.Land_District!,
+                    row.Land_SubDistrict!,
+                    row.Land_TitleType!,
+                    row.Land_TitleNumber!,
+                    row.Land_SurveyNumber,
                     row.Land_Street,
                     row.Land_Village,
-                    row.Land_PostalCode,
                     row.Land_Latitude,
                     row.Land_Longitude,
                     row.Land_LandShapeType,
@@ -266,12 +267,13 @@ public class LookupCollateralMasterQueryHandler(
                     row.Land_LandArea,
                     row.IsUnderConstructionAtLastAppraisal ?? false,
                     row.OverallConstructionProgressPercent,
-                    row.Land_LastConstructionInspectionId,
+                    // PR-5: Land_LastConstructionInspectionId removed — CI list is in the engagement snapshot.
                     row.Land_LastAppraisalId,
                     row.Land_LastAppraisalNumber,
                     row.Land_LastAppraisedDate,
-                    row.Land_LastAppraisedValue,
-                    row.Land_LastTotalAppraisedValue,
+                    row.Land_UnitPrice,
+                    row.Land_BuildingCost,
+                    row.Land_AppraisalValue,
                     AliasTitles: aliasTitles ?? []);
                 break;
 
@@ -281,7 +283,7 @@ public class LookupCollateralMasterQueryHandler(
                     row.Condo_CondoRegistrationNumber!,
                     row.Condo_BuildingNumber!,
                     row.Condo_FloorNumber!,
-                    row.Condo_UnitNumber!,
+                    row.Condo_RoomNumber!,
                     row.Condo_TitleNumber!,
                     row.Condo_TitleType!,
                     row.Condo_CondoName,
@@ -294,7 +296,9 @@ public class LookupCollateralMasterQueryHandler(
                     row.Condo_LastAppraisalId,
                     row.Condo_LastAppraisalNumber,
                     row.Condo_LastAppraisedDate,
-                    row.Condo_LastAppraisedValue);
+                    row.Condo_UnitPrice,
+                    row.Condo_BuildingCost,
+                    row.Condo_AppraisalValue);
                 break;
 
             case CollateralTypes.Leasehold:
@@ -306,12 +310,9 @@ public class LookupCollateralMasterQueryHandler(
                     DateOnly.FromDateTime(row.Lh_LeaseTermStart!.Value),
                     row.Lh_LeaseTermEnd.HasValue ? DateOnly.FromDateTime(row.Lh_LeaseTermEnd.Value) : null,
                     row.Lh_LeaseTermMonths,
-                    row.Lh_AnnualRent,
-                    row.Lh_LeasePurpose,
                     row.Lh_LastAppraisalId,
                     row.Lh_LastAppraisalNumber,
-                    row.Lh_LastAppraisedDate,
-                    row.Lh_LastAppraisedValue);
+                    row.Lh_LastAppraisedDate);
                 break;
 
             case CollateralTypes.Machine:
@@ -321,15 +322,9 @@ public class LookupCollateralMasterQueryHandler(
                     row.Machine_Brand,
                     row.Machine_Model,
                     row.Machine_Manufacturer,
-                    row.Machine_EngineNo,
-                    row.Machine_ChassisNo,
-                    row.Machine_YearOfManufacture,
-                    row.Machine_MachineCondition,
-                    row.Machine_MachineAge,
                     row.Machine_LastAppraisalId,
                     row.Machine_LastAppraisalNumber,
-                    row.Machine_LastAppraisedDate,
-                    row.Machine_LastAppraisedValue);
+                    row.Machine_LastAppraisedDate);
                 break;
         }
 
@@ -337,7 +332,7 @@ public class LookupCollateralMasterQueryHandler(
             row.Id,
             row.CollateralType,
             row.OwnerName,
-            row.CreatedOn,
+            row.CreatedAt,
             row.EngagementCount ?? 0,
             row.LastAppraisedDate,
             row.LastAppraisedValue,

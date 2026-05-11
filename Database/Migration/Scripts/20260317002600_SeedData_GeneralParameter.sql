@@ -1,7 +1,7 @@
 -- ----------------------------------------
 -- Group: AdjustedPeriodPct (EN=1, TH=1)
 -- ----------------------------------------
-INSERT INTO parameter.Parameters ([group], [country], [ language], [code], [description], [isactive], [seqno])
+INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
 VALUES (N'AdjustedPeriodPct', N'TH', N'EN', N'01', N'Adjusted Period %', 1, 1),
        (N'AdjustedPeriodPct', N'TH', N'TH', N'01', N'Adjusted Period %', 1, 1);
 GO

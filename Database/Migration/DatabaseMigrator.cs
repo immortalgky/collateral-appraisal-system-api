@@ -45,7 +45,7 @@ public class DatabaseMigrator
             if (!result.Successful)
             {
                 _logger.LogError(result.Error, "Database migration failed");
-                return false;
+                throw result.Error ?? new InvalidOperationException("DbUp migration failed (no error details available)");
             }
 
             _logger.LogInformation("Database migration completed successfully. Scripts executed: {Count}",
@@ -55,8 +55,8 @@ public class DatabaseMigrator
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Database migration failed with exception");
-            return false;
+            _logger.LogError(ex, "Database migration failed with exception: {Message}", ex.Message);
+            throw; // re-throw so callers can surface the actual SQL error
         }
     }
 
