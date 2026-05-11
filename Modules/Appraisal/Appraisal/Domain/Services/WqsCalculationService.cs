@@ -40,7 +40,7 @@ public class WqsCalculationService : IPricingCalculationService
 
             // Step 3: Auto-compute PricingFinalValue from freshly computed RSQ result
             var fv = rsq.FinalValue;
-            var fvRounded = Math.Floor(fv / 10_000m) * 10_000m;
+            var fvRounded = PricingCalculationHelper.RoundFinalValue(fv, method.Calculations);
 
             if (method.FinalValue is null)
             {

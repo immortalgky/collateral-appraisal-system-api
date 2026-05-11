@@ -24,7 +24,7 @@ public class DirectComparisonCalculationService : IPricingCalculationService
         if (calcsWithValue.Count > 0)
         {
             var fv = calcsWithValue.Min(c => c.TotalAdjustedValue!.Value);
-            var fvRounded = Math.Floor(fv / 10_000m) * 10_000m;
+            var fvRounded = PricingCalculationHelper.RoundFinalValue(fv, method.Calculations);
 
             if (method.FinalValue is null)
             {

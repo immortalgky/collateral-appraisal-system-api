@@ -43,7 +43,7 @@ public class AuthDataSeed(
             "APPRAISAL_ADMINISTRATION_VIEW", "APPRAISAL_APPOINTMENT_VIEW",
             "APPRAISAL_PROPERTY_VIEW", "APPRAISAL_BLOCK_CONDO_VIEW",
             "APPRAISAL_BLOCK_VILLAGE_VIEW", "APPRAISAL_PROPERTY_PMA_VIEW",
-            "APPRAISAL_DOCUMENTS_VIEW", "APPRAISAL_SUMMARY_VIEW",
+            "APPRAISAL_DOCUMENTS_VIEW", "APPRAISAL_SUMMARY_VIEW"
         ];
         string[] appraisalSectionEdits =
         [
@@ -51,85 +51,106 @@ public class AuthDataSeed(
             "APPRAISAL_ADMINISTRATION_EDIT", "APPRAISAL_APPOINTMENT_EDIT",
             "APPRAISAL_PROPERTY_EDIT", "APPRAISAL_BLOCK_CONDO_EDIT",
             "APPRAISAL_BLOCK_VILLAGE_EDIT", "APPRAISAL_PROPERTY_PMA_EDIT",
-            "APPRAISAL_DOCUMENTS_EDIT", "APPRAISAL_SUMMARY_EDIT",
+            "APPRAISAL_DOCUMENTS_EDIT", "APPRAISAL_SUMMARY_EDIT"
         ];
 
         await SeedRoleWithPermissionsAsync(MeetingSecretaryRoleName,
             "Meeting Secretary — creates, schedules, updates, and ends approval meetings.",
-            scope: "Bank",
+            "Bank",
             ["MEETING_MANAGE", "MEETING_SECRETARY"]);
         await SeedRoleWithPermissionsAsync(IntAdminRoleName,
             "Internal Admin — manages workflow assignments, appraisals, meetings, and internal staff.",
-            scope: "Bank",
-            ["DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
-             "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW",
-             "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE",
-             "QUOTATION_VIEW", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT",
-             "TASK_QUOTATION_REVIEW", "TASK_QUOTATION_FINALIZE",
-             "COLLATERAL_ADMIN",
-             "INVOICE_VIEW", "INVOICE_APPROVE", "REPORT_EVALUATION_VIEW",
-             ..appraisalSectionViews]);
+            "Bank",
+            [
+                "DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
+                "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW",
+                "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE",
+                "QUOTATION_VIEW", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT",
+                "TASK_QUOTATION_REVIEW", "TASK_QUOTATION_FINALIZE",
+                "COLLATERAL_ADMIN",
+                "INVOICE_VIEW", "INVOICE_APPROVE", "REPORT_EVALUATION_VIEW",
+                ..appraisalSectionViews
+            ]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
             "External Company Admin — manages external company users and external appraisal assignments.",
-            scope: "Company",
-            ["DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
-             "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE",
-             "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
-             "INVOICE_EXT_VIEW", "INVOICE_CREATE",
-             ..appraisalSectionViews]);
+            "Company",
+            [
+                "DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
+                "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE",
+                "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
+                "INVOICE_EXT_VIEW", "INVOICE_CREATE",
+                ..appraisalSectionViews
+            ]);
         await SeedRoleWithPermissionsAsync(RequestMakerRoleName,
             "Request Maker — creates appraisal requests and handles initiation tasks.",
-            scope: "Bank",
-            ["DASHBOARD_VIEW", "REQUEST_VIEW", "REQUEST_CREATE", "TASK_LIST_VIEW",
-             "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION", "TASK_PROVIDE_ADDITIONAL_DOCS",
-             "QUOTATION_VIEW", "TASK_QUOTATION_PICK_WINNER"]);
+            "Bank",
+            [
+                "DASHBOARD_VIEW", "REQUEST_VIEW", "REQUEST_CREATE", "TASK_LIST_VIEW",
+                "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION", "TASK_PROVIDE_ADDITIONAL_DOCS",
+                "QUOTATION_VIEW", "TASK_QUOTATION_PICK_WINNER"
+            ]);
         await SeedRoleWithPermissionsAsync(RequestCheckerRoleName,
             "Request Checker — reviews and approves incoming appraisal requests.",
-            scope: "Bank",
+            "Bank",
             ["DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_INITIATION_CHECK"]);
         await SeedRoleWithPermissionsAsync(IntAppraisalStaffRoleName,
             "Internal Appraisal Staff — executes internal appraisals and verifies appraisal books.",
-            scope: "Bank",
-            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
-             "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "STANDALONE_USE",
-             ..appraisalSectionViews, ..appraisalSectionEdits]);
+            "Bank",
+            [
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
+                "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "STANDALONE_USE",
+                ..appraisalSectionViews, ..appraisalSectionEdits
+            ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalCheckerRoleName,
             "Internal Appraisal Checker — checks and validates internal appraisal reports.",
-            scope: "Bank",
-            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_INT_APPR_CHECK",
-             ..appraisalSectionViews]);
+            "Bank",
+            [
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "TASK_INT_APPR_CHECK",
+                ..appraisalSectionViews
+            ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalVerifierRoleName,
             "Internal Appraisal Verifier — final verification of internal appraisal reports.",
-            scope: "Bank",
-            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW", "REPORT_EVALUATION_VIEW",
-             ..appraisalSectionViews]);
+            "Bank",
+            [
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW", "REPORT_EVALUATION_VIEW",
+                ..appraisalSectionViews
+            ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalStaffRoleName,
             "External Appraisal Staff — field appraisers from external companies who execute appraisals.",
-            scope: "Company",
-            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
-             "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE",
-             ..appraisalSectionViews, ..appraisalSectionEdits]);
+            "Company",
+            [
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
+                "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE",
+                ..appraisalSectionViews, ..appraisalSectionEdits
+            ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalCheckerRoleName,
             "External Appraisal Checker — checks external appraisal reports before verification.",
-            scope: "Company",
-            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_EXT_APPR_CHECK",
-             "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
-             ..appraisalSectionViews]);
+            "Company",
+            [
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "TASK_EXT_APPR_CHECK",
+                "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
+                ..appraisalSectionViews
+            ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalVerifierRoleName,
             "External Appraisal Verifier — final verification of external appraisal reports.",
-            scope: "Company",
-            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_EXT_APPR_VERIFICATION",
-             ..appraisalSectionViews]);
+            "Company",
+            [
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "TASK_EXT_APPR_VERIFICATION",
+                ..appraisalSectionViews
+            ]);
         await SeedRoleWithPermissionsAsync(AppraisalCommitteeRoleName,
             "Appraisal Committee — approves appraisals in committee meetings.",
-            scope: "Bank",
-            ["DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
-             "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_EVALUATION_VIEW", "MEETING_MANAGE", "COMMITTEE_MEMBER",
-             ..appraisalSectionViews]);
+            "Bank",
+            [
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_EVALUATION_VIEW",
+                "MEETING_MANAGE", "COMMITTEE_MEMBER",
+                ..appraisalSectionViews
+            ]);
         await SeedUsersAsync();
         await SeedClientsAsync();
         await SeedCompaniesAsync();
@@ -346,7 +367,7 @@ public class AuthDataSeed(
             {
                 ClientId = "cls",
                 ClientSecret = "CLS_SecretKey_2024!", // TODO: Use configuration for production
-                DisplayName = "CLS Integration",
+                DisplayName = "CLS",
                 ClientType = OpenIddictConstants.ClientTypes.Confidential,
                 Permissions =
                 {
@@ -382,7 +403,7 @@ public class AuthDataSeed(
             {
                 var company = Company.Create(
                     name,
-                    taxId: taxId,
+                    taxId,
                     province: province,
                     loanTypes: loanTypes);
                 await companyRepository.AddAsync(company);
@@ -404,18 +425,24 @@ public class AuthDataSeed(
             ("APPRAISAL_DELETE", "Delete Appraisal", "Delete appraisal requests", "Appraisal"),
             // Per-section permissions for the appraisal layout tabs
             ("APPRAISAL_360_VIEW", "View 360 Summary", "View the 360 Summary tab", "Appraisal"),
-            ("APPRAISAL_REQUEST_VIEW", "View Request Information", "View the Request Information tab inside an appraisal", "Appraisal"),
-            ("APPRAISAL_REQUEST_EDIT", "Edit Request Information", "Edit the Request Information tab inside an appraisal", "Appraisal"),
+            ("APPRAISAL_REQUEST_VIEW", "View Request Information",
+                "View the Request Information tab inside an appraisal", "Appraisal"),
+            ("APPRAISAL_REQUEST_EDIT", "Edit Request Information",
+                "Edit the Request Information tab inside an appraisal", "Appraisal"),
             ("APPRAISAL_ADMINISTRATION_VIEW", "View Administration", "View the Administration tab", "Appraisal"),
             ("APPRAISAL_ADMINISTRATION_EDIT", "Edit Administration", "Edit the Administration tab", "Appraisal"),
             ("APPRAISAL_APPOINTMENT_VIEW", "View Appointment & Fee", "View the Appointment & Fee tab", "Appraisal"),
             ("APPRAISAL_APPOINTMENT_EDIT", "Edit Appointment & Fee", "Edit the Appointment & Fee tab", "Appraisal"),
             ("APPRAISAL_PROPERTY_VIEW", "View Property Information", "View the Property Information tab", "Appraisal"),
             ("APPRAISAL_PROPERTY_EDIT", "Edit Property Information", "Edit the Property Information tab", "Appraisal"),
-            ("APPRAISAL_BLOCK_CONDO_VIEW", "View Property Information (Condo)", "View the Condo block tab", "Appraisal"),
-            ("APPRAISAL_BLOCK_CONDO_EDIT", "Edit Property Information (Condo)", "Edit the Condo block tab", "Appraisal"),
-            ("APPRAISAL_BLOCK_VILLAGE_VIEW", "View Property Information (Village)", "View the Village block tab", "Appraisal"),
-            ("APPRAISAL_BLOCK_VILLAGE_EDIT", "Edit Property Information (Village)", "Edit the Village block tab", "Appraisal"),
+            ("APPRAISAL_BLOCK_CONDO_VIEW", "View Property Information (Condo)", "View the Condo block tab",
+                "Appraisal"),
+            ("APPRAISAL_BLOCK_CONDO_EDIT", "Edit Property Information (Condo)", "Edit the Condo block tab",
+                "Appraisal"),
+            ("APPRAISAL_BLOCK_VILLAGE_VIEW", "View Property Information (Village)", "View the Village block tab",
+                "Appraisal"),
+            ("APPRAISAL_BLOCK_VILLAGE_EDIT", "Edit Property Information (Village)", "Edit the Village block tab",
+                "Appraisal"),
             ("APPRAISAL_PROPERTY_PMA_VIEW", "View Property Information (PMA)", "View the PMA tab", "Appraisal"),
             ("APPRAISAL_PROPERTY_PMA_EDIT", "Edit Property Information (PMA)", "Edit the PMA tab", "Appraisal"),
             ("APPRAISAL_DOCUMENTS_VIEW", "View Document Checklist", "View the Document Checklist tab", "Appraisal"),
@@ -427,11 +454,16 @@ public class AuthDataSeed(
             ("PERMISSION_MANAGE", "Manage Permissions", "Create, update, and delete permissions", "Auth"),
             ("GROUP_MANAGE", "Manage Groups", "Create, update, and delete groups and group members", "Auth"),
             ("USER_CHANGE_PASSWORD", "Change Any User Password", "Allow changing password for any local user", "Auth"),
-            ("USER_RESET_PASSWORD", "Reset User Password", "Allow resetting password for any local user without current password", "Auth"),
-            ("MEETING_MANAGE", "Manage Meetings", "Create, schedule, update, cancel, and end approval meetings", "Workflow"),
-            ("MEETING_ADMIN", "Meeting Admin", "Create, schedule, cut-off, cancel, and end approval meetings", "Workflow"),
-            ("MEETING_SECRETARY", "Meeting Secretary", "After meeting ends, release each appraisal to approvers or route back to appraisal team", "Workflow"),
-            ("COMMITTEE_MEMBER", "Committee Member", "Participate in committee meetings — view meeting details, agenda, and appraisal items", "Workflow"),
+            ("USER_RESET_PASSWORD", "Reset User Password",
+                "Allow resetting password for any local user without current password", "Auth"),
+            ("MEETING_MANAGE", "Manage Meetings", "Create, schedule, update, cancel, and end approval meetings",
+                "Workflow"),
+            ("MEETING_ADMIN", "Meeting Admin", "Create, schedule, cut-off, cancel, and end approval meetings",
+                "Workflow"),
+            ("MEETING_SECRETARY", "Meeting Secretary",
+                "After meeting ends, release each appraisal to approvers or route back to appraisal team", "Workflow"),
+            ("COMMITTEE_MEMBER", "Committee Member",
+                "Participate in committee meetings — view meeting details, agenda, and appraisal items", "Workflow"),
             // --- DB-driven navigation menu feature ---
             ("MENU_MANAGE", "Manage Menus", "Create, update, and delete navigation menu items", "Auth"),
             ("REQUEST_VIEW", "View Requests", "View appraisal requests", "Request"),
@@ -444,39 +476,58 @@ public class AuthDataSeed(
             ("WORKFLOW_MANAGE", "Manage Workflows", "Manage workflow definitions", "Workflow"),
             ("TEMPLATE_MANAGE", "Manage Templates", "Manage MC/comparative templates", "Appraisal"),
             // Per-activity task gating (Module = Workflow)
-            ("TASK_APPR_INITIATION_CHECK", "Task: Appraisal Initiation Check", "Access appraisal initiation check tasks", "Workflow"),
+            ("TASK_APPR_INITIATION_CHECK", "Task: Appraisal Initiation Check",
+                "Access appraisal initiation check tasks", "Workflow"),
             ("TASK_APPR_INITIATION", "Task: Appraisal Initiation", "Access appraisal initiation tasks", "Workflow"),
-            ("TASK_APPR_ASSIGNMENT", "Task: Appraisal Assignment", "Access internal appraisal assignment tasks", "Workflow"),
-            ("TASK_EXT_APPR_ASSIGNMENT", "Task: External Appraisal Assignment", "Access external appraisal assignment tasks", "Workflow"),
-            ("TASK_EXT_APPR_EXECUTION", "Task: External Appraisal Execution", "Access external appraisal execution tasks", "Workflow"),
-            ("TASK_EXT_APPR_CHECK", "Task: External Appraisal Check", "Access external appraisal check tasks", "Workflow"),
-            ("TASK_EXT_APPR_VERIFICATION", "Task: External Appraisal Verification", "Access external appraisal verification tasks", "Workflow"),
-            ("TASK_APPR_BOOK_VERIFICATION", "Task: Appraisal Book Verification", "Access appraisal book verification tasks", "Workflow"),
-            ("TASK_INT_APPR_EXECUTION", "Task: Internal Appraisal Execution", "Access internal appraisal execution tasks", "Workflow"),
-            ("TASK_INT_APPR_CHECK", "Task: Internal Appraisal Check", "Access internal appraisal check tasks", "Workflow"),
-            ("TASK_INT_APPR_VERIFICATION", "Task: Internal Appraisal Verification", "Access internal appraisal verification tasks", "Workflow"),
+            ("TASK_APPR_ASSIGNMENT", "Task: Appraisal Assignment", "Access internal appraisal assignment tasks",
+                "Workflow"),
+            ("TASK_EXT_APPR_ASSIGNMENT", "Task: External Appraisal Assignment",
+                "Access external appraisal assignment tasks", "Workflow"),
+            ("TASK_EXT_APPR_EXECUTION", "Task: External Appraisal Execution",
+                "Access external appraisal execution tasks", "Workflow"),
+            ("TASK_EXT_APPR_CHECK", "Task: External Appraisal Check", "Access external appraisal check tasks",
+                "Workflow"),
+            ("TASK_EXT_APPR_VERIFICATION", "Task: External Appraisal Verification",
+                "Access external appraisal verification tasks", "Workflow"),
+            ("TASK_APPR_BOOK_VERIFICATION", "Task: Appraisal Book Verification",
+                "Access appraisal book verification tasks", "Workflow"),
+            ("TASK_INT_APPR_EXECUTION", "Task: Internal Appraisal Execution",
+                "Access internal appraisal execution tasks", "Workflow"),
+            ("TASK_INT_APPR_CHECK", "Task: Internal Appraisal Check", "Access internal appraisal check tasks",
+                "Workflow"),
+            ("TASK_INT_APPR_VERIFICATION", "Task: Internal Appraisal Verification",
+                "Access internal appraisal verification tasks", "Workflow"),
             ("TASK_PENDING_APPROVAL", "Task: Pending Approval", "Access pending approval tasks", "Workflow"),
-            ("TASK_PROVIDE_ADDITIONAL_DOCS", "Task: Provide Additional Documents", "Access document followup tasks raised by checkers", "Workflow"),
+            ("TASK_PROVIDE_ADDITIONAL_DOCS", "Task: Provide Additional Documents",
+                "Access document followup tasks raised by checkers", "Workflow"),
             // Quotation feature
             ("QUOTATION_VIEW", "View Quotations", "View quotation requests and details", "Quotation"),
             ("QUOTATION_DRAFT_VIEW", "View Quotation Drafts", "View own quotation drafts", "Quotation"),
-            ("QUOTATION_DRAFT_EDIT", "Edit Quotation Drafts", "Create and edit quotation drafts before submission", "Quotation"),
-            ("QUOTATION_EXT_VIEW", "View External Quotation Portal", "Access the external company quotation portal", "Quotation"),
+            ("QUOTATION_DRAFT_EDIT", "Edit Quotation Drafts", "Create and edit quotation drafts before submission",
+                "Quotation"),
+            ("QUOTATION_EXT_VIEW", "View External Quotation Portal", "Access the external company quotation portal",
+                "Quotation"),
             // Quotation per-activity task gating
-            ("TASK_QUOTATION_SUBMIT", "Task: Submit Quotation", "Access external company quotation submission tasks", "Workflow"),
-            ("TASK_QUOTATION_NEGOTIATE", "Task: Respond to Negotiation", "Access external company negotiation response tasks", "Workflow"),
+            ("TASK_QUOTATION_SUBMIT", "Task: Submit Quotation", "Access external company quotation submission tasks",
+                "Workflow"),
+            ("TASK_QUOTATION_NEGOTIATE", "Task: Respond to Negotiation",
+                "Access external company negotiation response tasks", "Workflow"),
             ("TASK_QUOTATION_REVIEW", "Task: Review Quotation Bids", "Access admin quotation review tasks", "Workflow"),
             ("TASK_QUOTATION_PICK_WINNER", "Task: Pick Quotation Winner", "Access RM pick winner tasks", "Workflow"),
-            ("TASK_QUOTATION_FINALIZE", "Task: Finalize Quotation", "Access admin quotation finalization tasks", "Workflow"),
+            ("TASK_QUOTATION_FINALIZE", "Task: Finalize Quotation", "Access admin quotation finalization tasks",
+                "Workflow"),
             // Collateral Master admin
-            ("COLLATERAL_ADMIN", "Manage Collateral Masters", "Manage collateral catalog, master records, and backfill reports", "Collateral"),
+            ("COLLATERAL_ADMIN", "Manage Collateral Masters",
+                "Manage collateral catalog, master records, and backfill reports", "Collateral"),
             // Invoice feature
             ("INVOICE_VIEW", "View Invoices", "View invoices in the admin portal", "Invoice"),
-            ("INVOICE_EXT_VIEW", "View External Invoice Portal", "Access the external company invoice portal", "Invoice"),
+            ("INVOICE_EXT_VIEW", "View External Invoice Portal", "Access the external company invoice portal",
+                "Invoice"),
             ("INVOICE_CREATE", "Create Invoices", "Create and submit invoices from the external portal", "Invoice"),
             ("INVOICE_APPROVE", "Approve Invoices", "Approve or reject submitted invoices", "Invoice"),
             // Service Quality Evaluation
-            ("REPORT_EVALUATION_VIEW", "View Service Quality Evaluation", "View service quality evaluation reports", "Common"),
+            ("REPORT_EVALUATION_VIEW", "View Service Quality Evaluation", "View service quality evaluation reports",
+                "Common")
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)
@@ -501,8 +552,8 @@ public class AuthDataSeed(
             .Include(m => m.Translations)
             .ToDictionaryAsync(m => m.ItemKey);
 
-        await UpsertTreeAsync(mainRoots, MenuScope.Main, parentId: null, existingByKey);
-        await UpsertTreeAsync(appraisalRoots, MenuScope.Appraisal, parentId: null, existingByKey);
+        await UpsertTreeAsync(mainRoots, MenuScope.Main, null, existingByKey);
+        await UpsertTreeAsync(appraisalRoots, MenuScope.Appraisal, null, existingByKey);
 
         await dbContext.SaveChangesAsync();
     }
@@ -540,7 +591,7 @@ public class AuthDataSeed(
                     node.ViewPermissionCode,
                     node.EditPermissionCode,
                     BuildTranslations(node.LabelEn),
-                    isSystem: true);
+                    true);
                 dbContext.MenuItems.Add(item);
                 existingByKey[node.ItemKey] = item;
             }
@@ -552,12 +603,15 @@ public class AuthDataSeed(
         }
     }
 
-    private static List<MenuItemTranslation> BuildTranslations(string labelEn) => new()
+    private static List<MenuItemTranslation> BuildTranslations(string labelEn)
     {
-        MenuItemTranslation.Create("en", labelEn),
-        MenuItemTranslation.Create("th", labelEn),
-        MenuItemTranslation.Create("zh", labelEn),
-    };
+        return new List<MenuItemTranslation>
+        {
+            MenuItemTranslation.Create("en", labelEn),
+            MenuItemTranslation.Create("th", labelEn),
+            MenuItemTranslation.Create("zh", labelEn)
+        };
+    }
 
     private async Task SeedActivityMenuOverridesAsync()
     {

@@ -59,4 +59,40 @@ internal static class PricingCalculationHelper
     {
         return years * (adjustedPeriodPct ?? 0m);
     }
+
+    /// <summary>
+    /// Picks the dominant price unit from a method's calculations.
+    /// Per row, prefer the offering unit when offering price is set & non-zero,
+    /// else fall back to the selling unit. The most frequent unit wins.
+    /// Matches the FE detectPriceUnit helper.
+    /// </summary>
+    public static string? DetectPriceUnit(IEnumerable<PricingCalculation> calculations)
+    {
+        var units = calculations
+            .Select(c => c.OfferingPrice.HasValue && c.OfferingPrice.Value != 0
+                ? c.OfferingPriceUnit
+                : c.SellingPriceUnit)
+            .Where(u => !string.IsNullOrEmpty(u))
+            .Select(u => u!)
+            .ToList();
+
+        if (units.Count == 0) return null;
+
+        return units
+            .GroupBy(u => u)
+            .OrderByDescending(g => g.Count())
+            .First().Key;
+    }
+
+    /// <summary>
+    /// Rounds a computed final value based on the comparable price unit.
+    /// Unit 01/02 (per-Sq.Wa / per-Sq.M) → no rounding (prices are small).
+    /// Else (e.g. 03 total price)        → floor to nearest 1,000.
+    /// </summary>
+    public static decimal RoundFinalValue(decimal finalValue, IEnumerable<PricingCalculation> calculations)
+    {
+        var detectedUnit = DetectPriceUnit(calculations);
+        var isUnitPrice = detectedUnit is "01" or "02";
+        return isUnitPrice ? finalValue : Math.Floor(finalValue / 1_000m) * 1_000m;
+    }
 }

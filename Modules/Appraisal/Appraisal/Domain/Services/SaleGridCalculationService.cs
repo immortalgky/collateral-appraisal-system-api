@@ -21,7 +21,7 @@ public class SaleGridCalculationService : IPricingCalculationService
             .Where(c => c.WeightedAdjustedValue.HasValue)
             .Sum(c => c.WeightedAdjustedValue!.Value);
 
-        var finalValueRounded = Math.Floor(finalValue / 10_000m) * 10_000m;
+        var finalValueRounded = PricingCalculationHelper.RoundFinalValue(finalValue, method.Calculations);
 
         if (method.FinalValue is null)
         {
