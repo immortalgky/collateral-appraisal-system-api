@@ -5,5 +5,5 @@ namespace Appraisal.Domain.Appraisals.Events;
 /// </summary>
 public record AppraisalStatusChangedEvent(
     Appraisal Appraisal,
-    AppraisalStatus OldStatus,
+    AppraisalStatus? OldStatus,
     AppraisalStatus NewStatus) : IDomainEvent;

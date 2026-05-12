@@ -132,6 +132,7 @@ public class Appraisal : Aggregate<Guid>
             isPma, purpose, channel, bankingSegment, facilityLimit, hasAppraisalBook,
             requestedBy, requestedAt, prevAppraisalId);
         appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal, requestedBy));
+        appraisal.AddDomainEvent(new AppraisalStatusChangedEvent(appraisal, OldStatus: null, NewStatus: appraisal.Status));
 
         return appraisal;
     }

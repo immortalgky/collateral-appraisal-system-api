@@ -1,12 +1,11 @@
 using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared.Data;
+using Shared.Messaging.Services;
 using Workflow.Data;
 using Workflow.Sla.Models;
-using Workflow.Workflow.Models;
 using MassTransit;
 using Shared.Messaging.Events;
 
@@ -14,32 +13,13 @@ namespace Workflow.Sla.Services;
 
 public class SlaMonitorService(
     IServiceScopeFactory scopeFactory,
-    ILogger<SlaMonitorService> logger) : BackgroundService
+    ILogger<SlaMonitorService> logger)
+    : LeasedBackgroundService<WorkflowDbContext>(scopeFactory, logger)
 {
-    private static readonly TimeSpan ScanInterval = TimeSpan.FromSeconds(60);
+    protected override string LockId => "WorkflowDbContext-SlaMonitor";
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteWhileLeasedAsync(IServiceScope scope, CancellationToken ct)
     {
-        logger.LogInformation("SLA Monitor Service started");
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                await ScanForBreachesAsync(stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error during SLA breach scan");
-            }
-
-            await Task.Delay(ScanInterval, stoppingToken);
-        }
-    }
-
-    private async Task ScanForBreachesAsync(CancellationToken ct)
-    {
-        using var scope = scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<WorkflowDbContext>();
         var connectionFactory = scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>();
         var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
@@ -54,7 +34,6 @@ public class SlaMonitorService(
         WorkflowDbContext dbContext, ISqlConnectionFactory connectionFactory,
         IPublishEndpoint publishEndpoint, DateTime now, CancellationToken ct)
     {
-        // Only fetch IDs of tasks that actually need a status update
         using var conn = connectionFactory.GetOpenConnection();
         var breachedIds = (await conn.QueryAsync<Guid>(
             """
@@ -73,7 +52,6 @@ public class SlaMonitorService(
 
         var breachLogs = new List<SlaBreachLog>();
 
-        // Process breached tasks
         if (breachedIds.Count > 0)
         {
             var tasks = await dbContext.PendingTasks
@@ -105,7 +83,6 @@ public class SlaMonitorService(
             }
         }
 
-        // Process at-risk tasks
         if (atRiskIds.Count > 0)
         {
             var tasks = await dbContext.PendingTasks

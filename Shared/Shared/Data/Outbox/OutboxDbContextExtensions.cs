@@ -1,16 +1,17 @@
 using Microsoft.EntityFrameworkCore;
+using Shared.Data.Lease;
 
 namespace Shared.Data.Outbox;
 
 public static class OutboxDbContextExtensions
 {
     /// <summary>
-    /// Adds outbox + delivery lock + inbox tables. For modules that PUBLISH integration events.
+    /// Adds outbox + background-service lease + inbox tables. For modules that PUBLISH integration events.
     /// </summary>
     public static ModelBuilder AddIntegrationEventOutbox(this ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new IntegrationEventOutboxConfiguration());
-        modelBuilder.ApplyConfiguration(new OutboxDeliveryLockConfiguration());
+        modelBuilder.ApplyConfiguration(new BackgroundServiceLeaseConfiguration());
         modelBuilder.ApplyConfiguration(new InboxMessageConfiguration());
         return modelBuilder;
     }

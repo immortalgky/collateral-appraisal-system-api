@@ -10,7 +10,7 @@ public class RetryWebhookDeliveryEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/v1/webhook-deliveries/{id:guid}/retry", async (
+        app.MapPost("/webhook-deliveries/{id:guid}/retry", async (
                 Guid id,
                 ISender sender,
                 CancellationToken cancellationToken) =>

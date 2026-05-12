@@ -86,7 +86,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
 
         // Try to renew existing lease or claim an expired one
         var rowsAffected = await dbContext.Database.ExecuteSqlRawAsync(
-            "UPDATE [" + schema + "].[OutboxDeliveryLock] " +
+            "UPDATE [" + schema + "].[BackgroundServiceLease] " +
             "SET InstanceId = {0}, LeasedUntil = {1}, AcquiredAt = {2} " +
             "WHERE Id = {3} AND (InstanceId = {0} OR LeasedUntil < {2})",
             new object[] { _instanceId, leasedUntil, now, _lockId }, ct);
@@ -98,9 +98,9 @@ public class IntegrationEventDeliveryService<TDbContext>(
         try
         {
             await dbContext.Database.ExecuteSqlRawAsync(
-                "INSERT INTO [" + schema + "].[OutboxDeliveryLock] (Id, InstanceId, LeasedUntil, AcquiredAt) " +
+                "INSERT INTO [" + schema + "].[BackgroundServiceLease] (Id, InstanceId, LeasedUntil, AcquiredAt) " +
                 "SELECT {0}, {1}, {2}, {3} " +
-                "WHERE NOT EXISTS (SELECT 1 FROM [" + schema + "].[OutboxDeliveryLock] WHERE Id = {0})",
+                "WHERE NOT EXISTS (SELECT 1 FROM [" + schema + "].[BackgroundServiceLease] WHERE Id = {0})",
                 new object[] { _lockId, _instanceId, leasedUntil, now }, ct);
 
             return true;
@@ -117,7 +117,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
         var schema = dbContext.Model.GetDefaultSchema() ?? "dbo";
 
         await dbContext.Database.ExecuteSqlRawAsync(
-            "UPDATE [" + schema + "].[OutboxDeliveryLock] " +
+            "UPDATE [" + schema + "].[BackgroundServiceLease] " +
             "SET LeasedUntil = {0} " +
             "WHERE Id = {1} AND InstanceId = {2}",
             new object[] { DateTime.Now, _lockId, _instanceId }, ct);
@@ -128,6 +128,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
         var messages = await dbContext.Set<IntegrationEventOutboxMessage>()
             .Where(m => m.Status == OutboxMessageStatus.Pending)
             .OrderBy(m => m.OccurredAt)
+            .ThenBy(m => m.Id)
             .Take(BatchSize)
             .ToListAsync(stoppingToken);
 
@@ -146,7 +147,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
         var processedCount = 0;
         foreach (var group in groups)
         {
-            foreach (var message in group.OrderBy(m => m.OccurredAt))
+            foreach (var message in group.OrderBy(m => m.OccurredAt).ThenBy(m => m.Id))
             {
                 try
                 {

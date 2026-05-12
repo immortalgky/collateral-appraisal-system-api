@@ -14,7 +14,7 @@ namespace Common.Application.EventHandlers;
 /// transitions between lifecycle statuses.
 ///
 /// Wired to <see cref="AppraisalStatusChangedIntegrationEvent"/> which carries
-/// <c>PreviousStatus</c> and <c>NewStatus</c> string values.
+/// <c>PreviousStatus</c> (nullable on initial creation) and <c>Status</c> string values.
 ///
 /// TODO: user to provide derivation rules for
 /// Pending → InProgress → UnderReview → Completed → Cancelled transitions
@@ -33,11 +33,16 @@ public class AppraisalStatusChangedDashboardHandler(
 
         var message = context.Message;
 
+        // Initial creation is owned by AppraisalCreatedDashboardStatusHandler; this handler only
+        // mutates the counter on real transitions where a previous bucket exists.
+        if (message.PreviousStatus is null)
+            return;
+
         logger.LogInformation(
-            "Dashboard: AppraisalStatusChanged for RequestId {RequestId}: {Previous} → {New}",
-            message.RequestId,
+            "Dashboard: AppraisalStatusChanged for AppraisalId {AppraisalId}: {Previous} → {New}",
+            message.AppraisalId,
             message.PreviousStatus,
-            message.NewStatus);
+            message.Status);
 
         var connection = connectionFactory.GetOpenConnection();
         var now = new DateTimeOffset(dateTimeProvider.ApplicationNow);
@@ -71,7 +76,7 @@ public class AppraisalStatusChangedDashboardHandler(
                     INSERT (Status, Count, LastUpdatedAt)
                     VALUES (@Status, 1, @Now);
                 """,
-                new { Status = message.NewStatus, Now = now }, transaction: transaction);
+                new { Status = message.Status, Now = now }, transaction: transaction);
 
             transaction.Commit();
         }
