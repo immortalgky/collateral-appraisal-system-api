@@ -92,7 +92,7 @@ public class PricingCalculation : Entity<Guid>
         };
     }
 
-    public void SetOfferingPrice(decimal price, string unit, decimal? adjustPct = null, decimal? adjustAmt = null)
+    public void SetOfferingPrice(decimal price, string? unit, decimal? adjustPct = null, decimal? adjustAmt = null)
     {
         OfferingPrice = price;
         OfferingPriceUnit = unit;

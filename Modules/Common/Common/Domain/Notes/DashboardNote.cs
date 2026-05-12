@@ -6,7 +6,7 @@ namespace Common.Domain.Notes;
 /// </summary>
 public class DashboardNote
 {
-    public const int MaxContentLength = 10_000;
+    public const int MaxContentLength = 4_000;
 
     public Guid Id { get; private set; }
 
@@ -31,7 +31,7 @@ public class DashboardNote
     /// Factory — creates a new personal note for the given user.
     /// </summary>
     /// <param name="userId">The authenticated user's Id (from ICurrentUserService.UserId).</param>
-    /// <param name="content">Non-empty plain-text content (max 10,000 characters).</param>
+    /// <param name="content">Non-empty plain-text content (max 4,000 characters).</param>
     public static DashboardNote Create(Guid userId, string content)
     {
         ValidateContent(content);
@@ -64,7 +64,7 @@ public class DashboardNote
 
         if (content.Length > MaxContentLength)
             throw new ArgumentException(
-                $"Note content exceeds the maximum allowed length of {MaxContentLength} characters.",
+                $"Note content exceeds the maximum allowed length of 4,000 characters.",
                 nameof(content));
     }
 }

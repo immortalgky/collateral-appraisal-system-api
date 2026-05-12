@@ -57,27 +57,31 @@ public class SaveComparativeAnalysisCommandHandler(
         if (command.AppraisalValue.HasValue)
             method.SetValue(command.AppraisalValue.Value);
 
-        // Persist user-overridden final value adjusted (not recalculated by backend)
-        if (method.FinalValue is not null)
+        // Ensure a FinalValue row exists so user overrides persist even when
+        // the calc service couldn't auto-create one (e.g. WQS with < 2 data points).
+        if (method.FinalValue is null)
         {
-            method.FinalValue.SetFinalValueAdjusted(command.FinalValueAdjusted);
-
-            // Appraisal price (always persist — independent of building-cost toggle).
-            // Applies to land cost (01/02), machinery cost (03), market, and with-building-cost.
-            method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
-
-            // Land area + land value (only when land is part of the appraisal).
-            if (command.IncludeLandArea == true && command.LandArea.HasValue && command.LandValue.HasValue)
-                method.FinalValue.SetLandAreaValues(command.LandArea.Value, command.LandValue.Value);
-            else if (command.IncludeLandArea == false)
-                method.FinalValue.ExcludeLandArea();
-
-            // Building cost toggle (separate from AppraisalPrice now).
-            if (command.HasBuildingCost == true && command.BuildingCost.HasValue)
-                method.FinalValue.SetBuildingCost(command.BuildingCost.Value);
-            else if (command.HasBuildingCost == false)
-                method.FinalValue.ClearBuildingCost();
+            method.SetFinalValue(PricingFinalValue.Create(method.Id, 0m, 0m));
         }
+
+        // Persist user-overridden final value adjusted (not recalculated by backend)
+        method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
+
+        // Appraisal price (always persist — independent of building-cost toggle).
+        // Applies to land cost (01/02), machinery cost (03), market, and with-building-cost.
+        method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
+
+        // Land area + land value (only when land is part of the appraisal).
+        if (command.IncludeLandArea == true && command.LandArea.HasValue && command.LandValue.HasValue)
+            method.FinalValue.SetLandAreaValues(command.LandArea.Value, command.LandValue.Value);
+        else if (command.IncludeLandArea == false)
+            method.FinalValue.ExcludeLandArea();
+
+        // Building cost toggle (separate from AppraisalPrice now).
+        if (command.HasBuildingCost == true && command.BuildingCost.HasValue)
+            method.FinalValue.SetBuildingCost(command.BuildingCost.Value);
+        else if (command.HasBuildingCost == false)
+            method.FinalValue.ClearBuildingCost();
 
         // Propagate: if method is selected and has a value, push it up
         if (method.IsSelected && method.MethodValue.HasValue)

@@ -243,7 +243,9 @@ public static class AuthModule
             .AddScopePolicy("ClsReadDocument", "document.read")
             .AddScopePolicy("ClsWriteDocument", "document.write")
             .AddScopePolicy("Integration", "integration")
-            .AddUserPermissionPolicy("workflow.admin", "WORKFLOW_ADMIN");
+            .AddUserPermissionPolicy("workflow.admin", "WORKFLOW_ADMIN")
+            .AddUserPermissionPolicy("WebhookDeliveriesView", "WEBHOOK_DELIVERIES_VIEW")
+            .AddUserPermissionPolicy("WebhookDeliveriesRetry", "WEBHOOK_DELIVERIES_RETRY");
 
         // In Development, don't pin policies to OpenIddict scheme so the
         // PolicyScheme can route to either DevBypass or OpenIddict.

@@ -49,14 +49,14 @@ public class LinkComparableCommandHandler(
             {
                 calculation.SetOfferingPrice(
                     comparable.OfferPrice.Value,
-                    "PerUnit",
+                    comparable.OfferPriceUnit,
                     comparable.OfferPriceAdjustmentPercent,
                     comparable.OfferPriceAdjustmentAmount);
             }
 
             if (comparable.SalePrice.HasValue)
             {
-                calculation.SetSellingPrice(comparable.SalePrice.Value);
+                calculation.SetSellingPrice(comparable.SalePrice.Value, comparable.SalePriceUnit);
             }
 
             if (comparable.SaleDate.HasValue)
