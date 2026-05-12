@@ -1,13 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Shared.Data.Outbox;
+namespace Shared.Data.Lease;
 
-public class OutboxDeliveryLockConfiguration : IEntityTypeConfiguration<OutboxDeliveryLock>
+public class BackgroundServiceLeaseConfiguration : IEntityTypeConfiguration<BackgroundServiceLease>
 {
-    public void Configure(EntityTypeBuilder<OutboxDeliveryLock> builder)
+    public void Configure(EntityTypeBuilder<BackgroundServiceLease> builder)
     {
-        builder.ToTable("OutboxDeliveryLock");
+        builder.ToTable("BackgroundServiceLease");
 
         builder.HasKey(x => x.Id);
 

@@ -10,7 +10,7 @@ public class GetWebhookDeliveryEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/webhook-deliveries/{id:guid}", async (
+        app.MapGet("/webhook-deliveries/{id:guid}", async (
                 Guid id,
                 ISender sender,
                 CancellationToken cancellationToken) =>

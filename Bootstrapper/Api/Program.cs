@@ -8,6 +8,8 @@ using Request.Infrastructure;
 using Shared.Configurations;
 using Shared.Data;
 using Shared.Data.Outbox;
+using Integration.Application.EventHandlers.Outbound;
+using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
 using Shared.Messaging.Services;
 using Workflow.Data;
@@ -98,6 +100,17 @@ builder.Services.AddMassTransit(config =>
             // Skip retries — go straight to dead-letter for ops triage.
             r.Ignore<Shared.Exceptions.ConflictException>();
             r.Ignore<Collateral.CollateralMasters.Exceptions.MissingIdentityKeyException>();
+        });
+
+        // Single partitioned endpoint for webhook ordering per appraisal.
+        // WebhookDispatchConsumer is marked [ExcludeFromConfigureEndpoints] so ConfigureEndpoints
+        // above does not create separate per-message queues for these two event types.
+        configurator.ReceiveEndpoint("webhook-dispatch", e =>
+        {
+            var partitioner = e.CreatePartitioner(16);
+            e.ConfigureConsumer<WebhookDispatchConsumer>(context);
+            e.UsePartitioner<AppraisalCreatedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+            e.UsePartitioner<AppraisalStatusChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
 
         // In-memory outbox removed — using per-module persistent outbox via IntegrationEventDeliveryService
