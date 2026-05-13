@@ -18,8 +18,10 @@ public record QuotationValuerItem(
     string CompanyQuotationId,
     string ValuerName,
     decimal TotalAppraisalFee,
+    int? EstimatedDays,
     List<ValuerAppraisalFeeItem> Items);
 
 public record ValuerAppraisalFeeItem(
     string AppraisalNumber,
-    decimal QuotedPrice);
+    decimal QuotedPrice,
+    int? EstimatedDays);
