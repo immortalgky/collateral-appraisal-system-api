@@ -1,5 +1,4 @@
 using Appraisal.Domain.ComparativeAnalysis;
-using Shared.CQRS;
 
 namespace Appraisal.Application.Features.ComparativeAnalysisTemplates.RemoveFactorFromTemplate;
 
@@ -17,7 +16,7 @@ public class RemoveFactorFromTemplateCommandHandler(
             throw new InvalidOperationException($"Template {command.TemplateId} not found");
 
         template.RemoveFactor(command.FactorId);
-        templateRepository.Update(template);
+        await templateRepository.SaveChangesAsync(cancellationToken);
 
         return new RemoveFactorFromTemplateResult(true);
     }
