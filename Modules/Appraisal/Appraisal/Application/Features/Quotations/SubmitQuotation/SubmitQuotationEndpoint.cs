@@ -38,7 +38,6 @@ public class SubmitQuotationEndpoint : ICarterModule
                         QuotationRequestId: id,
                         CompanyId: companyId,
                         QuotationNumber: request.QuotationNumber,
-                        EstimatedDays: request.EstimatedDays,
                         Items: items,
                         ValidUntil: request.ValidUntil,
                         ProposedStartDate: request.ProposedStartDate,

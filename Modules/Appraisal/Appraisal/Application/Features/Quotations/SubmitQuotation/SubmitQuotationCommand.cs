@@ -20,7 +20,6 @@ public record SubmitQuotationCommand(
     Guid QuotationRequestId,
     Guid CompanyId,
     string QuotationNumber,
-    int EstimatedDays,
     List<SubmitQuotationItemRequest> Items,
     DateTime? ValidUntil = null,
     DateTime? ProposedStartDate = null,

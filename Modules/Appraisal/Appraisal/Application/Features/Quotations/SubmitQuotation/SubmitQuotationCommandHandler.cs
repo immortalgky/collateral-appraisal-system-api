@@ -71,7 +71,6 @@ public class SubmitQuotationCommandHandler(
                 invitationId: invitation.Id,
                 companyId: command.CompanyId,
                 quotationNumber: command.QuotationNumber,
-                estimatedDays: command.EstimatedDays,
                 submittedAt: dateTimeProvider.ApplicationNow);
 
             ApplyScalarFields(companyQuotation, command);

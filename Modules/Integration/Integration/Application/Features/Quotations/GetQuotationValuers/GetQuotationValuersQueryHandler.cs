@@ -9,28 +9,30 @@ public class GetQuotationValuersQueryHandler(
 ) : IQueryHandler<GetQuotationValuersQuery, GetQuotationValuersResult>
 {
     private const string SqlAppraisals = """
-        SELECT qi.AppraisalNumber, qi.PropertyType, qi.PropertyLocation
-        FROM appraisal.QuotationRequestItems qi
-        WHERE qi.QuotationRequestId = @QuotationId
-        ORDER BY qi.ItemNumber
-        """;
+                                         SELECT qi.AppraisalNumber, qi.PropertyType, qi.PropertyLocation
+                                         FROM appraisal.QuotationRequestItems qi
+                                         WHERE qi.QuotationRequestId = @QuotationId
+                                         ORDER BY qi.ItemNumber
+                                         """;
 
     private const string SqlShortlistedCompanies = """
-        SELECT cq.Id AS CompanyQuotationId, c.Name AS CompanyName, cq.TotalQuotedPrice
-        FROM appraisal.CompanyQuotations cq
-        JOIN auth.Companies c ON c.Id = cq.CompanyId
-        WHERE cq.QuotationRequestId = @QuotationId AND cq.IsShortlisted = 1
-        """;
+                                                   SELECT cq.Id AS CompanyQuotationId, c.Name AS CompanyName, cq.TotalQuotedPrice, cq.EstimatedDays
+                                                   FROM appraisal.CompanyQuotations cq
+                                                   JOIN auth.Companies c ON c.Id = cq.CompanyId
+                                                   WHERE cq.QuotationRequestId = @QuotationId AND cq.IsShortlisted = 1
+                                                   """;
 
     private const string SqlFeeItems = """
-        SELECT cqi.CompanyQuotationId,
-               qi.AppraisalNumber,
-               (cqi.FeeAmount - cqi.Discount - ISNULL(cqi.NegotiatedDiscount, 0))
-                 * (1.0 + cqi.VatPercent / 100.0) AS QuotedPrice
-        FROM appraisal.CompanyQuotationItems cqi
-        JOIN appraisal.QuotationRequestItems qi ON qi.Id = cqi.QuotationRequestItemId
-        WHERE cqi.CompanyQuotationId IN @CompanyQuotationIds
-        """;
+                                       SELECT cqi.CompanyQuotationId,
+                                              a.AppraisalNumber,
+                                              (cqi.FeeAmount - cqi.Discount - ISNULL(cqi.NegotiatedDiscount, 0))
+                                                * (1.0 + cqi.VatPercent / 100.0) AS QuotedPrice,
+                                              cqi.EstimatedDays
+                                       FROM appraisal.CompanyQuotationItems cqi
+                                       JOIN appraisal.Appraisals a ON a.Id = cqi.AppraisalId
+                                       --JOIN appraisal.QuotationRequestItems qi ON qi.Id = cqi.QuotationRequestItemId
+                                       WHERE cqi.CompanyQuotationId IN @CompanyQuotationIds
+                                       """;
 
     public async Task<GetQuotationValuersResult> Handle(
         GetQuotationValuersQuery query,
@@ -56,10 +58,7 @@ public class GetQuotationValuersQueryHandler(
 
         var companies = companyRows.ToList();
 
-        if (companies.Count == 0)
-        {
-            return new GetQuotationValuersResult(query.QuotationId, appraisals, []);
-        }
+        if (companies.Count == 0) return new GetQuotationValuersResult(query.QuotationId, appraisals, []);
 
         var shortlistedIds = companies.Select(c => c.CompanyQuotationId).ToList();
 
@@ -75,11 +74,13 @@ public class GetQuotationValuersQueryHandler(
 
         var valuers = companies
             .Select(c => new QuotationValuerItem(
-                CompanyQuotationId: c.CompanyQuotationId.ToString(),
-                ValuerName: c.CompanyName,
-                TotalAppraisalFee: c.TotalQuotedPrice,
-                Items: feesByCompany.TryGetValue(c.CompanyQuotationId, out var items)
-                    ? items.Select(i => new ValuerAppraisalFeeItem(i.AppraisalNumber, i.QuotedPrice)).ToList()
+                c.CompanyQuotationId.ToString(),
+                c.CompanyName,
+                c.TotalQuotedPrice,
+                c.EstimatedDays,
+                feesByCompany.TryGetValue(c.CompanyQuotationId, out var items)
+                    ? items.Select(i => new ValuerAppraisalFeeItem(i.AppraisalNumber, i.QuotedPrice, i.EstimatedDays))
+                        .ToList()
                     : []))
             .ToList();
 
@@ -87,6 +88,16 @@ public class GetQuotationValuersQueryHandler(
     }
 
     private sealed record AppraisalRow(string AppraisalNumber, string? PropertyType, string? PropertyLocation);
-    private sealed record CompanyRow(Guid CompanyQuotationId, string CompanyName, decimal TotalQuotedPrice);
-    private sealed record FeeRow(Guid CompanyQuotationId, string AppraisalNumber, decimal QuotedPrice);
+
+    private sealed record CompanyRow(
+        Guid CompanyQuotationId,
+        string CompanyName,
+        decimal TotalQuotedPrice,
+        int? EstimatedDays);
+
+    private sealed record FeeRow(
+        Guid CompanyQuotationId,
+        string AppraisalNumber,
+        decimal QuotedPrice,
+        int? EstimatedDays);
 }

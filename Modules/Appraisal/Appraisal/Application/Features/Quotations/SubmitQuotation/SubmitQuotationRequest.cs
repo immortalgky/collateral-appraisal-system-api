@@ -15,7 +15,6 @@ public record SubmitQuotationItemBody(
 
 public record SubmitQuotationRequest(
     string QuotationNumber,
-    int EstimatedDays,
     List<SubmitQuotationItemBody> Items,
     DateTime? ValidUntil = null,
     DateTime? ProposedStartDate = null,

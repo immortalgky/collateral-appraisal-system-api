@@ -49,8 +49,7 @@ public class SaveDraftQuotationCommandHandler(
                 command.QuotationRequestId,
                 invitation.Id,
                 command.CompanyId,
-                command.QuotationNumber,
-                command.EstimatedDays);
+                command.QuotationNumber);
 
             ApplyScalarFields(companyQuotation, command);
             AddItems(companyQuotation, command.Items);

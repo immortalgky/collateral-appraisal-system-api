@@ -88,7 +88,6 @@ public class CompanyQuotation : Entity<Guid>
         Guid invitationId,
         Guid companyId,
         string quotationNumber,
-        int estimatedDays,
         DateTime submittedAt)
     {
         return new CompanyQuotation
@@ -99,7 +98,6 @@ public class CompanyQuotation : Entity<Guid>
             CompanyId = companyId,
             QuotationNumber = quotationNumber,
             SubmittedAt = submittedAt,
-            EstimatedDays = estimatedDays,
             Status = "Submitted",
             TotalQuotedPrice = 0,
             IsShortlisted = false,
@@ -115,8 +113,7 @@ public class CompanyQuotation : Entity<Guid>
         Guid quotationRequestId,
         Guid invitationId,
         Guid companyId,
-        string quotationNumber,
-        int estimatedDays)
+        string quotationNumber)
     {
         // Id intentionally left at default — matches legacy Create() pattern.
         // Repository uses DbSet.Update() which treats default-key entities as Added
@@ -130,7 +127,6 @@ public class CompanyQuotation : Entity<Guid>
             CompanyId = companyId,
             QuotationNumber = quotationNumber,
             SubmittedAt = default,
-            EstimatedDays = estimatedDays,
             Status = "Draft",
             TotalQuotedPrice = 0,
             Currency = "THB"
@@ -152,6 +148,7 @@ public class CompanyQuotation : Entity<Guid>
             Id, quotationRequestItemId, appraisalId, itemNumber, quotedPrice, estimatedDays);
         _items.Add(item);
         RecalculateTotalPrice();
+        RecalculateEstimatedDays();
         return item;
     }
 
@@ -469,6 +466,8 @@ public class CompanyQuotation : Entity<Guid>
     // Internal helpers
     // ─────────────────────────────────────────────────────────────────────────
 
+    private void RecalculateEstimatedDays() => EstimatedDays = _items.Sum(i => i.EstimatedDays);
+
     private void RecalculateTotalPrice()
     {
         // If any item has a fee breakdown entered, use the derived NetAmount.
@@ -483,6 +482,7 @@ public class CompanyQuotation : Entity<Guid>
     internal void ClearItems()
     {
         _items.Clear();
+        RecalculateEstimatedDays();
     }
 
     internal void AddNegotiation(QuotationNegotiation negotiation)

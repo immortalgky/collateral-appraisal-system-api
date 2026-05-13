@@ -13,7 +13,6 @@ public record SaveDraftQuotationItemBody(
 
 public record SaveDraftQuotationRequest(
     string QuotationNumber,
-    int EstimatedDays,
     List<SaveDraftQuotationItemBody> Items,
     DateTime? ValidUntil = null,
     DateTime? ProposedStartDate = null,
