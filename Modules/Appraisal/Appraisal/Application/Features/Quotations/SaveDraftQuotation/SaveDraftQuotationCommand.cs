@@ -17,7 +17,6 @@ public record SaveDraftQuotationCommand(
     Guid QuotationRequestId,
     Guid CompanyId,
     string QuotationNumber,
-    int EstimatedDays,
     List<SaveDraftQuotationItem> Items,
     DateTime? ValidUntil = null,
     DateTime? ProposedStartDate = null,
