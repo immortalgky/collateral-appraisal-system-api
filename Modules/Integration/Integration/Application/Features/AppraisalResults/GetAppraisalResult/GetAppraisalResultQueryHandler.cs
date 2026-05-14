@@ -18,6 +18,7 @@ internal static class GetAppraisalResultSql
         FROM appraisal.Appraisals a
         JOIN request.Requests r ON r.Id = a.RequestId
         WHERE r.ExternalCaseKey = @ExternalCaseKey AND a.IsDeleted = 0
+        ORDER BY a.CreatedOn DESC, a.AppraisalNumber
         """;
 
     public const string ActiveAssignment = """
