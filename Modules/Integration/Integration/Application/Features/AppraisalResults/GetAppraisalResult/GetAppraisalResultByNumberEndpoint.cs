@@ -10,13 +10,13 @@ public class GetAppraisalResultByNumberEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/appraisal/{appraisalNumber}/result", async (
+        app.MapGet("/api/v1/appraisals/{appraisalNumber}/result", async (
             string appraisalNumber,
             ISender sender,
             CancellationToken cancellationToken) =>
         {
             var result = await sender.Send(
-                new GetAppraisalResultQuery(appraisalNumber, null),
+                new GetAppraisalResultByNumberQuery(appraisalNumber),
                 cancellationToken);
 
             return result is null ? Results.NotFound() : Results.Ok(result);
