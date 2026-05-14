@@ -4,16 +4,19 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Appraisal.Infrastructure.Migrations
+namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260513062030_ChangeDataTypeMachineAge")]
+    partial class ChangeDataTypeMachineAge
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -7252,6 +7255,28 @@ namespace Appraisal.Infrastructure.Migrations
                     b.ToTable("AutoAssignmentRules", "appraisal");
                 });
 
+            modelBuilder.Entity("Shared.Data.Lease.BackgroundServiceLease", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("AcquiredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InstanceId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("LeasedUntil")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BackgroundServiceLease", "appraisal");
+                });
+
             modelBuilder.Entity("Shared.Data.Outbox.InboxMessage", b =>
                 {
                     b.Property<Guid>("MessageId")
@@ -7339,28 +7364,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasDatabaseName("IX_IntegrationEventOutbox_Correlation");
 
                     b.ToTable("IntegrationEventOutbox", "appraisal");
-                });
-
-            modelBuilder.Entity("Shared.Data.Outbox.OutboxDeliveryLock", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime>("AcquiredAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("InstanceId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTime>("LeasedUntil")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("OutboxDeliveryLock", "appraisal");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.AppendixDocument", b =>
@@ -8414,7 +8417,6 @@ namespace Appraisal.Infrastructure.Migrations
                             b1.OwnsMany("Appraisal.Domain.Appraisals.CondoAppraisalAreaDetail", "AreaDetails", b2 =>
                                 {
                                     b2.Property<Guid>("Id")
-                                        .ValueGeneratedOnAdd()
                                         .HasColumnType("uniqueidentifier");
 
                                     b2.Property<string>("AreaDescription")

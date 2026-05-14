@@ -38,7 +38,7 @@ public record UpdateMachineryPropertyRequest(
     string? Location = null,
     string? ConditionUse = null,
     string? MachineCondition = null,
-    int? MachineAge = null,
+    decimal? MachineAge = null,
     string? MachineEfficiency = null,
     string? MachineTechnology = null,
     string? UsagePurpose = null,
