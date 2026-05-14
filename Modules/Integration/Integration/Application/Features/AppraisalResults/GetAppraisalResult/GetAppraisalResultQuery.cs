@@ -2,9 +2,11 @@ using Shared.CQRS;
 
 namespace Integration.Application.Features.AppraisalResults.GetAppraisalResult;
 
-// One of AppraisalNumber or ExternalCaseKey must be set
-public record GetAppraisalResultQuery(string? AppraisalNumber, string? ExternalCaseKey)
+public record GetAppraisalResultByNumberQuery(string AppraisalNumber)
     : IQuery<GetAppraisalResultResponse?>;
+
+public record GetAppraisalResultsByCaseKeyQuery(string ExternalCaseKey)
+    : IQuery<IReadOnlyList<GetAppraisalResultResponse>>;
 
 public record GetAppraisalResultResponse(
     string AppraisalNumber,

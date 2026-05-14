@@ -1,27 +1,26 @@
+using System.Data;
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
 
 namespace Integration.Application.Features.AppraisalResults.GetAppraisalResult;
 
-public class GetAppraisalResultQueryHandler(
-    ISqlConnectionFactory connectionFactory
-) : IQueryHandler<GetAppraisalResultQuery, GetAppraisalResultResponse?>
+internal static class GetAppraisalResultSql
 {
-    private const string SqlByAppraisalNumber = """
+    public const string ByAppraisalNumber = """
         SELECT a.Id, a.AppraisalNumber, a.Purpose, a.Channel, a.CompletedAt, a.RequestId
         FROM appraisal.Appraisals a
         WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
         """;
 
-    private const string SqlByExternalCaseKey = """
+    public const string ByExternalCaseKey = """
         SELECT a.Id, a.AppraisalNumber, a.Purpose, a.Channel, a.CompletedAt, a.RequestId
         FROM appraisal.Appraisals a
         JOIN request.Requests r ON r.Id = a.RequestId
         WHERE r.ExternalCaseKey = @ExternalCaseKey AND a.IsDeleted = 0
         """;
 
-    private const string SqlActiveAssignment = """
+    public const string ActiveAssignment = """
         SELECT TOP 1 aa.Id AS AssignmentId, aa.AssigneeCompanyId,
                c.Id AS CompanyId, c.Name AS CompanyName
         FROM appraisal.AppraisalAssignments aa
@@ -31,19 +30,19 @@ public class GetAppraisalResultQueryHandler(
         ORDER BY aa.AssignedAt DESC
         """;
 
-    private const string SqlFee = """
+    public const string Fee = """
         SELECT TOP 1 af.TotalFeeAfterVAT
         FROM appraisal.AppraisalFees af
         WHERE af.AssignmentId = @AssignmentId
         """;
 
-    private const string SqlValuationTotals = """
+    public const string ValuationTotals = """
         SELECT va.AppraisedValue, va.ForcedSaleValue, va.InsuranceValue, va.ValuationDate
         FROM appraisal.ValuationAnalyses va
         WHERE va.AppraisalId = @AppraisalId
         """;
 
-    private const string SqlGroupsAndCollaterals = """
+    public const string GroupsAndCollaterals = """
         SELECT
             pg.Id AS GroupId, pg.GroupName,
             gv.AppraisedValue AS GroupAppraisedValue,
@@ -105,68 +104,95 @@ public class GetAppraisalResultQueryHandler(
         ORDER BY pg.GroupNumber, pgi.SequenceInGroup
         """;
 
-    private const string SqlDocuments = """
+    public const string Documents = """
         SELECT rd.DocumentType, rd.FilePath AS DocumentPath
         FROM request.RequestDocuments rd
         WHERE rd.RequestId = @RequestId AND rd.FilePath IS NOT NULL
         """;
+}
 
-    public async Task<GetAppraisalResultResponse?> Handle(
-        GetAppraisalResultQuery query,
+internal sealed record AppraisalRow(Guid Id, string AppraisalNumber, string? Purpose, string? Channel, DateTime? CompletedAt, Guid RequestId);
+internal sealed record AssignmentRow(Guid AssignmentId, string? AssigneeCompanyId, Guid? CompanyId, string? CompanyName);
+internal sealed record ValuationRow(decimal? AppraisedValue, decimal? ForcedSaleValue, decimal? InsuranceValue, DateTime? ValuationDate);
+
+internal sealed record CollateralRow(
+    Guid GroupId,
+    string? GroupName,
+    decimal? GroupAppraisedValue,
+    string? AppraisalMethod,
+    Guid PropertyId,
+    string? PropertyType,
+    string? Province,
+    string? District,
+    string? SubDistrict,
+    string? TitleNo,
+    string? LandNo,
+    string? Rawang,
+    string? SurveyNo,
+    string? BookNo,
+    string? PageNo,
+    decimal? Rai,
+    decimal? Ngan,
+    decimal? Wa,
+    string? HouseNo,
+    string? BuildingType,
+    int? BuildingAge,
+    decimal? TotalFloor,
+    string? RoomNo,
+    string? FloorNo,
+    string? BuildingNo,
+    int? CondoBuildingAge,
+    decimal? CondoTotalFloor,
+    decimal? AreaUtilize,
+    string? CadProvince,
+    string? CadDistrict,
+    string? CadSubDistrict,
+    string? ContractNo,
+    string? LesseeName,
+    string? LessorName,
+    string? VehicleRegistrationNo,
+    string? VehicleBrand,
+    string? VehicleModel,
+    string? VesselRegistrationNo,
+    string? VesselName,
+    string? VesselType,
+    string? MachineName,
+    string? MachineBrand,
+    string? MachineModel,
+    string? MachineSerialNo);
+
+internal sealed record DocumentRow(string? DocumentType, string? DocumentPath);
+
+internal static class AppraisalResultBuilder
+{
+    public static async Task<GetAppraisalResultResponse> BuildAsync(
+        IDbConnection conn,
+        AppraisalRow appraisal,
         CancellationToken cancellationToken)
     {
-        var conn = connectionFactory.GetOpenConnection();
-
-        // Step 1: Resolve appraisal
-        AppraisalRow? appraisal;
-
-        if (!string.IsNullOrWhiteSpace(query.AppraisalNumber))
-        {
-            var p = new DynamicParameters();
-            p.Add("AppraisalNumber", query.AppraisalNumber);
-            appraisal = await conn.QuerySingleOrDefaultAsync<AppraisalRow>(
-                new CommandDefinition(SqlByAppraisalNumber, p, cancellationToken: cancellationToken));
-        }
-        else
-        {
-            var p = new DynamicParameters();
-            p.Add("ExternalCaseKey", query.ExternalCaseKey);
-            appraisal = await conn.QuerySingleOrDefaultAsync<AppraisalRow>(
-                new CommandDefinition(SqlByExternalCaseKey, p, cancellationToken: cancellationToken));
-        }
-
-        if (appraisal is null)
-        {
-            return null;
-        }
-
-        // Step 2: Active assignment + valuer
         var assignmentParams = new DynamicParameters();
         assignmentParams.Add("AppraisalId", appraisal.Id);
         var assignment = await conn.QueryFirstOrDefaultAsync<AssignmentRow>(
-            new CommandDefinition(SqlActiveAssignment, assignmentParams, cancellationToken: cancellationToken));
+            new CommandDefinition(GetAppraisalResultSql.ActiveAssignment, assignmentParams, cancellationToken: cancellationToken));
 
-        // Step 3: Fee
         decimal? fee = null;
         if (assignment is not null)
         {
             var feeParams = new DynamicParameters();
             feeParams.Add("AssignmentId", assignment.AssignmentId);
             fee = await conn.QueryFirstOrDefaultAsync<decimal?>(
-                new CommandDefinition(SqlFee, feeParams, cancellationToken: cancellationToken));
+                new CommandDefinition(GetAppraisalResultSql.Fee, feeParams, cancellationToken: cancellationToken));
         }
 
-        // Step 4: Valuation totals
         var valParams = new DynamicParameters();
         valParams.Add("AppraisalId", appraisal.Id);
         var valuation = await conn.QueryFirstOrDefaultAsync<ValuationRow>(
-            new CommandDefinition(SqlValuationTotals, valParams, cancellationToken: cancellationToken));
+            new CommandDefinition(GetAppraisalResultSql.ValuationTotals, valParams, cancellationToken: cancellationToken));
 
-        // Step 5: Groups + collaterals
         var groupParams = new DynamicParameters();
         groupParams.Add("AppraisalId", appraisal.Id);
         var collateralRows = await conn.QueryAsync<CollateralRow>(
-            new CommandDefinition(SqlGroupsAndCollaterals, groupParams, cancellationToken: cancellationToken));
+            new CommandDefinition(GetAppraisalResultSql.GroupsAndCollaterals, groupParams, cancellationToken: cancellationToken));
 
         var groups = collateralRows
             .GroupBy(r => r.GroupId)
@@ -217,11 +243,10 @@ public class GetAppraisalResultQueryHandler(
             })
             .ToList();
 
-        // Step 6: Documents
         var docParams = new DynamicParameters();
         docParams.Add("RequestId", appraisal.RequestId);
         var docRows = await conn.QueryAsync<DocumentRow>(
-            new CommandDefinition(SqlDocuments, docParams, cancellationToken: cancellationToken));
+            new CommandDefinition(GetAppraisalResultSql.Documents, docParams, cancellationToken: cancellationToken));
 
         var documents = docRows
             .Select(d => new AppraisalResultDocument(d.DocumentType, d.DocumentPath))
@@ -241,63 +266,53 @@ public class GetAppraisalResultQueryHandler(
             Groups: groups,
             Documents: documents);
     }
+}
 
-    private sealed record AppraisalRow(Guid Id, string AppraisalNumber, string? Purpose, string? Channel, DateTime? CompletedAt, Guid RequestId);
-    private sealed record AssignmentRow(Guid AssignmentId, string? AssigneeCompanyId, Guid? CompanyId, string? CompanyName);
-    private sealed record ValuationRow(decimal? AppraisedValue, decimal? ForcedSaleValue, decimal? InsuranceValue, DateTime? ValuationDate);
+public class GetAppraisalResultByNumberQueryHandler(
+    ISqlConnectionFactory connectionFactory
+) : IQueryHandler<GetAppraisalResultByNumberQuery, GetAppraisalResultResponse?>
+{
+    public async Task<GetAppraisalResultResponse?> Handle(
+        GetAppraisalResultByNumberQuery query,
+        CancellationToken cancellationToken)
+    {
+        var conn = connectionFactory.GetOpenConnection();
 
-    private sealed record CollateralRow(
-        Guid GroupId,
-        string? GroupName,
-        decimal? GroupAppraisedValue,
-        string? AppraisalMethod,
-        Guid PropertyId,
-        string? PropertyType,
-        // Land
-        string? Province,
-        string? District,
-        string? SubDistrict,
-        string? TitleNo,
-        string? LandNo,
-        string? Rawang,
-        string? SurveyNo,
-        string? BookNo,
-        string? PageNo,
-        decimal? Rai,
-        decimal? Ngan,
-        decimal? Wa,
-        // Building
-        string? HouseNo,
-        string? BuildingType,
-        int? BuildingAge,
-        decimal? TotalFloor,
-        // Condo
-        string? RoomNo,
-        string? FloorNo,
-        string? BuildingNo,
-        int? CondoBuildingAge,
-        decimal? CondoTotalFloor,
-        decimal? AreaUtilize,
-        string? CadProvince,
-        string? CadDistrict,
-        string? CadSubDistrict,
-        // Lease
-        string? ContractNo,
-        string? LesseeName,
-        string? LessorName,
-        // Vehicle
-        string? VehicleRegistrationNo,
-        string? VehicleBrand,
-        string? VehicleModel,
-        // Vessel
-        string? VesselRegistrationNo,
-        string? VesselName,
-        string? VesselType,
-        // Machinery
-        string? MachineName,
-        string? MachineBrand,
-        string? MachineModel,
-        string? MachineSerialNo);
+        var p = new DynamicParameters();
+        p.Add("AppraisalNumber", query.AppraisalNumber);
+        var appraisal = await conn.QuerySingleOrDefaultAsync<AppraisalRow>(
+            new CommandDefinition(GetAppraisalResultSql.ByAppraisalNumber, p, cancellationToken: cancellationToken));
 
-    private sealed record DocumentRow(string? DocumentType, string? DocumentPath);
+        if (appraisal is null)
+        {
+            return null;
+        }
+
+        return await AppraisalResultBuilder.BuildAsync(conn, appraisal, cancellationToken);
+    }
+}
+
+public class GetAppraisalResultsByCaseKeyQueryHandler(
+    ISqlConnectionFactory connectionFactory
+) : IQueryHandler<GetAppraisalResultsByCaseKeyQuery, IReadOnlyList<GetAppraisalResultResponse>>
+{
+    public async Task<IReadOnlyList<GetAppraisalResultResponse>> Handle(
+        GetAppraisalResultsByCaseKeyQuery query,
+        CancellationToken cancellationToken)
+    {
+        var conn = connectionFactory.GetOpenConnection();
+
+        var p = new DynamicParameters();
+        p.Add("ExternalCaseKey", query.ExternalCaseKey);
+        var appraisals = await conn.QueryAsync<AppraisalRow>(
+            new CommandDefinition(GetAppraisalResultSql.ByExternalCaseKey, p, cancellationToken: cancellationToken));
+
+        var results = new List<GetAppraisalResultResponse>();
+        foreach (var appraisal in appraisals)
+        {
+            results.Add(await AppraisalResultBuilder.BuildAsync(conn, appraisal, cancellationToken));
+        }
+
+        return results;
+    }
 }

@@ -10,7 +10,7 @@ public class GetAppraisalResultByCaseKeyEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/appraisal/result", async (
+        app.MapGet("/api/v1/appraisals/result", async (
             [Microsoft.AspNetCore.Mvc.FromQuery] string externalCaseKey,
             ISender sender,
             CancellationToken cancellationToken) =>
@@ -19,15 +19,15 @@ public class GetAppraisalResultByCaseKeyEndpoint : ICarterModule
                 return Results.BadRequest("externalCaseKey is required");
 
             var result = await sender.Send(
-                new GetAppraisalResultQuery(null, externalCaseKey),
+                new GetAppraisalResultsByCaseKeyQuery(externalCaseKey),
                 cancellationToken);
 
-            return result is null ? Results.NotFound() : Results.Ok(result);
+            return Results.Ok(result);
         })
         .WithName("GetAppraisalResultByCaseKey")
         .WithTags("Integration - Appraisal Results")
         .RequireAuthorization("Integration")
-        .Produces<GetAppraisalResultResponse>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status404NotFound);
+        .Produces<IReadOnlyList<GetAppraisalResultResponse>>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status400BadRequest);
     }
 }
