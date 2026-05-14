@@ -6,6 +6,7 @@ public record GetQuotationValuersQuery(Guid QuotationId) : IQuery<GetQuotationVa
 
 public record GetQuotationValuersResult(
     Guid QuotationId,
+    string? QuotationNumber,
     List<QuotationAppraisalItem> Appraisals,
     List<QuotationValuerItem> Valuers);
 
