@@ -171,6 +171,8 @@ public class AppraisalFee : Entity<Guid>
     {
         if (TotalPaidAmount >= CustomerPayableAmount && CustomerPayableAmount > 0)
             PaymentStatus = "Paid";
+        else if (BankAbsorbAmount >= TotalFeeAfterVAT  && TotalFeeAfterVAT  > 0)
+            PaymentStatus = "Paid";
         else if (TotalPaidAmount > 0)
             PaymentStatus = "Partial";
         else
