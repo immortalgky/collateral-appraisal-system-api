@@ -61,4 +61,9 @@ public class MarketComparableTemplateRepository(AppraisalDbContext dbContext)
             .ThenBy(t => t.TemplateName)
             .ToListAsync(cancellationToken);
     }
+    
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

@@ -49,7 +49,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
     public string? Location { get; private set; }
     public string? ConditionUse { get; private set; }
     public string? MachineCondition { get; private set; }
-    public int? MachineAge { get; private set; }
+    public decimal? MachineAge { get; private set; }
     public string? MachineEfficiency { get; private set; }
     public string? MachineTechnology { get; private set; }
     public string? UsagePurpose { get; private set; }
@@ -158,7 +158,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
         string? location = null,
         string? conditionUse = null,
         string? machineCondition = null,
-        int? machineAge = null,
+        decimal? machineAge = null,
         string? machineEfficiency = null,
         string? machineTechnology = null,
         string? usagePurpose = null,

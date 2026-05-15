@@ -16,28 +16,32 @@ public class ComparativeAnalysisTemplateRepository(AppraisalDbContext dbContext)
             .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
     }
 
-    public async Task<ComparativeAnalysisTemplate?> GetByIdWithFactorsAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<ComparativeAnalysisTemplate?> GetByIdWithFactorsAsync(Guid id,
+        CancellationToken cancellationToken = default)
     {
         return await _dbContext.ComparativeAnalysisTemplates
             .Include(t => t.Factors)
             .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
     }
 
-    public async Task<ComparativeAnalysisTemplate?> GetByTemplateCodeAsync(string templateCode, CancellationToken cancellationToken = default)
+    public async Task<ComparativeAnalysisTemplate?> GetByTemplateCodeAsync(string templateCode,
+        CancellationToken cancellationToken = default)
     {
         return await _dbContext.ComparativeAnalysisTemplates
             .Include(t => t.Factors)
             .FirstOrDefaultAsync(t => t.TemplateCode == templateCode.ToUpperInvariant(), cancellationToken);
     }
 
-    public async Task<ComparativeAnalysisTemplate?> GetByPropertyTypeAsync(string propertyType, CancellationToken cancellationToken = default)
+    public async Task<ComparativeAnalysisTemplate?> GetByPropertyTypeAsync(string propertyType,
+        CancellationToken cancellationToken = default)
     {
         return await _dbContext.ComparativeAnalysisTemplates
             .Include(t => t.Factors)
             .FirstOrDefaultAsync(t => t.PropertyType == propertyType && t.IsActive, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ComparativeAnalysisTemplate>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ComparativeAnalysisTemplate>> GetAllAsync(
+        CancellationToken cancellationToken = default)
     {
         return await _dbContext.ComparativeAnalysisTemplates
             .Include(t => t.Factors)
@@ -46,7 +50,8 @@ public class ComparativeAnalysisTemplateRepository(AppraisalDbContext dbContext)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ComparativeAnalysisTemplate>> GetActiveTemplatesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ComparativeAnalysisTemplate>> GetActiveTemplatesAsync(
+        CancellationToken cancellationToken = default)
     {
         return await _dbContext.ComparativeAnalysisTemplates
             .Include(t => t.Factors)
@@ -56,7 +61,8 @@ public class ComparativeAnalysisTemplateRepository(AppraisalDbContext dbContext)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<bool> ExistsByTemplateCodeAsync(string templateCode, CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsByTemplateCodeAsync(string templateCode,
+        CancellationToken cancellationToken = default)
     {
         return await _dbContext.ComparativeAnalysisTemplates
             .AnyAsync(t => t.TemplateCode == templateCode.ToUpperInvariant(), cancellationToken);
@@ -75,5 +81,10 @@ public class ComparativeAnalysisTemplateRepository(AppraisalDbContext dbContext)
     public void Delete(ComparativeAnalysisTemplate template)
     {
         _dbContext.ComparativeAnalysisTemplates.Remove(template);
+    }
+
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }
