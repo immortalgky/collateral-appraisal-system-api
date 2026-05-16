@@ -249,8 +249,8 @@ public class TaskActivity : WorkflowActivityBase
             }
 
             // Write singleton route-back keys so PublishTaskAssignedEventAsync on the next activity can read them.
-            var actionDecision = outputData.TryGetValue("decision", out var dv) ? dv?.ToString() ?? string.Empty : string.Empty;
-            if (string.Equals(ResolveActionMovement(context, actionDecision), "B", StringComparison.OrdinalIgnoreCase))
+            var action = outputData.TryGetValue($"{NormalizeActivityId(context.ActivityId)}_decisionTaken", out var dv) ? dv?.ToString() ?? string.Empty : string.Empty;
+            if (string.Equals(ResolveActionMovement(context, action), "B", StringComparison.OrdinalIgnoreCase))
             {
                 if (resumeInput.TryGetValue("reasonCode", out var rcVal) && rcVal is not null)
                     context.WorkflowInstance.Variables["routeBackReasonCode"] = rcVal.ToString()!;
