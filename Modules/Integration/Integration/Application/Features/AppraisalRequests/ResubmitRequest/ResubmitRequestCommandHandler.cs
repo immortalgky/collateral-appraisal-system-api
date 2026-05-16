@@ -128,15 +128,6 @@ public class ResubmitRequestCommandHandler(
     private async Task<ResubmitRequestResult> HandleFollowupResubmitAsync(
         ResubmitRequestCommand command, CancellationToken ct)
     {
-        // Reject mixed payloads: Mode=Followup + request-mutation fields are mutually exclusive.
-        if (command.Purpose is not null || command.Channel is not null ||
-            command.Detail is not null || command.Customers is not null || command.Properties is not null)
-        {
-            throw new BadRequestException(
-                "Mode=Followup set together with request-mutation fields (Purpose/Channel/Detail/Customers/Properties) " +
-                "— these are mutually exclusive.");
-        }
-
         // Discover the open DocumentFollowup for this request. The bank doesn't echo back our
         // internal FollowupId — the server resolves it from open state. The data model permits
         // multiple open followups per request across distinct raising tasks, but today's workflow
@@ -176,45 +167,21 @@ public class ResubmitRequestCommandHandler(
         foreach (var title in titles)
             title.Validate();
 
-        // Build the list of FOLLOWUP-sourced items to fulfill line items.
-        // REQUEST-sourced docs in the payload are kept/synced above but don't count toward fulfillment.
-        var followupItems = (command.Documents ?? [])
-            .Where(d => string.Equals(d.Source, "FOLLOWUP", StringComparison.OrdinalIgnoreCase)
-                        && d.DocumentId.HasValue)
-            .Select(d => new FulfillFollowupItemDto(d.DocumentType, d.DocumentId!.Value))
-            .ToList();
-
-        // Also include FOLLOWUP-sourced docs from title-level documents.
-        if (command.Titles is not null)
-        {
-            foreach (var titleDto in command.Titles)
-            {
-                foreach (var doc in titleDto.Documents
-                    .Where(d => string.Equals(d.Source, "FOLLOWUP", StringComparison.OrdinalIgnoreCase)
-                                && d.DocumentId.HasValue))
-                {
-                    followupItems.Add(new FulfillFollowupItemDto(doc.DocumentType!, doc.DocumentId!.Value));
-                }
-            }
-        }
-
-        // Publish to the persistent outbox so the Workflow-side fulfill+resume happens AFTER the
-        // Request transaction commits. See data-fix branch above for the atomicity rationale.
+        // Publish to the persistent outbox so the Workflow-side auto-resolve + resume happens
+        // AFTER the Request transaction commits. See data-fix branch above for the atomicity rationale.
+        // FollowupItems is always empty: the Workflow consumer now auto-resolves without per-item checks.
         outbox.Publish(
             new RequestResubmittedIntegrationEvent
             {
                 RequestId = command.RequestId,
                 FollowupId = followup.Id,
-                FollowupItems = followupItems
-                    .Select(i => new ResubmittedFollowupItem(i.DocumentType, i.DocumentId))
-                    .ToList()
+                FollowupItems = []
             },
             correlationId: command.RequestId.ToString());
 
         logger.LogInformation(
-            "Followup resubmit queued for RequestId {RequestId}, FollowupId {FollowupId}, " +
-            "{ItemCount} FOLLOWUP items",
-            command.RequestId, followup.Id, followupItems.Count);
+            "Followup resubmit queued for RequestId {RequestId}, FollowupId {FollowupId} (auto-resolve)",
+            command.RequestId, followup.Id);
 
         return new ResubmitRequestResult(
             status: "Success",

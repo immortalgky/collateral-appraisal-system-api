@@ -16,7 +16,7 @@ namespace Workflow.EventHandlers;
 ///
 /// Branches on FollowupId:
 ///   - null  → ResumeParentWorkflowForRequestCommand (parent appraisal workflow at appraisal-initiation)
-///   - set   → FulfillDocumentFollowupCommand (followup child workflow at provide-additional-documents)
+///   - set   → AutoResolveDocumentFollowupCommand (auto-resolves followup; no per-item coverage check)
 /// </summary>
 public class RequestResubmittedIntegrationEventConsumer(
     ISender mediator,
@@ -42,12 +42,11 @@ public class RequestResubmittedIntegrationEventConsumer(
         {
             if (message.FollowupId.HasValue)
             {
-                var items = message.FollowupItems
-                    .Select(i => new FulfillFollowupItemDto(i.DocumentType, i.DocumentId))
-                    .ToList();
-
                 await mediator.Send(
-                    new FulfillDocumentFollowupCommand(message.FollowupId.Value, items, SystemActor),
+                    new AutoResolveDocumentFollowupCommand(
+                        message.FollowupId.Value,
+                        SystemActor,
+                        "Auto-resolved via integration API resubmit"),
                     ct);
             }
             else
