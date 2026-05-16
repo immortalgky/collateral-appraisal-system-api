@@ -14,7 +14,7 @@ public record UpdateMachineryPropertyCommand(
     string? MachineName = null,
     string? EngineNo = null,
     string? ChassisNo = null,
-    string? RegistrationNo = null,
+    string? RegistrationNumber = null,
     string? SerialNo = null,
     // Machine Specifications
     string? Brand = null,

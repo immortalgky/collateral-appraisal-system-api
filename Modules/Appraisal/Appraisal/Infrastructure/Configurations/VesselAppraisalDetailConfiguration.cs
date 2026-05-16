@@ -16,7 +16,7 @@ public class VesselAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appr
         builder.Property(e => e.PropertyName).HasMaxLength(200);
         builder.Property(e => e.VesselName).HasMaxLength(200);
         builder.Property(e => e.EngineNo).HasMaxLength(100);
-        builder.Property(e => e.RegistrationNo).HasMaxLength(50);
+        builder.Property(e => e.RegistrationNumber).HasMaxLength(50);
 
         // Vessel Specifications
         builder.Property(e => e.Brand).HasMaxLength(100);

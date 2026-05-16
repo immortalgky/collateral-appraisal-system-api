@@ -44,7 +44,7 @@ public class GetVehiclePropertyQueryHandler(
             VehicleName: detail.VehicleName,
             EngineNo: detail.EngineNo,
             ChassisNo: detail.ChassisNo,
-            RegistrationNo: detail.RegistrationNo,
+            RegistrationNumber: detail.RegistrationNumber,
             Brand: detail.Brand,
             Model: detail.Model,
             YearOfManufacture: detail.YearOfManufacture,

@@ -17,7 +17,7 @@ public class VehicleAppraisalDetailConfiguration : IOwnedEntityConfiguration<App
         builder.Property(e => e.VehicleName).HasMaxLength(200);
         builder.Property(e => e.EngineNo).HasMaxLength(100);
         builder.Property(e => e.ChassisNo).HasMaxLength(100);
-        builder.Property(e => e.RegistrationNo).HasMaxLength(50);
+        builder.Property(e => e.RegistrationNumber).HasMaxLength(50);
 
         // Vehicle Specifications
         builder.Property(e => e.Brand).HasMaxLength(100);

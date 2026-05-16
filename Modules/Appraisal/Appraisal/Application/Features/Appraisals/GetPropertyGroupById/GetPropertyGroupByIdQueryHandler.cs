@@ -121,7 +121,7 @@ public record PropertyGroupItemDto
     public string? MachineName { get; set; }
     public string? Brand { get; set; }
     public string? Model { get; set; }
-    public string? RegistrationNo { get; set; }
+    public string? RegistrationNumber { get; set; }
     public string? Dimension { get; set; }
     public string? Location { get; set; }
     public List<PropertyPhotoDto>? Photos { get; set; }

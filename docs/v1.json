@@ -2413,7 +2413,7 @@
           "areaNgan",
           "areaSquareWa",
           "ownerName",
-          "registrationNo",
+          "registrationNumber",
           "vehicleType",
           "vehicleAppointmentLocation",
           "chassisNumber",
@@ -2488,7 +2488,7 @@
             "type": "string",
             "nullable": true
           },
-          "registrationNo": {
+          "registrationNumber": {
             "type": "string",
             "nullable": true
           },
@@ -3521,7 +3521,7 @@
           "registrationStatus": {
             "type": "boolean"
           },
-          "registrationNo": {
+          "registrationNumber": {
             "type": "string",
             "nullable": true
           },

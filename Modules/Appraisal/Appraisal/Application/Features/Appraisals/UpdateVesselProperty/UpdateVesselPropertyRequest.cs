@@ -8,7 +8,7 @@ public record UpdateVesselPropertyRequest(
     string? PropertyName = null,
     string? VesselName = null,
     string? EngineNo = null,
-    string? RegistrationNo = null,
+    string? RegistrationNumber = null,
     DateTime? RegistrationDate = null,
     // Vessel Specifications
     string? Brand = null,

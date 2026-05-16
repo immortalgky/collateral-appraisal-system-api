@@ -73,7 +73,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
     {
         var prop = appraisal.AddMachineryProperty();
         prop.MachineryDetail!.Update(
-            registrationNo: registrationNo,
+            registrationNumber: registrationNo,
             serialNo: serialNo,
             brand: brand,
             model: model,

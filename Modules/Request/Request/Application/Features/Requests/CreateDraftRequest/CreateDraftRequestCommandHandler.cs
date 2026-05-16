@@ -10,7 +10,7 @@ internal class CreateDraftRequestCommandHandler(
     {
         var createRequestData = command.Adapt<CreateRequestData>();
 
-        var request = await createRequestService.CreateRequestAsync(createRequestData, cancellationToken);
+        var (request, _) = await createRequestService.CreateRequestAsync(createRequestData, cancellationToken);
 
         return new CreateDraftRequestResult(request.Id);
     }

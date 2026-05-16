@@ -43,7 +43,7 @@ public class GetVesselPropertyQueryHandler(
             PropertyName: detail.PropertyName,
             VesselName: detail.VesselName,
             EngineNo: detail.EngineNo,
-            RegistrationNo: detail.RegistrationNo,
+            RegistrationNumber: detail.RegistrationNumber,
             RegistrationDate: detail.RegistrationDate,
             Brand: detail.Brand,
             Model: detail.Model,

@@ -644,35 +644,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasForeignKey("RequestId");
                         });
 
-                    b.OwnsOne("Shared.Models.UserInfo", "Requestor", b1 =>
-                        {
-                            b1.Property<Guid>("RequestId")
-                                .HasColumnType("uniqueidentifier");
-
-                            b1.Property<string>("UserId")
-                                .IsRequired()
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
-                                .HasColumnName("Requestor");
-
-                            b1.Property<string>("Username")
-                                .IsRequired()
-                                .HasMaxLength(100)
-                                .HasColumnType("nvarchar(100)")
-                                .HasColumnName("RequestorName");
-
-                            b1.HasKey("RequestId");
-
-                            b1.HasIndex("UserId")
-                                .HasDatabaseName("IX_Request_Requestor")
-                                .HasFilter("[IsDeleted] = 0");
-
-                            b1.ToTable("Requests", "request");
-
-                            b1.WithOwner()
-                                .HasForeignKey("RequestId");
-                        });
-
                     b.OwnsMany("Request.Domain.Requests.RequestCustomer", "Customers", b1 =>
                         {
                             b1.Property<long>("Id")
@@ -741,6 +712,64 @@ namespace Request.Infrastructure.Migrations
 
                             b1.WithOwner()
                                 .HasForeignKey("RequestId");
+
+                            b1.OwnsOne("Request.Domain.Requests.Address", "Address", b2 =>
+                                {
+                                    b2.Property<Guid>("RequestDetailRequestId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<string>("District")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("District");
+
+                                    b2.Property<string>("HouseNumber")
+                                        .HasMaxLength(30)
+                                        .HasColumnType("nvarchar(30)")
+                                        .HasColumnName("HouseNumber");
+
+                                    b2.Property<string>("Moo")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Moo");
+
+                                    b2.Property<string>("Postcode")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("Postcode");
+
+                                    b2.Property<string>("ProjectName")
+                                        .HasMaxLength(100)
+                                        .HasColumnType("nvarchar(100)")
+                                        .HasColumnName("ProjectName");
+
+                                    b2.Property<string>("Province")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("Province");
+
+                                    b2.Property<string>("Road")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Road");
+
+                                    b2.Property<string>("Soi")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Soi");
+
+                                    b2.Property<string>("SubDistrict")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("SubDistrict");
+
+                                    b2.HasKey("RequestDetailRequestId");
+
+                                    b2.ToTable("RequestDetails", "request");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RequestDetailRequestId");
+                                });
 
                             b1.OwnsOne("Request.Domain.Requests.Appointment", "Appointment", b2 =>
                                 {
@@ -867,64 +896,6 @@ namespace Request.Infrastructure.Migrations
                                         .HasForeignKey("RequestDetailRequestId");
                                 });
 
-                            b1.OwnsOne("Request.Domain.Requests.Address", "Address", b2 =>
-                                {
-                                    b2.Property<Guid>("RequestDetailRequestId")
-                                        .HasColumnType("uniqueidentifier");
-
-                                    b2.Property<string>("District")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("District");
-
-                                    b2.Property<string>("HouseNumber")
-                                        .HasMaxLength(30)
-                                        .HasColumnType("nvarchar(30)")
-                                        .HasColumnName("HouseNumber");
-
-                                    b2.Property<string>("Moo")
-                                        .HasMaxLength(50)
-                                        .HasColumnType("nvarchar(50)")
-                                        .HasColumnName("Moo");
-
-                                    b2.Property<string>("Postcode")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("Postcode");
-
-                                    b2.Property<string>("ProjectName")
-                                        .HasMaxLength(100)
-                                        .HasColumnType("nvarchar(100)")
-                                        .HasColumnName("ProjectName");
-
-                                    b2.Property<string>("Province")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("Province");
-
-                                    b2.Property<string>("Road")
-                                        .HasMaxLength(50)
-                                        .HasColumnType("nvarchar(50)")
-                                        .HasColumnName("Road");
-
-                                    b2.Property<string>("Soi")
-                                        .HasMaxLength(50)
-                                        .HasColumnType("nvarchar(50)")
-                                        .HasColumnName("Soi");
-
-                                    b2.Property<string>("SubDistrict")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("SubDistrict");
-
-                                    b2.HasKey("RequestDetailRequestId");
-
-                                    b2.ToTable("RequestDetails", "request");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("RequestDetailRequestId");
-                                });
-
                             b1.Navigation("Address");
 
                             b1.Navigation("Appointment");
@@ -1023,28 +994,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasForeignKey("RequestId");
                         });
 
-                    b.OwnsOne("Request.Domain.Requests.RequestNumber", "RequestNumber", b1 =>
-                        {
-                            b1.Property<Guid>("RequestId")
-                                .HasColumnType("uniqueidentifier");
-
-                            b1.Property<string>("Value")
-                                .IsRequired()
-                                .HasMaxLength(255)
-                                .HasColumnType("nvarchar(255)")
-                                .HasColumnName("RequestNumber");
-
-                            b1.HasKey("RequestId");
-
-                            b1.HasIndex("Value")
-                                .HasDatabaseName("IX_Request_RequestNumber");
-
-                            b1.ToTable("Requests", "request");
-
-                            b1.WithOwner()
-                                .HasForeignKey("RequestId");
-                        });
-
                     b.OwnsMany("Request.Domain.Requests.RequestProperty", "Properties", b1 =>
                         {
                             b1.Property<long>("Id")
@@ -1079,6 +1028,57 @@ namespace Request.Infrastructure.Migrations
                             b1.HasIndex("RequestId");
 
                             b1.ToTable("RequestProperties", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestId");
+                        });
+
+                    b.OwnsOne("Request.Domain.Requests.RequestNumber", "RequestNumber", b1 =>
+                        {
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Value")
+                                .IsRequired()
+                                .HasMaxLength(255)
+                                .HasColumnType("nvarchar(255)")
+                                .HasColumnName("RequestNumber");
+
+                            b1.HasKey("RequestId");
+
+                            b1.HasIndex("Value")
+                                .HasDatabaseName("IX_Request_RequestNumber");
+
+                            b1.ToTable("Requests", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestId");
+                        });
+
+                    b.OwnsOne("Shared.Models.UserInfo", "Requestor", b1 =>
+                        {
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("UserId")
+                                .IsRequired()
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("Requestor");
+
+                            b1.Property<string>("Username")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("RequestorName");
+
+                            b1.HasKey("RequestId");
+
+                            b1.HasIndex("UserId")
+                                .HasDatabaseName("IX_Request_Requestor")
+                                .HasFilter("[IsDeleted] = 0");
+
+                            b1.ToTable("Requests", "request");
 
                             b1.WithOwner()
                                 .HasForeignKey("RequestId");

@@ -44,7 +44,7 @@ public record RequestTitleDto
 
     // MachineInfo fields
     public bool RegistrationStatus { get; init; }
-    public string? RegistrationNo { get; init; }
+    public string? RegistrationNumber { get; init; }
     public string? MachineType { get; init; }
     public string? InstallationStatus { get; init; }
     public string? InvoiceNumber { get; init; }

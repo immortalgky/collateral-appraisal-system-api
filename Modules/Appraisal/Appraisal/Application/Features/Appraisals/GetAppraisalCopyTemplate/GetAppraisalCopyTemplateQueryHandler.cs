@@ -82,7 +82,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
                 -- VesselInfo (flat columns on same table)
                 t.VesselType, t.VesselLocation, t.HIN, t.VesselRegistrationNumber,
                 -- MachineInfo (flat columns on same table)
-                t.RegistrationStatus, t.RegistrationNumber AS RegistrationNo,
+                t.RegistrationStatus, t.RegistrationNumber,
                 t.MachineType, t.InstallationStatus, t.InvoiceNumber, t.NumberOfMachine,
                 -- BuildingInfo (flat columns on same table)
                 t.BuildingType, t.UsableArea, t.NumberOfBuilding,
@@ -202,7 +202,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
                 HIN             = r.HIN,
                 VesselRegistrationNumber = r.VesselRegistrationNumber,
                 RegistrationStatus = r.RegistrationStatus,
-                RegistrationNo  = r.RegistrationNo,
+                RegistrationNumber  = r.RegistrationNumber,
                 MachineType     = r.MachineType,
                 InstallationStatus = r.InstallationStatus,
                 InvoiceNumber   = r.InvoiceNumber,
@@ -326,7 +326,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
         public string? VesselRegistrationNumber { get; set; }
         // MachineInfo
         public bool RegistrationStatus { get; set; }
-        public string? RegistrationNo { get; set; }
+        public string? RegistrationNumber { get; set; }
         public string? MachineType { get; set; }
         public string? InstallationStatus { get; set; }
         public string? InvoiceNumber { get; set; }
