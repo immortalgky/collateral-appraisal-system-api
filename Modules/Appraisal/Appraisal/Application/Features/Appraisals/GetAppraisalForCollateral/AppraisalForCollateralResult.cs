@@ -152,8 +152,8 @@ public record LeaseholdIdentityForCollateral(
 
 /// <summary>
 /// Machinery-specific identity fields for collateral dedup.
-/// Tier-1: RegistrationNo alone is sufficient.
-/// Tier-2 (when RegistrationNo absent): SerialNo + Brand + Model + Manufacturer.
+/// Tier-1: RegistrationNumber alone is sufficient.
+/// Tier-2 (when RegistrationNumber absent): SerialNo + Brand + Model + Manufacturer.
 /// LocationOwner dropped from dedup key per v1 spec decision.
 /// </summary>
 public record MachineryIdentityForCollateral(
