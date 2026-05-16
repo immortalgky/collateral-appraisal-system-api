@@ -17,7 +17,7 @@ public record GetMachineryPropertyResult(
     string? MachineName,
     string? EngineNo,
     string? ChassisNo,
-    string? RegistrationNo,
+    string? RegistrationNumber,
     // Machine Specifications
     string? Brand,
     string? Model,

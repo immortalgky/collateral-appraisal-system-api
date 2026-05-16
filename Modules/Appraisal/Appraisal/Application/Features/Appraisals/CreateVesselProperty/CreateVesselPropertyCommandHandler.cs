@@ -29,7 +29,7 @@ public class CreateVesselPropertyCommandHandler(
             propertyName: command.PropertyName,
             vesselName: command.VesselName,
             engineNo: command.EngineNo,
-            registrationNo: command.RegistrationNo,
+            registrationNumber: command.RegistrationNumber,
             registrationDate: command.RegistrationDate,
             brand: command.Brand,
             model: command.Model,

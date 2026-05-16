@@ -15,7 +15,7 @@ public record GetRequestTitleByIdResponse(
     int? AreaNgan,
     decimal? AreaSquareWa,
     string? OwnerName,
-    string? RegistrationNo,
+    string? RegistrationNumber,
     string? VehicleType,
     string? VehicleAppointmentLocation,
     string? ChassisNumber,

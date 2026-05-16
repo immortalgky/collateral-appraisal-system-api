@@ -45,7 +45,7 @@ public class GetMachineryPropertyQueryHandler(
             detail.MachineName,
             detail.EngineNo,
             detail.ChassisNo,
-            detail.RegistrationNo,
+            detail.RegistrationNumber,
             detail.Brand,
             detail.Model,
             detail.Series,

@@ -20,28 +20,29 @@ public class CreateRequestCommandHandler(
         var input = new DocumentValidationInput(
             command.Purpose,
             (command.Documents ?? new List<RequestDocumentDto>())
-                .Where(d => d.DocumentId.HasValue)
-                .Select(d => d.DocumentType)
-                .ToList(),
+            .Where(d => d.DocumentId.HasValue)
+            .Select(d => d.DocumentType)
+            .ToList(),
             (command.Titles ?? new List<RequestTitleDto>())
-                .Select(t => new TitleDocumentInput(
-                    t.CollateralType,
-                    (t.Documents ?? new List<RequestTitleDocumentDto>())
-                        .Where(d => d.DocumentId.HasValue && !string.IsNullOrWhiteSpace(d.DocumentType))
-                        .Select(d => d.DocumentType!)
-                        .ToList()))
-                .ToList());
+            .Select(t => new TitleDocumentInput(
+                t.CollateralType,
+                (t.Documents ?? new List<RequestTitleDocumentDto>())
+                .Where(d => d.DocumentId.HasValue && !string.IsNullOrWhiteSpace(d.DocumentType))
+                .Select(d => d.DocumentType!)
+                .ToList()))
+            .ToList());
 
         await validator.ValidateAsync(input, cancellationToken);
 
         var createRequestData = command.Adapt<CreateRequestData>();
-        var request = await createRequestService.CreateRequestAsync(createRequestData, cancellationToken);
+        var (request, titles) = await createRequestService.CreateRequestAsync(createRequestData, cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(command.ExternalCaseKey)
             && !string.IsNullOrWhiteSpace(command.Channel))
-        {
             request.SetExternalReference(command.ExternalCaseKey, command.Channel);
-        }
+
+        request.Validate();
+        foreach (var title in titles) title.Validate();
 
         request.Submit(dateTimeProvider.Now);
 

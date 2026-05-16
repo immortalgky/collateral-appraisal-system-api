@@ -294,7 +294,7 @@ public class CollateralMasterUpsertService(
             case "MAC":
             {
                 var m = p.MachineryIdentity;
-                bool hasTier1 = !string.IsNullOrWhiteSpace(m?.RegistrationNo);
+                bool hasTier1 = !string.IsNullOrWhiteSpace(m?.RegistrationNumber);
                 bool hasTier2 = !string.IsNullOrWhiteSpace(m?.SerialNo)
                              && !string.IsNullOrWhiteSpace(m?.Brand)
                              && !string.IsNullOrWhiteSpace(m?.Model)
@@ -661,13 +661,13 @@ public class CollateralMasterUpsertService(
         var m = p.MachineryIdentity!;
 
         var master = await repo.FindMachineForUpsert(
-            m.RegistrationNo, m.SerialNo, m.Brand, m.Model, m.Manufacturer, ct);
+            m.RegistrationNumber, m.SerialNo, m.Brand, m.Model, m.Manufacturer, ct);
 
         if (master is null)
         {
             master = CollateralMaster.CreateMachine(
                 ownerName: m.OwnerName ?? string.Empty,
-                machineRegistrationNo: m.RegistrationNo,
+                machineRegistrationNo: m.RegistrationNumber,
                 serialNo: m.SerialNo,
                 brand: m.Brand,
                 model: m.Model,
@@ -676,7 +676,7 @@ public class CollateralMasterUpsertService(
         }
 
         var upsertData = new MachineUpsertData(
-            IncomingRegistrationNo: m.RegistrationNo,
+            IncomingRegistrationNo: m.RegistrationNumber,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
             AppraisalDate: appraisal.CompletedAt ?? DateTime.UtcNow

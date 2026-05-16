@@ -17,7 +17,7 @@ public record GetVehiclePropertyResponse(
     string? VehicleName,
     string? EngineNo,
     string? ChassisNo,
-    string? RegistrationNo,
+    string? RegistrationNumber,
     // Vehicle Specifications
     string? Brand,
     string? Model,

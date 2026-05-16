@@ -13,7 +13,7 @@ public class VesselAppraisalDetail : Entity<Guid>
     public string? PropertyName { get; private set; }
     public string? VesselName { get; private set; }
     public string? EngineNo { get; private set; }
-    public string? RegistrationNo { get; private set; }
+    public string? RegistrationNumber { get; private set; }
     public DateTime? RegistrationDate { get; private set; }
 
     // Vessel Specifications
@@ -85,7 +85,7 @@ public class VesselAppraisalDetail : Entity<Guid>
             PropertyName = source.PropertyName,
             VesselName = source.VesselName,
             EngineNo = source.EngineNo,
-            RegistrationNo = source.RegistrationNo,
+            RegistrationNumber = source.RegistrationNumber,
             RegistrationDate = source.RegistrationDate,
             Brand = source.Brand,
             Model = source.Model,
@@ -127,7 +127,7 @@ public class VesselAppraisalDetail : Entity<Guid>
         string? propertyName = null,
         string? vesselName = null,
         string? engineNo = null,
-        string? registrationNo = null,
+        string? registrationNumber = null,
         DateTime? registrationDate = null,
         // Vessel Specifications
         string? brand = null,
@@ -174,7 +174,7 @@ public class VesselAppraisalDetail : Entity<Guid>
         if (propertyName is not null) PropertyName = propertyName;
         if (vesselName is not null) VesselName = vesselName;
         if (engineNo is not null) EngineNo = engineNo;
-        if (registrationNo is not null) RegistrationNo = registrationNo;
+        if (registrationNumber is not null) RegistrationNumber = registrationNumber;
         if (registrationDate.HasValue) RegistrationDate = registrationDate.Value;
 
         // Vessel Specifications

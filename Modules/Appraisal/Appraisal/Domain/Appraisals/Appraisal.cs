@@ -845,8 +845,8 @@ public class Appraisal : Aggregate<Guid>
     ///                (UnderlyingMasterId is derived at upsert time by scanning siblings)
     ///
     ///   Machinery (MAC):
-    ///     Tier-1 — RegistrationNo present → sufficient on its own
-    ///     Tier-2 — when RegistrationNo is absent: all of (SerialNo, Brand, Model, Manufacturer) required
+    ///     Tier-1 — RegistrationNumber present → sufficient on its own
+    ///     Tier-2 — when RegistrationNumber is absent: all of (SerialNo, Brand, Model, Manufacturer) required
     /// </summary>
     private void ValidateCollateralIdentityFields()
     {
@@ -1009,8 +1009,8 @@ public class Appraisal : Aggregate<Guid>
                 $"Cannot complete appraisal: property #{propertyNum} (Machinery) is missing machinery detail.");
         }
 
-        // Tier-1: RegistrationNo present → sufficient
-        if (!string.IsNullOrWhiteSpace(detail.RegistrationNo))
+        // Tier-1: RegistrationNumber present → sufficient
+        if (!string.IsNullOrWhiteSpace(detail.RegistrationNumber))
             return;
 
         // Tier-2: require SerialNo + Brand + Model + Manufacturer (LocationOwner dropped per spec v1)
@@ -1024,7 +1024,7 @@ public class Appraisal : Aggregate<Guid>
         {
             throw new InvalidAppraisalStateException(
                 $"Cannot complete appraisal: property #{propertyNum} (Machinery) must have either " +
-                "RegistrationNo OR all of (SerialNo, Brand, Model, Manufacturer). Missing: " +
+                "RegistrationNumber OR all of (SerialNo, Brand, Model, Manufacturer). Missing: " +
                 string.Join(", ", missing) + ".");
         }
     }

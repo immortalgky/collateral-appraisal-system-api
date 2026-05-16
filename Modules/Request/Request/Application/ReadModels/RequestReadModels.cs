@@ -97,7 +97,7 @@ internal record RequestTitleRow
     public string? HullIdentificationNumber { get; set; }
     public string? VesselRegistrationNumber { get; set; }
     public bool RegistrationStatus { get; set; }
-    public string? RegistrationNo { get; set; }
+    public string? RegistrationNumber { get; set; }
     public string? MachineType { get; set; }
     public string? InstallationStatus { get; set; }
     public string? InvoiceNumber { get; set; }

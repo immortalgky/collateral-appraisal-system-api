@@ -30,7 +30,7 @@ public class CreateMachineryPropertyCommandHandler(
             command.MachineName,
             command.EngineNo,
             command.ChassisNo,
-            command.RegistrationNo,
+            command.RegistrationNumber,
             command.SerialNo,
             command.Brand,
             command.Model,

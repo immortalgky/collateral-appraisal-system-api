@@ -286,7 +286,7 @@ public static class DtoExtensions
                 dto = dto with
                 {
                     RegistrationStatus = machine.MachineInfo?.RegistrationStatus ?? false,
-                    RegistrationNo = machine.MachineInfo?.RegistrationNumber,
+                    RegistrationNumber = machine.MachineInfo?.RegistrationNumber,
                     MachineType = machine.MachineInfo?.MachineType,
                     InstallationStatus = machine.MachineInfo?.InstallationStatus,
                     InvoiceNumber = machine.MachineInfo?.InvoiceNumber,
@@ -493,7 +493,7 @@ public static class DtoExtensions
                 dto.LicensePlateNumber),
             VesselInfo = VesselInfo.Create(dto.VesselType, dto.VesselLocation, dto.HIN,
                 dto.VesselRegistrationNumber),
-            MachineInfo = MachineInfo.Create(dto.RegistrationStatus, dto.RegistrationNo, dto.MachineType,
+            MachineInfo = MachineInfo.Create(dto.RegistrationStatus, dto.RegistrationNumber, dto.MachineType,
                 dto.InstallationStatus, dto.InvoiceNumber, dto.NumberOfMachine)
         };
     }

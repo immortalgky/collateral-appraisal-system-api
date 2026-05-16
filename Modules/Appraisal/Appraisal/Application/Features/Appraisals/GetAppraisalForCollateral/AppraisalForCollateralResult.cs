@@ -157,7 +157,7 @@ public record LeaseholdIdentityForCollateral(
 /// LocationOwner dropped from dedup key per v1 spec decision.
 /// </summary>
 public record MachineryIdentityForCollateral(
-    string? RegistrationNo,   // MachineryAppraisalDetail.RegistrationNo (= MachineRegistrationNo in spec)
+    string? RegistrationNumber,   // MachineryAppraisalDetail.RegistrationNumber (= MachineRegistrationNo in spec)
     string? SerialNo,         // MachineryAppraisalDetail.SerialNo (tier-2 dedup key)
     string? Brand,            // MachineryAppraisalDetail.Brand
     string? Model,            // MachineryAppraisalDetail.Model

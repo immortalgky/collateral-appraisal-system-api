@@ -136,7 +136,7 @@ internal static class SnapshotBuilder
             role,
             propertyId = property.PropertyId.ToString(),
             type = "Machine",
-            machineRegistrationNo = m.RegistrationNo,
+            machineRegistrationNo = m.RegistrationNumber,
             serialNo = m.SerialNo,
             brand = m.Brand,
             model = m.Model,

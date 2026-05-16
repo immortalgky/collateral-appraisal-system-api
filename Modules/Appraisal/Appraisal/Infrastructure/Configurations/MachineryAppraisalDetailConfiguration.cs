@@ -18,7 +18,7 @@ public class
         builder.Property(e => e.MachineName).HasMaxLength(200);
         builder.Property(e => e.EngineNo).HasMaxLength(100);
         builder.Property(e => e.ChassisNo).HasMaxLength(100);
-        builder.Property(e => e.RegistrationNo).HasMaxLength(50);
+        builder.Property(e => e.RegistrationNumber).HasMaxLength(50);
         builder.Property(e => e.SerialNo).HasMaxLength(100);
 
         // Machine Specifications

@@ -16,7 +16,7 @@ public record CreateVehiclePropertyCommand(
     string? VehicleName = null,
     string? EngineNo = null,
     string? ChassisNo = null,
-    string? RegistrationNo = null,
+    string? RegistrationNumber = null,
     string? Description = null,
     // Vehicle Specifications
     string? Brand = null,

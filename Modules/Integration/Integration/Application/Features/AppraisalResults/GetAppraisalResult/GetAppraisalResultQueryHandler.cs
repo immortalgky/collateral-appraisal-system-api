@@ -119,11 +119,11 @@ internal static class GetAppraisalResultSql
                                                    -- Lease fields
                                                    leasd.ContractNo, leasd.LesseeName, leasd.LessorName,
                                                    -- Vehicle identity fields
-                                                   vad.RegistrationNo      AS VehicleRegistrationNo,
+                                                   vad.RegistrationNumber  AS VehicleRegistrationNo,
                                                    vad.Brand               AS VehicleBrand,
                                                    vad.Model               AS VehicleModel,
                                                    -- Vessel identity fields
-                                                   vsad.RegistrationNo     AS VesselRegistrationNo,
+                                                   vsad.RegistrationNumber AS VesselRegistrationNo,
                                                    vsad.VesselName         AS VesselName,
                                                    vsad.VesselType         AS VesselType,
                                                    -- Machinery identity fields

@@ -25,7 +25,7 @@ internal class GetRequestTitlesByRequestIdQueryHandler(ISqlConnectionFactory con
                 [AreaNgan],
                 [AreaSquareWa],
                 [OwnerName],
-                [RegistrationNo],
+                [RegistrationNumber],
                 [VehicleType],
                 [VehicleAppointmentLocation],
                 [ChassisNumber],

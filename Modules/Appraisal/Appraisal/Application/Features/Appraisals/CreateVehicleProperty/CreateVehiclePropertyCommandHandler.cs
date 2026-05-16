@@ -30,7 +30,7 @@ public class CreateVehiclePropertyCommandHandler(
             vehicleName: command.VehicleName,
             engineNo: command.EngineNo,
             chassisNo: command.ChassisNo,
-            registrationNo: command.RegistrationNo,
+            registrationNumber: command.RegistrationNumber,
             brand: command.Brand,
             model: command.Model,
             yearOfManufacture: command.YearOfManufacture,

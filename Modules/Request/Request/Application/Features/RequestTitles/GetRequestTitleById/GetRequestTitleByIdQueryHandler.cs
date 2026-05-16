@@ -25,7 +25,7 @@ internal class GetRequestTitleByIdQueryHandler(ISqlConnectionFactory connectionF
                 [AreaNgan],
                 [AreaSquareWa],
                 [OwnerName],
-                [RegistrationNo],
+                [RegistrationNumber],
                 [VehicleType],
                 [VehicleAppointmentLocation],
                 [ChassisNumber],

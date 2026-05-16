@@ -16,7 +16,7 @@ public record GetVesselPropertyResponse(
     string? PropertyName,
     string? VesselName,
     string? EngineNo,
-    string? RegistrationNo,
+    string? RegistrationNumber,
     DateTime? RegistrationDate,
     // Vessel Specifications
     string? Brand,

@@ -29,8 +29,8 @@ SELECT PG.AppraisalId,
            WHEN AP.PropertyType = 'MAC' THEN M.Model
            END                                                       AS Model,
        CASE
-           WHEN AP.PropertyType = 'MAC' THEN M.RegistrationNo
-           END                                                       AS RegistrationNo,
+           WHEN AP.PropertyType = 'MAC' THEN M.RegistrationNumber
+           END                                                       AS RegistrationNumber,
        CASE
            WHEN AP.PropertyType = 'MAC'
                THEN CONCAT_WS(' x ', CAST(M.Width AS VARCHAR), CAST(M.Length AS VARCHAR), CAST(M.Height AS VARCHAR))

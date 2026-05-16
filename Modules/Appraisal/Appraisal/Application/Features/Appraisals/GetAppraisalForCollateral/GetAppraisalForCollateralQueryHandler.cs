@@ -407,7 +407,7 @@ public class GetAppraisalForCollateralQueryHandler(
 
         var machineryIdentity = p.MachineryDetail is not null
             ? new MachineryIdentityForCollateral(
-                RegistrationNo: p.MachineryDetail.RegistrationNo,
+                RegistrationNumber: p.MachineryDetail.RegistrationNumber,
                 SerialNo: p.MachineryDetail.SerialNo,
                 Brand: p.MachineryDetail.Brand,
                 Model: p.MachineryDetail.Model,

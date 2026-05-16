@@ -489,7 +489,7 @@ public class AppraisalCreationService(
 
         vehicleDetail.Update(
             chassisNo: requestTitle.VIN,
-            registrationNo: requestTitle.LicensePlateNumber,
+            registrationNumber: requestTitle.LicensePlateNumber,
             location: requestTitle.VehicleLocation,
             ownerName: requestTitle.OwnerName,
             vehiclePart: requestTitle.VehicleType);
@@ -506,7 +506,7 @@ public class AppraisalCreationService(
         if (vesselDetail == null) return;
 
         vesselDetail.Update(
-            registrationNo: requestTitle.VesselRegistrationNumber,
+            registrationNumber: requestTitle.VesselRegistrationNumber,
             vesselType: requestTitle.VesselType,
             location: requestTitle.VesselLocation,
             ownerName: requestTitle.OwnerName,
@@ -530,7 +530,7 @@ public class AppraisalCreationService(
             otherParts.Add($"InstallationStatus={requestTitle.InstallationStatus}");
 
         machineryDetail.Update(
-            registrationNo: requestTitle.RegistrationNo,
+            registrationNumber: requestTitle.RegistrationNumber,
             machineName: requestTitle.MachineType,
             quantity: requestTitle.NumberOfMachine,
             ownerName: requestTitle.OwnerName,

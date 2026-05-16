@@ -14,7 +14,7 @@ public class VehicleAppraisalDetail : Entity<Guid>
     public string? VehicleName { get; private set; }
     public string? EngineNo { get; private set; }
     public string? ChassisNo { get; private set; }
-    public string? RegistrationNo { get; private set; }
+    public string? RegistrationNumber { get; private set; }
 
     // Vehicle Specifications
     public string? Brand { get; private set; }
@@ -78,7 +78,7 @@ public class VehicleAppraisalDetail : Entity<Guid>
             VehicleName = source.VehicleName,
             EngineNo = source.EngineNo,
             ChassisNo = source.ChassisNo,
-            RegistrationNo = source.RegistrationNo,
+            RegistrationNumber = source.RegistrationNumber,
             Brand = source.Brand,
             Model = source.Model,
             YearOfManufacture = source.YearOfManufacture,
@@ -114,7 +114,7 @@ public class VehicleAppraisalDetail : Entity<Guid>
         string? vehicleName = null,
         string? engineNo = null,
         string? chassisNo = null,
-        string? registrationNo = null,
+        string? registrationNumber = null,
         // Vehicle Specifications
         string? brand = null,
         string? model = null,
@@ -154,7 +154,7 @@ public class VehicleAppraisalDetail : Entity<Guid>
         if (vehicleName is not null) VehicleName = vehicleName;
         if (engineNo is not null) EngineNo = engineNo;
         if (chassisNo is not null) ChassisNo = chassisNo;
-        if (registrationNo is not null) RegistrationNo = registrationNo;
+        if (registrationNumber is not null) RegistrationNumber = registrationNumber;
 
         // Vehicle Specifications
         if (brand is not null) Brand = brand;

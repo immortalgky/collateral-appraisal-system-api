@@ -9,17 +9,17 @@ public class CreateRequestCommandHandler(
     {
         var createRequestData = command.Adapt<CreateRequestData>();
 
-        var request = await createRequestService.CreateRequestAsync(createRequestData, cancellationToken);
+        var (request, titles) = await createRequestService.CreateRequestAsync(createRequestData, cancellationToken);
 
         request.Validate();
+        foreach (var title in titles) title.Validate();
+
         request.UpdateStatus(RequestStatus.New);
 
         if (command.SessionId.HasValue)
-        {
             outbox.Publish(
                 new SessionCompletedIntegrationEvent(command.SessionId.Value, request.Id),
-                correlationId: request.Id.ToString());
-        }
+                request.Id.ToString());
 
         return new CreateRequestResult(request.Id);
     }

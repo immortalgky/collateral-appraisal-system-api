@@ -10,16 +10,16 @@ public class CreateRequestService(
     ISender mediator
 ) : ICreateRequestService
 {
-    public async Task<Request.Domain.Requests.Request> CreateRequestAsync(CreateRequestData data,
+    public async Task<(Request.Domain.Requests.Request, List<RequestTitle>)> CreateRequestAsync(CreateRequestData data,
         CancellationToken cancellationToken)
     {
         var now = dateTimeProvider.Now;
 
         var request = await CreateRequestAsync(data, now, cancellationToken);
-        await CreateTitlesAsync(data, request.Id, cancellationToken);
+        var titles = await CreateTitlesAsync(data, request.Id, cancellationToken);
         await CreateCommentsAsync(data, request.Id, now, cancellationToken);
 
-        return request;
+        return (request, titles);
     }
 
     private async Task<Domain.Requests.Request> CreateRequestAsync(
@@ -77,9 +77,9 @@ public class CreateRequestService(
                     command.Detail.Fee?.FeePaymentType,
                     command.Detail.Fee?.FeeNotes,
                     command.Detail.Fee?.AbsorbedAmount),
-                PrevAppraisalNumber: appraisalRef?.AppraisalNumber,
-                PrevAppraisalValue: appraisalRef?.AppraisalValue,
-                PrevAppraisalDate: appraisalRef?.AppointmentDate
+                appraisalRef?.AppraisalNumber,
+                appraisalRef?.AppraisalValue,
+                appraisalRef?.AppointmentDate
             )));
         }
 
@@ -123,13 +123,13 @@ public class CreateRequestService(
         return request;
     }
 
-    private async Task CreateTitlesAsync(
+    private async Task<List<RequestTitle>> CreateTitlesAsync(
         CreateRequestData command,
         Guid requestId,
         CancellationToken cancellationToken)
     {
         if (command.Titles is not { Count: > 0 })
-            return;
+            return [];
 
         var titles = new List<RequestTitle>(command.Titles.Count);
 
@@ -157,6 +157,8 @@ public class CreateRequestService(
         }
 
         await requestTitleRepository.AddRangeAsync(titles, cancellationToken);
+
+        return titles;
     }
 
     private async Task CreateCommentsAsync(

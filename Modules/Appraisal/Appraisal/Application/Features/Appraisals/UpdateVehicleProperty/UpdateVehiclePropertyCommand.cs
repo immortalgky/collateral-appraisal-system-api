@@ -14,7 +14,7 @@ public record UpdateVehiclePropertyCommand(
     string? VehicleName = null,
     string? EngineNo = null,
     string? ChassisNo = null,
-    string? RegistrationNo = null,
+    string? RegistrationNumber = null,
     // Vehicle Specifications
     string? Brand = null,
     string? Model = null,
