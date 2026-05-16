@@ -61,7 +61,7 @@ public class PricingAnalysisMethod : Entity<Guid>
         string methodType,
         string status = "Selected")
     {
-        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "MachineryCost", "Income", "Leasehold", "ProfitRent", "Hypothesis" };
+        var validMethods = new[] { "WQS", "SaleGrid", "DirectComparison", "MachineryCost", "BuildingCost", "Income", "Leasehold", "ProfitRent", "Hypothesis" };
         if (!validMethods.Contains(methodType))
             throw new ArgumentException($"MethodType must be one of: {string.Join(", ", validMethods)}");
 

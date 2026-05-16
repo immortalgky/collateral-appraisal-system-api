@@ -9,6 +9,7 @@ public class UpdateFeeCommandHandler(AppraisalDbContext dbContext) : ICommandHan
         if (fee is null)
             throw new NotFoundException("Fee", command.FeeId);
 
+        fee.SetBankAbsorb(command.BankAbsorbAmount);
         fee.SetFeePaymentType(command.FeePaymentType);
 
         return Unit.Value;

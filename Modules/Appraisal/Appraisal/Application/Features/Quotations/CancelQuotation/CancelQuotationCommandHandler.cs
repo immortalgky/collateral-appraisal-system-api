@@ -32,12 +32,14 @@ public class CancelQuotationCommandHandler(
         if (!wasAlreadyCancelled)
         {
             var invitedCompanyIds = quotation.Invitations.Select(i => i.CompanyId).ToArray();
+            var appraisalIds = quotation.Appraisals.Select(a => a.AppraisalId).ToArray();
             outbox.Publish(new QuotationCancelledIntegrationEvent
             {
                 QuotationRequestId = quotation.Id,
                 TaskExecutionId = quotation.TaskExecutionId,
                 Reason = command.Reason,
                 InvitedCompanyIds = invitedCompanyIds,
+                AppraisalIds = appraisalIds,
                 RmUsername = quotation.RmUsername
             }, correlationId: quotation.Id.ToString());
 

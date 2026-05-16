@@ -5,7 +5,7 @@ namespace Integration.Application.Features.AppraisalResults.GetAppraisalResult;
 public record GetAppraisalResultByNumberQuery(string AppraisalNumber)
     : IQuery<GetAppraisalResultResponse?>;
 
-public record GetAppraisalResultByCaseKeyQuery(string ExternalCaseKey)
+public record GetAppraisalResultsByCaseKeyQuery(string ExternalCaseKey)
     : IQuery<IReadOnlyList<GetAppraisalResultResponse>>;
 
 public record GetAppraisalResultResponse(

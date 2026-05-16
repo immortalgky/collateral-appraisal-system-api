@@ -1,3 +1,3 @@
 namespace Appraisal.Application.Features.Fees.UpdateFee;
 
-public record UpdateFeeRequest(string FeePaymentType);
+public record UpdateFeeRequest(string FeePaymentType,decimal BankAbsorbAmount);

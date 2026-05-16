@@ -19,15 +19,15 @@ public class GetAppraisalResultByCaseKeyEndpoint : ICarterModule
                 return Results.BadRequest("externalCaseKey is required");
 
             var results = await sender.Send(
-                new GetAppraisalResultByCaseKeyQuery(externalCaseKey),
+                new GetAppraisalResultsByCaseKeyQuery(externalCaseKey),
                 cancellationToken);
 
-            return results.Count == 0 ? Results.NotFound() : Results.Ok(results);
+            return Results.Ok(results);
         })
         .WithName("GetAppraisalResultByCaseKey")
         .WithTags("Integration - Appraisal Results")
         .RequireAuthorization("Integration")
         .Produces<IReadOnlyList<GetAppraisalResultResponse>>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status404NotFound);
+        .ProducesProblem(StatusCodes.Status400BadRequest);
     }
 }

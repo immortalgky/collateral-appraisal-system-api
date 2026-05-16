@@ -45,7 +45,7 @@ public record GetMachineryPropertyResult(
     string? Location,
     string? ConditionUse,
     string? MachineCondition,
-    int? MachineAge,
+    decimal? MachineAge,
     string? MachineEfficiency,
     string? MachineTechnology,
     string? UsagePurpose,
