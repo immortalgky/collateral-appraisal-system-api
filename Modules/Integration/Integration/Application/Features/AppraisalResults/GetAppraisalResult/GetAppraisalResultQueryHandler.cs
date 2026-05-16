@@ -1,19 +1,66 @@
 using System.Data;
+using System.Globalization;
+using Appraisal.Domain.Appraisals;
 using Dapper;
 using Shared.CQRS;
+using Shared.Data;
 
 namespace Integration.Application.Features.AppraisalResults.GetAppraisalResult;
+
+public class GetAppraisalResultByNumberQueryHandler(
+    ISqlConnectionFactory connectionFactory
+) : IQueryHandler<GetAppraisalResultByNumberQuery, GetAppraisalResultResponse?>
+{
+    public async Task<GetAppraisalResultResponse?> Handle(
+        GetAppraisalResultByNumberQuery query,
+        CancellationToken cancellationToken)
+    {
+        var conn = connectionFactory.GetOpenConnection();
+
+        var p = new DynamicParameters();
+        p.Add("AppraisalNumber", query.AppraisalNumber);
+        var appraisal = await conn.QuerySingleOrDefaultAsync<AppraisalRow>(
+            new CommandDefinition(GetAppraisalResultSql.ByAppraisalNumber, p, cancellationToken: cancellationToken));
+
+        if (appraisal is null) return null;
+
+        return await AppraisalResultBuilder.BuildAsync(conn, appraisal, cancellationToken);
+    }
+}
+
+public class GetAppraisalResultsByCaseKeyQueryHandler(
+    ISqlConnectionFactory connectionFactory
+) : IQueryHandler<GetAppraisalResultsByCaseKeyQuery, IReadOnlyList<GetAppraisalResultResponse>>
+{
+    public async Task<IReadOnlyList<GetAppraisalResultResponse>> Handle(
+        GetAppraisalResultsByCaseKeyQuery query,
+        CancellationToken cancellationToken)
+    {
+        var conn = connectionFactory.GetOpenConnection();
+
+        var p = new DynamicParameters();
+        p.Add("ExternalCaseKey", query.ExternalCaseKey);
+        var appraisals = await conn.QueryAsync<AppraisalRow>(
+            new CommandDefinition(GetAppraisalResultSql.ByExternalCaseKey, p, cancellationToken: cancellationToken));
+
+        var results = new List<GetAppraisalResultResponse>();
+        foreach (var appraisal in appraisals)
+            results.Add(await AppraisalResultBuilder.BuildAsync(conn, appraisal, cancellationToken));
+
+        return results;
+    }
+}
 
 internal static class GetAppraisalResultSql
 {
     public const string ByAppraisalNumber = """
-                                            SELECT a.Id, a.AppraisalNumber, a.Purpose, a.Channel, a.CompletedAt, a.RequestId
+                                            SELECT a.Id, a.AppraisalNumber, a.Purpose, a.CompletedAt, a.RequestId
                                             FROM appraisal.Appraisals a
                                             WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
                                             """;
 
     public const string ByExternalCaseKey = """
-                                            SELECT a.Id, a.AppraisalNumber, a.Purpose, a.Channel, a.CompletedAt, a.RequestId
+                                            SELECT a.Id, a.AppraisalNumber, a.Purpose, a.CompletedAt, a.RequestId
                                             FROM appraisal.Appraisals a
                                             JOIN request.Requests r ON r.Id = a.RequestId
                                             WHERE r.ExternalCaseKey = @ExternalCaseKey AND a.IsDeleted = 0
@@ -21,13 +68,20 @@ internal static class GetAppraisalResultSql
                                             """;
 
     public const string ActiveAssignment = """
-                                           SELECT TOP 1 aa.Id AS AssignmentId, aa.AssigneeCompanyId,
-                                                  c.Id AS CompanyId, c.Name AS CompanyName
+                                           SELECT TOP 1
+                                               aa.Id AS AssignmentId,
+                                               aa.AssignmentType,
+                                               aa.AssigneeUserId,
+                                               aa.AssigneeCompanyId,
+                                               c.Name AS CompanyName,
+                                               u.FirstName AS UserFirstName,
+                                               u.LastName  AS UserLastName
                                            FROM appraisal.AppraisalAssignments aa
-                                           LEFT JOIN auth.Companies c ON c.Id = TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier)
+                                           LEFT JOIN auth.Companies   c ON c.Id = TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier)
+                                           LEFT JOIN auth.AspNetUsers u ON u.UserName = aa.AssigneeUserId
                                            WHERE aa.AppraisalId = @AppraisalId
                                              AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
-                                           ORDER BY aa.AssignedAt DESC
+                                           ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC
                                            """;
 
     public const string Fee = """
@@ -115,15 +169,17 @@ internal sealed record AppraisalRow(
     Guid Id,
     string AppraisalNumber,
     string? Purpose,
-    string? Channel,
     DateTime? CompletedAt,
     Guid RequestId);
 
 internal sealed record AssignmentRow(
     Guid AssignmentId,
+    string? AssignmentType,
+    string? AssigneeUserId,
     string? AssigneeCompanyId,
-    Guid? CompanyId,
-    string? CompanyName);
+    string? CompanyName,
+    string? UserFirstName,
+    string? UserLastName);
 
 internal sealed record ValuationRow(
     decimal? AppraisedValue,
@@ -271,62 +327,37 @@ internal static class AppraisalResultBuilder
             .Select(d => new AppraisalResultDocument(d.DocumentType, d.DocumentPath))
             .ToList();
 
+        string? valuerName = null;
+        string? appraisalSource = null;
+        if (assignment is not null)
+        {
+            if (string.Equals(assignment.AssignmentType, AssignmentType.External.Code, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(assignment.CompanyName))
+                {
+                    valuerName = assignment.CompanyName;
+                    appraisalSource = "E";
+                }
+            }
+            else if (string.Equals(assignment.AssignmentType, AssignmentType.Internal.Code, StringComparison.OrdinalIgnoreCase))
+            {
+                var fullName = $"{assignment.UserFirstName} {assignment.UserLastName}".Trim();
+                valuerName = string.IsNullOrWhiteSpace(fullName) ? null : fullName;
+                appraisalSource = "I";
+            }
+        }
+
         return new GetAppraisalResultResponse(
-            appraisal.AppraisalNumber,
-            appraisal.Purpose,
-            fee,
-            appraisal.Channel,
-            assignment?.AssigneeCompanyId,
-            assignment?.CompanyName,
-            valuation?.ValuationDate ?? appraisal.CompletedAt,
-            valuation?.AppraisedValue,
-            valuation?.ForcedSaleValue,
-            valuation?.InsuranceValue,
-            groups,
-            documents);
-    }
-}
-
-public class GetAppraisalResultByNumberQueryHandler(
-    ISqlConnectionFactory connectionFactory
-) : IQueryHandler<GetAppraisalResultByNumberQuery, GetAppraisalResultResponse?>
-{
-    public async Task<GetAppraisalResultResponse?> Handle(
-        GetAppraisalResultByNumberQuery query,
-        CancellationToken cancellationToken)
-    {
-        var conn = connectionFactory.GetOpenConnection();
-
-        var p = new DynamicParameters();
-        p.Add("AppraisalNumber", query.AppraisalNumber);
-        var appraisal = await conn.QuerySingleOrDefaultAsync<AppraisalRow>(
-            new CommandDefinition(GetAppraisalResultSql.ByAppraisalNumber, p, cancellationToken: cancellationToken));
-
-        if (appraisal is null) return null;
-
-        return await AppraisalResultBuilder.BuildAsync(conn, appraisal, cancellationToken);
-    }
-}
-
-public class GetAppraisalResultsByCaseKeyQueryHandler(
-    ISqlConnectionFactory connectionFactory
-) : IQueryHandler<GetAppraisalResultsByCaseKeyQuery, IReadOnlyList<GetAppraisalResultResponse>>
-{
-    public async Task<IReadOnlyList<GetAppraisalResultResponse>> Handle(
-        GetAppraisalResultsByCaseKeyQuery query,
-        CancellationToken cancellationToken)
-    {
-        var conn = connectionFactory.GetOpenConnection();
-
-        var p = new DynamicParameters();
-        p.Add("ExternalCaseKey", query.ExternalCaseKey);
-        var appraisals = await conn.QueryAsync<AppraisalRow>(
-            new CommandDefinition(GetAppraisalResultSql.ByExternalCaseKey, p, cancellationToken: cancellationToken));
-
-        var results = new List<GetAppraisalResultResponse>();
-        foreach (var appraisal in appraisals)
-            results.Add(await AppraisalResultBuilder.BuildAsync(conn, appraisal, cancellationToken));
-
-        return results;
+            AppraisalNumber: appraisal.AppraisalNumber,
+            AppraisalPurpose: appraisal.Purpose,
+            AppraisalFee: fee,
+            AppraisalSource: appraisalSource,
+            ValuerName: valuerName,
+            ValuationDate: (valuation?.ValuationDate ?? appraisal.CompletedAt)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            TotalAppraisalValue: valuation?.AppraisedValue,
+            ForceSalePrice: valuation?.ForcedSaleValue,
+            FireInsurance: valuation?.InsuranceValue,
+            Groups: groups,
+            Documents: documents);
     }
 }

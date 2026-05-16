@@ -25,10 +25,6 @@ public record StartQuotationFromTaskCommand(
     DateTime DueDate,
     string BankingSegment,
     List<Guid> InvitedCompanyIds,
-    string AppraisalNumber,
-    string PropertyType,
-    string? PropertyLocation = null,
-    decimal? EstimatedValue = null,
     string? SpecialRequirements = null,
     /// <summary>
     /// When set, adds the appraisal to this existing Draft quotation instead of creating a new one.

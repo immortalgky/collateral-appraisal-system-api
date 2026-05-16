@@ -551,7 +551,7 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("AppraisalId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("AssignedAt")
+                    b.Property<DateTime?>("AssignedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("AssignedBy")
@@ -651,7 +651,14 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<DateTime?>("SLADueDate")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("SLADueDate");
+
                     b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("SubmittedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -1401,6 +1408,60 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasIndex("AppraisalComparableId");
 
                     b.ToTable("ComparableAdjustments", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.ExternalEngagementCycle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppraisalAssignmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("BusinessMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("CycleNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OpenedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppraisalAssignmentId", "CycleNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ExternalEngagementCycles_AssignmentId_CycleNumber");
+
+                    b.ToTable("ExternalEngagementCycles", "appraisal");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.FeeStructure", b =>
@@ -4533,30 +4594,26 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InvoiceNumber")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
-                    b.Property<DateOnly?>("PaymentDate")
+                    b.Property<DateOnly?>("PaidDate")
                         .HasColumnType("date");
 
-                    b.Property<string>("PaymentMethod")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("PaymentReference")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                    b.Property<string>("PaymentOrderNo")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)")
-                        .HasDefaultValue("Draft");
+                        .HasDefaultValue("Pending");
 
                     b.Property<DateTime?>("SubmittedAt")
                         .HasColumnType("datetime2");
@@ -4591,7 +4648,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Invoices.InvoiceItem", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
@@ -4634,7 +4690,7 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<DateTime?>("ReceivedDate")
+                    b.Property<DateTime?>("SubmittedDate")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("TotalFeeAfterVAT")
@@ -10168,6 +10224,15 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.ExternalEngagementCycle", b =>
+                {
+                    b.HasOne("Appraisal.Domain.Appraisals.AppraisalAssignment", null)
+                        .WithMany("Cycles")
+                        .HasForeignKey("AppraisalAssignmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.GalleryPhotoTopicMapping", b =>
                 {
                     b.HasOne("Appraisal.Domain.Appraisals.AppraisalGallery", null)
@@ -12021,6 +12086,11 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalAppendix", b =>
                 {
                     b.Navigation("Documents");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalAssignment", b =>
+                {
+                    b.Navigation("Cycles");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalComparable", b =>

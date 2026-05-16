@@ -8,7 +8,7 @@ public class InvoiceItemConfiguration : IEntityTypeConfiguration<InvoiceItem>
     {
         builder.ToTable("InvoiceItems");
         builder.HasKey(ii => ii.Id);
-        builder.Property(ii => ii.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(ii => ii.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
         builder.Property(ii => ii.InvoiceId).IsRequired();
         builder.Property(ii => ii.AssignmentId).IsRequired();
         builder.HasIndex(ii => ii.AssignmentId).IsUnique();
@@ -21,6 +21,7 @@ public class InvoiceItemConfiguration : IEntityTypeConfiguration<InvoiceItem>
         builder.Property(ii => ii.VATRate).HasPrecision(5, 2);
         builder.Property(ii => ii.VATAmount).HasPrecision(18, 2);
         builder.Property(ii => ii.TotalFeeAfterVAT).HasPrecision(18, 2);
+        builder.Property(ii => ii.SubmittedDate).HasColumnType("datetime2");
         builder.HasIndex(ii => ii.InvoiceId);
     }
 }

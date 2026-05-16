@@ -231,6 +231,7 @@ public static class AuthModule
             .AddUserPermissionPolicy("CanManageGroups", "GROUP_MANAGE")
             .AddUserPermissionPolicy("CanManageUsers", "USER_MANAGE")
             .AddUserPermissionPolicy("CanManageMenus", "MENU_MANAGE")
+            .AddUserPermissionPolicy("CanManageCompanies", "COMPANY_MANAGE")
             .AddUserPermissionPolicy("CanChangeUserPassword", "USER_CHANGE_PASSWORD")
             .AddUserPermissionPolicy("CanResetUserPassword", "USER_RESET_PASSWORD")
             .AddUserPermissionPolicy("CanReleaseTaskLocks", "TASK_LOCK_MANAGE")

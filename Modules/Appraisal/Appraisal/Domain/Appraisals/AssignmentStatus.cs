@@ -1,8 +1,11 @@
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
-/// Value object representing assignment status.
-/// Simplified flow: Assigned → InProgress → Completed (or Rejected/Cancelled)
+/// Value object representing assignment status. Path-aware lifecycle:
+/// External (company) — Pending → Assigned → InProgress → UnderReview → Verified → Completed.
+/// Internal (bank)   — Assigned → InProgress → UnderReview → Verified → Completed.
+/// Verified is the invoicing gate (set when int-appraisal-verification completes on either path).
+/// Routeback returns straight to InProgress; Rejected/Cancelled are terminal failure branches.
 /// </summary>
 public class AssignmentStatus : ValueObject
 {
@@ -17,6 +20,8 @@ public class AssignmentStatus : ValueObject
     public static AssignmentStatus Pending => new("Pending");
     public static AssignmentStatus Assigned => new("Assigned");
     public static AssignmentStatus InProgress => new("InProgress");
+    public static AssignmentStatus UnderReview => new("UnderReview");
+    public static AssignmentStatus Verified => new("Verified");
     public static AssignmentStatus Completed => new("Completed");
     public static AssignmentStatus Rejected => new("Rejected");
     public static AssignmentStatus Cancelled => new("Cancelled");
@@ -29,6 +34,8 @@ public class AssignmentStatus : ValueObject
             "Pending" => Pending,
             "Assigned" => Assigned,
             "InProgress" => InProgress,
+            "UnderReview" => UnderReview,
+            "Verified" => Verified,
             "Completed" => Completed,
             "Rejected" => Rejected,
             "Cancelled" => Cancelled,

@@ -6,8 +6,22 @@ public class UpdateRequestService(
     IRequestRepository requestRepository
 ) : IUpdateRequestService
 {
+    public async Task<Domain.Requests.Request> GetByIdWithDocumentsAsync(Guid requestId, CancellationToken cancellationToken)
+    {
+        var request = await requestRepository.GetByIdWithDocumentsAsync(requestId, cancellationToken);
+        if (request is null) throw new RequestNotFoundException(requestId);
+        return request;
+    }
+
     public async Task<Domain.Requests.Request> ResubmitRequestAsync(ResubmitRequestData command, CancellationToken cancellationToken)
     {
+        // The DTO models Detail/Customers/Properties as nullable so the data record can be shared
+        // with paths that don't carry them (e.g. document-followup resubmit). On THIS path they are
+        // required — fail fast rather than NRE inside the dereferences below.
+        ArgumentNullException.ThrowIfNull(command.Detail);
+        ArgumentNullException.ThrowIfNull(command.Customers);
+        ArgumentNullException.ThrowIfNull(command.Properties);
+
         var request = await requestRepository.GetByIdWithDocumentsAsync(command.RequestId, cancellationToken);
         if (request is null) throw new RequestNotFoundException(command.RequestId);
 

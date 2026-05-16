@@ -1,4 +1,4 @@
-using MassTransit;
+using Parameter.Contracts.DocumentRequirements;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Workflow.DocumentFollowups.Domain;
@@ -9,84 +9,63 @@ namespace Workflow.DocumentFollowups.EventHandlers;
 /// <summary>
 /// Translates in-process domain events raised by the <see cref="DocumentFollowup"/>
 /// aggregate into SignalR-bound integration events consumed by the Notification module.
-/// Handlers are idempotent — republished events simply re-send a notification, which the
-/// frontend de-duplicates on <c>FollowupId</c>.
+/// Both events are routed through the persistent outbox so they commit atomically with
+/// the aggregate write — no phantom notifications if the transaction later rolls back.
 /// </summary>
 public class DocumentFollowupRaisedNotificationHandler(
     WorkflowDbContext dbContext,
-    IPublishEndpoint publishEndpoint,
     IIntegrationEventOutbox outbox,
+    IDocumentChecklistService checklist,
     ILogger<DocumentFollowupRaisedNotificationHandler> logger)
     : INotificationHandler<DocumentFollowupRaisedDomainEvent>
 {
     public async Task Handle(DocumentFollowupRaisedDomainEvent notification, CancellationToken cancellationToken)
     {
-        var followup = await dbContext.DocumentFollowups
+        // The DocumentFollowup row is not yet committed at this point — the interceptor runs
+        // pre-save. Everything we need is on the event payload; the only DB lookup is the
+        // parent WorkflowInstance, which already existed before this request.
+        var parent = await dbContext.WorkflowInstances
             .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Id == notification.FollowupId, cancellationToken);
-        if (followup is null)
-        {
-            logger.LogWarning("DocumentFollowupRaisedNotificationHandler: followup {FollowupId} not found", notification.FollowupId);
-            return;
-        }
-
-        // Recipient = StartedBy of the followup workflow instance (i.e. the request maker).
-        // Until the followup workflow is attached, fall back to the parent workflow's StartedBy
-        // so the notification still fires during the Raise transaction.
-        var recipient = await ResolveRequestMakerAsync(followup, cancellationToken);
+            .FirstOrDefaultAsync(w => w.Id == notification.RaisingWorkflowInstanceId, cancellationToken);
+        var recipient = parent?.StartedBy;
         if (string.IsNullOrWhiteSpace(recipient))
         {
             logger.LogWarning(
                 "DocumentFollowupRaisedNotificationHandler: no recipient resolved for followup {FollowupId}",
-                followup.Id);
+                notification.FollowupId);
             return;
         }
 
-        await publishEndpoint.Publish(new DocumentFollowupNotificationIntegrationEvent
+        outbox.Publish(new DocumentFollowupNotificationIntegrationEvent
         {
             Type = "DocumentFollowupRaised",
-            FollowupId = followup.Id,
-            RaisingTaskId = followup.RaisingPendingTaskId,
-            ParentAppraisalId = followup.AppraisalId,
-            FollowupWorkflowInstanceId = followup.FollowupWorkflowInstanceId,
+            FollowupId = notification.FollowupId,
+            RaisingTaskId = notification.RaisingPendingTaskId,
+            ParentAppraisalId = notification.AppraisalId,
+            FollowupWorkflowInstanceId = null,
             Recipient = recipient,
             Title = "Additional Documents Requested",
-            Message = $"A checker has requested {followup.LineItems.Count} additional document(s)."
-        }, cancellationToken);
+            Message = $"A checker has requested {notification.DocumentTypes.Count} additional document(s)."
+        }, correlationId: notification.AppraisalId.ToString());
 
-        // Also publish thin outbound event for the external webhook bridge.
-        // ReasonCode = the activity that raised the followup; Reason = document types requested.
-        var documentTypes = string.Join(", ", followup.LineItems.Select(li => li.DocumentType));
+        var nameMap = await checklist.GetAllDocumentTypeNamesAsync(cancellationToken);
+        var displayNames = notification.DocumentTypes
+            .Select(code => nameMap.TryGetValue(code.ToUpperInvariant(), out var n) ? n : code)
+            .ToList();
+
         outbox.Publish(new DocumentFollowupRequiredIntegrationEvent
         {
-            AppraisalId = followup.AppraisalId,
-            FollowupId = followup.Id,
-            ReasonCode = followup.RaisingActivityId,
-            Reason = $"Additional documents requested: {documentTypes}"
-        }, correlationId: followup.AppraisalId.ToString());
-    }
-
-    private async Task<string?> ResolveRequestMakerAsync(DocumentFollowup followup, CancellationToken ct)
-    {
-        if (followup.FollowupWorkflowInstanceId.HasValue)
-        {
-            var fw = await dbContext.WorkflowInstances
-                .AsNoTracking()
-                .FirstOrDefaultAsync(w => w.Id == followup.FollowupWorkflowInstanceId.Value, ct);
-            if (!string.IsNullOrWhiteSpace(fw?.StartedBy))
-                return fw.StartedBy;
-        }
-
-        var parent = await dbContext.WorkflowInstances
-            .AsNoTracking()
-            .FirstOrDefaultAsync(w => w.Id == followup.RaisingWorkflowInstanceId, ct);
-        return parent?.StartedBy;
+            AppraisalId = notification.AppraisalId,
+            FollowupId = notification.FollowupId,
+            ReasonCode = "MISSING_DOCUMENT",
+            Reason = $"Missing documents: {string.Join(", ", displayNames)}"
+        }, correlationId: notification.AppraisalId.ToString());
     }
 }
 
 public class DocumentFollowupResolvedNotificationHandler(
     WorkflowDbContext dbContext,
-    IPublishEndpoint publishEndpoint,
+    IIntegrationEventOutbox outbox,
     ILogger<DocumentFollowupResolvedNotificationHandler> logger)
     : INotificationHandler<DocumentFollowupResolvedDomainEvent>
 {
@@ -101,7 +80,7 @@ public class DocumentFollowupResolvedNotificationHandler(
             return;
         }
 
-        await publishEndpoint.Publish(new DocumentFollowupNotificationIntegrationEvent
+        outbox.Publish(new DocumentFollowupNotificationIntegrationEvent
         {
             Type = "DocumentFollowupResolved",
             FollowupId = followup.Id,
@@ -111,13 +90,13 @@ public class DocumentFollowupResolvedNotificationHandler(
             Recipient = followup.RaisingUserId,
             Title = "Document Followup Resolved",
             Message = "All requested documents have been provided or declined."
-        }, cancellationToken);
+        }, correlationId: followup.AppraisalId.ToString());
     }
 }
 
 public class DocumentFollowupCancelledNotificationHandler(
     WorkflowDbContext dbContext,
-    IPublishEndpoint publishEndpoint,
+    IIntegrationEventOutbox outbox,
     ILogger<DocumentFollowupCancelledNotificationHandler> logger)
     : INotificationHandler<DocumentFollowupCancelledDomainEvent>
 {
@@ -132,7 +111,7 @@ public class DocumentFollowupCancelledNotificationHandler(
             return;
         }
 
-        await publishEndpoint.Publish(new DocumentFollowupNotificationIntegrationEvent
+        outbox.Publish(new DocumentFollowupNotificationIntegrationEvent
         {
             Type = "DocumentFollowupCancelled",
             FollowupId = followup.Id,
@@ -143,6 +122,6 @@ public class DocumentFollowupCancelledNotificationHandler(
             Title = "Document Followup Cancelled",
             Message = "The document followup was cancelled.",
             Reason = notification.Reason
-        }, cancellationToken);
+        }, correlationId: followup.AppraisalId.ToString());
     }
 }

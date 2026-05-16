@@ -13,6 +13,8 @@ public class Company : Entity<Guid>
     public string? Province { get; private set; }
     public string? PostalCode { get; private set; }
     public string? ContactPerson { get; private set; }
+    public string? BankAccountNo { get; private set; }
+    public string? BankAccountName { get; private set; }
     public List<string> LoanTypes { get; private set; } = [];
     public bool IsActive { get; private set; } = true;
 
@@ -76,6 +78,12 @@ public class Company : Entity<Guid>
         ContactPerson = contactPerson;
         LoanTypes = loanTypes ?? [];
         IsActive = isActive;
+    }
+
+    public void SetBankAccount(string? bankAccountNo, string? bankAccountName)
+    {
+        BankAccountNo = bankAccountNo;
+        BankAccountName = bankAccountName;
     }
 
     public void Delete(Guid? deletedBy)

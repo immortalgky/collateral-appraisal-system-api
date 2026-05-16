@@ -1,22 +1,18 @@
 using Appraisal.Domain.Invoices;
 
-namespace Appraisal.Application.Features.Invoices.ApproveInvoice;
+namespace Appraisal.Application.Features.Invoices.MarkInvoicePaid;
 
-public class ApproveInvoiceCommandHandler(
+public class MarkInvoicePaidCommandHandler(
     IInvoiceRepository repository,
     IAppraisalUnitOfWork unitOfWork)
-    : ICommandHandler<ApproveInvoiceCommand, Guid>
+    : ICommandHandler<MarkInvoicePaidCommand, Guid>
 {
-    public async Task<Guid> Handle(ApproveInvoiceCommand request, CancellationToken cancellationToken)
+    public async Task<Guid> Handle(MarkInvoicePaidCommand request, CancellationToken cancellationToken)
     {
         var invoice = await repository.GetByIdAsync(request.InvoiceId, cancellationToken)
                       ?? throw new NotFoundException($"Invoice '{request.InvoiceId}' not found.");
 
-        invoice.Approve(
-            request.ApprovedBy,
-            request.PaymentReference,
-            request.PaymentMethod,
-            request.PaymentDate);
+        invoice.MarkAsPaid(request.ApprovedBy, request.PaymentOrderNo, request.PaidDate);
 
         repository.Update(invoice);
         await unitOfWork.SaveChangesAsync(cancellationToken);

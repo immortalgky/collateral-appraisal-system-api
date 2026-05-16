@@ -17,5 +17,11 @@ public class CompanyAppraisalSummaryConfiguration : IEntityTypeConfiguration<Com
 
         builder.Property(x => x.CompanyName)
             .HasMaxLength(255);
+
+        builder.Property(x => x.SubmissionCount)
+            .HasDefaultValue(0);
+
+        builder.Property(x => x.TotalBusinessMinutes)
+            .HasDefaultValue(0L);
     }
 }

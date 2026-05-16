@@ -67,6 +67,12 @@ public class DocumentChecklistService : IDocumentChecklistService
             .ToList();
     }
 
+    public async Task<IReadOnlyDictionary<string, string>> GetAllDocumentTypeNamesAsync(CancellationToken ct)
+    {
+        var all = await _repository.GetAllDocumentTypesAsync(ct);
+        return all.ToDictionary(d => d.Code, d => d.Name);
+    }
+
     private static DocumentChecklistItemDto MapToDto(Models.DocumentRequirement req) => new()
     {
         Code = req.DocumentType.Code,

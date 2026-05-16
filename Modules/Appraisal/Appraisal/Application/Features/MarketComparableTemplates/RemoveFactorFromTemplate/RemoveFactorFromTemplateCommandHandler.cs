@@ -11,9 +11,7 @@ public class RemoveFactorFromTemplateCommandHandler(
         var template = await repository.GetByIdWithFactorsAsync(command.TemplateId, cancellationToken);
 
         if (template is null)
-        {
             throw new InvalidOperationException($"Market comparable template with ID {command.TemplateId} not found.");
-        }
 
         template.RemoveFactor(command.FactorId);
         await repository.SaveChangesAsync(cancellationToken);

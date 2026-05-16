@@ -6,16 +6,20 @@ public record InvoiceDetailDto(
     string Status,
     decimal TotalAmount,
     string? CompanyName,
+    string? BankAccountNo,
+    string? BankAccountName,
     string? Notes,
-    string? PaymentReference,
-    string? PaymentMethod,
-    DateOnly? PaymentDate,
+    string? PaymentOrderNo,
+    DateTime? PaidDate,
     string? ApprovedBy,
     DateTime? ApprovedAt,
     DateTime? SubmittedAt,
-    Guid CompanyId,
-    List<InvoiceItemDto> Items
-);
+    Guid CompanyId)
+{
+    // Populated separately after the header is materialized; not part of the
+    // ctor so Dapper can match the view columns positionally.
+    public List<InvoiceItemDto> Items { get; init; } = new();
+}
 
 public record InvoiceItemDto(
     Guid Id,
@@ -28,5 +32,5 @@ public record InvoiceItemDto(
     decimal VATAmount,
     decimal TotalFeeAfterVAT,
     decimal BankAbsorbAmount,
-    DateTime? ReceivedDate
+    DateTime? SubmittedDate
 );

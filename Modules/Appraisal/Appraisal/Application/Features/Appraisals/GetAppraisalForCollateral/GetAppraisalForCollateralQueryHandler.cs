@@ -55,6 +55,8 @@ public class GetAppraisalForCollateralQueryHandler(
         var latestAssignment = appraisal.Assignments
             .Where(a => a.AssignmentStatus.Code != "Rejected" && a.AssignmentStatus.Code != "Cancelled")
             .OrderByDescending(a => a.AssignedAt)
+            .ThenByDescending(a => a.CreatedAt)
+            .ThenByDescending(a => a.Id)
             .FirstOrDefault();
 
         // AppraiserUserId fallback chain: prefer the directly-assigned user; fall back to the

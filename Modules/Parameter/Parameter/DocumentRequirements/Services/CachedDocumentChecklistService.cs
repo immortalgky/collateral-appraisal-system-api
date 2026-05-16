@@ -33,4 +33,15 @@ public class CachedDocumentChecklistService(
             return await inner.GetCollateralTypeRequirementsAsync(sortedCodes, purposeCode, ct);
         }))!;
     }
+
+    public async Task<IReadOnlyDictionary<string, string>> GetAllDocumentTypeNamesAsync(CancellationToken ct)
+    {
+        const string cacheKey = "docchecklist:doctype-names:all";
+
+        return (await cache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+            return await inner.GetAllDocumentTypeNamesAsync(ct);
+        }))!;
+    }
 }

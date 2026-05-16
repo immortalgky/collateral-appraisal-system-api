@@ -567,6 +567,10 @@ namespace Request.Infrastructure.Migrations
                             b1.Property<int>("Set")
                                 .HasColumnType("int");
 
+                            b1.Property<string>("Source")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
                             b1.Property<Guid>("TitleId")
                                 .HasColumnType("uniqueidentifier");
 

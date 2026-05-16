@@ -16,11 +16,6 @@ public class SlaConfigEndpoints : ICarterModule
         group.MapPut("/{id:guid}", UpdateConfiguration);
         group.MapDelete("/{id:guid}", DeleteConfiguration);
 
-        // Workflow SLA configs
-        var wfGroup = app.MapGroup("/api/sla/workflow-configurations").WithTags("SLA Configuration");
-        wfGroup.MapGet("/", GetWorkflowConfigurations);
-        wfGroup.MapPost("/", CreateWorkflowConfiguration);
-
         // Holidays
         var holidays = app.MapGroup("/api/sla/holidays").WithTags("SLA Configuration");
         holidays.MapGet("/", GetHolidays);
@@ -36,7 +31,7 @@ public class SlaConfigEndpoints : ICarterModule
     // --- SLA Configurations ---
     private static async Task<IResult> GetConfigurations(WorkflowDbContext db)
     {
-        var configs = await db.SlaConfigurations
+        var configs = await db.SlaPolicies
             .AsNoTracking()
             .OrderBy(c => c.Priority)
             .Select(c => new SlaConfigDto(
@@ -48,10 +43,10 @@ public class SlaConfigEndpoints : ICarterModule
 
     private static async Task<IResult> CreateConfiguration(CreateSlaConfigRequest request, WorkflowDbContext db)
     {
-        var config = SlaConfiguration.Create(
+        var config = SlaPolicy.Create(
             request.ActivityId, request.DurationHours, request.UseBusinessDays,
             request.Priority, request.WorkflowDefinitionId, request.CompanyId, request.LoanType);
-        db.SlaConfigurations.Add(config);
+        db.SlaPolicies.Add(config);
         await db.SaveChangesAsync();
         return Results.Created($"/api/sla/configurations/{config.Id}",
             new SlaConfigDto(config.Id, config.ActivityId, config.WorkflowDefinitionId,
@@ -61,42 +56,24 @@ public class SlaConfigEndpoints : ICarterModule
 
     private static async Task<IResult> UpdateConfiguration(Guid id, UpdateSlaConfigRequest request, WorkflowDbContext db)
     {
-        var config = await db.SlaConfigurations.FindAsync(id);
+        var config = await db.SlaPolicies.FindAsync(id);
         if (config is null) return Results.NotFound();
-        config.Update(request.DurationHours, request.UseBusinessDays, request.Priority,
-            request.LoanType, request.CompanyId);
+        config.Update(
+            request.DurationHours, request.UseBusinessDays, request.Priority,
+            request.LoanType, request.CompanyId,
+            request.Scope, request.StartActivityKey, request.EndActivityKey,
+            request.MiddleActivityKeys, request.WorkflowDefinitionId);
         await db.SaveChangesAsync();
         return Results.Ok();
     }
 
     private static async Task<IResult> DeleteConfiguration(Guid id, WorkflowDbContext db)
     {
-        var config = await db.SlaConfigurations.FindAsync(id);
+        var config = await db.SlaPolicies.FindAsync(id);
         if (config is null) return Results.NotFound();
-        db.SlaConfigurations.Remove(config);
+        db.SlaPolicies.Remove(config);
         await db.SaveChangesAsync();
         return Results.NoContent();
-    }
-
-    // --- Workflow SLA Configurations ---
-    private static async Task<IResult> GetWorkflowConfigurations(WorkflowDbContext db)
-    {
-        var configs = await db.WorkflowSlaConfigurations
-            .AsNoTracking()
-            .OrderBy(c => c.Priority)
-            .ToListAsync();
-        return Results.Ok(configs);
-    }
-
-    private static async Task<IResult> CreateWorkflowConfiguration(
-        CreateWorkflowSlaConfigRequest request, WorkflowDbContext db)
-    {
-        var config = WorkflowSlaConfiguration.Create(
-            request.WorkflowDefinitionId, request.TotalDurationHours,
-            request.UseBusinessDays, request.Priority, request.LoanType);
-        db.WorkflowSlaConfigurations.Add(config);
-        await db.SaveChangesAsync();
-        return Results.Created($"/api/sla/workflow-configurations/{config.Id}", config);
     }
 
     // --- Holidays ---
@@ -157,15 +134,14 @@ public record CreateSlaConfigRequest(
 
 public record UpdateSlaConfigRequest(
     int DurationHours, bool UseBusinessDays, int Priority,
-    string? LoanType = null, Guid? CompanyId = null);
+    string? LoanType = null, Guid? CompanyId = null,
+    SlaPolicyScope? Scope = null, string? StartActivityKey = null,
+    string? EndActivityKey = null, string? MiddleActivityKeys = null,
+    Guid? WorkflowDefinitionId = null);
 
 public record SlaConfigDto(
     Guid Id, string ActivityId, Guid? WorkflowDefinitionId, Guid? CompanyId,
     string? LoanType, int DurationHours, bool UseBusinessDays, int Priority);
-
-public record CreateWorkflowSlaConfigRequest(
-    Guid WorkflowDefinitionId, int TotalDurationHours, bool UseBusinessDays, int Priority,
-    string? LoanType = null);
 
 public record CreateHolidayRequest(DateOnly Date, string Description);
 

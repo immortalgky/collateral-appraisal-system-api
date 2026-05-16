@@ -1373,7 +1373,7 @@ namespace Workflow.Infrastructure.Migrations
                     b.ToTable("SlaBreachLogs", "workflow");
                 });
 
-            modelBuilder.Entity("Workflow.Sla.Models.SlaConfiguration", b =>
+            modelBuilder.Entity("Workflow.Sla.Models.SlaPolicy", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1400,12 +1400,28 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<int>("DurationHours")
                         .HasColumnType("int");
 
+                    b.Property<string>("EndActivityKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("LoanType")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("MiddleActivityKeys")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("Priority")
                         .HasColumnType("int");
+
+                    b.Property<int>("Scope")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
+                    b.Property<string>("StartActivityKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -1425,60 +1441,22 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ActivityId", "WorkflowDefinitionId", "CompanyId", "LoanType")
-                        .IsUnique();
-
-                    b.ToTable("SlaConfigurations", "workflow");
-                });
-
-            modelBuilder.Entity("Workflow.Sla.Models.WorkflowSlaConfiguration", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("CreatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("LoanType")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("Priority")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TotalDurationHours")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("UpdatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("UseBusinessDays")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("WorkflowDefinitionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
                     b.HasIndex("WorkflowDefinitionId", "LoanType")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_SlaPolicies_Workflow")
+                        .HasFilter("[Scope] = 3");
 
-                    b.ToTable("WorkflowSlaConfigurations", "workflow");
+                    b.HasIndex("ActivityId", "WorkflowDefinitionId", "CompanyId", "LoanType", "Priority")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SlaPolicies_Activity")
+                        .HasFilter("[Scope] = 1");
+
+                    b.HasIndex("StartActivityKey", "WorkflowDefinitionId", "CompanyId", "LoanType", "Priority")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SlaPolicies_Stage_Start")
+                        .HasFilter("[Scope] = 2");
+
+                    b.ToTable("SlaPolicies", "workflow");
                 });
 
             modelBuilder.Entity("Workflow.Tasks.Models.CompletedTask", b =>

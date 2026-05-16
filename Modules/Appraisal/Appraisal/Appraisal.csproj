@@ -7,6 +7,7 @@
         <ProjectReference Include="..\..\Request\Request.Contracts\Request.Contracts.csproj"/>
         <ProjectReference Include="..\..\Parameter\Parameter.Contracts\Parameter.Contracts.csproj"/>
         <ProjectReference Include="..\..\Collateral\Collateral.Contracts\Collateral.Contracts.csproj"/>
+        <ProjectReference Include="..\..\Workflow\Workflow.Contracts\Workflow.Contracts.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -15,7 +16,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Application\Dtos\"/>
         <Folder Include="Infrastructure\Migrations\"/>
     </ItemGroup>
 

@@ -10,7 +10,6 @@ public class SubmitDocumentFollowupCommandHandler(
     IWorkflowService workflowService,
     IRequestDocumentAttacher documentAttacher,
     ICurrentUserService currentUser,
-    IPublisher publisher,
     ILogger<SubmitDocumentFollowupCommandHandler> logger
 ) : ICommandHandler<SubmitDocumentFollowupCommand, Unit>
 {
@@ -77,9 +76,8 @@ public class SubmitDocumentFollowupCommandHandler(
 
         followup.Submit(actor);
         await dbContext.SaveChangesAsync(cancellationToken);
-
-        foreach (var ev in followup.ClearDomainEvents())
-            await publisher.Publish(ev, cancellationToken);
+        // DispatchDomainEventInterceptor drained the aggregate's domain events during the save
+        // above — no separate post-save publish loop is needed (and adding one would be a no-op).
 
         // Single path back to the raiser — always signal "P" (proceed) regardless of
         // whether items were Uploaded or Declined.

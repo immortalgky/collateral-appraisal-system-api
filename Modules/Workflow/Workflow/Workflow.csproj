@@ -7,6 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Workflow.Contracts\Workflow.Contracts.csproj" />
         <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj" />
         <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj" />
         <ProjectReference Include="..\..\Appraisal\Appraisal.Contracts\Appraisal.Contracts.csproj" />
@@ -14,6 +15,7 @@
         <ProjectReference Include="..\..\Auth\Auth\Auth.csproj" />
         <ProjectReference Include="..\..\Auth\Auth.Contracts\Auth.Contracts.csproj" />
         <ProjectReference Include="..\..\Request\Request.Contracts\Request.Contracts.csproj" />
+        <ProjectReference Include="..\..\Parameter\Parameter.Contracts\Parameter.Contracts.csproj" />
     </ItemGroup>
 
     <ItemGroup>

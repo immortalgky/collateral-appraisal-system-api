@@ -42,8 +42,7 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
     public DbSet<ApprovalVote> ApprovalVotes => Set<ApprovalVote>();
 
     // SLA entities
-    public DbSet<SlaConfiguration> SlaConfigurations => Set<SlaConfiguration>();
-    public DbSet<WorkflowSlaConfiguration> WorkflowSlaConfigurations => Set<WorkflowSlaConfiguration>();
+    public DbSet<SlaPolicy> SlaPolicies => Set<SlaPolicy>();
     public DbSet<Holiday> Holidays => Set<Holiday>();
     public DbSet<BusinessHoursConfig> BusinessHoursConfigs => Set<BusinessHoursConfig>();
     public DbSet<SlaBreachLog> SlaBreachLogs => Set<SlaBreachLog>();

@@ -254,7 +254,7 @@ public class TaskActivity : WorkflowActivityBase
             {
                 if (resumeInput.TryGetValue("reasonCode", out var rcVal) && rcVal is not null)
                     context.WorkflowInstance.Variables["routeBackReasonCode"] = rcVal.ToString()!;
-                if (resumeInput.TryGetValue("reason", out var rVal) && rVal is not null)
+                if (resumeInput.TryGetValue("comments", out var rVal) && rVal is not null)
                     context.WorkflowInstance.Variables["routeBackReason"] = rVal.ToString()!;
             }
 

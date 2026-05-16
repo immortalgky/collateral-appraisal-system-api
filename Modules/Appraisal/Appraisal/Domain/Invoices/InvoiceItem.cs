@@ -13,7 +13,7 @@ public class InvoiceItem : Entity<Guid>
     public decimal VATRate { get; private set; }
     public decimal VATAmount { get; private set; }
     public decimal TotalFeeAfterVAT { get; private set; }
-    public DateTime? ReceivedDate { get; private set; }
+    public DateTime? SubmittedDate { get; private set; }
 
     private InvoiceItem() { }
 
@@ -30,7 +30,7 @@ public class InvoiceItem : Entity<Guid>
         decimal vatRate,
         decimal vatAmount,
         decimal totalFeeAfterVAT,
-        DateTime? receivedDate)
+        DateTime? submittedDate)
     {
         Id = id;
         InvoiceId = invoiceId;
@@ -44,6 +44,6 @@ public class InvoiceItem : Entity<Guid>
         VATRate = vatRate;
         VATAmount = vatAmount;
         TotalFeeAfterVAT = totalFeeAfterVAT;
-        ReceivedDate = receivedDate;
+        SubmittedDate = submittedDate;
     }
 }

@@ -35,7 +35,8 @@ public class AppraisalApprovedIntegrationEventHandler(
 
         try
         {
-            var appraisal = await appraisalRepository.GetByIdAsync(message.AppraisalId, ct);
+            // Load with assignments so MarkApprovedByCommittee can complete the active assignment.
+            var appraisal = await appraisalRepository.GetByIdWithAllDataAsync(message.AppraisalId, ct);
 
             if (appraisal is null)
             {

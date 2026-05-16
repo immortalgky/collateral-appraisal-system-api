@@ -66,15 +66,18 @@ public class StartQuotationFromTaskCommandHandler(
             throw new ConflictException(
                 $"Appraisal '{command.AppraisalId}' is already part of another non-terminal quotation request.");
 
+        // Deferred until after the guards so rejection paths don't pay for the read. See CreateNewDraftAsync for why this isn't merged with the EF aggregate load.
+        var summary = await GetAppraisalSummaryAsync(command.AppraisalId, cancellationToken);
+
         quotation.AddAppraisal(command.AppraisalId, requestedBy);
 
         // Also add a display item for the new appraisal (used by admin review panel)
         quotation.AddItem(
             appraisalId: command.AppraisalId,
-            appraisalNumber: command.AppraisalNumber,
-            propertyType: command.PropertyType,
-            propertyLocation: command.PropertyLocation,
-            estimatedValue: command.EstimatedValue,
+            appraisalNumber: summary.AppraisalNumber ?? string.Empty,
+            propertyType: summary.PropertyType ?? "Unknown",
+            propertyLocation: summary.PropertyLocation,
+            estimatedValue: summary.EstimatedValue,
             maxAppraisalDays: command.MaxAppraisalDays);
 
         quotationRepository.Update(quotation);
@@ -116,6 +119,12 @@ public class StartQuotationFromTaskCommandHandler(
             throw new ConflictException(
                 $"Appraisal '{command.AppraisalId}' is already part of another non-terminal quotation request.");
 
+        // Same deferred summary lookup as Path A — kept after guards so a duplicate-active rejection
+        // doesn't pay for the read. Path B also loads the EF aggregate below (when assignment fields
+        // are set) for CreatePendingAssignment; that aggregate can't supply PropertyType because it
+        // lives in the request module, so the two reads serve different purposes.
+        var summary = await GetAppraisalSummaryAsync(command.AppraisalId, cancellationToken);
+
         var rmUsername = await ResolveRmAsync(command.RequestId, cancellationToken);
 
         var quotation = QuotationRequest.CreateFromTask(
@@ -134,10 +143,10 @@ public class StartQuotationFromTaskCommandHandler(
         // Add the appraisal as a display item
         quotation.AddItem(
             appraisalId: command.AppraisalId,
-            appraisalNumber: command.AppraisalNumber,
-            propertyType: command.PropertyType,
-            propertyLocation: command.PropertyLocation,
-            estimatedValue: command.EstimatedValue,
+            appraisalNumber: summary.AppraisalNumber ?? string.Empty,
+            propertyType: summary.PropertyType ?? "Unknown",
+            propertyLocation: summary.PropertyLocation,
+            estimatedValue: summary.EstimatedValue,
             maxAppraisalDays: command.MaxAppraisalDays);
 
         // Invite each company
@@ -170,6 +179,15 @@ public class StartQuotationFromTaskCommandHandler(
         activityLogger.Log(quotation.Id, null, null, QuotationActivityNames.QuotationCreatedFromTask, actionByRole: adminRole);
 
         return new StartQuotationFromTaskResult(quotation.Id);
+    }
+
+    private async Task<AppraisalSummary> GetAppraisalSummaryAsync(
+        Guid appraisalId,
+        CancellationToken cancellationToken)
+    {
+        var summaries = await appraisalRepository.GetSummariesAsync(new[] { appraisalId }, cancellationToken);
+        return summaries.FirstOrDefault()
+            ?? throw new NotFoundException($"Appraisal '{appraisalId}' not found.");
     }
 
     /// <summary>

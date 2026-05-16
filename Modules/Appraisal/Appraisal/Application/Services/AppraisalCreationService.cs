@@ -2,6 +2,7 @@ using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Projects;
 using Request.Contracts.Requests.Dtos;
 using Shared.Identity;
+using Workflow;
 
 namespace Appraisal.Application.Services;
 
@@ -14,7 +15,8 @@ public class AppraisalCreationService(
     IAppraisalUnitOfWork unitOfWork,
     AppraisalDbContext dbContext,
     ICurrentUserService currentUserService,
-    ILogger<AppraisalCreationService> logger) : IAppraisalCreationService
+    ILogger<AppraisalCreationService> logger,
+    ISlaCalculatorClient slaCalculatorClient) : IAppraisalCreationService
 {
     public async Task<Guid> CreateAppraisalFromRequest(
         Guid requestId,
@@ -34,6 +36,7 @@ public class AppraisalCreationService(
         DateTime? requestedAt = null,
         Guid? prevAppraisalId = null,
         string? appraisalType = null,
+        Guid? workflowDefinitionId = null,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Creating appraisal from request {RequestId} with {TitleCount} titles",
@@ -71,14 +74,27 @@ public class AppraisalCreationService(
         var isConstructionInspection = appraisalType == AppraisalTypes.ConstructionInspection
                                        && prevAppraisalId.HasValue;
 
-        // Step 3: Create Appraisal aggregate
+        // Step 3: Resolve workflow-level SLA budget. workflowDefinitionId is optional because the caller
+        // (AppraisalCreationRequestedIntegrationEventHandler) may not always know the definition ID at
+        // creation time. When null, the appraisal SLA days remain null instead of using a hardcoded fallback.
+        int? appraisalSlaDays = null;
+        if (workflowDefinitionId.HasValue)
+        {
+            var workflowDueAt = await slaCalculatorClient.GetWorkflowDueAtAsync(
+                workflowDefinitionId.Value, loanType: null, startedAt: DateTime.Now, cancellationToken);
+            appraisalSlaDays = workflowDueAt.HasValue
+                ? (int)(workflowDueAt.Value - DateTime.Now).TotalDays
+                : null;
+        }
+
+        // Step 4: Create Appraisal aggregate
         var resolvedAppraisalType =
             isConstructionInspection ? AppraisalTypes.ConstructionInspection : AppraisalTypes.New;
         var appraisal = Domain.Appraisals.Appraisal.Create(
             requestId,
             resolvedAppraisalType,
             priority ?? "Normal",
-            7, // TODO: Default SLA of 30 days
+            appraisalSlaDays,
             requestedBy ?? createdBy,
             isPma,
             purpose,

@@ -48,13 +48,8 @@ public class RequestRouteBackWebhookConsumer(
             return;
         }
 
-        var reasonCode = msg.ReasonCode;
+        const string reasonCode = "INVALID_REQUEST_INFO";
         var reason = msg.Reason;
-
-        if (string.IsNullOrEmpty(reasonCode))
-        {
-            logger.LogWarning("RequestRouteBackWebhookConsumer: ReasonCode is missing for AppraisalId {AppraisalId}, sending with empty reason", msg.AppraisalId);
-        }
 
         await webhookService.SendAsync(
             eventId: context.Message.EventId,

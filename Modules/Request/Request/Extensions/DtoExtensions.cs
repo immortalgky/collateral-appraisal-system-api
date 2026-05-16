@@ -127,6 +127,7 @@ public static class DtoExtensions
             Set = doc.Set,
             Notes = doc.Notes,
             FilePath = doc.FilePath,
+            Source = doc.Source,
             IsRequired = doc.IsRequired,
             UploadedBy = doc.UploadedBy,
             UploadedByName = doc.UploadedByName,
@@ -508,6 +509,7 @@ public static class DtoExtensions
             Set = dto.Set,
             Notes = dto.Notes,
             FilePath = dto.FilePath,
+            Source = dto.Source,
             UploadedBy = dto.UploadedBy,
             UploadedByName = dto.UploadedByName,
             UploadedAt = dto.UploadedAt

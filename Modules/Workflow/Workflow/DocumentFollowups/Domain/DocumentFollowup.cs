@@ -65,7 +65,13 @@ public class DocumentFollowup : Aggregate<Guid>
             followup.LineItems.Add(DocumentFollowupLineItem.Create(type, notes));
         }
 
-        followup.AddDomainEvent(new DocumentFollowupRaisedDomainEvent(followup.Id, followup.RaisingPendingTaskId));
+        followup.AddDomainEvent(new DocumentFollowupRaisedDomainEvent(
+            followup.Id,
+            followup.RaisingPendingTaskId,
+            followup.AppraisalId,
+            followup.RaisingWorkflowInstanceId,
+            followup.RaisingActivityId,
+            followup.LineItems.Select(li => li.DocumentType).ToList()));
         return followup;
     }
 

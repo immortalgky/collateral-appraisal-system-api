@@ -7,5 +7,7 @@ public class CompanyAppraisalSummary
     public string CompanyName { get; set; } = default!;
     public int AssignedCount { get; set; }
     public int CompletedCount { get; set; }
+    public int SubmissionCount { get; set; }
+    public long TotalBusinessMinutes { get; set; }
     public DateTime LastUpdatedAt { get; set; }
 }

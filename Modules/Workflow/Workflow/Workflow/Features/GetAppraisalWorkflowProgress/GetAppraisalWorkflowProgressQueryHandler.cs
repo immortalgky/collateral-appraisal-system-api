@@ -79,7 +79,7 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                                     SELECT TOP 1 AssignmentType
                                     FROM appraisal.AppraisalAssignments
                                     WHERE AppraisalId = @AppraisalId
-                                    ORDER BY AssignedAt DESC;
+                                    ORDER BY AssignedAt DESC, CreatedAt DESC;
                                     """;
 
     // Wave 2 (instance exists): completed activity IDs + workflow definition JSON.

@@ -80,12 +80,16 @@ public class AppraisalAssignmentConfiguration : IEntityTypeConfiguration<Apprais
 
         // Timestamps
         builder.Property(a => a.AssignedAt)
-            .IsRequired();
+            .IsRequired(false);
         builder.Property(a => a.AssignedBy)
             .IsRequired()
             .HasMaxLength(100);
         builder.Property(a => a.StartedAt);
+        builder.Property(a => a.SubmittedAt);
         builder.Property(a => a.CompletedAt);
+        builder.Property(a => a.SLADueDate)
+            .HasColumnName("SLADueDate")
+            .IsRequired(false);
         builder.Property(a => a.RejectionReason)
             .HasMaxLength(500);
         builder.Property(a => a.CancellationReason)
@@ -111,5 +115,14 @@ public class AppraisalAssignmentConfiguration : IEntityTypeConfiguration<Apprais
             .HasDatabaseName("IX_AppraisalAssignments_AppraisalId_AssignedAt_Active")
             .HasFilter("[AssignmentStatus] <> 'Rejected' AND [AssignmentStatus] <> 'Cancelled'")
             .IsDescending(false, true);
+
+        // External engagement cycles collection
+        builder.HasMany(a => a.Cycles)
+            .WithOne()
+            .HasForeignKey("AppraisalAssignmentId")
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Metadata.FindNavigation(nameof(AppraisalAssignment.Cycles))!
+            .SetPropertyAccessMode(PropertyAccessMode.Field);
     }
 }

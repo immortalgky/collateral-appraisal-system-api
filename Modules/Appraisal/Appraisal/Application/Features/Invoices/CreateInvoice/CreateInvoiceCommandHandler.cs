@@ -13,16 +13,21 @@ public class CreateInvoiceCommandHandler(
     {
         var connection = sqlConnectionFactory.GetOpenConnection();
         var parameters = new DynamicParameters();
-        parameters.Add("CompanyId", request.CompanyId.ToString());
+        parameters.Add("CompanyId", request.CompanyId);
         parameters.Add("AssignmentIds", request.AssignmentIds);
 
         var eligibleRows = (await connection.QueryAsync<EligibleRow>(
             """
-            SELECT AssignmentId, AppraisalFeeId, AppraisalNumber, CustomerName, ProductType,
-                   FeeBeforeVAT, VATRate, VATAmount, TotalFeeAfterVAT, BankAbsorbAmount, ReceivedDate
-            FROM appraisal.vw_EligibleAssignments
-            WHERE AssigneeCompanyId = @CompanyId
-              AND AssignmentId IN @AssignmentIds
+            SELECT v.AssignmentId, v.AppraisalFeeId, v.AppraisalNumber, v.CustomerName, v.ProductType,
+                   v.FeeBeforeVAT, v.VATRate, v.VATAmount, v.TotalFeeAfterVAT, v.BankAbsorbAmount,
+                   v.SubmittedDate
+            FROM appraisal.vw_EligibleAssignments v
+            WHERE v.AssigneeCompanyId = @CompanyId
+              AND v.AssignmentId IN @AssignmentIds
+              AND NOT EXISTS (
+                  SELECT 1 FROM appraisal.InvoiceItems ii
+                  WHERE ii.AssignmentId = v.AssignmentId
+              )
             """,
             parameters)).ToList();
 
@@ -46,7 +51,7 @@ public class CreateInvoiceCommandHandler(
                 row.VATRate,
                 row.VATAmount,
                 row.TotalFeeAfterVAT,
-                row.ReceivedDate);
+                row.SubmittedDate);
         }
 
         if (request.Notes is not null)
@@ -69,5 +74,5 @@ public class CreateInvoiceCommandHandler(
         decimal VATAmount,
         decimal TotalFeeAfterVAT,
         decimal BankAbsorbAmount,
-        DateTime? ReceivedDate);
+        DateTime? SubmittedDate);
 }

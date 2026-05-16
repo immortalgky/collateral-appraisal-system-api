@@ -18,11 +18,11 @@ public class GetAppraisalResultByCaseKeyEndpoint : ICarterModule
             if (string.IsNullOrWhiteSpace(externalCaseKey))
                 return Results.BadRequest("externalCaseKey is required");
 
-            var result = await sender.Send(
+            var results = await sender.Send(
                 new GetAppraisalResultsByCaseKeyQuery(externalCaseKey),
                 cancellationToken);
 
-            return Results.Ok(result);
+            return Results.Ok(results);
         })
         .WithName("GetAppraisalResultByCaseKey")
         .WithTags("Integration - Appraisal Results")

@@ -139,7 +139,7 @@ public class GetMeetingDetailQueryHandler(
                                OUTER APPLY (SELECT TOP 1 Id, COALESCE(AssigneeUserId, InternalAppraiserId) AS InternalAppraiserId
                                             FROM appraisal.AppraisalAssignments
                                             WHERE AppraisalId = a.Id AND AssignmentStatus NOT IN ('Rejected', 'Cancelled')
-                                            ORDER BY AssignedAt DESC) AA
+                                            ORDER BY AssignedAt DESC, CreatedAt DESC) AA
                                LEFT JOIN auth.AspNetUsers u ON u.UserName = aa.InternalAppraiserId
                                LEFT JOIN appraisal.ValuationAnalyses v ON v.AppraisalId = a.Id
                                WHERE MeetingId = @Id

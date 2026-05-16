@@ -21,22 +21,16 @@ public class ActivityProcessConfigurationSeeder(
 
         var configs = new List<ActivityProcessConfiguration>
         {
-            // site-inspection: validate value, then complete assignment
-            // Note: status transition (→ UnderReview) is now handled by the WorkflowTransitionedIntegrationEvent
-            // consumer in the Appraisal module — no synchronous UpdateAppraisalStatus step needed.
+            // site-inspection: validate value before allowing the activity to complete.
+            // Assignment-status transitions are now driven by the WorkflowTransitionedIntegrationEvent
+            // consumer in the Appraisal module — terminal Completion is owned by the committee
+            // approval handler, not by a synchronous UpdateAssignmentStatus step here.
             ActivityProcessConfiguration.Create(
                 "site-inspection",
                 "Validate appraised value",
                 "ValidateHasAppraisedValue",
                 1,
                 "system"),
-            ActivityProcessConfiguration.Create(
-                "site-inspection",
-                "Complete assignment",
-                "UpdateAssignmentStatus",
-                2,
-                "system",
-                """{"targetStatus": "Completed"}"""),
 
             // appraisal-assignment: validate decision constraints before routing
             ActivityProcessConfiguration.Create(

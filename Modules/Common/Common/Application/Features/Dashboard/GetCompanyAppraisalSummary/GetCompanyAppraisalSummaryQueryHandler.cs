@@ -42,8 +42,12 @@ public class GetCompanyAppraisalSummaryQueryHandler(
         var sql = $"""
             SELECT CompanyId,
                    COALESCE(MAX(CASE WHEN CompanyName <> N'(pending)' THEN CompanyName END), N'(pending)') AS CompanyName,
-                   SUM(AssignedCount)  AS AssignedCount,
-                   SUM(CompletedCount) AS CompletedCount
+                   SUM(AssignedCount)       AS AssignedCount,
+                   SUM(CompletedCount)      AS CompletedCount,
+                   SUM(SubmissionCount)     AS SubmissionCount,
+                   SUM(TotalBusinessMinutes) AS TotalBusinessMinutes,
+                   CASE WHEN SUM(SubmissionCount) = 0 THEN NULL
+                        ELSE CAST(SUM(TotalBusinessMinutes) AS decimal(18,2)) / SUM(SubmissionCount) END AS AverageBusinessMinutes
             FROM common.CompanyAppraisalSummaries
             {where}
             GROUP BY CompanyId

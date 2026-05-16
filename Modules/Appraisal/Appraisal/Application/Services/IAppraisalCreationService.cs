@@ -30,5 +30,8 @@ public interface IAppraisalCreationService
         DateTime? requestedAt = null,
         Guid? prevAppraisalId = null,
         string? appraisalType = null,
+        // When provided, used to resolve the workflow-level SLA budget via ISlaCalculatorClient.
+        // If null, SLA days will also be null on the created Appraisal (no hardcoded fallback).
+        Guid? workflowDefinitionId = null,
         CancellationToken cancellationToken = default);
 }

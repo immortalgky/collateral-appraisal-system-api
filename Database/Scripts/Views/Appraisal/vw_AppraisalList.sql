@@ -55,7 +55,7 @@ FROM appraisal.Appraisals a
                            aa.AssignmentType,
                            aa.AssignmentStatus,
                            aa.AssignedAt,
-                           ROW_NUMBER() OVER (PARTITION BY aa.AppraisalId ORDER BY aa.AssignedAt DESC) AS rn
+                           ROW_NUMBER() OVER (PARTITION BY aa.AppraisalId ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC) AS rn
                     FROM appraisal.AppraisalAssignments aa
                     WHERE aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')) la
                    ON la.AppraisalId = a.Id AND la.rn = 1
