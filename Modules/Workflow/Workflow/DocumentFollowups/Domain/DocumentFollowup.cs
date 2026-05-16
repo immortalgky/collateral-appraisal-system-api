@@ -111,6 +111,31 @@ public class DocumentFollowup : Aggregate<Guid>
     }
 
     /// <summary>
+    /// Integration-path resolve: closes the followup without per-item fulfillment checks.
+    /// Pending items are marked Declined (no DocumentId needed — the bank's resubmit
+    /// re-syncs all documents wholesale; specific rows are findable via RequestDocument).
+    /// Raises DocumentFollowupResolvedDomainEvent so downstream behavior matches a normal Submit.
+    /// </summary>
+    public void AutoResolve(string actor, string reason)
+    {
+        if (string.IsNullOrWhiteSpace(actor))
+            throw new ArgumentException("Actor is required", nameof(actor));
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new ArgumentException("Reason is required", nameof(reason));
+        if (Status == DocumentFollowupStatus.Resolved)
+            throw new InvalidOperationException("Followup is already resolved");
+        if (Status == DocumentFollowupStatus.Cancelled)
+            throw new InvalidOperationException("Followup is cancelled");
+
+        foreach (var item in LineItems.Where(li => li.Status == DocumentFollowupLineItemStatus.Pending))
+            item.MarkDeclined(reason);
+
+        Status = DocumentFollowupStatus.Resolved;
+        ResolvedAt = DateTime.Now;
+        AddDomainEvent(new DocumentFollowupResolvedDomainEvent(Id, RaisingPendingTaskId));
+    }
+
+    /// <summary>
     /// Explicitly submitted by the request maker once all items are Uploaded or Declined.
     /// Transitions Open → Resolved and fires DocumentFollowupResolvedDomainEvent.
     /// </summary>
