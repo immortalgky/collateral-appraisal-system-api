@@ -46,6 +46,8 @@ public class CompanyAssignedIntegrationEventHandler(
         var assignment = appraisal.Assignments
             .Where(a => a.AssignmentStatus.Code != "Rejected" && a.AssignmentStatus.Code != "Cancelled")
             .OrderByDescending(a => a.AssignedAt)
+            .ThenByDescending(a => a.CreatedAt)
+            .ThenByDescending(a => a.Id)
             .FirstOrDefault();
 
         if (assignment is null)
@@ -71,10 +73,10 @@ public class CompanyAssignedIntegrationEventHandler(
 
         if (isQuotationPath)
         {
-            // v4: Quotation path — record winner without promoting to Assigned status.
-            // The assignment stays Pending while the quotation child workflow executes.
-            // The downstream quotation workflow (ext-appraisal-assignment) will promote
-            // the status when the company begins the appraisal work.
+            // Quotation path — record winner AND promote to Assigned synchronously so the
+            // administration screen locks immediately. RecordQuotationWinner sets the status
+            // to Assigned itself; we must not defer this to the workflow event because the
+            // async window would leave the screen editable.
             assignment.RecordQuotationWinner(message.CompanyId, "System");
 
             // Link the winning QuotationRequest onto the assignment so the

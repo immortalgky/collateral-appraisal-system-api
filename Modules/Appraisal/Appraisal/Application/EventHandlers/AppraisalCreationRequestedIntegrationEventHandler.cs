@@ -44,6 +44,8 @@ public class AppraisalCreationRequestedIntegrationEventHandler(
                 message.RequestedAt,
                 message.PrevAppraisalId,
                 message.AppraisalType,
+                // TODO: plumb WorkflowDefinitionId from request flow so workflow-scope SLA resolves correctly.
+                workflowDefinitionId: null,
                 context.CancellationToken);
 
             logger.LogInformation(

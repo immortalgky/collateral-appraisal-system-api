@@ -13,89 +13,47 @@ public class CompanyAppraisalCompletedDashboardEventHandler(
     ISqlConnectionFactory connectionFactory,
     ILogger<CompanyAppraisalCompletedDashboardEventHandler> logger,
     InboxGuard<CommonDbContext> inboxGuard,
-    IDateTimeProvider dateTimeProvider) : IConsumer<TaskCompletedIntegrationEvent>
+    IDateTimeProvider dateTimeProvider) : IConsumer<ExternalAppraisalReturnedIntegrationEvent>
 {
-    private const string ExtVerificationTaskName = "ExtAppraisalVerification";
-    private const string ProceedAction = "P";
-
-    public async Task Consume(ConsumeContext<TaskCompletedIntegrationEvent> context)
+    public async Task Consume(ConsumeContext<ExternalAppraisalReturnedIntegrationEvent> context)
     {
         var message = context.Message;
-
-        if (message.TaskName != ExtVerificationTaskName || message.ActionTaken != ProceedAction)
-            return;
 
         if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
             return;
 
         var connection = connectionFactory.GetOpenConnection();
 
-        // Route-back guard: only the FIRST Proceed counts. If ExtAppraisalVerification
-        // has already been completed with "P" for this correlation, the bank routed it
-        // back and the verifier re-proceeded — don't double-count.
-        var proceedCount = await connection.ExecuteScalarAsync<int>("""
-            SELECT COUNT(*)
-            FROM workflow.CompletedTasks
-            WHERE CorrelationId = @CorrelationId
-              AND TaskName = @TaskName
-              AND ActionTaken = @ActionTaken
-            """,
-            new
-            {
-                message.CorrelationId,
-                TaskName = ExtVerificationTaskName,
-                ActionTaken = ProceedAction
-            });
-
-        if (proceedCount > 1)
-        {
-            logger.LogInformation(
-                "Dashboard: ExtAppraisalVerification re-proceed detected for CorrelationId {CorrelationId} (count={Count}); skipping increment",
-                message.CorrelationId, proceedCount);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
-            return;
-        }
-
-        var companyIdRaw = await connection.QueryFirstOrDefaultAsync<string?>("""
-            SELECT aa.AssigneeCompanyId
-            FROM appraisal.Appraisals a
-            INNER JOIN appraisal.AppraisalAssignments aa ON a.Id = aa.AppraisalId
-            WHERE a.RequestId = @RequestId AND aa.AssigneeCompanyId IS NOT NULL
-            """,
-            new { RequestId = message.CorrelationId });
-
-        if (string.IsNullOrEmpty(companyIdRaw) || !Guid.TryParse(companyIdRaw, out var companyId))
-        {
-            logger.LogWarning(
-                "Dashboard: ExtAppraisalVerification proceeded for CorrelationId {CorrelationId} but no external company assignment found",
-                message.CorrelationId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
-            return;
-        }
-
-        // MERGE (not plain UPDATE): if CompanyAssigned event hasn't been processed
-        // yet for some reason, we still record the completion. CompanyName gets
-        // patched by the subsequent CompanyAssigned MERGE on the same (CompanyId, Date).
+        // Every cycle close is a real submission. CompletedCount increments only on CycleNumber == 1
+        // to preserve the original first-proceed semantics.
         await connection.ExecuteAsync("""
             MERGE common.CompanyAppraisalSummaries AS target
             USING (SELECT @CompanyId AS CompanyId, @Date AS Date) AS source
             ON target.CompanyId = source.CompanyId AND target.Date = source.Date
             WHEN MATCHED THEN
-                UPDATE SET CompletedCount = CompletedCount + 1, LastUpdatedAt = @Now
+                UPDATE SET
+                    SubmissionCount    = SubmissionCount + 1,
+                    TotalBusinessMinutes = TotalBusinessMinutes + @BusinessMinutes,
+                    CompletedCount     = CompletedCount + CASE WHEN @CycleNumber = 1 THEN 1 ELSE 0 END,
+                    LastUpdatedAt      = @Now
             WHEN NOT MATCHED THEN
-                INSERT (CompanyId, Date, CompanyName, AssignedCount, CompletedCount, LastUpdatedAt)
-                VALUES (@CompanyId, @Date, N'(pending)', 0, 1, @Now);
+                INSERT (CompanyId, Date, CompanyName, AssignedCount, CompletedCount, SubmissionCount, TotalBusinessMinutes, LastUpdatedAt)
+                VALUES (@CompanyId, @Date, N'(pending)', 0,
+                        CASE WHEN @CycleNumber = 1 THEN 1 ELSE 0 END,
+                        1, @BusinessMinutes, @Now);
             """,
             new
             {
-                CompanyId = companyId,
-                Date = message.OccurredOn.Date,
+                CompanyId = message.CompanyId,
+                Date = message.ClosedAt.Date,
+                BusinessMinutes = (long)message.BusinessMinutes,
+                CycleNumber = message.CycleNumber,
                 Now = dateTimeProvider.ApplicationNow
             });
 
         logger.LogInformation(
-            "Dashboard: CompanyAppraisalSummaries.CompletedCount incremented for CompanyId {CompanyId} (CorrelationId {CorrelationId})",
-            companyId, message.CorrelationId);
+            "Dashboard: CompanyAppraisalSummaries updated for CompanyId {CompanyId} Cycle={Cycle} BusinessMinutes={Minutes}",
+            message.CompanyId, message.CycleNumber, message.BusinessMinutes);
 
         await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }

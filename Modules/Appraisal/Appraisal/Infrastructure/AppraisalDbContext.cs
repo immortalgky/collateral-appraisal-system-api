@@ -23,6 +23,7 @@ public class AppraisalDbContext : DbContext
     public DbSet<PropertyGroup> PropertyGroups => Set<PropertyGroup>();
     public DbSet<PropertyGroupItem> PropertyGroupItems => Set<PropertyGroupItem>();
     public DbSet<AppraisalAssignment> AppraisalAssignments => Set<AppraisalAssignment>();
+    public DbSet<ExternalEngagementCycle> ExternalEngagementCycles => Set<ExternalEngagementCycle>();
 
     // =====================================================
     // Evaluation Entities

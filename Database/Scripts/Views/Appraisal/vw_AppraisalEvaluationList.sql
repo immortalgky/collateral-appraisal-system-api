@@ -52,7 +52,7 @@ FROM appraisal.Appraisals a
             aa.AppraisalId,
             aa.ExternalAppraiserName,
             aa.AssigneeCompanyId,
-            ROW_NUMBER() OVER (PARTITION BY aa.AppraisalId ORDER BY aa.AssignedAt DESC) AS rn
+            ROW_NUMBER() OVER (PARTITION BY aa.AppraisalId ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC) AS rn
         FROM appraisal.AppraisalAssignments aa
         WHERE aa.AssignmentType = 'External'
           AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')

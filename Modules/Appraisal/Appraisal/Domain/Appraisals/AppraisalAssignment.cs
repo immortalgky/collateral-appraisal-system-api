@@ -38,14 +38,79 @@ public class AppraisalAssignment : Entity<Guid>
     public DateTime? LastProgressUpdate { get; private set; }
 
     // Timestamps
-    public DateTime AssignedAt { get; private set; }
+    /// <summary>
+    /// Stamped only when the workflow actually hands the task to an external company or internal
+    /// appraiser via <see cref="Assign"/>. Null during administration and quotation-selection phases.
+    /// </summary>
+    public DateTime? AssignedAt { get; private set; }
     public string AssignedBy { get; private set; } = default!;
     public DateTime? StartedAt { get; private set; }
+    /// <summary>
+    /// Stamped exactly once on the first appraiser handoff (InProgress → UnderReview).
+    /// Never overwritten on rework — <see cref="Cycles"/> captures per-round timing instead.
+    /// Used by vw_EligibleAssignments as the appraiser-side submission date.
+    /// </summary>
+    public DateTime? SubmittedAt { get; private set; }
+    /// <summary>
+    /// Snapshot of the assignment-level SLA budget, frozen at the moment the stage clock starts
+    /// (workflow transition into the stage's StartActivityKey). Null if no Stage SlaPolicy matched.
+    /// SLA status, actual days, and within-SLA flag are derived in vw_AssignmentList from this +
+    /// StartedAt + SubmittedAt — no precomputed fields persisted.
+    /// Value is local-kind (matches GETDATE() in SQL views).
+    /// </summary>
+    public DateTime? SLADueDate { get; private set; }
     public DateTime? CompletedAt { get; private set; }
     public string? RejectionReason { get; private set; }
 
     public string? CancellationReason { get; private set; }
     public string? Notes { get; private set; }
+
+    // External engagement cycles — one per round-trip through ext-* activities
+    private readonly List<ExternalEngagementCycle> _cycles = new();
+    public IReadOnlyCollection<ExternalEngagementCycle> Cycles => _cycles.AsReadOnly();
+
+    public int TotalExternalBusinessMinutes =>
+        _cycles.Where(c => c.BusinessMinutes is not null).Sum(c => c.BusinessMinutes!.Value);
+
+    public int SubmissionCount => _cycles.Count(c => c.Status == CycleStatus.Closed);
+
+    /// <summary>
+    /// True once the bank's verifier (int-appraisal-verification) has accepted the book.
+    /// Invoicing is allowed from Verified onward (and remains true at terminal Completed).
+    /// </summary>
+    public bool IsInvoiceEligible =>
+        AssignmentStatus == AssignmentStatus.Verified ||
+        AssignmentStatus == AssignmentStatus.Completed;
+
+    /// <summary>
+    /// Stamps the assignment-level SLA deadline. No-op if already set — rework does not reset the clock.
+    /// </summary>
+    public void SetSlaDueDate(DateTime dueAt)
+    {
+        if (dueAt == default) throw new ArgumentException("dueAt must not be the default DateTime value.", nameof(dueAt));
+        if (SLADueDate.HasValue) return;
+        SLADueDate = dueAt;
+    }
+
+    /// <summary>Opens a new external engagement cycle. Idempotent: returns the existing open cycle if one is already open.</summary>
+    public ExternalEngagementCycle OpenExternalCycle(DateTime openedAt)
+    {
+        // FirstOrDefault ordered by CycleNumber DESC — defensive against any accidental double-open state.
+        var openCycle = _cycles.OrderByDescending(c => c.CycleNumber).FirstOrDefault(c => c.Status == CycleStatus.Open);
+        if (openCycle is not null) return openCycle;
+        var nextNumber = _cycles.Count == 0 ? 1 : _cycles.Max(c => c.CycleNumber) + 1;
+        var cycle = ExternalEngagementCycle.Open(Id, nextNumber, openedAt);
+        _cycles.Add(cycle);
+        return cycle;
+    }
+
+    /// <summary>Closes the currently open cycle (highest CycleNumber). Returns null if no open cycle exists.</summary>
+    public ExternalEngagementCycle? CloseLatestOpenCycle(DateTime closedAt, int businessMinutes)
+    {
+        var open = _cycles.OrderByDescending(c => c.CycleNumber).FirstOrDefault(c => c.Status == CycleStatus.Open);
+        open?.Close(closedAt, businessMinutes);
+        return open;
+    }
 
     private AppraisalAssignment()
     {
@@ -78,7 +143,6 @@ public class AppraisalAssignment : Entity<Guid>
         PreviousAssignmentId = previousAssignmentId;
         ReassignmentNumber = reassignmentNumber;
         AssignmentStatus = AssignmentStatus.Pending;
-        AssignedAt = DateTime.Now;
         AssignedBy = assignedBy;
         ProgressPercent = 0;
     }
@@ -156,18 +220,24 @@ public class AppraisalAssignment : Entity<Guid>
     }
 
     /// <summary>
-    /// v4 Quotation path: records the winning company on the assignment without advancing the status.
-    /// The assignment stays in Pending until the downstream quotation workflow completes.
-    /// This is distinct from <see cref="Assign"/> which promotes the status to Assigned immediately.
+    /// Quotation path: records the winning company on the assignment and locks it into Assigned
+    /// immediately. The transition is synchronous (not workflow-event-driven) because the admin
+    /// screen depends on the lock taking effect before the user can re-edit the engagement.
+    /// Only legal from Pending — refuses to overwrite a status set by a downstream workflow event
+    /// that may have already raced ahead (e.g. out-of-order delivery).
     /// </summary>
     public void RecordQuotationWinner(Guid companyId, string assignedBy)
     {
+        if (AssignmentStatus != AssignmentStatus.Pending)
+            throw new InvalidOperationException(
+                $"Cannot record quotation winner — assignment is already in status '{AssignmentStatus}'. " +
+                "RecordQuotationWinner is only valid from Pending; re-running would clobber a downstream transition.");
+
         AssignmentType = AssignmentType.FromString("External");
         AssigneeCompanyId = companyId.ToString();
         AssignmentMethod = "Quotation";
         AssignedBy = assignedBy;
-        AssignedAt = DateTime.Now;
-        // Status intentionally left at Pending — quotation workflow still running.
+        AssignmentStatus = AssignmentStatus.Assigned;
     }
 
     /// <summary>
@@ -184,13 +254,69 @@ public class AppraisalAssignment : Entity<Guid>
     /// </summary>
     public void StartWork()
     {
-        ValidateStatus(AssignmentStatus.Assigned, "start work");
+        ValidateStatus("start work", AssignmentStatus.Assigned);
 
         AssignmentStatus = AssignmentStatus.InProgress;
         StartedAt = DateTime.Now;
     }
 
-    /// <summary>r
+    /// <summary>
+    /// Bank-side review is in progress. Reachable from:
+    ///   - InProgress (handoff: ext-appraisal-verification → appraisal-book-verification, or
+    ///     int-appraisal-execution → int-appraisal-check). Stamps SubmittedAt.
+    ///   - Verified (demote: meeting/approval routed back to appraisal-book-verification on the
+    ///     External path — bank is re-examining, no longer eligible to invoice). Does NOT
+    ///     re-stamp SubmittedAt because the appraiser did not resubmit.
+    /// Idempotent if already UnderReview.
+    /// </summary>
+    public void MarkUnderReview()
+    {
+        if (AssignmentStatus == AssignmentStatus.UnderReview) return;
+        ValidateStatus("mark under review", AssignmentStatus.InProgress, AssignmentStatus.Verified);
+
+        var isFirstSubmission = AssignmentStatus == AssignmentStatus.InProgress && SubmittedAt is null;
+        AssignmentStatus = AssignmentStatus.UnderReview;
+        if (isFirstSubmission) SubmittedAt = DateTime.Now;
+    }
+
+    /// <summary>
+    /// Bank verifier (int-appraisal-verification) accepted the book. Invoicing is allowed from here.
+    /// </summary>
+    public void MarkVerified()
+    {
+        if (AssignmentStatus == AssignmentStatus.Verified) return;
+        ValidateStatus("mark verified", AssignmentStatus.UnderReview);
+
+        AssignmentStatus = AssignmentStatus.Verified;
+    }
+
+    /// <summary>
+    /// Routeback from bank-side review (book-verification, int-verification, meeting, or approval)
+    /// back to the appraiser. Returns the assignment to InProgress directly — there is no separate
+    /// ReturnedForRework state. For External, opens a new ExternalEngagementCycle as the durable
+    /// signal that rework occurred.
+    /// </summary>
+    public void Rework(string reason, DateTime cycleOpenedAt)
+    {
+        ValidateStatus("rework", AssignmentStatus.UnderReview, AssignmentStatus.Verified);
+
+        AssignmentStatus = AssignmentStatus.InProgress;
+
+        // Append the rework reason to Notes rather than overwriting; multiple round-trips would
+        // otherwise destroy prior context.
+        if (!string.IsNullOrWhiteSpace(reason))
+        {
+            var stamp = $"[Rework {DateTime.Now:yyyy-MM-dd HH:mm}] {reason}";
+            Notes = string.IsNullOrWhiteSpace(Notes) ? stamp : $"{Notes}\n{stamp}";
+        }
+
+        if (AssignmentType == AssignmentType.External)
+        {
+            OpenExternalCycle(cycleOpenedAt);
+        }
+    }
+
+    /// <summary>
     /// Update progress percentage
     /// </summary>
     public void UpdateProgress(int percent)
@@ -206,11 +332,11 @@ public class AppraisalAssignment : Entity<Guid>
     }
 
     /// <summary>
-    /// Complete this assignment
+    /// Terminal completion — only legal from Verified. Committee approval owns this transition.
     /// </summary>
     public void Complete()
     {
-        ValidateStatus(AssignmentStatus.InProgress, "complete");
+        ValidateStatus("complete", AssignmentStatus.Verified);
 
         AssignmentStatus = AssignmentStatus.Completed;
         ProgressPercent = 100;
@@ -218,25 +344,33 @@ public class AppraisalAssignment : Entity<Guid>
     }
 
     /// <summary>
-    /// Reject this assignment
+    /// Assignee declines the engagement. Only legal before the work has been handed to the bank —
+    /// once the appraiser has submitted (UnderReview) or the bank has verified (Verified), the
+    /// product is on the bank's side and rejection by the assignee is meaningless. Use Cancel
+    /// (bank withdraws) for late-stage termination instead.
     /// </summary>
     public void Reject(string reason)
     {
-        if (AssignmentStatus == AssignmentStatus.Completed ||
-            AssignmentStatus == AssignmentStatus.Cancelled)
-            throw new InvalidOperationException($"Cannot reject assignment in status '{AssignmentStatus}'");
+        ValidateStatus("reject",
+            AssignmentStatus.Pending,
+            AssignmentStatus.Assigned,
+            AssignmentStatus.InProgress);
 
         AssignmentStatus = AssignmentStatus.Rejected;
         RejectionReason = reason;
     }
 
     /// <summary>
-    /// Cancel this assignment
+    /// Bank cancels the engagement. Idempotent if already Cancelled. Disallowed once terminal
+    /// (Completed) or already failed (Rejected).
     /// </summary>
     public void Cancel(string reason)
     {
+        if (AssignmentStatus == AssignmentStatus.Cancelled) return;
         if (AssignmentStatus == AssignmentStatus.Completed)
             throw new InvalidOperationException("Cannot cancel a completed assignment");
+        if (AssignmentStatus == AssignmentStatus.Rejected)
+            throw new InvalidOperationException("Cannot cancel a rejected assignment");
 
         AssignmentStatus = AssignmentStatus.Cancelled;
         CancellationReason = reason;
@@ -254,10 +388,12 @@ public class AppraisalAssignment : Entity<Guid>
         ExternalAppraiserName = name;
     }
 
-    private void ValidateStatus(AssignmentStatus expectedStatus, string action)
+    private void ValidateStatus(string action, params AssignmentStatus[] expectedStatuses)
     {
-        if (AssignmentStatus != expectedStatus)
-            throw new InvalidOperationException(
-                $"Cannot {action} assignment in status '{AssignmentStatus}'. Expected: '{expectedStatus}'");
+        if (expectedStatuses.Any(s => AssignmentStatus == s)) return;
+
+        var expected = string.Join(" or ", expectedStatuses.Select(s => $"'{s}'"));
+        throw new InvalidOperationException(
+            $"Cannot {action} assignment in status '{AssignmentStatus}'. Expected: {expected}");
     }
 }

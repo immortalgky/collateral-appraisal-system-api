@@ -17,8 +17,9 @@ public class Appraisal : Aggregate<Guid>
     public IReadOnlyList<AppraisalAssignment> Assignments => _assignments.AsReadOnly();
 
     public bool HasActiveAssignment => _assignments.Any(a =>
-        a.AssignmentStatus == AssignmentStatus.Assigned ||
-        a.AssignmentStatus == AssignmentStatus.InProgress);
+        a.AssignmentStatus != AssignmentStatus.Completed &&
+        a.AssignmentStatus != AssignmentStatus.Rejected &&
+        a.AssignmentStatus != AssignmentStatus.Cancelled);
 
     // Core Properties
     public string? AppraisalNumber { get; private set; }
@@ -678,14 +679,16 @@ public class Appraisal : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Submit appraisal for review
+    /// Submit appraisal for review. Transitions the active assignment to UnderReview (handoff to
+    /// bank-side review) and the appraisal to UnderReview. Terminal assignment Completion now
+    /// happens at committee approval (MarkApprovedByCommittee), not here.
     /// </summary>
     public void SubmitForReview()
     {
         ValidateStatus(AppraisalStatus.InProgress, "submit for review");
 
         var activeAssignment = GetActiveAssignment();
-        activeAssignment.Complete();
+        activeAssignment.MarkUnderReview();
 
         UpdateStatus(AppraisalStatus.UnderReview);
     }
@@ -729,6 +732,27 @@ public class Appraisal : Aggregate<Guid>
         ActualDaysToComplete = CreatedAt.HasValue ? (DateTime.Now - CreatedAt.Value).Days : null;
         IsWithinSLA = !SLADueDate.HasValue || DateTime.Now <= SLADueDate.Value;
 
+        // Terminal completion of the active engagement. By this point the workflow handler should
+        // have transitioned the assignment through int-appraisal-verification → Verified, but
+        // delivery is async — if AppraisalApprovedIntegrationEvent races ahead of the workflow
+        // transition events, force-converge by walking the assignment up through Verified before
+        // calling Complete(). This keeps appraisal.CompletedAt and assignment.CompletedAt aligned
+        // even under out-of-order delivery.
+        var activeAssignment = _assignments.FirstOrDefault(a =>
+            a.AssignmentStatus != AssignmentStatus.Completed &&
+            a.AssignmentStatus != AssignmentStatus.Rejected &&
+            a.AssignmentStatus != AssignmentStatus.Cancelled);
+
+        if (activeAssignment is not null)
+        {
+            if (activeAssignment.AssignmentStatus == AssignmentStatus.InProgress)
+                activeAssignment.MarkUnderReview();
+            if (activeAssignment.AssignmentStatus == AssignmentStatus.UnderReview)
+                activeAssignment.MarkVerified();
+            if (activeAssignment.AssignmentStatus == AssignmentStatus.Verified)
+                activeAssignment.Complete();
+        }
+
         if (Status != AppraisalStatus.Completed)
             UpdateStatus(AppraisalStatus.Completed);
 
@@ -766,10 +790,11 @@ public class Appraisal : Aggregate<Guid>
 
         UpdateStatus(AppraisalStatus.Cancelled);
 
-        // Cancel any active assignment
+        // Cancel any active assignment (any non-terminal state).
         var activeAssignment = _assignments.FirstOrDefault(a =>
-            a.AssignmentStatus == AssignmentStatus.Assigned ||
-            a.AssignmentStatus == AssignmentStatus.InProgress);
+            a.AssignmentStatus != AssignmentStatus.Completed &&
+            a.AssignmentStatus != AssignmentStatus.Rejected &&
+            a.AssignmentStatus != AssignmentStatus.Cancelled);
 
         activeAssignment?.Cancel(reason ?? "Cancelled via workflow");
     }
@@ -1007,8 +1032,9 @@ public class Appraisal : Aggregate<Guid>
     private AppraisalAssignment GetActiveAssignment()
     {
         return _assignments.FirstOrDefault(a =>
-                   a.AssignmentStatus == AssignmentStatus.Assigned ||
-                   a.AssignmentStatus == AssignmentStatus.InProgress)
+                   a.AssignmentStatus != AssignmentStatus.Completed &&
+                   a.AssignmentStatus != AssignmentStatus.Rejected &&
+                   a.AssignmentStatus != AssignmentStatus.Cancelled)
                ?? throw new InvalidAppraisalStateException("No active assignment found");
     }
 

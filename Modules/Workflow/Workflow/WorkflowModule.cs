@@ -165,8 +165,9 @@ public static class WorkflowModule
         services.AddScoped<IInternalStaffRoundRobinService, InternalStaffRoundRobinService>();
 
         // SLA services
-        services.AddScoped<IBusinessTimeCalculator, BusinessTimeCalculator>();
+        services.AddScoped<Shared.Sla.IBusinessTimeCalculator, BusinessTimeCalculator>();
         services.AddScoped<ISlaCalculator, SlaCalculator>();
+        services.AddScoped<ISlaCalculatorClient, SlaCalculatorClient>();
         services.AddHostedService<SlaMonitorService>();
 
         // Task lock expiry — releases stale pool task locks every 5 minutes

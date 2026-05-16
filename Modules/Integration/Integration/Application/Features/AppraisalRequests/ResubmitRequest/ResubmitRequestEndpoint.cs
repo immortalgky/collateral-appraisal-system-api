@@ -1,22 +1,54 @@
 using Carter;
-using Mapster;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Request.Application.Features.Requests.UpdateRequest;
+using Request.Contracts.RequestDocuments.Dto;
+using Request.Contracts.Requests.Dtos;
 
 namespace Integration.Application.Features.AppraisalRequests.ResubmitRequest;
+
+/// <summary>
+/// Bank-facing request body. All request-data fields are optional — the followup branch
+/// sends only Documents/Titles + Mode="Followup"; the data-fix branch sends the full request
+/// data (Mode optional, defaults to "DataFix" for back-compat).
+/// </summary>
+public record ResubmitRequestRequest(
+    string? Purpose,
+    string? Channel,
+    UserInfoDto? Requestor,
+    UserInfoDto? Creator,
+    string? Priority,
+    bool? IsPma,
+    RequestDetailDto? Detail,
+    List<RequestCustomerDto>? Customers,
+    List<RequestPropertyDto>? Properties,
+    List<RequestTitleDto>? Titles,
+    List<RequestDocumentDto>? Documents,
+    string? Mode = null);
 
 public class ResubmitRequestEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPut("/api/v1/requests/{requestId:guid}/resubmit",
-                async (Guid requestId, UpdateRequestRequest request, ISender sender,
+                async (Guid requestId, ResubmitRequestRequest request, ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var command = request.Adapt<ResubmitRequestCommand>() with { RequestId = requestId };
+                    var command = new ResubmitRequestCommand(
+                        RequestId: requestId,
+                        Purpose: request.Purpose,
+                        Channel: request.Channel,
+                        Requestor: request.Requestor,
+                        Creator: request.Creator,
+                        Priority: request.Priority,
+                        IsPma: request.IsPma,
+                        Detail: request.Detail,
+                        Customers: request.Customers,
+                        Properties: request.Properties,
+                        Titles: request.Titles,
+                        Documents: request.Documents,
+                        Mode: request.Mode);
 
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);

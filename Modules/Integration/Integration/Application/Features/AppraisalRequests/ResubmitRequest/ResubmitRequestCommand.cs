@@ -7,15 +7,16 @@ using Shared.CQRS;
 
 public record ResubmitRequestCommand(
     Guid RequestId,
-    string Purpose,
-    string Channel,
-    UserInfoDto Requestor,
-    UserInfoDto Creator,
-    string Priority,
-    bool IsPma,
+    string? Purpose,
+    string? Channel,
+    UserInfoDto? Requestor,
+    UserInfoDto? Creator,
+    string? Priority,
+    bool? IsPma,
     RequestDetailDto? Detail,
     List<RequestCustomerDto>? Customers,
     List<RequestPropertyDto>? Properties,
     List<RequestTitleDto>? Titles,
-    List<RequestDocumentDto>? Documents
+    List<RequestDocumentDto>? Documents,
+    string? Mode = null
 ) : ICommand<ResubmitRequestResult>, ITransactionalCommand<IRequestUnitOfWork>;

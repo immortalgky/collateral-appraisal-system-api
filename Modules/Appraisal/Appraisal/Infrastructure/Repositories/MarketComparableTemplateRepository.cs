@@ -22,7 +22,7 @@ public class MarketComparableTemplateRepository(AppraisalDbContext dbContext)
     {
         return await _dbContext.MarketComparableTemplates
             .Include(t => t.TemplateFactors)
-                .ThenInclude(tf => tf.Factor)
+            .ThenInclude(tf => tf.Factor)
             .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
     }
 
@@ -33,7 +33,7 @@ public class MarketComparableTemplateRepository(AppraisalDbContext dbContext)
     {
         var query = _dbContext.MarketComparableTemplates
             .Include(t => t.TemplateFactors)
-                .ThenInclude(tf => tf.Factor)
+            .ThenInclude(tf => tf.Factor)
             .Where(t => t.PropertyType == propertyType);
 
         if (activeOnly)
@@ -50,7 +50,7 @@ public class MarketComparableTemplateRepository(AppraisalDbContext dbContext)
     {
         var query = _dbContext.MarketComparableTemplates
             .Include(t => t.TemplateFactors)
-                .ThenInclude(tf => tf.Factor)
+            .ThenInclude(tf => tf.Factor)
             .AsQueryable();
 
         if (activeOnly)
@@ -60,5 +60,10 @@ public class MarketComparableTemplateRepository(AppraisalDbContext dbContext)
             .OrderBy(t => t.PropertyType)
             .ThenBy(t => t.TemplateName)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }

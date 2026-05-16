@@ -14,33 +14,38 @@ public class UpdateInvoiceDraftCommandHandler(
         var invoice = await repository.GetByIdWithItemsAsync(request.InvoiceId, cancellationToken)
                       ?? throw new NotFoundException($"Invoice '{request.InvoiceId}' not found.");
 
-        if (invoice.Status != "Draft")
-            throw new BadRequestException("Only Draft invoices can be updated.");
+        if (invoice.Status != "Pending")
+            throw new BadRequestException("Only Pending invoices can be updated.");
 
         if (invoice.CompanyId != request.CallerCompanyId)
             throw new NotFoundException($"Invoice '{request.InvoiceId}' not found.");
 
         var connection = sqlConnectionFactory.GetOpenConnection();
         var parameters = new DynamicParameters();
-        parameters.Add("CompanyId", request.CallerCompanyId.ToString());
+        parameters.Add("CompanyId", request.CallerCompanyId);
         parameters.Add("AssignmentIds", request.AssignmentIds);
+        parameters.Add("CurrentInvoiceId", request.InvoiceId);
 
+        // Exclude items already on another invoice; allow items already on the current draft
+        // so they're preserved through the ClearItems + re-add cycle below.
         var eligibleRows = (await connection.QueryAsync<EligibleRow>(
             """
-            SELECT AssignmentId, AppraisalFeeId, AppraisalNumber, CustomerName, ProductType,
-                   FeeBeforeVAT, VATRate, VATAmount, TotalFeeAfterVAT, BankAbsorbAmount, ReceivedDate
-            FROM appraisal.vw_EligibleAssignments
-            WHERE AssigneeCompanyId = @CompanyId
-              AND AssignmentId IN @AssignmentIds
+            SELECT v.AssignmentId, v.AppraisalFeeId, v.AppraisalNumber, v.CustomerName, v.ProductType,
+                   v.FeeBeforeVAT, v.VATRate, v.VATAmount, v.TotalFeeAfterVAT, v.BankAbsorbAmount,
+                   v.SubmittedDate
+            FROM appraisal.vw_EligibleAssignments v
+            WHERE v.AssigneeCompanyId = @CompanyId
+              AND v.AssignmentId IN @AssignmentIds
+              AND NOT EXISTS (
+                  SELECT 1 FROM appraisal.InvoiceItems ii
+                  WHERE ii.AssignmentId = v.AssignmentId
+                    AND ii.InvoiceId <> @CurrentInvoiceId
+              )
             """,
             parameters)).ToList();
 
-        var currentItemAssignmentIds = invoice.Items.Select(i => i.AssignmentId).ToHashSet();
-
         var foundIds = eligibleRows.Select(r => r.AssignmentId).ToHashSet();
-        var missingIds = request.AssignmentIds
-            .Where(id => !foundIds.Contains(id) && !currentItemAssignmentIds.Contains(id))
-            .ToList();
+        var missingIds = request.AssignmentIds.Where(id => !foundIds.Contains(id)).ToList();
         if (missingIds.Count > 0)
             throw new BadRequestException($"Assignment(s) not eligible for invoicing: {string.Join(", ", missingIds)}");
 
@@ -59,7 +64,7 @@ public class UpdateInvoiceDraftCommandHandler(
                 row.VATRate,
                 row.VATAmount,
                 row.TotalFeeAfterVAT,
-                row.ReceivedDate);
+                row.SubmittedDate);
         }
 
         invoice.SetNotes(request.Notes);
@@ -81,5 +86,5 @@ public class UpdateInvoiceDraftCommandHandler(
         decimal VATAmount,
         decimal TotalFeeAfterVAT,
         decimal BankAbsorbAmount,
-        DateTime? ReceivedDate);
+        DateTime? SubmittedDate);
 }

@@ -93,7 +93,7 @@ FROM workflow.PendingTasks pt
                       FROM appraisal.AppraisalAssignments
                       WHERE AppraisalId = a.Id
                         AND AssignmentStatus NOT IN ('Rejected', 'Cancelled')
-                      ORDER BY AssignedAt DESC) AA
+                      ORDER BY AssignedAt DESC, CreatedAt DESC, Id DESC) AA
         OUTER APPLY (SELECT TOP 1 AppointmentDateTime
                       FROM appraisal.Appointments
                       WHERE AssignmentId = AA.Id

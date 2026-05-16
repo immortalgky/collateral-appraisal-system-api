@@ -4,13 +4,12 @@ public class Invoice : Entity<Guid>
 {
     public string? InvoiceNumber { get; private set; }
     public Guid CompanyId { get; private set; }
-    public string Status { get; private set; } = "Draft";
+    public string Status { get; private set; } = "Pending";
     public decimal TotalAmount { get; private set; }
     public string? Notes { get; private set; }
     public DateTime? SubmittedAt { get; private set; }
-    public string? PaymentReference { get; private set; }
-    public string? PaymentMethod { get; private set; }
-    public DateOnly? PaymentDate { get; private set; }
+    public string? PaymentOrderNo { get; private set; }
+    public DateOnly? PaidDate { get; private set; }
     public string? ApprovedBy { get; private set; }
     public DateTime? ApprovedAt { get; private set; }
 
@@ -25,7 +24,7 @@ public class Invoice : Entity<Guid>
         {
             Id = Guid.CreateVersion7(),
             CompanyId = companyId,
-            Status = "Draft",
+            Status = "Pending",
             TotalAmount = 0
         };
     }
@@ -41,7 +40,7 @@ public class Invoice : Entity<Guid>
         decimal vatRate,
         decimal vatAmount,
         decimal totalFeeAfterVAT,
-        DateTime? receivedDate)
+        DateTime? submittedDate)
     {
         var item = new InvoiceItem(
             Guid.CreateVersion7(),
@@ -56,7 +55,7 @@ public class Invoice : Entity<Guid>
             vatRate,
             vatAmount,
             totalFeeAfterVAT,
-            receivedDate);
+            submittedDate);
 
         _items.Add(item);
         RecalculateTotalAmount();
@@ -68,33 +67,43 @@ public class Invoice : Entity<Guid>
         TotalAmount = 0;
     }
 
+    public void SetInvoiceNumber(string? number)
+    {
+        // Drafts may have a null/blank invoice number; submission enforces non-empty.
+        var trimmed = string.IsNullOrWhiteSpace(number) ? null : number.Trim();
+        if (trimmed is { Length: > 20 })
+            throw new ArgumentException("Invoice number cannot exceed 20 characters.");
+
+        InvoiceNumber = trimmed;
+    }
+
     public void Submit()
     {
-        if (Status != "Draft")
-            throw new InvalidOperationException("Only Draft invoices can be submitted.");
+        if (Status != "Pending")
+            throw new InvalidOperationException("Only Pending invoices can be submitted.");
+        if (string.IsNullOrWhiteSpace(InvoiceNumber))
+            throw new InvalidOperationException("Invoice number is required before submitting.");
         if (_items.Count == 0)
             throw new InvalidOperationException("Cannot submit an invoice with no items.");
 
-        Status = "Submitted";
+        Status = "Sent";
         SubmittedAt = DateTime.UtcNow;
     }
 
-    public void Approve(string approvedBy, string? paymentReference, string? paymentMethod, DateOnly? paymentDate)
+    public void MarkAsPaid(string approvedBy, string paymentOrderNo, DateOnly paidDate)
     {
-        if (Status != "Submitted")
-            throw new InvalidOperationException("Only Submitted invoices can be approved.");
+        if (Status != "Sent")
+            throw new InvalidOperationException("Only Sent invoices can be marked as paid.");
+        if (string.IsNullOrWhiteSpace(paymentOrderNo))
+            throw new ArgumentException("Payment order number cannot be empty.");
+        if (paymentOrderNo.Length > 10)
+            throw new ArgumentException("Payment order number cannot exceed 10 characters.");
 
-        Status = "Approved";
+        Status = "Paid";
         ApprovedBy = approvedBy;
         ApprovedAt = DateTime.UtcNow;
-        PaymentReference = paymentReference;
-        PaymentMethod = paymentMethod;
-        PaymentDate = paymentDate;
-    }
-
-    internal void SetInvoiceNumber(string number)
-    {
-        InvoiceNumber = number;
+        PaymentOrderNo = paymentOrderNo;
+        PaidDate = paidDate;
     }
 
     public void SetNotes(string? notes)

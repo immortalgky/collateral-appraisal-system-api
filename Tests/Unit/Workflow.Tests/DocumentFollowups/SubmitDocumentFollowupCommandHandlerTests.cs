@@ -67,7 +67,6 @@ public class SubmitDocumentFollowupCommandHandlerTests
             workflowService,
             attacher ?? Substitute.For<IRequestDocumentAttacher>(),
             User(actorName),
-            Substitute.For<IPublisher>(),
             Substitute.For<ILogger<SubmitDocumentFollowupCommandHandler>>());
 
     private static SubmitDocumentFollowupCommand NoAttachments(Guid followupId) =>

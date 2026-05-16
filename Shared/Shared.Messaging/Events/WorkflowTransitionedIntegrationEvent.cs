@@ -14,4 +14,5 @@ public record WorkflowTransitionedIntegrationEvent(
     string? SourceActivityId,
     string? DestinationActivityId,
     string? CompletedBy,
-    DateTime CompletedAt) : IntegrationEvent;
+    DateTime CompletedAt,
+    Guid? WorkflowDefinitionId = null) : IntegrationEvent;

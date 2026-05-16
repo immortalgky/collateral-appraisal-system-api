@@ -10,7 +10,8 @@ public class RequestSyncService(
     public async Task<IReadOnlyList<RequestTitle>> SyncTitlesAsync(
         Guid requestId,
         List<RequestTitleDto> titles,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? forcedSource = null)
     {
         var incomingTitles = titles;
         var existingTitles = (await titleRepository.GetByRequestIdWithDocumentsAsync(requestId, cancellationToken))
@@ -40,7 +41,7 @@ public class RequestSyncService(
                 dto.CollateralType,
                 dto.ToRequestTitleData() with { RequestId = requestId });
 
-            SyncTitleDocuments(title, dto.Documents);
+            SyncTitleDocuments(title, dto.Documents, forcedSource);
             await titleRepository.AddAsync(title, cancellationToken);
             resultTitles.Add(title);
         }
@@ -64,7 +65,7 @@ public class RequestSyncService(
                 var docsWithoutIds = dto.Documents
                     .Select(d => d with { Id = null })
                     .ToList();
-                SyncTitleDocuments(newTitle, docsWithoutIds);
+                SyncTitleDocuments(newTitle, docsWithoutIds, forcedSource);
 
                 await titleRepository.AddAsync(newTitle, cancellationToken);
                 resultTitles.Add(newTitle);
@@ -72,7 +73,7 @@ public class RequestSyncService(
             else
             {
                 existing.Update(dto.ToRequestTitleData());
-                SyncTitleDocuments(existing, dto.Documents);
+                SyncTitleDocuments(existing, dto.Documents, forcedSource);
                 resultTitles.Add(existing);
             }
         }
@@ -83,7 +84,8 @@ public class RequestSyncService(
     public Task SyncDocumentsAsync(
         Domain.Requests.Request request,
         List<RequestDocumentDto> documents,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? forcedSource = null)
     {
         var incomingDocs = documents;
         var existingDocs = request.Documents.ToList();
@@ -102,7 +104,7 @@ public class RequestSyncService(
         var toDeleteIds = existingIds.Except(incomingIds);
         foreach (var id in toDeleteIds) request.RemoveDocument(id);
 
-        // CREATE: Docs without ID
+        // CREATE: Docs without ID — forcedSource overrides payload Source on new rows
         foreach (var dto in incomingDocs.Where(d => !d.Id.HasValue || d.Id.Value == Guid.Empty))
             request.AddDocument(new RequestDocumentData(
                 dto.DocumentId,
@@ -112,15 +114,23 @@ public class RequestSyncService(
                 dto.Set,
                 dto.Notes,
                 dto.FilePath,
-                dto.Source,
+                forcedSource ?? dto.Source,
                 dto.IsRequired,
                 dto.UploadedBy,
                 dto.UploadedByName,
                 dto.UploadedAt
             ));
 
-        // UPDATE: Docs with matching ID
+        // UPDATE: Docs with matching ID — only when something actually changed.
+        // Source is intentionally PRESERVED on update (audit-trail data — a data-fix resubmit
+        // must not silently relabel a previously FOLLOWUP-sourced row back to REQUEST).
+        var existingById = existingDocs.Where(d => d.Id != Guid.Empty).ToDictionary(d => d.Id);
         foreach (var dto in incomingDocs.Where(d => d.Id.HasValue && existingIds.Contains(d.Id.Value)))
+        {
+            var existing = existingById[dto.Id!.Value];
+            if (!HasRequestDocumentChanges(dto, existing))
+                continue;
+
             request.UpdateDocument(dto.Id!.Value, new RequestDocumentData(
                 dto.DocumentId,
                 dto.DocumentType,
@@ -129,17 +139,33 @@ public class RequestSyncService(
                 dto.Set,
                 dto.Notes,
                 dto.FilePath,
-                dto.Source,
+                existing.Source,
                 dto.IsRequired,
                 dto.UploadedBy,
                 dto.UploadedByName,
                 dto.UploadedAt
             ));
+        }
 
         return Task.CompletedTask;
     }
 
-    private static void SyncTitleDocuments(RequestTitle title, List<RequestTitleDocumentDto> documents)
+    private static bool HasRequestDocumentChanges(RequestDocumentDto dto, RequestDocument existing)
+    {
+        return dto.DocumentId != existing.DocumentId ||
+               dto.DocumentType != existing.DocumentType ||
+               dto.FileName != existing.FileName ||
+               dto.Prefix != existing.Prefix ||
+               dto.Set != existing.Set ||
+               dto.Notes != existing.Notes ||
+               dto.FilePath != existing.FilePath ||
+               dto.IsRequired != existing.IsRequired ||
+               dto.UploadedBy != existing.UploadedBy ||
+               dto.UploadedByName != existing.UploadedByName;
+    }
+
+    private static void SyncTitleDocuments(RequestTitle title, List<RequestTitleDocumentDto> documents,
+        string? forcedSource = null)
     {
         var existingDocs = title.Documents.ToList();
         var existingIds = existingDocs
@@ -158,19 +184,29 @@ public class RequestSyncService(
 
         // CREATE: Docs without ID
         foreach (var dto in documents.Where(d => !d.Id.HasValue || d.Id.Value == Guid.Empty))
-            title.AddDocument(dto.ToTitleDocumentData());
+        {
+            var data = dto.ToTitleDocumentData();
+            title.AddDocument(forcedSource is null ? data : data with { Source = forcedSource });
+        }
 
-        // UPDATE: Docs with matching ID (only if changed)
+        // UPDATE: Docs with matching ID (only if changed).
+        // Source is intentionally PRESERVED on update — audit-trail data must not flip on a
+        // data-fix resubmit (forcedSource only takes effect on CREATE).
         foreach (var dto in documents.Where(d => d.Id.HasValue && existingIds.Contains(d.Id.Value)))
         {
             var existing = existingDocs.FirstOrDefault(e => e.Id == dto.Id!.Value);
             if (existing is not null && HasDocumentChanges(dto, existing))
-                title.UpdateDocument(dto.Id!.Value, dto.ToTitleDocumentData());
+            {
+                var data = dto.ToTitleDocumentData() with { Source = existing.Source };
+                title.UpdateDocument(dto.Id!.Value, data);
+            }
         }
     }
 
     private static bool HasDocumentChanges(RequestTitleDocumentDto dto, TitleDocument existing)
     {
+        // Source intentionally excluded — it's preserved across updates, so a payload Source
+        // difference should not force an Update call.
         return dto.DocumentId != existing.DocumentId ||
                dto.DocumentType != existing.DocumentType ||
                dto.FileName != existing.FileName ||

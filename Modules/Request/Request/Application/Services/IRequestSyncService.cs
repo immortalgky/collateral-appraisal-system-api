@@ -14,16 +14,22 @@ public interface IRequestSyncService
     /// - Existing items not in an incoming list = Delete
     /// - If CollateralType changes = Delete old + Create new (EF Core TPH limitation)
     /// </summary>
+    /// <param name="forcedSource">When non-null, overrides every inserted/updated row's Source
+    /// regardless of what the DTO carries. Pass null to trust the payload per-row.</param>
     Task<IReadOnlyList<RequestTitle>> SyncTitlesAsync(
         Guid requestId,
         List<RequestTitleDto> titles,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? forcedSource = null);
 
     /// <summary>
     /// Synchronizes documents for a request. Compares incoming list with existing.
     /// </summary>
+    /// <param name="forcedSource">When non-null, overrides every inserted/updated row's Source
+    /// regardless of what the DTO carries. Pass null to trust the payload per-row.</param>
     Task SyncDocumentsAsync(
         Domain.Requests.Request request,
         List<RequestDocumentDto> documents,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? forcedSource = null);
 }

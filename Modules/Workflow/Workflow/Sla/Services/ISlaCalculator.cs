@@ -17,4 +17,12 @@ public interface ISlaCalculator
         string? loanType,
         DateTime startedOn,
         CancellationToken ct = default);
+
+    Task<DateTime?> CalculateStageDueAtAsync(
+        Guid? workflowDefinitionId,
+        string startActivityKey,
+        DateTime startedAt,
+        Guid? companyId,
+        string? loanType,
+        CancellationToken ct = default);
 }

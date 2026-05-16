@@ -1,34 +1,89 @@
+using System.Data;
+using Appraisal.Domain.Appraisals;
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
 
 namespace Integration.Application.Features.AppraisalResults.GetAppraisalResult;
 
-public class GetAppraisalResultQueryHandler(
+public class GetAppraisalResultByNumberQueryHandler(
     ISqlConnectionFactory connectionFactory
-) : IQueryHandler<GetAppraisalResultQuery, GetAppraisalResultResponse?>
+) : IQueryHandler<GetAppraisalResultByNumberQuery, GetAppraisalResultResponse?>
 {
-    private const string SqlByAppraisalNumber = """
-        SELECT a.Id, a.AppraisalNumber, a.Purpose, a.Channel, a.CompletedAt, a.RequestId
+    public async Task<GetAppraisalResultResponse?> Handle(
+        GetAppraisalResultByNumberQuery query,
+        CancellationToken cancellationToken)
+    {
+        var conn = connectionFactory.GetOpenConnection();
+
+        var p = new DynamicParameters();
+        p.Add("AppraisalNumber", query.AppraisalNumber);
+        var appraisal = await conn.QuerySingleOrDefaultAsync<AppraisalResultSql.AppraisalRow>(
+            new CommandDefinition(AppraisalResultSql.SqlByAppraisalNumber, p, cancellationToken: cancellationToken));
+
+        if (appraisal is null)
+        {
+            return null;
+        }
+
+        return await AppraisalResultSql.BuildResponseAsync(conn, appraisal, cancellationToken);
+    }
+}
+
+public class GetAppraisalResultByCaseKeyQueryHandler(
+    ISqlConnectionFactory connectionFactory
+) : IQueryHandler<GetAppraisalResultByCaseKeyQuery, IReadOnlyList<GetAppraisalResultResponse>>
+{
+    public async Task<IReadOnlyList<GetAppraisalResultResponse>> Handle(
+        GetAppraisalResultByCaseKeyQuery query,
+        CancellationToken cancellationToken)
+    {
+        var conn = connectionFactory.GetOpenConnection();
+
+        var p = new DynamicParameters();
+        p.Add("ExternalCaseKey", query.ExternalCaseKey);
+        var appraisals = await conn.QueryAsync<AppraisalResultSql.AppraisalRow>(
+            new CommandDefinition(AppraisalResultSql.SqlByExternalCaseKey, p, cancellationToken: cancellationToken));
+
+        var results = new List<GetAppraisalResultResponse>();
+        foreach (var appraisal in appraisals)
+        {
+            results.Add(await AppraisalResultSql.BuildResponseAsync(conn, appraisal, cancellationToken));
+        }
+        return results;
+    }
+}
+
+internal static class AppraisalResultSql
+{
+    public const string SqlByAppraisalNumber = """
+        SELECT a.Id, a.AppraisalNumber, a.Purpose, a.CompletedAt, a.RequestId
         FROM appraisal.Appraisals a
         WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
         """;
 
-    private const string SqlByExternalCaseKey = """
-        SELECT a.Id, a.AppraisalNumber, a.Purpose, a.Channel, a.CompletedAt, a.RequestId
+    public const string SqlByExternalCaseKey = """
+        SELECT a.Id, a.AppraisalNumber, a.Purpose, a.CompletedAt, a.RequestId
         FROM appraisal.Appraisals a
         JOIN request.Requests r ON r.Id = a.RequestId
         WHERE r.ExternalCaseKey = @ExternalCaseKey AND a.IsDeleted = 0
         """;
 
     private const string SqlActiveAssignment = """
-        SELECT TOP 1 aa.Id AS AssignmentId, aa.AssigneeCompanyId,
-               c.Id AS CompanyId, c.Name AS CompanyName
+        SELECT TOP 1
+            aa.Id AS AssignmentId,
+            aa.AssignmentType,
+            aa.AssigneeUserId,
+            aa.AssigneeCompanyId,
+            c.Name AS CompanyName,
+            u.FirstName AS UserFirstName,
+            u.LastName  AS UserLastName
         FROM appraisal.AppraisalAssignments aa
-        LEFT JOIN auth.Companies c ON c.Id = TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier)
+        LEFT JOIN auth.Companies   c ON c.Id = TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier)
+        LEFT JOIN auth.AspNetUsers u ON u.UserName = aa.AssigneeUserId
         WHERE aa.AppraisalId = @AppraisalId
           AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
-        ORDER BY aa.AssignedAt DESC
+        ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC
         """;
 
     private const string SqlFee = """
@@ -111,35 +166,11 @@ public class GetAppraisalResultQueryHandler(
         WHERE rd.RequestId = @RequestId AND rd.FilePath IS NOT NULL
         """;
 
-    public async Task<GetAppraisalResultResponse?> Handle(
-        GetAppraisalResultQuery query,
+    public static async Task<GetAppraisalResultResponse> BuildResponseAsync(
+        IDbConnection conn,
+        AppraisalRow appraisal,
         CancellationToken cancellationToken)
     {
-        var conn = connectionFactory.GetOpenConnection();
-
-        // Step 1: Resolve appraisal
-        AppraisalRow? appraisal;
-
-        if (!string.IsNullOrWhiteSpace(query.AppraisalNumber))
-        {
-            var p = new DynamicParameters();
-            p.Add("AppraisalNumber", query.AppraisalNumber);
-            appraisal = await conn.QuerySingleOrDefaultAsync<AppraisalRow>(
-                new CommandDefinition(SqlByAppraisalNumber, p, cancellationToken: cancellationToken));
-        }
-        else
-        {
-            var p = new DynamicParameters();
-            p.Add("ExternalCaseKey", query.ExternalCaseKey);
-            appraisal = await conn.QuerySingleOrDefaultAsync<AppraisalRow>(
-                new CommandDefinition(SqlByExternalCaseKey, p, cancellationToken: cancellationToken));
-        }
-
-        if (appraisal is null)
-        {
-            return null;
-        }
-
         // Step 2: Active assignment + valuer
         var assignmentParams = new DynamicParameters();
         assignmentParams.Add("AppraisalId", appraisal.Id);
@@ -227,14 +258,33 @@ public class GetAppraisalResultQueryHandler(
             .Select(d => new AppraisalResultDocument(d.DocumentType, d.DocumentPath))
             .ToList();
 
+        string? valuerName = null;
+        string? appraisalSource = null;
+        if (assignment is not null)
+        {
+            if (string.Equals(assignment.AssignmentType, AssignmentType.External.Code, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(assignment.CompanyName))
+                {
+                    valuerName = assignment.CompanyName;
+                    appraisalSource = "E";
+                }
+            }
+            else if (string.Equals(assignment.AssignmentType, AssignmentType.Internal.Code, StringComparison.OrdinalIgnoreCase))
+            {
+                var fullName = $"{assignment.UserFirstName} {assignment.UserLastName}".Trim();
+                valuerName = string.IsNullOrWhiteSpace(fullName) ? null : fullName;
+                appraisalSource = "I";
+            }
+        }
+
         return new GetAppraisalResultResponse(
             AppraisalNumber: appraisal.AppraisalNumber,
             AppraisalPurpose: appraisal.Purpose,
             AppraisalFee: fee,
-            AppraisalSource: appraisal.Channel,
-            AssignedCompanyId: assignment?.AssigneeCompanyId,
-            AssignedCompanyName: assignment?.CompanyName,
-            ValuationDate: valuation?.ValuationDate ?? appraisal.CompletedAt,
+            AppraisalSource: appraisalSource,
+            ValuerName: valuerName,
+            ValuationDate: (valuation?.ValuationDate ?? appraisal.CompletedAt)?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
             TotalAppraisalValue: valuation?.AppraisedValue,
             ForceSalePrice: valuation?.ForcedSaleValue,
             FireInsurance: valuation?.InsuranceValue,
@@ -242,8 +292,17 @@ public class GetAppraisalResultQueryHandler(
             Documents: documents);
     }
 
-    private sealed record AppraisalRow(Guid Id, string AppraisalNumber, string? Purpose, string? Channel, DateTime? CompletedAt, Guid RequestId);
-    private sealed record AssignmentRow(Guid AssignmentId, string? AssigneeCompanyId, Guid? CompanyId, string? CompanyName);
+    public sealed record AppraisalRow(Guid Id, string AppraisalNumber, string? Purpose, DateTime? CompletedAt, Guid RequestId);
+
+    private sealed record AssignmentRow(
+        Guid AssignmentId,
+        string? AssignmentType,
+        string? AssigneeUserId,
+        string? AssigneeCompanyId,
+        string? CompanyName,
+        string? UserFirstName,
+        string? UserLastName);
+
     private sealed record ValuationRow(decimal? AppraisedValue, decimal? ForcedSaleValue, decimal? InsuranceValue, DateTime? ValuationDate);
 
     private sealed record CollateralRow(

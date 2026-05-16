@@ -4,7 +4,7 @@ using Workflow.Data;
 
 namespace Workflow.Sla.Services;
 
-public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache cache) : IBusinessTimeCalculator
+public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache cache) : Shared.Sla.IBusinessTimeCalculator
 {
     public async Task<DateTime> AddBusinessHoursAsync(DateTime from, int hours, CancellationToken ct = default)
     {
@@ -15,8 +15,14 @@ public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache ca
         var tz = TimeZoneInfo.FindSystemTimeZoneById(config.TimeZone);
         var holidays = await GetHolidaysAsync(from, hours, ct);
 
-        var localFrom = TimeZoneInfo.ConvertTimeFromUtc(
-            from.Kind == DateTimeKind.Utc ? from : DateTime.SpecifyKind(from, DateTimeKind.Utc), tz);
+        // DateTimeKind.Utc is converted from UTC explicitly.
+        // DateTimeKind.Unspecified is treated as application wall-clock time (the configured timezone),
+        // so we use the 3-arg ConvertTime overload with sourceTZ = configTZ to avoid interpreting
+        // Unspecified as the server's local timezone (which may differ in container environments).
+        // DateTimeKind.Local is treated the same as Unspecified for safety.
+        var localFrom = from.Kind == DateTimeKind.Utc
+            ? TimeZoneInfo.ConvertTimeFromUtc(from, tz)
+            : TimeZoneInfo.ConvertTime(DateTime.SpecifyKind(from, DateTimeKind.Unspecified), tz, tz);
 
         var remainingHours = hours;
         var current = localFrom;
@@ -78,13 +84,74 @@ public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache ca
         });
     }
 
+    public async Task<int> GetBusinessMinutesBetweenAsync(DateTime from, DateTime to, CancellationToken ct = default)
+    {
+        if (from >= to) return 0;
+
+        var config = await GetBusinessHoursConfigAsync(ct);
+        if (config is null)
+            return (int)(to - from).TotalMinutes; // fallback: calendar minutes
+
+        var tz = TimeZoneInfo.FindSystemTimeZoneById(config.TimeZone);
+
+        // Unspecified/Local → treat as application wall-clock (configured TZ) using 3-arg ConvertTime
+        // so that server TZ (UTC in containers) does not silently shift the result.
+        // Utc → convert from UTC explicitly.
+        var localFrom = from.Kind == DateTimeKind.Utc
+            ? TimeZoneInfo.ConvertTimeFromUtc(from, tz)
+            : TimeZoneInfo.ConvertTime(DateTime.SpecifyKind(from, DateTimeKind.Unspecified), tz, tz);
+        var localTo = to.Kind == DateTimeKind.Utc
+            ? TimeZoneInfo.ConvertTimeFromUtc(to, tz)
+            : TimeZoneInfo.ConvertTime(DateTime.SpecifyKind(to, DateTimeKind.Unspecified), tz, tz);
+
+        var startDate = DateOnly.FromDateTime(localFrom);
+        var endDate = DateOnly.FromDateTime(localTo);
+        var holidays = await GetHolidaysByRangeAsync(startDate, endDate, ct);
+
+        var totalMinutes = 0;
+        var current = localFrom.Date;
+
+        while (current <= localTo.Date)
+        {
+            var currentDate = DateOnly.FromDateTime(current);
+
+            if (current.DayOfWeek != DayOfWeek.Saturday
+                && current.DayOfWeek != DayOfWeek.Sunday
+                && !holidays.Contains(currentDate))
+            {
+                var dayStart = current.Add(config.StartTime.ToTimeSpan());
+                var dayEnd = current.Add(config.EndTime.ToTimeSpan());
+
+                // Clamp the from/to to this day's business window
+                var windowStart = current == localFrom.Date
+                    ? (localFrom < dayStart ? dayStart : localFrom)
+                    : dayStart;
+
+                var windowEnd = current == localTo.Date
+                    ? (localTo > dayEnd ? dayEnd : localTo)
+                    : dayEnd;
+
+                if (windowEnd > windowStart)
+                    totalMinutes += (int)Math.Round((windowEnd - windowStart).TotalMinutes);
+            }
+
+            current = current.AddDays(1);
+        }
+
+        return totalMinutes;
+    }
+
     private async Task<HashSet<DateOnly>> GetHolidaysAsync(DateTime from, int hours, CancellationToken ct)
     {
         // Estimate max days needed (worst case: 1 business hour per day)
         var maxDays = hours * 2;
         var startDate = DateOnly.FromDateTime(from);
         var endDate = startDate.AddDays(maxDays);
+        return await GetHolidaysByRangeAsync(startDate, endDate, ct);
+    }
 
+    private async Task<HashSet<DateOnly>> GetHolidaysByRangeAsync(DateOnly startDate, DateOnly endDate, CancellationToken ct)
+    {
         var cacheKey = $"sla:holidays:{startDate.Year}-{endDate.Year}";
         return await cache.GetOrCreateAsync(cacheKey, async entry =>
         {

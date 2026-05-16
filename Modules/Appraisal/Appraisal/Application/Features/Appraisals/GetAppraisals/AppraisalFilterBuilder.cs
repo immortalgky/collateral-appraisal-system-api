@@ -17,10 +17,23 @@ internal static class AppraisalFilterBuilder
         "AssignmentType", "CompanyName", "RequestedAt", "Purpose"
     };
 
-    public static (string WhereClause, DynamicParameters Parameters) BuildFilter(GetAppraisalsFilterRequest? filter)
+    public static (string WhereClause, DynamicParameters Parameters) BuildFilter(
+        GetAppraisalsFilterRequest? filter,
+        Guid? enforcedCompanyId = null)
     {
         var conditions = new List<string>();
         var parameters = new DynamicParameters();
+
+        // External (company) callers are always scoped to their own company; the caller-supplied
+        // AssigneeCompanyId on the filter is ignored to prevent cross-company peeking.
+        // AppraisalAssignments.AssigneeCompanyId is nvarchar(100), so bind a string — passing a
+        // Guid forces SQL to TRY_CAST every column value to uniqueidentifier, which throws on
+        // rows that hold non-GUID text.
+        if (enforcedCompanyId.HasValue)
+        {
+            conditions.Add("AssigneeCompanyId = @ScopedCompanyId");
+            parameters.Add("ScopedCompanyId", enforcedCompanyId.Value.ToString());
+        }
 
         if (filter is not null)
         {
@@ -46,7 +59,7 @@ internal static class AppraisalFilterBuilder
                 parameters.Add("AssigneeUserId", filter.AssigneeUserId);
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.AssigneeCompanyId))
+            if (!enforcedCompanyId.HasValue && !string.IsNullOrWhiteSpace(filter.AssigneeCompanyId))
             {
                 conditions.Add("AssigneeCompanyId = @AssigneeCompanyId");
                 parameters.Add("AssigneeCompanyId", filter.AssigneeCompanyId);

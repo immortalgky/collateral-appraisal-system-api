@@ -34,7 +34,6 @@ public class IntegrationEventDeliveryService<TDbContext>(
             _lockId, _instanceId);
 
         while (!stoppingToken.IsCancellationRequested)
-        {
             try
             {
                 using var scope = scopeFactory.CreateScope();
@@ -61,7 +60,6 @@ public class IntegrationEventDeliveryService<TDbContext>(
                 logger.LogError(ex, "[OUTBOX] Error in delivery service for {DbContext}", _lockId);
                 await Task.Delay(PollInterval, stoppingToken);
             }
-        }
 
         // Graceful shutdown: release the lease
         try
@@ -97,17 +95,18 @@ public class IntegrationEventDeliveryService<TDbContext>(
         // Try to insert if no row exists (first time)
         try
         {
-            await dbContext.Database.ExecuteSqlRawAsync(
+            var inserted = await dbContext.Database.ExecuteSqlRawAsync(
                 "INSERT INTO [" + schema + "].[BackgroundServiceLease] (Id, InstanceId, LeasedUntil, AcquiredAt) " +
                 "SELECT {0}, {1}, {2}, {3} " +
                 "WHERE NOT EXISTS (SELECT 1 FROM [" + schema + "].[BackgroundServiceLease] WHERE Id = {0})",
                 new object[] { _lockId, _instanceId, leasedUntil, now }, ct);
 
-            return true;
+            // 0 rows = a non-expired lease row already exists, owned by another instance
+            return inserted > 0;
         }
         catch (DbUpdateException)
         {
-            // Another instance inserted first — PK violation, not an error
+            // Concurrent first-time INSERT race — PK violation, lost the race
             return false;
         }
     }
@@ -146,54 +145,48 @@ public class IntegrationEventDeliveryService<TDbContext>(
 
         var processedCount = 0;
         foreach (var group in groups)
-        {
-            foreach (var message in group.OrderBy(m => m.OccurredAt).ThenBy(m => m.Id))
+        foreach (var message in group.OrderBy(m => m.OccurredAt).ThenBy(m => m.Id))
+            try
             {
-                try
+                var eventType = Type.GetType(message.EventType);
+
+                // Security: restrict to known integration event namespace
+                if (eventType == null || eventType.Namespace != AllowedNamespace)
                 {
-                    var eventType = Type.GetType(message.EventType);
-
-                    // Security: restrict to known integration event namespace
-                    if (eventType == null || eventType.Namespace != AllowedNamespace)
-                    {
-                        logger.LogError("[OUTBOX] Disallowed or unresolvable type {EventType} for message {MessageId}",
-                            message.EventType, message.Id);
-                        message.IncrementRetryCount($"Disallowed type: {message.EventType}", MaxRetries);
-                        continue;
-                    }
-
-                    var eventObject = JsonSerializer.Deserialize(message.Payload, eventType, SerializerOptions);
-                    if (eventObject == null)
-                    {
-                        logger.LogError("[OUTBOX] Failed to deserialize message {MessageId}", message.Id);
-                        message.IncrementRetryCount("Deserialization returned null", MaxRetries);
-                        continue;
-                    }
-
-                    await bus.Publish(eventObject, eventType, stoppingToken);
-                    message.MarkAsProcessed();
-                    processedCount++;
+                    logger.LogError("[OUTBOX] Disallowed or unresolvable type {EventType} for message {MessageId}",
+                        message.EventType, message.Id);
+                    message.IncrementRetryCount($"Disallowed type: {message.EventType}", MaxRetries);
+                    continue;
                 }
-                catch (Exception ex)
+
+                var eventObject = JsonSerializer.Deserialize(message.Payload, eventType, SerializerOptions);
+                if (eventObject == null)
                 {
-                    logger.LogWarning(ex, "[OUTBOX] Failed to deliver message {MessageId} (retry {RetryCount})",
-                        message.Id, message.RetryCount + 1);
-
-                    message.IncrementRetryCount(ex.Message, MaxRetries);
-
-                    // Stop processing this correlation group, continue others
-                    break;
+                    logger.LogError("[OUTBOX] Failed to deserialize message {MessageId}", message.Id);
+                    message.IncrementRetryCount("Deserialization returned null", MaxRetries);
+                    continue;
                 }
+
+                await bus.Publish(eventObject, eventType, stoppingToken);
+                message.MarkAsProcessed();
+                processedCount++;
             }
-        }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "[OUTBOX] Failed to deliver message {MessageId} (retry {RetryCount})",
+                    message.Id, message.RetryCount + 1);
+
+                message.IncrementRetryCount(ex.Message, MaxRetries);
+
+                // Stop processing this correlation group, continue others
+                break;
+            }
 
         await dbContext.SaveChangesAsync(stoppingToken);
 
         if (processedCount > 0)
-        {
             logger.LogInformation("[OUTBOX] Delivered {Count} messages from {DbContext}",
                 processedCount, _lockId);
-        }
 
         return processedCount;
     }

@@ -13,6 +13,7 @@ public class TitleDocument : Entity<Guid>
     public int Set { get; private set; }
     public string? Notes { get; private set; }
     public string? FilePath { get; private set; }
+    public string? Source { get; private set; }
     public bool IsRequired { get; private set; }
     public string? UploadedBy { get; private set; }
     public string? UploadedByName { get; private set; }
@@ -37,6 +38,7 @@ public class TitleDocument : Entity<Guid>
             Set = documentData.Set,
             Notes = documentData.Notes,
             FilePath = documentData.FilePath,
+            Source = documentData.Source ?? "REQUEST",
             IsRequired = false, // TODO: Implement logic to get from configuration
             UploadedBy = documentData.UploadedBy,
             UploadedByName = documentData.UploadedByName,
@@ -53,6 +55,7 @@ public class TitleDocument : Entity<Guid>
         Set = documentData.Set;
         Notes = documentData.Notes;
         FilePath = documentData.FilePath;
+        Source = documentData.Source ?? Source; // preserve existing if not supplied
         IsRequired = false;
         UploadedBy = documentData.UploadedBy;
         UploadedByName = documentData.UploadedByName;
@@ -68,6 +71,7 @@ public class TitleDocument : Entity<Guid>
         Set = documentData.Set;
         Notes = documentData.Notes;
         FilePath = documentData.FilePath;
+        Source = documentData.Source ?? Source; // preserve existing if not supplied
         IsRequired = false;
         UploadedBy = documentData.UploadedBy;
         UploadedByName = documentData.UploadedByName;
@@ -84,6 +88,7 @@ public record TitleDocumentData
     public int Set { get; init; }
     public string? Notes { get; init; }
     public string? FilePath { get; init; }
+    public string? Source { get; init; }
     public string? UploadedBy { get; init; }
     public string? UploadedByName { get; init; }
     public DateTime UploadedAt { get; init; }

@@ -90,6 +90,16 @@ namespace Common.Migrations
                     b.Property<DateTime>("LastUpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("SubmissionCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<long>("TotalBusinessMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
                     b.HasKey("CompanyId", "Date");
 
                     b.ToTable("CompanyAppraisalSummaries", "common");

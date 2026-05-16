@@ -10,7 +10,7 @@ public class GetAppraisalStatusEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/appraisal/{appraisalNumber}/status", async (
+        app.MapGet("/api/v1/appraisals/{appraisalNumber}/status", async (
             string appraisalNumber,
             ISender sender,
             CancellationToken cancellationToken) =>

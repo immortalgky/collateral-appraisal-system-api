@@ -11,8 +11,16 @@ public class GetInvoiceByIdQueryHandler(ISqlConnectionFactory sqlConnectionFacto
     {
         var connection = sqlConnectionFactory.GetOpenConnection();
 
+        const string headerSql = """
+            SELECT Id, InvoiceNumber, Status, TotalAmount, CompanyName,
+                   BankAccountNo, BankAccountName, Notes,
+                   PaymentOrderNo, PaidDate, ApprovedBy, ApprovedAt,
+                   SubmittedAt, CompanyId
+            FROM appraisal.vw_InvoiceList
+            WHERE Id = @Id
+            """;
         var header = await connection.QueryFirstOrDefaultAsync<InvoiceDetailDto>(
-            "SELECT * FROM appraisal.vw_InvoiceList WHERE Id = @Id",
+            headerSql,
             new { Id = request.InvoiceId });
 
         if (header is null) return null;
@@ -20,8 +28,16 @@ public class GetInvoiceByIdQueryHandler(ISqlConnectionFactory sqlConnectionFacto
         if (request.CallerCompanyId.HasValue && header.CompanyId != request.CallerCompanyId.Value)
             return null;
 
+        const string itemsSql = """
+            SELECT Id, AssignmentId, AppraisalNumber, CustomerName, ProductType,
+                   FeeBeforeVAT, VATRate, VATAmount, TotalFeeAfterVAT, BankAbsorbAmount,
+                   SubmittedDate
+            FROM appraisal.InvoiceItems
+            WHERE InvoiceId = @InvoiceId
+            ORDER BY CreatedAt
+            """;
         var items = (await connection.QueryAsync<InvoiceItemDto>(
-            "SELECT * FROM appraisal.InvoiceItems WHERE InvoiceId = @InvoiceId ORDER BY CreatedAt",
+            itemsSql,
             new { InvoiceId = request.InvoiceId })).ToList();
 
         return header with { Items = items };

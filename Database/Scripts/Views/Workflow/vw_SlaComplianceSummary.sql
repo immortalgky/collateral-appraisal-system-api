@@ -23,7 +23,7 @@ FROM workflow.CompletedTasks ct
     SELECT
         AppraisalId,
         AssigneeCompanyId,
-        ROW_NUMBER() OVER (PARTITION BY AppraisalId ORDER BY CreatedAt DESC) AS rn
+        ROW_NUMBER() OVER (PARTITION BY AppraisalId ORDER BY CreatedAt DESC, Id DESC) AS rn
     FROM appraisal.AppraisalAssignments
     WHERE AssignmentStatus NOT IN ('Rejected', 'Cancelled')
 ) aa ON aa.AppraisalId = a.Id AND aa.rn = 1

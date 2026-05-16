@@ -6,10 +6,14 @@ public record EligibleAssignmentDto(
     string? AppraisalNumber,
     string? CustomerName,
     string? ProductType,
+    string? FeePaymentType,
     decimal FeeBeforeVAT,
     decimal VATRate,
     decimal VATAmount,
     decimal TotalFeeAfterVAT,
     decimal BankAbsorbAmount,
-    DateTime? ReceivedDate
+    decimal PayPartialAmount,
+    decimal RemainingFee,
+    DateTime? SubmittedDate,
+    DateTime? LastPaymentDate
 );

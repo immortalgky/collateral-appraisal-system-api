@@ -1,6 +1,3 @@
-using Appraisal.Domain.MarketComparables;
-using Shared.CQRS;
-
 namespace Appraisal.Application.Features.MarketComparableTemplates.RemoveFactorFromTemplate;
 
 public class RemoveFactorFromTemplateCommandHandler(
@@ -11,15 +8,13 @@ public class RemoveFactorFromTemplateCommandHandler(
         RemoveFactorFromTemplateCommand command,
         CancellationToken cancellationToken)
     {
-        var template = await repository.GetByIdAsync(command.TemplateId, cancellationToken);
+        var template = await repository.GetByIdWithFactorsAsync(command.TemplateId, cancellationToken);
 
         if (template is null)
-        {
             throw new InvalidOperationException($"Market comparable template with ID {command.TemplateId} not found.");
-        }
 
         template.RemoveFactor(command.FactorId);
-        await repository.UpdateAsync(template, cancellationToken);
+        await repository.SaveChangesAsync(cancellationToken);
 
         return new RemoveFactorFromTemplateResult(true);
     }

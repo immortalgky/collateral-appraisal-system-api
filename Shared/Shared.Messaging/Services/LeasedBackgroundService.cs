@@ -64,7 +64,7 @@ public abstract class LeasedBackgroundService<TDbContext> : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            bool acquired = false;
+            var acquired = false;
             try
             {
                 using (var scope = _scopeFactory.CreateScope())
@@ -125,13 +125,13 @@ public abstract class LeasedBackgroundService<TDbContext> : BackgroundService
 
         try
         {
-            await dbContext.Database.ExecuteSqlRawAsync(
+            var inserted = await dbContext.Database.ExecuteSqlRawAsync(
                 "INSERT INTO [" + schema + "].[BackgroundServiceLease] (Id, InstanceId, LeasedUntil, AcquiredAt) " +
                 "SELECT {0}, {1}, {2}, {3} " +
                 "WHERE NOT EXISTS (SELECT 1 FROM [" + schema + "].[BackgroundServiceLease] WHERE Id = {0})",
                 new object[] { LockId, _instanceId, leasedUntil, now }, ct);
 
-            return true;
+            return inserted > 0;
         }
         catch (DbUpdateException)
         {

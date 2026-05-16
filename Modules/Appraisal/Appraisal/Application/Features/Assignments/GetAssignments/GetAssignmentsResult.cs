@@ -14,10 +14,22 @@ public record AssignmentDto(
     string AssignmentMethod,
     int ReassignmentNumber,
     int ProgressPercent,
-    DateTime AssignedAt,
+    DateTime? AssignedAt,
     string AssignedBy,
     DateTime? StartedAt,
+    DateTime? SubmittedAt,
     DateTime? CompletedAt,
     string? RejectionReason,
     string? CancellationReason,
-    DateTime? CreatedAt);
+    DateTime? CreatedAt,
+    List<EngagementCycleDto> Cycles,
+    int TotalExternalBusinessMinutes,
+    int SubmissionCount);
+
+public record EngagementCycleDto(
+    Guid Id,
+    int CycleNumber,
+    DateTime OpenedAt,
+    DateTime? ClosedAt,
+    int? BusinessMinutes,
+    string Status);

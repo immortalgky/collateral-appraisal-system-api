@@ -36,6 +36,8 @@ public class InternalAssignedIntegrationEventHandler(
         var assignment = appraisal.Assignments
             .Where(a => a.AssignmentStatus.Code != "Rejected" && a.AssignmentStatus.Code != "Cancelled")
             .OrderByDescending(a => a.AssignedAt)
+            .ThenByDescending(a => a.CreatedAt)
+            .ThenByDescending(a => a.Id)
             .FirstOrDefault();
 
         if (assignment is null)

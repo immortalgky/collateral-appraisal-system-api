@@ -11,6 +11,7 @@ public record RequestTitleDocumentDto
     public int Set { get; init; }
     public string? Notes { get; init; }
     public string? FilePath { get; init; }
+    public string? Source { get; init; }
     public bool IsRequired { get; init; }
     public string? UploadedBy { get; init; }
     public string? UploadedByName { get; init; }

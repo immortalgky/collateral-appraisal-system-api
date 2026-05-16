@@ -166,7 +166,8 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
                     previousActivityId,
                     nextActivityId,
                     completedBy,
-                    _dateTimeProvider.ApplicationNow),
+                    _dateTimeProvider.ApplicationNow,
+                    WorkflowDefinitionId: workflowInstance.WorkflowDefinitionId),
                 workflowInstance.Id.ToString());
 
             await Task.CompletedTask; // For future async operations
@@ -195,7 +196,8 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
             null,
             startActivityId,
             startedBy,
-            _dateTimeProvider.ApplicationNow));
+            _dateTimeProvider.ApplicationNow,
+            WorkflowDefinitionId: workflowInstance.WorkflowDefinitionId));
 
         return Task.CompletedTask;
     }
@@ -221,7 +223,8 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
                 sourceActivityId,
                 null,
                 completedBy,
-                _dateTimeProvider.ApplicationNow));
+                _dateTimeProvider.ApplicationNow,
+                WorkflowDefinitionId: workflowInstance.WorkflowDefinitionId));
 
             return true;
         }

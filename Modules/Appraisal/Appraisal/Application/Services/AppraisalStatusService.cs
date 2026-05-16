@@ -24,9 +24,10 @@ public class AppraisalStatusService(
             case "UnderReview":
                 appraisal.SubmitForReview();
                 break;
-            case "Completed":
-                appraisal.Complete();
-                break;
+            // Terminal Completed is owned exclusively by AppraisalApprovedIntegrationEventHandler →
+            // MarkApprovedByCommittee. Allowing a workflow pipeline step to flip it here would
+            // bypass the committee gate AND leave the AppraisalAssignment out of sync (no
+            // assignment.Complete() side-effect on the legacy Appraisal.Complete() method).
             default:
                 throw new ArgumentException($"Unsupported target status: {targetStatus}");
         }
@@ -34,32 +35,20 @@ public class AppraisalStatusService(
         await unitOfWork.SaveChangesAsync(ct);
     }
 
-    public async Task UpdateAssignmentStatusAsync(Guid appraisalId, string targetStatus, string updatedBy,
+    public Task UpdateAssignmentStatusAsync(Guid appraisalId, string targetStatus, string updatedBy,
         CancellationToken ct)
     {
-        var appraisal = await appraisalRepository.GetByIdWithAllDataAsync(appraisalId, ct)
-                        ?? throw new InvalidOperationException($"Appraisal {appraisalId} not found");
-
-        var activeAssignment = appraisal.Assignments
-            .FirstOrDefault(a =>
-                a.AssignmentStatus == AssignmentStatus.Assigned ||
-                a.AssignmentStatus == AssignmentStatus.InProgress);
-
-        if (activeAssignment is null)
-            throw new InvalidOperationException($"No active assignment found for appraisal {appraisalId}");
-
-        switch (targetStatus)
-        {
-            case "InProgress":
-                activeAssignment.StartWork();
-                break;
-            case "Completed":
-                activeAssignment.Complete();
-                break;
-            default:
-                throw new ArgumentException($"Unsupported assignment target status: {targetStatus}");
-        }
-
-        await unitOfWork.SaveChangesAsync(ct);
+        // Assignment-status transitions are now driven exclusively by:
+        //   1. The synchronous command handlers (Pending → Assigned), which lock the admin screen.
+        //   2. WorkflowTransitionedIntegrationEventHandler (Assigned → InProgress → UnderReview →
+        //      Verified) reacting to workflow activity transitions.
+        //   3. MarkApprovedByCommittee (Verified → Completed) on the committee approval event.
+        // Allowing a workflow pipeline step to short-circuit any of those routes would create the
+        // exact dual-ownership ambiguity the new lifecycle was designed to eliminate, so this
+        // method now refuses every target rather than silently breaking invariants.
+        throw new InvalidOperationException(
+            $"UpdateAssignmentStatusAsync is no longer supported (received target '{targetStatus}'). " +
+            "Assignment-status transitions are owned by the workflow event handler and the committee " +
+            "approval handler. Remove the UpdateAssignmentStatus pipeline step from workflow definitions.");
     }
 }

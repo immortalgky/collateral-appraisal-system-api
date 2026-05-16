@@ -1,9 +1,11 @@
 using System.Text;
 using Appraisal.Application.Features.Appraisals.GetAppraisals;
+using Appraisal.Application.Features.Shared;
 using ClosedXML.Excel;
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
+using Shared.Identity;
 using Shared.Time;
 
 namespace Appraisal.Application.Features.Appraisals.ExportAppraisals;
@@ -14,7 +16,8 @@ namespace Appraisal.Application.Features.Appraisals.ExportAppraisals;
 /// </summary>
 public class ExportAppraisalsQueryHandler(
     ISqlConnectionFactory connectionFactory,
-    IDateTimeProvider dateTimeProvider
+    IDateTimeProvider dateTimeProvider,
+    ICurrentUserService currentUser
 ) : IQueryHandler<ExportAppraisalsQuery, ExportAppraisalsResult>
 {
     private const int MaxExportRows = 10_000;
@@ -23,7 +26,8 @@ public class ExportAppraisalsQueryHandler(
         ExportAppraisalsQuery query,
         CancellationToken cancellationToken)
     {
-        var (whereClause, parameters) = AppraisalFilterBuilder.BuildFilter(query.Filter);
+        var enforcedCompanyId = AppraisalAccessScope.GetEnforcedCompanyId(currentUser);
+        var (whereClause, parameters) = AppraisalFilterBuilder.BuildFilter(query.Filter, enforcedCompanyId);
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(query.Filter);
 
         var sql = $"SELECT TOP({MaxExportRows}) * FROM appraisal.vw_AppraisalList{whereClause} ORDER BY {orderBy}";

@@ -11,9 +11,9 @@ public record InvoiceListDto(
     DateTime? SubmittedAt,
     DateTime? ApprovedAt,
     string? ApprovedBy,
-    string? PaymentReference,
-    string? PaymentMethod,
-    DateTime? PaymentDate,
+    string? PaymentOrderNo,
+    DateTime? PaidDate,
+    DateTime? SentDate,
     Guid CompanyId,
     string? CompanyName,
     DateTime CreatedAt

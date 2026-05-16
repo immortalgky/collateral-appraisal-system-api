@@ -18,6 +18,7 @@ public class TitleDocumentConfiguration
         builder.Property(d => d.Prefix).HasMaxLength(50);
         builder.Property(d => d.Notes).HasMaxLength(500);
         builder.Property(d => d.FilePath).HasMaxLength(255);
+        builder.Property(d => d.Source).HasMaxLength(10);
         builder.Property(d => d.UploadedBy).HasMaxLength(10);
         builder.Property(d => d.UploadedByName).HasMaxLength(100);
 

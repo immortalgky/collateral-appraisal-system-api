@@ -1,6 +1,8 @@
+using Appraisal.Application.Features.Shared;
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
+using Shared.Identity;
 using Shared.Pagination;
 
 namespace Appraisal.Application.Features.Appraisals.GetAppraisals;
@@ -10,7 +12,8 @@ namespace Appraisal.Application.Features.Appraisals.GetAppraisals;
 /// Uses SQL view + Dapper for efficient read queries.
 /// </summary>
 public class GetAppraisalsQueryHandler(
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    ICurrentUserService currentUser
 ) : IQueryHandler<GetAppraisalsQuery, GetAppraisalsResult>
 {
     public async Task<GetAppraisalsResult> Handle(
@@ -18,7 +21,8 @@ public class GetAppraisalsQueryHandler(
         CancellationToken cancellationToken)
     {
         var filter = query.Filter;
-        var (whereClause, parameters) = AppraisalFilterBuilder.BuildFilter(filter);
+        var enforcedCompanyId = AppraisalAccessScope.GetEnforcedCompanyId(currentUser);
+        var (whereClause, parameters) = AppraisalFilterBuilder.BuildFilter(filter, enforcedCompanyId);
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(filter);
 
         var baseSql = "SELECT * FROM appraisal.vw_AppraisalList" + whereClause;

@@ -15,4 +15,7 @@ public record CompanyAppraisalSummaryDto
     public string CompanyName { get; init; } = default!;
     public int AssignedCount { get; init; }
     public int CompletedCount { get; init; }
+    public int SubmissionCount { get; init; }
+    public long TotalBusinessMinutes { get; init; }
+    public decimal? AverageBusinessMinutes { get; init; }
 }
