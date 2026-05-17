@@ -23,6 +23,9 @@
     }
   },
   "AppBaseUrl": "#{APP_BASE_URL}#",
+  "Auth": {
+    "InternalAuthBaseUrl": "#{AUTH_INTERNAL_BASE_URL}#"
+  },
   "Serilog": {
     "Using": [
       "Serilog.Sinks.Console",

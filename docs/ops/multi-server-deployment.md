@@ -225,7 +225,10 @@ release-pipeline variables for the tokens:
       "Thumbprint": "#{OAUTH2_ENCRYPTION_CERT_THUMBPRINT}#"
     }
   },
-  "AppBaseUrl": "#{APP_BASE_URL}#"
+  "AppBaseUrl": "#{APP_BASE_URL}#",
+  "Auth": {
+    "InternalAuthBaseUrl": "#{AUTH_INTERNAL_BASE_URL}#"
+  }
 }
 ```
 
@@ -234,6 +237,12 @@ release-pipeline variables for the tokens:
 - `AppBaseUrl` must be the **public load-balancer URL** (e.g. `https://cas.example.com`),
   not the per-server hostname. OpenIddict stamps this into the JWT `iss` claim; mismatched
   issuers between nodes will fail validation on the other node.
+- `Auth:InternalAuthBaseUrl` is for **in-process loopback calls only** (`TokenHandler` /
+  `RefreshTokenHandler` calling `/connect/token` on themselves). Set to
+  `http://localhost:<kestrel-port>` or `https://localhost:<kestrel-port>`. Without it,
+  the loopback call goes out through the LB and you get `RemoteCertificateNameMismatch`
+  if the LB's TLS cert doesn't include the hostname being used. If omitted, the code
+  falls back to `AppBaseUrl`.
 - The same two thumbprints must be deployed to **both** servers.
 - Strip any whitespace from thumbprints copied from `certlm.msc` (Windows likes to prefix
   an invisible LRM character).
