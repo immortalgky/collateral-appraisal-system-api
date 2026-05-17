@@ -109,25 +109,30 @@ public static class AuthModule
                 {
                     options.AddDevelopmentEncryptionCertificate();
                     options.AddDevelopmentSigningCertificate();
+                    options.DisableAccessTokenEncryption();
                 }
                 else
                 {
                     var signingCertConfig = configuration.GetSection("OAuth2:SigningCertificate");
                     var encryptionCertConfig = configuration.GetSection("OAuth2:EncryptionCertificate");
 
-                    if (signingCertConfig.Exists())
+                    if (!signingCertConfig.Exists() || !encryptionCertConfig.Exists())
                         throw new InvalidOperationException(
-                            "Production signing certificate configuration required but not implemented. Please configure OAuth2:SigningCertificate section.");
+                            "Production requires OAuth2:SigningCertificate and OAuth2:EncryptionCertificate configuration. " +
+                            "Configure both sections (Source = 'store' | 'file') in appsettings.{Environment}.json.");
 
-                    if (encryptionCertConfig.Exists())
-                        throw new InvalidOperationException(
-                            "Production encryption certificate configuration required but not implemented. Please configure OAuth2:EncryptionCertificate section.");
+                    // AddOpenIddict configures at service-registration time, so DI isn't available yet.
+                    // Instantiate the provider directly — it only reads IConfiguration.
+                    using var certLoggerFactory = LoggerFactory.Create(b => b.AddConsole());
+                    var certProvider = new CertificateProvider(
+                        configuration,
+                        certLoggerFactory.CreateLogger<CertificateProvider>());
 
-                    options.AddDevelopmentEncryptionCertificate();
-                    options.AddDevelopmentSigningCertificate();
+                    options.AddSigningCertificate(certProvider.GetSigningCertificate());
+                    options.AddEncryptionCertificate(certProvider.GetEncryptionCertificate());
+                    // Access-token encryption stays ENABLED in production — both servers must
+                    // share the same encryption cert (handled by deploying the same PFX to both).
                 }
-
-                if (environment == "Development") options.DisableAccessTokenEncryption();
 
                 options.UseAspNetCore()
                     .EnableTokenEndpointPassthrough()
@@ -245,7 +250,9 @@ public static class AuthModule
             .AddScopePolicy("Integration", "integration")
             .AddUserPermissionPolicy("workflow.admin", "WORKFLOW_ADMIN")
             .AddUserPermissionPolicy("WebhookDeliveriesView", "WEBHOOK_DELIVERIES_VIEW")
-            .AddUserPermissionPolicy("WebhookDeliveriesRetry", "WEBHOOK_DELIVERIES_RETRY");
+            .AddUserPermissionPolicy("WebhookDeliveriesRetry", "WEBHOOK_DELIVERIES_RETRY")
+            .AddUserPermissionPolicy("task-monitor.view", "TASK_MONITOR_VIEW")
+            .AddUserPermissionPolicy("task-monitor.reassign", "TASK_MONITOR_REASSIGN");
 
         // In Development, don't pin policies to OpenIddict scheme so the
         // PolicyScheme can route to either DevBypass or OpenIddict.
