@@ -6,6 +6,7 @@ using Notification.Domain.Notifications.Hubs;
 using Notification.Domain.Notifications.Services;
 using Shared.Data.Extensions;
 using Shared.Data.Seed;
+using StackExchange.Redis;
 
 namespace Notification;
 
@@ -23,13 +24,25 @@ public static class NotificationModule
                 sqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
             }));
 
-        // Register SignalR
-        services.AddSignalR(options =>
+        // Register SignalR (covers all hubs in the app; WorkflowModule maps its hub on this registration)
+        var signalR = services.AddSignalR(options =>
         {
             options.EnableDetailedErrors = true;
             options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
             options.KeepAliveInterval = TimeSpan.FromSeconds(15);
         });
+
+        if (configuration.GetValue("SignalR:UseRedisBackplane", false))
+        {
+            signalR.AddStackExchangeRedis(
+                configuration.GetConnectionString("Redis")!,
+                redisOptions =>
+                {
+                    redisOptions.Configuration.ChannelPrefix =
+                        RedisChannel.Literal(configuration["SignalR:ChannelPrefix"] ?? "cas");
+                    redisOptions.Configuration.AbortOnConnectFail = false;
+                });
+        }
 
         // Register notification services
         services.AddScoped<INotificationRepository, NotificationRepository>();
