@@ -109,8 +109,15 @@ builder.Services.AddMassTransit(config =>
 
 builder.Services.AddHttpClient("CAS", client =>
 {
-    var baseUrl = builder.Configuration["AppBaseUrl"]
-                  ?? throw new InvalidOperationException("AppBaseUrl is not configured in appsettings.");
+    // In-process loopback calls (TokenHandler / RefreshTokenHandler) hit /connect/token via this client.
+    // Behind an LB, AppBaseUrl is the public LB URL — but the TLS cert at that URL may not match the
+    // hostname (RemoteCertificateNameMismatch) when traffic loops back to the local node. Allow ops to
+    // point the loopback HttpClient at http(s)://localhost:<port> via Auth:InternalAuthBaseUrl while
+    // keeping AppBaseUrl = LB URL for the OpenIddict issuer claim.
+    var baseUrl = builder.Configuration["Auth:InternalAuthBaseUrl"]
+                  ?? builder.Configuration["AppBaseUrl"]
+                  ?? throw new InvalidOperationException(
+                      "Neither Auth:InternalAuthBaseUrl nor AppBaseUrl is configured in appsettings.");
     client.BaseAddress = new Uri(baseUrl);
 });
 
