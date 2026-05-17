@@ -1,11 +1,12 @@
 using Auth.Domain.Companies;
 using Auth.Domain.Groups;
 using Auth.Domain.Menu;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 
 namespace Auth.Infrastructure;
 
 public class AuthDbContext(DbContextOptions<AuthDbContext> options)
-    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
+    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options), IDataProtectionKeyContext
 {
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
@@ -16,6 +17,7 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
     public DbSet<GroupMonitoring> GroupMonitoring => Set<GroupMonitoring>();
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
     public DbSet<ActivityMenuOverride> ActivityMenuOverrides => Set<ActivityMenuOverride>();
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -36,5 +38,8 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
 
         // Global query filter for soft-deleted groups
         builder.Entity<Group>().HasQueryFilter(g => !g.IsDeleted);
+
+        // ASP.NET Core Data Protection keys table — shared across LB nodes
+        builder.Entity<DataProtectionKey>().ToTable("DataProtectionKeys", "auth");
     }
 }
