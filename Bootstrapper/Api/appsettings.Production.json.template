@@ -8,6 +8,21 @@
     "Username": "#{RABBITMQ_USERNAME}#",
     "Password": "#{RABBITMQ_PASSWORD}#"
   },
+  "OAuth2": {
+    "SigningCertificate": {
+      "Source": "store",
+      "StoreName": "My",
+      "StoreLocation": "LocalMachine",
+      "Thumbprint": "#{OAUTH2_SIGNING_CERT_THUMBPRINT}#"
+    },
+    "EncryptionCertificate": {
+      "Source": "store",
+      "StoreName": "My",
+      "StoreLocation": "LocalMachine",
+      "Thumbprint": "#{OAUTH2_ENCRYPTION_CERT_THUMBPRINT}#"
+    }
+  },
+  "AppBaseUrl": "#{APP_BASE_URL}#",
   "Serilog": {
     "Using": [
       "Serilog.Sinks.Console",
@@ -60,6 +75,10 @@
     }
   },
   "AllowedHosts": "#{ALLOWED_HOSTS}#",
+  "SignalR": {
+    "UseRedisBackplane": true,
+    "ChannelPrefix": "cas-prod"
+  },
   "TimeZone": {
     "DefaultTimeZone": "UTC",
     "ForceUtc": true,

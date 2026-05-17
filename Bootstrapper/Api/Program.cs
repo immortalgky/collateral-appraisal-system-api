@@ -1,13 +1,16 @@
 using Appraisal.Infrastructure;
+using Auth.Infrastructure;
 using Common;
 using Document.Data;
 using Hangfire;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Request.Infrastructure;
 using Shared.Configurations;
 using Shared.Data;
 using Shared.Data.Outbox;
+using Shared.Security;
 using Integration.Application.EventHandlers.Outbound;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
@@ -137,6 +140,22 @@ builder.Services
     .AddIntegrationModule(builder.Configuration)
     .AddCommonModule(builder.Configuration);
 
+// Shared Data Protection keyring (persisted via AuthDbContext) — required when running behind a
+// load balancer so antiforgery cookies and OpenIddict reference tokens issued on one node can be
+// read by the others. MUST come after AddAuthModule so AuthDbContext is registered.
+builder.Services.AddSharedDataProtection<AuthDbContext>();
+
+// Reverse-proxy / load-balancer headers (IIS ARR, Nginx, etc.).
+// Allows OpenIddict discovery + HTTPS redirection to reflect the public scheme/host.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Trust proxies within the deployment network. Tighten via KnownProxies/KnownNetworks
+    // (configured per-environment) once the LB IPs are pinned.
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -186,6 +205,10 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 //if (app.Environment.IsDevelopment()) app.UseDeveloperExceptionPage();
+
+// Must be first: rewrites Request.Scheme / RemoteIp from X-Forwarded-* before any downstream
+// middleware (HTTPS redirection, OpenIddict discovery, authn) makes scheme-dependent decisions.
+app.UseForwardedHeaders();
 
 app.UseHttpsRedirection();
 
