@@ -1,49 +1,59 @@
-using Dapper;
+using Shared.Sla;
 
 namespace Appraisal.Application.Evaluations.Queries;
 
 /// <summary>
-/// Auto-detects how long the external appraisal took by summing the elapsed
-/// seconds across all ext-* workflow activities for the given appraisal.
-/// Returns null when no relevant activity executions are found.
+/// Auto-detects delivery time for the current External assignment of the given appraisal.
+/// Computes first-submission turnaround (SubmittedAt − AssignedAt) in business hours, converted
+/// to 8-hour business days, and suggests a 1–5 rating.
+/// Returns null when no qualifying External assignment exists, or when either timestamp is null.
 /// </summary>
 public record DetectDeliveryTimeQuery(Guid AppraisalId)
     : IQuery<DetectDeliveryTimeResult?>;
 
 public record DetectDeliveryTimeResult(decimal DetectedDays, int SuggestedRating);
 
-public class DetectDeliveryTimeQueryHandler(ISqlConnectionFactory connectionFactory)
+public class DetectDeliveryTimeQueryHandler(
+    AppraisalDbContext dbContext,
+    IBusinessTimeCalculator businessTimeCalculator)
     : IQueryHandler<DetectDeliveryTimeQuery, DetectDeliveryTimeResult?>
 {
-    private const string Sql = """
-        SELECT CAST(DATEDIFF_BIG(second, MIN(wae.StartedOn), MAX(wae.CompletedOn)) AS DECIMAL(10, 6)) / 86400.0
-        FROM   workflow.WorkflowActivityExecutions wae
-        INNER JOIN workflow.WorkflowInstances wi ON wi.Id = wae.WorkflowInstanceId
-        WHERE  wi.CorrelationId = @AppraisalId
-          AND  wae.ActivityId LIKE 'ext-%'
-          AND  wae.CompletedOn IS NOT NULL
-          AND  wae.Status = 'Completed'
-        """;
-
     public async Task<DetectDeliveryTimeResult?> Handle(
         DetectDeliveryTimeQuery query,
         CancellationToken cancellationToken)
     {
-        var parameters = new DynamicParameters();
-        parameters.Add("AppraisalId", query.AppraisalId.ToString());
+        // Matches vw_AppraisalEvaluationList CTE:
+        // most recent External assignment, excluding Rejected/Cancelled (handled by global query filter).
+        // Order mirrors: ORDER BY AssignedAt DESC, CreatedAt DESC, Id DESC.
+        var assignment = await dbContext.AppraisalAssignments
+            .AsNoTracking()
+            .Where(a => a.AppraisalId == query.AppraisalId
+                        && a.AssignmentType == AssignmentType.External)
+            .OrderByDescending(a => a.AssignedAt)
+            .ThenByDescending(a => a.CreatedAt)
+            .ThenByDescending(a => a.Id)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        var totalDays = await connectionFactory.ExecuteScalarAsync<decimal?>(Sql, parameters);
-
-        if (totalDays is null)
+        if (assignment is null || assignment.AssignedAt is null || assignment.SubmittedAt is null)
             return null;
 
-        var days = totalDays.Value;
+        var minutes = await businessTimeCalculator.GetBusinessMinutesBetweenAsync(
+            assignment.AssignedAt.Value,
+            assignment.SubmittedAt.Value,
+            cancellationToken);
+
+        // Defensive: SubmittedAt < AssignedAt (clock skew / out-of-order writes) → no suggestion.
+        if (minutes < 0) return null;
+
+        var days = Math.Round((decimal)minutes / 60m / 8m, 2);
+
         var rating = days switch
         {
-            < 2.0m  => 4,
-            < 2.5m  => 3,
-            < 3.5m  => 2,
-            _       => 1
+            < 2.0m => 5,
+            < 2.5m => 4,
+            < 3.0m => 3,
+            < 3.5m => 2,
+            _      => 1
         };
 
         return new DetectDeliveryTimeResult(days, rating);

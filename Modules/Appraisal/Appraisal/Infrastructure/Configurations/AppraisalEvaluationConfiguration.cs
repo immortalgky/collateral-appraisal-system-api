@@ -46,16 +46,10 @@ public class AppraisalEvaluationConfiguration : IEntityTypeConfiguration<Apprais
 
         // ── Criterion 1 ─────────────────────────────────────────────────────
         builder.Property(e => e.Criteria1Rating)
-            .IsRequired()
             .HasColumnName("Criteria1Rating");
-
-        builder.Property(e => e.Criteria1Description)
-            .HasMaxLength(500)
-            .HasColumnName("Criteria1Description");
 
         // ── Criterion 2 ─────────────────────────────────────────────────────
         builder.Property(e => e.Criteria2Rating)
-            .IsRequired()
             .HasColumnName("Criteria2Rating");
 
         builder.Property(e => e.Criteria2IsAutoDetected)
@@ -67,36 +61,17 @@ public class AppraisalEvaluationConfiguration : IEntityTypeConfiguration<Apprais
             .HasPrecision(5, 2)
             .HasColumnName("Criteria2DetectedDays");
 
-        builder.Property(e => e.Criteria2Description)
-            .HasMaxLength(500)
-            .HasColumnName("Criteria2Description");
-
         // ── Criterion 3 ─────────────────────────────────────────────────────
         builder.Property(e => e.Criteria3Rating)
-            .IsRequired()
             .HasColumnName("Criteria3Rating");
-
-        builder.Property(e => e.Criteria3Description)
-            .HasMaxLength(500)
-            .HasColumnName("Criteria3Description");
 
         // ── Criterion 4 ─────────────────────────────────────────────────────
         builder.Property(e => e.Criteria4Rating)
-            .IsRequired()
             .HasColumnName("Criteria4Rating");
-
-        builder.Property(e => e.Criteria4Description)
-            .HasMaxLength(500)
-            .HasColumnName("Criteria4Description");
 
         // ── Criterion 5 ─────────────────────────────────────────────────────
         builder.Property(e => e.Criteria5Rating)
-            .IsRequired()
             .HasColumnName("Criteria5Rating");
-
-        builder.Property(e => e.Criteria5Description)
-            .HasMaxLength(500)
-            .HasColumnName("Criteria5Description");
 
         // ── Free text ───────────────────────────────────────────────────────
         builder.Property(e => e.AdditionalComments)
