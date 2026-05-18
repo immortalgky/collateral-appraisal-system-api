@@ -32,6 +32,12 @@ public class GetInvoiceListQueryHandler(
             parameters.Add("Status", request.Status);
         }
 
+        if (!string.IsNullOrEmpty(request.ExcludeStatus))
+        {
+            conditions.Add("Status <> @ExcludeStatus");
+            parameters.Add("ExcludeStatus", request.ExcludeStatus);
+        }
+
         if (!string.IsNullOrEmpty(request.CompanySearch))
         {
             conditions.Add("CompanyName LIKE @CompanySearch");
@@ -85,14 +91,41 @@ public class GetInvoiceListQueryHandler(
             PaymentOrderNo, PaidDate, SentDate, CompanyId, CompanyName, CreatedAt
             """;
         var aggregateSql = $"SELECT COUNT(Id) AS GrandItemCount, ISNULL(SUM(TotalAmount), 0) AS GrandTotalAmount FROM appraisal.vw_InvoiceList {where}";
-        // Default order is newest-first by CreatedAt. When the caller picks a group-by
-        // criterion, sort by that criterion first so consecutive rows cluster together.
-        // Add new mappings here as new group-by criteria are added.
-        var orderBy = request.GroupBy?.ToLowerInvariant() switch
+        // Group-by clustering is always the leading key so rows stay grouped under
+        // their cluster header. Sorting (when specified) is applied within the cluster
+        // and falls back to CreatedAt DESC for stable ordering.
+        var groupClause = request.GroupBy?.ToLowerInvariant() switch
         {
-            "company" => "CompanyName, CreatedAt DESC",
-            _ => "CreatedAt DESC",
+            "company" => "CompanyName",
+            _ => null,
         };
+
+        // Whitelist sortable columns to defeat SQL injection — the value comes from
+        // a query string. Anything unknown falls through to the default.
+        var sortColumn = request.SortBy?.ToLowerInvariant() switch
+        {
+            "invoicenumber" => "InvoiceNumber",
+            "companyname" => "CompanyName",
+            "sentdate" => "SentDate",
+            "paiddate" => "PaidDate",
+            "totalamount" => "TotalAmount",
+            "totalitems" => "ItemCount",
+            "status" => "Status",
+            _ => null,
+        };
+        var sortDir = string.Equals(request.SortDir, "asc", StringComparison.OrdinalIgnoreCase)
+            ? "ASC"
+            : "DESC";
+
+        string orderBy;
+        if (sortColumn is not null)
+            orderBy = groupClause is not null
+                ? $"{groupClause}, {sortColumn} {sortDir}, CreatedAt DESC"
+                : $"{sortColumn} {sortDir}, CreatedAt DESC";
+        else
+            orderBy = groupClause is not null
+                ? $"{groupClause}, CreatedAt DESC"
+                : "CreatedAt DESC";
         var dataSql = $"SELECT {listColumns} FROM appraisal.vw_InvoiceList {where} ORDER BY {orderBy} OFFSET {request.PageNumber * request.PageSize} ROWS FETCH NEXT {request.PageSize} ROWS ONLY";
         var countSql = $"SELECT COUNT(Id) FROM appraisal.vw_InvoiceList {where}";
 

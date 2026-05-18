@@ -28,13 +28,22 @@ public class GetInvoiceByIdQueryHandler(ISqlConnectionFactory sqlConnectionFacto
         if (request.CallerCompanyId.HasValue && header.CompanyId != request.CallerCompanyId.Value)
             return null;
 
+        // Snapshot fields live on InvoiceItems; payment-state fields (Paid/Remaining/LastPaymentDate)
+        // are read live from AppraisalFee + payment history so the detail screen mirrors the
+        // current state shown on the eligible-assignments selector. Mirrors vw_EligibleAssignments.
         const string itemsSql = """
-            SELECT Id, AssignmentId, AppraisalNumber, CustomerName, ProductType,
-                   FeeBeforeVAT, VATRate, VATAmount, TotalFeeAfterVAT, BankAbsorbAmount,
-                   SubmittedDate
-            FROM appraisal.InvoiceItems
-            WHERE InvoiceId = @InvoiceId
-            ORDER BY CreatedAt
+            SELECT ii.Id, ii.AssignmentId, ii.AppraisalNumber, ii.CustomerName, ii.ProductType,
+                   ii.FeeBeforeVAT, ii.VATRate, ii.VATAmount, ii.TotalFeeAfterVAT, ii.BankAbsorbAmount,
+                   ISNULL(af.TotalPaidAmount, 0)                                           AS PayPartialAmount,
+                   ISNULL(af.TotalFeeAfterVAT - af.TotalPaidAmount - af.BankAbsorbAmount, 0) AS RemainingFee,
+                   (SELECT MAX(h.PaymentDate)
+                    FROM appraisal.AppraisalFeePaymentHistory h
+                    WHERE h.AppraisalFeeId = af.Id)                                        AS LastPaymentDate,
+                   ii.SubmittedDate
+            FROM appraisal.InvoiceItems ii
+            LEFT JOIN appraisal.AppraisalFees af ON af.AssignmentId = ii.AssignmentId
+            WHERE ii.InvoiceId = @InvoiceId
+            ORDER BY ii.CreatedAt
             """;
         var items = (await connection.QueryAsync<InvoiceItemDto>(
             itemsSql,

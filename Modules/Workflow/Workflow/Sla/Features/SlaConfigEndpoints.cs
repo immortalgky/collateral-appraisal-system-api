@@ -112,18 +112,27 @@ public class SlaConfigEndpoints : ICarterModule
 
     private static async Task<IResult> UpsertBusinessHours(UpsertBusinessHoursRequest request, WorkflowDbContext db)
     {
-        var existing = await db.BusinessHoursConfigs.FirstOrDefaultAsync(b => b.IsActive);
-        if (existing is not null)
+        try
         {
-            existing.Update(request.StartTime, request.EndTime, request.TimeZone, true);
+            var existing = await db.BusinessHoursConfigs.FirstOrDefaultAsync(b => b.IsActive);
+            if (existing is not null)
+            {
+                existing.Update(request.StartTime, request.EndTime, request.TimeZone, true,
+                    request.LunchStartTime, request.LunchEndTime);
+            }
+            else
+            {
+                var config = BusinessHoursConfig.Create(request.StartTime, request.EndTime, request.TimeZone,
+                    request.LunchStartTime, request.LunchEndTime);
+                db.BusinessHoursConfigs.Add(config);
+            }
+            await db.SaveChangesAsync();
+            return Results.Ok();
         }
-        else
+        catch (ArgumentException ex)
         {
-            var config = BusinessHoursConfig.Create(request.StartTime, request.EndTime, request.TimeZone);
-            db.BusinessHoursConfigs.Add(config);
+            return Results.BadRequest(new { error = ex.Message });
         }
-        await db.SaveChangesAsync();
-        return Results.Ok();
     }
 }
 
@@ -145,4 +154,9 @@ public record SlaConfigDto(
 
 public record CreateHolidayRequest(DateOnly Date, string Description);
 
-public record UpsertBusinessHoursRequest(TimeOnly StartTime, TimeOnly EndTime, string TimeZone);
+public record UpsertBusinessHoursRequest(
+    TimeOnly StartTime,
+    TimeOnly EndTime,
+    string TimeZone,
+    TimeOnly? LunchStartTime = null,
+    TimeOnly? LunchEndTime = null);

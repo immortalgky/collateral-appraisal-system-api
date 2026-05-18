@@ -367,8 +367,9 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
-                    b.Property<int?>("ActualDaysToComplete")
-                        .HasColumnType("int");
+                    b.Property<int?>("ActualHoursToComplete")
+                        .HasColumnType("int")
+                        .HasColumnName("ActualHoursToComplete");
 
                     b.Property<string>("AppraisalNumber")
                         .HasMaxLength(50)
@@ -452,11 +453,12 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<int?>("SLADays")
-                        .HasColumnType("int");
-
                     b.Property<DateTime?>("SLADueDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("SLAHours")
+                        .HasColumnType("int")
+                        .HasColumnName("SLAHours");
 
                     b.Property<string>("SLAStatus")
                         .HasMaxLength(20)

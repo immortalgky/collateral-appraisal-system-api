@@ -15,7 +15,7 @@ public class CreateAppraisalCommandHandler(
             command.RequestId,
             command.AppraisalType,
             command.Priority,
-            command.SLADays);
+            command.SLAHours);
 
         await appraisalRepository.AddAsync(appraisal, cancellationToken);
 

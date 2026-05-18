@@ -76,15 +76,13 @@ public class AppraisalCreationService(
 
         // Step 3: Resolve workflow-level SLA budget. workflowDefinitionId is optional because the caller
         // (AppraisalCreationRequestedIntegrationEventHandler) may not always know the definition ID at
-        // creation time. When null, the appraisal SLA days remain null instead of using a hardcoded fallback.
-        int? appraisalSlaDays = null;
+        // creation time. When null, the appraisal SLA hours remain null instead of using a hardcoded fallback.
+        int? appraisalSlaHours = null;
         if (workflowDefinitionId.HasValue)
         {
-            var workflowDueAt = await slaCalculatorClient.GetWorkflowDueAtAsync(
+            var slaSnapshot = await slaCalculatorClient.GetWorkflowSlaAsync(
                 workflowDefinitionId.Value, loanType: null, startedAt: DateTime.Now, cancellationToken);
-            appraisalSlaDays = workflowDueAt.HasValue
-                ? (int)(workflowDueAt.Value - DateTime.Now).TotalDays
-                : null;
+            appraisalSlaHours = slaSnapshot?.DurationHours;
         }
 
         // Step 4: Create Appraisal aggregate
@@ -94,7 +92,7 @@ public class AppraisalCreationService(
             requestId,
             resolvedAppraisalType,
             priority ?? "Normal",
-            appraisalSlaDays,
+            appraisalSlaHours,
             requestedBy ?? createdBy,
             isPma,
             purpose,

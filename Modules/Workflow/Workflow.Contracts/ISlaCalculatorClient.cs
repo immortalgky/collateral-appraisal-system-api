@@ -7,10 +7,12 @@ namespace Workflow;
 public interface ISlaCalculatorClient
 {
     /// <summary>
-    /// Returns the workflow-level DueAt deadline, or null when no Workflow-scope SlaPolicy matches.
-    /// Delegates to <c>SlaCalculator.CalculateWorkflowDueAtAsync</c>.
+    /// Returns a snapshot containing both the policy DurationHours and the computed DueAt, or null
+    /// when no Workflow-scope SlaPolicy matches. Callers that need to store the raw budget
+    /// (e.g. Appraisal.SLAHours) should read DurationHours directly rather than recomputing
+    /// hours from a calendar delta.
     /// </summary>
-    Task<DateTime?> GetWorkflowDueAtAsync(
+    Task<WorkflowSlaSnapshot?> GetWorkflowSlaAsync(
         Guid workflowDefinitionId,
         string? loanType,
         DateTime startedAt,
@@ -30,3 +32,8 @@ public interface ISlaCalculatorClient
         string? loanType,
         CancellationToken ct = default);
 }
+
+/// <summary>
+/// Workflow-scope SLA budget snapshot returned by <see cref="ISlaCalculatorClient.GetWorkflowSlaAsync"/>.
+/// </summary>
+public record WorkflowSlaSnapshot(int DurationHours, DateTime DueAt, bool UseBusinessDays);

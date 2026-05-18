@@ -85,4 +85,33 @@ public class CompletedTask : Aggregate<Guid>
             pendingTask.AssigneeCompanyId
         );
     }
+
+    /// <summary>
+    /// Creates an audit-only snapshot of a PendingTask, minting a fresh Id so the row
+    /// can coexist with the still-live PendingTask row and a future completion row.
+    /// Use this for mid-life audit events (e.g. Reassigned) where the PendingTask is
+    /// NOT being removed from the table in the same transaction.
+    /// </summary>
+    public static CompletedTask CreateAuditFromPendingTask(PendingTask pendingTask, string actionTaken,
+        DateTime completedAt, string? remark = null, string? movement = null)
+    {
+        return new CompletedTask(
+            Guid.CreateVersion7(),
+            pendingTask.CorrelationId,
+            pendingTask.TaskName,
+            pendingTask.AssignedTo,
+            pendingTask.AssignedType,
+            pendingTask.AssignedAt,
+            actionTaken,
+            completedAt,
+            pendingTask.DueAt,
+            pendingTask.SlaStatus,
+            pendingTask.SlaBreachedAt,
+            pendingTask.TaskDescription,
+            remark,
+            movement ?? pendingTask.Movement,
+            pendingTask.ActivityId,
+            pendingTask.AssigneeCompanyId
+        );
+    }
 }

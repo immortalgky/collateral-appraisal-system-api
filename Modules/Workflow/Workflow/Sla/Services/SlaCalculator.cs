@@ -116,6 +116,35 @@ public class SlaCalculator(
         return dueAt;
     }
 
+    public async Task<WorkflowSlaSnapshot?> GetWorkflowSlaSnapshotAsync(
+        Guid workflowDefinitionId,
+        string? loanType,
+        DateTime startedOn,
+        CancellationToken ct = default)
+    {
+        var policy = await dbContext.SlaPolicies
+            .AsNoTracking()
+            .Where(s => s.Scope == SlaPolicyScope.Workflow)
+            .Where(s => s.WorkflowDefinitionId == workflowDefinitionId)
+            .Where(s => s.LoanType == null || s.LoanType == loanType)
+            .OrderBy(s => s.Priority)
+            .FirstOrDefaultAsync(ct);
+
+        if (policy is null) return null;
+
+        DateTime dueAt;
+        if (policy.UseBusinessDays)
+        {
+            dueAt = await businessTimeCalculator.AddBusinessHoursAsync(startedOn, policy.DurationHours, ct);
+        }
+        else
+        {
+            dueAt = startedOn.AddHours(policy.DurationHours);
+        }
+
+        return new WorkflowSlaSnapshot(policy.DurationHours, dueAt, policy.UseBusinessDays);
+    }
+
     /// <remarks>
     /// <paramref name="workflowDefinitionId"/> is nullable here to allow global Stage policies
     /// (WorkflowDefinitionId = null) to match across any workflow definition. This is intentionally

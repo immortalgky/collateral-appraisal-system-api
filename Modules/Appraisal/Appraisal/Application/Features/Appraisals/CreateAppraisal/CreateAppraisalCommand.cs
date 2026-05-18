@@ -10,5 +10,5 @@ public record CreateAppraisalCommand(
     Guid RequestId,
     string AppraisalType,
     string Priority,
-    int? SLADays = null
+    int? SLAHours = null
 ) : ICommand<CreateAppraisalResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

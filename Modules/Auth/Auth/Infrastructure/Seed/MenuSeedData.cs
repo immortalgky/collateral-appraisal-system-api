@@ -54,6 +54,7 @@ public static class MenuSeedData
                 new("main.task.rm-pick-winner", "Pick Quotation Winner", "medal", IconStyle.Solid, "text-purple-500", "/tasks?activityId=rm-pick-winner", "TASK_QUOTATION_PICK_WINNER", null),
                 new("main.task.admin-finalize", "Finalize Quotation", "circle-check", IconStyle.Solid, "text-purple-500", "/tasks?activityId=admin-finalize", "TASK_QUOTATION_FINALIZE", null),
             }),
+        new("main.task-monitor", "Task Monitor", "user-gear", IconStyle.Solid, "text-orange-500", "/task-monitor", "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN"),
         new("main.appraisal", "Appraisal", "magnifying-glass-chart", IconStyle.Solid, "text-cyan-500", "/appraisals", "APPRAISAL_VIEW", null,
             new List<MenuSeedNode>
             {

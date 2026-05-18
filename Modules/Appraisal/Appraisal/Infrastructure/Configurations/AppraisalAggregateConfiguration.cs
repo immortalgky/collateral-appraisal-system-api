@@ -81,11 +81,11 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
             .HasMaxLength(50);
 
         // SLA Tracking
-        builder.Property(a => a.SLADays);
+        builder.Property(a => a.SLAHours).HasColumnName("SLAHours");
         builder.Property(a => a.SLADueDate);
         builder.Property(a => a.SLAStatus)
             .HasMaxLength(20);
-        builder.Property(a => a.ActualDaysToComplete);
+        builder.Property(a => a.ActualHoursToComplete).HasColumnName("ActualHoursToComplete");
         builder.Property(a => a.IsWithinSLA);
 
         // Audit Fields

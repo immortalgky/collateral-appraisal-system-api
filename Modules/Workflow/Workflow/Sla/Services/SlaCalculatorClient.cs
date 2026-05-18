@@ -7,12 +7,12 @@ namespace Workflow.Sla.Services;
 /// </summary>
 public class SlaCalculatorClient(ISlaCalculator slaCalculator) : ISlaCalculatorClient
 {
-    public Task<DateTime?> GetWorkflowDueAtAsync(
+    public Task<WorkflowSlaSnapshot?> GetWorkflowSlaAsync(
         Guid workflowDefinitionId,
         string? loanType,
         DateTime startedAt,
         CancellationToken ct = default)
-        => slaCalculator.CalculateWorkflowDueAtAsync(workflowDefinitionId, loanType, startedAt, ct);
+        => slaCalculator.GetWorkflowSlaSnapshotAsync(workflowDefinitionId, loanType, startedAt, ct);
 
     public Task<DateTime?> GetStageDueAtAsync(
         Guid? workflowDefinitionId,

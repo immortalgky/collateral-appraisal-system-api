@@ -61,8 +61,10 @@ public class PendingTask : Aggregate<Guid>
         return task;
     }
 
-    public void Reassign(string newAssignedTo, string newAssignedType)
+    public void Reassign(string newAssignedTo, string newAssignedType, string? raiseEventFor = null)
     {
+        var previousAssignedTo = AssignedTo;
+
         AssignedTo = newAssignedTo;
         AssignedType = newAssignedType;
         TaskStatus = TaskStatus.Assigned;
@@ -70,6 +72,18 @@ public class PendingTask : Aggregate<Guid>
         LockedAt = null;
         // AssignedAt, DueAt, SlaStatus, SlaBreachedAt intentionally preserved —
         // reassignment must not reset the SLA clock.
+
+        if (raiseEventFor == "supervisor")
+        {
+            AddDomainEvent(new PendingTaskReassignedDomainEvent(
+                Id,
+                CorrelationId,
+                previousAssignedTo,
+                newAssignedTo,
+                WorkflowInstanceId,
+                ActivityId,
+                DueAt));
+        }
     }
 
     public void StartWorking(string username, string? previousAssignedTo = null)
