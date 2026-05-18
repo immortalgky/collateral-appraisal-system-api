@@ -9,15 +9,19 @@ public class GetAssignmentsQueryHandler(AppraisalDbContext dbContext)
         GetAssignmentsQuery query,
         CancellationToken cancellationToken)
     {
-        // EF.Property<string> required: AssignmentStatus HasConversion is not SQL-translatable for != comparisons.
-        var assignments = await dbContext.AppraisalAssignments
+        var rows = await dbContext.AppraisalAssignments
             .AsNoTracking()
-            .Where(a => a.AppraisalId == query.AppraisalId
-                        && EF.Property<string>(a, "AssignmentStatus") != "Rejected"
-                        && EF.Property<string>(a, "AssignmentStatus") != "Cancelled")
+            .Where(a => a.AppraisalId == query.AppraisalId)
             .Include(a => a.Cycles)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync(cancellationToken);
+
+        // Filter after materialization: AssignmentStatus is a HasConversion value object and
+        // EF cannot translate value-object equality to SQL. Row count per appraisal is tiny.
+        var assignments = rows
+            .Where(a => a.AssignmentStatus != AssignmentStatus.Rejected
+                        && a.AssignmentStatus != AssignmentStatus.Cancelled)
+            .ToList();
 
         var dtos = assignments.Select(a => new AssignmentDto(
             a.Id,

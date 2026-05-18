@@ -126,10 +126,11 @@ public class SlaPolicy : Entity<Guid>
                 if (string.IsNullOrWhiteSpace(endActivityKey))
                     throw new ArgumentException(
                         "EndActivityKey is required for Stage-scope SlaPolicy.", nameof(endActivityKey));
-                // Stage scope must not carry Activity-specific fields.
-                if (!string.IsNullOrWhiteSpace(activityId))
+                // Stage scope's resolver looks up by StartActivityKey, not ActivityId. The DB column
+                // is NOT NULL, so callers must use the "*" backfill sentinel (same pattern as Workflow scope).
+                if (!string.IsNullOrWhiteSpace(activityId) && activityId != "*")
                     throw new ArgumentException(
-                        "ActivityId must be null for Stage-scope SlaPolicy.", nameof(activityId));
+                        "ActivityId must be null (or the \"*\" sentinel) for Stage-scope SlaPolicy.", nameof(activityId));
                 break;
 
             case SlaPolicyScope.Workflow:

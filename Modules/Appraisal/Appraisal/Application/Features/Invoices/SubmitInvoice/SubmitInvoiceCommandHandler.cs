@@ -1,11 +1,13 @@
 using Appraisal.Domain.Invoices;
 using Microsoft.Data.SqlClient;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Invoices.SubmitInvoice;
 
 public class SubmitInvoiceCommandHandler(
     IInvoiceRepository repository,
-    IAppraisalUnitOfWork unitOfWork)
+    IAppraisalUnitOfWork unitOfWork,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<SubmitInvoiceCommand, Guid>
 {
     public async Task<Guid> Handle(SubmitInvoiceCommand request, CancellationToken cancellationToken)
@@ -17,7 +19,7 @@ public class SubmitInvoiceCommandHandler(
             throw new NotFoundException($"Invoice '{request.InvoiceId}' not found.");
 
         invoice.SetInvoiceNumber(request.InvoiceNumber);
-        invoice.Submit();
+        invoice.Submit(dateTimeProvider.ApplicationNow);
 
         repository.Update(invoice);
 

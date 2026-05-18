@@ -19,10 +19,10 @@ public record GetAppraisalByIdResult
     public string? Channel { get; set; }
     public string? BankingSegment { get; set; }
     public decimal? FacilityLimit { get; set; }
-    public int? SLADays { get; set; }
+    public int? SLAHours { get; set; }
     public DateTime? SLADueDate { get; set; }
     public string? SLAStatus { get; set; }
-    public int? ActualDaysToComplete { get; set; }
+    public int? ActualHoursToComplete { get; set; }
     public bool? IsWithinSLA { get; set; }
     public int PropertyCount { get; set; }
     public int GroupCount { get; set; }

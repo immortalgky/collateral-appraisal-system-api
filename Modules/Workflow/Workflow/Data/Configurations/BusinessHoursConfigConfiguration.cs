@@ -12,5 +12,13 @@ public class BusinessHoursConfigConfiguration : IEntityTypeConfiguration<Busines
         builder.Property(b => b.TimeZone)
             .HasMaxLength(100)
             .IsRequired();
+
+        builder.Property(b => b.LunchStartTime)
+            .HasColumnType("time")
+            .IsRequired(false);
+
+        builder.Property(b => b.LunchEndTime)
+            .HasColumnType("time")
+            .IsRequired(false);
     }
 }

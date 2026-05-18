@@ -21,6 +21,7 @@ public class InvoiceEndpoints : ICarterModule
             [FromQuery] int pageNumber = 0,
             [FromQuery] int pageSize = 20,
             [FromQuery] string? status = null,
+            [FromQuery] string? excludeStatus = null,
             [FromQuery] string? companySearch = null,
             [FromQuery] Guid? companyId = null,
             [FromQuery] DateOnly? sentDateFrom = null,
@@ -29,6 +30,8 @@ public class InvoiceEndpoints : ICarterModule
             [FromQuery] DateOnly? paidDateTo = null,
             [FromQuery] string? search = null,
             [FromQuery] string? groupBy = null,
+            [FromQuery] string? sortBy = null,
+            [FromQuery] string? sortDir = null,
             CancellationToken ct = default) =>
         {
             var callerCompanyId = currentUser.CompanyId;
@@ -42,9 +45,9 @@ public class InvoiceEndpoints : ICarterModule
             var effectiveCompanyId = isInternal ? companyId : callerCompanyId;
 
             var query = new GetInvoiceListQuery(
-                pageNumber, pageSize, status, companySearch,
+                pageNumber, pageSize, status, excludeStatus, companySearch,
                 sentDateFrom, sentDateTo, paidDateFrom, paidDateTo,
-                search, effectiveCompanyId, groupBy);
+                search, effectiveCompanyId, groupBy, sortBy, sortDir);
             var result = await sender.Send(query, ct);
             return Results.Ok(result);
         })

@@ -63,6 +63,7 @@ public class AuthDataSeed(
             "Bank",
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
+                "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN",
                 "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW",
                 "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE",
                 "QUOTATION_VIEW", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT",
@@ -77,6 +78,7 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE",
+                "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN",
                 "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
                 "INVOICE_EXT_VIEW", "INVOICE_CREATE",
                 ..appraisalSectionViews
@@ -419,6 +421,8 @@ public class AuthDataSeed(
         {
             ("DASHBOARD_VIEW", "View Dashboard", "Access the main dashboard", "Common"),
             ("TASK_LIST_VIEW", "View Task List", "View and manage assigned tasks", "Workflow"),
+            ("TASK_MONITOR_VIEW", "View Task Monitor", "View the supervisor task-monitor list of pending tasks held by monitored groups", "Workflow"),
+            ("TASK_MONITOR_REASSIGN", "Reassign Pending Task", "Reassign a pending task to another eligible assignee without resetting the SLA clock", "Workflow"),
             ("APPRAISAL_VIEW", "View Appraisal", "View appraisal requests and details", "Appraisal"),
             ("APPRAISAL_CREATE", "Create Appraisal", "Create new appraisal requests", "Appraisal"),
             ("APPRAISAL_EDIT", "Edit Appraisal", "Edit existing appraisal requests", "Appraisal"),

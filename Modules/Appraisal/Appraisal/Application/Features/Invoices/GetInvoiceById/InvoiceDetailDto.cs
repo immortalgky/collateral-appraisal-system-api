@@ -32,5 +32,8 @@ public record InvoiceItemDto(
     decimal VATAmount,
     decimal TotalFeeAfterVAT,
     decimal BankAbsorbAmount,
+    decimal PayPartialAmount,
+    decimal RemainingFee,
+    DateTime? LastPaymentDate,
     DateTime? SubmittedDate
 );

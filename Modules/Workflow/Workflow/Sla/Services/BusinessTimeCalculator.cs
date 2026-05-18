@@ -24,7 +24,7 @@ public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache ca
             ? TimeZoneInfo.ConvertTimeFromUtc(from, tz)
             : TimeZoneInfo.ConvertTime(DateTime.SpecifyKind(from, DateTimeKind.Unspecified), tz, tz);
 
-        var remainingHours = hours;
+        var remainingHours = (double)hours;
         var current = localFrom;
 
         while (remainingHours > 0)
@@ -39,7 +39,6 @@ public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache ca
 
             var dayStart = current.Date.Add(config.StartTime.ToTimeSpan());
             var dayEnd = current.Date.Add(config.EndTime.ToTimeSpan());
-            var businessHoursInDay = (dayEnd - dayStart).TotalHours;
 
             // If before business hours, snap to start
             if (current < dayStart)
@@ -52,16 +51,47 @@ public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache ca
                 continue;
             }
 
-            var availableHours = (dayEnd - current).TotalHours;
-
-            if (remainingHours <= availableHours)
+            // Snap cursor out of lunch break
+            if (config.LunchStartTime.HasValue && config.LunchEndTime.HasValue)
             {
-                current = current.AddHours(remainingHours);
-                remainingHours = 0;
+                var lunchStart = current.Date.Add(config.LunchStartTime.Value.ToTimeSpan());
+                var lunchEnd = current.Date.Add(config.LunchEndTime.Value.ToTimeSpan());
+                if (current >= lunchStart && current < lunchEnd)
+                    current = lunchEnd;
             }
-            else
+
+            // Re-check after potential lunch snap: cursor may now be at or past dayEnd
+            if (current >= dayEnd)
             {
-                remainingHours -= (int)Math.Floor(availableHours);
+                current = current.Date.AddDays(1).Add(config.StartTime.ToTimeSpan());
+                continue;
+            }
+
+            var sessions = GetDaySessions(config, current.Date);
+
+            foreach (var (sessionStart, sessionEnd) in sessions)
+            {
+                if (current >= sessionEnd) continue; // already past this session
+
+                var effectiveStart = current < sessionStart ? sessionStart : current;
+                var available = (sessionEnd - effectiveStart).TotalHours;
+
+                if (available <= 0) continue;
+
+                if (remainingHours <= available)
+                {
+                    current = effectiveStart.AddHours(remainingHours);
+                    remainingHours = 0;
+                    break;
+                }
+
+                remainingHours -= available;
+                current = sessionEnd;
+            }
+
+            if (remainingHours > 0)
+            {
+                // Exhausted all sessions for this day — move to next day
                 current = current.Date.AddDays(1).Add(config.StartTime.ToTimeSpan());
             }
         }
@@ -80,7 +110,9 @@ public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache ca
 
             if (config is null) return null;
 
-            return new BusinessHoursConfigDto(config.StartTime, config.EndTime, config.TimeZone);
+            return new BusinessHoursConfigDto(
+                config.StartTime, config.EndTime, config.TimeZone,
+                config.LunchStartTime, config.LunchEndTime);
         });
     }
 
@@ -119,26 +151,46 @@ public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache ca
                 && current.DayOfWeek != DayOfWeek.Sunday
                 && !holidays.Contains(currentDate))
             {
-                var dayStart = current.Add(config.StartTime.ToTimeSpan());
-                var dayEnd = current.Add(config.EndTime.ToTimeSpan());
+                var sessions = GetDaySessions(config, current);
 
-                // Clamp the from/to to this day's business window
-                var windowStart = current == localFrom.Date
-                    ? (localFrom < dayStart ? dayStart : localFrom)
-                    : dayStart;
+                foreach (var (sessionStart, sessionEnd) in sessions)
+                {
+                    var windowStart = current == localFrom.Date
+                        ? (localFrom < sessionStart ? sessionStart : localFrom)
+                        : sessionStart;
 
-                var windowEnd = current == localTo.Date
-                    ? (localTo > dayEnd ? dayEnd : localTo)
-                    : dayEnd;
+                    var windowEnd = current == localTo.Date
+                        ? (localTo > sessionEnd ? sessionEnd : localTo)
+                        : sessionEnd;
 
-                if (windowEnd > windowStart)
-                    totalMinutes += (int)Math.Round((windowEnd - windowStart).TotalMinutes);
+                    if (windowEnd > windowStart)
+                        totalMinutes += (int)Math.Round((windowEnd - windowStart).TotalMinutes);
+                }
             }
 
             current = current.AddDays(1);
         }
 
         return totalMinutes;
+    }
+
+    private static IEnumerable<(DateTime Start, DateTime End)> GetDaySessions(
+        BusinessHoursConfigDto config, DateTime day)
+    {
+        var dayStart = day.Date.Add(config.StartTime.ToTimeSpan());
+        var dayEnd = day.Date.Add(config.EndTime.ToTimeSpan());
+
+        if (config.LunchStartTime.HasValue && config.LunchEndTime.HasValue)
+        {
+            var lunchStart = day.Date.Add(config.LunchStartTime.Value.ToTimeSpan());
+            var lunchEnd = day.Date.Add(config.LunchEndTime.Value.ToTimeSpan());
+            yield return (dayStart, lunchStart);
+            yield return (lunchEnd, dayEnd);
+        }
+        else
+        {
+            yield return (dayStart, dayEnd);
+        }
     }
 
     private async Task<HashSet<DateOnly>> GetHolidaysAsync(DateTime from, int hours, CancellationToken ct)
@@ -166,5 +218,10 @@ public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache ca
         }) ?? [];
     }
 
-    private record BusinessHoursConfigDto(TimeOnly StartTime, TimeOnly EndTime, string TimeZone);
+    private record BusinessHoursConfigDto(
+        TimeOnly StartTime,
+        TimeOnly EndTime,
+        string TimeZone,
+        TimeOnly? LunchStartTime,
+        TimeOnly? LunchEndTime);
 }

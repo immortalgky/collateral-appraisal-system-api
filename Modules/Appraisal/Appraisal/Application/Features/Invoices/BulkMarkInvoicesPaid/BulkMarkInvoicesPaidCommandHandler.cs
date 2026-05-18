@@ -1,10 +1,12 @@
 using Appraisal.Domain.Invoices;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Invoices.BulkMarkInvoicesPaid;
 
 public class BulkMarkInvoicesPaidCommandHandler(
     IInvoiceRepository repository,
-    IAppraisalUnitOfWork unitOfWork)
+    IAppraisalUnitOfWork unitOfWork,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<BulkMarkInvoicesPaidCommand, Unit>
 {
     public async Task<Unit> Handle(BulkMarkInvoicesPaidCommand request, CancellationToken cancellationToken)
@@ -27,9 +29,10 @@ public class BulkMarkInvoicesPaidCommandHandler(
         if (distinctCompanies.Count > 1)
             throw new BadRequestException("All invoices in a bulk payment must belong to the same company.");
 
+        var approvedAt = dateTimeProvider.ApplicationNow;
         foreach (var invoice in invoices)
         {
-            invoice.MarkAsPaid(request.ApprovedBy, request.PaymentOrderNo, request.PaidDate);
+            invoice.MarkAsPaid(request.ApprovedBy, request.PaymentOrderNo, request.PaidDate, approvedAt);
             repository.Update(invoice);
         }
 

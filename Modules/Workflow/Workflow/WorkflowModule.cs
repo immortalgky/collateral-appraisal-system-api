@@ -46,6 +46,7 @@ public static class WorkflowModule
         // User group and hashing services
         services.AddScoped<WfIUserGroupService, UserGroupService>();
         services.AddScoped<IGroupHashService, GroupHashService>();
+        services.AddScoped<IGroupMonitoringService, GroupMonitoringService>();
 
         // Assignee selector services
         services.AddScoped<ManualAssigneeSelector>();
@@ -211,6 +212,8 @@ public static class WorkflowModule
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Data.Seed.CommitteeDataSeed>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, DocumentFollowupWorkflowDefinitionSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Workflow.Infrastructure.Seed.QuotationWorkflowDefinitionSeeder>();
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, Sla.Infrastructure.Seed.BusinessHoursConfigSeeder>();
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, Sla.Infrastructure.Seed.AppraisalSlaPolicySeeder>();
 
         // Workflow DbContext with its own migration assembly and history table
         services.AddDbContext<WorkflowDbContext>((sp, options) =>

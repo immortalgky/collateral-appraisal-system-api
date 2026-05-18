@@ -152,20 +152,20 @@ public class ExternalCycleTrackingHandler(
         bool includeCycles,
         CancellationToken ct)
     {
-        // EF.Property<string> is required here: AssignmentType and AssignmentStatus are value objects
-        // with HasConversion — EF cannot translate value-object equality to SQL (client-evaluation).
+        // Filter after materialization: AssignmentType / AssignmentStatus are HasConversion value
+        // objects and EF cannot translate value-object equality to SQL. Row count per appraisal is tiny.
         var query = dbContext.AppraisalAssignments
-            .Where(a => a.AppraisalId == appraisalId
-                        && EF.Property<string>(a, "AssignmentType") == "External"
-                        && EF.Property<string>(a, "AssignmentStatus") != "Rejected"
-                        && EF.Property<string>(a, "AssignmentStatus") != "Cancelled")
+            .Where(a => a.AppraisalId == appraisalId)
             .OrderByDescending(a => a.AssignedAt)
             .ThenByDescending(a => a.CreatedAt)
             .ThenByDescending(a => a.Id);
 
-        if (includeCycles)
-            return await query.Include(a => a.Cycles).FirstOrDefaultAsync(ct);
+        var rows = includeCycles
+            ? await query.Include(a => a.Cycles).ToListAsync(ct)
+            : await query.ToListAsync(ct);
 
-        return await query.FirstOrDefaultAsync(ct);
+        return rows.FirstOrDefault(a => a.AssignmentType == AssignmentType.External
+                                        && a.AssignmentStatus != AssignmentStatus.Rejected
+                                        && a.AssignmentStatus != AssignmentStatus.Cancelled);
     }
 }

@@ -52,6 +52,7 @@ FROM appraisal.Appraisals a
             aa.AppraisalId,
             aa.ExternalAppraiserName,
             aa.AssigneeCompanyId,
+            aa.SubmittedAt,
             ROW_NUMBER() OVER (PARTITION BY aa.AppraisalId ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC) AS rn
         FROM appraisal.AppraisalAssignments aa
         WHERE aa.AssignmentType = 'External'
@@ -64,11 +65,8 @@ FROM appraisal.Appraisals a
     -- Evaluation (may not exist)
     LEFT JOIN appraisal.AppraisalEvaluations e ON e.AppraisalId = a.Id
 
--- Only show appraisals that have (or had) an External assignment
+-- Worklist: only appraisals whose current external assignment has been submitted
+-- and that don't yet have an evaluation row.
 WHERE a.IsDeleted = 0
-  AND EXISTS (
-      SELECT 1
-      FROM appraisal.AppraisalAssignments aa2
-      WHERE aa2.AppraisalId = a.Id
-        AND aa2.AssignmentType = 'External'
-  )
+  AND ext.SubmittedAt IS NOT NULL
+  AND e.Id IS NULL

@@ -45,11 +45,11 @@ public class Appraisal : Aggregate<Guid>
     public string? RequestedBy { get; private set; }
     public DateTime? RequestedAt { get; private set; }
 
-    // SLA Tracking
-    public int? SLADays { get; private set; }
+    // SLA Tracking (hours-native, matches SlaPolicy.DurationHours)
+    public int? SLAHours { get; private set; }
     public DateTime? SLADueDate { get; private set; }
-    public string? SLAStatus { get; private set; } // OnTrack, AtRisk, Breached
-    public int? ActualDaysToComplete { get; private set; }
+    public string? SLAStatus { get; private set; } // OnTrack | AtRisk | Breached | MetSLA | MissedSLA
+    public int? ActualHoursToComplete { get; private set; }
     public bool? IsWithinSLA { get; private set; }
 
     // Committee approval evidence
@@ -74,7 +74,7 @@ public class Appraisal : Aggregate<Guid>
         Guid requestId,
         string appraisalType,
         string priority,
-        int? slaDays,
+        int? slaHours,
         bool isPma,
         string? purpose,
         string? channel,
@@ -90,7 +90,7 @@ public class Appraisal : Aggregate<Guid>
         AppraisalType = appraisalType;
         Priority = priority;
         Status = AppraisalStatus.Pending;
-        SLADays = slaDays;
+        SLAHours = slaHours;
         IsPma = isPma;
         Purpose = purpose;
         Channel = channel;
@@ -101,9 +101,9 @@ public class Appraisal : Aggregate<Guid>
         RequestedAt = requestedAt;
         PrevAppraisalId = prevAppraisalId;
 
-        if (slaDays.HasValue)
+        if (slaHours.HasValue)
         {
-            SLADueDate = DateTime.Now.AddDays(slaDays.Value);
+            SLADueDate = DateTime.Now.AddHours(slaHours.Value);
             SLAStatus = "OnTrack";
         }
     }
@@ -115,7 +115,7 @@ public class Appraisal : Aggregate<Guid>
         Guid requestId,
         string appraisalType,
         string priority,
-        int? slaDays = null,
+        int? slaHours = null,
         string? requestedBy = null,
         bool isPma = false,
         string? purpose = null,
@@ -129,7 +129,7 @@ public class Appraisal : Aggregate<Guid>
         ArgumentException.ThrowIfNullOrWhiteSpace(appraisalType);
         ArgumentException.ThrowIfNullOrWhiteSpace(priority);
 
-        var appraisal = new Appraisal(requestId, appraisalType, priority, slaDays,
+        var appraisal = new Appraisal(requestId, appraisalType, priority, slaHours,
             isPma, purpose, channel, bankingSegment, facilityLimit, hasAppraisalBook,
             requestedBy, requestedAt, prevAppraisalId);
         appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal, requestedBy));
@@ -708,8 +708,7 @@ public class Appraisal : Aggregate<Guid>
         // get an accurate AppraisalDate. Only stamp on first transition; idempotent if re-entered.
         CompletedAt ??= DateTime.UtcNow;
 
-        // Calculate actual days
-        ActualDaysToComplete = CreatedAt.HasValue ? (DateTime.Now - CreatedAt.Value).Days : null;
+        ActualHoursToComplete = CreatedAt.HasValue ? (int)(DateTime.Now - CreatedAt.Value).TotalHours : null;
         IsWithinSLA = !SLADueDate.HasValue || DateTime.Now <= SLADueDate.Value;
 
         AddDomainEvent(new AppraisalCompletedEvent(this));
@@ -728,8 +727,7 @@ public class Appraisal : Aggregate<Guid>
         CompletedAt = approvedAt;
         ApprovedByCommittee = committeeCode;
 
-        // Calculate actual days
-        ActualDaysToComplete = CreatedAt.HasValue ? (DateTime.Now - CreatedAt.Value).Days : null;
+        ActualHoursToComplete = CreatedAt.HasValue ? (int)(DateTime.Now - CreatedAt.Value).TotalHours : null;
         IsWithinSLA = !SLADueDate.HasValue || DateTime.Now <= SLADueDate.Value;
 
         // Terminal completion of the active engagement. By this point the workflow handler should

@@ -77,7 +77,11 @@ public class Invoice : Entity<Guid>
         InvoiceNumber = trimmed;
     }
 
-    public void Submit()
+    // Timestamps are passed in from the application layer (handler reads
+    // IDateTimeProvider.ApplicationNow). The domain stays free of clock dependencies
+    // and the value is in the application timezone rather than UTC, matching the
+    // rest of the codebase (Quotation, Appraisal* event handlers).
+    public void Submit(DateTime submittedAt)
     {
         if (Status != "Pending")
             throw new InvalidOperationException("Only Pending invoices can be submitted.");
@@ -87,10 +91,10 @@ public class Invoice : Entity<Guid>
             throw new InvalidOperationException("Cannot submit an invoice with no items.");
 
         Status = "Sent";
-        SubmittedAt = DateTime.UtcNow;
+        SubmittedAt = submittedAt;
     }
 
-    public void MarkAsPaid(string approvedBy, string paymentOrderNo, DateOnly paidDate)
+    public void MarkAsPaid(string approvedBy, string paymentOrderNo, DateOnly paidDate, DateTime approvedAt)
     {
         if (Status != "Sent")
             throw new InvalidOperationException("Only Sent invoices can be marked as paid.");
@@ -101,7 +105,7 @@ public class Invoice : Entity<Guid>
 
         Status = "Paid";
         ApprovedBy = approvedBy;
-        ApprovedAt = DateTime.UtcNow;
+        ApprovedAt = approvedAt;
         PaymentOrderNo = paymentOrderNo;
         PaidDate = paidDate;
     }

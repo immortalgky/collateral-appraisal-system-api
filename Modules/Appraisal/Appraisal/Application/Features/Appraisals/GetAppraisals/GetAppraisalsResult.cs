@@ -27,7 +27,7 @@ public record AppraisalDto
     public decimal? FacilityLimit { get; init; }
     public string? RequestedBy { get; init; }
     public DateTime? RequestedAt { get; init; }
-    public int? SLADays { get; init; }
+    public int? SLAHours { get; init; }
     public DateTime? SLADueDate { get; init; }
     public string? SLAStatus { get; init; }
     public int PropertyCount { get; init; }

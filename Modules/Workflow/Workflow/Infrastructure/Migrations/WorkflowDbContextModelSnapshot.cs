@@ -1240,6 +1240,12 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<TimeOnly?>("LunchEndTime")
+                        .HasColumnType("time");
+
+                    b.Property<TimeOnly?>("LunchStartTime")
+                        .HasColumnType("time");
+
                     b.Property<TimeOnly>("StartTime")
                         .HasColumnType("time");
 

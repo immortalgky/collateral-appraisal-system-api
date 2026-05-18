@@ -1,4 +1,5 @@
-using System.Text.Json;
+using Dapper;
+using Shared.Data;
 using Workflow.AssigneeSelection.Pipeline;
 using Workflow.AssigneeSelection.Teams;
 using Workflow.Workflow.Activities.Core;
@@ -14,17 +15,20 @@ public class GetEligibleAssigneesQueryHandler
     private readonly IWorkflowDefinitionRepository _definitionRepository;
     private readonly IAssignmentPipeline _pipeline;
     private readonly ITeamService _teamService;
+    private readonly ISqlConnectionFactory _connectionFactory;
 
     public GetEligibleAssigneesQueryHandler(
         IWorkflowInstanceRepository instanceRepository,
         IWorkflowDefinitionRepository definitionRepository,
         IAssignmentPipeline pipeline,
-        ITeamService teamService)
+        ITeamService teamService,
+        ISqlConnectionFactory connectionFactory)
     {
         _instanceRepository = instanceRepository;
         _definitionRepository = definitionRepository;
         _pipeline = pipeline;
         _teamService = teamService;
+        _connectionFactory = connectionFactory;
     }
 
     public async Task<GetEligibleAssigneesResponse> Handle(
@@ -34,7 +38,7 @@ public class GetEligibleAssigneesQueryHandler
             ?? throw new InvalidOperationException($"Workflow instance {request.WorkflowInstanceId} not found");
 
         // Build activity properties from JSON definition
-        var properties = ExtractActivityProperties(instance, request.ActivityId);
+        var properties = ActivityPropertiesExtractor.Extract(instance, request.ActivityId);
 
         var activityContext = new ActivityContext
         {
@@ -59,60 +63,48 @@ public class GetEligibleAssigneesQueryHandler
             teamName = team?.Name;
         }
 
+        // Fetch role descriptions per candidate username so the FE picker can show "Appraisal Staff" etc.
+        var usernames = pipelineCtx.CandidatePool.Select(m => m.UserId).Distinct().ToList();
+        var rolesByUser = await GetRolesByUsernameAsync(usernames, cancellationToken);
+
         return new GetEligibleAssigneesResponse
         {
             ActivityId = request.ActivityId,
             TeamId = pipelineCtx.TeamId,
             TeamName = teamName,
             EligibleAssignees = pipelineCtx.CandidatePool
-                .Select(m => new EligibleAssigneeDto(m.UserId, m.DisplayName))
+                .Select(m => new EligibleAssigneeDto(m.UserId, m.DisplayName)
+                {
+                    UserName = m.UserId,
+                    Roles = rolesByUser.TryGetValue(m.UserId, out var roles) ? roles : []
+                })
                 .ToList()
         };
     }
 
-    private static Dictionary<string, object> ExtractActivityProperties(WorkflowInstance instance, string activityId)
+    private async Task<Dictionary<string, List<string>>> GetRolesByUsernameAsync(
+        List<string> usernames, CancellationToken cancellationToken)
     {
-        var definition = instance.WorkflowDefinition;
-        if (definition is null || string.IsNullOrEmpty(definition.JsonDefinition))
-            return new Dictionary<string, object>();
+        if (usernames.Count == 0)
+            return new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
-        try
-        {
-            using var doc = JsonDocument.Parse(definition.JsonDefinition);
-            var root = doc.RootElement;
+        using var connection = _connectionFactory.GetOpenConnection();
+        const string sql = """
+            SELECT u.UserName AS UserName,
+                   COALESCE(NULLIF(r.Description, ''), r.Name) AS RoleLabel
+            FROM auth.AspNetUsers u
+            INNER JOIN auth.AspNetUserRoles ur ON ur.UserId = u.Id
+            INNER JOIN auth.AspNetRoles r ON r.Id = ur.RoleId
+            WHERE u.UserName IN @UserNames
+            """;
 
-            if (!root.TryGetProperty("activities", out var activities) || activities.ValueKind != JsonValueKind.Array)
-                return new Dictionary<string, object>();
+        var rows = await connection.QueryAsync<(string UserName, string RoleLabel)>(sql, new { UserNames = usernames });
 
-            foreach (var activity in activities.EnumerateArray())
-            {
-                if (activity.TryGetProperty("id", out var idProp) && idProp.GetString() == activityId)
-                {
-                    var props = new Dictionary<string, object>();
-
-                    if (activity.TryGetProperty("properties", out var propElement))
-                    {
-                        foreach (var p in propElement.EnumerateObject())
-                        {
-                            props[p.Name] = p.Value.Clone();
-                        }
-                    }
-
-                    // Also extract assignmentRules into properties
-                    if (activity.TryGetProperty("assignmentRules", out var rulesElement))
-                    {
-                        props["assignmentRules"] = rulesElement.Clone();
-                    }
-
-                    return props;
-                }
-            }
-        }
-        catch
-        {
-            // If JSON parsing fails, return empty
-        }
-
-        return new Dictionary<string, object>();
+        return rows
+            .GroupBy(r => r.UserName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(r => r.RoleLabel).Distinct().OrderBy(s => s).ToList(),
+                StringComparer.OrdinalIgnoreCase);
     }
 }
