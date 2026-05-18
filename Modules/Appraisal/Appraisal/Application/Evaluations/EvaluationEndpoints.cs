@@ -16,21 +16,31 @@ public class EvaluationEndpoints : ICarterModule
                 "/appraisal-evaluations",
                 async (
                     [AsParameters] PaginationRequest pagination,
+                    string? search,
                     string? appraisalNumber,
                     string? customerName,
                     string? appraisalStatus,
                     string? appraiserName,
+                    string? appraiserCompanyId,
+                    string? appraiserCompanyName,
                     string? evaluationStatus,
+                    string? sortBy,
+                    string? sortDir,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
                     var query = new GetEvaluationListQuery(
                         pagination,
+                        search,
                         appraisalNumber,
                         customerName,
                         appraisalStatus,
                         appraiserName,
-                        evaluationStatus);
+                        appraiserCompanyId,
+                        appraiserCompanyName,
+                        evaluationStatus,
+                        sortBy,
+                        sortDir);
 
                     var result = await sender.Send(query, cancellationToken);
 
@@ -56,16 +66,39 @@ public class EvaluationEndpoints : ICarterModule
                     var query = new GetEvaluationByAppraisalQuery(appraisalId);
                     var result = await sender.Send(query, cancellationToken);
 
+                    // "No evaluation yet" is a normal state, not a missing resource — return 200 + null.
+                    return Results.Ok(result);
+                })
+            .WithName("GetAppraisalEvaluationByAppraisal")
+            .Produces<AppraisalEvaluationDetail?>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .WithSummary("Get evaluation by appraisal")
+            .WithDescription("Returns the full evaluation detail for a given appraisal, or null if none has been saved yet.")
+            .WithTags("AppraisalEvaluation")
+            .RequireAuthorization();
+
+        // ── GET evaluation header (for detail page info section) ────────────
+        app.MapGet(
+                "/appraisal-evaluations/header/{appraisalId:guid}",
+                async (
+                    Guid appraisalId,
+                    ISender sender,
+                    CancellationToken cancellationToken) =>
+                {
+                    var query = new GetEvaluationHeaderQuery(appraisalId);
+                    var result = await sender.Send(query, cancellationToken);
+
                     return result is null
                         ? Results.NotFound()
                         : Results.Ok(result);
                 })
-            .WithName("GetAppraisalEvaluationByAppraisal")
-            .Produces<AppraisalEvaluationDetail>(StatusCodes.Status200OK)
+            .WithName("GetAppraisalEvaluationHeader")
+            .Produces<AppraisalEvaluationHeader>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .WithSummary("Get evaluation by appraisal")
-            .WithDescription("Returns the full evaluation detail for a given appraisal, or 404 if none exists.")
+            .WithSummary("Get evaluation header info for an appraisal")
+            .WithDescription("Returns the appraisal header fields displayed on the Service Quality Evaluation detail page " +
+                             "(customer, report received date, appraiser company, collateral types, inspection dates).")
             .WithTags("AppraisalEvaluation")
             .RequireAuthorization();
 
@@ -81,16 +114,18 @@ public class EvaluationEndpoints : ICarterModule
                     var result = await sender.Send(query, cancellationToken);
 
                     return result is null
-                        ? Results.NotFound(new { message = "No ext-* activity executions found for this appraisal." })
+                        ? Results.NotFound(new { message = "No qualifying External assignment with both AssignedAt and SubmittedAt found for this appraisal." })
                         : Results.Ok(result);
                 })
             .WithName("DetectEvaluationDeliveryTime")
             .Produces<DetectDeliveryTimeResult>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .WithSummary("Detect delivery time for criterion 2")
-            .WithDescription("Calculates the total elapsed days across ext-* workflow activities and " +
-                             "suggests a rating (1–4) for the delivery-time criterion.")
+            .WithSummary("Auto-detects delivery time as business days between assigned and submitted; suggests a rating (1–5).")
+            .WithDescription("Computes first-submission turnaround (SubmittedAt − AssignedAt) of the current External " +
+                             "assignment in business hours (excluding weekends, holidays, and lunch), converts to " +
+                             "8-hour business days, and returns a suggested rating (1–5). Returns 404 when no " +
+                             "qualifying External assignment exists or either timestamp is absent.")
             .WithTags("AppraisalEvaluation")
             .RequireAuthorization();
 
@@ -106,17 +141,12 @@ public class EvaluationEndpoints : ICarterModule
                         request.AppraisalId,
                         request.EvaluationStatus,
                         request.Criteria1Rating,
-                        request.Criteria1Description,
                         request.Criteria2Rating,
                         request.Criteria2IsAutoDetected,
                         request.Criteria2DetectedDays,
-                        request.Criteria2Description,
                         request.Criteria3Rating,
-                        request.Criteria3Description,
                         request.Criteria4Rating,
-                        request.Criteria4Description,
                         request.Criteria5Rating,
-                        request.Criteria5Description,
                         request.AdditionalComments,
                         request.Note);
 
@@ -146,17 +176,12 @@ public class EvaluationEndpoints : ICarterModule
                     var command = new UpdateEvaluationCommand(
                         id,
                         request.Criteria1Rating,
-                        request.Criteria1Description,
                         request.Criteria2Rating,
                         request.Criteria2IsAutoDetected,
                         request.Criteria2DetectedDays,
-                        request.Criteria2Description,
                         request.Criteria3Rating,
-                        request.Criteria3Description,
                         request.Criteria4Rating,
-                        request.Criteria4Description,
                         request.Criteria5Rating,
-                        request.Criteria5Description,
                         request.AdditionalComments,
                         request.Note,
                         request.EvaluationStatus);
@@ -171,7 +196,7 @@ public class EvaluationEndpoints : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithSummary("Update a service quality evaluation")
-            .WithDescription("Updates all criteria ratings and descriptions. " +
+            .WithDescription("Updates all criteria ratings. " +
                              "Setting EvaluationStatus to 'Completed' stamps EvaluatedAt/EvaluatedBy.")
             .WithTags("AppraisalEvaluation")
             .RequireAuthorization();
@@ -183,34 +208,24 @@ public class EvaluationEndpoints : ICarterModule
 public record CreateEvaluationRequest(
     Guid     AppraisalId,
     string   EvaluationStatus,
-    int      Criteria1Rating,
-    string?  Criteria1Description,
-    int      Criteria2Rating,
+    int?     Criteria1Rating,
+    int?     Criteria2Rating,
     bool     Criteria2IsAutoDetected,
     decimal? Criteria2DetectedDays,
-    string?  Criteria2Description,
-    int      Criteria3Rating,
-    string?  Criteria3Description,
-    int      Criteria4Rating,
-    string?  Criteria4Description,
-    int      Criteria5Rating,
-    string?  Criteria5Description,
+    int?     Criteria3Rating,
+    int?     Criteria4Rating,
+    int?     Criteria5Rating,
     string?  AdditionalComments,
     string?  Note);
 
 public record UpdateEvaluationRequest(
-    int      Criteria1Rating,
-    string?  Criteria1Description,
-    int      Criteria2Rating,
+    int?     Criteria1Rating,
+    int?     Criteria2Rating,
     bool     Criteria2IsAutoDetected,
     decimal? Criteria2DetectedDays,
-    string?  Criteria2Description,
-    int      Criteria3Rating,
-    string?  Criteria3Description,
-    int      Criteria4Rating,
-    string?  Criteria4Description,
-    int      Criteria5Rating,
-    string?  Criteria5Description,
+    int?     Criteria3Rating,
+    int?     Criteria4Rating,
+    int?     Criteria5Rating,
     string?  AdditionalComments,
     string?  Note,
     string   EvaluationStatus);

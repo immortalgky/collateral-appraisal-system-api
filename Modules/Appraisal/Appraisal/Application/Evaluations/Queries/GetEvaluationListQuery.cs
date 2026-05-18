@@ -4,11 +4,16 @@ namespace Appraisal.Application.Evaluations.Queries;
 
 public record GetEvaluationListQuery(
     PaginationRequest PaginationRequest,
-    string? AppraisalNumber  = null,
-    string? CustomerName     = null,
-    string? AppraisalStatus  = null,
-    string? AppraiserName    = null,
-    string? EvaluationStatus = null
+    string? Search                = null,
+    string? AppraisalNumber       = null,
+    string? CustomerName          = null,
+    string? AppraisalStatus       = null,
+    string? AppraiserName         = null,
+    string? AppraiserCompanyId    = null,
+    string? AppraiserCompanyName  = null,
+    string? EvaluationStatus      = null,
+    string? SortBy                = null,
+    string? SortDir               = null
 ) : IQuery<GetEvaluationListResult>;
 
 public record GetEvaluationListResult(PaginatedResult<AppraisalEvaluationListItem> Items);
@@ -21,6 +26,7 @@ public record AppraisalEvaluationListItem(
     string?   AppraisalStatus,
     string?   ExternalAppraiserName,
     string?   AssigneeCompanyId,
+    string?   AppraiserCompanyName,
     decimal?  AppraisalValue,
     Guid?     EvaluationId,
     string    EvaluationStatus,
@@ -29,10 +35,16 @@ public record AppraisalEvaluationListItem(
 public class GetEvaluationListQueryHandler(ISqlConnectionFactory connectionFactory)
     : IQueryHandler<GetEvaluationListQuery, GetEvaluationListResult>
 {
+    private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "AppraisalNumber", "CustomerName", "ReportReceivedDate", "AppraisalStatus",
+        "AppraiserCompanyName", "AppraisalValue", "EvaluationStatus"
+    };
+
     private const string BaseQuery =
         "SELECT AppraisalId, AppraisalNumber, CustomerName, ReportReceivedDate, " +
-        "AppraisalStatus, ExternalAppraiserName, AssigneeCompanyId, AppraisalValue, " +
-        "EvaluationId, EvaluationStatus, TotalScore " +
+        "AppraisalStatus, ExternalAppraiserName, AssigneeCompanyId, AppraiserCompanyName, " +
+        "AppraisalValue, EvaluationId, EvaluationStatus, TotalScore " +
         "FROM appraisal.vw_AppraisalEvaluationList " +
         "WHERE 1 = 1";
 
@@ -42,6 +54,12 @@ public class GetEvaluationListQueryHandler(ISqlConnectionFactory connectionFacto
     {
         var sql = BaseQuery;
         var parameters = new DynamicParameters();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            sql += " AND (AppraisalNumber LIKE @Search OR CustomerName LIKE @Search)";
+            parameters.Add("Search", "%" + query.Search.Trim() + "%");
+        }
 
         if (!string.IsNullOrWhiteSpace(query.AppraisalNumber))
         {
@@ -67,15 +85,44 @@ public class GetEvaluationListQueryHandler(ISqlConnectionFactory connectionFacto
             parameters.Add("AppraiserName", "%" + query.AppraiserName.Trim() + "%");
         }
 
+        if (!string.IsNullOrWhiteSpace(query.AppraiserCompanyId))
+        {
+            sql += " AND AssigneeCompanyId = @AppraiserCompanyId";
+            parameters.Add("AppraiserCompanyId", query.AppraiserCompanyId.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.AppraiserCompanyName))
+        {
+            sql += " AND AppraiserCompanyName LIKE @AppraiserCompanyName";
+            parameters.Add("AppraiserCompanyName", "%" + query.AppraiserCompanyName.Trim() + "%");
+        }
+
         if (!string.IsNullOrWhiteSpace(query.EvaluationStatus))
         {
-            sql += " AND EvaluationStatus = @EvaluationStatus";
-            parameters.Add("EvaluationStatus", query.EvaluationStatus.Trim());
+            var statuses = query.EvaluationStatus
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (statuses.Length == 1)
+            {
+                sql += " AND EvaluationStatus = @EvaluationStatus";
+                parameters.Add("EvaluationStatus", statuses[0]);
+            }
+            else if (statuses.Length > 1)
+            {
+                sql += " AND EvaluationStatus IN @EvaluationStatuses";
+                parameters.Add("EvaluationStatuses", statuses);
+            }
+        }
+
+        var orderBy = "AppraisalId DESC";
+        if (!string.IsNullOrWhiteSpace(query.SortBy) && AllowedSortFields.Contains(query.SortBy))
+        {
+            var dir = string.Equals(query.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
+            orderBy = $"{query.SortBy} {dir}";
         }
 
         var result = await connectionFactory.QueryPaginatedAsync<AppraisalEvaluationListItem>(
             sql,
-            "AppraisalId DESC",
+            orderBy,
             query.PaginationRequest,
             parameters);
 

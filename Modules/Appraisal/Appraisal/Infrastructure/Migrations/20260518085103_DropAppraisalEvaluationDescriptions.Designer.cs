@@ -4,6 +4,7 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260518085103_DropAppraisalEvaluationDescriptions")]
+    partial class DropAppraisalEvaluationDescriptions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4474,7 +4477,7 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("Criteria1Rating")
+                    b.Property<int>("Criteria1Rating")
                         .HasColumnType("int")
                         .HasColumnName("Criteria1Rating");
 
@@ -4489,19 +4492,19 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("Criteria2IsAutoDetected");
 
-                    b.Property<int?>("Criteria2Rating")
+                    b.Property<int>("Criteria2Rating")
                         .HasColumnType("int")
                         .HasColumnName("Criteria2Rating");
 
-                    b.Property<int?>("Criteria3Rating")
+                    b.Property<int>("Criteria3Rating")
                         .HasColumnType("int")
                         .HasColumnName("Criteria3Rating");
 
-                    b.Property<int?>("Criteria4Rating")
+                    b.Property<int>("Criteria4Rating")
                         .HasColumnType("int")
                         .HasColumnName("Criteria4Rating");
 
-                    b.Property<int?>("Criteria5Rating")
+                    b.Property<int>("Criteria5Rating")
                         .HasColumnType("int")
                         .HasColumnName("Criteria5Rating");
 
