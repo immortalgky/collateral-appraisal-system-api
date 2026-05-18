@@ -1,10 +1,6 @@
 using Dapper;
 using MassTransit;
-using MediatR;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Shared.Data;
 using Shared.Messaging.Events;
 using Appraisal.Application.Features.Quotations.CloseQuotation;
 
@@ -62,7 +58,7 @@ public sealed class QuotationAutoCloseService(
                 WHERE Status = 'Sent'
                   AND DueDate <= @now
                 """,
-                new { now = DateTime.UtcNow });
+                new { now = DateTime.Now });
         }
 
         var rows = overdueRows.ToList();
