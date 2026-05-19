@@ -29,6 +29,7 @@ public class QuotationDueDatePassedIntegrationEventConsumer(
     : IConsumer<QuotationDueDatePassedIntegrationEvent>
 {
     private const string DefaultActivityId = "ext-collect-submissions";
+    private const string QuotationWorkflowDefinitionName = "Quotation Workflow";
 
     public async Task Consume(ConsumeContext<QuotationDueDatePassedIntegrationEvent> context)
     {
@@ -45,9 +46,13 @@ public class QuotationDueDatePassedIntegrationEventConsumer(
         // Resolve the child workflow by CorrelationId (set at spawn in
         // QuotationStartedIntegrationEventConsumer to QuotationRequestId.ToString()).
         // QuotationRequest.QuotationWorkflowInstanceId is never written, so we cannot
-        // trust the value on the incoming message.
-        var instance = await instanceRepository.GetByCorrelationId(
-            message.QuotationRequestId.ToString(), ct);
+        // trust the value on the incoming message. Scope by workflow definition name
+        // because (CorrelationId, WorkflowDefinitionId) is the DB uniqueness key —
+        // other workflow types could share the same CorrelationId value.
+        var instance = await instanceRepository.GetByCorrelationIdAsync(
+            message.QuotationRequestId.ToString(),
+            QuotationWorkflowDefinitionName,
+            ct);
 
         if (instance is null)
         {
