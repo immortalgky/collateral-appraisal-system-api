@@ -147,17 +147,18 @@ public class GetQuotationByIdQueryHandler(
         // v7: enrich SharedDocuments with display metadata pulled from request documents.
         var sharedDocumentsEnriched = await EnrichSharedDocumentsAsync(quotation.SharedDocuments);
 
-        // Resolve invited companies — skip Expired invitations, enrich with CompanyName and Email.
+        // Resolve invited companies — include every invitation regardless of status so the
+        // UI can render Expired (auto-declined at cutoff) rows alongside Pending/Submitted/Declined.
+        // Per-row status is surfaced on the FE via the matching CompanyQuotation entry.
         // External company users do not see the list of rival invitees; they get an empty list.
         List<InvitedCompanyResult> invitedCompanies;
         if (QuotationAccessPolicy.CanViewInvitedCompanies(currentUser))
         {
-            var activeInvitationCompanyIds = quotation.Invitations
-                .Where(i => i.Status != "Expired")
+            var invitationCompanyIds = quotation.Invitations
                 .Select(i => i.CompanyId)
                 .ToArray();
-            var companyInfoMap = await ResolveCompanyInfoAsync(activeInvitationCompanyIds);
-            invitedCompanies = activeInvitationCompanyIds
+            var companyInfoMap = await ResolveCompanyInfoAsync(invitationCompanyIds);
+            invitedCompanies = invitationCompanyIds
                 .Where(id => companyInfoMap.ContainsKey(id))
                 .Select(id => new InvitedCompanyResult(id, companyInfoMap[id].Name, companyInfoMap[id].Email))
                 .OrderBy(r => r.CompanyName)
