@@ -27,6 +27,9 @@ public class AppraisalAssignment : Entity<Guid>
     public string AssignmentMethod { get; private set; } = null!; // Manual, AutoRule, Quotation
     public string? InternalFollowupAssignmentMethod { get; private set; } // Manual, RoundRobin
     public Guid? AutoRuleId { get; private set; }
+    // TODO: remove with a follow-up EF migration. The workflow-driven assignment flow no longer
+    // needs this linkage column — fee resolution looks the QuotationRequest up by appraisal id.
+    // Kept temporarily so existing rows don't break and to avoid scope creep in the refactor PR.
     public Guid? QuotationRequestId { get; private set; }
 
     // Reassignment Chain
@@ -212,32 +215,11 @@ public class AppraisalAssignment : Entity<Guid>
 
     /// <summary>
     /// Links this assignment to the QuotationRequest that produced it.
-    /// Called immediately after creation by system handlers (e.g., QuotationFinalizedIntegrationEventHandler).
+    /// Used by the Quotation fee-source resolution path to backfill the linkage on the assignment.
     /// </summary>
     public void SetQuotationRequestId(Guid quotationRequestId)
     {
         QuotationRequestId = quotationRequestId;
-    }
-
-    /// <summary>
-    /// Quotation path: records the winning company on the assignment and locks it into Assigned
-    /// immediately. The transition is synchronous (not workflow-event-driven) because the admin
-    /// screen depends on the lock taking effect before the user can re-edit the engagement.
-    /// Only legal from Pending — refuses to overwrite a status set by a downstream workflow event
-    /// that may have already raced ahead (e.g. out-of-order delivery).
-    /// </summary>
-    public void RecordQuotationWinner(Guid companyId, string assignedBy)
-    {
-        if (AssignmentStatus != AssignmentStatus.Pending)
-            throw new InvalidOperationException(
-                $"Cannot record quotation winner — assignment is already in status '{AssignmentStatus}'. " +
-                "RecordQuotationWinner is only valid from Pending; re-running would clobber a downstream transition.");
-
-        AssignmentType = AssignmentType.FromString("External");
-        AssigneeCompanyId = companyId.ToString();
-        AssignmentMethod = "Quotation";
-        AssignedBy = assignedBy;
-        AssignmentStatus = AssignmentStatus.Assigned;
     }
 
     /// <summary>

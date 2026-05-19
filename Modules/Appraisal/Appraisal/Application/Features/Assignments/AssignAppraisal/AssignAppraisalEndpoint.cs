@@ -15,13 +15,15 @@ public class AssignAppraisalEndpoint : ICarterModule
                 {
                     var command = new AssignAppraisalCommand(
                         appraisalId,
-                        request.AssignmentType,
+                        request.WorkflowInstanceId,
                         request.AssigneeUserId,
                         request.AssigneeCompanyId,
+                        request.AssigneeCompanyName,
                         request.AssignmentMethod ?? "Manual",
                         request.InternalAppraiserId,
                         request.InternalFollowupAssignmentMethod,
-                        request.AssignedBy ?? string.Empty);
+                        request.AssignedBy ?? string.Empty,
+                        request.DecisionTaken);
 
                     var result = await sender.Send(command, cancellationToken);
 

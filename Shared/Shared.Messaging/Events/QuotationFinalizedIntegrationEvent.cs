@@ -4,9 +4,13 @@ namespace Shared.Messaging.Events;
 /// Published when an admin finalizes a quotation, committing a winning company and final fee.
 /// v2: includes AppraisalIds array (may contain multiple appraisals per quotation).
 ///     FinalFeeAmount remains the total negotiated price; per-appraisal breakdown is in CompanyQuotationItems.
+///
+/// Finalize only records the winner on the QuotationRequest aggregate. The actual assignment
+/// (status flip, fee creation, CompanyAssignedIntegrationEvent) happens later when the admin
+/// clicks Assign on the administration screen, which advances the workflow's appraisal-assignment
+/// task and CompanySelectionActivity publishes CompanyAssignedIntegrationEvent.
+///
 /// Consumed by:
-///   - Appraisal module: iterates AppraisalIds, publishes one CompanyAssignedIntegrationEvent per appraisal.
-///   - Workflow module:  completes the admin's appraisal-assignment task with decision EXT (per TaskExecutionId).
 ///   - Notification module: notifies winning company and RM.
 /// </summary>
 public record QuotationFinalizedIntegrationEvent : IntegrationEvent
