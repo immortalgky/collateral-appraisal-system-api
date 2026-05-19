@@ -156,21 +156,6 @@ public class AppraisalAssignment : Entity<Guid>
     }
 
     /// <summary>
-    /// v4 Quotation path: records the winning company on the assignment without advancing the status.
-    /// The assignment stays in Pending until the downstream quotation workflow completes.
-    /// This is distinct from <see cref="Assign"/> which promotes the status to Assigned immediately.
-    /// </summary>
-    public void RecordQuotationWinner(Guid companyId, string assignedBy)
-    {
-        AssignmentType = AssignmentType.FromString("External");
-        AssigneeCompanyId = companyId.ToString();
-        AssignmentMethod = "Quotation";
-        AssignedBy = assignedBy;
-        AssignedAt = DateTime.Now;
-        // Status intentionally left at Pending — quotation workflow still running.
-    }
-
-    /// <summary>
     /// Attach internal followup staff after the company has been assigned.
     /// </summary>
     public void AssignInternalFollowup(string internalAppraiserId, string internalFollowupMethod)

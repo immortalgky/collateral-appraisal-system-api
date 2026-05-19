@@ -610,29 +610,6 @@ public class Appraisal : Aggregate<Guid>
         return assignment;
     }
 
-    /// <summary>
-    /// Creates a Pending assignment without activating it.
-    /// Status stays Pending — caller is responsible for promoting it later (e.g. via Assign()).
-    /// </summary>
-    public AppraisalAssignment CreatePendingAssignment(
-        string assignmentType,
-        string assignmentMethod,
-        string? internalFollowupMethod,
-        Guid? quotationRequestId,
-        string registeredBy)
-    {
-        var assignment = AppraisalAssignment.Create(
-            Id,
-            assignmentType,
-            assignmentMethod: assignmentMethod,
-            internalFollowupMethod: internalFollowupMethod,
-            assignedBy: registeredBy);
-        if (quotationRequestId.HasValue)
-            assignment.SetQuotationRequestId(quotationRequestId.Value);
-        _assignments.Add(assignment);
-        return assignment;
-    }
-
     private void ValidateCanAssign()
     {
         if (Status != AppraisalStatus.Pending && Status != AppraisalStatus.Assigned)

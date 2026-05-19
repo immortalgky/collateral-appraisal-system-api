@@ -69,7 +69,9 @@ public class CompanySelectionActivity : WorkflowActivityBase
             return ActivityResult.Success(outputData);
         }
 
-        if (selectionMethod == "manual" || selectionMethod == "Quotation")
+        var isManual = string.Equals(selectionMethod, "manual", StringComparison.OrdinalIgnoreCase);
+        var isQuotation = string.Equals(selectionMethod, "Quotation", StringComparison.OrdinalIgnoreCase);
+        if (isManual || isQuotation)
         {
             var companyId = GetVariable<string>(context, "assignedCompanyId", "");
             if (string.IsNullOrEmpty(companyId))
@@ -95,7 +97,7 @@ public class CompanySelectionActivity : WorkflowActivityBase
                 return ActivityResult.Failed("Selected company is excluded from this appraisal assignment.");
             }
 
-            var normalizedMethod = selectionMethod == "Quotation" ? "Quotation" : "Manual";
+            var normalizedMethod = isQuotation ? "Quotation" : "Manual";
 
             outputData["assignedCompanyId"] = companyId;
             outputData["assignedCompanyName"] = companyName;
@@ -106,11 +108,10 @@ public class CompanySelectionActivity : WorkflowActivityBase
                 "CompanySelectionActivity {ActivityId}: {Method} selected company {CompanyName} ({CompanyId})",
                 context.ActivityId, normalizedMethod, companyName, companyId);
 
-            // v4: Quotation path — CompanyAssignedIntegrationEvent is published by the
-            // QuotationFinalizedIntegrationEventHandler fan-out (one event per appraisal,
-            // with the per-appraisal fee). Publishing here would create a duplicate assignment.
-            if (selectionMethod != "Quotation")
-                PublishCompanyAssignedEvent(context, companyId, companyName, normalizedMethod);
+            // Publish CompanyAssignedIntegrationEvent for all external paths (Manual, Quotation, etc.).
+            // CompanyAssignedIntegrationEventHandler is the sole mutation path; it resolves the fee
+            // source based on AssignmentMethod (Quotation → quotation repo lookup; others → tier-based).
+            PublishCompanyAssignedEvent(context, companyId, companyName, normalizedMethod);
 
             return ActivityResult.Success(outputData);
         }

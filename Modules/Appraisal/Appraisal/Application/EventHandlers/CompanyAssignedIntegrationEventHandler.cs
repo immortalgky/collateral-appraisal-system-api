@@ -13,7 +13,6 @@ public class CompanyAssignedIntegrationEventHandler(
     IAppraisalRepository appraisalRepository,
     IQuotationRepository quotationRepository,
     IAppraisalUnitOfWork unitOfWork,
-    AppraisalDbContext dbContext,
     IAssignmentFeeService feeService,
     ILogger<CompanyAssignedIntegrationEventHandler> logger,
     InboxGuard<AppraisalDbContext> inboxGuard
@@ -28,8 +27,8 @@ public class CompanyAssignedIntegrationEventHandler(
         var ct = context.CancellationToken;
 
         logger.LogInformation(
-            "Integration Event received: {IntegrationEvent} for AppraisalId: {AppraisalId}, CompanyId: {CompanyId}",
-            nameof(CompanyAssignedIntegrationEvent), message.AppraisalId, message.CompanyId);
+            "Integration Event received: {IntegrationEvent} for AppraisalId: {AppraisalId}, CompanyId: {CompanyId}, Method: {Method}",
+            nameof(CompanyAssignedIntegrationEvent), message.AppraisalId, message.CompanyId, message.AssignmentMethod);
 
         var appraisal = await appraisalRepository.GetByIdWithAllDataAsync(message.AppraisalId, ct);
 
@@ -40,8 +39,6 @@ public class CompanyAssignedIntegrationEventHandler(
             await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
-
-        var isQuotationPath = string.Equals(message.AssignmentMethod, "Quotation", StringComparison.OrdinalIgnoreCase);
 
         var assignment = appraisal.Assignments
             .Where(a => a.AssignmentStatus.Code != "Rejected" && a.AssignmentStatus.Code != "Cancelled")
@@ -56,57 +53,30 @@ public class CompanyAssignedIntegrationEventHandler(
             return;
         }
 
-        // v4 Quotation path: idempotency guard — if the assignment already records this
-        // company as Quotation winner, skip re-processing to avoid duplicate fee creation.
-        if (isQuotationPath &&
-            string.Equals(assignment.AssigneeCompanyId, message.CompanyId.ToString(), StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(assignment.AssignmentMethod, "Quotation", StringComparison.OrdinalIgnoreCase))
-        {
-            logger.LogInformation(
-                "Quotation winner already recorded for AppraisalId={AppraisalId}, CompanyId={CompanyId}. Skipping.",
-                message.AppraisalId, message.CompanyId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
-            return;
-        }
+        // Promote the assignment to Assigned for all external paths (Manual, RoundRobin, Forced, Quotation).
+        // Preserve internal-followup fields: Assign() defaults them to null, so without
+        // passing them back we'd clobber values set by InternalFollowupAssignedIntegrationEventHandler
+        // if that event was processed first (consumer delivery order is not guaranteed).
+        assignment.Assign(
+            assignmentType: "External",
+            assigneeCompanyId: message.CompanyId.ToString(),
+            assignmentMethod: message.AssignmentMethod,
+            internalAppraiserId: assignment.InternalAppraiserId,
+            internalFollowupMethod: assignment.InternalFollowupAssignmentMethod,
+            assignedBy: "System");
 
-        if (isQuotationPath)
-        {
-            // v4: Quotation path — record winner without promoting to Assigned status.
-            // The assignment stays Pending while the quotation child workflow executes.
-            // The downstream quotation workflow (ext-appraisal-assignment) will promote
-            // the status when the company begins the appraisal work.
-            assignment.RecordQuotationWinner(message.CompanyId, "System");
+        var baseFeeSource = await ResolveFeeSourceAsync(message.AppraisalId, message.AssignmentMethod, ct);
 
-            // Link the winning QuotationRequest onto the assignment so the
-            // AssignAppraisal command can later read the quotation fee when admin picks
-            // AssignmentMethod="Quotation". Fee creation is intentionally deferred until
-            // that explicit admin action — finalize alone must not materialise an
-            // AppraisalFee.
-            await LinkQuotationRequestAsync(appraisal.Id, assignment, ct);
-        }
-        else
-        {
-            // Non-quotation path (Manual / Auto): promote to Assigned immediately.
-            // Preserve internal-followup fields: Assign() defaults them to null, so without
-            // passing them back we'd clobber values set by InternalFollowupAssignedIntegrationEventHandler
-            // if that event was processed first (consumer delivery order is not guaranteed).
-            assignment.Assign(
-                assignmentType: "External",
-                assigneeCompanyId: message.CompanyId.ToString(),
-                assignmentMethod: message.AssignmentMethod,
-                internalAppraiserId: assignment.InternalAppraiserId,
-                internalFollowupMethod: assignment.InternalFollowupAssignmentMethod,
-                assignedBy: "System");
+        // Construction Inspection appraisals carry over the prior engagement's fee; the fee service
+        // substitutes AssignmentFeeSource.ConstructionInspection when that applies. Mirrors what
+        // InternalAssignedIntegrationEventHandler does for the internal path.
+        var feeSource = await feeService.ResolveSourceForAppraisalAsync(appraisal, baseFeeSource, ct);
 
-            var feeSource = await feeService.ResolveSourceForAppraisalAsync(
-                appraisal, new AssignmentFeeSource.TierBased(), ct);
-
-            await feeService.EnsureAssignmentFeeItemsAsync(
-                appraisalId: message.AppraisalId,
-                assignmentId: assignment.Id,
-                source: feeSource,
-                ct: ct);
-        }
+        await feeService.EnsureAssignmentFeeItemsAsync(
+            appraisalId: message.AppraisalId,
+            assignmentId: assignment.Id,
+            source: feeSource,
+            ct: ct);
 
         await appraisalRepository.UpdateAsync(appraisal, ct);
         await unitOfWork.SaveChangesAsync(ct);
@@ -118,27 +88,47 @@ public class CompanyAssignedIntegrationEventHandler(
     }
 
     /// <summary>
-    /// Records the Finalized QuotationRequest's Id on the assignment so a later
-    /// AssignAppraisal command (AssignmentMethod="Quotation") can resolve the agreed
-    /// per-appraisal fee. No fee materialisation happens here — that's deferred to the
-    /// admin-initiated assignment flow.
+    /// Picks the fee source for the given assignment method.
+    /// Quotation: looks up the Finalized QuotationRequest and extracts the winning company's
+    /// per-appraisal price. Everything else falls back to the fee-structure tier lookup.
     /// </summary>
-    private async Task LinkQuotationRequestAsync(
+    private async Task<AssignmentFeeSource> ResolveFeeSourceAsync(
         Guid appraisalId,
-        AppraisalAssignment assignment,
+        string assignmentMethod,
         CancellationToken ct)
     {
+        if (!string.Equals(assignmentMethod, "Quotation", StringComparison.OrdinalIgnoreCase))
+            return new AssignmentFeeSource.TierBased();
+
         var quotationRequest = await quotationRepository.GetFinalizedByAppraisalIdAsync(appraisalId, ct);
 
         if (quotationRequest is null)
-        {
-            logger.LogWarning(
-                "No Finalized QuotationRequest found for AppraisalId={AppraisalId} during Quotation assignment. " +
-                "Assignment will be recorded without QuotationRequestId.",
-                appraisalId);
-            return;
-        }
+            throw new BadRequestException(
+                $"Cannot use Quotation fee source: no Finalized RFQ contains appraisal '{appraisalId}'. " +
+                "Make sure the quotation is finalized with a winner before assigning.");
 
-        assignment.SetQuotationRequestId(quotationRequest.Id);
+        var winningQuotation = quotationRequest.Quotations.FirstOrDefault(q => q.IsWinner)
+            ?? throw new BadRequestException(
+                $"Cannot use Quotation fee source: RFQ '{quotationRequest.QuotationNumber ?? quotationRequest.Id.ToString()}' has no winning company quotation.");
+
+        var item = winningQuotation.Items.FirstOrDefault(i => i.AppraisalId == appraisalId);
+
+        // The fee service expects the ex-VAT amount — VAT is recomputed on top of the AppraisalFeeItem
+        // when RecalculateFromItems runs. Modern submissions populate FeeAmount/Discount/VatPercent →
+        // use FeeAfterDiscount (ex-VAT). Legacy rows without a fee breakdown only have a single
+        // QuotedPrice number; fall back to that or the aggregate total as a last resort.
+        decimal amount;
+        if (item is not null && item.FeeAmount > 0m)
+            amount = item.FeeAfterDiscount;
+        else if (item is not null)
+            amount = item.QuotedPrice;
+        else
+            amount = winningQuotation.TotalQuotedPrice;
+
+        if (amount <= 0m)
+            throw new BadRequestException(
+                $"Cannot use Quotation fee source: winning quotation has no usable price for appraisal '{appraisalId}'.");
+
+        return new AssignmentFeeSource.Quotation(amount, quotationRequest.Id, quotationRequest.QuotationNumber);
     }
 }

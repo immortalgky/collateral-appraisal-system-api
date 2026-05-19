@@ -35,9 +35,6 @@ public record StartQuotationFromTaskCommand(
     /// </summary>
     Guid? ExistingQuotationRequestId = null,
     int? MaxAppraisalDays = null,
-    string? AssignmentType = null,
-    string? AssignmentMethod = null,
-    string? InternalFollowupAssignmentMethod = null,
     /// <summary>
     /// Companies that previously appraised this collateral (appeal flow exclusion).
     /// Server rejects if any InvitedCompanyId appears in this list.
