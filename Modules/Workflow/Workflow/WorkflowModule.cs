@@ -165,6 +165,10 @@ public static class WorkflowModule
         // Internal staff followup routing
         services.AddScoped<IInternalStaffRoundRobinService, InternalStaffRoundRobinService>();
 
+        // Cross-module relay: allows other modules (e.g. Appraisal) to forward admin input
+        // into an open workflow task without a direct reference to the Workflow engine.
+        services.AddScoped<IWorkflowRelayService, WorkflowRelayService>();
+
         // SLA services
         services.AddScoped<Shared.Sla.IBusinessTimeCalculator, BusinessTimeCalculator>();
         services.AddScoped<ISlaCalculator, SlaCalculator>();

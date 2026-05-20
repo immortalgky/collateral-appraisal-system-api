@@ -1,124 +1,76 @@
-using Appraisal.Application.Services;
-using Appraisal.Domain.Quotations;
+using Workflow;
 
 namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 
+/// <summary>
+/// Thin relay handler: validates the pending assignment, then forwards the admin's
+/// input into the workflow's "appraisal-assignment" task via <see cref="IWorkflowRelayService"/>.
+///
+/// The workflow engine routes on <c>decisionTaken</c>:
+///   EXT → CompanySelectionActivity → CompanyAssignedIntegrationEvent →
+///         CompanyAssignedIntegrationEventHandler (calls .Assign() + fee materialisation).
+///   INT → int-appraisal-execution → WorkflowService.PublishInternalAssignedEvent →
+///         InternalAssignedIntegrationEventHandler (calls .Assign() + tier-based fee).
+///
+/// This handler does NOT mutate AppraisalAssignment or create AppraisalFee rows directly.
+/// </summary>
 public class AssignAppraisalCommandHandler(
     IAppraisalRepository appraisalRepository,
-    IQuotationRepository quotationRepository,
-    IAssignmentFeeService feeService)
+    IWorkflowRelayService workflowRelayService)
     : ICommandHandler<AssignAppraisalCommand, AssignAppraisalResult>
 {
     public async Task<AssignAppraisalResult> Handle(
         AssignAppraisalCommand command,
         CancellationToken cancellationToken)
     {
+        // Validate that a pending assignment exists for this appraisal.
         var appraisal = await appraisalRepository.GetByIdWithAllDataAsync(command.AppraisalId, cancellationToken)
                         ?? throw new NotFoundException("Appraisal", command.AppraisalId);
 
-        AppraisalAssignment resolvedAssignment;
-
-        var pendingAssignment =
-            appraisal.Assignments.FirstOrDefault(a => a.AssignmentStatus == AssignmentStatus.Pending);
-        if (pendingAssignment is not null)
-        {
-            pendingAssignment.Assign(
-                command.AssignmentType,
-                command.AssigneeUserId,
-                command.AssigneeCompanyId,
-                command.AssignmentMethod,
-                command.InternalAppraiserId,
-                command.InternalFollowupAssignmentMethod,
-                assignedBy: command.AssignedBy);
-            resolvedAssignment = pendingAssignment;
-        }
-        else
-        {
-            resolvedAssignment = appraisal.Assign(
-                command.AssignmentType,
-                command.AssigneeUserId,
-                command.AssigneeCompanyId,
-                command.AssignmentMethod,
-                command.InternalAppraiserId,
-                command.InternalFollowupAssignmentMethod,
-                assignedBy: command.AssignedBy);
-        }
-
-        var baseFeeSource = await ResolveFeeSourceAsync(
-            command, resolvedAssignment, cancellationToken);
-
-        // CI override — for ConstructionInspection appraisals, replace the resolved tier/quotation
-        // source with the CI source seeded from the prior engagement's CI fee.
-        var feeSource = await feeService.ResolveSourceForAppraisalAsync(
-            appraisal, baseFeeSource, cancellationToken);
-
-        await feeService.EnsureAssignmentFeeItemsAsync(
-            appraisalId: command.AppraisalId,
-            assignmentId: resolvedAssignment.Id,
-            source: feeSource,
-            ct: cancellationToken);
-
-        return new AssignAppraisalResult(resolvedAssignment.Id);
-    }
-
-    /// <summary>
-    /// Pick the fee source from the chosen AssignmentMethod. "Quotation" pulls the
-    /// per-appraisal price agreed during the RFQ; everything else falls back to the
-    /// fee structure tier lookup.
-    /// </summary>
-    private async Task<AssignmentFeeSource> ResolveFeeSourceAsync(
-        AssignAppraisalCommand command,
-        AppraisalAssignment assignment,
-        CancellationToken ct)
-    {
-        if (!string.Equals(command.AssignmentMethod, "Quotation", StringComparison.OrdinalIgnoreCase))
-            return new AssignmentFeeSource.TierBased();
-
-        // Resolve the Finalized RFQ for this appraisal. We try the linkedId stamped at
-        // finalize time first (cheapest), but ALWAYS fall back to the appraisal-id lookup
-        // when that path comes up empty — race conditions, manual assignment-row swaps,
-        // and pre-link legacy data can all leave the linkage missing or stale.
-        QuotationRequest? quotationRequest = null;
-
-        if (assignment.QuotationRequestId is { } linkedId)
-            quotationRequest = await quotationRepository.GetByIdAsync(linkedId, ct);
-
-        if (quotationRequest is null || quotationRequest.Status != "Finalized")
-            quotationRequest = await quotationRepository.GetFinalizedByAppraisalIdAsync(command.AppraisalId, ct);
-
-        if (quotationRequest is null)
-            throw new BadRequestException(
-                $"Cannot use Quotation fee source: no Finalized RFQ contains appraisal '{command.AppraisalId}'. " +
-                "Make sure the quotation is finalized with a winner before assigning.");
-
-        var winningQuotation = quotationRequest.Quotations.FirstOrDefault(q => q.IsWinner)
+        var pendingAssignment = appraisal.Assignments
+            .FirstOrDefault(a => a.AssignmentStatus == AssignmentStatus.Pending)
             ?? throw new BadRequestException(
-                $"Cannot use Quotation fee source: RFQ '{quotationRequest.QuotationNumber ?? quotationRequest.Id.ToString()}' has no winning company quotation.");
+                $"No pending assignment found for appraisal '{command.AppraisalId}'. " +
+                "The workflow task must be in Pending status to accept an assignment.");
 
-        var item = winningQuotation.Items.FirstOrDefault(i => i.AppraisalId == command.AppraisalId);
+        // Build input payload matching the keys the workflow's TaskActivity maps into variables.
+        // The key names below MUST match the `inputMappings` declared on the appraisal-assignment
+        // activity in appraisal-workflow.json — TaskActivity filters anything not declared there.
+        // CompanySelectionActivity reads: assignedCompanyId / selectedCompanyId, assignedCompanyName /
+        // selectedCompanyName, assignmentMethod. The RoutingActivity reads: decisionTaken.
+        var input = new Dictionary<string, object>
+        {
+            ["selectedCompanyId"] = command.AssigneeCompanyId ?? string.Empty,
+            ["selectedCompanyName"] = command.AssigneeCompanyName ?? string.Empty,
+            ["assignmentMethod"] = command.AssignmentMethod,
+            ["decisionTaken"] = command.DecisionTaken,
+            ["internalFollowupStaffId"] = command.InternalAppraiserId ?? string.Empty,
+            ["internalFollowupMethod"] = command.InternalFollowupAssignmentMethod ?? string.Empty
+        };
 
-        // The fee service expects the *ex-VAT* amount — VAT is recomputed on top of the
-        // AppraisalFeeItem when RecalculateFromItems runs. Modern submissions populate
-        // FeeAmount/Discount/VatPercent → use FeeAfterDiscount (ex-VAT). Legacy rows
-        // without a fee breakdown only have a single QuotedPrice number; fall back to
-        // that or the aggregate total as a last resort.
-        decimal amount;
-        if (item is not null && item.FeeAmount > 0m)
-            amount = item.FeeAfterDiscount;
-        else if (item is not null)
-            amount = item.QuotedPrice;
-        else
-            amount = winningQuotation.TotalQuotedPrice;
+        // INT path: pin the admin-selected internal appraiser onto int-appraisal-execution,
+        // otherwise the activity's default round-robin strategy will pick a different user.
+        IReadOnlyDictionary<string, WorkflowAssigneeOverride>? overrides = null;
+        if (string.Equals(command.DecisionTaken, "INT", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrEmpty(command.InternalAppraiserId))
+        {
+            overrides = new Dictionary<string, WorkflowAssigneeOverride>
+            {
+                ["int-appraisal-execution"] = new WorkflowAssigneeOverride(
+                    Assignee: command.InternalAppraiserId,
+                    Reason: "Admin-selected internal appraiser",
+                    OverrideBy: command.AssignedBy)
+            };
+        }
 
-        if (amount <= 0m)
-            throw new BadRequestException(
-                $"Cannot use Quotation fee source: winning quotation has no usable price for appraisal '{command.AppraisalId}'.");
+        await workflowRelayService.ResumeWorkflowAsync(
+            command.WorkflowInstanceId,
+            "appraisal-assignment",
+            command.AssignedBy,
+            input,
+            overrides,
+            cancellationToken);
 
-        // Backfill the linkage on this assignment so future reads don't need the
-        // appraisal-id fallback path.
-        if (assignment.QuotationRequestId != quotationRequest.Id)
-            assignment.SetQuotationRequestId(quotationRequest.Id);
-
-        return new AssignmentFeeSource.Quotation(amount, quotationRequest.Id, quotationRequest.QuotationNumber);
+        return new AssignAppraisalResult(pendingAssignment.Id);
     }
 }

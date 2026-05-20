@@ -160,20 +160,10 @@ public class StartQuotationFromTaskCommandHandler(
 
         await quotationRepository.AddAsync(quotation, cancellationToken);
 
-        // Pre-register a Pending assignment so we capture the admin's selection (type + method)
-        // before the quotation winner is known. Promoted to Assigned when quotation is finalized.
-        if (!string.IsNullOrWhiteSpace(command.AssignmentType) && !string.IsNullOrWhiteSpace(command.AssignmentMethod))
-        {
-            var appraisal = await appraisalRepository.GetByIdAsync(command.AppraisalId, cancellationToken)
-                            ?? throw new NotFoundException($"Appraisal '{command.AppraisalId}' not found.");
-            appraisal.CreatePendingAssignment(
-                command.AssignmentType,
-                command.AssignmentMethod,
-                command.InternalFollowupAssignmentMethod,
-                quotationRequestId: quotation.Id,
-                registeredBy: requestedBy);
-            await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
-        }
+        // No pre-Quotation Pending assignment is created here. The workflow's
+        // appraisal-assignment task remains the source of truth: it stays open until the
+        // admin clicks Assign on the administration screen post-finalize, which advances
+        // the workflow and CompanySelectionActivity publishes CompanyAssignedIntegrationEvent.
 
         var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
         activityLogger.Log(quotation.Id, null, null, QuotationActivityNames.QuotationCreatedFromTask, actionByRole: adminRole);
