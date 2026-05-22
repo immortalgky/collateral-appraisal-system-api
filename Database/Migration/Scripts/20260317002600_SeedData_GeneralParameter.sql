@@ -3474,8 +3474,10 @@ VALUES
     (N'LandUse', N'TH', N'TH', N'03', N'พาณิชยกรรม', 1, 3),
     (N'LandUse', N'TH', N'EN', N'04', N'Industry', 1, 4),
     (N'LandUse', N'TH', N'TH', N'04', N'อุตสาหกรรม', 1, 4),
-    (N'LandUse', N'TH', N'EN', N'99', N'Other', 1, 5),
-    (N'LandUse', N'TH', N'TH', N'99', N'อื่นๆ', 1, 5);
+    (N'LandUse', N'TH', N'EN', N'05', N'Rental', 1, 5),
+    (N'LandUse', N'TH', N'TH', N'05', N'แบ่งเช่า', 1, 5),
+    (N'LandUse', N'TH', N'EN', N'99', N'Other', 1, 6),
+    (N'LandUse', N'TH', N'TH', N'99', N'อื่นๆ', 1, 6);
 GO
 
 -- ----------------------------------------
