@@ -1,95 +1,44 @@
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
-/// Appraisal review entity.
-/// Tracks review workflow: Checker -> Verifier -> Committee
+/// Per-appraisal committee approval <b>outcome</b> record (one row per appraisal, created at
+/// committee approval). Approval tier (1/2/3) is NOT stored — it is derived in the read views
+/// from the committee code (via <see cref="CommitteeId"/>). Meeting number/date are likewise
+/// resolved by joining the meeting on <see cref="MeetingId"/>.
 /// </summary>
 public class AppraisalReview : Entity<Guid>
 {
-    // Core Properties
     public Guid AppraisalId { get; private set; }
-    public string ReviewLevel { get; private set; } = null!; // Checker, Verifier, Committee
-    public int ReviewSequence { get; private set; }
-    public ReviewStatus Status { get; private set; } = null!;
 
-    // Reviewer
-    public Guid? AssignedTo { get; private set; }
-    public DateTime? AssignedAt { get; private set; }
-    public Guid? AssignedBy { get; private set; }
-
-    // Team (Checker -> Verifier same team)
-    public Guid? TeamId { get; private set; }
-    public string? TeamName { get; private set; }
-
-    // Committee (if Committee level)
+    /// <summary>The committee that approved. Tier is derived from its code in read views.</summary>
     public Guid? CommitteeId { get; private set; }
+
     public int? TotalVotes { get; private set; }
     public int? VotesApprove { get; private set; }
     public int? VotesReject { get; private set; }
-    public int? VotesAbstain { get; private set; }
-    public DateTime? MeetingDate { get; private set; }
-    public string? MeetingReference { get; private set; }
 
-    // Review Result
+    /// <summary>Holds route-back votes (this domain has no "abstain"); kept for the spare tally slot.</summary>
+    public int? VotesAbstain { get; private set; }
+
+    /// <summary>
+    /// The meeting this review is linked to: the decision meeting for committee-with-meeting
+    /// approvals, or the acknowledgement meeting for sub-committee / committee approvals.
+    /// </summary>
+    public Guid? MeetingId { get; private set; }
+
     public DateTime? ReviewedAt { get; private set; }
-    public Guid? ReviewedBy { get; private set; }
-    public string? ReviewComments { get; private set; }
-    public string? ReturnReason { get; private set; }
 
     private AppraisalReview()
     {
     }
 
-    public static AppraisalReview Create(
-        Guid appraisalId,
-        string reviewLevel,
-        int reviewSequence)
+    public static AppraisalReview Create(Guid appraisalId)
     {
         return new AppraisalReview
         {
             Id = Guid.CreateVersion7(),
-            AppraisalId = appraisalId,
-            ReviewLevel = reviewLevel,
-            ReviewSequence = reviewSequence,
-            Status = ReviewStatus.Pending
+            AppraisalId = appraisalId
         };
-    }
-
-    public void AssignTo(Guid userId, Guid assignedBy, Guid? teamId = null, string? teamName = null)
-    {
-        AssignedTo = userId;
-        AssignedAt = DateTime.Now;
-        AssignedBy = assignedBy;
-        TeamId = teamId;
-        TeamName = teamName;
-    }
-
-    public void SetCommittee(Guid committeeId)
-    {
-        if (ReviewLevel != "Committee")
-            throw new InvalidOperationException("Can only set committee for Committee level reviews");
-
-        CommitteeId = committeeId;
-    }
-
-    public void Approve(Guid reviewedBy, string? comments = null)
-    {
-        Status = ReviewStatus.Approved;
-        ReviewedAt = DateTime.Now;
-        ReviewedBy = reviewedBy;
-        ReviewComments = comments;
-    }
-
-    public void Return(Guid reviewedBy, string reason, string? comments = null)
-    {
-        if (string.IsNullOrWhiteSpace(reason))
-            throw new ArgumentException("Return reason is required");
-
-        Status = ReviewStatus.Returned;
-        ReviewedAt = DateTime.Now;
-        ReviewedBy = reviewedBy;
-        ReturnReason = reason;
-        ReviewComments = comments;
     }
 
     public void RecordVotes(int approve, int reject, int abstain)
@@ -100,9 +49,31 @@ public class AppraisalReview : Entity<Guid>
         TotalVotes = approve + reject + abstain;
     }
 
-    public void SetMeetingInfo(DateTime meetingDate, string? reference)
+    /// <summary>
+    /// Records a committee approval outcome (committee, vote totals, optional decision meeting).
+    /// Used by the approval integration-event consumer.
+    /// </summary>
+    public void RecordCommitteeApproval(
+        Guid? committeeId,
+        int approve,
+        int reject,
+        int abstain,
+        DateTime approvedAt,
+        Guid? decisionMeetingId)
     {
-        MeetingDate = meetingDate;
-        MeetingReference = reference;
+        CommitteeId = committeeId;
+        RecordVotes(approve, reject, abstain);
+        ReviewedAt = approvedAt;
+
+        if (decisionMeetingId is { } meetingId && meetingId != Guid.Empty)
+            MeetingId = meetingId;
+    }
+
+    /// <summary>
+    /// Links this review to the meeting in which a sub-committee / committee approval was acknowledged.
+    /// </summary>
+    public void SetAcknowledgementMeeting(Guid meetingId)
+    {
+        MeetingId = meetingId;
     }
 }

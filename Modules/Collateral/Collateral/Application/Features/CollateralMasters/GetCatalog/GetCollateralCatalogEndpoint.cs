@@ -1,7 +1,14 @@
 namespace Collateral.Application.Features.CollateralMasters.GetCatalog;
 
 /// <summary>
-/// GET /collateral-masters?type=&amp;province=&amp;owner=&amp;isUnderConstruction=&amp;minAppraisals=&amp;lastAppraisedFrom=&amp;lastAppraisedTo=&amp;page=&amp;pageSize=&amp;sort=
+/// GET /collateral-masters
+/// Supports all existing filters plus Phase 1 additions:
+///   type (multi-select: ?type=Land&amp;type=Condo)
+///   titleNumber (LIKE — Land + Condo)
+///   district, subDistrict (exact)
+///   companyId (masters with at least one engagement by this company)
+///   q (free-text: owner, titleNumber, address, condoName)
+///   centerLat, centerLng, radiusKm (geo-bound circle filter)
 /// Admin-only.
 /// </summary>
 public class GetCollateralCatalogEndpoint : ICarterModule
@@ -12,7 +19,8 @@ public class GetCollateralCatalogEndpoint : ICarterModule
                 "/collateral-masters",
                 async (
                     [AsParameters] PaginationRequest paginationRequest,
-                    string? type,
+                    // Multi-select type: ?type=Land&type=Condo
+                    string[]? type,
                     string? province,
                     string? owner,
                     bool? isUnderConstruction,
@@ -20,14 +28,37 @@ public class GetCollateralCatalogEndpoint : ICarterModule
                     DateOnly? lastAppraisedFrom,
                     DateOnly? lastAppraisedTo,
                     string? sort,
+                    // Phase 1 new filters
+                    string? titleNumber,
+                    string? district,
+                    string? subDistrict,
+                    string? companyId,
+                    string? q,
+                    decimal? centerLat,
+                    decimal? centerLng,
+                    decimal? radiusKm,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
                     var query = new GetCollateralCatalogQuery(
                         paginationRequest,
-                        type, province, owner, isUnderConstruction, minAppraisals,
-                        lastAppraisedFrom, lastAppraisedTo, sort);
+                        Types: type,
+                        Province: province,
+                        Owner: owner,
+                        IsUnderConstruction: isUnderConstruction,
+                        MinAppraisals: minAppraisals,
+                        LastAppraisedFrom: lastAppraisedFrom,
+                        LastAppraisedTo: lastAppraisedTo,
+                        Sort: sort,
+                        TitleNumber: titleNumber,
+                        District: district,
+                        SubDistrict: subDistrict,
+                        CompanyId: companyId,
+                        Q: q,
+                        CenterLat: centerLat,
+                        CenterLng: centerLng,
+                        RadiusKm: radiusKm);
 
                     var result = await sender.Send(query, cancellationToken);
 

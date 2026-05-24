@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Appraisal.Contracts.Photos;
 using Collateral.Application.Features.CollateralMasters.Lookup;
 
 namespace Collateral.Application.Features.CollateralMasters.GetById;
@@ -23,7 +24,10 @@ public record GetCollateralMasterByIdResult(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] LeaseholdDetailDto? LeaseholdDetail,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] MachineDetailDto? MachineDetail,
     // For Leasehold: inline summary of the underlying master
-    UnderlyingMasterSummaryDto? UnderlyingMaster
+    UnderlyingMasterSummaryDto? UnderlyingMaster,
+    // Photos resolved lazily through the latest engagement → its appraisal.
+    // Empty list when no engagement exists or the appraisal has no mapped photos.
+    IReadOnlyList<CollateralPhotoDto> Photos
 );
 
 public record UnderlyingMasterSummaryDto(

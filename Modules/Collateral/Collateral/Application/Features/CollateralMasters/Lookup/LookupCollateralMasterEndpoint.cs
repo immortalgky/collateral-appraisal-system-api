@@ -1,8 +1,9 @@
 namespace Collateral.Application.Features.CollateralMasters.Lookup;
 
 /// <summary>
-/// GET /collateral-masters/lookup?type={Land|Condo|Leasehold|Machine}&amp;...dedup params
+/// GET /collateral-masters/lookup?type={L|LB|U|LSL|LSB|LS|MAC}&amp;...dedup params
 /// Authenticated. Returns 200+body or 404.
+/// Type codes match Appraisal's PropertyType.Code vocabulary.
 /// </summary>
 public class LookupCollateralMasterEndpoint : ICarterModule
 {

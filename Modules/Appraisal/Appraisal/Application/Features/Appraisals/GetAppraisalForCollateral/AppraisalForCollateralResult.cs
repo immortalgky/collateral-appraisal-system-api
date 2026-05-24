@@ -133,7 +133,10 @@ public record CondoIdentityForCollateral(
     string? LocationType,            // CondoAppraisalDetail.LocationType
     int? BuildingAge,                // CondoAppraisalDetail.BuildingAge
     int? ConstructionYear,           // CondoAppraisalDetail.ConstructionYear
-    string? ModelName                // CondoAppraisalDetail.ModelName
+    string? ModelName,               // CondoAppraisalDetail.ModelName
+    // GPS coordinates (Phase 1 — geo filter prerequisite)
+    decimal? Latitude,               // CondoAppraisalDetail.Coordinates?.Latitude
+    decimal? Longitude               // CondoAppraisalDetail.Coordinates?.Longitude
 );
 
 /// <summary>
@@ -166,10 +169,16 @@ public record MachineryIdentityForCollateral(
     string? OwnerName         // MachineryAppraisalDetail.OwnerName (informational)
 );
 
-/// <summary>Building property — included solely for BuiltOnTitleNumber so the consumer
-/// can sum building appraised values onto the matching Land master.</summary>
+/// <summary>
+/// Building property fields passed to the Collateral module for engagement-time history.
+/// BuiltOnTitleNumber links this building to the Land property group.
+/// BuildingTypeCode is from BuildingAppraisalDetail.BuildingType (parameter group "BuildingType").
+/// BuildingArea is from BuildingAppraisalDetail.TotalBuildingArea (sq.m).
+/// </summary>
 public record BuildingIdentityForCollateral(
-    string? BuiltOnTitleNumber // BuildingAppraisalDetail.BuiltOnTitleNumber
+    string? BuiltOnTitleNumber, // BuildingAppraisalDetail.BuiltOnTitleNumber
+    string? BuildingTypeCode,   // BuildingAppraisalDetail.BuildingType (parameter code)
+    decimal? BuildingArea       // BuildingAppraisalDetail.TotalBuildingArea (sq.m)
 );
 
 /// <summary>

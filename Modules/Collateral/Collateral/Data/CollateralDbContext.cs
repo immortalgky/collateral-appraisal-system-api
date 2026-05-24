@@ -11,8 +11,10 @@ public class CollateralDbContext : DbContext
 
     public DbSet<CollateralMaster> CollateralMasters => Set<CollateralMaster>();
     public DbSet<CollateralEngagement> CollateralEngagements => Set<CollateralEngagement>();
+    public DbSet<CollateralEngagementBuilding> CollateralEngagementBuildings => Set<CollateralEngagementBuilding>();
     public DbSet<CollateralMasterAuditLog> CollateralMasterAuditLogs => Set<CollateralMasterAuditLog>();
     public DbSet<CollateralBackfillReport> CollateralBackfillReports => Set<CollateralBackfillReport>();
+    public DbSet<CollateralDocument> CollateralDocuments => Set<CollateralDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

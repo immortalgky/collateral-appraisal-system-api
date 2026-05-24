@@ -69,6 +69,7 @@ public static class AppraisalModule
 
         // Register Application Services
         services.AddScoped<IAppraisalCreationService, AppraisalCreationService>();
+        services.AddScoped<IProjectSaveService, ProjectSaveService>();
         services.AddScoped<IAppraisalStatusService, AppraisalStatusService>();
         services.AddScoped<IAssignmentFeeService, AssignmentFeeService>();
 

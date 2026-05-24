@@ -10,5 +10,5 @@ namespace Appraisal.Application.Features.Project.ChangeProjectType;
 /// </summary>
 public record ChangeProjectTypeCommand(
     Guid AppraisalId,
-    ProjectType NewProjectType
+    string NewProjectType
 ) : ICommand<ChangeProjectTypeResult>;

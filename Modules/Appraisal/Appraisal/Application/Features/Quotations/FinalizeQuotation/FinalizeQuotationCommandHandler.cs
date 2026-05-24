@@ -2,6 +2,7 @@ using Appraisal.Application.Features.Quotations.Shared;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.FinalizeQuotation;
 
@@ -9,7 +10,8 @@ public class FinalizeQuotationCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
-    IQuotationActivityLogger activityLogger)
+    IQuotationActivityLogger activityLogger,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<FinalizeQuotationCommand, FinalizeQuotationResult>
 {
     public async Task<FinalizeQuotationResult> Handle(
@@ -21,7 +23,7 @@ public class FinalizeQuotationCommandHandler(
         var quotation = await quotationRepository.GetByIdAsync(command.QuotationRequestId, cancellationToken)
                         ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
 
-        quotation.Finalize(command.CompanyQuotationId, command.Reason);
+        quotation.Finalize(command.CompanyQuotationId, dateTimeProvider.ApplicationNow, command.Reason);
 
         var winningQuotation = quotation.Quotations.First(q => q.Id == command.CompanyQuotationId);
         var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";

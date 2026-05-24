@@ -31,7 +31,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
     private static AppraisalAggregate CreateAppraisalSeed(Guid requestId)
     {
-        var a = AppraisalAggregate.Create(requestId, "New", "Normal");
+        var a = AppraisalAggregate.Create(requestId, "New", "Normal", DateTime.Now);
         a.SetAppraisalNumber($"PR8-{Guid.NewGuid():N}"[..15]);
         typeof(AppraisalAggregate)
             .GetProperty("CompletedAt")!

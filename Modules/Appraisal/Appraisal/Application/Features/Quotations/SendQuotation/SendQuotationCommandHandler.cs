@@ -98,7 +98,7 @@ public class SendQuotationCommandHandler(
             RequestId = quotation.RequestId ?? Guid.Empty,
             WorkflowInstanceId = quotation.WorkflowInstanceId ?? Guid.Empty,
             TaskExecutionId = quotation.TaskExecutionId ?? Guid.Empty,
-            DueDate = quotation.DueDate,
+            CutOffTime = quotation.CutOffTime,
             InvitedCompanyIds = invitedCompanyIds,
             RmUsername = quotation.RmUsername,
             StartedByUsername = currentUser.Username

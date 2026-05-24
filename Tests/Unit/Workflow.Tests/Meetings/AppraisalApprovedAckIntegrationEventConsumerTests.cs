@@ -64,7 +64,9 @@ public class AppraisalApprovedAckIntegrationEventConsumerTests
             .Returns(ci => db.SaveChangesAsync(ci.Arg<CancellationToken>()));
 
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
-            db, Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>());
+            db,
+            Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>(),
+            Substitute.For<Shared.Time.IDateTimeProvider>());
 
         var dateTimeProvider = Substitute.For<Shared.Time.IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(DateTime.UtcNow);

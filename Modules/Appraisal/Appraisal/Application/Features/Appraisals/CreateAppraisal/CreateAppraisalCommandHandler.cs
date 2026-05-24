@@ -1,10 +1,13 @@
+using Shared.Time;
+
 namespace Appraisal.Application.Features.Appraisals.CreateAppraisal;
 
 /// <summary>
 /// Handler for creating a new Appraisal
 /// </summary>
 public class CreateAppraisalCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    IDateTimeProvider dateTimeProvider
 ) : ICommandHandler<CreateAppraisalCommand, CreateAppraisalResult>
 {
     public async Task<CreateAppraisalResult> Handle(
@@ -15,6 +18,7 @@ public class CreateAppraisalCommandHandler(
             command.RequestId,
             command.AppraisalType,
             command.Priority,
+            dateTimeProvider.ApplicationNow,
             command.SLAHours);
 
         await appraisalRepository.AddAsync(appraisal, cancellationToken);

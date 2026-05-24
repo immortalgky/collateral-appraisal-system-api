@@ -41,6 +41,10 @@ public class GetEvaluationListQueryHandler(ISqlConnectionFactory connectionFacto
         "AppraiserCompanyName", "AppraisalValue", "EvaluationStatus"
     };
 
+    // Escape SQL Server LIKE wildcards so user input matches literally; paired with ESCAPE '\'.
+    private static string EscapeLike(string input) =>
+        input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_").Replace("[", "\\[");
+
     private const string BaseQuery =
         "SELECT AppraisalId, AppraisalNumber, CustomerName, ReportReceivedDate, " +
         "AppraisalStatus, ExternalAppraiserName, AssigneeCompanyId, AppraiserCompanyName, " +
@@ -57,20 +61,20 @@ public class GetEvaluationListQueryHandler(ISqlConnectionFactory connectionFacto
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            sql += " AND (AppraisalNumber LIKE @Search OR CustomerName LIKE @Search)";
-            parameters.Add("Search", "%" + query.Search.Trim() + "%");
+            sql += " AND (AppraisalNumber LIKE @Search ESCAPE '\\' OR CustomerName LIKE @Search ESCAPE '\\')";
+            parameters.Add("Search", "%" + EscapeLike(query.Search.Trim()) + "%");
         }
 
         if (!string.IsNullOrWhiteSpace(query.AppraisalNumber))
         {
-            sql += " AND AppraisalNumber LIKE @AppraisalNumber";
-            parameters.Add("AppraisalNumber", "%" + query.AppraisalNumber.Trim() + "%");
+            sql += " AND AppraisalNumber LIKE @AppraisalNumber ESCAPE '\\'";
+            parameters.Add("AppraisalNumber", "%" + EscapeLike(query.AppraisalNumber.Trim()) + "%");
         }
 
         if (!string.IsNullOrWhiteSpace(query.CustomerName))
         {
-            sql += " AND CustomerName LIKE @CustomerName";
-            parameters.Add("CustomerName", "%" + query.CustomerName.Trim() + "%");
+            sql += " AND CustomerName LIKE @CustomerName ESCAPE '\\'";
+            parameters.Add("CustomerName", "%" + EscapeLike(query.CustomerName.Trim()) + "%");
         }
 
         if (!string.IsNullOrWhiteSpace(query.AppraisalStatus))
@@ -81,8 +85,8 @@ public class GetEvaluationListQueryHandler(ISqlConnectionFactory connectionFacto
 
         if (!string.IsNullOrWhiteSpace(query.AppraiserName))
         {
-            sql += " AND ExternalAppraiserName LIKE @AppraiserName";
-            parameters.Add("AppraiserName", "%" + query.AppraiserName.Trim() + "%");
+            sql += " AND ExternalAppraiserName LIKE @AppraiserName ESCAPE '\\'";
+            parameters.Add("AppraiserName", "%" + EscapeLike(query.AppraiserName.Trim()) + "%");
         }
 
         if (!string.IsNullOrWhiteSpace(query.AppraiserCompanyId))
@@ -93,10 +97,15 @@ public class GetEvaluationListQueryHandler(ISqlConnectionFactory connectionFacto
 
         if (!string.IsNullOrWhiteSpace(query.AppraiserCompanyName))
         {
-            sql += " AND AppraiserCompanyName LIKE @AppraiserCompanyName";
-            parameters.Add("AppraiserCompanyName", "%" + query.AppraiserCompanyName.Trim() + "%");
+            sql += " AND AppraiserCompanyName LIKE @AppraiserCompanyName ESCAPE '\\'";
+            parameters.Add("AppraiserCompanyName", "%" + EscapeLike(query.AppraiserCompanyName.Trim()) + "%");
         }
 
+        // Note: the view projects EvaluationStatus as COALESCE(e.EvaluationStatus, 'Pending'),
+        // so filtering on 'Pending' returns both real Pending rows AND appraisals that have
+        // no evaluation row yet. Treat 'Pending' as "awaiting evaluation" rather than a
+        // distinct lifecycle state. If a future caller needs to distinguish "started but not
+        // submitted" from "never touched", add an EvaluationId-null filter alongside this one.
         if (!string.IsNullOrWhiteSpace(query.EvaluationStatus))
         {
             var statuses = query.EvaluationStatus

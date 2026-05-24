@@ -13,8 +13,9 @@ namespace Workflow.Sla.Services;
 
 public class SlaMonitorService(
     IServiceScopeFactory scopeFactory,
-    ILogger<SlaMonitorService> logger)
-    : LeasedBackgroundService<WorkflowDbContext>(scopeFactory, logger)
+    ILogger<SlaMonitorService> logger,
+    IDateTimeProvider dateTimeProvider)
+    : LeasedBackgroundService<WorkflowDbContext>(scopeFactory, logger, dateTimeProvider)
 {
     protected override string LockId => "WorkflowDbContext-SlaMonitor";
 

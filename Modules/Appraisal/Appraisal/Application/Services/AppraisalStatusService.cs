@@ -1,5 +1,6 @@
 using Appraisal.Domain.Appraisals;
 using Appraisal.Contracts.Services;
+using Shared.Time;
 
 namespace Appraisal.Application.Services;
 
@@ -9,7 +10,8 @@ namespace Appraisal.Application.Services;
 /// </summary>
 public class AppraisalStatusService(
     IAppraisalRepository appraisalRepository,
-    IAppraisalUnitOfWork unitOfWork) : IAppraisalStatusService
+    IAppraisalUnitOfWork unitOfWork,
+    IDateTimeProvider dateTimeProvider) : IAppraisalStatusService
 {
     public async Task UpdateStatusAsync(Guid appraisalId, string targetStatus, string updatedBy, CancellationToken ct)
     {
@@ -19,7 +21,7 @@ public class AppraisalStatusService(
         switch (targetStatus)
         {
             case "InProgress":
-                appraisal.StartWork();
+                appraisal.StartWork(dateTimeProvider.ApplicationNow);
                 break;
             case "UnderReview":
                 appraisal.SubmitForReview();

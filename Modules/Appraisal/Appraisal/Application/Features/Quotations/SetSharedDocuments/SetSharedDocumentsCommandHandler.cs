@@ -3,6 +3,7 @@ using Appraisal.Domain.Quotations;
 using Dapper;
 using Shared.Data;
 using Shared.Identity;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.SetSharedDocuments;
 
@@ -19,7 +20,8 @@ namespace Appraisal.Application.Features.Quotations.SetSharedDocuments;
 public class SetSharedDocumentsCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    ISqlConnectionFactory connectionFactory)
+    ISqlConnectionFactory connectionFactory,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<SetSharedDocumentsCommand, Unit>
 {
     public async Task<Unit> Handle(SetSharedDocumentsCommand command, CancellationToken cancellationToken)
@@ -40,7 +42,7 @@ public class SetSharedDocumentsCommandHandler(
         var selections = command.Documents
             .Select(d => (d.AppraisalId, d.DocumentId, d.Level));
 
-        quotation.SetSharedDocuments(selections, currentUser.UserId?.ToString() ?? "system");
+        quotation.SetSharedDocuments(selections, currentUser.UserId?.ToString() ?? "system", dateTimeProvider.ApplicationNow);
 
         quotationRepository.Update(quotation);
 

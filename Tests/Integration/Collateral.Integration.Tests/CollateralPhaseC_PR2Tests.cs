@@ -35,7 +35,7 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
 
     private static AppraisalAggregate CreateAppraisalSeed(Guid requestId)
     {
-        var a = AppraisalAggregate.Create(requestId, "New", "Normal");
+        var a = AppraisalAggregate.Create(requestId, "New", "Normal", DateTime.Now);
         a.SetAppraisalNumber($"AP-{Guid.NewGuid():N}"[..18]);
         typeof(AppraisalAggregate)
             .GetProperty("CompletedAt")!

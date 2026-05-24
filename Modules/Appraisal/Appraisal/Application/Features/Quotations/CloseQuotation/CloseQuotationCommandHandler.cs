@@ -2,6 +2,7 @@ using Appraisal.Application.Features.Quotations.Shared;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.CloseQuotation;
 
@@ -9,7 +10,8 @@ public class CloseQuotationCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
-    IQuotationActivityLogger activityLogger)
+    IQuotationActivityLogger activityLogger,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<CloseQuotationCommand, CloseQuotationResult>
 {
     public async Task<CloseQuotationResult> Handle(
@@ -26,7 +28,7 @@ public class CloseQuotationCommandHandler(
                         ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
 
         var wasAlreadyClosed = quotation.Status == "UnderAdminReview";
-        quotation.Close();
+        quotation.Close(dateTimeProvider.ApplicationNow);
 
         var closeRole = currentUser.IsAuthenticated
             ? (currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin")

@@ -1,10 +1,14 @@
 using Appraisal.Domain.Quotations;
 using Appraisal.Infrastructure;
 using Shared.Identity;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.Shared;
 
-internal sealed class QuotationActivityLogger(AppraisalDbContext db, ICurrentUserService currentUser)
+internal sealed class QuotationActivityLogger(
+    AppraisalDbContext db,
+    ICurrentUserService currentUser,
+    IDateTimeProvider dateTimeProvider)
     : IQuotationActivityLogger
 {
     public void Log(
@@ -26,6 +30,7 @@ internal sealed class QuotationActivityLogger(AppraisalDbContext db, ICurrentUse
             companyId,
             activityName,
             actionBy,
+            dateTimeProvider.ApplicationNow,
             role,
             remark);
 

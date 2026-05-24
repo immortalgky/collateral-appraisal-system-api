@@ -49,7 +49,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
 
     private static AppraisalAggregate CreateAppraisalSeed(Guid requestId)
     {
-        var a = AppraisalAggregate.Create(requestId, "New", "Normal");
+        var a = AppraisalAggregate.Create(requestId, "New", "Normal", DateTime.Now);
         a.SetAppraisalNumber($"AP-{Guid.NewGuid():N}".Substring(0, 18));
         typeof(AppraisalAggregate)
             .GetProperty("CompletedAt")!
@@ -247,7 +247,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
                 message = ex.Message;
             }
 
-            db.CollateralBackfillReports.Add(new CollateralBackfillReport(missingId, status, message));
+            db.CollateralBackfillReports.Add(new CollateralBackfillReport(missingId, status, message, DateTime.Now));
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             Assert.Equal("SkippedMissingKey", status);
         }
@@ -292,7 +292,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
                 message = ex.Message;
             }
 
-            db.CollateralBackfillReports.Add(new CollateralBackfillReport(fixedAppraisalId, status, message));
+            db.CollateralBackfillReports.Add(new CollateralBackfillReport(fixedAppraisalId, status, message, DateTime.Now));
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             Assert.Equal("Processed", status);
         }
@@ -331,9 +331,9 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
         using var seedScope = CreateScope();
         var db = GetCollateralDb(seedScope);
 
-        db.CollateralBackfillReports.Add(new CollateralBackfillReport(Guid.NewGuid(), "Processed", null));
-        db.CollateralBackfillReports.Add(new CollateralBackfillReport(Guid.NewGuid(), "SkippedMissingKey", "missing title"));
-        db.CollateralBackfillReports.Add(new CollateralBackfillReport(Guid.NewGuid(), "Error", "some error"));
+        db.CollateralBackfillReports.Add(new CollateralBackfillReport(Guid.NewGuid(), "Processed", null, DateTime.Now));
+        db.CollateralBackfillReports.Add(new CollateralBackfillReport(Guid.NewGuid(), "SkippedMissingKey", "missing title", DateTime.Now));
+        db.CollateralBackfillReports.Add(new CollateralBackfillReport(Guid.NewGuid(), "Error", "some error", DateTime.Now));
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Query the table directly (admin role enforcement is exercised by BF-05; here we
@@ -414,7 +414,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
             message = ex.Message;
         }
 
-        db.CollateralBackfillReports.Add(new CollateralBackfillReport(landId, status, message));
+        db.CollateralBackfillReports.Add(new CollateralBackfillReport(landId, status, message, DateTime.Now));
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal("Processed", status);
@@ -492,7 +492,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
                 using (var reportScope = CreateScope())
                 {
                     var reportDb = GetCollateralDb(reportScope);
-                    reportDb.CollateralBackfillReports.Add(new CollateralBackfillReport(appraisalId, status, message));
+                    reportDb.CollateralBackfillReports.Add(new CollateralBackfillReport(appraisalId, status, message, DateTime.Now));
                     await reportDb.SaveChangesAsync(ct);
                 }
             }

@@ -25,12 +25,12 @@ public class Appraisal : Aggregate<Guid>
     public string? AppraisalNumber { get; private set; }
     public Guid RequestId { get; private set; }
     public AppraisalStatus Status { get; private set; } = null!;
-    public string AppraisalType { get; private set; } = null!; // Initial, Revaluation, Special
+    public string AppraisalType { get; private set; } = null!; // New, ReAppraisal, Progressive, PreAppraisal
     public string Priority { get; private set; } = null!; // Normal, High
 
-    // For ConstructionInspection appraisals — the prior appraisal this CI is following up on.
+    // For Progressive (progressive-inspection) appraisals — the prior appraisal this is following up on.
     // Used by AssignmentFeeService to seed the appraisal fee from the prior engagement's
-    // CI fee (CI bypasses the normal tier/quotation pipeline).
+    // construction-inspection fee (Progressive bypasses the normal tier/quotation pipeline).
     public Guid? PrevAppraisalId { get; private set; }
 
     // Request-level properties for workflow routing
@@ -83,7 +83,8 @@ public class Appraisal : Aggregate<Guid>
         bool hasAppraisalBook,
         string? requestedBy,
         DateTime? requestedAt,
-        Guid? prevAppraisalId)
+        Guid? prevAppraisalId,
+        DateTime now)
     {
         Id = Guid.CreateVersion7();
         RequestId = requestId;
@@ -103,7 +104,7 @@ public class Appraisal : Aggregate<Guid>
 
         if (slaHours.HasValue)
         {
-            SLADueDate = DateTime.Now.AddHours(slaHours.Value);
+            SLADueDate = (requestedAt ?? now).AddHours(slaHours.Value);
             SLAStatus = "OnTrack";
         }
     }
@@ -115,6 +116,7 @@ public class Appraisal : Aggregate<Guid>
         Guid requestId,
         string appraisalType,
         string priority,
+        DateTime now,
         int? slaHours = null,
         string? requestedBy = null,
         bool isPma = false,
@@ -131,7 +133,7 @@ public class Appraisal : Aggregate<Guid>
 
         var appraisal = new Appraisal(requestId, appraisalType, priority, slaHours,
             isPma, purpose, channel, bankingSegment, facilityLimit, hasAppraisalBook,
-            requestedBy, requestedAt, prevAppraisalId);
+            requestedBy, requestedAt, prevAppraisalId, now);
         appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal, requestedBy));
         appraisal.AddDomainEvent(new AppraisalStatusChangedEvent(appraisal, OldStatus: null, NewStatus: appraisal.Status));
 
@@ -636,7 +638,7 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Start work on this appraisal
     /// </summary>
-    public void StartWork()
+    public void StartWork(DateTime now)
     {
         ValidateStatus(AppraisalStatus.Assigned, "start work on");
 
@@ -644,7 +646,7 @@ public class Appraisal : Aggregate<Guid>
         activeAssignment.StartWork();
 
         UpdateStatus(AppraisalStatus.InProgress);
-        UpdateSlaStatus();
+        UpdateSlaStatus(now);
     }
 
     // TODO: Remove this method once a proper workflow transitions appraisal to UnderReview before committee voting.
@@ -673,7 +675,7 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Complete the appraisal (after review approval)
     /// </summary>
-    public void Complete()
+    public void Complete(DateTime completedAt)
     {
         ValidateStatus(AppraisalStatus.UnderReview, "complete");
 
@@ -683,10 +685,10 @@ public class Appraisal : Aggregate<Guid>
 
         // Stamp completion timestamp so downstream consumers (CollateralEngagement, time-series)
         // get an accurate AppraisalDate. Only stamp on first transition; idempotent if re-entered.
-        CompletedAt ??= DateTime.UtcNow;
+        CompletedAt ??= completedAt;
 
-        ActualHoursToComplete = CreatedAt.HasValue ? (int)(DateTime.Now - CreatedAt.Value).TotalHours : null;
-        IsWithinSLA = !SLADueDate.HasValue || DateTime.Now <= SLADueDate.Value;
+        ActualHoursToComplete = CreatedAt.HasValue ? (int)(completedAt - CreatedAt.Value).TotalHours : null;
+        IsWithinSLA = !SLADueDate.HasValue || completedAt <= SLADueDate.Value;
 
         AddDomainEvent(new AppraisalCompletedEvent(this));
     }
@@ -704,8 +706,8 @@ public class Appraisal : Aggregate<Guid>
         CompletedAt = approvedAt;
         ApprovedByCommittee = committeeCode;
 
-        ActualHoursToComplete = CreatedAt.HasValue ? (int)(DateTime.Now - CreatedAt.Value).TotalHours : null;
-        IsWithinSLA = !SLADueDate.HasValue || DateTime.Now <= SLADueDate.Value;
+        ActualHoursToComplete = CreatedAt.HasValue ? (int)(approvedAt - CreatedAt.Value).TotalHours : null;
+        IsWithinSLA = !SLADueDate.HasValue || approvedAt <= SLADueDate.Value;
 
         // Terminal completion of the active engagement. By this point the workflow handler should
         // have transitioned the assignment through int-appraisal-verification → Verified, but
@@ -1020,11 +1022,11 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Update SLA status based on current date
     /// </summary>
-    public void UpdateSlaStatus()
+    public void UpdateSlaStatus(DateTime now)
     {
         if (!SLADueDate.HasValue) return;
 
-        var daysRemaining = (SLADueDate.Value - DateTime.Now).Days;
+        var daysRemaining = (SLADueDate.Value - now).Days;
         SLAStatus = daysRemaining switch
         {
             < 0 => "Breached",

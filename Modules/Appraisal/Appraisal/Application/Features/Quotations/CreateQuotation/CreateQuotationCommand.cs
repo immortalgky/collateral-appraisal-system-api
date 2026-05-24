@@ -7,7 +7,7 @@ public record CreateQuotationAppraisalDto(
     int? MaxAppraisalDays = null);
 
 public record CreateQuotationCommand(
-    DateTime DueDate,
+    DateTime CutOffTime,
     string RequestedBy,
     string? Description = null,
     string? SpecialRequirements = null,

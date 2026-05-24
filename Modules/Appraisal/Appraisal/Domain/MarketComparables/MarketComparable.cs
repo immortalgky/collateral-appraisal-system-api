@@ -27,6 +27,13 @@ public class MarketComparable : Aggregate<Guid>
     // Notes
     public string? Notes { get; private set; }
 
+    // Geolocation — promoted out of EAV for spatial indexing
+    public decimal? Latitude { get; private set; }
+    public decimal? Longitude { get; private set; }
+
+    // Authorship — populated on create from ICurrentUserService.CompanyId
+    public Guid? CreatedByCompanyId { get; private set; }
+
     // Template Reference (optional - tracks which template was used)
     public Guid? TemplateId { get; private set; }
 
@@ -58,8 +65,13 @@ public class MarketComparable : Aggregate<Guid>
         decimal? salePrice = null,
         DateTime? saleDate = null,
         string? offerPriceUnit = null,
-        string? salePriceUnit = null)
+        string? salePriceUnit = null,
+        decimal? latitude = null,
+        decimal? longitude = null,
+        Guid? createdByCompanyId = null)
     {
+        ValidateCoordinates(latitude, longitude);
+
         return new MarketComparable
         {
             Id = Guid.CreateVersion7(),
@@ -75,8 +87,23 @@ public class MarketComparable : Aggregate<Guid>
             SalePrice = salePrice,
             SaleDate = saleDate,
             OfferPriceUnit = offerPriceUnit,
-            SalePriceUnit = salePriceUnit
+            SalePriceUnit = salePriceUnit,
+            Latitude = latitude,
+            Longitude = longitude,
+            CreatedByCompanyId = createdByCompanyId
         };
+    }
+
+    // WGS-84 valid ranges. Throws on out-of-range non-null coords so bad data
+    // never reaches the spatial index (also keeps API responses honest).
+    private static void ValidateCoordinates(decimal? latitude, decimal? longitude)
+    {
+        if (latitude is { } lat && (lat < -90m || lat > 90m))
+            throw new ArgumentOutOfRangeException(nameof(latitude), lat,
+                "Latitude must be between -90 and 90.");
+        if (longitude is { } lon && (lon < -180m || lon > 180m))
+            throw new ArgumentOutOfRangeException(nameof(longitude), lon,
+                "Longitude must be between -180 and 180.");
     }
 
     public void SetComparableNumber(string number)
@@ -88,6 +115,7 @@ public class MarketComparable : Aggregate<Guid>
     public void Save(MarketComparableUpdateData data)
     {
         ArgumentNullException.ThrowIfNull(data.SurveyName);
+        ValidateCoordinates(data.Latitude, data.Longitude);
 
         SurveyName = data.SurveyName;
         InfoDateTime = data.InfoDateTime;
@@ -101,6 +129,8 @@ public class MarketComparable : Aggregate<Guid>
         SaleDate = data.SaleDate;
         OfferPriceUnit = data.OfferPriceUnit;
         SalePriceUnit = data.SalePriceUnit;
+        Latitude = data.Latitude;
+        Longitude = data.Longitude;
     }
 
     public void Delete(Guid? deletedBy)
@@ -175,5 +205,7 @@ public class MarketComparable : Aggregate<Guid>
         decimal? SalePrice = null,
         DateTime? SaleDate = null,
         string? OfferPriceUnit = null,
-        string? SalePriceUnit = null);
+        string? SalePriceUnit = null,
+        decimal? Latitude = null,
+        decimal? Longitude = null);
 }

@@ -73,7 +73,8 @@ public class UpdateMenuItemCommandHandler(AuthDbContext dbContext, IMenuTreeCach
             command.IconColor,
             command.SortOrder,
             command.ViewPermissionCode,
-            command.EditPermissionCode);
+            command.EditPermissionCode,
+            command.ViewPermissionPrefix);
 
         var newTranslations = command.Translations
             .Select(t => MenuItemTranslation.Create(t.LanguageCode, t.Label))

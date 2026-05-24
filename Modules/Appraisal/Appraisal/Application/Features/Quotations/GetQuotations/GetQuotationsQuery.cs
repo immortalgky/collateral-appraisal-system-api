@@ -5,5 +5,5 @@ public record GetQuotationsQuery(
     Guid? AppraisalId = null,
     string? Status = null,
     string? Search = null,
-    DateOnly? DueDateFrom = null,
-    DateOnly? DueDateTo = null) : IQuery<GetQuotationsResult>;
+    DateOnly? CutOffTimeFrom = null,
+    DateOnly? CutOffTimeTo = null) : IQuery<GetQuotationsResult>;

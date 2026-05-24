@@ -3,7 +3,7 @@ SELECT
     q.Id,
     q.QuotationNumber,
     q.RequestDate,
-    q.DueDate,
+    q.CutOffTime,
     q.Status,
     q.RequestedBy,
     q.TotalAppraisals,

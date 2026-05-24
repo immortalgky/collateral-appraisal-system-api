@@ -7,6 +7,7 @@ public class CreateRequestService(
     IRequestRepository requestRepository,
     IRequestTitleRepository requestTitleRepository,
     IRequestCommentRepository requestCommentRepository,
+    IRequestUnitOfWork unitOfWork,
     ISender mediator
 ) : ICreateRequestService
 {
@@ -18,6 +19,34 @@ public class CreateRequestService(
         var request = await CreateRequestAsync(data, now, cancellationToken);
         var titles = await CreateTitlesAsync(data, request.Id, cancellationToken);
         await CreateCommentsAsync(data, request.Id, now, cancellationToken);
+
+        return (request, titles);
+    }
+
+    public async Task<(Request.Domain.Requests.Request, List<RequestTitle>)> CreateAndSubmitRequestAsync(
+        CreateRequestData data,
+        DateTime submittedAt,
+        string? externalCaseKey,
+        CancellationToken cancellationToken)
+    {
+        var (request, titles) = await CreateRequestAsync(data, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(externalCaseKey) && !string.IsNullOrWhiteSpace(data.Channel))
+            request.SetExternalReference(externalCaseKey, data.Channel);
+
+        request.Validate();
+        foreach (var title in titles) title.Validate();
+
+        // Appeal/Progressive require a Completed prior appraisal — reject before submitting.
+        await PriorAppraisalSubmissionGuard.EnsureValidAsync(
+            request.Purpose, request.Detail?.PrevAppraisalId, mediator, cancellationToken);
+
+        // Persist before Submit so RequestSubmittedEventHandler's DB query for titles +
+        // documents returns the committed state. Runs inside the caller's transaction;
+        // a throw in Submit() still rolls back via TransactionalBehavior.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        request.Submit(submittedAt);
 
         return (request, titles);
     }

@@ -15,7 +15,7 @@ public class EditDraftQuotationEndpoint : ICarterModule
                 {
                     var command = new EditDraftQuotationCommand(
                         QuotationRequestId: id,
-                        DueDate: request.DueDate,
+                        CutOffTime: request.CutOffTime,
                         CompanyIds: request.CompanyIds,
                         Appraisals: request.Appraisals ?? Array.Empty<EditDraftAppraisalEntry>());
 
@@ -28,7 +28,7 @@ public class EditDraftQuotationEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Edit a Draft quotation")
-            .WithDescription("Updates the DueDate and the set of invited companies on a Draft RFQ. " +
+            .WithDescription("Updates the CutOffTime and the set of invited companies on a Draft RFQ. " +
                              "Allowed only while Status=Draft and caller owns the draft. " +
                              "Company list is replaced: companies not in the new list are removed, new ones are added.")
             .WithTags("Quotation")

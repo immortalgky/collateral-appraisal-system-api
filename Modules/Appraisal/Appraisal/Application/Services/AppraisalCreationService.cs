@@ -2,6 +2,7 @@ using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Projects;
 using Request.Contracts.Requests.Dtos;
 using Shared.Identity;
+using Shared.Time;
 using Workflow;
 
 namespace Appraisal.Application.Services;
@@ -16,7 +17,8 @@ public class AppraisalCreationService(
     AppraisalDbContext dbContext,
     ICurrentUserService currentUserService,
     ILogger<AppraisalCreationService> logger,
-    ISlaCalculatorClient slaCalculatorClient) : IAppraisalCreationService
+    ISlaCalculatorClient slaCalculatorClient,
+    IDateTimeProvider dateTimeProvider) : IAppraisalCreationService
 {
     public async Task<Guid> CreateAppraisalFromRequest(
         Guid requestId,
@@ -71,8 +73,9 @@ public class AppraisalCreationService(
         logger.LogInformation("Processing {TitleCount} titles for request {RequestId}",
             titlesToProcess.Count, requestId);
 
-        var isConstructionInspection = appraisalType == AppraisalTypes.ConstructionInspection
-                                       && prevAppraisalId.HasValue;
+        var isProgressive = appraisalType == AppraisalTypes.Progressive
+                            && prevAppraisalId.HasValue;
+        var isBlock = titlesToProcess.Any(t => ProjectCodes.Contains(t.CollateralType ?? ""));
 
         // Step 3: Resolve workflow-level SLA budget. workflowDefinitionId is optional because the caller
         // (AppraisalCreationRequestedIntegrationEventHandler) may not always know the definition ID at
@@ -87,11 +90,14 @@ public class AppraisalCreationService(
 
         // Step 4: Create Appraisal aggregate
         var resolvedAppraisalType =
-            isConstructionInspection ? AppraisalTypes.ConstructionInspection : AppraisalTypes.New;
+            isProgressive ? AppraisalTypes.Progressive
+            : isBlock ? AppraisalTypes.PreAppraisal
+            : AppraisalTypes.New;
         var appraisal = Domain.Appraisals.Appraisal.Create(
             requestId,
             resolvedAppraisalType,
             priority ?? "Normal",
+            dateTimeProvider.ApplicationNow,
             appraisalSlaHours,
             requestedBy ?? createdBy,
             isPma,
@@ -101,16 +107,16 @@ public class AppraisalCreationService(
             facilityLimit,
             hasAppraisalBook,
             requestedAt,
-            isConstructionInspection ? prevAppraisalId : null);
+            isProgressive ? prevAppraisalId : null);
 
         // Track prior→new property mapping so we can duplicate PropertyPhotoMapping rows
         // AFTER Phase 1 SaveChanges (which is where DB-generated IDs land on the new properties).
         List<(Guid PriorPropertyId, AppraisalProperty NewProperty)> priorToNewProperties = [];
 
-        if (isConstructionInspection)
+        if (isProgressive)
         {
-            // Step 4 (CI path): Deep-copy properties from the prior appraisal.
-            // ConstructionInspection detail is intentionally excluded — it stays empty for fresh CI tracking.
+            // Step 4 (Progressive path): Deep-copy properties from the prior appraisal.
+            // ConstructionInspection (per-property) detail is intentionally excluded — it stays empty for fresh tracking.
             priorToNewProperties = await CopyPropertiesFromPriorAppraisalAsync(
                 appraisal, prevAppraisalId!.Value, cancellationToken);
         }
@@ -186,7 +192,10 @@ public class AppraisalCreationService(
             logger.LogInformation("Pre-generated {Count} appendices for appraisal {AppraisalId}",
                 activeAppendixTypes.Count, appraisal.Id);
 
-            // Initialize Project for BlockLand (32) and BlockCondo (33)
+            // Initialize Project for BlockLand (32) and BlockCondo (33). These external
+            // CollateralType codes signal a block/project deal — we only create the Project
+            // aggregate header, not individual property rows. ProjectType.Land has no
+            // external code: it is reachable only via the in-app ChangeProjectType flow.
             var projectTitles = titlesToProcess.Where(t => ProjectCodes.Contains(t.CollateralType ?? "")).ToList();
             if (projectTitles.Any())
             {
@@ -206,7 +215,7 @@ public class AppraisalCreationService(
             // For CI we mirror the prior appraisal's group structure so PricingAnalysis can be
             // cloned per-group with stable PropertyGroupId mapping. Otherwise default to "Group 1".
             Dictionary<Guid, Guid> priorToNewGroupIds = new();
-            if (isConstructionInspection && priorToNewProperties.Count > 0)
+            if (isProgressive && priorToNewProperties.Count > 0)
             {
                 priorToNewGroupIds = await MirrorPriorGroupsFromPriorAsync(
                     appraisal, prevAppraisalId!.Value, priorToNewProperties, cancellationToken);
@@ -236,7 +245,7 @@ public class AppraisalCreationService(
             // chain + 1:1 method analyses + AppraisalComparable rows. Status reset to "Draft".
             // Property-id map carries through for MachineCostItems whose AppraisalPropertyId must
             // be remapped to the new appraisal's property ids.
-            if (isConstructionInspection && priorToNewGroupIds.Count > 0)
+            if (isProgressive && priorToNewGroupIds.Count > 0)
             {
                 var propertyIdMap = priorToNewProperties.ToDictionary(t => t.PriorPropertyId, t => t.NewProperty.Id);
 

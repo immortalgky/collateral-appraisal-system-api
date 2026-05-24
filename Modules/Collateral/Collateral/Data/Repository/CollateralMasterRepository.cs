@@ -14,6 +14,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .Include(m => m.LeaseholdDetail)
             .Include(m => m.MachineDetail)
             .Include(m => m.Engagements)
+            .Include(m => m.Documents)
             .FirstOrDefaultAsync(m => m.Id == id && !m.IsDeleted, cancellationToken);
 
     public async Task<CollateralMaster?> FindByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
@@ -24,6 +25,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .Include(m => m.LeaseholdDetail)
             .Include(m => m.MachineDetail)
             .Include(m => m.Engagements)
+            .Include(m => m.Documents)
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
 
     public async Task<CollateralMaster?> FindLandByDedupKey(
@@ -32,10 +34,12 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
         CancellationToken ct = default)
     {
         // null is a valid dedup component for survey/parcel — must match exactly
+        // Dedup matches both L (bare land) and LB (land+building) — same physical title.
+        var landTypes = new[] { CollateralTypes.Land, CollateralTypes.LandWithBuilding };
         return await dbContext.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .Where(m => !m.IsDeleted && m.CollateralType == CollateralTypes.Land && m.IsMaster &&
+            .Where(m => !m.IsDeleted && landTypes.Contains(m.CollateralType) && m.IsMaster &&
                 m.LandDetail!.LandOfficeCode == landOfficeCode &&
                 m.LandDetail.Province == province &&
                 m.LandDetail.District == district &&
@@ -53,10 +57,12 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
         CancellationToken ct = default)
     {
         // Same as FindLandByDedupKey but includes alias rows (IsMaster=false).
+        // Matches both L and LB — same physical title.
+        var landTypes = new[] { CollateralTypes.Land, CollateralTypes.LandWithBuilding };
         return await dbContext.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .Where(m => !m.IsDeleted && m.CollateralType == CollateralTypes.Land &&
+            .Where(m => !m.IsDeleted && landTypes.Contains(m.CollateralType) &&
                 m.LandDetail!.LandOfficeCode == landOfficeCode &&
                 m.LandDetail.Province == province &&
                 m.LandDetail.District == district &&
@@ -90,7 +96,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .Include(m => m.Engagements)
             .Where(m =>
                 !m.IsDeleted &&
-                m.CollateralType == CollateralTypes.Condo &&
+                m.CollateralType == CollateralTypes.Condo && // "U"
                 m.CondoDetail!.LandOfficeCode == landOfficeCode &&
                 m.CondoDetail.CondoRegistrationNumber == condoRegistrationNumber &&
                 m.CondoDetail.BuildingNumber == buildingNumber &&
@@ -104,18 +110,22 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
         string leaseRegistrationNo, Guid underlyingMasterId,
         string lessor, string lessee, DateOnly leaseTermStart,
         CancellationToken ct = default)
-        => await dbContext.CollateralMasters
+    {
+        // Dedup matches LSL, LSB, LS — same physical leasehold registration.
+        var leaseholdTypes = new[] { CollateralTypes.Leasehold, CollateralTypes.LeaseholdBuilding, CollateralTypes.LeaseholdWithBuilding };
+        return await dbContext.CollateralMasters
             .Include(m => m.LeaseholdDetail)
             .Include(m => m.Engagements)
             .Where(m =>
                 !m.IsDeleted &&
-                m.CollateralType == CollateralTypes.Leasehold &&
+                leaseholdTypes.Contains(m.CollateralType) &&
                 m.LeaseholdDetail!.LeaseRegistrationNo == leaseRegistrationNo &&
                 m.LeaseholdDetail.UnderlyingMasterId == underlyingMasterId &&
                 m.LeaseholdDetail.Lessor == lessor &&
                 m.LeaseholdDetail.Lessee == lessee &&
                 m.LeaseholdDetail.LeaseTermStart == leaseTermStart)
             .FirstOrDefaultAsync(ct);
+    }
 
     public async Task<CollateralMaster?> FindMachineForUpsert(
         string? registrationNo, string? serialNo, string? brand, string? model, string? manufacturer,
@@ -129,7 +139,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
                 .Include(m => m.Engagements)
                 .Where(m =>
                     !m.IsDeleted &&
-                    m.CollateralType == CollateralTypes.Machine &&
+                    m.CollateralType == CollateralTypes.Machine && // "MAC"
                     m.MachineDetail!.MachineRegistrationNo == registrationNo)
                 .FirstOrDefaultAsync(ct);
 
@@ -187,11 +197,13 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
         string landOfficeCode, string province, string district, string subDistrict,
         string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber,
         CancellationToken ct = default)
-        => await dbContext.CollateralMasters
+    {
+        var landTypes = new[] { CollateralTypes.Land, CollateralTypes.LandWithBuilding };
+        return await dbContext.CollateralMasters
             .Where(m =>
                 m.Id != excludeMasterId &&
                 !m.IsDeleted &&
-                m.CollateralType == CollateralTypes.Land &&
+                landTypes.Contains(m.CollateralType) &&
                 m.LandDetail!.LandOfficeCode == landOfficeCode &&
                 m.LandDetail.Province == province &&
                 m.LandDetail.District == district &&
@@ -201,6 +213,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
                 m.LandDetail.SurveyNumber == surveyNumber &&
                 m.LandDetail.LandParcelNumber == landParcelNumber)
             .AnyAsync(ct);
+    }
 
     public async Task<bool> CondoDedupCollidesAsync(
         Guid excludeMasterId,
@@ -227,17 +240,20 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
         string leaseRegistrationNo, Guid underlyingMasterId,
         string lessor, string lessee, DateOnly leaseTermStart,
         CancellationToken ct = default)
-        => await dbContext.CollateralMasters
+    {
+        var leaseholdTypes = new[] { CollateralTypes.Leasehold, CollateralTypes.LeaseholdBuilding, CollateralTypes.LeaseholdWithBuilding };
+        return await dbContext.CollateralMasters
             .Where(m =>
                 m.Id != excludeMasterId &&
                 !m.IsDeleted &&
-                m.CollateralType == CollateralTypes.Leasehold &&
+                leaseholdTypes.Contains(m.CollateralType) &&
                 m.LeaseholdDetail!.LeaseRegistrationNo == leaseRegistrationNo &&
                 m.LeaseholdDetail.UnderlyingMasterId == underlyingMasterId &&
                 m.LeaseholdDetail.Lessor == lessor &&
                 m.LeaseholdDetail.Lessee == lessee &&
                 m.LeaseholdDetail.LeaseTermStart == leaseTermStart)
             .AnyAsync(ct);
+    }
 
     public async Task<bool> MachineDedupCollidesAsync(
         Guid excludeMasterId,
@@ -277,13 +293,16 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
     public async Task<List<Guid>> GetActiveLeaseholdIdsForUnderlyingAsync(
         Guid underlyingMasterId,
         CancellationToken ct = default)
-        => await dbContext.CollateralMasters
+    {
+        var leaseholdTypes = new[] { CollateralTypes.Leasehold, CollateralTypes.LeaseholdBuilding, CollateralTypes.LeaseholdWithBuilding };
+        return await dbContext.CollateralMasters
             .Where(m =>
                 !m.IsDeleted &&
-                m.CollateralType == CollateralTypes.Leasehold &&
+                leaseholdTypes.Contains(m.CollateralType) &&
                 m.LeaseholdDetail!.UnderlyingMasterId == underlyingMasterId)
             .Select(m => m.Id)
             .ToListAsync(ct);
+    }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         => await dbContext.SaveChangesAsync(cancellationToken);

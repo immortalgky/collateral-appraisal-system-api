@@ -57,6 +57,12 @@ public interface ICurrentUserService
     Guid? CompanyId { get; }
 
     /// <summary>
+    /// True when the current user belongs to an external appraisal company
+    /// (i.e. has a company_id claim). Bank-internal users have no CompanyId.
+    /// </summary>
+    bool IsExternal { get; }
+
+    /// <summary>
     /// Checks if the current user has a specific role.
     /// </summary>
     /// <param name="role">The role name to check</param>

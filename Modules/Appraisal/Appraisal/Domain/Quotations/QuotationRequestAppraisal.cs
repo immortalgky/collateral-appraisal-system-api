@@ -21,13 +21,14 @@ public class QuotationRequestAppraisal
     public static QuotationRequestAppraisal Create(
         Guid quotationRequestId,
         Guid appraisalId,
-        string addedBy)
+        string addedBy,
+        DateTime addedAt)
     {
         return new QuotationRequestAppraisal
         {
             QuotationRequestId = quotationRequestId,
             AppraisalId = appraisalId,
-            AddedAt = DateTime.UtcNow,
+            AddedAt = addedAt,
             AddedBy = addedBy
         };
     }

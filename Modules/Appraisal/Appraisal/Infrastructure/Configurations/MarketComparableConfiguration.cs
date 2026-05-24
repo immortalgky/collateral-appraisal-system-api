@@ -22,6 +22,13 @@ public class MarketComparableConfiguration : IEntityTypeConfiguration<MarketComp
         builder.Property(m => m.SalePriceUnit).HasMaxLength(50);
         builder.Property(m => m.Notes).HasMaxLength(4000);
 
+        // Geolocation
+        builder.Property(m => m.Latitude).HasPrecision(9, 6);
+        builder.Property(m => m.Longitude).HasPrecision(9, 6);
+        builder.Property(m => m.CreatedByCompanyId);
+        // GeoPoint is a DB-computed persisted column — EF must not map it
+        builder.Ignore("GeoPoint");
+
         builder.Property(m => m.CreatedAt).IsRequired();
         builder.Property(m => m.CreatedBy).IsRequired();
 

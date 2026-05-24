@@ -4,8 +4,8 @@ using Appraisal.Infrastructure;
 using Collateral.CollateralMasters.Consumers;
 using Collateral.CollateralMasters.Models;
 using Collateral.CollateralMasters.Services;
-using Collateral.Contracts.AppealExclusion;
 using Collateral.Contracts.ConstructionInspection;
+using Collateral.Contracts.Engagements;
 using Collateral.Data;
 using Integration.Fixtures;
 using MassTransit;
@@ -29,12 +29,12 @@ namespace Integration.Collateral.Integration.Tests;
 /// Collateral write path itself.
 ///
 /// Test inventory:
-///   PR6-1  Contract test: RequestSubmittedIntegrationEventConsumer publishes
-///          GetMostRecentPriorCompanyQuery with the correct title data, so the
-///          Workflow → Collateral read-side seam is covered.
-///   PR6-2  Contract test: RequestSubmittedIntegrationEventConsumer publishes
-///          GetMostRecentCompanyForAppraisalQuery for CI requests, verifying the
-///          force-company-id seam is covered.
+///   PR6-1  Contract test: for an Appeal request the consumer resolves
+///          GetMostRecentEngagementByPriorAppraisalQuery and EXCLUDES the company,
+///          so the Workflow → Collateral read-side seam is covered.
+///   PR6-2  Contract test: for a Progressive (construction inspection) request the
+///          consumer resolves GetMostRecentEngagementByPriorAppraisalQuery to FORCE
+///          the company and pick the copy/fee source — that seam is covered.
 ///   PR6-3  AssignmentFeeService.ResolveSourceForAppraisalAsync pulls CI fee
 ///          from a seeded engagement for the prior appraisal ID.
 ///   PR6-4  End-to-end: AppraisalCompletedConsumer → ProcessAppraisalAsync →
@@ -52,7 +52,7 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
 
     private static AppraisalAggregate CreateAppraisalSeed(Guid requestId, string prefix = "PR6")
     {
-        var a = AppraisalAggregate.Create(requestId, "New", "Normal");
+        var a = AppraisalAggregate.Create(requestId, "New", "Normal", DateTime.Now);
         a.SetAppraisalNumber($"AP-{prefix}-{Guid.NewGuid():N}"[..18]);
         typeof(AppraisalAggregate)
             .GetProperty("CompletedAt")!
@@ -107,12 +107,12 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
     // -----------------------------------------------------------------------
     // PR6-1: Workflow → Collateral read-side seam (appeal exclusion contract)
     //
-    // The RequestSubmittedIntegrationEventConsumer calls mediator.Send(
-    //   new GetMostRecentPriorCompanyQuery(titleNo, titleType, province)).
-    //
-    // This test seeds a CollateralMaster with an engagement that carries a
-    // company ID, then sends the query directly to verify the handler returns
-    // the seeded company — the same call path that the workflow consumer uses.
+    // For an Appeal request, RequestSubmittedIntegrationEventConsumer calls
+    //   mediator.Send(new GetMostRecentEngagementByPriorAppraisalQuery(prevAppraisalId))
+    // and EXCLUDES the resolved company. This test seeds a CollateralMaster with an
+    // engagement that carries a company ID, then sends the query directly to verify
+    // the handler resolves the seeded company via the master link — the same call
+    // path the workflow consumer uses.
     //
     // Why this approach: the workflow consumer requires the full Workflow module
     // (WorkflowInstance, WorkflowDefinition, outbox, etc.). Calling the MediatR
@@ -162,21 +162,23 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
         var mediator = assert.ServiceProvider.GetRequiredService<ISender>();
 
         var result = await mediator.Send(
-            new GetMostRecentPriorCompanyQuery(titleNo, "Chanote", "Bangkok"), ct);
+            new GetMostRecentEngagementByPriorAppraisalQuery(appraisalId), ct);
 
-        // Assert: handler returns the company ID → the seam is wired correctly
-        Assert.Equal(companyId, result);
+        // Assert: handler resolves the engagement carrying the company → the seam is wired
+        Assert.NotNull(result);
+        Assert.Equal(companyId, result!.CompanyId);
     }
 
     // -----------------------------------------------------------------------
-    // PR6-2: Workflow → Collateral read-side seam (CI force-company contract)
+    // PR6-2: Workflow → Collateral read-side seam (Progressive force-company contract)
     //
-    // The RequestSubmittedIntegrationEventConsumer calls mediator.Send(
-    //   new GetMostRecentCompanyForAppraisalQuery(prevAppraisalId))
-    // to pin the CI request to the same company.
+    // For a Progressive (construction inspection) request, the consumer calls
+    //   mediator.Send(new GetMostRecentEngagementByPriorAppraisalQuery(prevAppraisalId))
+    // to pin the request to the prior company (and resolve the copy/fee source).
     //
     // This test seeds an engagement with a known company ID for a prior appraisal,
-    // then sends the query to verify the handler returns the right (CompanyId, CompanyName).
+    // then sends the query to verify the handler returns the resolved EngagementRef
+    // (AppraisalId + CompanyId + CompanyName).
     // -----------------------------------------------------------------------
     [Fact]
     public async Task PR6_2_CIForceCompany_QueryReturnsSeededCompanyFromEngagement()
@@ -221,12 +223,13 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
         var mediator = assert.ServiceProvider.GetRequiredService<ISender>();
 
         var result = await mediator.Send(
-            new GetMostRecentCompanyForAppraisalQuery(appraisalId), ct);
+            new GetMostRecentEngagementByPriorAppraisalQuery(appraisalId), ct);
 
-        // Assert: returns the correct company tuple
+        // Assert: returns the resolved engagement reference
         Assert.NotNull(result);
-        Assert.Equal(companyId, result!.Value.CompanyId);
-        Assert.Equal(companyName, result.Value.CompanyName);
+        Assert.Equal(appraisalId, result!.AppraisalId);
+        Assert.Equal(companyId, result.CompanyId);
+        Assert.Equal(companyName, result.CompanyName);
     }
 
     // -----------------------------------------------------------------------
@@ -284,8 +287,9 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
             var appraisalDb = GetAppraisalDbContext(seed);
             var ciAppraisal = AppraisalAggregate.Create(
                 Guid.NewGuid(),
-                AppraisalTypes.ConstructionInspection,
+                AppraisalTypes.Progressive,
                 "Normal",
+                DateTime.Now,
                 prevAppraisalId: priorAppraisalId);
             ciAppraisal.SetAppraisalNumber("AP-CI-TEST-001");
 

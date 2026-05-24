@@ -49,6 +49,9 @@ public sealed record CondoUpsertData(
     int? BuildingAge,
     int? ConstructionYear,
     string? ModelName,
+    // GPS coordinates (Phase 1 — geo filter prerequisite)
+    decimal? Latitude,
+    decimal? Longitude,
     // Appraisal summary
     Guid AppraisalId,
     string AppraisalNumber,
@@ -84,9 +87,11 @@ public class CollateralMaster : Aggregate<Guid>
 {
     private readonly List<CollateralEngagement> _engagements = [];
     private readonly List<CollateralMasterAuditLog> _auditLogs = [];
+    private readonly List<CollateralDocument> _documents = [];
 
     public IReadOnlyList<CollateralEngagement> Engagements => _engagements.AsReadOnly();
     public IReadOnlyList<CollateralMasterAuditLog> AuditLogs => _auditLogs.AsReadOnly();
+    public IReadOnlyList<CollateralDocument> Documents => _documents.AsReadOnly();
 
     public string CollateralType { get; private set; } = null!;
     public string? OwnerName { get; private set; }
@@ -130,12 +135,18 @@ public class CollateralMaster : Aggregate<Guid>
         string? street,
         string? village,
         decimal? latitude,
-        decimal? longitude)
+        decimal? longitude,
+        string? collateralType = null)
     {
+        // Default to bare land; caller may pass "LB" when the appraisal includes buildings.
+        var effectiveType = string.IsNullOrWhiteSpace(collateralType)
+            ? CollateralTypes.Land
+            : collateralType;
+
         var master = new CollateralMaster
         {
             Id = Guid.CreateVersion7(),
-            CollateralType = CollateralTypes.Land,
+            CollateralType = effectiveType,
             OwnerName = ownerName,
             IsDeleted = false,
             IsMaster = true,
@@ -167,12 +178,17 @@ public class CollateralMaster : Aggregate<Guid>
         string titleType,
         string titleNumber,
         string? surveyNumber,
-        string? landParcelNumber)
+        string? landParcelNumber,
+        string? collateralType = null)
     {
+        var effectiveType = string.IsNullOrWhiteSpace(collateralType)
+            ? CollateralTypes.Land
+            : collateralType;
+
         var alias = new CollateralMaster
         {
             Id = Guid.CreateVersion7(),
-            CollateralType = CollateralTypes.Land,
+            CollateralType = effectiveType,
             OwnerName = null,
             IsDeleted = false,
             IsMaster = false,
@@ -192,6 +208,22 @@ public class CollateralMaster : Aggregate<Guid>
         return alias;
     }
 
+    /// <summary>
+    /// Flips the CollateralType discriminator to reflect the latest appraisal classification.
+    /// Called by the upsert service (LATEST-wins): e.g. L → LB when a building appraisal is
+    /// applied to an existing bare-land master.
+    /// </summary>
+    public void UpdateCollateralType(string collateralType)
+    {
+        if (string.IsNullOrWhiteSpace(collateralType))
+            throw new ArgumentException("CollateralType must not be empty.", nameof(collateralType));
+        if (string.Equals(CollateralType, collateralType, StringComparison.Ordinal))
+            return; // idempotent — no event, no entity dirtying when the type already matches
+        var old = CollateralType;
+        CollateralType = collateralType;
+        AddDomainEvent(new CollateralTypeChangedEvent(Id, old, collateralType));
+    }
+
     public static CollateralMaster CreateCondo(
         string ownerName,
         string landOfficeCode,
@@ -207,7 +239,7 @@ public class CollateralMaster : Aggregate<Guid>
         var master = new CollateralMaster
         {
             Id = Guid.CreateVersion7(),
-            CollateralType = CollateralTypes.Condo,
+            CollateralType = CollateralTypes.Condo, // "U"
             OwnerName = ownerName,
             IsDeleted = false,
             IsMaster = true,
@@ -229,12 +261,21 @@ public class CollateralMaster : Aggregate<Guid>
         string leaseRegistrationNo,
         Guid underlyingMasterId,
         string lessor,
-        DateOnly leaseTermStart)
+        DateOnly leaseTermStart,
+        string? collateralType = null)
     {
+        // Default to bare leasehold; caller passes "LSB" / "LS" when the leasehold appraisal
+        // covers a building or land+building so the master is born with the correct discriminator
+        // — avoids firing both CollateralMasterCreatedEvent("LSL") and CollateralTypeChangedEvent("LSL"→"LS")
+        // in the same SaveChanges when a fresh master is appraised as LS/LSB.
+        var effectiveType = string.IsNullOrWhiteSpace(collateralType)
+            ? CollateralTypes.Leasehold
+            : collateralType;
+
         var master = new CollateralMaster
         {
             Id = Guid.CreateVersion7(),
-            CollateralType = CollateralTypes.Leasehold,
+            CollateralType = effectiveType,
             OwnerName = lessee,
             IsDeleted = false,
             IsMaster = true,
@@ -336,7 +377,8 @@ public class CollateralMaster : Aggregate<Guid>
 
         CondoDetail.UpdateLastKnown(
             data.CondoName, data.Province, data.UsableArea, data.LocationType,
-            data.BuildingAge, data.ConstructionYear, data.ModelName);
+            data.BuildingAge, data.ConstructionYear, data.ModelName,
+            data.Latitude, data.Longitude);
 
         CondoDetail.UpdateValues(data.UnitPrice, data.BuildingCost, data.AppraisalValue);
 
@@ -439,7 +481,11 @@ public class CollateralMaster : Aggregate<Guid>
         Guid? appraisalCompanyId,
         string? appraisalCompanyName,
         decimal? constructionInspectionFeeAmount,
-        string snapshot)
+        string snapshot,
+        DateTime createdAt,
+        string? appraisedCollateralType = null,
+        decimal? landAreaInSqWa = null,
+        decimal? appraisalValue = null)
     {
         if (!IsMaster)
             throw new InvalidOperationException(
@@ -450,10 +496,60 @@ public class CollateralMaster : Aggregate<Guid>
             Id, appraisalId, appraisalNumber, requestId, requestNumber,
             appraisalType, appraisalDate,
             appraiserUserId, appraisalCompanyId, appraisalCompanyName,
-            constructionInspectionFeeAmount, snapshot);
+            constructionInspectionFeeAmount, snapshot, createdAt,
+            appraisedCollateralType, landAreaInSqWa, appraisalValue);
 
         _engagements.Add(engagement);
         AddDomainEvent(new CollateralEngagementAddedEvent(Id, engagement.Id, appraisalId));
+    }
+
+    /// <summary>
+    /// Attaches a legal document to this master.
+    /// The file must already be uploaded to the Document module; pass in the returned DocumentId.
+    /// </summary>
+    /// <param name="documentType">Must be one of <see cref="DocumentTypes"/> constants.</param>
+    /// <param name="documentId">FK to the Document module's document store.</param>
+    /// <param name="fileName">Original file name returned by the Document module upload.</param>
+    /// <param name="description">Optional user-supplied description.</param>
+    public CollateralDocument AttachDocument(
+        string documentType,
+        Guid documentId,
+        string fileName,
+        string? description)
+    {
+        if (!DocumentTypes.IsValid(documentType))
+            throw new DomainException(
+                $"Invalid document type '{documentType}'. " +
+                $"Allowed values: {string.Join(", ", new[] { DocumentTypes.TitleDeed, DocumentTypes.LeaseContract, DocumentTypes.OwnershipCertificate, DocumentTypes.EncumbranceLetter, DocumentTypes.Other })}.");
+
+        // Guard against double-submit / retry: refuse to attach the same upstream DocumentId
+        // twice while it's still active. Archived duplicates are permitted (re-upload after archive).
+        if (_documents.Any(d => d.IsActive && d.DocumentId == documentId))
+            throw new DomainException(
+                $"Document {documentId} is already attached to this collateral master.");
+
+        var document = CollateralDocument.Create(Id, documentType, documentId, fileName, description);
+        _documents.Add(document);
+        AddDomainEvent(new CollateralDocumentAttachedEvent(Id, document.Id, documentId, documentType, fileName));
+        return document;
+    }
+
+    /// <summary>
+    /// Soft-archives the document row identified by its PK (<paramref name="documentRowId"/>).
+    /// Idempotent: archiving an already-archived row is a no-op (consistent with DELETE semantics).
+    /// Throws <see cref="NotFoundException"/> when no document with that Id exists on this master.
+    /// </summary>
+    public void ArchiveDocument(Guid documentRowId)
+    {
+        var document = _documents.FirstOrDefault(d => d.Id == documentRowId);
+        if (document is null)
+            throw new NotFoundException("CollateralDocument", documentRowId);
+
+        if (!document.IsActive)
+            return;  // idempotent no-op
+
+        document.Archive();
+        AddDomainEvent(new CollateralDocumentArchivedEvent(Id, document.Id, document.DocumentId));
     }
 
     private void SyncIsDeletedToDetails(bool isDeleted)

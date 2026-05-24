@@ -25,6 +25,7 @@ public class UploadProjectUnitsCommandHandler(
         var project = await projectRepository.GetWithFullGraphAsync(command.AppraisalId, cancellationToken)
                       ?? throw new InvalidOperationException($"Project not found for appraisal {command.AppraisalId}");
 
+        // TODO(Land): Land follows LandAndBuilding Excel format (plot/house columns) in v1
         var units = project.ProjectType == ProjectType.Condo
             ? ParseCondoExcel(command.FileStream, project.Id)
             : ParseLandAndBuildingExcel(command.FileStream, project.Id);

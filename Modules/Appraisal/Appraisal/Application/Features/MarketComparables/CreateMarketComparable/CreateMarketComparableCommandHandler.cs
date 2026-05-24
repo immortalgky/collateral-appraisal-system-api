@@ -1,5 +1,6 @@
 using Appraisal.Domain.MarketComparables;
 using Shared.CQRS;
+using Shared.Identity;
 
 namespace Appraisal.Application.Features.MarketComparables.CreateMarketComparable;
 
@@ -7,7 +8,8 @@ namespace Appraisal.Application.Features.MarketComparables.CreateMarketComparabl
 /// Handler for creating a new Market Comparable
 /// </summary>
 public class CreateMarketComparableCommandHandler(
-    IMarketComparableRepository marketComparableRepository
+    IMarketComparableRepository marketComparableRepository,
+    ICurrentUserService currentUser
 ) : ICommandHandler<CreateMarketComparableCommand, CreateMarketComparableResult>
 {
     public async Task<CreateMarketComparableResult> Handle(
@@ -27,8 +29,10 @@ public class CreateMarketComparableCommandHandler(
             command.SalePrice,
             command.SaleDate,
             command.OfferPriceUnit,
-            command.SalePriceUnit
-            );
+            command.SalePriceUnit,
+            command.Latitude,
+            command.Longitude,
+            createdByCompanyId: currentUser.CompanyId);
 
         await marketComparableRepository.AddAsync(comparable, cancellationToken);
 

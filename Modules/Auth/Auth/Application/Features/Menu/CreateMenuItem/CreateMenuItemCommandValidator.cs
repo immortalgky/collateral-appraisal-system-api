@@ -17,8 +17,13 @@ public class CreateMenuItemCommandValidator : AbstractValidator<CreateMenuItemCo
             .WithMessage("IconStyle must be one of: Solid, Regular, Light, Duotone, Thin, Brands");
         RuleFor(x => x.IconColor).MaximumLength(100);
         RuleFor(x => x.Path).MaximumLength(500);
-        RuleFor(x => x.ViewPermissionCode).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.ViewPermissionCode).MaximumLength(100);
+        RuleFor(x => x.ViewPermissionPrefix).MaximumLength(200);
         RuleFor(x => x.EditPermissionCode).MaximumLength(100);
+        RuleFor(x => x)
+            .Must(x => !string.IsNullOrWhiteSpace(x.ViewPermissionCode) || !string.IsNullOrWhiteSpace(x.ViewPermissionPrefix))
+            .WithName("ViewPermission")
+            .WithMessage("At least one of ViewPermissionCode or ViewPermissionPrefix is required");
         RuleFor(x => x.Translations).NotEmpty()
             .WithMessage("At least one translation is required");
         RuleFor(x => x.Translations)

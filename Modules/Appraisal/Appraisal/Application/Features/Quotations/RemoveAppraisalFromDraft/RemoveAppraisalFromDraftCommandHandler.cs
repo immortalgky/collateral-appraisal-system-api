@@ -2,13 +2,15 @@ using Appraisal.Application.Features.Quotations.Shared;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.RemoveAppraisalFromDraft;
 
 public class RemoveAppraisalFromDraftCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<RemoveAppraisalFromDraftCommand, RemoveAppraisalFromDraftResult>
 {
     public async Task<RemoveAppraisalFromDraftResult> Handle(
@@ -56,7 +58,7 @@ public class RemoveAppraisalFromDraftCommandHandler(
                 .ToList();
 
             if (remainingDocs.Count != quotation.SharedDocuments.Count)
-                quotation.SetSharedDocuments(remainingDocs, adminUsername);
+                quotation.SetSharedDocuments(remainingDocs, adminUsername, dateTimeProvider.ApplicationNow);
         }
 
         quotationRepository.Update(quotation);

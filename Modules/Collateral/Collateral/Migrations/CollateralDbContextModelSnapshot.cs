@@ -18,7 +18,7 @@ namespace Collateral.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("collateral")
-                .HasAnnotation("ProductVersion", "9.0.5")
+                .HasAnnotation("ProductVersion", "9.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -51,6 +51,73 @@ namespace Collateral.Migrations
                     b.ToTable("CollateralBackfillReports", "collateral");
                 });
 
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CollateralMasterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("UpdatedAt");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollateralMasterId")
+                        .HasDatabaseName("IX_CollateralDocuments_CollateralMasterId")
+                        .HasFilter("[IsActive] = 1");
+
+                    b.HasIndex("CollateralMasterId", "DocumentType")
+                        .HasDatabaseName("IX_CollateralDocuments_DocumentType")
+                        .HasFilter("[IsActive] = 1");
+
+                    b.ToTable("CollateralDocuments", "collateral");
+                });
+
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralEngagement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -79,6 +146,14 @@ namespace Collateral.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<decimal?>("AppraisalValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("AppraisedCollateralType")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<string>("AppraiserUserId")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -93,6 +168,10 @@ namespace Collateral.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2")
                         .HasColumnName("CreatedAt");
+
+                    b.Property<decimal?>("LandAreaInSqWa")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
@@ -119,6 +198,41 @@ namespace Collateral.Migrations
                         .HasDatabaseName("IX_CollateralEngagements_Master_Date");
 
                     b.ToTable("CollateralEngagements", "collateral");
+                });
+
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralEngagementBuilding", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("BuildingArea")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("BuildingTypeCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<decimal?>("BuildingValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EngagementId")
+                        .HasDatabaseName("IX_CollateralEngagementBuildings_EngagementId");
+
+                    b.HasIndex("EngagementId", "BuildingTypeCode")
+                        .HasDatabaseName("IX_CollateralEngagementBuildings_Engagement_TypeCode");
+
+                    b.ToTable("CollateralEngagementBuildings", "collateral");
                 });
 
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralMaster", b =>
@@ -274,9 +388,17 @@ namespace Collateral.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<decimal?>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
                     b.Property<string>("LocationType")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal?>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
 
                     b.Property<string>("ModelName")
                         .HasMaxLength(200)
@@ -565,6 +687,16 @@ namespace Collateral.Migrations
                     b.ToTable("InboxMessage", "collateral");
                 });
 
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralDocument", b =>
+                {
+                    b.HasOne("Collateral.CollateralMasters.Models.CollateralMaster", null)
+                        .WithMany("Documents")
+                        .HasForeignKey("CollateralMasterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_CollateralDocuments_CollateralMasters");
+                });
+
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralEngagement", b =>
                 {
                     b.HasOne("Collateral.CollateralMasters.Models.CollateralMaster", null)
@@ -572,6 +704,16 @@ namespace Collateral.Migrations
                         .HasForeignKey("CollateralMasterId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralEngagementBuilding", b =>
+                {
+                    b.HasOne("Collateral.CollateralMasters.Models.CollateralEngagement", null)
+                        .WithMany("Buildings")
+                        .HasForeignKey("EngagementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_CollateralEngagementBuildings_Engagement");
                 });
 
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralMaster", b =>
@@ -803,11 +945,18 @@ namespace Collateral.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralEngagement", b =>
+                {
+                    b.Navigation("Buildings");
+                });
+
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralMaster", b =>
                 {
                     b.Navigation("AuditLogs");
 
                     b.Navigation("CondoDetail");
+
+                    b.Navigation("Documents");
 
                     b.Navigation("Engagements");
 

@@ -27,7 +27,9 @@ public class AppraisalCreatedIntegrationEventConsumerTests
         var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
         var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
-            db, Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>());
+            db,
+            Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>(),
+            Substitute.For<Shared.Time.IDateTimeProvider>());
 
         var requestId = Guid.NewGuid();
         var appraisalId = Guid.NewGuid();
@@ -75,7 +77,9 @@ public class AppraisalCreatedIntegrationEventConsumerTests
         var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
         var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
-            db, Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>());
+            db,
+            Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>(),
+            Substitute.For<Shared.Time.IDateTimeProvider>());
 
         var requestId = Guid.NewGuid();
 

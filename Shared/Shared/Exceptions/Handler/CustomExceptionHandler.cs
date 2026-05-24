@@ -13,7 +13,7 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception,
         CancellationToken cancellationToken)
     {
-        logger.LogError("An error occurred: {Message} {Time}", exception.Message, DateTime.Now);
+        logger.LogError(exception, "An error occurred: {Message}", exception.Message);
 
         var (detail, title, statusCode) = exception switch
         {

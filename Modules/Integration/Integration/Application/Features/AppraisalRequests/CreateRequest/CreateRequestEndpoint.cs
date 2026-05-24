@@ -27,6 +27,9 @@ public class CreateRequestEndpoint : ICarterModule
             })
             .WithName("API - CreateRequest")
             .WithTags("Integration - Appraisal Requests")
+            .WithSummary("Creates a new appraisal request with the provided data.")
+            .WithDescription(
+                "Creates a new appraisal request with the provided data. All fields are required except those marked as optional. Returns the ID of the created request.")
             .Produces<CreateRequestResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest);
     }

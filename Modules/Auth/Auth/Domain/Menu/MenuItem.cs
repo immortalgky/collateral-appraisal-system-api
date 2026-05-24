@@ -19,7 +19,8 @@ public class MenuItem : Entity<Guid>
     public MenuIcon Icon { get; private set; } = default!;
     public string? IconColor { get; private set; }
     public int SortOrder { get; private set; }
-    public string ViewPermissionCode { get; private set; } = default!;
+    public string? ViewPermissionCode { get; private set; }
+    public string? ViewPermissionPrefix { get; private set; }
     public string? EditPermissionCode { get; private set; }
     public bool IsSystem { get; private set; }
 
@@ -36,15 +37,16 @@ public class MenuItem : Entity<Guid>
         MenuIcon icon,
         string? iconColor,
         int sortOrder,
-        string viewPermissionCode,
+        string? viewPermissionCode,
         string? editPermissionCode,
         IEnumerable<MenuItemTranslation> translations,
-        bool isSystem = false)
+        bool isSystem = false,
+        string? viewPermissionPrefix = null)
     {
         if (string.IsNullOrWhiteSpace(itemKey))
             throw new DomainException("ItemKey is required");
-        if (string.IsNullOrWhiteSpace(viewPermissionCode))
-            throw new DomainException("ViewPermissionCode is required");
+        if (string.IsNullOrWhiteSpace(viewPermissionCode) && string.IsNullOrWhiteSpace(viewPermissionPrefix))
+            throw new DomainException("At least one of ViewPermissionCode or ViewPermissionPrefix is required");
 
         var item = new MenuItem
         {
@@ -56,7 +58,8 @@ public class MenuItem : Entity<Guid>
             Icon = icon ?? throw new DomainException("Icon is required"),
             IconColor = string.IsNullOrWhiteSpace(iconColor) ? null : iconColor.Trim(),
             SortOrder = sortOrder,
-            ViewPermissionCode = viewPermissionCode.Trim(),
+            ViewPermissionCode = string.IsNullOrWhiteSpace(viewPermissionCode) ? null : viewPermissionCode.Trim(),
+            ViewPermissionPrefix = string.IsNullOrWhiteSpace(viewPermissionPrefix) ? null : viewPermissionPrefix.Trim(),
             EditPermissionCode = string.IsNullOrWhiteSpace(editPermissionCode) ? null : editPermissionCode.Trim(),
             IsSystem = isSystem
         };
@@ -74,17 +77,19 @@ public class MenuItem : Entity<Guid>
         MenuIcon icon,
         string? iconColor,
         int sortOrder,
-        string viewPermissionCode,
-        string? editPermissionCode)
+        string? viewPermissionCode,
+        string? editPermissionCode,
+        string? viewPermissionPrefix = null)
     {
-        if (string.IsNullOrWhiteSpace(viewPermissionCode))
-            throw new DomainException("ViewPermissionCode is required");
+        if (string.IsNullOrWhiteSpace(viewPermissionCode) && string.IsNullOrWhiteSpace(viewPermissionPrefix))
+            throw new DomainException("At least one of ViewPermissionCode or ViewPermissionPrefix is required");
 
         Path = string.IsNullOrWhiteSpace(path) ? null : path.Trim();
         Icon = icon ?? throw new DomainException("Icon is required");
         IconColor = string.IsNullOrWhiteSpace(iconColor) ? null : iconColor.Trim();
         SortOrder = sortOrder;
-        ViewPermissionCode = viewPermissionCode.Trim();
+        ViewPermissionCode = string.IsNullOrWhiteSpace(viewPermissionCode) ? null : viewPermissionCode.Trim();
+        ViewPermissionPrefix = string.IsNullOrWhiteSpace(viewPermissionPrefix) ? null : viewPermissionPrefix.Trim();
         EditPermissionCode = string.IsNullOrWhiteSpace(editPermissionCode) ? null : editPermissionCode.Trim();
     }
 

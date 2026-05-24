@@ -181,7 +181,7 @@ public class AssignmentFeeService(
         AssignmentFeeSource defaultSource,
         CancellationToken ct)
     {
-        if (appraisal.AppraisalType != AppraisalTypes.ConstructionInspection ||
+        if (appraisal.AppraisalType != AppraisalTypes.Progressive ||
             appraisal.PrevAppraisalId is not { } prevId)
         {
             return defaultSource;

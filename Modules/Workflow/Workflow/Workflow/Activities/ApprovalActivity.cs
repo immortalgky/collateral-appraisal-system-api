@@ -140,7 +140,8 @@ public class ApprovalActivity : WorkflowActivityBase
                 context.WorkflowInstance.StartedBy,
                 context.WorkflowInstance.Name,
                 appraisalNumber,
-                context.Movement), cancellationToken);
+                context.Movement,
+                groupInfo.CommitteeCode), cancellationToken);
 
             _logger.LogInformation(
                 "ApprovalActivity {ActivityId} started with {MemberCount} members, committee={CommitteeCode}, memberOverride={IsOverride}",
@@ -386,6 +387,20 @@ public class ApprovalActivity : WorkflowActivityBase
                             }
                         }
 
+                        // For committee-with-meeting (tier 3) the preceding MeetingActivity stamped a
+                        // "{normalized}_meetingId" variable. Scan for it; absent for direct approvals.
+                        Guid? decisionMeetingId = null;
+                        foreach (var kv in context.Variables)
+                        {
+                            if (kv.Key.EndsWith("_meetingId", StringComparison.OrdinalIgnoreCase)
+                                && Guid.TryParse(kv.Value?.ToString(), out var parsedMeetingId)
+                                && parsedMeetingId != Guid.Empty)
+                            {
+                                decisionMeetingId = parsedMeetingId;
+                                break;
+                            }
+                        }
+
                         _outbox.Publish(new AppraisalApprovedIntegrationEvent
                         {
                             AppraisalId = appraisalId.Value,
@@ -394,7 +409,11 @@ public class ApprovalActivity : WorkflowActivityBase
                             ApprovedAt = _dateTimeProvider.ApplicationNow,
                             ApprovedBy = voter,
                             AppraisalNo = appraisalNo,
-                            CommitteeId = committeeId
+                            CommitteeId = committeeId,
+                            VotesApprove = approveCount,
+                            VotesReject = rejectCount,
+                            VotesRouteBack = routeBackCount,
+                            DecisionMeetingId = decisionMeetingId
                         }, appraisalId.Value.ToString());
 
                         _logger.LogInformation(

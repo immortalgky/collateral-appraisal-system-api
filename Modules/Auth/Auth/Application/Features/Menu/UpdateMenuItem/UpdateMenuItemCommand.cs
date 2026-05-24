@@ -10,9 +10,10 @@ public record UpdateMenuItemCommand(
     string IconStyle,
     string? IconColor,
     int SortOrder,
-    string ViewPermissionCode,
+    string? ViewPermissionCode,
     string? EditPermissionCode,
-    List<MenuItemTranslationDto> Translations) : ICommand<UpdateMenuItemResult>;
+    List<MenuItemTranslationDto> Translations,
+    string? ViewPermissionPrefix = null) : ICommand<UpdateMenuItemResult>;
 
 public record UpdateMenuItemResult(bool Success);
 

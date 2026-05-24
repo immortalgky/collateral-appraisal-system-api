@@ -1,3 +1,4 @@
+using Common.Application.Features.Monitoring.Shared;
 using Common.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,9 @@ public static class CommonModule
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "common");
             });
         });
+
+        // Monitoring feature services
+        services.AddScoped<MonitoringScopeService>();
 
         return services;
     }

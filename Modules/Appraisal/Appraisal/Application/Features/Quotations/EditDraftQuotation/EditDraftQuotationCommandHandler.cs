@@ -23,7 +23,7 @@ public class EditDraftQuotationCommandHandler(
         if (quotation.Status != "Draft")
             throw new BadRequestException($"Cannot edit quotation in status '{quotation.Status}'. Only Draft quotations are editable.");
 
-        quotation.UpdateDueDate(command.DueDate);
+        quotation.UpdateCutOffTime(command.CutOffTime);
 
         var current = quotation.Invitations.Select(i => i.CompanyId).ToHashSet();
         var requested = command.CompanyIds.ToHashSet();

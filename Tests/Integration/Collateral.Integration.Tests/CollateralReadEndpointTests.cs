@@ -48,7 +48,7 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
 
     private static AppraisalAggregate CreateAppraisalSeed(Guid requestId)
     {
-        var a = AppraisalAggregate.Create(requestId, "New", "Normal");
+        var a = AppraisalAggregate.Create(requestId, "New", "Normal", DateTime.Now);
         a.SetAppraisalNumber($"AP-{Guid.NewGuid():N}".Substring(0, 18));
         typeof(AppraisalAggregate)
             .GetProperty("CompletedAt")!
@@ -181,6 +181,9 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
         Assert.True(root.GetProperty("condoDetail").ValueKind == JsonValueKind.Null);
         Assert.True(root.GetProperty("leaseholdDetail").ValueKind == JsonValueKind.Null);
         Assert.True(root.GetProperty("machineDetail").ValueKind == JsonValueKind.Null);
+        // Phase 2: photos field is always an array (empty when no engagement)
+        Assert.True(root.TryGetProperty("photos", out var photos));
+        Assert.Equal(JsonValueKind.Array, photos.ValueKind);
     }
 
     // ------------------------------------------------------------------

@@ -39,6 +39,7 @@ public record LandDetailDto(
     string TitleType,
     string TitleNumber,
     string? SurveyNumber,
+    string? LandParcelNumber,
     string? Street,
     string? Village,
     decimal? Latitude,

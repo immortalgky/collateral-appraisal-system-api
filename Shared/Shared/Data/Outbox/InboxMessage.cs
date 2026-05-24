@@ -10,21 +10,21 @@ public class InboxMessage
 
     private InboxMessage() { }
 
-    public static InboxMessage Create(Guid messageId, string consumerType)
+    public static InboxMessage Create(Guid messageId, string consumerType, DateTime startedAt)
     {
         return new InboxMessage
         {
             MessageId = messageId,
             ConsumerType = consumerType,
             Status = InboxMessageStatus.Processing,
-            StartedAt = DateTime.Now
+            StartedAt = startedAt
         };
     }
 
-    public void MarkAsProcessed()
+    public void MarkAsProcessed(DateTime processedAt)
     {
         Status = InboxMessageStatus.Processed;
-        ProcessedAt = DateTime.Now;
+        ProcessedAt = processedAt;
     }
 }
 

@@ -6,7 +6,7 @@ public record MyInvitationDto(
     Guid Id,
     string QuotationNumber,
     DateTime RequestDate,
-    DateTime DueDate,
+    DateTime CutOffTime,
     string RequestedBy,
     int TotalAppraisals,
     Guid CompanyId,

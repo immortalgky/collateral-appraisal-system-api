@@ -3,6 +3,7 @@ using Appraisal.Application.Features.Appraisals.GetCompletedAppraisalIdsForBackf
 using Collateral.CollateralMasters.Exceptions;
 using Collateral.CollateralMasters.Models;
 using Collateral.Data;
+using Shared.Time;
 
 namespace Collateral.CollateralMasters.Services;
 
@@ -39,7 +40,8 @@ public record BackfillJobStatus(
 /// </summary>
 public class CollateralBackfillJob(
     IServiceScopeFactory scopeFactory,
-    ILogger<CollateralBackfillJob> logger)
+    ILogger<CollateralBackfillJob> logger,
+    IDateTimeProvider dateTimeProvider)
 {
     private const int PageSize = 100;
 
@@ -61,7 +63,7 @@ public class CollateralBackfillJob(
     public Guid StartAsync(CancellationToken ct = default)
     {
         var jobId = Guid.CreateVersion7();
-        var status = new BackfillJobStatus(jobId, DateTime.UtcNow, null, BackfillJobState.Started, 0, 0, 0);
+        var status = new BackfillJobStatus(jobId, dateTimeProvider.ApplicationNow, null, BackfillJobState.Started, 0, 0, 0);
         _jobs[jobId] = status;
 
         // Fire-and-forget — not awaited by caller
@@ -128,7 +130,7 @@ public class CollateralBackfillJob(
             _jobs[jobId] = _jobs[jobId] with
             {
                 State = BackfillJobState.Completed,
-                CompletedAt = DateTime.UtcNow,
+                CompletedAt = dateTimeProvider.ApplicationNow,
                 Processed = processed,
                 Skipped = skipped,
                 Errors = errors
@@ -177,7 +179,7 @@ public class CollateralBackfillJob(
         }
 
         // Write the report row — use the same scope's DbContext
-        var report = new CollateralBackfillReport(appraisalId, status, message);
+        var report = new CollateralBackfillReport(appraisalId, status, message, dateTimeProvider.ApplicationNow);
         db.CollateralBackfillReports.Add(report);
         await db.SaveChangesAsync(ct);
 

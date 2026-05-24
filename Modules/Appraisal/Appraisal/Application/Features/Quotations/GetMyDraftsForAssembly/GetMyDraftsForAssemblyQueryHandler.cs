@@ -31,7 +31,7 @@ public class GetMyDraftsForAssemblyQueryHandler(
                 q.Id,
                 q.QuotationNumber,
                 q.RequestDate,
-                q.DueDate,
+                q.CutOffTime,
                 q.BankingSegment,
                 q.TotalAppraisals,
                 q.TotalCompaniesInvited
@@ -81,7 +81,7 @@ public class GetMyDraftsForAssemblyQueryHandler(
             Id: r.Id,
             QuotationNumber: r.QuotationNumber,
             RequestDate: r.RequestDate,
-            DueDate: r.DueDate,
+            CutOffTime: r.CutOffTime,
             BankingSegment: r.BankingSegment,
             TotalAppraisals: r.TotalAppraisals,
             TotalCompaniesInvited: r.TotalCompaniesInvited,
@@ -97,7 +97,7 @@ public class GetMyDraftsForAssemblyQueryHandler(
         Guid Id,
         string? QuotationNumber,
         DateTime RequestDate,
-        DateTime DueDate,
+        DateTime CutOffTime,
         string? BankingSegment,
         int TotalAppraisals,
         int TotalCompaniesInvited);

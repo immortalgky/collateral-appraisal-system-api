@@ -11,9 +11,10 @@ public record CreateMenuItemCommand(
     string IconStyle,
     string? IconColor,
     int SortOrder,
-    string ViewPermissionCode,
+    string? ViewPermissionCode,
     string? EditPermissionCode,
-    List<MenuItemTranslationDto> Translations) : ICommand<CreateMenuItemResult>;
+    List<MenuItemTranslationDto> Translations,
+    string? ViewPermissionPrefix = null) : ICommand<CreateMenuItemResult>;
 
 public record CreateMenuItemResult(Guid Id);
 

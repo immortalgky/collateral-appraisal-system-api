@@ -23,7 +23,7 @@ public class GetQuotationsQueryHandler(
     // Explicit column list matches the QuotationDto positional record constructor exactly.
     // RmUserId and AppraisalId are used for filtering only — not selected into the DTO.
     private const string SelectColumns = """
-        SELECT q.Id, q.QuotationNumber, q.RequestDate, q.DueDate, q.Status, q.RequestedBy,
+        SELECT q.Id, q.QuotationNumber, q.RequestDate, q.CutOffTime, q.Status, q.RequestedBy,
                q.TotalAppraisals, q.TotalCompaniesInvited, q.TotalQuotationsReceived
         """;
 
@@ -102,17 +102,17 @@ public class GetQuotationsQueryHandler(
             dynamicParams.Add("SearchPattern", "%" + query.Search.Trim() + "%");
         }
 
-        // Optional filter: DueDate range — convert DateOnly → DateTime (Dapper rejects DateOnly)
-        if (query.DueDateFrom.HasValue)
+        // Optional filter: CutOffTime range — convert DateOnly → DateTime (Dapper rejects DateOnly)
+        if (query.CutOffTimeFrom.HasValue)
         {
-            sql += " AND q.DueDate >= @DueDateFrom";
-            dynamicParams.Add("DueDateFrom", query.DueDateFrom.Value.ToDateTime(TimeOnly.MinValue));
+            sql += " AND q.CutOffTime >= @CutOffTimeFrom";
+            dynamicParams.Add("CutOffTimeFrom", query.CutOffTimeFrom.Value.ToDateTime(TimeOnly.MinValue));
         }
 
-        if (query.DueDateTo.HasValue)
+        if (query.CutOffTimeTo.HasValue)
         {
-            sql += " AND q.DueDate <= @DueDateTo";
-            dynamicParams.Add("DueDateTo", query.DueDateTo.Value.ToDateTime(TimeOnly.MaxValue));
+            sql += " AND q.CutOffTime <= @CutOffTimeTo";
+            dynamicParams.Add("CutOffTimeTo", query.CutOffTimeTo.Value.ToDateTime(TimeOnly.MaxValue));
         }
 
         var result = await connectionFactory.QueryPaginatedAsync<QuotationDto>(

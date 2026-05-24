@@ -19,7 +19,7 @@ public class GetMyInvitationsQueryHandler(
     // Explicit column list matches MyInvitationDto positional record constructor exactly.
     // CompanyId is used for scoping only — it is still selected so Dapper maps the DTO.
     private const string SelectColumns = """
-        SELECT v.Id, v.QuotationNumber, v.RequestDate, v.DueDate, v.RequestedBy,
+        SELECT v.Id, v.QuotationNumber, v.RequestDate, v.CutOffTime, v.RequestedBy,
                v.TotalAppraisals, v.CompanyId, v.ReceivedAt, v.TotalFeeAmount,
                v.QuotedAt, v.QuotedBy, v.CompanyStatus, v.HasSubmitted
         """;
@@ -51,17 +51,17 @@ public class GetMyInvitationsQueryHandler(
             dynamicParams.Add("SearchPattern", "%" + query.Search.Trim() + "%");
         }
 
-        // Optional filter: DueDate range — convert DateOnly → DateTime (Dapper rejects DateOnly)
-        if (query.DueDateFrom.HasValue)
+        // Optional filter: CutOffTime range — convert DateOnly → DateTime (Dapper rejects DateOnly)
+        if (query.CutOffTimeFrom.HasValue)
         {
-            sql += " AND v.DueDate >= @DueDateFrom";
-            dynamicParams.Add("DueDateFrom", query.DueDateFrom.Value.ToDateTime(TimeOnly.MinValue));
+            sql += " AND v.CutOffTime >= @CutOffTimeFrom";
+            dynamicParams.Add("CutOffTimeFrom", query.CutOffTimeFrom.Value.ToDateTime(TimeOnly.MinValue));
         }
 
-        if (query.DueDateTo.HasValue)
+        if (query.CutOffTimeTo.HasValue)
         {
-            sql += " AND v.DueDate <= @DueDateTo";
-            dynamicParams.Add("DueDateTo", query.DueDateTo.Value.ToDateTime(TimeOnly.MaxValue));
+            sql += " AND v.CutOffTime <= @CutOffTimeTo";
+            dynamicParams.Add("CutOffTimeTo", query.CutOffTimeTo.Value.ToDateTime(TimeOnly.MaxValue));
         }
 
         var result = await connectionFactory.QueryPaginatedAsync<MyInvitationDto>(

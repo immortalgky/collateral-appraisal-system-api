@@ -22,13 +22,17 @@ public class DetectDeliveryTimeQueryHandler(
         DetectDeliveryTimeQuery query,
         CancellationToken cancellationToken)
     {
-        // Matches vw_AppraisalEvaluationList CTE:
-        // most recent External assignment, excluding Rejected/Cancelled (handled by global query filter).
+        // Matches vw_AppraisalEvaluationList CTE: most recent External assignment,
+        // excluding Rejected/Cancelled. The Rejected/Cancelled exclusion is also a
+        // global query filter on AppraisalAssignment, but we restate it here so this
+        // handler stays correct even if a caller adds IgnoreQueryFilters() upstream.
         // Order mirrors: ORDER BY AssignedAt DESC, CreatedAt DESC, Id DESC.
         var assignment = await dbContext.AppraisalAssignments
             .AsNoTracking()
             .Where(a => a.AppraisalId == query.AppraisalId
-                        && a.AssignmentType == AssignmentType.External)
+                        && a.AssignmentType == AssignmentType.External
+                        && a.AssignmentStatus != AssignmentStatus.Rejected
+                        && a.AssignmentStatus != AssignmentStatus.Cancelled)
             .OrderByDescending(a => a.AssignedAt)
             .ThenByDescending(a => a.CreatedAt)
             .ThenByDescending(a => a.Id)

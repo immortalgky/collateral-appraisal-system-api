@@ -1,10 +1,11 @@
 namespace Appraisal.Application.Features.Project.GetProject;
 
 /// <summary>HTTP response for getting a project.</summary>
+/// <remarks>ProjectType is the short text code ("U"/"LB"/"L").</remarks>
 public record GetProjectResponse(
     Guid Id,
     Guid AppraisalId,
-    ProjectType ProjectType,
+    string ProjectType,
     string? ProjectName,
     string? ProjectDescription,
     string? Developer,

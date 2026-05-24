@@ -68,9 +68,10 @@ public class GetProjectModelPricingContextQueryHandler(
 
     private static ModelContextDto BuildModelContext(ProjectModel model, Domain.Projects.ProjectType projectType)
     {
-        // Building-level fields live on the Model for LandAndBuilding projects.
+        // Building-level fields live on the Model for LandAndBuilding-like projects (LB and Land).
         // For Condo, these fields come from the Tower — set them null on the Model side.
-        bool isLb = projectType == Domain.Projects.ProjectType.LandAndBuilding;
+        // TODO(Land): Land follows LB model-field logic in v1.
+        bool isLb = projectType.IsLandAndBuildingLike();
 
         return new ModelContextDto(
             ModelName: model.ModelName,

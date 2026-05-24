@@ -24,6 +24,7 @@ public class QuotationActivityLog : Entity<Guid>
         Guid? companyId,
         string activityName,
         string actionBy,
+        DateTime actionAt,
         string? actionByRole = null,
         string? remark = null)
     {
@@ -34,7 +35,7 @@ public class QuotationActivityLog : Entity<Guid>
             CompanyQuotationId = companyQuotationId,
             CompanyId = companyId,
             ActivityName = activityName,
-            ActionAt = DateTime.UtcNow,
+            ActionAt = actionAt,
             ActionBy = actionBy,
             ActionByRole = actionByRole,
             Remark = remark

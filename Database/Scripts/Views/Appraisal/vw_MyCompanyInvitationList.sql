@@ -27,7 +27,7 @@ SELECT
     qr.Id,
     qr.QuotationNumber,
     qr.RequestDate,
-    qr.DueDate,
+    qr.CutOffTime,
     qr.RequestedBy,
     qr.TotalAppraisals,
     qi.CompanyId,

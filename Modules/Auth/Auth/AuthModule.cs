@@ -253,7 +253,23 @@ public static class AuthModule
             .AddUserPermissionPolicy("WebhookDeliveriesView", "WEBHOOK_DELIVERIES_VIEW")
             .AddUserPermissionPolicy("WebhookDeliveriesRetry", "WEBHOOK_DELIVERIES_RETRY")
             .AddUserPermissionPolicy("task-monitor.view", "TASK_MONITOR_VIEW")
-            .AddUserPermissionPolicy("task-monitor.reassign", "TASK_MONITOR_REASSIGN");
+            .AddUserPermissionPolicy("task-monitor.reassign", "TASK_MONITOR_REASSIGN")
+            .AddUserPermissionPolicy("history-search.view", "HISTORY_SEARCH_VIEW")
+            // ── Monitoring feature policies (FSD §2.6.8) ──────────────────────────
+            // Any-prefix policies: caller needs ANY permission with the given prefix.
+            .AddMonitoringPrefixPolicy("monitoring.pending-internal", "MONITORING:PENDING_INTERNAL:")
+            .AddMonitoringPrefixPolicy("monitoring.pending-external", "MONITORING:PENDING_EXTERNAL:")
+            // Single-permission policies (admin screens — no layer split)
+            .AddMonitoringAnyPolicy("monitoring.pending-quotation",
+                ["MONITORING:PENDING_QUOTATION"])
+            .AddMonitoringAnyPolicy("monitoring.pending-followup",
+                ["MONITORING:PENDING_FOLLOWUP"])
+            .AddMonitoringAnyPolicy("monitoring.pending-evaluation",
+                ["MONITORING:PENDING_EVALUATION"])
+            .AddMonitoringAnyPolicy("monitoring.meeting-followup",
+                ["MONITORING:MEETING_FOLLOWUP"])
+            // Top-breaches: visible to anyone with any OLA monitoring permission
+            .AddMonitoringTopBreachesPolicy();
 
         // In Development, don't pin policies to OpenIddict scheme so the
         // PolicyScheme can route to either DevBypass or OpenIddict.
@@ -353,6 +369,79 @@ public static class AuthModule
                         .Where(c => c.Type == "scope")
                         .SelectMany(c => c.Value.Split(' '))
                         .Contains(requiredScope));
+            }
+        );
+        return authorizationBuilder;
+    }
+
+    /// <summary>
+    /// Policy that passes when the user holds ANY "permissions" claim
+    /// that starts with the given prefix (e.g. "MONITORING:PENDING_INTERNAL:").
+    /// Used for layer-scoped monitoring screens where the specific layer suffix varies.
+    /// </summary>
+    private static AuthorizationBuilder AddMonitoringPrefixPolicy(
+        this AuthorizationBuilder authorizationBuilder,
+        string policyName,
+        string permissionPrefix
+    )
+    {
+        authorizationBuilder.AddPolicy(
+            policyName,
+            policy =>
+            {
+                policy.RequireAuthenticatedUser();
+                policy.RequireAssertion(ctx =>
+                    ctx.User.Claims
+                        .Where(c => c.Type == "permissions")
+                        .Any(c => c.Value.StartsWith(permissionPrefix, StringComparison.OrdinalIgnoreCase)));
+            }
+        );
+        return authorizationBuilder;
+    }
+
+    /// <summary>
+    /// Policy for the top-breaches endpoint: passes when the user holds ANY OLA monitoring
+    /// permission (Internal, External, or Followup).
+    /// </summary>
+    private static AuthorizationBuilder AddMonitoringTopBreachesPolicy(
+        this AuthorizationBuilder authorizationBuilder)
+    {
+        authorizationBuilder.AddPolicy(
+            "monitoring.top-breaches",
+            policy =>
+            {
+                policy.RequireAuthenticatedUser();
+                policy.RequireAssertion(ctx =>
+                    ctx.User.Claims
+                        .Where(c => c.Type == "permissions")
+                        .Any(c =>
+                            c.Value.StartsWith("MONITORING:PENDING_INTERNAL:", StringComparison.OrdinalIgnoreCase) ||
+                            c.Value.StartsWith("MONITORING:PENDING_EXTERNAL:", StringComparison.OrdinalIgnoreCase) ||
+                            c.Value.Equals("MONITORING:PENDING_FOLLOWUP", StringComparison.OrdinalIgnoreCase)));
+            }
+        );
+        return authorizationBuilder;
+    }
+
+    /// <summary>
+    /// Policy that passes when the user holds ANY of the listed exact permission codes.
+    /// Used for admin-level monitoring screens with a flat permission model.
+    /// </summary>
+    private static AuthorizationBuilder AddMonitoringAnyPolicy(
+        this AuthorizationBuilder authorizationBuilder,
+        string policyName,
+        string[] permissionCodes
+    )
+    {
+        authorizationBuilder.AddPolicy(
+            policyName,
+            policy =>
+            {
+                policy.RequireAuthenticatedUser();
+                policy.RequireAssertion(ctx =>
+                    ctx.User.Claims
+                        .Where(c => c.Type == "permissions")
+                        .Any(c => permissionCodes.Contains(c.Value, StringComparer.OrdinalIgnoreCase)));
             }
         );
         return authorizationBuilder;

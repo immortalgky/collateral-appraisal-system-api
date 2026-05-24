@@ -6,6 +6,7 @@ using Shared.Data;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.StartQuotationFromTask;
 
@@ -16,6 +17,7 @@ public class StartQuotationFromTaskCommandHandler(
     ISqlConnectionFactory connectionFactory,
     IIntegrationEventOutbox outbox,
     IQuotationActivityLogger activityLogger,
+    IDateTimeProvider dateTimeProvider,
     ILogger<StartQuotationFromTaskCommandHandler> logger)
     : ICommandHandler<StartQuotationFromTaskCommand, StartQuotationFromTaskResult>
 {
@@ -69,7 +71,7 @@ public class StartQuotationFromTaskCommandHandler(
         // Deferred until after the guards so rejection paths don't pay for the read. See CreateNewDraftAsync for why this isn't merged with the EF aggregate load.
         var summary = await GetAppraisalSummaryAsync(command.AppraisalId, cancellationToken);
 
-        quotation.AddAppraisal(command.AppraisalId, requestedBy);
+        quotation.AddAppraisal(command.AppraisalId, requestedBy, dateTimeProvider.ApplicationNow);
 
         // Also add a display item for the new appraisal (used by admin review panel)
         quotation.AddItem(
@@ -128,7 +130,7 @@ public class StartQuotationFromTaskCommandHandler(
         var rmUsername = await ResolveRmAsync(command.RequestId, cancellationToken);
 
         var quotation = QuotationRequest.CreateFromTask(
-            dueDate: command.DueDate,
+            cutOffTime: command.CutOffTime,
             requestedBy: requestedBy,
             initialAppraisalId: command.AppraisalId,
             requestId: command.RequestId,
@@ -136,6 +138,7 @@ public class StartQuotationFromTaskCommandHandler(
             taskExecutionId: command.TaskExecutionId,
             bankingSegment: command.BankingSegment,
             addedBy: requestedBy,
+            now: dateTimeProvider.ApplicationNow,
             rmUsername: rmUsername,
             description: null,
             specialRequirements: command.SpecialRequirements);

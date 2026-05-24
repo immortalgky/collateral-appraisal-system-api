@@ -14,5 +14,7 @@ public record UpdateMarketComparableCommand(
   decimal? SalePrice = null,
   DateTime? SaleDate = null,
   string? OfferPriceUnit = null,
-  string? SalePriceUnit = null
+  string? SalePriceUnit = null,
+  decimal? Latitude = null,
+  decimal? Longitude = null
 ):ICommand<UpdateMarketComparableResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

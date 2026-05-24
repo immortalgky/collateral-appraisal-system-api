@@ -26,7 +26,7 @@ public class QuotationRequest : Aggregate<Guid>
     // RFQ Information
     public string? QuotationNumber { get; private set; }
     public DateTime RequestDate { get; private set; }
-    public DateTime DueDate { get; private set; }
+    public DateTime CutOffTime { get; private set; }
 
     // Request Summary
     public int TotalAppraisals { get; private set; }
@@ -112,15 +112,16 @@ public class QuotationRequest : Aggregate<Guid>
     /// Legacy factory — creates a standalone RFQ (non-IBG path).
     /// </summary>
     public static QuotationRequest Create(
-        DateTime dueDate,
+        DateTime cutOffTime,
         string requestedBy,
+        DateTime now,
         string? description = null)
     {
         return new QuotationRequest
         {
             Id = Guid.CreateVersion7(),
-            RequestDate = DateTime.UtcNow,
-            DueDate = dueDate,
+            RequestDate = now,
+            CutOffTime = cutOffTime,
             RequestedBy = requestedBy,
             RequestDescription = description,
             Status = "Draft",
@@ -135,7 +136,7 @@ public class QuotationRequest : Aggregate<Guid>
     /// The initial appraisal is registered via AddAppraisal. Status stays Draft until Send() is called.
     /// </summary>
     public static QuotationRequest CreateFromTask(
-        DateTime dueDate,
+        DateTime cutOffTime,
         string requestedBy,
         Guid initialAppraisalId,
         Guid requestId,
@@ -143,6 +144,7 @@ public class QuotationRequest : Aggregate<Guid>
         Guid? taskExecutionId,
         string bankingSegment,
         string addedBy,
+        DateTime now,
         string? rmUsername = null,
         string? description = null,
         string? specialRequirements = null)
@@ -150,8 +152,8 @@ public class QuotationRequest : Aggregate<Guid>
         var rfq = new QuotationRequest
         {
             Id = Guid.CreateVersion7(),
-            RequestDate = DateTime.UtcNow,
-            DueDate = dueDate,
+            RequestDate = now,
+            CutOffTime = cutOffTime,
             RequestedBy = requestedBy,
             RequestDescription = description,
             SpecialRequirements = specialRequirements,
@@ -167,7 +169,7 @@ public class QuotationRequest : Aggregate<Guid>
         };
 
         // Register the initial appraisal
-        rfq.AddAppraisal(initialAppraisalId, addedBy);
+        rfq.AddAppraisal(initialAppraisalId, addedBy, now);
 
         return rfq;
     }
@@ -181,7 +183,7 @@ public class QuotationRequest : Aggregate<Guid>
     /// Allowed only when Status = Draft.
     /// Duplicate appraisals within the same quotation are rejected (idempotent-safe).
     /// </summary>
-    public void AddAppraisal(Guid appraisalId, string addedBy)
+    public void AddAppraisal(Guid appraisalId, string addedBy, DateTime addedAt)
     {
         if (Status != "Draft")
             throw new InvalidOperationException(
@@ -190,7 +192,7 @@ public class QuotationRequest : Aggregate<Guid>
         if (_appraisals.Any(a => a.AppraisalId == appraisalId))
             throw new InvalidOperationException($"Appraisal '{appraisalId}' is already part of this quotation.");
 
-        var entry = QuotationRequestAppraisal.Create(Id, appraisalId, addedBy);
+        var entry = QuotationRequestAppraisal.Create(Id, appraisalId, addedBy, addedAt);
         _appraisals.Add(entry);
         TotalAppraisals = _appraisals.Count;
     }
@@ -275,14 +277,14 @@ public class QuotationRequest : Aggregate<Guid>
         return invitation;
     }
 
-    public void UpdateDueDate(DateTime dueDate)
+    public void UpdateCutOffTime(DateTime cutOffTime)
     {
         if (Status != "Draft")
             throw new InvalidOperationException(
-                $"Cannot change due date of a quotation in status '{Status}'. Only Draft quotations are editable.");
-        if (dueDate <= RequestDate)
-            throw new ArgumentException("Due date must be after the request date.", nameof(dueDate));
-        DueDate = dueDate;
+                $"Cannot change cut-off time of a quotation in status '{Status}'. Only Draft quotations are editable.");
+        if (cutOffTime <= RequestDate)
+            throw new ArgumentException("Cut-off time must be after the request date.", nameof(cutOffTime));
+        CutOffTime = cutOffTime;
     }
 
     public void SetItemMaxAppraisalDays(Guid appraisalId, int? maxAppraisalDays)
@@ -337,7 +339,7 @@ public class QuotationRequest : Aggregate<Guid>
     /// Closes the RFQ for submissions. Idempotent — safe to call if already UnderAdminReview.
     /// Called by admin or the QuotationAutoCloseService.
     /// </summary>
-    public void Close()
+    public void Close(DateTime closedAt)
     {
         if (Status == "UnderAdminReview")
             return; // idempotent
@@ -346,7 +348,7 @@ public class QuotationRequest : Aggregate<Guid>
             throw new InvalidOperationException($"Cannot close RFQ in status '{Status}'");
 
         Status = "UnderAdminReview";
-        SubmissionsClosedAt = DateTime.UtcNow;
+        SubmissionsClosedAt = closedAt;
     }
 
     /// <summary>
@@ -354,12 +356,12 @@ public class QuotationRequest : Aggregate<Guid>
     /// state (Submitted / Declined / Expired), auto-close it to UnderAdminReview.
     /// Returns true if the transition occurred; false otherwise. Safe to call repeatedly.
     /// </summary>
-    public bool TryAutoCloseAfterAllResponses()
+    public bool TryAutoCloseAfterAllResponses(DateTime closedAt)
     {
         if (Status != "Sent") return false;
         if (_invitations.Any(i => i.Status == "Pending")) return false;
 
-        Close();
+        Close(closedAt);
         return true;
     }
 
@@ -395,7 +397,7 @@ public class QuotationRequest : Aggregate<Guid>
     /// Admin sends the shortlist to the RM for selection.
     /// Transitions: UnderAdminReview → PendingRmSelection.
     /// </summary>
-    public void SendShortlistToRm(Guid adminId)
+    public void SendShortlistToRm(Guid adminId, DateTime sentAt)
     {
         EnsureStatus("UnderAdminReview", "send shortlist to RM");
 
@@ -403,7 +405,7 @@ public class QuotationRequest : Aggregate<Guid>
             throw new InvalidOperationException("Cannot send shortlist: no quotations are shortlisted");
 
         Status = "PendingRmSelection";
-        ShortlistSentToRmAt = DateTime.UtcNow;
+        ShortlistSentToRmAt = sentAt;
         ShortlistSentByAdminId = adminId;
     }
 
@@ -433,7 +435,7 @@ public class QuotationRequest : Aggregate<Guid>
     /// When called from UnderAdminReview, exactly one company must be shortlisted — admins with
     /// multiple shortlisted candidates are expected to use SendShortlistToRm instead.
     /// </summary>
-    public void PickTentativeWinner(Guid companyQuotationId, Guid pickedBy, string role)
+    public void PickTentativeWinner(Guid companyQuotationId, Guid pickedBy, string role, DateTime pickedAt)
     {
         if (Status != "PendingRmSelection" && Status != "WinnerTentative" && Status != "UnderAdminReview")
             throw new InvalidOperationException($"Cannot pick tentative winner in status '{Status}'");
@@ -460,7 +462,7 @@ public class QuotationRequest : Aggregate<Guid>
 
         quotation.MarkTentative();
         TentativeWinnerQuotationId = companyQuotationId;
-        TentativelySelectedAt = DateTime.UtcNow;
+        TentativelySelectedAt = pickedAt;
         TentativelySelectedBy = pickedBy;
         TentativelySelectedByRole = role;
         Status = "WinnerTentative";
@@ -562,7 +564,7 @@ public class QuotationRequest : Aggregate<Guid>
     /// uses that value as the appraisal fee for each application in the quotation.
     /// Requires WinnerTentative status.
     /// </summary>
-    public void Finalize(Guid companyQuotationId, string? reason = null)
+    public void Finalize(Guid companyQuotationId, DateTime selectedAt, string? reason = null)
     {
         EnsureStatus("WinnerTentative", "finalize quotation");
 
@@ -575,7 +577,7 @@ public class QuotationRequest : Aggregate<Guid>
 
         SelectedCompanyId = quotation.CompanyId;
         SelectedQuotationId = companyQuotationId;
-        SelectedAt = DateTime.UtcNow;
+        SelectedAt = selectedAt;
         SelectionReason = reason;
         Status = "Finalized";
     }
@@ -583,14 +585,14 @@ public class QuotationRequest : Aggregate<Guid>
     /// <summary>
     /// Legacy non-IBG selection. Kept for backward compatibility.
     /// </summary>
-    public void SelectQuotation(Guid companyId, Guid quotationId, string? reason = null)
+    public void SelectQuotation(Guid companyId, Guid quotationId, DateTime selectedAt, string? reason = null)
     {
         if (Status != "Sent")
             throw new InvalidOperationException($"Cannot select quotation for RFQ in status '{Status}'");
 
         SelectedCompanyId = companyId;
         SelectedQuotationId = quotationId;
-        SelectedAt = DateTime.UtcNow;
+        SelectedAt = selectedAt;
         SelectionReason = reason;
         Status = "Closed";
 
@@ -622,7 +624,8 @@ public class QuotationRequest : Aggregate<Guid>
     /// </summary>
     public void SetSharedDocuments(
         IEnumerable<(Guid AppraisalId, Guid DocumentId, string Level)> selections,
-        string sharedBy)
+        string sharedBy,
+        DateTime sharedAt)
     {
         if (Status != "Draft")
             throw new InvalidOperationException(
@@ -651,11 +654,11 @@ public class QuotationRequest : Aggregate<Guid>
             if (existing is null)
             {
                 _sharedDocuments.Add(QuotationSharedDocument.Create(
-                    Id, sel.AppraisalId, documentId, sel.Level, sharedBy));
+                    Id, sel.AppraisalId, documentId, sel.Level, sharedBy, sharedAt));
             }
             else
             {
-                existing.Update(sel.AppraisalId, sel.Level, sharedBy);
+                existing.Update(sel.AppraisalId, sel.Level, sharedBy, sharedAt);
             }
         }
     }

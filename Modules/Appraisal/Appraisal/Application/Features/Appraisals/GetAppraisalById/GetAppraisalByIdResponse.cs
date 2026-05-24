@@ -24,6 +24,9 @@ public record GetAppraisalByIdResponse
     public int PropertyCount { get; set; }
     public int GroupCount { get; set; }
     public int AssignmentCount { get; set; }
+    public string? CompanyName { get; set; }
+    public string? AppraiserName { get; set; }
+    public DateTime? AppraisalDate { get; set; }
     public DateTime? CreatedOn { get; set; }
     public string? CreatedBy { get; set; }
     public DateTime? UpdatedOn { get; set; }

@@ -195,7 +195,7 @@ public class GetQuotationByIdQueryHandler(
             Id: quotation.Id,
             QuotationNumber: quotation.QuotationNumber,
             RequestDate: quotation.RequestDate,
-            DueDate: quotation.DueDate,
+            CutOffTime: quotation.CutOffTime,
             Status: quotation.Status,
             RequestedBy: quotation.RequestedBy,
             Description: quotation.RequestDescription,
