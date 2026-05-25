@@ -17,7 +17,8 @@ public class CollateralMasterAuditLog
         string action,
         string? changedFields,
         string reason,
-        string changedBy)
+        string changedBy,
+        DateTime changedAt)
     {
         Id = Guid.CreateVersion7();
         CollateralMasterId = collateralMasterId;
@@ -25,6 +26,6 @@ public class CollateralMasterAuditLog
         ChangedFields = changedFields;
         Reason = reason;
         ChangedBy = changedBy;
-        ChangedAt = DateTime.UtcNow;
+        ChangedAt = changedAt;
     }
 }

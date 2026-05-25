@@ -41,7 +41,8 @@ public class QuotationSharedDocument
         Guid appraisalId,
         Guid documentId,
         string level,
-        string sharedBy)
+        string sharedBy,
+        DateTime sharedAt)
     {
         if (level is not (RequestLevel or TitleLevel))
             throw new ArgumentException(
@@ -53,12 +54,12 @@ public class QuotationSharedDocument
             AppraisalId = appraisalId,
             DocumentId = documentId,
             Level = level,
-            SharedAt = DateTime.UtcNow,
+            SharedAt = sharedAt,
             SharedBy = sharedBy
         };
     }
 
-    internal void Update(Guid appraisalId, string level, string sharedBy)
+    internal void Update(Guid appraisalId, string level, string sharedBy, DateTime sharedAt)
     {
         if (level is not (RequestLevel or TitleLevel))
             throw new ArgumentException(
@@ -66,7 +67,7 @@ public class QuotationSharedDocument
 
         AppraisalId = appraisalId;
         Level = level;
-        SharedAt = DateTime.UtcNow;
+        SharedAt = sharedAt;
         SharedBy = sharedBy;
     }
 }

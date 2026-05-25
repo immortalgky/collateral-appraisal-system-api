@@ -5,12 +5,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared.Data.Outbox;
+using Shared.Time;
 
 namespace Shared.Messaging.Services;
 
 public class IntegrationEventDeliveryService<TDbContext>(
     IServiceScopeFactory scopeFactory,
-    ILogger<IntegrationEventDeliveryService<TDbContext>> logger)
+    ILogger<IntegrationEventDeliveryService<TDbContext>> logger,
+    IDateTimeProvider dateTimeProvider)
     : BackgroundService where TDbContext : DbContext
 {
     private const int BatchSize = 50;
@@ -78,7 +80,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
 
     private async Task<bool> TryAcquireLeaseAsync(TDbContext dbContext, CancellationToken ct)
     {
-        var now = DateTime.Now;
+        var now = dateTimeProvider.ApplicationNow;
         var leasedUntil = now.Add(LeaseDuration);
         var schema = dbContext.Model.GetDefaultSchema() ?? "dbo";
 
@@ -119,7 +121,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
             "UPDATE [" + schema + "].[BackgroundServiceLease] " +
             "SET LeasedUntil = {0} " +
             "WHERE Id = {1} AND InstanceId = {2}",
-            new object[] { DateTime.Now, _lockId, _instanceId }, ct);
+            new object[] { dateTimeProvider.ApplicationNow, _lockId, _instanceId }, ct);
     }
 
     private async Task<int> ProcessBatchAsync(TDbContext dbContext, IBus bus, CancellationToken stoppingToken)
@@ -168,7 +170,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
                 }
 
                 await bus.Publish(eventObject, eventType, stoppingToken);
-                message.MarkAsProcessed();
+                message.MarkAsProcessed(dateTimeProvider.ApplicationNow);
                 processedCount++;
             }
             catch (Exception ex)

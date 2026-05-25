@@ -1,3 +1,4 @@
+using Appraisal.Domain.Projects;
 using FluentValidation;
 
 namespace Appraisal.Application.Features.Project.ChangeProjectType;
@@ -15,6 +16,6 @@ public class ChangeProjectTypeCommandValidator : AbstractValidator<ChangeProject
             .NotEmpty().WithMessage("AppraisalId is required.");
 
         RuleFor(x => x.NewProjectType)
-            .IsInEnum().WithMessage("NewProjectType must be a valid value (Condo=1, LandAndBuilding=2).");
+            .Must(ProjectType.IsValidCode).WithMessage("NewProjectType must be a valid code (\"U\"=Condo, \"LB\"=LandAndBuilding, \"L\"=Land).");
     }
 }

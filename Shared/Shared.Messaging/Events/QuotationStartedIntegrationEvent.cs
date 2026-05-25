@@ -14,7 +14,7 @@ public record QuotationStartedIntegrationEvent : IntegrationEvent
     public Guid RequestId { get; init; }
     public Guid WorkflowInstanceId { get; init; }
     public Guid? TaskExecutionId { get; init; }
-    public DateTime DueDate { get; init; }
+    public DateTime CutOffTime { get; init; }
     public Guid[] InvitedCompanyIds { get; init; } = [];
     /// <summary>Username (employee ID) of the RM who owns the linked request. Used for workflow task assignment.</summary>
     public string? RmUsername { get; init; }

@@ -2,6 +2,7 @@ using Appraisal.Application.Features.Appraisals.GetAppraisalForCollateral;
 using Collateral.CollateralMasters.Exceptions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using Shared.Time;
 
 namespace Collateral.CollateralMasters.Services;
 
@@ -23,7 +24,8 @@ namespace Collateral.CollateralMasters.Services;
 public class CollateralMasterUpsertService(
     ICollateralMasterRepository repo,
     ISender mediator,
-    ILogger<CollateralMasterUpsertService> logger) : ICollateralMasterUpsertService
+    ILogger<CollateralMasterUpsertService> logger,
+    IDateTimeProvider dateTimeProvider) : ICollateralMasterUpsertService
 {
     // SQL Server unique-constraint violation error number
     private const int SqlUniqueConstraintViolation = 2627;
@@ -92,6 +94,8 @@ public class CollateralMasterUpsertService(
         var groupIsMasters = new Dictionary<string, CollateralMaster>(); // groupKey → IsMaster
         // Track newly-created + existing aliases for each land group (for snapshot + UnitPrice propagation)
         var groupAliases = new Dictionary<string, List<CollateralMaster>>(); // groupKey → alias list
+        // Track the resolved CollateralType per group (for engagement stamping)
+        var groupCollateralTypes = new Dictionary<string, string>(); // groupKey → CollateralType code
 
         foreach (var group in grouped)
         {
@@ -102,11 +106,13 @@ public class CollateralMasterUpsertService(
             // Land/LB properties in this group share an IsMaster
             if (landInGroup.Count > 0)
             {
-                var (master, newAliases) = await UpsertLandGroupAsync(landInGroup, appraisal, buildingProperties, ct);
+                var (master, newAliases, landCollateralType) = await UpsertLandGroupAsync(landInGroup, appraisal, buildingProperties, ct);
                 foreach (var lp in landInGroup)
                     landMasterByPropertyId[lp.PropertyId] = master;
                 groupIsMasters[group.GroupKey] = master;
                 groupAliases[group.GroupKey] = newAliases;
+                // Store the resolved collateral type so AppendEngagement can stamp it.
+                groupCollateralTypes[group.GroupKey] = landCollateralType;
             }
             else if (condoInGroup.Count > 0)
             {
@@ -149,7 +155,61 @@ public class CollateralMasterUpsertService(
             if (primaryMaster is not null)
             {
                 var snapshot = SnapshotBuilder.BuildAppraisalSnapshot(groupSnapshots);
-                AppendEngagement(primaryMaster, appraisal, snapshot);
+
+                // Resolve engagement-time values from the primary group.
+                groupCollateralTypes.TryGetValue(primaryGroup.GroupKey, out var primaryCollateralType);
+
+                // For Condo / Machine, use the master's current CollateralType.
+                var appraisedCollateralType = primaryCollateralType ?? primaryMaster.CollateralType;
+
+                // Land area from the primary land property's LandIdentity (sq.wa).
+                decimal? landAreaInSqWa = null;
+                var primaryLandProps = primaryGroup.Properties
+                    .Where(p => p.PropertyTypeCode is "L" or "LB")
+                    .ToList();
+                if (primaryLandProps.Count > 0)
+                    landAreaInSqWa = primaryLandProps[0].LandIdentity?.LandArea;
+
+                // Group-level appraisal value — PricingInfo is the same instance across all
+                // properties in the group (set at group level; see AppraisalForCollateralResult).
+                // Use the first in-scope property of the primary group that carries a PricingInfo.
+                var primaryPricingProp = primaryGroup.Properties
+                    .FirstOrDefault(p => p.PricingInfo is not null);
+                var engagementAppraisalValue = primaryPricingProp?.PricingInfo?.AppraisalValue;
+
+                AppendEngagement(primaryMaster, appraisal, snapshot, appraisedCollateralType, landAreaInSqWa, engagementAppraisalValue);
+
+                // Append building rows to the engagement for each building in the primary group.
+                var primaryTitleNumbers = primaryGroup.Properties
+                    .Where(p => p.LandIdentity is not null)
+                    .SelectMany(p => p.LandIdentity!.Titles.Select(t => t.TitleNumber))
+                    .ToHashSet();
+
+                var buildingsForPrimaryGroup = buildingProperties
+                    .Where(b => b.BuildingIdentity?.BuiltOnTitleNumber is { } btn
+                                && primaryTitleNumbers.Contains(btn)
+                                && !string.IsNullOrWhiteSpace(b.BuildingIdentity.BuildingTypeCode))
+                    .ToList();
+
+                if (buildingsForPrimaryGroup.Count > 0 && primaryMaster.Engagements.Count > 0)
+                {
+                    // The engagement we just appended is always the last one.
+                    var newEngagement = primaryMaster.Engagements[^1];
+                    for (int seq = 0; seq < buildingsForPrimaryGroup.Count; seq++)
+                    {
+                        var b = buildingsForPrimaryGroup[seq];
+                        // BuildingValue is intentionally null for v1: b.PricingInfo is the GROUP's
+                        // shared pricing instance, so assigning it to every building row would
+                        // duplicate the group total. A proper per-building value requires extending
+                        // BuildingIdentityForCollateral with the building's own pricing component
+                        // (separate task). The column is nullable to leave room for that.
+                        newEngagement.AddBuilding(
+                            buildingTypeCode: b.BuildingIdentity!.BuildingTypeCode!,
+                            buildingArea: b.BuildingIdentity.BuildingArea,
+                            buildingValue: null,
+                            sequence: seq + 1);
+                    }
+                }
             }
         }
 
@@ -328,7 +388,11 @@ public class CollateralMasterUpsertService(
     /// Newly-created aliases are tracked in memory so they are visible before SaveChangesAsync —
     /// EF Core queries do not return Added-but-unsaved entities, so we combine both sources.
     /// </summary>
-    private async Task<(CollateralMaster IsMaster, List<CollateralMaster> Aliases)> UpsertLandGroupAsync(
+    /// <summary>
+    /// Resolves or creates the land IsMaster + aliases for the group.
+    /// Returns the IsMaster, all aliases, and the resolved CollateralType for this engagement.
+    /// </summary>
+    private async Task<(CollateralMaster IsMaster, List<CollateralMaster> Aliases, string CollateralType)> UpsertLandGroupAsync(
         IReadOnlyList<AppraisalPropertyForCollateral> landPropertiesInGroup,
         AppraisalForCollateralResult appraisal,
         List<AppraisalPropertyForCollateral> allBuildingProperties,
@@ -389,6 +453,15 @@ public class CollateralMasterUpsertService(
         CollateralMaster master;
         var newAliases = new List<CollateralMaster>();
 
+        // Determine the CollateralType for this group based on whether building properties exist.
+        // Primary land property's code (L or LB) is the authoritative type for this engagement.
+        var primaryPropertyTypeCode = landPropertiesInGroup[0].PropertyTypeCode; // "L" or "LB"
+        var hasBuildingsInGroup = allBuildingProperties
+            .Any(b => b.BuildingIdentity?.BuiltOnTitleNumber is { } btn
+                      && allTitlesWithOwner.Any(x => x.Title.TitleNumber == btn));
+        // If any building in the appraisal matches this group's titles, treat as LB.
+        var resolvedCollateralType = hasBuildingsInGroup ? "LB" : primaryPropertyTypeCode;
+
         if (matchedMasterIds.Count == 0)
         {
             // No existing group — create new IsMaster row with the FIRST title
@@ -405,7 +478,8 @@ public class CollateralMasterUpsertService(
                 surveyNumber: null,
                 landParcelNumber: null,
                 street: null, village: null,
-                latitude: null, longitude: null);
+                latitude: null, longitude: null,
+                collateralType: resolvedCollateralType);
             repo.Add(master);
 
             // Create alias rows for the remaining titles
@@ -421,7 +495,8 @@ public class CollateralMasterUpsertService(
                     titleType: t.TitleType,
                     titleNumber: t.TitleNumber,
                     surveyNumber: null,
-                    landParcelNumber: null);
+                    landParcelNumber: null,
+                    collateralType: resolvedCollateralType);
                 repo.Add(alias);
                 newAliases.Add(alias);
             }
@@ -498,6 +573,10 @@ public class CollateralMasterUpsertService(
             master = parent;
         }
 
+        // LATEST-wins: flip master CollateralType to the current appraisal's classification.
+        // e.g. a previously-bare L master upgrades to LB when a building is appraised on it.
+        master.UpdateCollateralType(resolvedCollateralType);
+
         // -----------------------------------------------------------------------
         // Step 4: Update IsMaster with last-known + construction + appraisal data
         // -----------------------------------------------------------------------
@@ -538,7 +617,7 @@ public class CollateralMasterUpsertService(
             Longitude: land.Longitude,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
-            AppraisalDate: appraisal.CompletedAt ?? DateTime.UtcNow,
+            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
             IsUnderConstruction: isUnderConstruction,
             OverallConstructionProgressPercent: overallPct,
             // UnitPrice: cost approach only — FinalValueAdjusted from PricingFinalValue (PR-8).
@@ -572,7 +651,7 @@ public class CollateralMasterUpsertService(
             }
         }
 
-        return (master, newAliases);
+        return (master, newAliases, resolvedCollateralType);
     }
 
     private async Task<CollateralMaster> UpsertCondoAsync(
@@ -638,9 +717,12 @@ public class CollateralMasterUpsertService(
             BuildingAge: condo.BuildingAge,
             ConstructionYear: condo.ConstructionYear,
             ModelName: condo.ModelName,
+            // GPS coordinates (Phase 1 — geo filter prerequisite)
+            Latitude: condo.Latitude,
+            Longitude: condo.Longitude,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
-            AppraisalDate: appraisal.CompletedAt ?? DateTime.UtcNow,
+            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
             // UnitPrice: cost approach only — FinalValueAdjusted from PricingFinalValue (PR-8).
             UnitPrice: pricingInfo?.UnitPrice,
             // BuildingCost: cost approach only — from PricingFinalValue.BuildingCost (PR-8).
@@ -679,7 +761,7 @@ public class CollateralMasterUpsertService(
             IncomingRegistrationNo: m.RegistrationNumber,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
-            AppraisalDate: appraisal.CompletedAt ?? DateTime.UtcNow
+            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow
         );
 
         master.UpsertFromMachineAppraisal(upsertData);
@@ -785,7 +867,11 @@ public class CollateralMasterUpsertService(
                 leaseRegistrationNo: lh.ContractNo!,
                 underlyingMasterId: underlyingMaster.Id,
                 lessor: lh.LessorName!,
-                leaseTermStart: leaseTermStart);
+                leaseTermStart: leaseTermStart,
+                // Pass the resolved code so a fresh LS/LSB master is born with the right
+                // discriminator — UpdateCollateralType below then no-ops on the insert path
+                // and only fires CollateralTypeChangedEvent for true L→LB-style upgrades.
+                collateralType: p.PropertyTypeCode);
             repo.Add(leaseMaster);
         }
 
@@ -807,8 +893,14 @@ public class CollateralMasterUpsertService(
             LeaseTermMonths: leaseTermMonths,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
-            AppraisalDate: appraisal.CompletedAt ?? DateTime.UtcNow
+            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow
         );
+
+        // LATEST-wins: flip master CollateralType to the current appraisal's classification.
+        // The leasehold property's PropertyTypeCode ("LSL", "LSB", or "LS") is the authoritative
+        // input. Mirrors the Land path's UpdateCollateralType call so an LS/LSB appraisal applied
+        // to a previously bare-LSL master upgrades the discriminator correctly.
+        leaseMaster.UpdateCollateralType(p.PropertyTypeCode);
 
         leaseMaster.UpsertFromLeaseholdAppraisal(leaseholdUpsertData);
         return leaseMaster;
@@ -995,10 +1087,13 @@ public class CollateralMasterUpsertService(
         string titleType, string titleNo)
         => $"{landOffice}|{province}|{amphur}|{tambon}|{titleType}|{titleNo}";
 
-    private static void AppendEngagement(
+    private void AppendEngagement(
         CollateralMaster primaryMaster,
         AppraisalForCollateralResult appraisal,
-        string snapshot)
+        string snapshot,
+        string? appraisedCollateralType = null,
+        decimal? landAreaInSqWa = null,
+        decimal? appraisalValue = null)
     {
         Guid? companyId = appraisal.CompanyId.HasValue() && Guid.TryParse(appraisal.CompanyId, out var parsedCompanyId)
             ? parsedCompanyId
@@ -1010,12 +1105,16 @@ public class CollateralMasterUpsertService(
             requestId: appraisal.RequestId,
             requestNumber: appraisal.RequestNumber ?? string.Empty,
             appraisalType: appraisal.AppraisalType,
-            appraisalDate: appraisal.CompletedAt ?? DateTime.UtcNow,
+            appraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
             appraiserUserId: appraisal.AppraiserUserId,
             appraisalCompanyId: companyId,
             appraisalCompanyName: appraisal.CompanyName,
             constructionInspectionFeeAmount: appraisal.ConstructionInspectionFeeAmount,
-            snapshot: snapshot);
+            snapshot: snapshot,
+            createdAt: dateTimeProvider.ApplicationNow,
+            appraisedCollateralType: appraisedCollateralType,
+            landAreaInSqWa: landAreaInSqWa,
+            appraisalValue: appraisalValue);
     }
 
     private static bool IsUniqueConstraintViolation(DbUpdateException ex)

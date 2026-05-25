@@ -45,7 +45,7 @@ SELECT pt.Id                                                                    
        qr.Id                                                                              AS QuotationRequestId,
        qr.QuotationNumber,
        qr.Status                                                                          AS QuotationStatus,
-       qr.DueDate                                                                         AS QuotationDueDate,
+       qr.CutOffTime                                                                      AS QuotationCutOffTime,
        qrm.FirstName + ' ' + qrm.LastName                                                AS QuotationRmName
 FROM workflow.PendingTasks pt
          -- Followup tasks (ProvideAdditionalDocuments) carry the DocumentFollowup.Id as
@@ -57,7 +57,7 @@ FROM workflow.PendingTasks pt
                       FROM workflow.DocumentFollowups
                       WHERE FollowupWorkflowInstanceId = pt.WorkflowInstanceId) df
          -- Quotation context: pt.CorrelationId = QuotationRequestId for quotation-workflow tasks
-         OUTER APPLY (SELECT TOP 1 qr2.Id, qr2.QuotationNumber, qr2.Status, qr2.DueDate, qr2.RmUsername
+         OUTER APPLY (SELECT TOP 1 qr2.Id, qr2.QuotationNumber, qr2.Status, qr2.CutOffTime, qr2.RmUsername
                       FROM appraisal.QuotationRequests qr2
                       WHERE qr2.Id = pt.CorrelationId) qr
          LEFT JOIN auth.AspNetUsers qrm ON qrm.UserName = qr.RmUsername

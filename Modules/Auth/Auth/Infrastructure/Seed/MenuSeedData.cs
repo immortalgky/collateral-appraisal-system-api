@@ -18,9 +18,10 @@ public static class MenuSeedData
         IconStyle IconStyle,
         string? IconColor,
         string? Path,
-        string ViewPermissionCode,
+        string? ViewPermissionCode,
         string? EditPermissionCode,
-        List<MenuSeedNode>? Children = null);
+        List<MenuSeedNode>? Children = null,
+        string? ViewPermissionPrefix = null);
 
     public static List<MenuSeedNode> GetMainMenuSeed() => new()
     {
@@ -55,6 +56,11 @@ public static class MenuSeedData
                 new("main.task.admin-finalize", "Finalize Quotation", "circle-check", IconStyle.Solid, "text-purple-500", "/tasks?activityId=admin-finalize", "TASK_QUOTATION_FINALIZE", null),
             }),
         new("main.task-monitor", "Task Monitor", "user-gear", IconStyle.Solid, "text-orange-500", "/task-monitor", "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN"),
+        // Single tabbed Monitoring page — all 6 sections in one screen.
+        // Visible to any user holding any MONITORING:* permission. Tabs are hidden client-side
+        // based on the user's section-level permissions.
+        new("main.monitoring", "Monitoring", "binoculars", IconStyle.Solid, "text-teal-500", "/monitoring", null, null,
+            ViewPermissionPrefix: "MONITORING:"),
         new("main.appraisal", "Appraisal", "magnifying-glass-chart", IconStyle.Solid, "text-cyan-500", "/appraisals", "APPRAISAL_VIEW", null,
             new List<MenuSeedNode>
             {
@@ -91,6 +97,8 @@ public static class MenuSeedData
             new List<MenuSeedNode>
             {
                 new("main.standalone.service-quality-evaluation", "Service Quality Evaluation", "star", IconStyle.Solid, "text-teal-500", "/standalone/service-quality-evaluation", "REPORT_EVALUATION_VIEW", null),
+                new("main.standalone.history-search", "History Search", "map-location-dot", IconStyle.Solid, "text-teal-500", "/standalone/history-search", "HISTORY_SEARCH_VIEW", null),
+                new("main.standalone.block-unit-maintenance", "Block Unit Maintenance", "building-circle-check", IconStyle.Solid, "text-teal-500", "/standalone/block-unit-maintenance", "BLOCK_UNIT_MAINT_VIEW", "BLOCK_UNIT_MAINT_EDIT"),
             }),
         new("main.parameter", "Parameter", "sliders", IconStyle.Solid, "text-rose-500", "/parameter", "PARAMETER_MANAGE", null),
         new("main.user-management", "User Management", "users", IconStyle.Solid, "text-violet-500", "/users", "USER_MANAGE", null,

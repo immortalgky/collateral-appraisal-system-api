@@ -1,5 +1,6 @@
 using Appraisal.Application.Configurations;
 using Shared.Identity;
+using Shared.Time;
 
 namespace Appraisal.Application.Evaluations.Commands;
 
@@ -17,7 +18,10 @@ public record UpdateEvaluationCommand(
     string   EvaluationStatus
 ) : ICommand<Unit>, ITransactionalCommand<IAppraisalUnitOfWork>;
 
-public class UpdateEvaluationCommandHandler(AppraisalDbContext db, ICurrentUserService currentUser)
+public class UpdateEvaluationCommandHandler(
+    AppraisalDbContext db,
+    ICurrentUserService currentUser,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<UpdateEvaluationCommand, Unit>
 {
     public async Task<Unit> Handle(
@@ -40,7 +44,8 @@ public class UpdateEvaluationCommandHandler(AppraisalDbContext db, ICurrentUserS
             additionalComments:      command.AdditionalComments,
             note:                    command.Note,
             evaluationStatus:        command.EvaluationStatus,
-            evaluatedBy:             currentUser.Username);
+            evaluatedBy:             currentUser.Username,
+            evaluatedAt:             dateTimeProvider.ApplicationNow);
 
         await db.SaveChangesAsync(cancellationToken);
 

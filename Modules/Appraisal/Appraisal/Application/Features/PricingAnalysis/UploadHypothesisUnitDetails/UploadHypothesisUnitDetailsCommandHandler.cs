@@ -6,6 +6,7 @@ using Appraisal.Domain.Appraisals.Hypothesis.Uploads;
 using ClosedXML.Excel;
 using Shared.CQRS;
 using Shared.Exceptions;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.PricingAnalysis.UploadHypothesisUnitDetails;
 
@@ -17,7 +18,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.UploadHypothesisUnitDet
 /// </summary>
 public class UploadHypothesisUnitDetailsCommandHandler(
     IPricingAnalysisRepository pricingAnalysisRepository,
-    IAppraisalUnitOfWork unitOfWork
+    IAppraisalUnitOfWork unitOfWork,
+    IDateTimeProvider dateTimeProvider
 ) : ICommandHandler<UploadHypothesisUnitDetailsCommand, UploadHypothesisUnitDetailsResult>
 {
     private const int MaxRows = 20_000;
@@ -41,7 +43,7 @@ public class UploadHypothesisUnitDetailsCommandHandler(
                        ?? throw new InvalidOperationException(
                            "Hypothesis analysis not yet generated. Call GenerateHypothesisAnalysis first.");
 
-        var uploadedAt = DateTime.UtcNow;
+        var uploadedAt = dateTimeProvider.ApplicationNow;
         HypothesisUnitDetailUpload upload;
 
         if (analysis.Variant == HypothesisVariant.LandBuilding)

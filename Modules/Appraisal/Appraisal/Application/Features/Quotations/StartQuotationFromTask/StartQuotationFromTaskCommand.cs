@@ -12,7 +12,7 @@ namespace Appraisal.Application.Features.Quotations.StartQuotationFromTask;
 ///   - AppraisalAddedToQuotationIntegrationEvent is emitted.
 ///
 /// If ExistingQuotationRequestId is null:
-///   - A new Draft is created with the given DueDate, BankingSegment, invited companies, appraisal.
+///   - A new Draft is created with the given CutOffTime, BankingSegment, invited companies, appraisal.
 ///   - QuotationStartedIntegrationEvent is NOT emitted at creation — it fires when Send() is called.
 ///
 /// RequestedBy (username) and RmUserId are resolved server-side — not accepted from the request body.
@@ -22,7 +22,7 @@ public record StartQuotationFromTaskCommand(
     Guid RequestId,
     Guid WorkflowInstanceId,
     Guid? TaskExecutionId,
-    DateTime DueDate,
+    DateTime CutOffTime,
     string BankingSegment,
     List<Guid> InvitedCompanyIds,
     string? SpecialRequirements = null,

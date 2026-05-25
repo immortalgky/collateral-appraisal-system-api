@@ -10,12 +10,12 @@ public class CollateralBackfillReport
 
     private CollateralBackfillReport() { }
 
-    public CollateralBackfillReport(Guid appraisalId, string status, string? message)
+    public CollateralBackfillReport(Guid appraisalId, string status, string? message, DateTime runAt)
     {
         Id = Guid.CreateVersion7();
         AppraisalId = appraisalId;
         Status = status;
         Message = message;
-        RunAt = DateTime.UtcNow;
+        RunAt = runAt;
     }
 }

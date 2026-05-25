@@ -24,6 +24,32 @@ public class CollateralEngagement
     public string Snapshot { get; private set; } = null!;
     public DateTime CreatedAt { get; private set; }
 
+    // --- Engagement-time history fields (written once at creation, never updated) ---
+
+    /// <summary>
+    /// CollateralType code at the time of this appraisal engagement (historically frozen).
+    /// Sourced from property.PropertyTypeCode at upsert time.
+    /// NULL for engagements that pre-date this column.
+    /// </summary>
+    public string? AppraisedCollateralType { get; private set; }
+
+    /// <summary>
+    /// Land area in sq.wa at engagement time. NULL for non-Land types.
+    /// Sourced from LandIdentity.LandArea (= LandAppraisalDetail.TotalLandAreaInSqWa).
+    /// </summary>
+    public decimal? LandAreaInSqWa { get; private set; }
+
+    /// <summary>
+    /// Group-level appraisal value at engagement time (historically frozen).
+    /// Sourced from PricingInfo.AppraisalValue (the group-shared value from PricingFinalValue).
+    /// NULL for engagements that pre-date this column, or when no pricing analysis exists.
+    /// </summary>
+    public decimal? AppraisalValue { get; private set; }
+
+    // Buildings child collection — one row per Building property at engagement time.
+    private readonly List<CollateralEngagementBuilding> _buildings = [];
+    public IReadOnlyList<CollateralEngagementBuilding> Buildings => _buildings.AsReadOnly();
+
     private CollateralEngagement() { }
 
     internal CollateralEngagement(
@@ -38,7 +64,11 @@ public class CollateralEngagement
         Guid? appraisalCompanyId,
         string? appraisalCompanyName,
         decimal? constructionInspectionFeeAmount,
-        string snapshot)
+        string snapshot,
+        DateTime createdAt,
+        string? appraisedCollateralType = null,
+        decimal? landAreaInSqWa = null,
+        decimal? appraisalValue = null)
     {
         Id = Guid.CreateVersion7();
         CollateralMasterId = collateralMasterId;
@@ -53,6 +83,25 @@ public class CollateralEngagement
         AppraisalCompanyName = appraisalCompanyName;
         ConstructionInspectionFeeAmount = constructionInspectionFeeAmount;
         Snapshot = snapshot;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = createdAt;
+        AppraisedCollateralType = appraisedCollateralType;
+        LandAreaInSqWa = landAreaInSqWa;
+        AppraisalValue = appraisalValue;
+    }
+
+    /// <summary>
+    /// Appends a building to this engagement's building list.
+    /// Called by the upsert service for each Building property whose BuiltOnTitleNumber
+    /// matches one of the titles in this engagement's land group.
+    /// </summary>
+    internal void AddBuilding(
+        string buildingTypeCode,
+        decimal? buildingArea,
+        decimal? buildingValue,
+        int sequence)
+    {
+        var building = CollateralEngagementBuilding.Create(
+            Id, buildingTypeCode, buildingArea, buildingValue, sequence);
+        _buildings.Add(building);
     }
 }

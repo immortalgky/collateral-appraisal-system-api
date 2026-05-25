@@ -17,13 +17,22 @@ public class LookupCollateralMasterQueryHandler(
         var type = query.Type;
 
         // For Land, the dedup search may land on an alias row — we get back the resolved IsMaster Id.
+        // Widen each family arm to cover the new with-building variants (LB, LSB, LS) so callers
+        // can lookup any code without 404ing on the variant. Family dispatch:
+        //   L, LB                → Land family
+        //   U                    → Condo
+        //   LSL, LSB, LS         → Leasehold family
+        //   MAC                  → Machine
         Guid? masterId = type switch
         {
-            CollateralTypes.Land      => await FindLandMasterIdAsync(query),
-            CollateralTypes.Condo     => await FindCondoMasterIdAsync(query),
-            CollateralTypes.Leasehold => await FindLeaseholdMasterIdAsync(query),
-            CollateralTypes.Machine   => await FindMachineMasterIdAsync(query),
-            _                         => null
+            CollateralTypes.Land
+                or CollateralTypes.LandWithBuilding       => await FindLandMasterIdAsync(query),
+            CollateralTypes.Condo                          => await FindCondoMasterIdAsync(query),
+            CollateralTypes.Leasehold
+                or CollateralTypes.LeaseholdBuilding
+                or CollateralTypes.LeaseholdWithBuilding   => await FindLeaseholdMasterIdAsync(query),
+            CollateralTypes.Machine                        => await FindMachineMasterIdAsync(query),
+            _                                              => null
         };
 
         if (masterId is null)
@@ -63,9 +72,10 @@ public class LookupCollateralMasterQueryHandler(
         var lastEngagement = await connectionFactory.QueryFirstOrDefaultAsync<LastEngagementSummaryDto>(
             lastEngagementSql, new { MasterId = masterId.Value });
 
-        // For Land: load alias titles so the caller sees the full title set for this property
+        // For Land/LandWithBuilding: load alias titles so the caller sees the full title set for this property.
+        // After the L→LB upgrade path, a Land master can be flipped to LandWithBuilding; aliases still apply.
         List<AliasTitleDto>? aliasTitles = null;
-        if (type == CollateralTypes.Land)
+        if (type == CollateralTypes.Land || type == CollateralTypes.LandWithBuilding)
         {
             var aliasSql = """
                 SELECT ld.TitleType, ld.TitleNumber, ld.SurveyNumber, ld.LandParcelNumber
@@ -244,9 +254,12 @@ public class LookupCollateralMasterQueryHandler(
         LeaseholdDetailDto? leaseholdDetail = null;
         MachineDetailDto? machineDetail = null;
 
+        // Family-grouped cases: a master's CollateralType may have flipped via LATEST-wins
+        // (e.g. L → LB when a building was appraised). All variants share one detail DTO shape.
         switch (row.CollateralType)
         {
             case CollateralTypes.Land:
+            case CollateralTypes.LandWithBuilding:
                 landDetail = new LandDetailDto(
                     row.Land_LandOfficeCode!,
                     row.Land_Province!,
@@ -255,6 +268,7 @@ public class LookupCollateralMasterQueryHandler(
                     row.Land_TitleType!,
                     row.Land_TitleNumber!,
                     row.Land_SurveyNumber,
+                    row.Land_LandParcelNumber,
                     row.Land_Street,
                     row.Land_Village,
                     row.Land_Latitude,
@@ -302,6 +316,8 @@ public class LookupCollateralMasterQueryHandler(
                 break;
 
             case CollateralTypes.Leasehold:
+            case CollateralTypes.LeaseholdBuilding:
+            case CollateralTypes.LeaseholdWithBuilding:
                 leaseholdDetail = new LeaseholdDetailDto(
                     row.Lh_LeaseRegistrationNo!,
                     row.Lh_UnderlyingMasterId!.Value,

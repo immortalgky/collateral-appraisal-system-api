@@ -54,6 +54,8 @@ public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICur
         }
     }
 
+    public bool IsExternal => CompanyId.HasValue;
+
     public bool HasPermission(string permission)
     {
         return !string.IsNullOrWhiteSpace(permission) &&

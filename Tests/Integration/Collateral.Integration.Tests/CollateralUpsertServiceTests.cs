@@ -2,7 +2,7 @@ using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using Collateral.Application.Features.CollateralMasters.Lookup;
 using Collateral.CollateralMasters.Exceptions;
-using Collateral.Contracts.AppealExclusion;
+using Collateral.Contracts.Engagements;
 using Collateral.CollateralMasters.Models;
 using Collateral.CollateralMasters.Services;
 using Collateral.Data;
@@ -83,7 +83,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
 
     private static AppraisalAggregate CreateAppraisalSeed(Guid requestId)
     {
-        var a = AppraisalAggregate.Create(requestId, "New", "Normal");
+        var a = AppraisalAggregate.Create(requestId, "New", "Normal", DateTime.Now);
         a.SetAppraisalNumber($"AP-{Guid.NewGuid():N}".Substring(0, 18));
         // Set CompletedAt directly via reflection since domain requires status flow
         typeof(AppraisalAggregate)
@@ -1251,13 +1251,14 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
     }
 
     // -----------------------------------------------------------------------
-    // MultiTitle_GetMostRecentPriorCompany_ByAliasTitle_ReturnsMastersCompany
-    // Regression guard: GetMostRecentPriorCompanyQueryHandler must resolve alias hits
-    // to their IsMaster row, otherwise the engagement (which only attaches to IsMaster)
-    // is never found and the appeal exclusion silently breaks for multi-title properties.
+    // MultiTitle_GetMostRecentEngagementByPriorAppraisal_ResolvesViaMasterLink
+    // Regression guard: a multi-title appraisal creates 1 IsMaster + N aliases but exactly
+    // one per-appraisal engagement, anchored on the IsMaster. GetMostRecentEngagementByPrior-
+    // AppraisalQueryHandler must resolve the prior appraisal → its engagement's IsMaster →
+    // the most-recent engagement on that master, returning the company it carries.
     // -----------------------------------------------------------------------
     [Fact]
-    public async Task MultiTitle_GetMostRecentPriorCompany_ByAliasTitle_ReturnsMastersCompany()
+    public async Task MultiTitle_GetMostRecentEngagementByPriorAppraisal_ResolvesViaMasterLink()
     {
         var tag = Guid.NewGuid().ToString("N")[..6];
         var tA = ($"AX-{tag}", "Chanote");
@@ -1280,7 +1281,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
 
         // Patch the engagement with a known AppraisalCompanyId — the upsert path doesn't
         // populate it from the seed (no ext-company workflow ran). This isolates the test
-        // to the handler's alias-resolution logic.
+        // to the handler's master-link resolution.
         using (var patchScope = CreateScope())
         {
             var db = GetCollateralDbContext(patchScope);
@@ -1291,37 +1292,17 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
-        // Identify the master's own title vs the alias titles
-        string aliasTitleNo;
-        using (var lookupScope = CreateScope())
-        {
-            var db = GetCollateralDbContext(lookupScope);
-            var masterRow = await db.CollateralMasters
-                .Include(m => m.LandDetail)
-                .FirstAsync(m => m.IsMaster
-                    && m.LandDetail != null
-                    && (m.LandDetail.TitleNumber == tA.Item1
-                        || m.LandDetail.TitleNumber == tB.Item1
-                        || m.LandDetail.TitleNumber == tC.Item1),
-                    TestContext.Current.CancellationToken);
-            // Pick a title that is NOT the master's own — it must be an alias
-            aliasTitleNo = new[] { tA.Item1, tB.Item1, tC.Item1 }
-                .First(t => t != masterRow.LandDetail!.TitleNumber);
-        }
-
-        // Query by the alias title — must return the engagement's company id
+        // Query by the prior appraisal id — resolves via the engagement's master link.
         using var assertScope = CreateScope();
         var mediator = assertScope.ServiceProvider.GetRequiredService<ISender>();
 
         var result = await mediator.Send(
-            new GetMostRecentPriorCompanyQuery(
-                TitleNumber: aliasTitleNo,
-                TitleType: "Chanote",
-                Province: "BKK"),
+            new GetMostRecentEngagementByPriorAppraisalQuery(appraisalId),
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
-        Assert.Equal(expectedCompanyId, result);
+        Assert.Equal(appraisalId, result!.AppraisalId);
+        Assert.Equal(expectedCompanyId, result.CompanyId);
     }
 
     // -----------------------------------------------------------------------

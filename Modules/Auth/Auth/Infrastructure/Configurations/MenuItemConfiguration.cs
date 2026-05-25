@@ -17,7 +17,8 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
         builder.Property(m => m.Path).HasMaxLength(500);
         builder.Property(m => m.IconColor).HasMaxLength(100);
         builder.Property(m => m.SortOrder).IsRequired();
-        builder.Property(m => m.ViewPermissionCode).IsRequired().HasMaxLength(100);
+        builder.Property(m => m.ViewPermissionCode).HasMaxLength(100);
+        builder.Property(m => m.ViewPermissionPrefix).HasMaxLength(200);
         builder.Property(m => m.EditPermissionCode).HasMaxLength(100);
         builder.Property(m => m.IsSystem).IsRequired();
 

@@ -36,19 +36,19 @@ public class ResubmitRequestEndpoint : ICarterModule
                     CancellationToken cancellationToken) =>
                 {
                     var command = new ResubmitRequestCommand(
-                        RequestId: requestId,
-                        Purpose: request.Purpose,
-                        Channel: request.Channel,
-                        Requestor: request.Requestor,
-                        Creator: request.Creator,
-                        Priority: request.Priority,
-                        IsPma: request.IsPma,
-                        Detail: request.Detail,
-                        Customers: request.Customers,
-                        Properties: request.Properties,
-                        Titles: request.Titles,
-                        Documents: request.Documents,
-                        Mode: request.Mode);
+                        requestId,
+                        request.Purpose,
+                        request.Channel,
+                        request.Requestor,
+                        request.Creator,
+                        request.Priority,
+                        request.IsPma,
+                        request.Detail,
+                        request.Customers,
+                        request.Properties,
+                        request.Titles,
+                        request.Documents,
+                        request.Mode);
 
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);
@@ -57,7 +57,7 @@ public class ResubmitRequestEndpoint : ICarterModule
             .Produces<ResubmitRequestResult>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .WithTags("Requests")
+            .WithTags("Integration - Appraisal Requests")
             .WithSummary("Resubmit an existing request")
             .WithDescription("Resubmits an existing request in the system.")
             .AllowAnonymous();

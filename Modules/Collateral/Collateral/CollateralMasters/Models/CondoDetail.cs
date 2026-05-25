@@ -24,6 +24,10 @@ public class CondoDetail
     public int? ConstructionYear { get; private set; }
     public string? ModelName { get; private set; }
 
+    // GPS coordinates (Phase 1 — geo filter prerequisite)
+    public decimal? Latitude { get; private set; }
+    public decimal? Longitude { get; private set; }
+
     // Three-value model (Phase C, wired in PR-8)
     // UnitPrice: per-unit price — cost approach only. Source: PricingFinalValue.FinalValueAdjusted.
     public decimal? UnitPrice { get; private set; }
@@ -74,7 +78,9 @@ public class CondoDetail
         string? locationType,
         int? buildingAge,
         int? constructionYear,
-        string? modelName)
+        string? modelName,
+        decimal? latitude,
+        decimal? longitude)
     {
         CondoName = condoName;
         Province = province;
@@ -83,6 +89,8 @@ public class CondoDetail
         BuildingAge = buildingAge;
         ConstructionYear = constructionYear;
         ModelName = modelName;
+        Latitude = latitude;
+        Longitude = longitude;
     }
 
     public void UpdateAppraisalSummary(

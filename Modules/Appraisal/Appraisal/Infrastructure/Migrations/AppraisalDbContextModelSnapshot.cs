@@ -18,7 +18,7 @@ namespace Appraisal.Infrastructure.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("appraisal")
-                .HasAnnotation("ProductVersion", "9.0.5")
+                .HasAnnotation("ProductVersion", "9.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -1250,15 +1250,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("AppraisalId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("AssignedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("AssignedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("AssignedTo")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<Guid?>("CommitteeId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1273,41 +1264,11 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("MeetingDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("MeetingReference")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ReturnReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ReviewComments")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<string>("ReviewLevel")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("ReviewSequence")
-                        .HasColumnType("int");
+                    b.Property<Guid?>("MeetingId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("ReviewedAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("ReviewedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("TeamId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("TeamName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int?>("TotalVotes")
                         .HasColumnType("int");
@@ -1333,13 +1294,12 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AppraisalId");
-
-                    b.HasIndex("AssignedTo");
+                    b.HasIndex("AppraisalId")
+                        .IsUnique();
 
                     b.HasIndex("CommitteeId");
 
-                    b.HasIndex("TeamId");
+                    b.HasIndex("MeetingId");
 
                     b.ToTable("AppraisalReviews", "appraisal");
                 });
@@ -4721,11 +4681,22 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<Guid?>("CreatedByCompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("InfoDateTime")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<decimal?>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(4000)
@@ -5161,8 +5132,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<int>("ProjectType")
-                        .HasColumnType("int");
+                    b.Property<string>("ProjectType")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
 
                     b.Property<string>("Remark")
                         .HasMaxLength(4000)
@@ -6117,9 +6090,18 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<bool>("IsSold")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<decimal?>("LandArea")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
+
+                    b.Property<string>("LoanBankName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("ModelType")
                         .HasMaxLength(200)
@@ -6140,6 +6122,10 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<Guid?>("ProjectTowerId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PurchaseBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.Property<string>("RoomNumber")
                         .HasMaxLength(50)
@@ -6871,7 +6857,7 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime>("DueDate")
+                    b.Property<DateTime>("CutOffTime")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("QuotationNumber")
@@ -6994,7 +6980,7 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DueDate");
+                    b.HasIndex("CutOffTime");
 
                     b.HasIndex("QuotationNumber")
                         .IsUnique()
@@ -7008,8 +6994,8 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasIndex("WorkflowInstanceId")
                         .HasDatabaseName("IX_QuotationRequests_WorkflowInstanceId");
 
-                    b.HasIndex("Status", "DueDate")
-                        .HasDatabaseName("IX_QuotationRequests_Status_DueDate");
+                    b.HasIndex("Status", "CutOffTime")
+                        .HasDatabaseName("IX_QuotationRequests_Status_CutOffTime");
 
                     b.ToTable("QuotationRequests", "appraisal");
                 });
@@ -10164,32 +10150,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Navigation("VehicleDetail");
 
                     b.Navigation("VesselDetail");
-                });
-
-            modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalReview", b =>
-                {
-                    b.OwnsOne("Appraisal.Domain.Appraisals.ReviewStatus", "Status", b1 =>
-                        {
-                            b1.Property<Guid>("AppraisalReviewId")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("uniqueidentifier");
-
-                            b1.Property<string>("Code")
-                                .IsRequired()
-                                .HasMaxLength(30)
-                                .HasColumnType("nvarchar(30)")
-                                .HasColumnName("Status");
-
-                            b1.HasKey("AppraisalReviewId");
-
-                            b1.ToTable("AppraisalReviews", "appraisal");
-
-                            b1.WithOwner()
-                                .HasForeignKey("AppraisalReviewId");
-                        });
-
-                    b.Navigation("Status")
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.ComparableAdjustment", b =>

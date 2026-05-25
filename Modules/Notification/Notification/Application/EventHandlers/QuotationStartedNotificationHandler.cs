@@ -41,7 +41,7 @@ public class QuotationStartedNotificationHandler(
                     {
                         { "quotationRequestId", message.QuotationRequestId },
                         { "appraisalId", message.AppraisalId },
-                        { "dueDate", message.DueDate }
+                        { "dueDate", message.CutOffTime }
                     });
             }
 

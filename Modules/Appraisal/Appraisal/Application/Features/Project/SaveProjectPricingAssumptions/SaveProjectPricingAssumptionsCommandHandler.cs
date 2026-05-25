@@ -25,6 +25,7 @@ public class SaveProjectPricingAssumptionsCommandHandler(
 
         if (project.ProjectType == ProjectType.Condo)
         {
+            // Condo-specific pricing assumption fields
             assumption = project.SetCondoPricingAssumption(
                 command.LocationMethod,
                 command.CornerAdjustment,
@@ -36,7 +37,7 @@ public class SaveProjectPricingAssumptionsCommandHandler(
                 command.FloorIncrementAmount,
                 command.ForceSalePercentage);
         }
-        else
+        else // TODO(Land): IsLandAndBuildingLike path — both LB and Land share this in v1
         {
             assumption = project.SetLandAndBuildingPricingAssumption(
                 command.LocationMethod,

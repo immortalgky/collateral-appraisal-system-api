@@ -66,7 +66,7 @@ public class QuotationStartedIntegrationEventConsumer(
                 ? (object)message.AppraisalIds
                 : new[] { message.AppraisalId },
             ["invitedCompanyIds"] = message.InvitedCompanyIds,
-            ["dueDate"] = message.DueDate,
+            ["dueDate"] = message.CutOffTime,
             ["startedByUserId"] = message.StartedByUsername ?? string.Empty,
             ["rmUserId"] = message.RmUsername ?? string.Empty,
             ["tentativeWinnerCompanyQuotationId"] = (object?)null!,

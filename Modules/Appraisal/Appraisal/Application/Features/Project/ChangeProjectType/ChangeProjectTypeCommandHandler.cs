@@ -28,8 +28,10 @@ public class ChangeProjectTypeCommandHandler(
             ?? throw new NotFoundException(
                 $"Project not found for appraisal {command.AppraisalId}. Create a project before changing its type.");
 
+        var newProjectType = Domain.Projects.ProjectType.FromString(command.NewProjectType);
+
         // Guard: same type is a no-op and should be rejected
-        if (existing.ProjectType == command.NewProjectType)
+        if (existing.ProjectType == newProjectType)
             throw new BadRequestException(
                 $"Project type is already '{existing.ProjectType}'. No change was made.");
 
@@ -88,7 +90,7 @@ public class ChangeProjectTypeCommandHandler(
 
             var newProject = DomainProject.Create(
                 appraisalId:          appraisalId,
-                projectType:          command.NewProjectType,
+                projectType:          newProjectType,
                 projectName:          projectName,
                 projectDescription:   projectDesc,
                 developer:            developer,

@@ -26,6 +26,11 @@ public class CollateralEngagementConfiguration : IEntityTypeConfiguration<Collat
         builder.Property(e => e.Snapshot).IsRequired().HasColumnType("nvarchar(max)");
         builder.Property(e => e.CreatedAt).IsRequired().HasColumnName("CreatedAt");
 
+        // Engagement-time history fields (nullable — pre-existing engagements won't have values).
+        builder.Property(e => e.AppraisedCollateralType).HasMaxLength(30);
+        builder.Property(e => e.LandAreaInSqWa).HasPrecision(18, 4);
+        builder.Property(e => e.AppraisalValue).HasPrecision(18, 2);
+
         // PR-4: Idempotency — one engagement per appraisal (unique by AppraisalId).
         // Replaces the old (AppraisalId, PropertyId) composite unique index.
         builder.HasIndex(e => e.AppraisalId)
@@ -39,5 +44,13 @@ public class CollateralEngagementConfiguration : IEntityTypeConfiguration<Collat
         // Appeal company exclusion lookup
         builder.HasIndex(e => e.AppraisalCompanyId)
             .HasDatabaseName("IX_CollateralEngagements_AppraisalCompanyId");
+
+        // Buildings child collection navigation
+        builder.HasMany(e => e.Buildings)
+            .WithOne()
+            .HasForeignKey(b => b.EngagementId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("FK_CollateralEngagementBuildings_Engagement");
+        builder.Navigation(e => e.Buildings).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

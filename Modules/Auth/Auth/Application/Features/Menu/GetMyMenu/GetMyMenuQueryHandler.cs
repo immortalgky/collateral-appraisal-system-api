@@ -79,7 +79,12 @@ public class GetMyMenuQueryHandler(
                 else
                 {
                     // Default path: role permissions.
-                    isVisible = permissions.Contains(item.ViewPermissionCode);
+                    // A node is visible if the user holds the exact ViewPermissionCode OR holds
+                    // any permission whose key starts with ViewPermissionPrefix (prefix-match).
+                    isVisible = (!string.IsNullOrEmpty(item.ViewPermissionCode)
+                                    && permissions.Contains(item.ViewPermissionCode!))
+                                || (!string.IsNullOrEmpty(item.ViewPermissionPrefix)
+                                    && permissions.Any(p => p.StartsWith(item.ViewPermissionPrefix!, StringComparison.Ordinal)));
                     canEdit = !string.IsNullOrEmpty(item.EditPermissionCode)
                               && permissions.Contains(item.EditPermissionCode!);
                 }

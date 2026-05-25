@@ -6,7 +6,7 @@ public record QuotationDraftSummaryDto(
     Guid Id,
     string? QuotationNumber,
     DateTime RequestDate,
-    DateTime DueDate,
+    DateTime CutOffTime,
     string? BankingSegment,
     int TotalAppraisals,
     int TotalCompaniesInvited,

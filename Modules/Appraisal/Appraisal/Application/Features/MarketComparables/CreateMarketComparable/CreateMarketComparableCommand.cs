@@ -19,5 +19,7 @@ public record CreateMarketComparableCommand(
     decimal? SalePrice = null,
     DateTime? SaleDate = null,
     string? OfferPriceUnit = null,
-    string? SalePriceUnit = null
+    string? SalePriceUnit = null,
+    decimal? Latitude = null,
+    decimal? Longitude = null
 ) : ICommand<CreateMarketComparableResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

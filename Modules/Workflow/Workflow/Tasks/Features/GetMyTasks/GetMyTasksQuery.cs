@@ -1,5 +1,6 @@
 using Shared.Pagination;
 using Workflow.Tasks.Features.GetTasks;
+using Workflow.Tasks.Features.Shared;
 
 namespace Workflow.Tasks.Features.GetMyTasks;
 
@@ -22,7 +23,7 @@ public record GetMyTasksFilterRequest(
     string? SortBy = null,
     string? SortDir = null,
     string? SlaStatus = null
-);
+) : ITaskListFilter;
 
 public record GetMyTasksQuery(
     PaginationRequest PaginationRequest,

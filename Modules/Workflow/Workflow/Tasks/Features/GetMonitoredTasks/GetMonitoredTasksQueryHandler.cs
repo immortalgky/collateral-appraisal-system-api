@@ -46,28 +46,28 @@ public class GetMonitoredTasksQueryHandler(
         var filter = query.Filter;
         if (filter is not null)
         {
-            if (!string.IsNullOrWhiteSpace(filter.GroupId))
+            if (filter.GroupId is { Length: > 0 })
             {
-                conditions.Add("GroupId = @GroupId");
-                parameters.Add("GroupId", filter.GroupId);
+                conditions.Add("GroupId IN @GroupIds");
+                parameters.Add("GroupIds", filter.GroupId);
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.AssigneeUsername))
+            if (filter.AssigneeUsername is { Length: > 0 })
             {
-                conditions.Add("AssignedTo = @AssigneeUsername");
-                parameters.Add("AssigneeUsername", filter.AssigneeUsername);
+                conditions.Add("AssignedTo IN @AssigneeUsernames");
+                parameters.Add("AssigneeUsernames", filter.AssigneeUsername);
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.SlaStatus))
+            if (filter.SlaStatus is { Length: > 0 })
             {
-                conditions.Add("SlaStatus = @SlaStatus");
-                parameters.Add("SlaStatus", filter.SlaStatus);
+                conditions.Add("SlaStatus IN @SlaStatuses");
+                parameters.Add("SlaStatuses", filter.SlaStatus);
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.ActivityId))
+            if (filter.ActivityId is { Length: > 0 })
             {
-                conditions.Add("ActivityId = @ActivityId");
-                parameters.Add("ActivityId", filter.ActivityId);
+                conditions.Add("ActivityId IN @FilterActivityIds");
+                parameters.Add("FilterActivityIds", filter.ActivityId);
             }
 
             if (!string.IsNullOrWhiteSpace(filter.AppraisalNumber))
@@ -82,16 +82,16 @@ public class GetMonitoredTasksQueryHandler(
                 parameters.Add("CustomerName", filter.CustomerName);
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.AppraisalStatus))
+            if (filter.AppraisalStatus is { Length: > 0 })
             {
-                conditions.Add("AppraisalStatus = @AppraisalStatus");
-                parameters.Add("AppraisalStatus", filter.AppraisalStatus);
+                conditions.Add("AppraisalStatus IN @AppraisalStatuses");
+                parameters.Add("AppraisalStatuses", filter.AppraisalStatus);
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.TaskType))
+            if (filter.TaskType is { Length: > 0 })
             {
-                conditions.Add("TaskDescription = @TaskType");
-                parameters.Add("TaskType", filter.TaskType);
+                conditions.Add("TaskDescription IN @TaskTypes");
+                parameters.Add("TaskTypes", filter.TaskType);
             }
 
             if (!string.IsNullOrWhiteSpace(filter.Search))

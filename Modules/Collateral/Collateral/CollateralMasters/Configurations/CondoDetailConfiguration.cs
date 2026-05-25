@@ -28,6 +28,10 @@ public class CondoDetailConfiguration : IEntityTypeConfiguration<CondoDetail>
         builder.Property(d => d.LocationType).HasMaxLength(50);
         builder.Property(d => d.ModelName).HasMaxLength(200);
 
+        // GPS coordinates (Phase 1 — geo filter prerequisite)
+        builder.Property(d => d.Latitude).HasPrecision(9, 6);
+        builder.Property(d => d.Longitude).HasPrecision(9, 6);
+
         // Three-value model (Phase C)
         builder.Property(d => d.UnitPrice).HasPrecision(18, 2);
         builder.Property(d => d.BuildingCost).HasPrecision(18, 2);

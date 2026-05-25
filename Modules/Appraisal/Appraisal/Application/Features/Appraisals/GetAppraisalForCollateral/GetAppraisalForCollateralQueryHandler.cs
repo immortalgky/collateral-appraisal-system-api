@@ -73,7 +73,7 @@ public class GetAppraisalForCollateralQueryHandler(
         // AppraisalDate represents the *visit* (appointment) date, not the system completion.
         // Source: latest non-Cancelled appointment for the assignment, regardless of status.
         // Fallbacks: appraisal.CompletedAt → latestAssignment.CompletedAt (final fallback
-        // DateTime.UtcNow handled at the upsert layer for safety).
+        // ApplicationNow handled at the upsert layer for safety).
         DateTime? appointmentDate = null;
         if (latestAssignment is not null)
         {
@@ -117,17 +117,30 @@ public class GetAppraisalForCollateralQueryHandler(
             .Select(v => (decimal?)v.AppraisedValue)
             .FirstOrDefaultAsync(cancellationToken);
 
-        // CI fee is captured on the AppraisalFee linked to the latest non-rejected assignment.
-        // Reused as the appraisal fee when a future CI appraisal targets the same collateral
-        // (CI bypasses normal tier/quotation pipeline).
+        // Stamp onto the engagement "the inspection fee the NEXT Progressive appraisal should charge",
+        // so the fee chains uniformly: original → 1st inspection → 2nd inspection → …
+        //   - Original (non-Progressive): the quoted future-inspection fee
+        //     (AppraisalFee.ConstructionInspectionFeeAmount, set via UpdateConstructionInspectionFeeCommand).
+        //   - Progressive (this appraisal IS an inspection): it charges its fee as the appraisal-fee
+        //     line (FeeCode "01") and leaves ConstructionInspectionFeeAmount null — so carry forward
+        //     that line's amount (ex-VAT) for the next inspection. We sum only FeeCode "01" so ad-hoc
+        //     surcharges (travel "02"/urgent "03") on this visit don't propagate to the next.
         decimal? constructionInspectionFee = null;
         if (latestAssignment is not null)
         {
-            constructionInspectionFee = await dbContext.AppraisalFees
-                .AsNoTracking()
-                .Where(f => f.AssignmentId == latestAssignment.Id)
-                .Select(f => f.ConstructionInspectionFeeAmount)
-                .FirstOrDefaultAsync(cancellationToken);
+            constructionInspectionFee = appraisal.AppraisalType == AppraisalTypes.Progressive
+                ? await dbContext.AppraisalFees
+                    .AsNoTracking()
+                    .Where(f => f.AssignmentId == latestAssignment.Id)
+                    .Select(f => (decimal?)f.Items
+                        .Where(i => i.FeeCode == "01")
+                        .Sum(i => i.FeeAmount))
+                    .FirstOrDefaultAsync(cancellationToken)
+                : await dbContext.AppraisalFees
+                    .AsNoTracking()
+                    .Where(f => f.AssignmentId == latestAssignment.Id)
+                    .Select(f => f.ConstructionInspectionFeeAmount)
+                    .FirstOrDefaultAsync(cancellationToken);
         }
 
         // RequestNumber lives on request.Requests (cross-module), not on the Appraisal aggregate.
@@ -391,7 +404,10 @@ public class GetAppraisalForCollateralQueryHandler(
                 LocationType: p.CondoDetail.LocationType,
                 BuildingAge: p.CondoDetail.BuildingAge,
                 ConstructionYear: p.CondoDetail.ConstructionYear,
-                ModelName: p.CondoDetail.ModelName
+                ModelName: p.CondoDetail.ModelName,
+                // Phase 1: GPS coordinates for geo filter support
+                Latitude: p.CondoDetail.Coordinates?.Latitude,
+                Longitude: p.CondoDetail.Coordinates?.Longitude
             )
             : null;
 
@@ -419,7 +435,9 @@ public class GetAppraisalForCollateralQueryHandler(
 
         var buildingIdentity = p.BuildingDetail is not null
             ? new BuildingIdentityForCollateral(
-                BuiltOnTitleNumber: p.BuildingDetail.BuiltOnTitleNumber
+                BuiltOnTitleNumber: p.BuildingDetail.BuiltOnTitleNumber,
+                BuildingTypeCode: p.BuildingDetail.BuildingType,
+                BuildingArea: p.BuildingDetail.TotalBuildingArea
             )
             : null;
 

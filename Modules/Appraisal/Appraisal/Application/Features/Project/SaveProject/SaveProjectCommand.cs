@@ -7,7 +7,7 @@ namespace Appraisal.Application.Features.Project.SaveProject;
 /// </summary>
 public record SaveProjectCommand(
     Guid AppraisalId,
-    ProjectType ProjectType,
+    string ProjectType,
     // Project Info
     string? ProjectName = null,
     string? ProjectDescription = null,

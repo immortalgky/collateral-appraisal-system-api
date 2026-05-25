@@ -57,7 +57,7 @@ public class SaveProjectUnitPricesCommandHandler(
                 unitPrice.UpdateCondoLocationFlags(
                     flag.IsCorner, flag.IsEdge, flag.IsPoolView, flag.IsSouth, flag.IsOther);
             }
-            else
+            else // TODO(Land): IsLandAndBuildingLike path — both LB and Land share this in v1
             {
                 unitPrice.UpdateLandAndBuildingLocationFlags(
                     flag.IsCorner, flag.IsEdge, flag.IsNearGarden, flag.IsOther);

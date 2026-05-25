@@ -35,16 +35,11 @@ public class CreateRequestCommandHandler(
         await validator.ValidateAsync(input, cancellationToken);
 
         var createRequestData = command.Adapt<CreateRequestData>();
-        var (request, titles) = await createRequestService.CreateRequestAsync(createRequestData, cancellationToken);
-
-        if (!string.IsNullOrWhiteSpace(command.ExternalCaseKey)
-            && !string.IsNullOrWhiteSpace(command.Channel))
-            request.SetExternalReference(command.ExternalCaseKey, command.Channel);
-
-        request.Validate();
-        foreach (var title in titles) title.Validate();
-
-        request.Submit(dateTimeProvider.Now);
+        var (request, _) = await createRequestService.CreateAndSubmitRequestAsync(
+            createRequestData,
+            dateTimeProvider.Now,
+            command.ExternalCaseKey,
+            cancellationToken);
 
         return request.Id;
     }

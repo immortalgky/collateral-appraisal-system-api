@@ -7,6 +7,29 @@ namespace Appraisal.Domain.Evaluations;
 /// </summary>
 public class AppraisalEvaluation : Entity<Guid>
 {
+    // ── Criterion weights ───────────────────────────────────────────────────
+    // Source of truth for the composite-score formula. Must stay in lockstep
+    // with the literals in appraisal.vw_AppraisalEvaluationList.sql — keep both
+    // in sync if weights ever change.
+    public const decimal Criterion1Weight = 0.40m;
+    public const decimal Criterion2Weight = 0.30m;
+    public const decimal Criterion3Weight = 0.10m;
+    public const decimal Criterion4Weight = 0.10m;
+    public const decimal Criterion5Weight = 0.10m;
+
+    /// <summary>
+    /// Computes the composite quality score using the weighted criteria.
+    /// Missing ratings count as 0 so partial Pending rows still produce a
+    /// usable partial score — mirrors the SQL view's behaviour.
+    /// </summary>
+    public static decimal ComputeTotalScore(
+        int? c1, int? c2, int? c3, int? c4, int? c5) =>
+        Criterion1Weight * (c1 ?? 0)
+      + Criterion2Weight * (c2 ?? 0)
+      + Criterion3Weight * (c3 ?? 0)
+      + Criterion4Weight * (c4 ?? 0)
+      + Criterion5Weight * (c5 ?? 0);
+
     // ── Core identifiers ────────────────────────────────────────────────────
     public Guid AppraisalId { get; private set; }
 
@@ -49,9 +72,9 @@ public class AppraisalEvaluation : Entity<Guid>
     // ── Factory ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Creates a new Draft evaluation for the given appraisal.
-    /// All rating fields default to 1 (lowest valid value) so the draft is
-    /// immediately valid and the user can edit each criterion.
+    /// Creates an evaluation for the given appraisal in Pending or Completed state.
+    /// Ratings are nullable so a Pending row may hold a partial selection;
+    /// Completed requires all five ratings and stamps EvaluatedAt / EvaluatedBy.
     /// </summary>
     public static AppraisalEvaluation Create(
         Guid appraisalId,
@@ -66,7 +89,8 @@ public class AppraisalEvaluation : Entity<Guid>
         int? criteria4Rating,
         int? criteria5Rating,
         string? additionalComments,
-        string? note)
+        string? note,
+        DateTime evaluatedAt)
     {
         ValidateStatus(evaluationStatus);
         ValidateRatings(
@@ -97,7 +121,7 @@ public class AppraisalEvaluation : Entity<Guid>
 
         if (evaluationStatus == "Completed")
         {
-            evaluation.EvaluatedAt = DateTime.UtcNow;
+            evaluation.EvaluatedAt = evaluatedAt;
             evaluation.EvaluatedBy = evaluatedBy;
         }
 
@@ -121,7 +145,8 @@ public class AppraisalEvaluation : Entity<Guid>
         string? additionalComments,
         string? note,
         string evaluationStatus,
-        string? evaluatedBy)
+        string? evaluatedBy,
+        DateTime evaluatedAt)
     {
         if (EvaluationStatus == "Completed")
             throw new InvalidOperationException("A completed evaluation cannot be modified.");
@@ -149,7 +174,7 @@ public class AppraisalEvaluation : Entity<Guid>
 
         if (evaluationStatus == "Completed")
         {
-            EvaluatedAt = DateTime.UtcNow;
+            EvaluatedAt = evaluatedAt;
             EvaluatedBy = evaluatedBy;
         }
     }

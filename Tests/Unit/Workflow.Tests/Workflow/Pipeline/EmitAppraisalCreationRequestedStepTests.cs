@@ -180,7 +180,7 @@ public class EmitAppraisalCreationRequestedStepTests
             IsPma = false,
             Channel = "MANUAL",
             PrevAppraisalId = prevAppraisalId,
-            AppraisalType = "ConstructionInspection"
+            AppraisalType = "Progressive"
         });
 
         var context = BuildContext(
@@ -197,7 +197,7 @@ public class EmitAppraisalCreationRequestedStepTests
         _outbox.Received(1).Publish(
             Arg.Is<AppraisalCreationRequestedIntegrationEvent>(e =>
                 e.PrevAppraisalId == prevAppraisalId &&
-                e.AppraisalType == "ConstructionInspection"),
+                e.AppraisalType == "Progressive"),
             Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>());
     }
 

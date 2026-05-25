@@ -26,6 +26,13 @@ public class PendingTask : Aggregate<Guid>
     /// </summary>
     public Guid? AssigneeCompanyId { get; private set; }
 
+    /// <summary>
+    /// For committee approval tasks: the committee code resolved when the approval activity started
+    /// (e.g. "SUB_COMMITTEE"). Null for non-approval tasks. Lets read views derive the approval tier
+    /// while still pending, without parsing workflow Variables JSON.
+    /// </summary>
+    public string? CommitteeCode { get; private set; }
+
     private PendingTask()
     {
         // For EF Core
@@ -33,7 +40,7 @@ public class PendingTask : Aggregate<Guid>
 
     private PendingTask(Guid correlationId, string taskName, string assignedTo, string assignedType,
         DateTime assignedAt, Guid workflowInstanceId, string activityId, string? taskDescription = null,
-        string movement = "F", Guid? assigneeCompanyId = null)
+        string movement = "F", Guid? assigneeCompanyId = null, string? committeeCode = null)
     {
         Id = Guid.CreateVersion7();
         CorrelationId = correlationId;
@@ -47,15 +54,16 @@ public class PendingTask : Aggregate<Guid>
         ActivityId = activityId;
         Movement = movement;
         AssigneeCompanyId = assigneeCompanyId;
+        CommitteeCode = committeeCode;
     }
 
     public static PendingTask Create(Guid correlationId, string taskName, string assignedTo,
         string assignedType, DateTime assignedAt, Guid workflowInstanceId, string activityId,
         DateTime? dueAt = null, string? taskDescription = null, string movement = "F",
-        Guid? assigneeCompanyId = null)
+        Guid? assigneeCompanyId = null, string? committeeCode = null)
     {
         var task = new PendingTask(correlationId, taskName, assignedTo, assignedType, assignedAt,
-            workflowInstanceId, activityId, taskDescription, movement, assigneeCompanyId);
+            workflowInstanceId, activityId, taskDescription, movement, assigneeCompanyId, committeeCode);
         task.DueAt = dueAt;
         task.SlaStatus = dueAt.HasValue ? "OnTime" : null;
         return task;

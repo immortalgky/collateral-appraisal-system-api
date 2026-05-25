@@ -7,7 +7,7 @@ namespace Appraisal.Application.Features.Project.GetProject;
 public record GetProjectResult(
     Guid Id,
     Guid AppraisalId,
-    ProjectType ProjectType,
+    string ProjectType,
     // Project Info
     string? ProjectName,
     string? ProjectDescription,

@@ -1,6 +1,7 @@
 using Auth.Domain.Companies;
 using Auth.Domain.Groups;
 using Auth.Domain.Menu;
+using Auth.Domain.Preferences;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 
 namespace Auth.Infrastructure;
@@ -18,6 +19,7 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
     public DbSet<ActivityMenuOverride> ActivityMenuOverrides => Set<ActivityMenuOverride>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+    public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

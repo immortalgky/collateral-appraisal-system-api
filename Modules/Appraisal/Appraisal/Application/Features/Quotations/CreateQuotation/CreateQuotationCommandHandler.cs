@@ -1,6 +1,7 @@
 using Appraisal.Application.Features.Quotations.Shared;
 using Dapper;
 using Shared.Identity;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.CreateQuotation;
 
@@ -9,14 +10,17 @@ public class CreateQuotationCommandHandler(
     IAppraisalRepository appraisalRepository,
     ISqlConnectionFactory connectionFactory,
     ICurrentUserService currentUser,
-    IQuotationActivityLogger activityLogger)
+    IQuotationActivityLogger activityLogger,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<CreateQuotationCommand, CreateQuotationResult>
 {
     public async Task<CreateQuotationResult> Handle(CreateQuotationCommand command, CancellationToken cancellationToken)
     {
+        var now = dateTimeProvider.ApplicationNow;
         var quotation = QuotationRequest.Create(
-            command.DueDate,
+            command.CutOffTime,
             command.RequestedBy,
+            now,
             command.Description);
 
         if (!string.IsNullOrWhiteSpace(command.SpecialRequirements))
@@ -36,7 +40,7 @@ public class CreateQuotationCommandHandler(
                 if (!summaryById.TryGetValue(entry.AppraisalId, out var summary))
                     throw new BadRequestException($"Appraisal '{entry.AppraisalId}' not found.");
 
-                quotation.AddAppraisal(entry.AppraisalId, addedBy: command.RequestedBy);
+                quotation.AddAppraisal(entry.AppraisalId, addedBy: command.RequestedBy, addedAt: now);
 
                 quotation.AddItem(
                     appraisalId: entry.AppraisalId,

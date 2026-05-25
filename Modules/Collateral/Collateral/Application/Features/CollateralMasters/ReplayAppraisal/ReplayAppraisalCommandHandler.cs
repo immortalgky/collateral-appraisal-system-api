@@ -1,5 +1,6 @@
 using Collateral.CollateralMasters.Exceptions;
 using Shared.Identity;
+using Shared.Time;
 
 namespace Collateral.Application.Features.CollateralMasters.ReplayAppraisal;
 
@@ -11,6 +12,7 @@ public class ReplayAppraisalCommandHandler(
     ICollateralMasterUpsertService upsertService,
     CollateralDbContext db,
     ICurrentUserService currentUser,
+    IDateTimeProvider dateTimeProvider,
     ILogger<ReplayAppraisalCommandHandler> logger
 ) : ICommandHandler<ReplayAppraisalCommand, ReplayAppraisalResult>
 {
@@ -48,7 +50,7 @@ public class ReplayAppraisalCommandHandler(
         }
 
         // Write the report row in the same handler's DbContext (same scope)
-        var report = new CollateralBackfillReport(appraisalId, status, message);
+        var report = new CollateralBackfillReport(appraisalId, status, message, dateTimeProvider.ApplicationNow);
         db.CollateralBackfillReports.Add(report);
         await db.SaveChangesAsync(cancellationToken);
 

@@ -19,10 +19,14 @@ public class RestoreCollateralMasterCommandHandler(
         if (master is null)
             throw new NotFoundException("CollateralMaster", command.Id);
 
-        // Dedup-key collision: another master may have been created with the same key while this was deleted
-        bool collides = master.CollateralType switch
+        // Dedup-key collision: another master may have been created with the same key while this was deleted.
+        // Family-grouped arms — a master's CollateralType may have flipped via LATEST-wins
+        // (e.g. L → LB when a building was appraised). Detect by detail-row presence rather than
+        // re-enumerating every code variant so a future code addition can't silently skip the check.
+        bool collides;
+        if (master.LandDetail is not null)
         {
-            CollateralTypes.Land when master.LandDetail is not null => await repository.LandDedupCollidesAsync(
+            collides = await repository.LandDedupCollidesAsync(
                 master.Id,
                 master.LandDetail.LandOfficeCode,
                 master.LandDetail.Province,
@@ -32,9 +36,11 @@ public class RestoreCollateralMasterCommandHandler(
                 master.LandDetail.TitleNumber,
                 master.LandDetail.SurveyNumber,
                 master.LandDetail.LandParcelNumber,
-                cancellationToken),
-
-            CollateralTypes.Condo when master.CondoDetail is not null => await repository.CondoDedupCollidesAsync(
+                cancellationToken);
+        }
+        else if (master.CondoDetail is not null)
+        {
+            collides = await repository.CondoDedupCollidesAsync(
                 master.Id,
                 master.CondoDetail.LandOfficeCode,
                 master.CondoDetail.CondoRegistrationNumber,
@@ -43,28 +49,34 @@ public class RestoreCollateralMasterCommandHandler(
                 master.CondoDetail.RoomNumber,
                 master.CondoDetail.TitleNumber,
                 master.CondoDetail.TitleType,
-                cancellationToken),
-
-            CollateralTypes.Leasehold when master.LeaseholdDetail is not null => await repository.LeaseholdDedupCollidesAsync(
+                cancellationToken);
+        }
+        else if (master.LeaseholdDetail is not null)
+        {
+            collides = await repository.LeaseholdDedupCollidesAsync(
                 master.Id,
                 master.LeaseholdDetail.LeaseRegistrationNo,
                 master.LeaseholdDetail.UnderlyingMasterId,
                 master.LeaseholdDetail.Lessor,
                 master.LeaseholdDetail.Lessee,
                 master.LeaseholdDetail.LeaseTermStart,
-                cancellationToken),
-
-            CollateralTypes.Machine when master.MachineDetail is not null => await repository.MachineDedupCollidesAsync(
+                cancellationToken);
+        }
+        else if (master.MachineDetail is not null)
+        {
+            collides = await repository.MachineDedupCollidesAsync(
                 master.Id,
                 master.MachineDetail.MachineRegistrationNo,
                 master.MachineDetail.SerialNo,
                 master.MachineDetail.Brand,
                 master.MachineDetail.Model,
                 master.MachineDetail.Manufacturer,
-                cancellationToken),
-
-            _ => false
-        };
+                cancellationToken);
+        }
+        else
+        {
+            collides = false;
+        }
 
         if (collides)
             throw new ConflictException(

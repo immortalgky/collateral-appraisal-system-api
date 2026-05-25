@@ -5,8 +5,8 @@ namespace Appraisal.Application.Features.Project.SaveProject;
 /// ProjectType must be provided and determines which type-specific fields are used.
 /// </summary>
 public record SaveProjectRequest(
-    // Project Type (required to distinguish Condo vs LandAndBuilding)
-    ProjectType ProjectType,
+    // Project Type code (required): "U"=Condo, "LB"=LandAndBuilding, "L"=Land
+    string ProjectType,
     // Project Info
     string? ProjectName = null,
     string? ProjectDescription = null,

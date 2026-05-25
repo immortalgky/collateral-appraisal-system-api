@@ -1,5 +1,4 @@
-using Collateral.Contracts.AppealExclusion;
-using Collateral.Contracts.ConstructionInspection;
+using Collateral.Contracts.Engagements;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
@@ -34,6 +33,11 @@ public class RequestSubmittedIntegrationEventConsumer(
 {
     private const string WorkflowName = "Collateral Appraisal Workflow";
 
+    // Appeal is request Purpose "12"; Progressive (construction inspection) is signalled by the
+    // derived AppraisalType. Both reference a prior appraisal and require PrevAppraisalId.
+    private const string AppealPurposeCode = "12";
+    private const string ProgressiveAppraisalType = "Progressive";
+
     public async Task Consume(ConsumeContext<RequestSubmittedIntegrationEvent> context)
     {
         if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
@@ -64,23 +68,45 @@ public class RequestSubmittedIntegrationEventConsumer(
             // table-driven condition matches.
             var initialVariables = BuildInitialVariables(message);
 
-            // Appeal exclusion: derive the most-recent prior company for any of the
-            // request's titles. If found, seed the workflow variable that
-            // CompanySelectionActivity reads to reject re-engaging the same company.
-            var excludedCompanyId = await ResolveExcludedCompanyIdAsync(message, ct);
-            if (excludedCompanyId.HasValue)
-            {
-                initialVariables["excludedCompanyId"] = excludedCompanyId.Value.ToString();
-            }
+            // Appeal and Progressive (construction inspection) both reference a prior appraisal and
+            // require PrevAppraisalId. Resolve the most-recent engagement on the collateral the prior
+            // appraisal touched (matched via the master link — an exact dedup-key match, not a fuzzy
+            // title match). Appeal EXCLUDES that company; Progressive FORCES it and copies/chains fee
+            // from the resolved appraisal (which may be newer than PrevAppraisalId — e.g. a 2nd
+            // inspection resolves to the 1st inspection, not the original).
+            var resolvedSourceAppraisalId = message.PrevAppraisalId;
 
-            // Construction Inspection: force the same company that appraised the prior appraisal.
-            if (message.AppraisalType == "ConstructionInspection" && message.PrevAppraisalId.HasValue)
+            var isAppeal = message.Purpose == AppealPurposeCode;
+            var isProgressive = message.AppraisalType == ProgressiveAppraisalType;
+
+            if (isAppeal || isProgressive)
             {
-                var forced = await ResolveForceCompanyIdAsync(message.PrevAppraisalId.Value, ct);
-                if (forced.HasValue)
+                if (!message.PrevAppraisalId.HasValue)
                 {
-                    initialVariables["forceCompanyId"] = forced.Value.CompanyId.ToString();
-                    initialVariables["forceCompanyName"] = forced.Value.CompanyName;
+                    logger.LogWarning(
+                        "{Flow} request {RequestId} has no PrevAppraisalId; skipping prior-company resolution.",
+                        isProgressive ? "Progressive" : "Appeal", message.RequestId);
+                }
+                else
+                {
+                    var prior = await mediator.Send(
+                        new GetMostRecentEngagementByPriorAppraisalQuery(message.PrevAppraisalId.Value), ct);
+
+                    if (isProgressive)
+                    {
+                        if (prior is not null)
+                        {
+                            initialVariables["forceCompanyId"] = prior.CompanyId.ToString();
+                            initialVariables["forceCompanyName"] = prior.CompanyName;
+                            resolvedSourceAppraisalId = prior.AppraisalId;
+                        }
+                        // else: no engagement found — fall back to the raw PrevAppraisalId as the
+                        // copy/fee source (CopyPropertiesFromPriorAppraisalAsync handles not-found).
+                    }
+                    else if (prior is not null) // appeal
+                    {
+                        initialVariables["excludedCompanyId"] = prior.CompanyId.ToString();
+                    }
                 }
             }
 
@@ -89,7 +115,9 @@ public class RequestSubmittedIntegrationEventConsumer(
 
             if (shouldEmit)
             {
-                outbox.Publish(BuildCreationRequestedEvent(message), message.RequestId.ToString());
+                outbox.Publish(
+                    BuildCreationRequestedEvent(message, resolvedSourceAppraisalId),
+                    message.RequestId.ToString());
                 initialVariables["appraisalCreationRequested"] = true;
             }
 
@@ -146,7 +174,10 @@ public class RequestSubmittedIntegrationEventConsumer(
             return;
         }
 
-        outbox.Publish(BuildCreationRequestedEvent(message), message.RequestId.ToString());
+        var resolvedSourceAppraisalId = await ResolveProgressiveSourceAsync(message, ct);
+        outbox.Publish(
+            BuildCreationRequestedEvent(message, resolvedSourceAppraisalId),
+            message.RequestId.ToString());
         existing.UpdateVariables(new Dictionary<string, object>
         {
             ["appraisalCreationRequested"] = true
@@ -159,41 +190,20 @@ public class RequestSubmittedIntegrationEventConsumer(
     }
 
     /// <summary>
-    /// Walks the request's titles and asks Collateral for the most-recent prior appraisal company
-    /// across any matching master. Stops at the first hit (rare to have multi-master overlap at
-    /// request time). Returns null when no prior engagement exists.
+    /// Resolves the source appraisal a Progressive (construction inspection) request should copy and
+    /// chain its fee from: the most-recent engagement on the collateral the prior appraisal touched,
+    /// falling back to the raw PrevAppraisalId when no engagement is found. Used by the crash-retry
+    /// republish path — re-running the query is deterministic.
     /// </summary>
-    private async Task<Guid?> ResolveExcludedCompanyIdAsync(
-        RequestSubmittedIntegrationEvent message,
-        CancellationToken ct)
+    private async Task<Guid?> ResolveProgressiveSourceAsync(
+        RequestSubmittedIntegrationEvent message, CancellationToken ct)
     {
-        if (message.RequestTitles is null) return null;
+        if (message.AppraisalType != ProgressiveAppraisalType || !message.PrevAppraisalId.HasValue)
+            return message.PrevAppraisalId;
 
-        foreach (var t in message.RequestTitles)
-        {
-            if (string.IsNullOrWhiteSpace(t.TitleNumber)) continue;
-
-            var result = await mediator.Send(new GetMostRecentPriorCompanyQuery(
-                TitleNumber: t.TitleNumber!,
-                TitleType: t.TitleType,
-                Province: t.TitleAddress?.Province), ct);
-
-            if (result.HasValue) return result;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Looks up the company that appraised the prior appraisal, so a CI request
-    /// is routed to the same company without going through round-robin selection.
-    /// Returns null when the prior appraisal has no company engagement recorded.
-    /// </summary>
-    private async Task<(Guid CompanyId, string CompanyName)?> ResolveForceCompanyIdAsync(
-        Guid prevAppraisalId,
-        CancellationToken ct)
-    {
-        return await mediator.Send(new GetMostRecentCompanyForAppraisalQuery(prevAppraisalId), ct);
+        var prior = await mediator.Send(
+            new GetMostRecentEngagementByPriorAppraisalQuery(message.PrevAppraisalId.Value), ct);
+        return prior?.AppraisalId ?? message.PrevAppraisalId;
     }
 
     private static Dictionary<string, object> BuildInitialVariables(RequestSubmittedIntegrationEvent message)
@@ -212,7 +222,8 @@ public class RequestSubmittedIntegrationEventConsumer(
     }
 
     private static AppraisalCreationRequestedIntegrationEvent BuildCreationRequestedEvent(
-        RequestSubmittedIntegrationEvent message)
+        RequestSubmittedIntegrationEvent message,
+        Guid? resolvedPrevAppraisalId)
     {
         return new AppraisalCreationRequestedIntegrationEvent
         {
@@ -231,7 +242,7 @@ public class RequestSubmittedIntegrationEventConsumer(
             HasAppraisalBook = message.HasAppraisalBook,
             RequestedBy = message.RequestedBy,
             RequestedAt = message.RequestedAt,
-            PrevAppraisalId = message.PrevAppraisalId,
+            PrevAppraisalId = resolvedPrevAppraisalId,
             AppraisalType = message.AppraisalType
         };
     }

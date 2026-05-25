@@ -1,5 +1,6 @@
 using Shared.Pagination;
 using Workflow.Tasks.Features.GetTasks;
+using Workflow.Tasks.Features.Shared;
 
 namespace Workflow.Tasks.Features.GetPoolTasks;
 
@@ -7,10 +8,22 @@ public record GetPoolTasksFilterRequest(
     string? Status = null,
     string? Priority = null,
     string? TaskName = null,
+    string? Search = null,
+    string? AppraisalNumber = null,
+    string? CustomerName = null,
+    string? TaskStatus = null,
+    string? TaskType = null,
+    DateTime? DateFrom = null,
+    DateTime? DateTo = null,
+    DateTime? AppointmentDateFrom = null,
+    DateTime? AppointmentDateTo = null,
+    DateTime? RequestedAtFrom = null,
+    DateTime? RequestedAtTo = null,
     string? SortBy = null,
     string? SortDir = null,
+    string? SlaStatus = null,
     string? ActivityId = null
-);
+) : ITaskListFilter;
 
 public record GetPoolTasksQuery(
     PaginationRequest PaginationRequest,

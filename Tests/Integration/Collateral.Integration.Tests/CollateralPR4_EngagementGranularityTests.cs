@@ -32,7 +32,7 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
 
     private static AppraisalAggregate CreateAppraisalSeed(Guid requestId)
     {
-        var a = AppraisalAggregate.Create(requestId, "New", "Normal");
+        var a = AppraisalAggregate.Create(requestId, "New", "Normal", DateTime.Now);
         a.SetAppraisalNumber($"AP-PR4-{Guid.NewGuid():N}"[..18]);
         typeof(AppraisalAggregate)
             .GetProperty("CompletedAt")!

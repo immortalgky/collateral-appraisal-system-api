@@ -1,10 +1,13 @@
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
+using Shared.Time;
 
 namespace Integration.Application.Features.Appraisals.GetAppraisalStatus;
 
-public class GetAppraisalStatusQueryHandler(ISqlConnectionFactory connectionFactory)
+public class GetAppraisalStatusQueryHandler(
+    ISqlConnectionFactory connectionFactory,
+    IDateTimeProvider dateTimeProvider)
     : IQueryHandler<GetAppraisalStatusQuery, GetAppraisalStatusResponse?>
 {
     public async Task<GetAppraisalStatusResponse?> Handle(
@@ -33,7 +36,7 @@ public class GetAppraisalStatusQueryHandler(ISqlConnectionFactory connectionFact
             _ => "IN_PROGRESS"
         };
 
-        var lastUpdatedAt = row.UpdatedAt ?? row.CreatedAt ?? DateTime.UtcNow;
+        var lastUpdatedAt = row.UpdatedAt ?? row.CreatedAt ?? dateTimeProvider.ApplicationNow;
         return new GetAppraisalStatusResponse(row.AppraisalNumber, status, lastUpdatedAt);
     }
 

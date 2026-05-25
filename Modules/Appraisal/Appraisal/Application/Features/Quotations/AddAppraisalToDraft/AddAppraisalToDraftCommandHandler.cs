@@ -2,13 +2,15 @@ using Appraisal.Application.Features.Quotations.Shared;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.AddAppraisalToDraft;
 
 public class AddAppraisalToDraftCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<AddAppraisalToDraftCommand, AddAppraisalToDraftResult>
 {
     public async Task<AddAppraisalToDraftResult> Handle(
@@ -41,7 +43,7 @@ public class AddAppraisalToDraftCommandHandler(
             throw new ConflictException(
                 $"Appraisal '{command.AppraisalId}' is already part of another active quotation request.");
 
-        quotation.AddAppraisal(command.AppraisalId, addedBy: adminUsername);
+        quotation.AddAppraisal(command.AppraisalId, addedBy: adminUsername, addedAt: dateTimeProvider.ApplicationNow);
 
         // Add display item for admin review panel
         quotation.AddItem(

@@ -59,6 +59,16 @@ public class CollateralMasterConfiguration : IEntityTypeConfiguration<Collateral
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(m => m.AuditLogs).UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        // Navigation: Documents.
+        // Restrict (DB declares NO ACTION) — masters are soft-deleted (IsDeleted=1), never hard-deleted,
+        // so cascade is dead code that would otherwise create EF/DB model drift on next migration scaffold.
+        builder.HasMany(m => m.Documents)
+            .WithOne()
+            .HasForeignKey(d => d.CollateralMasterId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("FK_CollateralDocuments_CollateralMasters");
+        builder.Navigation(m => m.Documents).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         // Navigation: LandDetail (1:1)
         builder.HasOne(m => m.LandDetail)
             .WithOne()

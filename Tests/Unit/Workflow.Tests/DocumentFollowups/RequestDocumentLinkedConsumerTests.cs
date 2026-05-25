@@ -30,7 +30,7 @@ public class RequestDocumentLinkedConsumerTests
         new(
             db,
             Substitute.For<IPublisher>(),
-            new InboxGuard<WorkflowDbContext>(db, Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>()),
+            new InboxGuard<WorkflowDbContext>(db, Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>(), Substitute.For<Shared.Time.IDateTimeProvider>()),
             Substitute.For<ILogger<RequestDocumentLinkedConsumer>>());
 
     private static ConsumeContext<DocumentLinkedIntegrationEventV2> BuildContext(

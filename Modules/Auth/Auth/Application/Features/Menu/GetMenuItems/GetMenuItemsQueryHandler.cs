@@ -57,6 +57,7 @@ public class GetMenuItemsQueryHandler(AuthDbContext dbContext)
             m.IconColor,
             m.SortOrder,
             m.ViewPermissionCode,
+            m.ViewPermissionPrefix,
             m.EditPermissionCode,
             m.IsSystem,
             BuildLabels(m),

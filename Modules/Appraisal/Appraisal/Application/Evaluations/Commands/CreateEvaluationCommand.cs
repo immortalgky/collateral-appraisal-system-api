@@ -1,6 +1,7 @@
 using Appraisal.Application.Configurations;
 using Appraisal.Domain.Evaluations;
 using Shared.Identity;
+using Shared.Time;
 
 namespace Appraisal.Application.Evaluations.Commands;
 
@@ -20,7 +21,10 @@ public record CreateEvaluationCommand(
 
 public record CreateEvaluationResult(Guid Id);
 
-public class CreateEvaluationCommandHandler(AppraisalDbContext db, ICurrentUserService currentUser)
+public class CreateEvaluationCommandHandler(
+    AppraisalDbContext db,
+    ICurrentUserService currentUser,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<CreateEvaluationCommand, CreateEvaluationResult>
 {
     public async Task<CreateEvaluationResult> Handle(
@@ -55,7 +59,8 @@ public class CreateEvaluationCommandHandler(AppraisalDbContext db, ICurrentUserS
             criteria4Rating:         command.Criteria4Rating,
             criteria5Rating:         command.Criteria5Rating,
             additionalComments:      command.AdditionalComments,
-            note:                    command.Note);
+            note:                    command.Note,
+            evaluatedAt:             dateTimeProvider.ApplicationNow);
 
         db.AppraisalEvaluations.Add(evaluation);
 

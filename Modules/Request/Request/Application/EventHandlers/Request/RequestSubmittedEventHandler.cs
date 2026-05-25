@@ -10,8 +10,10 @@ public class RequestSubmittedEventHandler(
         logger.LogInformation("Domain Event handled: {DomainEvent} for RequestId: {RequestId}",
             notification.GetType().Name, notification.Request.Id);
 
-        // Query all request titles for this request
-        var requestTitles = await requestTitleRepository.GetByRequestIdAsync(
+        // Query all request titles for this request, including their documents — the
+        // integration event consumer (AppraisalCreationService) ships title documents
+        // downstream, so they must be hydrated here.
+        var requestTitles = await requestTitleRepository.GetByRequestIdWithDocumentsAsync(
             notification.Request.Id,
             cancellationToken);
 
@@ -61,7 +63,7 @@ public class RequestSubmittedEventHandler(
             RequestedBy = notification.Request.Requestor.UserId,
             RequestedAt = notification.Request.RequestedAt,
             PrevAppraisalId = notification.Request.Detail?.PrevAppraisalId,
-            AppraisalType = notification.Request.Purpose is "06" or "11" ? "ConstructionInspection" : null
+            AppraisalType = notification.Request.Purpose is "06" or "11" ? "Progressive" : null
         };
 
         outbox.Publish(integrationEvent, correlationId: notification.Request.Id.ToString());

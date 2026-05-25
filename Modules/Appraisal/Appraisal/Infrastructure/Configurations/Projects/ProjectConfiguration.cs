@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Appraisal.Domain.Projects;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Appraisal.Infrastructure.Configurations.Projects;
 
@@ -20,9 +22,16 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
             .HasForeignKey<Project>(p => p.AppraisalId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // ProjectType discriminator stored as int
+        // ProjectType discriminator stored as a short text code: "U" (Condo), "LB" (LandAndBuilding), "L" (Land)
         builder.Property(p => p.ProjectType)
-            .HasConversion<int>()
+            .HasConversion(
+                v => v.ToCode(),
+                s => ProjectType.FromCode(s),
+                new ValueComparer<ProjectType>(
+                    (a, b) => a!.Code == b!.Code,
+                    v => v.Code.GetHashCode(),
+                    v => ProjectType.FromCode(v.Code)))
+            .HasMaxLength(2)
             .IsRequired();
 
         // Project Info

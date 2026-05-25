@@ -5,7 +5,7 @@ public record GetQuotationByIdResult(
     Guid Id,
     string? QuotationNumber,
     DateTime RequestDate,
-    DateTime DueDate,
+    DateTime CutOffTime,
     string Status,
     string RequestedBy,
     string? Description,

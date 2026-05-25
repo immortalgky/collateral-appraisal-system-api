@@ -18,6 +18,7 @@ public class IntegrationEventOutboxMessage
     public static IntegrationEventOutboxMessage Create(
         string eventType,
         string payload,
+        DateTime occurredAt,
         string? correlationId = null,
         Dictionary<string, string>? headers = null)
     {
@@ -28,7 +29,7 @@ public class IntegrationEventOutboxMessage
             Payload = payload,
             CorrelationId = correlationId,
             Headers = headers ?? new Dictionary<string, string>(),
-            OccurredAt = DateTime.Now,
+            OccurredAt = occurredAt,
             Status = OutboxMessageStatus.Pending,
             RetryCount = 0
         };
@@ -39,10 +40,10 @@ public class IntegrationEventOutboxMessage
         Status = OutboxMessageStatus.Processing;
     }
 
-    public void MarkAsProcessed()
+    public void MarkAsProcessed(DateTime processedAt)
     {
         Status = OutboxMessageStatus.Processed;
-        ProcessedAt = DateTime.Now;
+        ProcessedAt = processedAt;
         Error = null;
     }
 

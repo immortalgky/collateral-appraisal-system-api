@@ -30,6 +30,7 @@ public class CollateralMasterViewRow
     public string? Land_TitleType { get; init; }
     public string? Land_TitleNumber { get; init; }
     public string? Land_SurveyNumber { get; init; }
+    public string? Land_LandParcelNumber { get; init; }
     public string? Land_Street { get; init; }
     public string? Land_Village { get; init; }
     public decimal? Land_Latitude { get; init; }

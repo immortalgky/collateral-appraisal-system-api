@@ -87,7 +87,7 @@ public class DeclineInvitationCommandHandler(
             command.Reason,
             actionByRole: "ExtAdmin");
 
-        var autoClosed = quotation.TryAutoCloseAfterAllResponses();
+        var autoClosed = quotation.TryAutoCloseAfterAllResponses(dateTimeProvider.ApplicationNow);
 
         quotationRepository.Update(quotation);
 

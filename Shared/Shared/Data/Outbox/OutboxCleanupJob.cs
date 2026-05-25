@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Shared.Time;
 
 namespace Shared.Data.Outbox;
 
 public class OutboxCleanupJob<TDbContext>(
     TDbContext dbContext,
-    ILogger<OutboxCleanupJob<TDbContext>> logger)
+    ILogger<OutboxCleanupJob<TDbContext>> logger,
+    IDateTimeProvider dateTimeProvider)
     where TDbContext : DbContext
 {
     private const int BatchSize = 1000;
@@ -13,7 +15,8 @@ public class OutboxCleanupJob<TDbContext>(
 
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        var cutoff = DateTime.Now.AddDays(-RetentionDays);
+        var now = dateTimeProvider.ApplicationNow;
+        var cutoff = now.AddDays(-RetentionDays);
         var schema = dbContext.Model.GetDefaultSchema() ?? "dbo";
         var totalDeleted = 0;
 
@@ -21,7 +24,7 @@ public class OutboxCleanupJob<TDbContext>(
             typeof(TDbContext).Name, cutoff);
 
         // Reset stuck Processing messages (instance crashed mid-batch) back to Pending
-        var stuckCutoff = DateTime.Now.AddMinutes(-5);
+        var stuckCutoff = now.AddMinutes(-5);
         var reset = await dbContext.Database.ExecuteSqlRawAsync(
             "UPDATE [" + schema + "].[IntegrationEventOutbox] " +
             "SET Status = 'Pending' " +

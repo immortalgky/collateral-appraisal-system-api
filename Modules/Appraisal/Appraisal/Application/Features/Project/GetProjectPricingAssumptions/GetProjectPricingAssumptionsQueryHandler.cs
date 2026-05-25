@@ -20,7 +20,8 @@ public class GetProjectPricingAssumptionsQueryHandler(
 
         var assumption = project.PricingAssumption;
         var isCondo = project.ProjectType == ProjectType.Condo;
-        var projectTypeName = project.ProjectType.ToString();
+        // TODO(Land): IsLandAndBuildingLike covers both LB and Land; isCondo is the other branch
+        var projectTypeName = project.ProjectType.ToCode();
 
         // No assumption row yet — return a shell DTO derived from the project's models
         // so the FE Pricing Assumption tab can populate the model rows on first load.

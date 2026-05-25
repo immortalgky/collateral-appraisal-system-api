@@ -37,6 +37,23 @@ public class ProjectUnitConfiguration : IEntityTypeConfiguration<ProjectUnit>
         builder.Property(e => e.HouseNumber).HasMaxLength(100);
         builder.Property(e => e.LandArea).HasPrecision(10, 2);
 
+        // Sale tracking
+        builder.Property(e => e.IsSold)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        // Stored as the enum NAME ("Cash" / "Loan") so SQL queries and JSON wire format
+        // align without a CASE expression (the unit-maintenance handler used to translate
+        // int → string in SQL; that translation is now gone).
+        builder.Property(e => e.PurchaseBy)
+            .HasConversion<string>()
+            .HasMaxLength(10)
+            .IsRequired(false);
+
+        builder.Property(e => e.LoanBankName)
+            .HasMaxLength(200)
+            .IsRequired(false);
+
         // Optional FK to ProjectTower (Condo path) — NoAction to avoid multiple cascade paths
         builder.HasOne<ProjectTower>()
             .WithMany()

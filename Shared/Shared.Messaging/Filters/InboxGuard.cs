@@ -1,12 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Shared.Data.Outbox;
+using Shared.Time;
 
 namespace Shared.Messaging.Filters;
 
 public class InboxGuard<TDbContext>(
     TDbContext dbContext,
-    ILogger<InboxGuard<TDbContext>> logger)
+    ILogger<InboxGuard<TDbContext>> logger,
+    IDateTimeProvider dateTimeProvider)
     where TDbContext : DbContext
 {
     private const int StaleThresholdMinutes = 5;
@@ -25,7 +27,7 @@ public class InboxGuard<TDbContext>(
         // Try to INSERT as Processing (claim the message)
         try
         {
-            var inbox = InboxMessage.Create(id, consumerType);
+            var inbox = InboxMessage.Create(id, consumerType, dateTimeProvider.ApplicationNow);
             dbContext.Set<InboxMessage>().Add(inbox);
             await dbContext.SaveChangesAsync(ct);
             return false; // Claimed successfully — proceed with processing
@@ -51,7 +53,7 @@ public class InboxGuard<TDbContext>(
         }
 
         // Status is Processing — check if stale
-        if (existing.StartedAt < DateTime.Now.AddMinutes(-StaleThresholdMinutes))
+        if (existing.StartedAt < dateTimeProvider.ApplicationNow.AddMinutes(-StaleThresholdMinutes))
         {
             // Stale Processing — another instance crashed. Delete and re-claim.
             logger.LogWarning("[INBOX] Stale Processing message {MessageId} by {Consumer} (started {StartedAt}), reclaiming",
@@ -66,7 +68,7 @@ public class InboxGuard<TDbContext>(
             // Re-INSERT as Processing
             try
             {
-                var inbox = InboxMessage.Create(id, consumerType);
+                var inbox = InboxMessage.Create(id, consumerType, dateTimeProvider.ApplicationNow);
                 dbContext.Set<InboxMessage>().Add(inbox);
                 await dbContext.SaveChangesAsync(ct);
                 return false; // Reclaimed — proceed
@@ -96,6 +98,6 @@ public class InboxGuard<TDbContext>(
             "UPDATE [" + schema + "].[InboxMessage] " +
             "SET Status = 'Processed', ProcessedAt = {0} " +
             "WHERE MessageId = {1} AND ConsumerType = {2}",
-            new object[] { DateTime.Now, messageId.Value, consumerType }, ct);
+            new object[] { dateTimeProvider.ApplicationNow, messageId.Value, consumerType }, ct);
     }
 }

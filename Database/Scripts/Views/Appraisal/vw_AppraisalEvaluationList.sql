@@ -26,8 +26,10 @@ SELECT
     COALESCE(e.EvaluationStatus, 'Pending') AS EvaluationStatus,
 
     -- Composite score — only computed when an evaluation row exists.
-    -- Ratings are nullable (Draft may have partial selections); treat NULL as 0
+    -- Ratings are nullable (Pending rows may have partial selections); treat NULL as 0
     -- so a partial draft still produces a usable partial score.
+    -- Weights MUST stay in sync with AppraisalEvaluation.Criterion{N}Weight constants
+    -- (Modules/Appraisal/.../Domain/Evaluations/AppraisalEvaluation.cs).
     CASE
         WHEN e.Id IS NOT NULL
             THEN CAST(

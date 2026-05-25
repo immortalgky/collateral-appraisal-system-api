@@ -1,3 +1,5 @@
+using Appraisal.Domain.Projects;
+
 namespace Appraisal.Application.Features.Project.ChangeProjectType;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace Appraisal.Application.Features.Project.ChangeProjectType;
 public record ChangeProjectTypeResult(
     Guid Id,
     Guid AppraisalId,
-    ProjectType ProjectType,
+    string ProjectType,
     string? ProjectName,
     string? ProjectDescription,
     string? Developer,

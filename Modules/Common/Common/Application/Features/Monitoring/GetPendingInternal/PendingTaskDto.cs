@@ -1,0 +1,26 @@
+namespace Common.Application.Features.Monitoring.GetPendingInternal;
+
+public record PendingTaskDto(
+    Guid PendingTaskId,
+    Guid? AppraisalId,
+    string? AppraisalNumber,
+    string? CustomerName,
+    string? TaskType,
+    string? TaskDescription,
+    string? Purpose,
+    string? PropertyType,
+    string? SlaStatus,
+    string? Priority,
+    DateTime? RequestedDate,
+    DateTime? AssignedDate,
+    string? PIC,
+    string? Movement,
+    int? OlaTargetHours,
+    int? OlaActualHours,
+    int? OlaVarianceHours,
+    string? ActivityId,
+    string? AppraisalCompanyName,
+    string MonitoringType,
+    string? AssignedTo,
+    string? AssignedType
+);

@@ -3,6 +3,7 @@ using Appraisal.Infrastructure;
 using Collateral.CollateralMasters.Models;
 using Collateral.CollateralMasters.Services;
 using Collateral.Contracts.ConstructionInspection;
+using Collateral.Contracts.Engagements;
 using Collateral.Data;
 using Integration.Fixtures;
 using MediatR;
@@ -18,7 +19,7 @@ namespace Integration.Collateral.Integration.Tests;
 ///   1. Single CI — snapshot contains exactly 1 entry in constructionInspections[].
 ///   2. Multi-building case — 3 buildings/CIs: snapshot contains all 3 entries.
 ///   3. Schema — LandDetail no longer has LastConstructionInspectionId (via reflection).
-///   4. GetMostRecentCompanyForAppraisalQuery — returns company from engagement.
+///   4. GetMostRecentEngagementByPriorAppraisalQuery — returns engagement company via master link.
 ///   5. GetConstructionInspectionFeeForAppraisalQuery — returns fee from engagement.
 /// </summary>
 [Collection("Integration")]
@@ -30,7 +31,7 @@ public class CollateralPR5_ConstructionInspectionsTests(IntegrationTestFixture f
 
     private static AppraisalAggregate CreateAppraisalSeed(Guid requestId)
     {
-        var a = AppraisalAggregate.Create(requestId, "New", "Normal");
+        var a = AppraisalAggregate.Create(requestId, "New", "Normal", DateTime.Now);
         a.SetAppraisalNumber($"AP-PR5-{Guid.NewGuid():N}"[..18]);
         typeof(AppraisalAggregate)
             .GetProperty("CompletedAt")!
@@ -264,10 +265,10 @@ public class CollateralPR5_ConstructionInspectionsTests(IntegrationTestFixture f
     }
 
     // -----------------------------------------------------------------------
-    // Test PR5-4: GetMostRecentCompanyForAppraisalQuery — returns company from engagement
+    // Test PR5-4: GetMostRecentEngagementByPriorAppraisalQuery — returns company from engagement
     // -----------------------------------------------------------------------
     [Fact]
-    public async Task PR5_4_GetMostRecentCompanyForAppraisal_ReturnsCompanyFromEngagement()
+    public async Task PR5_4_GetMostRecentEngagementByPriorAppraisal_ReturnsCompanyFromEngagement()
     {
         var titleNo = "PR5-CO-" + Guid.NewGuid().ToString("N")[..6];
         Guid appraisalId;
@@ -310,12 +311,13 @@ public class CollateralPR5_ConstructionInspectionsTests(IntegrationTestFixture f
         using var queryScope = CreateScope();
         var mediator = queryScope.ServiceProvider.GetRequiredService<IMediator>();
         var result = await mediator.Send(
-            new GetMostRecentCompanyForAppraisalQuery(appraisalId),
+            new GetMostRecentEngagementByPriorAppraisalQuery(appraisalId),
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
-        Assert.Equal(expectedCompanyId, result.Value.CompanyId);
-        Assert.Equal(expectedCompanyName, result.Value.CompanyName);
+        Assert.Equal(appraisalId, result!.AppraisalId);
+        Assert.Equal(expectedCompanyId, result.CompanyId);
+        Assert.Equal(expectedCompanyName, result.CompanyName);
     }
 
     // -----------------------------------------------------------------------

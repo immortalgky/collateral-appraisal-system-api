@@ -18,7 +18,7 @@ namespace Workflow.Infrastructure.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("workflow")
-                .HasAnnotation("ProductVersion", "9.0.5")
+                .HasAnnotation("ProductVersion", "9.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -1583,6 +1583,10 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.Property<Guid?>("AssigneeCompanyId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CommitteeCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<Guid>("CorrelationId")
                         .HasColumnType("uniqueidentifier");

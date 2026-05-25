@@ -49,7 +49,8 @@ public class CreateMenuItemCommandHandler(AuthDbContext dbContext, IMenuTreeCach
             command.ViewPermissionCode,
             command.EditPermissionCode,
             translations,
-            isSystem: false);
+            isSystem: false,
+            viewPermissionPrefix: command.ViewPermissionPrefix);
 
         dbContext.MenuItems.Add(item);
         await dbContext.SaveChangesAsync(cancellationToken);

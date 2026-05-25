@@ -122,7 +122,7 @@ public class SubmitQuotationCommandHandler(
             QuotationActivityNames.QuotationSubmitted,
             actionByRole: submitRole);
 
-        var autoClosed = quotationRequest.TryAutoCloseAfterAllResponses();
+        var autoClosed = quotationRequest.TryAutoCloseAfterAllResponses(dateTimeProvider.ApplicationNow);
 
         quotationRepository.Update(quotationRequest);
 

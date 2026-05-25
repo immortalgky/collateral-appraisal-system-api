@@ -2,6 +2,7 @@ using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Contracts.Services;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.PickTentativeWinner;
 
@@ -9,7 +10,8 @@ public class PickTentativeWinnerCommandHandler(
     IQuotationRepository quotationRepository,
     IIntegrationEventOutbox outbox,
     IQuotationTaskOwnershipService taskOwnership,
-    IQuotationActivityLogger activityLogger)
+    IQuotationActivityLogger activityLogger,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<PickTentativeWinnerCommand, PickTentativeWinnerResult>
 {
     public async Task<PickTentativeWinnerResult> Handle(
@@ -50,7 +52,8 @@ public class PickTentativeWinnerCommandHandler(
         quotation.PickTentativeWinner(
             command.CompanyQuotationId,
             command.Actor.UserId ?? Guid.Empty,
-            role);
+            role,
+            dateTimeProvider.ApplicationNow);
 
         // RM negotiation recommendation only makes sense when an RM picked. Skipping on admin-direct-pick
         // also avoids silently clearing a prior recommendation if the quotation has bounced back through

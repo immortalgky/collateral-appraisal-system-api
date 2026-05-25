@@ -2,23 +2,25 @@ using Dapper;
 using MassTransit;
 using Shared.Messaging.Events;
 using Shared.Messaging.Services;
+using Shared.Time;
 using Appraisal.Application.Features.Quotations.CloseQuotation;
 
 namespace Appraisal.Infrastructure.BackgroundServices;
 
 /// <summary>
-/// Background service that automatically closes quotation requests whose DueDate has passed.
+/// Background service that automatically closes quotation requests whose CutOffTime has passed.
 /// Polls every 60 seconds. For each overdue "Sent" quotation:
 ///   1. Sends CloseQuotationCommand (idempotent) — transitions status to UnderAdminReview.
-///   2. Publishes QuotationDueDatePassedIntegrationEvent so downstream modules can expire
+///   2. Publishes QuotationCutOffTimePassedIntegrationEvent so downstream modules can expire
 ///      fan-out PendingTasks and auto-decline unresponsive CompanyQuotations.
 ///
 /// Distributed-safe: only the lease holder runs the scan; standby instances wait.
 /// </summary>
 public sealed class QuotationAutoCloseService(
     IServiceScopeFactory scopeFactory,
-    ILogger<QuotationAutoCloseService> logger)
-    : LeasedBackgroundService<AppraisalDbContext>(scopeFactory, logger)
+    ILogger<QuotationAutoCloseService> logger,
+    IDateTimeProvider dateTimeProvider)
+    : LeasedBackgroundService<AppraisalDbContext>(scopeFactory, logger, dateTimeProvider)
 {
     protected override string LockId => "AppraisalDbContext-QuotationAutoClose";
 
@@ -36,9 +38,9 @@ public sealed class QuotationAutoCloseService(
                 SELECT Id, QuotationWorkflowInstanceId
                 FROM appraisal.QuotationRequests
                 WHERE Status = 'Sent'
-                  AND DueDate <= @now
+                  AND CutOffTime <= @now
                 """,
-                new { now = DateTime.Now });
+                new { now = dateTimeProvider.ApplicationNow });
         }
 
         var rows = overdueRows.ToList();
@@ -58,14 +60,14 @@ public sealed class QuotationAutoCloseService(
                 await mediator.Send(new CloseQuotationCommand(row.Id), ct);
                 logger.LogInformation("Auto-closed QuotationRequest {QuotationRequestId}", row.Id);
 
-                await publishEndpoint.Publish(new QuotationDueDatePassedIntegrationEvent
+                await publishEndpoint.Publish(new QuotationCutOffTimePassedIntegrationEvent
                 {
                     QuotationRequestId = row.Id,
                     QuotationWorkflowInstanceId = row.QuotationWorkflowInstanceId
                 }, ct);
 
                 logger.LogInformation(
-                    "QuotationAutoCloseService: published QuotationDueDatePassedIntegrationEvent for {QuotationRequestId}",
+                    "QuotationAutoCloseService: published QuotationCutOffTimePassedIntegrationEvent for {QuotationRequestId}",
                     row.Id);
             }
             catch (Exception ex)

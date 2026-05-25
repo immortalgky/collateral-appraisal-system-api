@@ -20,7 +20,7 @@ public class QuotationRequestConfiguration : IEntityTypeConfiguration<QuotationR
         builder.HasIndex(q => q.QuotationNumber).IsUnique().HasFilter("[QuotationNumber] IS NOT NULL");
 
         builder.Property(q => q.RequestDate).IsRequired();
-        builder.Property(q => q.DueDate).IsRequired();
+        builder.Property(q => q.CutOffTime).IsRequired();
 
         builder.Property(q => q.RequestDescription).HasMaxLength(500);
         builder.Property(q => q.SpecialRequirements);
@@ -100,9 +100,9 @@ public class QuotationRequestConfiguration : IEntityTypeConfiguration<QuotationR
 
         // ── Indexes ───────────────────────────────────────────────────────────
         builder.HasIndex(q => q.Status);
-        builder.HasIndex(q => q.DueDate);
+        builder.HasIndex(q => q.CutOffTime);
         builder.HasIndex(q => q.WorkflowInstanceId).HasDatabaseName("IX_QuotationRequests_WorkflowInstanceId");
-        builder.HasIndex(q => new { q.Status, q.DueDate }).HasDatabaseName("IX_QuotationRequests_Status_DueDate");
+        builder.HasIndex(q => new { q.Status, q.CutOffTime }).HasDatabaseName("IX_QuotationRequests_Status_CutOffTime");
     }
 }
 

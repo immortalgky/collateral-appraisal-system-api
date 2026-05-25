@@ -16,6 +16,9 @@ SELECT mc.Id,
        mc.SalePriceUnit,
        mc.Notes,
        mc.TemplateId,
-       mc.CreatedAt
+       mc.CreatedAt,
+       mc.Latitude,
+       mc.Longitude,
+       mc.CreatedByCompanyId
 FROM appraisal.MarketComparables mc
 WHERE mc.IsDeleted = 0

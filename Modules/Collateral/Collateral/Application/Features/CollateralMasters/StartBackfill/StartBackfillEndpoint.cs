@@ -1,5 +1,6 @@
 using Collateral.CollateralMasters.Services;
 using Shared.Identity;
+using Shared.Time;
 
 namespace Collateral.Application.Features.CollateralMasters.StartBackfill;
 
@@ -17,6 +18,7 @@ public class StartBackfillEndpoint : ICarterModule
                 (
                     CollateralBackfillJob job,
                     ICurrentUserService currentUser,
+                    IDateTimeProvider dateTimeProvider,
                     CancellationToken cancellationToken
                 ) =>
                 {
@@ -24,7 +26,7 @@ public class StartBackfillEndpoint : ICarterModule
                         throw new UnauthorizedAccessException("Only Admin users can trigger the backfill job.");
 
                     var jobId = job.StartAsync(cancellationToken);
-                    var startedAt = DateTime.UtcNow;
+                    var startedAt = dateTimeProvider.ApplicationNow;
 
                     return Results.Ok(new StartBackfillResponse(jobId, startedAt));
                 }

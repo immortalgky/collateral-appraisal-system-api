@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using Shared.Data;
 
@@ -10,22 +11,30 @@ public static class DapperPaginationExtensions
 {
     /// <summary>
     /// Executes a paginated query and returns a PaginatedResult.
+    /// Uses the scope-shared connection from the factory.
     /// </summary>
-    /// <param name="connectionFactory">The SQL connection factory.</param>
-    /// <param name="sql">The base SQL query (without ORDER BY, OFFSET, FETCH).</param>
-    /// <param name="orderBy">The ORDER BY clause (e.g., "CreatedOn DESC").</param>
-    /// <param name="request">The pagination request.</param>
-    /// <param name="param">Optional query parameters.</param>
-    /// <returns>A paginated result.</returns>
-    public static async Task<PaginatedResult<T>> QueryPaginatedAsync<T>(
+    public static Task<PaginatedResult<T>> QueryPaginatedAsync<T>(
         this ISqlConnectionFactory connectionFactory,
         string sql,
         string orderBy,
         PaginationRequest request,
         object? param = null)
-    {
-        var connection = connectionFactory.GetOpenConnection();
+        => connectionFactory.GetOpenConnection().QueryPaginatedAsync<T>(sql, orderBy, request, param);
 
+    /// <summary>
+    /// Executes a paginated query on a caller-supplied connection. Use this overload
+    /// when running multiple queries in parallel (`Task.WhenAll`) — each parallel
+    /// query needs its own connection because the scope-shared one doesn't enable
+    /// MultipleActiveResultSets. Pair with `ISqlConnectionFactory.CreateNewConnection()`
+    /// and `using var conn = …` for proper disposal.
+    /// </summary>
+    public static async Task<PaginatedResult<T>> QueryPaginatedAsync<T>(
+        this IDbConnection connection,
+        string sql,
+        string orderBy,
+        PaginationRequest request,
+        object? param = null)
+    {
         // Count query
         var countSql = $"SELECT COUNT(*) FROM ({sql}) AS CountQuery";
         var count = await connection.ExecuteScalarAsync<int>(countSql, param);

@@ -11,6 +11,7 @@ public record CreateMenuItemRequest(
     string IconStyle,
     string? IconColor,
     int SortOrder,
-    string ViewPermissionCode,
+    string? ViewPermissionCode,
     string? EditPermissionCode,
-    List<MenuItemTranslationDto> Translations);
+    List<MenuItemTranslationDto> Translations,
+    string? ViewPermissionPrefix = null);

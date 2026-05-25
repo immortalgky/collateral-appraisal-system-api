@@ -8,15 +8,15 @@ public record GetMonitoredTasksQuery(
 ) : IQuery<GetMonitoredTasksResult>;
 
 public record GetMonitoredTasksFilter(
-    string? GroupId = null,
-    string? AssigneeUsername = null,
-    string? SlaStatus = null,
-    string? ActivityId = null,
+    string[]? GroupId = null,
+    string[]? AssigneeUsername = null,
+    string[]? SlaStatus = null,
+    string[]? ActivityId = null,
     string? Search = null,
     string? AppraisalNumber = null,
     string? CustomerName = null,
-    string? AppraisalStatus = null,
-    string? TaskType = null,
+    string[]? AppraisalStatus = null,
+    string[]? TaskType = null,
     string? SortBy = null,
     string? SortDir = null
 );

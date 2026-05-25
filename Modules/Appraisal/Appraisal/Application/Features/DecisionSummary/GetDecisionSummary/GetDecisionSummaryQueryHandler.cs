@@ -48,7 +48,7 @@ public class GetDecisionSummaryQueryHandler(
         const string approvalSql = """
             SELECT
                 c.CommitteeName,
-                ar.Status AS ReviewStatus,
+                'Approved' AS ReviewStatus,
                 ar.Id AS ReviewId,
                 cm.Id AS CommitteeMemberId,
                 cm.MemberName,
@@ -68,7 +68,6 @@ public class GetDecisionSummaryQueryHandler(
             JOIN appraisal.CommitteeMembers cm ON cm.CommitteeId = c.Id AND cm.IsActive = 1
             LEFT JOIN appraisal.CommitteeVotes cv ON cv.ReviewId = ar.Id AND cv.CommitteeMemberId = cm.Id
             WHERE ar.AppraisalId = @AppraisalId
-              AND ar.ReviewLevel = 'Committee'
             ORDER BY cm.MemberName
             """;
 

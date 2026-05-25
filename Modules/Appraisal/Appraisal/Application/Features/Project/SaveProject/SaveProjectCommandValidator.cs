@@ -4,10 +4,9 @@ using FluentValidation;
 namespace Appraisal.Application.Features.Project.SaveProject;
 
 /// <summary>
-/// Validates the SaveProjectCommand.
-/// PUT-style: the command always carries the full project state.
-/// Truly optional fields (all the nullable project details) are allowed to be null.
-/// Only structural invariants are enforced here.
+/// Validates the SaveProjectCommand (FINAL save). Enforces the sanity invariants shared with
+/// the draft validator PLUS the required business fields that a finished project must have.
+/// The draft flow (SaveProjectDraftCommandValidator) omits the required-field block below.
 /// </summary>
 public class SaveProjectCommandValidator : AbstractValidator<SaveProjectCommand>
 {
@@ -17,18 +16,28 @@ public class SaveProjectCommandValidator : AbstractValidator<SaveProjectCommand>
             .NotEmpty().WithMessage("AppraisalId is required.");
 
         RuleFor(x => x.ProjectType)
-            .IsInEnum().WithMessage("ProjectType must be a valid value (Condo=1, LandAndBuilding=2).");
+            .Must(ProjectType.IsValidCode).WithMessage("ProjectType must be a valid code (\"U\"=Condo, \"LB\"=LandAndBuilding, \"L\"=Land).");
+
+        // ---- Final-only required business fields (NOT enforced for drafts) ----
+        // Mirrors the frontend's required fields on final Save (blockProject form).
+        // Extend this block with any other fields the business requires on a completed project.
+        RuleFor(x => x.ProjectName)
+            .NotEmpty().WithMessage("ProjectName is required.");
+
+        RuleFor(x => x.LandOffice)
+            .NotEmpty().WithMessage("LandOffice is required.");
 
         // Type-specific cross-field rules
+        // TODO(Land): Land follows LandAndBuilding rules in v1 — BuiltOnTitleDeedNumber is Condo-only
         RuleFor(x => x.BuiltOnTitleDeedNumber)
             .Null()
-            .When(x => x.ProjectType == ProjectType.LandAndBuilding)
+            .When(x => ProjectType.IsLandAndBuildingLikeCode(x.ProjectType))
             .WithMessage("BuiltOnTitleDeedNumber is only applicable to Condo projects.");
 
         RuleFor(x => x.LicenseExpirationDate)
             .Null()
-            .When(x => x.ProjectType == ProjectType.Condo)
-            .WithMessage("LicenseExpirationDate is only applicable to LandAndBuilding projects.");
+            .When(x => ProjectType.IsCondoCode(x.ProjectType))
+            .WithMessage("LicenseExpirationDate is only applicable to LandAndBuilding / Land projects.");
 
         // Numeric range guards
         RuleFor(x => x.LandAreaRai)

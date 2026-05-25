@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Shared.Time;
 
 namespace Shared.Messaging.Services;
 
@@ -24,12 +25,14 @@ public abstract class LeasedBackgroundService<TDbContext> : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger _logger;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly string _instanceId = $"{Environment.MachineName}-{Guid.NewGuid():N}";
 
-    protected LeasedBackgroundService(IServiceScopeFactory scopeFactory, ILogger logger)
+    protected LeasedBackgroundService(IServiceScopeFactory scopeFactory, ILogger logger, IDateTimeProvider dateTimeProvider)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     /// <summary>
@@ -110,7 +113,7 @@ public abstract class LeasedBackgroundService<TDbContext> : BackgroundService
 
     private async Task<bool> TryAcquireLeaseAsync(TDbContext dbContext, CancellationToken ct)
     {
-        var now = DateTime.Now;
+        var now = _dateTimeProvider.ApplicationNow;
         var leasedUntil = now.Add(LeaseDuration);
         var schema = dbContext.Model.GetDefaultSchema() ?? "dbo";
 
@@ -147,6 +150,6 @@ public abstract class LeasedBackgroundService<TDbContext> : BackgroundService
             "UPDATE [" + schema + "].[BackgroundServiceLease] " +
             "SET LeasedUntil = {0} " +
             "WHERE Id = {1} AND InstanceId = {2}",
-            new object[] { DateTime.Now, LockId, _instanceId }, ct);
+            new object[] { _dateTimeProvider.ApplicationNow, LockId, _instanceId }, ct);
     }
 }

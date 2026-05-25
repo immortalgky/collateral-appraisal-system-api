@@ -4,13 +4,18 @@ internal class SubmitRequestCommandHandler(
     IRequestRepository requestRepository,
     IRequestTitleRepository requestTitleRepository,
     IRequestDocumentValidator validator,
-    IDateTimeProvider dateTimeProvider
+    IDateTimeProvider dateTimeProvider,
+    ISender mediator
 ) : ICommandHandler<SubmitRequestCommand, SubmitRequestResult>
 {
     public async Task<SubmitRequestResult> Handle(SubmitRequestCommand command, CancellationToken cancellationToken)
     {
         var request = await requestRepository.GetByIdWithDocumentsAsync(command.Id, cancellationToken);
         if (request is null) throw new RequestNotFoundException(command.Id);
+
+        // Appeal/Progressive require a Completed prior appraisal — reject before submitting.
+        await PriorAppraisalSubmissionGuard.EnsureValidAsync(
+            request.Purpose, request.Detail?.PrevAppraisalId, mediator, cancellationToken);
 
         var titles = (await requestTitleRepository
             .GetByRequestIdWithDocumentsAsync(request.Id, cancellationToken)).ToList();

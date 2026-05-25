@@ -31,7 +31,7 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
 
     private static AppraisalAggregate CreateAppraisalSeed(Guid requestId, string prefix = "PR7")
     {
-        var a = AppraisalAggregate.Create(requestId, "New", "Normal");
+        var a = AppraisalAggregate.Create(requestId, "New", "Normal", DateTime.Now);
         a.SetAppraisalNumber($"AP-{prefix}-{Guid.NewGuid():N}"[..18]);
         typeof(AppraisalAggregate)
             .GetProperty("CompletedAt")!

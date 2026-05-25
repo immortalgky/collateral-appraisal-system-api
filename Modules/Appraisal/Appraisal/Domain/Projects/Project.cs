@@ -154,7 +154,7 @@ public class Project : Aggregate<Guid>
             FacilitiesOther = facilitiesOther,
             Remark = remark,
             BuiltOnTitleDeedNumber = projectType == ProjectType.Condo ? builtOnTitleDeedNumber : null,
-            LicenseExpirationDate = projectType == ProjectType.LandAndBuilding ? licenseExpirationDate : null
+            LicenseExpirationDate = projectType.IsLandAndBuildingLike() ? licenseExpirationDate : null
         };
 
         project.AddDomainEvent(new ProjectCreatedEvent(project));
@@ -224,7 +224,7 @@ public class Project : Aggregate<Guid>
         FacilitiesOther = facilitiesOther;
         Remark = remark;
         BuiltOnTitleDeedNumber = ProjectType == ProjectType.Condo ? builtOnTitleDeedNumber : null;
-        LicenseExpirationDate = ProjectType == ProjectType.LandAndBuilding ? licenseExpirationDate : null;
+        LicenseExpirationDate = ProjectType.IsLandAndBuildingLike() ? licenseExpirationDate : null;
     }
 
     // =========================================================================
@@ -367,7 +367,7 @@ public class Project : Aggregate<Guid>
             AutoCreateCondoTowersAndModels();
             LinkCondoUnitsToTowersAndModels();
         }
-        else
+        else // TODO(Land): LandAndBuildingLike path — both LB and Land share this logic in v1
         {
             AutoCreateLandAndBuildingModels();
             LinkLandAndBuildingUnitsToModels();
@@ -404,7 +404,7 @@ public class Project : Aggregate<Guid>
             AutoCreateCondoTowersAndModels();
             LinkCondoUnitsToTowersAndModels();
         }
-        else
+        else // TODO(Land): LandAndBuildingLike path — both LB and Land share this logic in v1
         {
             AutoCreateLandAndBuildingModels();
             LinkLandAndBuildingUnitsToModels();
@@ -465,7 +465,7 @@ public class Project : Aggregate<Guid>
         decimal? landIncreaseDecreaseRate,
         decimal? forceSalePercentage)
     {
-        RequireLandAndBuilding(nameof(SetLandAndBuildingPricingAssumption));
+        RequireLandAndBuildingLike(nameof(SetLandAndBuildingPricingAssumption));
 
         if (PricingAssumption is null)
             PricingAssumption = ProjectPricingAssumption.Create(Id);
@@ -483,14 +483,14 @@ public class Project : Aggregate<Guid>
 
     public ProjectLand SetLand(ProjectLand land)
     {
-        RequireLandAndBuilding(nameof(SetLand));
+        RequireLandAndBuildingLike(nameof(SetLand));
         Land = land;
         return Land;
     }
 
     public ProjectLand GetOrCreateLand()
     {
-        RequireLandAndBuilding(nameof(GetOrCreateLand));
+        RequireLandAndBuildingLike(nameof(GetOrCreateLand));
         if (Land is null)
             Land = ProjectLand.Create(Id);
         return Land;
@@ -513,6 +513,7 @@ public class Project : Aggregate<Guid>
             throw new InvalidProjectStateException(
                 "Pricing assumptions must be set before calculating prices.");
 
+        // TODO(Land): LandAndBuildingLike path — both LB and Land use the same calculation in v1
         return ProjectType == ProjectType.Condo
             ? CalculateCondoUnitPrices(existingPriceMap)
             : CalculateLandAndBuildingUnitPrices(existingPriceMap);
@@ -719,11 +720,12 @@ public class Project : Aggregate<Guid>
                 $"Operation '{operationName}' is only valid for Condo projects. Current type: {ProjectType}.");
     }
 
-    private void RequireLandAndBuilding(string operationName)
+    private void RequireLandAndBuildingLike(string operationName)
     {
-        if (ProjectType != ProjectType.LandAndBuilding)
+        // TODO(Land): Both LandAndBuilding and Land are accepted here in v1.
+        if (!ProjectType.IsLandAndBuildingLike())
             throw new InvalidProjectStateException(
-                $"Operation '{operationName}' is only valid for LandAndBuilding projects. Current type: {ProjectType}.");
+                $"Operation '{operationName}' is only valid for LandAndBuilding or Land projects. Current type: {ProjectType}.");
     }
 
     // =========================================================================
@@ -755,7 +757,7 @@ public class Project : Aggregate<Guid>
                         $"A model named '{modelName}' already exists in tower {projectTowerId}.");
             }
         }
-        else // LandAndBuilding
+        else // TODO(Land): LandAndBuildingLike — both LB and Land share tower-less model rules in v1
         {
             if (projectTowerId is not null)
                 throw new InvalidProjectStateException(
@@ -966,7 +968,7 @@ public class Project : Aggregate<Guid>
         string? builtOnTitleDeedNumber,
         DateTime? licenseExpirationDate)
     {
-        if (projectType == ProjectType.LandAndBuilding && builtOnTitleDeedNumber != null)
+        if (projectType.IsLandAndBuildingLike() && builtOnTitleDeedNumber != null)
             throw new ArgumentException(
                 "BuiltOnTitleDeedNumber is only applicable to Condo projects.",
                 nameof(builtOnTitleDeedNumber));

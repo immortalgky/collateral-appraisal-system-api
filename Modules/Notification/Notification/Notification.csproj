@@ -12,7 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.5"/>
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis"/>
     </ItemGroup>
 
     <ItemGroup>

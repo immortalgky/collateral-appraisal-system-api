@@ -5,7 +5,7 @@ public record StartQuotationFromTaskRequest(
     Guid RequestId,
     Guid WorkflowInstanceId,
     Guid? TaskExecutionId,
-    DateTime DueDate,
+    DateTime CutOffTime,
     string BankingSegment,
     List<Guid> InvitedCompanyIds,
     string? SpecialRequirements = null,

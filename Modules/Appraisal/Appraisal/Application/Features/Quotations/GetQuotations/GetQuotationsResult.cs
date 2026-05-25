@@ -6,7 +6,7 @@ public record QuotationDto(
     Guid Id,
     string QuotationNumber,
     DateTime RequestDate,
-    DateTime DueDate,
+    DateTime CutOffTime,
     string Status,
     string RequestedBy,
     int TotalAppraisals,

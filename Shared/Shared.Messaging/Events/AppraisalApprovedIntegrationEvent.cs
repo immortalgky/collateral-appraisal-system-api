@@ -22,4 +22,15 @@ public record AppraisalApprovedIntegrationEvent : IntegrationEvent
 
     /// <summary>Id of the committee that approved. Resolved by the publisher via committee repository lookup.</summary>
     public Guid CommitteeId { get; init; }
+
+    /// <summary>Vote tally at the time the deciding approval was reached.</summary>
+    public int VotesApprove { get; init; }
+    public int VotesReject { get; init; }
+    public int VotesRouteBack { get; init; }
+
+    /// <summary>
+    /// Id of the decision meeting for committee-with-meeting (tier 3) approvals, read from the
+    /// preceding MeetingActivity's workflow variable. Null for direct approvals (tiers 1 &amp; 2).
+    /// </summary>
+    public Guid? DecisionMeetingId { get; init; }
 }

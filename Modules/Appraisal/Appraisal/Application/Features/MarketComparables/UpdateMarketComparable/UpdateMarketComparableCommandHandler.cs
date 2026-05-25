@@ -32,7 +32,9 @@ public class UpdateMarketComparableCommandHandler(
             command.SalePrice,
             command.SaleDate,
             command.OfferPriceUnit,
-            command.SalePriceUnit
+            command.SalePriceUnit,
+            command.Latitude,
+            command.Longitude
             )
         );
 

@@ -2,6 +2,7 @@ using Appraisal.Application.Features.Quotations.Shared;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Quotations.SendShortlistToRm;
 
@@ -9,7 +10,8 @@ public class SendShortlistToRmCommandHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
-    IQuotationActivityLogger activityLogger)
+    IQuotationActivityLogger activityLogger,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<SendShortlistToRmCommand, SendShortlistToRmResult>
 {
     public async Task<SendShortlistToRmResult> Handle(
@@ -21,7 +23,7 @@ public class SendShortlistToRmCommandHandler(
         var quotation = await quotationRepository.GetByIdAsync(command.QuotationRequestId, cancellationToken)
                         ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
 
-        quotation.SendShortlistToRm(currentUser.UserId!.Value);
+        quotation.SendShortlistToRm(currentUser.UserId!.Value, dateTimeProvider.ApplicationNow);
 
         var adminRole = currentUser.IsInRole("Admin") ? "Admin" : "IntAdmin";
         activityLogger.Log(quotation.Id, null, null, QuotationActivityNames.ShortlistSentToRm, actionByRole: adminRole);

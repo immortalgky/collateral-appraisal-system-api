@@ -41,7 +41,9 @@ public class ParentWorkflowCancelledConsumerTests
 
         var workflowService = Substitute.For<IWorkflowService>();
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
-            db, Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>());
+            db,
+            Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>(),
+            Substitute.For<Shared.Time.IDateTimeProvider>());
         var consumer = new ParentWorkflowCancelledConsumer(
             db, workflowService, Substitute.For<IPublisher>(),
             inboxGuard,

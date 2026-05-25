@@ -70,6 +70,8 @@ public class AuthDataSeed(
                 "TASK_QUOTATION_REVIEW", "TASK_QUOTATION_FINALIZE",
                 "COLLATERAL_ADMIN",
                 "INVOICE_VIEW", "INVOICE_APPROVE", "REPORT_EVALUATION_VIEW",
+                "STANDALONE_USE",
+                "BLOCK_UNIT_MAINT_VIEW", "BLOCK_UNIT_MAINT_EDIT",
                 ..appraisalSectionViews
             ]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
@@ -101,6 +103,7 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "STANDALONE_USE",
+                "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews, ..appraisalSectionEdits
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalCheckerRoleName,
@@ -109,6 +112,7 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_CHECK",
+                "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalVerifierRoleName,
@@ -117,6 +121,7 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW", "REPORT_EVALUATION_VIEW",
+                "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalStaffRoleName,
@@ -125,6 +130,7 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE",
+                "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews, ..appraisalSectionEdits
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalCheckerRoleName,
@@ -134,6 +140,7 @@ public class AuthDataSeed(
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_CHECK",
                 "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
+                "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalVerifierRoleName,
@@ -142,6 +149,7 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_VERIFICATION",
+                "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews
             ]);
         await SeedRoleWithPermissionsAsync(AppraisalCommitteeRoleName,
@@ -151,6 +159,7 @@ public class AuthDataSeed(
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_EVALUATION_VIEW",
                 "MEETING_MANAGE", "COMMITTEE_MEMBER",
+                "STANDALONE_USE",
                 ..appraisalSectionViews
             ]);
         await SeedUsersAsync();
@@ -532,11 +541,46 @@ public class AuthDataSeed(
             // Service Quality Evaluation
             ("REPORT_EVALUATION_VIEW", "View Service Quality Evaluation", "View service quality evaluation reports",
                 "Common"),
+            // History Search (FSD §2.6.7)
+            ("HISTORY_SEARCH_VIEW", "View History Search",
+                "Search historical collateral + market comparable pins on map", "Common"),
+            // Block Unit Maintenance (FSD §2.6.10) — internal admin only
+            ("BLOCK_UNIT_MAINT_VIEW", "View Block Unit Maintenance",
+                "View block/project unit listing and sale-status details", "Appraisal"),
+            ("BLOCK_UNIT_MAINT_EDIT", "Edit Block Unit Maintenance",
+                "Update unit sold status, purchase method, and financing bank", "Appraisal"),
             // Webhook Deliveries admin
             ("WEBHOOK_DELIVERIES_VIEW", "View Webhook Deliveries",
                 "View paginated webhook delivery list and delivery details", "Integration"),
             ("WEBHOOK_DELIVERIES_RETRY", "Retry Webhook Deliveries",
-                "Manually retry a failed webhook delivery", "Integration")
+                "Manually retry a failed webhook delivery", "Integration"),
+            // ── Monitoring feature (FSD §2.6.8) ───────────────────────────────────
+            ("MONITORING:PENDING_QUOTATION", "Monitoring: Pending Quotation",
+                "View pending quotation monitoring screen", "Common"),
+            ("MONITORING:PENDING_INTERNAL:STAFF", "Monitoring: Pending Internal (Staff)",
+                "Monitor internal appraisal execution and book verification tasks", "Common"),
+            ("MONITORING:PENDING_INTERNAL:CHECKER", "Monitoring: Pending Internal (Checker)",
+                "Monitor internal appraisal check tasks", "Common"),
+            ("MONITORING:PENDING_INTERNAL:VERIFIER", "Monitoring: Pending Internal (Verifier)",
+                "Monitor internal appraisal verification tasks", "Common"),
+            ("MONITORING:PENDING_INTERNAL:APPROVER", "Monitoring: Pending Internal (Approver)",
+                "Monitor pending approval (committee) tasks", "Common"),
+            ("MONITORING:PENDING_INTERNAL:ADMIN", "Monitoring: Pending Internal (Admin)",
+                "Monitor internal appraisal assignment tasks", "Common"),
+            ("MONITORING:PENDING_EXTERNAL:STAFF", "Monitoring: Pending External (Staff)",
+                "Monitor external appraisal execution tasks", "Common"),
+            ("MONITORING:PENDING_EXTERNAL:CHECKER", "Monitoring: Pending External (Checker)",
+                "Monitor external appraisal check tasks", "Common"),
+            ("MONITORING:PENDING_EXTERNAL:VERIFIER", "Monitoring: Pending External (Verifier)",
+                "Monitor external appraisal verification tasks", "Common"),
+            ("MONITORING:PENDING_EXTERNAL:ADMIN", "Monitoring: Pending External (Admin)",
+                "Monitor external appraisal assignment tasks", "Common"),
+            ("MONITORING:PENDING_FOLLOWUP", "Monitoring: Pending Follow Up",
+                "View pending document followup monitoring screen", "Common"),
+            ("MONITORING:PENDING_EVALUATION", "Monitoring: Pending Evaluation",
+                "View pending company evaluation monitoring screen", "Common"),
+            ("MONITORING:MEETING_FOLLOWUP", "Monitoring: Meeting Follow Up",
+                "Monitor pending committee-approval tasks across all 3 tiers (SUB_COMMITTEE, COMMITTEE, COMMITTEE_WITH_MEETING)", "Common")
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)
@@ -564,6 +608,26 @@ public class AuthDataSeed(
         await UpsertTreeAsync(mainRoots, MenuScope.Main, null, existingByKey);
         await UpsertTreeAsync(appraisalRoots, MenuScope.Appraisal, null, existingByKey);
 
+        // One-off repair: `main.monitoring` originally seeded with a section-specific
+        // ViewPermissionCode (e.g. "MONITORING:PENDING_QUOTATION") so only users holding
+        // that exact permission saw the menu. The tabbed-monitoring refactor moved it to
+        // a ViewPermissionPrefix gate so any "MONITORING:*" permission grants access.
+        // The INSERT-ONLY UpsertTreeAsync above won't clear the stale ViewPermissionCode,
+        // so do it explicitly here. Idempotent: re-runs are no-ops once normalised.
+        if (existingByKey.TryGetValue("main.monitoring", out var monitoring)
+            && (monitoring.ViewPermissionCode is not null
+                || monitoring.ViewPermissionPrefix != "MONITORING:"))
+        {
+            monitoring.Update(
+                monitoring.Path,
+                monitoring.Icon,
+                monitoring.IconColor,
+                monitoring.SortOrder,
+                viewPermissionCode: null,
+                editPermissionCode: monitoring.EditPermissionCode,
+                viewPermissionPrefix: "MONITORING:");
+        }
+
         await dbContext.SaveChangesAsync();
     }
 
@@ -583,9 +647,25 @@ public class AuthDataSeed(
             // Reparent/ReplaceTranslations here would roll back label/icon/permission changes
             // made via /admin/menus. For intentional shape changes to seeded items, write a
             // one-off migration script rather than touching the seeder.
+            //
+            // Exception: ViewPermissionPrefix is a newly added column that didn't exist before,
+            // so it will be NULL on any row that was seeded before the migration. We backfill it
+            // only when the seed defines a prefix AND the DB row still has NULL — this cannot
+            // overwrite an admin edit because the column didn't exist before this migration.
             if (existingByKey.TryGetValue(node.ItemKey, out var existing))
             {
                 item = existing;
+                if (existing.ViewPermissionPrefix is null && !string.IsNullOrWhiteSpace(node.ViewPermissionPrefix))
+                {
+                    existing.Update(
+                        existing.Path,
+                        existing.Icon,
+                        existing.IconColor,
+                        existing.SortOrder,
+                        existing.ViewPermissionCode,
+                        existing.EditPermissionCode,
+                        node.ViewPermissionPrefix);
+                }
             }
             else
             {
@@ -600,7 +680,8 @@ public class AuthDataSeed(
                     node.ViewPermissionCode,
                     node.EditPermissionCode,
                     BuildTranslations(node.LabelEn),
-                    true);
+                    isSystem: true,
+                    viewPermissionPrefix: node.ViewPermissionPrefix);
                 dbContext.MenuItems.Add(item);
                 existingByKey[node.ItemKey] = item;
             }

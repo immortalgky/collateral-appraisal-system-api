@@ -9,6 +9,7 @@ public record GetMachineCostItemsResult(
 public record MachineCostItemDto(
     Guid Id,
     Guid AppraisalPropertyId,
+    string? PropertyName,
     int DisplaySequence,
     decimal? RcnReplacementCost,
     decimal? LifeSpanYears,

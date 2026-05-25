@@ -7,6 +7,7 @@ using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Request.Infrastructure;
+using Scalar.AspNetCore;
 using Shared.Configurations;
 using Shared.Data;
 using Shared.Data.Outbox;
@@ -210,7 +211,14 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment()) app.MapOpenApi();
+// OpenAPI document (/openapi/v1.json) + Scalar API reference UI (/scalar) are exposed in
+// all environments so other systems can consume the API contract as documentation.
+// NOTE: these endpoints are unauthenticated — restrict the /openapi and /scalar paths at the
+// reverse proxy (F5/IIS) if the API surface should not be publicly reachable.
+// AllowAnonymous bypasses the global fallback authorization policy (RequireAuthenticatedUser).
+app.MapOpenApi().AllowAnonymous();
+app.MapScalarApiReference(options => options.WithTitle("Collateral Appraisal System API"))
+    .AllowAnonymous();
 //if (app.Environment.IsDevelopment()) app.UseDeveloperExceptionPage();
 
 // Must be first: rewrites Request.Scheme / RemoteIp from X-Forwarded-* before any downstream

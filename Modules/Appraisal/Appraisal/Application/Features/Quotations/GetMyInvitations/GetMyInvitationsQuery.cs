@@ -4,5 +4,5 @@ public record GetMyInvitationsQuery(
     PaginationRequest PaginationRequest,
     string? Status = null,
     string? Search = null,
-    DateOnly? DueDateFrom = null,
-    DateOnly? DueDateTo = null) : IQuery<GetMyInvitationsResult>;
+    DateOnly? CutOffTimeFrom = null,
+    DateOnly? CutOffTimeTo = null) : IQuery<GetMyInvitationsResult>;
