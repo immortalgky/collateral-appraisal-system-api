@@ -33,6 +33,7 @@ public static class IntegrationModule
         // Register services
         services.AddScoped<IWebhookService, WebhookService>();
         services.AddScoped<IAppraisalLookupService, AppraisalLookupService>();
+        services.AddScoped<IQuotationFinalizeLookupService, QuotationFinalizeLookupService>();
         services.AddTransient<IUpdateRequestService, UpdateRequestService>();
         services.AddTransient<WebhookAttemptCounterHandler>();
         var webhookClientBuilder = services.AddHttpClient("Webhook");
