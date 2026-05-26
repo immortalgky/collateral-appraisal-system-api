@@ -54,4 +54,20 @@ public class Parameter : Aggregate<long>
         );
     }
 
+    public void Update(
+        string code,
+        string description,
+        string country,
+        string language,
+        bool isActive,
+        int seqNo
+    )
+    {
+        Code = code;
+        Description = description;
+        Country = country;
+        Language = language;
+        IsActive = isActive;
+        SeqNo = seqNo;
+    }
 }

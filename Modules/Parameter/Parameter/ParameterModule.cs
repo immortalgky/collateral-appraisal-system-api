@@ -8,6 +8,7 @@ public static class ParameterModule
         IConfiguration configuration)
     {
         services.AddMemoryCache();
+        services.AddSingleton<ParameterCacheInvalidator>();
 
         services.AddScoped<IParameterRepository, ParameterRepository>();
         services.Decorate<IParameterRepository, CachedParameterRepository>();

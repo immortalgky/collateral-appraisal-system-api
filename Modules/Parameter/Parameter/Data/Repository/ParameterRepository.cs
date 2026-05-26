@@ -2,6 +2,14 @@ namespace Parameter.Data.Repository;
 
 public class ParameterRepository(ParameterDbContext dbContext) : IParameterRepository
 {
+    public async Task<Parameters.Models.Parameter?> GetParameterByParId(
+        long parId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Parameters
+            .FirstOrDefaultAsync(p => p.Id == parId, cancellationToken);
+    }
+
     public async Task<List<Parameters.Models.Parameter>> GetParameter(ParameterDto request, bool asNoTracking = true,
         CancellationToken cancellationToken = default)
     {
@@ -20,5 +28,24 @@ public class ParameterRepository(ParameterDbContext dbContext) : IParameterRepos
             .WhereIf(request.SeqNo.HasValue, d => d.SeqNo == request.SeqNo);
 
         return await query.OrderBy(p => p.SeqNo).ToListAsync(cancellationToken);
+    }
+    public async Task AddAsync(
+        Parameters.Models.Parameter parameter,
+        CancellationToken cancellationToken = default)
+    {
+        await dbContext.Parameters.AddAsync(parameter, cancellationToken);
+    }
+    public async Task DeleteAsync(
+        long parId,
+        CancellationToken cancellationToken = default)
+    {
+        var parameter = await dbContext.Parameters
+            .FirstOrDefaultAsync(p => p.Id == parId, cancellationToken)
+            ?? throw new InvalidOperationException($"Parameter Id: {parId} is not found.");
+        dbContext.Parameters.Remove(parameter);
+    } 
+    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

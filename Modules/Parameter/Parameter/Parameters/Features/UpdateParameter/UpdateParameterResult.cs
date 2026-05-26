@@ -1,0 +1,1 @@
+public record UpdateParameterResult(bool Success);
