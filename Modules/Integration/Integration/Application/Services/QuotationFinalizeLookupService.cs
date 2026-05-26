@@ -19,7 +19,7 @@ public class QuotationFinalizeLookupService(
             cq.EstimatedDays AS EstimatedDays
         FROM appraisal.CompanyQuotations cq
         JOIN auth.Companies c ON c.Id = cq.CompanyId
-        JOIN appraisal.QuotationRequests qr ON qr.Id = @QuotationRequestId
+        JOIN appraisal.QuotationRequests qr ON qr.Id = cq.QuotationRequestId
         WHERE cq.Id = @WinningQuotationId
         """;
 
