@@ -8,15 +8,18 @@ public class QuotationFinalizeLookupService(
     ISqlConnectionFactory connectionFactory,
     ILogger<QuotationFinalizeLookupService> logger) : IQuotationFinalizeLookupService
 {
+    // QuotationNumber comes from the QuotationRequest (RFQ) — CompanyQuotation.QuotationNumber
+    // is not populated. Same source the get-quotation-valuers API uses.
     private const string SqlHeader = """
         SELECT
-            cq.QuotationNumber AS QuotationNumber,
+            qr.QuotationNumber AS QuotationNumber,
             cq.Id AS CompanyQuotationId,
             c.Name AS ValuerName,
             COALESCE(cq.CurrentNegotiatedPrice, cq.TotalQuotedPrice) AS TotalAppraisalFee,
             cq.EstimatedDays AS EstimatedDays
         FROM appraisal.CompanyQuotations cq
         JOIN auth.Companies c ON c.Id = cq.CompanyId
+        JOIN appraisal.QuotationRequests qr ON qr.Id = cq.QuotationRequestId
         WHERE cq.Id = @WinningQuotationId
         """;
 
