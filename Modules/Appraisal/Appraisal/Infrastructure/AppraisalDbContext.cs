@@ -196,6 +196,12 @@ public class AppraisalDbContext : DbContext
     public DbSet<AppraisalAppendix> AppraisalAppendices => Set<AppraisalAppendix>();
     public DbSet<AppendixDocument> AppendixDocuments => Set<AppendixDocument>();
 
+    // =====================================================
+    // Supporting Data Maintenance
+    // =====================================================
+    public DbSet<Domain.SupportingDataMaintenance.SupportingData> SupportingData => Set<Domain.SupportingDataMaintenance.SupportingData>();
+    public DbSet<Domain.SupportingDataMaintenance.SupportingDataDetail> SupportingDataDetails => Set<Domain.SupportingDataMaintenance.SupportingDataDetail>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Set default schema

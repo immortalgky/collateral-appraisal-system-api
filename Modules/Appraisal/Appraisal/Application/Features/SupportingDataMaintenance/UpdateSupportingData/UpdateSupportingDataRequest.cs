@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.SupportingDataMaintenance.UpdateSupportingData;
+
+public record UpdateSupportingDataRequest(SupportingDataHeaderDto Header);

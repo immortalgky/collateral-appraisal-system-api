@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupportingDataList;
+
+public record GetSupportingDataListResponse(IEnumerable<SupportingDataListItem> Items, int TotalCount);

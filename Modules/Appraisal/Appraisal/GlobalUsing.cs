@@ -44,6 +44,9 @@ global using Appraisal.Domain.MarketComparables;
 global using Appraisal.Domain.Projects;
 global using Appraisal.Domain.Settings;
 global using Appraisal.Domain.Quotations;
+global using Appraisal.Domain.SupportingDataMaintenance;
+global using Appraisal.Domain.SupportingDataMaintenance.Events;
+global using Appraisal.Domain.SupportingDataMaintenance.Exceptions;
 
 // Appraisal - Infrastructure
 global using Appraisal.Infrastructure;

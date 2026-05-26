@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupportingDataById;
+
+public record GetSupportingDataByIdQuery(Guid SupportingId) : IQuery<GetSupportingDataByIdResult>;
