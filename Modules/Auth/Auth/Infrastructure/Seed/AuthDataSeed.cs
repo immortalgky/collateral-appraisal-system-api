@@ -554,6 +554,9 @@ public class AuthDataSeed(
                 "View paginated webhook delivery list and delivery details", "Integration"),
             ("WEBHOOK_DELIVERIES_RETRY", "Retry Webhook Deliveries",
                 "Manually retry a failed webhook delivery", "Integration"),
+            // Application Logs admin
+            ("LOGS_VIEW", "View Application Logs",
+                "View paginated application logs stored in dbo.Logs", "Common"),
             // ── Monitoring feature (FSD §2.6.8) ───────────────────────────────────
             ("MONITORING:PENDING_QUOTATION", "Monitoring: Pending Quotation",
                 "View pending quotation monitoring screen", "Common"),

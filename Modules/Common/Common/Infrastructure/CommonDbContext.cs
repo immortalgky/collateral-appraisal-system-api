@@ -1,4 +1,5 @@
 using System.Reflection;
+using Common.Domain.Logs;
 using Common.Domain.Notes;
 using Common.Domain.ReadModels;
 using Common.Domain.SavedSearches;
@@ -9,6 +10,7 @@ namespace Common.Infrastructure;
 
 public class CommonDbContext(DbContextOptions<CommonDbContext> options) : DbContext(options)
 {
+    public DbSet<Log> Logs => Set<Log>();
     public DbSet<DailyAppraisalCount> DailyAppraisalCounts => Set<DailyAppraisalCount>();
     public DbSet<AppraisalStatusSummary> AppraisalStatusSummaries => Set<AppraisalStatusSummary>();
     public DbSet<CompanyAppraisalSummary> CompanyAppraisalSummaries => Set<CompanyAppraisalSummary>();
