@@ -1,6 +1,6 @@
 namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupportingDataList;
 
-public class GetSupportingDataListQueryHandler(ISupportingDataRepository repo) : IQueryHandler<GetSupportingDataListQuery, GetSupportingDataListResult>
+public class GetSupportingDataListQueryHandler(ISupportingDataRepository repo, ICurrentUserService currentUserService) : IQueryHandler<GetSupportingDataListQuery, GetSupportingDataListResult>
 {
     public async Task<GetSupportingDataListResult> Handle(
     GetSupportingDataListQuery req, CancellationToken ct)
@@ -12,6 +12,7 @@ public class GetSupportingDataListQueryHandler(ISupportingDataRepository repo) :
         var items = paged.Items.Select(s => new SupportingDataListItem(
             s.Id,
             s.SupportingNumber?.Value,
+            s.Status,
             s.ImportChannel,
             s.ImportDate,
             s.SourceOfData,
@@ -19,6 +20,17 @@ public class GetSupportingDataListQueryHandler(ISupportingDataRepository repo) :
             s.Description,
             s.Remark));
 
-        return new GetSupportingDataListResult(items, (int)paged.Count);
+        if (currentUserService.IsInRole("IntAppraisalChecker") || currentUserService.IsInRole("ExtAppraisalChecker"))
+        {
+            items = items.Where(s => s.Status != SupportingStatus.Draft && s.Status != SupportingStatus.RoutedBack);
+        }
+
+        return new GetSupportingDataListResult(
+            items,
+            currentUserService.IsInRole("IntAppraisalStaff") || currentUserService.IsInRole("ExtAppraisalStaff"),
+            (int)paged.Count,
+            page.PageNumber,
+            page.PageSize
+        );
     }
 }

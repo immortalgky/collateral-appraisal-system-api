@@ -18,9 +18,9 @@ namespace Appraisal.Infrastructure.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     SupportingNumber = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    ImportChannel = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    ImportDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    SourceOfData = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    ImportChannel = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    ImportDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    SourceOfData = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     AppraisalCompany = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),

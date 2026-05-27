@@ -1,11 +1,13 @@
 namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupportingDataById;
 
-public record GetSupportingDataByIdResponse(Guid Id,
-    string SupportingNumber,
+public record GetSupportingDataByIdResponse(
+    Guid Id,
+    string? SupportingNumber,
+    bool HasAuthorityToDecision,
     string Status,
-    string ImportChannel,
-    DateTime ImportDate,
-    string SourceOfData,
-    string AppraisalCompany,
-    string Description,
-    string Remark) : IQuery<GetSupportingDataByIdResult>;
+    string? ImportChannel,
+    DateTime? ImportDate,
+    string? SourceOfData,
+    string? AppraisalCompany,
+    string? Description,
+    string? Remark) : IQuery<GetSupportingDataByIdResult>;

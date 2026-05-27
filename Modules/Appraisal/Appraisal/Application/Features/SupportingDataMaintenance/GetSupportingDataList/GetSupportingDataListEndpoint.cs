@@ -23,7 +23,7 @@ public class GetSupportingDataListEndpoint : ICarterModule
             return Results.Ok(result);
         })
         .WithName("GetSupportingDataList")
-        .Produces<GetSupportingDataListResponse>()
+        .Produces<GetSupportingDataListResult>()
         .ProducesProblem(StatusCodes.Status401Unauthorized)
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Get supporting data list")

@@ -14,9 +14,9 @@ public class SupportingDataConfiguration : IEntityTypeConfiguration<SupportingDa
             sn.HasIndex(p => p.Value).HasDatabaseName("IX_SupportingData_SupportingNumber");
         });
 
-        builder.Property(x => x.ImportChannel).HasMaxLength(20).IsRequired();
-        builder.Property(x => x.ImportDate).IsRequired();
-        builder.Property(x => x.SourceOfData).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.ImportChannel).HasMaxLength(20);
+        builder.Property(x => x.ImportDate);
+        builder.Property(x => x.SourceOfData).HasMaxLength(20);
         builder.Property(x => x.AppraisalCompany).HasMaxLength(50);
         builder.Property(x => x.Description).HasMaxLength(1000);
         builder.Property(x => x.Remark).HasMaxLength(4000);

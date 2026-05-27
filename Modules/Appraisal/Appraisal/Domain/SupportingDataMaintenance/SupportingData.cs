@@ -3,9 +3,9 @@ namespace Appraisal.Domain.SupportingDataMaintenance;
 public class SupportingData : Aggregate<Guid>
 {
     public SupportingNumber? SupportingNumber { get; private set; }
-    public string ImportChannel { get; private set; } = default!;
-    public DateTime ImportDate { get; private set; }
-    public string SourceOfData { get; private set; } = default!;
+    public string? ImportChannel { get; private set; } = default!;
+    public DateTime? ImportDate { get; private set; }
+    public string? SourceOfData { get; private set; } = default!;
     public string? AppraisalCompany { get; private set; }
     public string? Description { get; private set; }
     public SupportingStatus Status { get; private set; } = default!;
@@ -19,7 +19,7 @@ public class SupportingData : Aggregate<Guid>
     private SupportingData(SupportingDataHeader data)
     {
         Id = Guid.CreateVersion7();
-        Status = SupportingStatus.PendingApproval;
+        Status = SupportingStatus.Draft;
         SupportingNumber = SupportingNumber.Create($"SUP-{DateTime.UtcNow:yyyyMMddHHmmss}-{Id.ToString()[..8].ToUpper()}");
         Apply(data);
         AddDomainEvent(new SupportingDataCreatedEvent(Id));
@@ -28,6 +28,16 @@ public class SupportingData : Aggregate<Guid>
     public static SupportingData Create(SupportingDataHeader data) => new(data);
 
     public void Update(SupportingDataHeader data) => Apply(data);
+
+    public void Validate()
+    {
+        var rc = new RuleCheck();
+        rc.AddErrorIf(string.IsNullOrWhiteSpace(ImportDate?.ToString()), "ImportDate is required.");
+        rc.AddErrorIf(string.IsNullOrWhiteSpace(ImportChannel), "ImportChannel is required.");
+        rc.AddErrorIf(string.IsNullOrWhiteSpace(SourceOfData), "SourceOfData is required.");
+        rc.AddErrorIf(string.IsNullOrWhiteSpace(AppraisalCompany), "AppraisalCompany is required.");
+        rc.ThrowIfInvalid();
+    }
 
     /// <summary>
     /// Adds a new detail row to this supporting data.
@@ -49,6 +59,15 @@ public class SupportingData : Aggregate<Guid>
         detail.Update(data);
     }
 
+    /// <summary>
+    /// Remove an existing detail row within this supporting data.
+    /// </summary>
+    public void RemoveDetail(Guid detailId)
+    {
+        var detail = _details.FirstOrDefault(d => d.Id == detailId);
+        _details.Remove(detail);
+    }
+
     public SupportingDataDetail? GetDetail(Guid detailId)
         => _details.FirstOrDefault(d => d.Id == detailId);
 
@@ -60,9 +79,6 @@ public class SupportingData : Aggregate<Guid>
 
     private void Apply(SupportingDataHeader d)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(d.ImportChannel);
-        ArgumentException.ThrowIfNullOrWhiteSpace(d.SourceOfData);
-
         ImportChannel = d.ImportChannel;
         ImportDate = d.ImportDate;
         SourceOfData = d.SourceOfData;
@@ -70,12 +86,51 @@ public class SupportingData : Aggregate<Guid>
         Description = d.Description;
         Remark = d.Remark;
     }
+
+    public void Submit(string? decision, string? remark)
+    {
+        Validate();
+        if (Status == SupportingStatus.Draft || Status == SupportingStatus.RoutedBack)
+        {
+            Status = SupportingStatus.Pending;
+        }
+        else if (decision == SupportingStatus.Approved)
+        {
+            Guard(SupportingStatus.Pending);
+            Status = SupportingStatus.Approved;
+            Remark = remark;
+        }
+        else if (decision == SupportingStatus.Rejected)
+        {
+            Guard(SupportingStatus.Pending);
+            Status = SupportingStatus.Rejected;
+            Remark = remark;
+        }
+        else if (decision == SupportingStatus.Cancelled)
+        {
+            Guard(SupportingStatus.Pending);
+            Status = SupportingStatus.Cancelled;
+            Remark = remark;
+        }
+        else if (decision == SupportingStatus.RoutedBack)
+        {
+            Guard(SupportingStatus.Pending);
+            Status = SupportingStatus.RoutedBack;
+            Remark = remark;
+        }
+    }
+
+    private void Guard(SupportingStatus expected)
+    {
+        if (Status != expected)
+            throw new DomainException($"Invalid transition from {Status}.");
+    }
 }
 
 public record SupportingDataHeader(
-    string ImportChannel,
-    DateTime ImportDate,
-    string SourceOfData,
+    string? ImportChannel,
+    DateTime? ImportDate,
+    string? SourceOfData,
     string? AppraisalCompany,
     string? Description,
     string? Remark

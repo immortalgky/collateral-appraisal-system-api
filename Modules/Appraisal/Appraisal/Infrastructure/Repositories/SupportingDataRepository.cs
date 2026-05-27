@@ -24,7 +24,7 @@ public class SupportingDataRepository(AppraisalDbContext dbContext)
             query = query.Where(s => s.Status.Code == status);
 
         if (importDate.HasValue)
-            query = query.Where(s => s.ImportDate.Date == importDate.Value.Date);
+            query = query.Where(s => s.ImportDate.HasValue && s.ImportDate.Value.Date == importDate.Value.Date);
 
         if (!string.IsNullOrWhiteSpace(supportingNumber))
             query = query.Where(s =>

@@ -1,6 +1,6 @@
 namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupportingDetailList;
 
-public record GetSupportingDetailListResult(IEnumerable<SupportingDetailListItem> Items, int TotalCount);
+public record GetSupportingDetailListResult(IEnumerable<SupportingDetailListItem> Items, bool HasAuthorityToCreate, int TotalCount, int PageNumber, int PageSize);
 
 public record SupportingDetailListItem(
     Guid Id,

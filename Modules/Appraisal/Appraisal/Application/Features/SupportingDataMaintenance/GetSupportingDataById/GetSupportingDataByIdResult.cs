@@ -2,12 +2,13 @@ namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupporting
 
 public record GetSupportingDataByIdResult(
     Guid Id,
-    string SupportingNumber,
+    bool HasAuthorityToDecision,
+    string? SupportingNumber,
     string Status,
-    string ImportChannel,
-    DateTime ImportDate,
-    string SourceOfData,
-    string AppraisalCompany,
-    string Description,
-    string Remark
+    string? ImportChannel,
+    DateTime? ImportDate,
+    string? SourceOfData,
+    string? AppraisalCompany,
+    string? Description,
+    string? Remark
 );

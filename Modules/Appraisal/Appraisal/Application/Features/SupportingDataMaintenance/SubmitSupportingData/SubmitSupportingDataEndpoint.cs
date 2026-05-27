@@ -1,17 +1,17 @@
-namespace Appraisal.Application.Features.SupportingDataMaintenance.UpdateSupportingData;
+namespace Appraisal.Application.Features.SupportingDataMaintenance.SubmitSupportingData;
 
-public class UpdateSupportingDataEndpoint : ICarterModule
+public class SubmitSupportingDataEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPatch("/supporting-data/{supportingId:guid}", async (
+        app.MapPost("/supporting-data/submit/{supportingId:guid}", async (
             Guid supportingId,
-            UpdateSupportingDataRequest request,
+            SubmitSupportingDataRequest request,
             ISender sender,
             CancellationToken cancellationToken
         ) =>
         {
-            var command = new UpdateSupportingDataCommand(supportingId, new SupportingDataHeaderDto(
+            var command = new SubmitSupportingDataCommand(supportingId, new SupportingDataHeaderDto(
                 request.Header.ImportChannel,
                 request.Header.ImportDate,
                 request.Header.SourceOfData,
@@ -23,16 +23,16 @@ public class UpdateSupportingDataEndpoint : ICarterModule
 
             var result = await sender.Send(command, cancellationToken);
 
-            var response = result.Adapt<UpdateSupportingDataResponse>();
+            var response = result.Adapt<SubmitSupportingDataResponse>();
 
             return Results.Ok(response);
         })
-        .WithName("UpdateSupportingData")
-        .Produces<UpdateSupportingDataResponse>(StatusCodes.Status200OK)
+        .WithName("SubmitSupportingData")
+        .Produces<SubmitSupportingDataResponse>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status400BadRequest)
         .ProducesProblem(StatusCodes.Status404NotFound)
-        .WithSummary("Update an existing supporting data")
-        .WithDescription("Update an existing supporting data record for appraisal reference.")
+        .WithSummary("Submit an existing supporting data")
+        .WithDescription("Submit an existing supporting data record for appraisal reference.")
         .WithTags("SupportingData");
     }
 }

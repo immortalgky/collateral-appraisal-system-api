@@ -1,19 +1,20 @@
-namespace Appraisal.Application.Features.SupportingDataMaintenance.CreateSupportingDetail;
+namespace Appraisal.Application.Features.SupportingDataMaintenance.UpdateSupportingDetail;
 
-internal class CreateSupportingDetailCommandHandler(ISupportingDataRepository repo, ICurrentUserService currentUserService)
-    : ICommandHandler<CreateSupportingDetailCommand, CreateSupportingDetailResult>
+internal class UpdateSupportingDetailCommandHandler(ISupportingDataRepository repo, ICurrentUserService currentUserService)
+    : ICommandHandler<UpdateSupportingDetailCommand, UpdateSupportingDetailResult>
 {
-    public async Task<CreateSupportingDetailResult> Handle(
-        CreateSupportingDetailCommand cmd, CancellationToken ct)
+    public async Task<UpdateSupportingDetailResult> Handle(
+        UpdateSupportingDetailCommand cmd, CancellationToken ct)
     {
         if (currentUserService.IsInRole("IntAppraisalChecker") || currentUserService.IsInRole("ExtAppraisalChecker"))
         {
-            throw new UnauthorizedAccessException("Checkers are not allowed to create supporting details.");
+            throw new UnauthorizedAccessException("Checkers are not allowed to update supporting details.");
         }
 
-        var supportingData = await repo.GetByIdWithDetailsAsync(cmd.SupportingId, ct) ?? throw new NotFoundException($"Supporting data with ID {cmd.SupportingId} not found.");
+        var supportingData = await repo.GetByIdWithDetailsAsync(cmd.SupportingId, ct)
+            ?? throw new SupportingDataNotFoundException(cmd.SupportingId);
 
-        var detail = supportingData.AddDetail(new SupportingDataDetailData(
+        supportingData.UpdateDetail(cmd.Id, new SupportingDataDetailData(
             cmd.Detail.PropertyName,
             cmd.Detail.Developer,
             cmd.Detail.ModelName,
@@ -41,6 +42,6 @@ internal class CreateSupportingDetailCommandHandler(ISupportingDataRepository re
         ));
 
         // No SaveChangesAsync — TransactionalBehavior handles it.
-        return new CreateSupportingDetailResult(detail.SupportingDataId, detail.Id);
+        return new UpdateSupportingDetailResult(cmd.SupportingId, cmd.Id);
     }
 }

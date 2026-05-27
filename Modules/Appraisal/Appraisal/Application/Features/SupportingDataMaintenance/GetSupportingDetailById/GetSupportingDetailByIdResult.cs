@@ -1,16 +1,7 @@
-namespace Appraisal.Application.Features.SupportingDataMaintenance;
+namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupportingDetailById;
 
-public record SupportingDataHeaderDto(
-    string? ImportChannel,
-    DateTime? ImportDate,
-    string? SourceOfData,
-    string? AppraisalCompany,
-    string? Description,
-    string? Decision,
-    string? Remark
-);
-
-public record SupportingDataDetailDto(
+public record GetSupportingDetailByIdResult(
+    Guid Id,
     string? PropertyName,
     string? Developer,
     string? ModelName,

@@ -1,6 +1,9 @@
 namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupportingDetailList;
 
-public class GetSupportingDetailListQueryHandler(ISupportingDataRepository repo)
+public class GetSupportingDetailListQueryHandler(
+        ISupportingDataRepository repo,
+        ICurrentUserService currentUserService
+    )
     : IQueryHandler<GetSupportingDetailListQuery, GetSupportingDetailListResult>
 {
     public async Task<GetSupportingDetailListResult> Handle(
@@ -37,6 +40,12 @@ public class GetSupportingDetailListQueryHandler(ISupportingDataRepository repo)
             d.SourceUrl,
             d.Remark));
 
-        return new GetSupportingDetailListResult(items, (int)paged.Count);
+        return new GetSupportingDetailListResult(
+            items,
+            currentUserService.IsInRole("IntAppraisalStaff") || currentUserService.IsInRole("ExtAppraisalStaff"),
+            (int)paged.Count,
+            paged.PageNumber,
+            paged.PageSize
+        );
     }
 }

@@ -1,11 +1,16 @@
 namespace Appraisal.Application.Features.SupportingDataMaintenance.CreateSupportingData;
 
-internal class CreateSupportingDataCommandHandler(ISupportingDataRepository repo)
+internal class CreateSupportingDataCommandHandler(ISupportingDataRepository repo, ICurrentUserService currentUserService)
     : ICommandHandler<CreateSupportingDataCommand, CreateSupportingDataResult>
 {
     public async Task<CreateSupportingDataResult> Handle(
         CreateSupportingDataCommand cmd, CancellationToken ct)
     {
+        if (currentUserService.IsInRole("IntAppraisalChecker") || currentUserService.IsInRole("ExtAppraisalChecker"))
+        {
+            throw new UnauthorizedAccessException("Checkers are not allowed to create supporting data.");
+        }
+
         var entity = SupportingData.Create(new SupportingDataHeader(
             cmd.Header.ImportChannel,
             cmd.Header.ImportDate,

@@ -4,7 +4,7 @@ public class CreateSupportingDetailEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/supporting-data/{supportingId:guid}/detail", async (
+        app.MapPost("/supporting-data/{supportingId:guid}/details", async (
             Guid supportingId,
             CreateSupportingDetailRequest request,
             ISender sender,

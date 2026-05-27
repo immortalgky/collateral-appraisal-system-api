@@ -1,16 +1,16 @@
-namespace Appraisal.Application.Features.SupportingDataMaintenance.UpdateSupportingData;
+namespace Appraisal.Application.Features.SupportingDataMaintenance.UpdateDraftSupportingData;
 
-public class UpdateSupportingDataCommandHandler(
+public class UpdateDraftSupportingDataCommandHandler(
     ISupportingDataRepository repo,
     ICurrentUserService currentUserService
-) : ICommandHandler<UpdateSupportingDataCommand, UpdateSupportingDataResult>
+) : ICommandHandler<UpdateDraftSupportingDataCommand, UpdateDraftSupportingDataResult>
 {
-    public async Task<UpdateSupportingDataResult> Handle(
-        UpdateSupportingDataCommand cmd, CancellationToken ct)
+    public async Task<UpdateDraftSupportingDataResult> Handle(
+        UpdateDraftSupportingDataCommand cmd, CancellationToken ct)
     {
         if (currentUserService.IsInRole("IntAppraisalChecker") || currentUserService.IsInRole("ExtAppraisalChecker"))
         {
-            throw new UnauthorizedAccessException("Checkers are not allowed to update supporting data.");
+            throw new UnauthorizedAccessException("Checkers are not allowed to update draft supporting data.");
         }
 
         var supportingData = await repo.GetByIdAsync(cmd.SupportingId, ct)
@@ -24,6 +24,6 @@ public class UpdateSupportingDataCommandHandler(
             cmd.Header.Description,
             cmd.Header.Remark));
 
-        return new UpdateSupportingDataResult(supportingData.Id);
+        return new UpdateDraftSupportingDataResult(supportingData.Id);
     }
 }

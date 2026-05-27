@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    [Migration("20260526072612_AddSupportingDataMaintenance")]
+    [Migration("20260526181511_AddSupportingDataMaintenance")]
     partial class AddSupportingDataMaintenance
     {
         /// <inheritdoc />
@@ -7277,7 +7277,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingData", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("AppraisalCompany")
@@ -7299,11 +7298,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("ImportChannel")
-                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<DateTime>("ImportDate")
+                    b.Property<DateTime?>("ImportDate")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Remark")
@@ -7311,7 +7309,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(4000)");
 
                     b.Property<string>("SourceOfData")
-                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
@@ -7346,7 +7343,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingDataDetail", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("BuildingType")
