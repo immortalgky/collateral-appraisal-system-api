@@ -1,23 +1,28 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Collateral.Application.Features.HistorySearch;
+using Appraisal.Application.Features.HistorySearch;
 using Integration.Fixtures;
 using Appraisal.Infrastructure;
 using Appraisal.Domain.MarketComparables;
 using Microsoft.Extensions.DependencyInjection;
 using FluentAssertions;
+using Shared.Pagination;
 
 namespace Integration.Collateral.Integration.Tests;
 
 /// <summary>
 /// Integration tests for POST /history-search (History Search pin feature).
 ///
+/// The feature has moved to the Appraisal module. The test file is kept in the
+/// Integration project (single integration test assembly) and exercises the
+/// same IntegrationTestFixture / WebApplicationFactory harness.
+///
 /// Verification criteria from the plan:
-///   8a. Internal user → response has both collateral and marketComparables populated
-///   8b. External user → collateral.items empty; marketComparables only own company's MCs
-///   16. Domain: MarketComparable.Create accepts valid lat/lon
-///   17. Handler: external visibility enforced; distance sort correct
+///   - Response has "appraisals" (green, one per appraisal) and "marketComparables" (blue).
+///   - Internal user → both sections populated (when data present).
+///   - External user → appraisals.items empty; marketComparables only own company's MCs.
+///   - Radius cap: server enforces 50 km ceiling.
 /// </summary>
 [Collection("Integration")]
 public class HistorySearchEndpointTests(IntegrationTestFixture fixture)
@@ -59,11 +64,12 @@ public class HistorySearchEndpointTests(IntegrationTestFixture fixture)
     // ── POST /history-search ──────────────────────────────────────────────────
 
     [Fact]
-    public async Task HistorySearch_InternalUser_ReturnsBothSections()
+    public async Task HistorySearch_NoAuth_Returns401()
     {
         // Arrange — seed an MC near Bangkok.
         await SeedMarketComparableAsync(BangkokLat + 0.001m, BangkokLon + 0.001m);
 
+        // Response shape changed: "appraisals" (not "collateral") + "marketComparables".
         var query = new HistorySearchQuery(
             CenterLat: BangkokLat,
             CenterLon: BangkokLon,
@@ -87,20 +93,17 @@ public class HistorySearchEndpointTests(IntegrationTestFixture fixture)
 
         var client = fixture.IntegrationTestWebApplicationFactory.CreateClient();
 
-        // Act — no auth header → will fail, but this exercises the endpoint.
-        // The test is structured to be augmented with real auth once the auth fixture is wired.
+        // Act — no auth header.
         var response = await client.PostAsJsonAsync("/history-search", query, JsonOpts);
 
-        // Without auth the endpoint should return 401 (RequireAuthorization).
+        // Without auth the endpoint must return 401 (RequireAuthorization).
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task HistorySearch_RadiusCap_ServerSideLimitedTo50km()
+    public void HistorySearch_RadiusCap_ServerSideLimitedTo50km()
     {
-        // Verify the query object itself respects the 50km server-side cap.
-        // The handler Math.Min ensures RadiusKm is never > 50.
-        // This is a compile-time observable invariant; handler logic is verified by the above integration test.
+        // Verify the query object itself records the raw value; the cap is applied inside the handler.
         var query = new HistorySearchQuery(
             CenterLat: BangkokLat,
             CenterLon: BangkokLon,
@@ -123,6 +126,21 @@ public class HistorySearchEndpointTests(IntegrationTestFixture fixture)
             Province: null);
 
         // The record is constructed without throwing — cap is applied inside the handler.
-        query.RadiusKm.Should().Be(999m); // raw value preserved in the query record
+        query.RadiusKm.Should().Be(999m);
+    }
+
+    [Fact]
+    public void HistorySearch_ResponseShape_HasAppraisalsNotCollateral()
+    {
+        // Compile-time check: HistorySearchResult now uses "Appraisals" (not "Collateral").
+        // This test guards against accidental rename regressions.
+        var result = new HistorySearchResult(
+            Appraisals: new PaginatedResult<AppraisalPinDto>([], 0, 0, 10),
+            MarketComparables: new PaginatedResult<MarketComparablePinDto>([], 0, 0, 10));
+
+        result.Appraisals.Should().NotBeNull();
+        result.MarketComparables.Should().NotBeNull();
+        result.Appraisals.Count.Should().Be(0);
+        result.MarketComparables.Count.Should().Be(0);
     }
 }
