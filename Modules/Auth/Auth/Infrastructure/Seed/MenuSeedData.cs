@@ -125,6 +125,7 @@ public static class MenuSeedData
                 new("main.workflow-builder.create", "Create Workflow", "file-circle-plus", IconStyle.Solid, "text-orange-500", "/workflow-builder/new", "WORKFLOW_MANAGE", "WORKFLOW_MANAGE"),
             }),
         new("main.webhook-deliveries", "Webhook Deliveries", "satellite-dish", IconStyle.Solid, "text-slate-500", "/admin/webhook-deliveries", "WEBHOOK_DELIVERIES_VIEW", null),
+        new("main.logs", "Application Logs", "file-lines", IconStyle.Solid, "text-slate-500", "/admin/logs", "LOGS_VIEW", null),
         new("main.template-management", "Template Management", "layer-group", IconStyle.Solid, "text-teal-500", "/market-comparable-factors", "TEMPLATE_MANAGE", "TEMPLATE_MANAGE",
             new List<MenuSeedNode>
             {

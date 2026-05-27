@@ -11,6 +11,7 @@ using Scalar.AspNetCore;
 using Shared.Configurations;
 using Shared.Data;
 using Shared.Data.Outbox;
+using Shared.Logging;
 using Shared.Security;
 using Integration.Application.EventHandlers.Outbound;
 using Shared.Messaging.Events;
@@ -265,7 +266,6 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseCors("SPAPolicy");
 app.UseMiddleware<CorrelationIdMiddleware>();
-app.UseSerilogRequestLogging();
 app.UseExceptionHandler(options => { });
 
 // Add health check endpoints
@@ -352,6 +352,10 @@ RecurringJob.AddOrUpdate<OutboxCleanupJob<DocumentDbContext>>(
     "outbox-cleanup-document", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
 RecurringJob.AddOrUpdate<OutboxCleanupJob<WorkflowDbContext>>(
     "outbox-cleanup-workflow", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
+
+// Logs cleanup: purge dbo.Logs rows older than 30 days, daily at 3 AM
+RecurringJob.AddOrUpdate<LogsCleanupJob>(
+    "logs-cleanup", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(3));
 
 await app.RunAsync();
 

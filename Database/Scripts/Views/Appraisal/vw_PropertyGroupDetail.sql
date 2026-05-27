@@ -40,7 +40,11 @@ SELECT PG.AppraisalId,
            ELSE CONCAT_WS(',', SD.NameTh, DI.NameTh, PV.NameTh)
            END                                                       AS Location,
        COALESCE(L.Latitude,  C.Latitude)                             AS Latitude,
-       COALESCE(L.Longitude, C.Longitude)                            AS Longitude
+       COALESCE(L.Longitude, C.Longitude)                            AS Longitude,
+       CASE
+           WHEN AP.PropertyType IN ('L', 'LB') THEN LTN.TitleNumbers
+           WHEN AP.PropertyType = 'U' THEN C.TitleNumber
+           END                                                       AS TitleNo
 FROM appraisal.PropertyGroups PG
          LEFT JOIN appraisal.PricingAnalysis PA ON PA.PropertyGroupId = PG.Id
          LEFT JOIN appraisal.PropertyGroupItems PGI ON PGI.PropertyGroupId = PG.Id
@@ -49,6 +53,9 @@ FROM appraisal.PropertyGroups PG
     OUTER APPLY (SELECT SUM(ISNULL(AreaRai, 0) * 400 + ISNULL(AreaNgan, 0) * 100 + AreaSquareWa) AS TotalSquareWa
                       FROM appraisal.LandTitles
                       WHERE LandAppraisalDetailId = L.Id) LT
+         OUTER APPLY (SELECT STRING_AGG(TitleNumber, ', ') WITHIN GROUP (ORDER BY TitleNumber) AS TitleNumbers
+                      FROM appraisal.LandTitles
+                      WHERE LandAppraisalDetailId = L.Id) LTN
          LEFT JOIN appraisal.BuildingAppraisalDetails B
 ON B.AppraisalPropertyId = AP.Id
     LEFT JOIN appraisal.CondoAppraisalDetails C ON C.AppraisalPropertyId = AP.Id

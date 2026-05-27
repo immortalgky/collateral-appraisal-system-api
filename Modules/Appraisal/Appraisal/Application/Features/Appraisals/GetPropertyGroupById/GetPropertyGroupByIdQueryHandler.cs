@@ -92,6 +92,51 @@ public class GetPropertyGroupByIdQueryHandler(
                         .ToList();
                 }
             }
+
+            // Secondary query: fetch the full land titles per land property.
+            // Only land/land-and-building properties have rows (joined via LandAppraisalDetails).
+            var titleSql = """
+                           SELECT lad.AppraisalPropertyId,
+                                  lt.Id,
+                                  lt.TitleNumber,
+                                  lt.TitleType,
+                                  lt.BookNumber,
+                                  lt.PageNumber,
+                                  lt.LandParcelNumber,
+                                  lt.SurveyNumber,
+                                  lt.MapSheetNumber,
+                                  lt.Rawang,
+                                  lt.AerialMapName,
+                                  lt.AerialMapNumber,
+                                  lt.AreaRai      AS Rai,
+                                  lt.AreaNgan     AS Ngan,
+                                  lt.AreaSquareWa AS SquareWa,
+                                  lt.BoundaryMarkerType,
+                                  lt.DocumentValidationResultType,
+                                  lt.GovernmentPricePerSqWa,
+                                  lt.GovernmentPrice,
+                                  lt.Remark
+                           FROM appraisal.LandTitles lt
+                           INNER JOIN appraisal.LandAppraisalDetails lad ON lad.Id = lt.LandAppraisalDetailId
+                           WHERE lad.AppraisalPropertyId IN @PropertyIds
+                           """;
+
+            var titles = await connection.QueryAsync<LandTitleDto>(
+                titleSql,
+                new { PropertyIds = propertyIds });
+
+            var titlesByProperty = titles
+                .GroupBy(tt => tt.AppraisalPropertyId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            foreach (var property in propertyGroup.Properties!)
+            {
+                if (property.PropertyId is not null &&
+                    titlesByProperty.TryGetValue(property.PropertyId.Value, out var propertyTitles))
+                {
+                    property.Titles = propertyTitles;
+                }
+            }
         }
 
         return propertyGroup;
@@ -124,9 +169,38 @@ public record PropertyGroupItemDto
     public string? RegistrationNumber { get; set; }
     public string? Dimension { get; set; }
     public string? Location { get; set; }
+    /// <summary>Title deed no(s): comma-joined LandTitles for land, unit deed for condo.</summary>
+    public string? TitleNo { get; set; }
     public List<PropertyPhotoDto>? Photos { get; set; }
+    /// <summary>Full land titles (land/land-and-building only); null/empty for other types.</summary>
+    public List<LandTitleDto>? Titles { get; set; }
 }
 
 public record PropertyPhotoDto(Guid MappingId, Guid DocumentId, bool IsThumbnail);
 
 internal record PropertyPhotoRow(Guid MappingId, Guid AppraisalPropertyId, Guid DocumentId, bool IsThumbnail);
+
+public record LandTitleDto
+{
+    /// <summary>Used only to group titles onto their property; not meaningful to clients.</summary>
+    public Guid AppraisalPropertyId { get; set; }
+    public Guid? Id { get; set; }
+    public string? TitleNumber { get; set; }
+    public string? TitleType { get; set; }
+    public string? BookNumber { get; set; }
+    public string? PageNumber { get; set; }
+    public string? LandParcelNumber { get; set; }
+    public string? SurveyNumber { get; set; }
+    public string? MapSheetNumber { get; set; }
+    public string? Rawang { get; set; }
+    public string? AerialMapName { get; set; }
+    public string? AerialMapNumber { get; set; }
+    public decimal? Rai { get; set; }
+    public decimal? Ngan { get; set; }
+    public decimal? SquareWa { get; set; }
+    public string? BoundaryMarkerType { get; set; }
+    public string? DocumentValidationResultType { get; set; }
+    public decimal? GovernmentPricePerSqWa { get; set; }
+    public decimal? GovernmentPrice { get; set; }
+    public string? Remark { get; set; }
+}

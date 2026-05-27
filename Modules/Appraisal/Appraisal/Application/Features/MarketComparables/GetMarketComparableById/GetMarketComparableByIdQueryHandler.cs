@@ -42,6 +42,10 @@ public class GetMarketComparableByIdQueryHandler(
             OfferPriceUnit = comparable.OfferPriceUnit,
             SalePriceUnit = comparable.SalePriceUnit,
 
+            // Location
+            Latitude = comparable.Latitude,
+            Longitude = comparable.Longitude,
+
             // Notes
             Notes = comparable.Notes,
 
