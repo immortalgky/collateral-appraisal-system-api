@@ -252,6 +252,7 @@ public static class AuthModule
             .AddUserPermissionPolicy("workflow.admin", "WORKFLOW_ADMIN")
             .AddUserPermissionPolicy("WebhookDeliveriesView", "WEBHOOK_DELIVERIES_VIEW")
             .AddUserPermissionPolicy("WebhookDeliveriesRetry", "WEBHOOK_DELIVERIES_RETRY")
+            .AddUserPermissionPolicy("LogsView", "LOGS_VIEW")
             .AddUserPermissionPolicy("task-monitor.view", "TASK_MONITOR_VIEW")
             .AddUserPermissionPolicy("task-monitor.reassign", "TASK_MONITOR_REASSIGN")
             .AddUserPermissionPolicy("history-search.view", "HISTORY_SEARCH_VIEW")
