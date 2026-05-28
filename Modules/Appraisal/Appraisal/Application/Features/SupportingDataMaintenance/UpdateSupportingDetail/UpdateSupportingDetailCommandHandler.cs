@@ -31,6 +31,7 @@ internal class UpdateSupportingDetailCommandHandler(ISupportingDataRepository re
             cmd.Detail.Latitude,
             cmd.Detail.Longitude,
             cmd.Detail.PlotLocationType,
+            cmd.Detail.PlotLocationTypeOther,
             cmd.Detail.PricePerUnit,
             cmd.Detail.OfferingPrice,
             cmd.Detail.SellingPrice,

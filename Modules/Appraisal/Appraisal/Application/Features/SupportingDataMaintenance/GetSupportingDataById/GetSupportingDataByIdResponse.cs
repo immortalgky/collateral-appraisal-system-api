@@ -3,6 +3,7 @@ namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupporting
 public record GetSupportingDataByIdResponse(
     Guid Id,
     string? SupportingNumber,
+    bool HasAuthorityToEdit,
     bool HasAuthorityToDecision,
     string Status,
     string? ImportChannel,

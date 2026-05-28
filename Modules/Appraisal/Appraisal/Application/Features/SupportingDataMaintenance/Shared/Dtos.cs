@@ -4,7 +4,6 @@ public record SupportingDataHeaderDto(
     string? ImportChannel,
     DateTime? ImportDate,
     string? SourceOfData,
-    string? AppraisalCompany,
     string? Description,
     string? Decision,
     string? Remark
@@ -27,6 +26,7 @@ public record SupportingDataDetailDto(
     decimal? Latitude,
     decimal? Longitude,
     string? PlotLocationType,
+    string? PlotLocationTypeOther,
     decimal? PricePerUnit,
     decimal? OfferingPrice,
     decimal? SellingPrice,

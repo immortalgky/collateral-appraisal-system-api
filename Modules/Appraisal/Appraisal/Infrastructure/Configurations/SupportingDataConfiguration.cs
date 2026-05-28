@@ -10,15 +10,16 @@ public class SupportingDataConfiguration : IEntityTypeConfiguration<SupportingDa
 
         builder.OwnsOne(x => x.SupportingNumber, sn =>
         {
-            sn.Property(p => p.Value).HasMaxLength(50).HasColumnName("SupportingNumber");
+            // Supporting numbers: fromat SUP-{000001}-{YYYY} e.g. "SUP-000001-2569"
+            sn.Property(p => p.Value).HasMaxLength(15).HasColumnName("SupportingNumber");
             sn.HasIndex(p => p.Value).HasDatabaseName("IX_SupportingData_SupportingNumber");
         });
 
-        builder.Property(x => x.ImportChannel).HasMaxLength(20);
+        builder.Property(x => x.ImportChannel).HasMaxLength(2);
         builder.Property(x => x.ImportDate);
-        builder.Property(x => x.SourceOfData).HasMaxLength(20);
-        builder.Property(x => x.AppraisalCompany).HasMaxLength(50);
-        builder.Property(x => x.Description).HasMaxLength(1000);
+        builder.Property(x => x.SourceOfData).HasMaxLength(2);
+        builder.Property(x => x.AppraisalCompanyId);
+        builder.Property(x => x.Description).HasMaxLength(100);
         builder.Property(x => x.Remark).HasMaxLength(4000);
 
         builder.Property(x => x.Status)
@@ -47,37 +48,38 @@ public class SupportingDataDetailConfiguration : IEntityTypeConfiguration<Suppor
 
         builder.Property(x => x.SupportingDataId).IsRequired();
 
-        builder.Property(x => x.PropertyName).HasMaxLength(200);
-        builder.Property(x => x.Developer).HasMaxLength(200);
-        builder.Property(x => x.ModelName).HasMaxLength(200);
-        builder.Property(x => x.CollateralType).HasMaxLength(20).IsRequired();
-        builder.Property(x => x.BuildingType).HasMaxLength(20).IsRequired();
-        builder.Property(x => x.LandArea).HasPrecision(18, 4);
-        builder.Property(x => x.UsableArea).HasPrecision(18, 4);
-        builder.Property(x => x.ProjectName).HasMaxLength(200);
-        builder.Property(x => x.RoomFloor).HasMaxLength(50);
+        builder.Property(x => x.PropertyName).HasMaxLength(100);
+        builder.Property(x => x.Developer).HasMaxLength(50);
+        builder.Property(x => x.ModelName).HasMaxLength(50);
+        builder.Property(x => x.CollateralType).HasMaxLength(2);
+        builder.Property(x => x.BuildingType).HasMaxLength(2);
+        builder.Property(x => x.LandArea).HasPrecision(17, 2);
+        builder.Property(x => x.UsableArea).HasPrecision(17, 2);
+        builder.Property(x => x.ProjectName).HasMaxLength(100);
+        builder.Property(x => x.RoomFloor).HasMaxLength(3);
 
         builder.OwnsOne(x => x.Address, addr =>
         {
             addr.Property(a => a.HouseNo).HasMaxLength(30).HasColumnName("HouseNo");
-            addr.Property(a => a.SubDistrict).HasMaxLength(10).HasColumnName("SubDistrict");
-            addr.Property(a => a.District).HasMaxLength(10).HasColumnName("District");
-            addr.Property(a => a.Province).HasMaxLength(10).HasColumnName("Province");
+            addr.Property(a => a.SubDistrict).HasMaxLength(100).HasColumnName("SubDistrict");
+            addr.Property(a => a.District).HasMaxLength(100).HasColumnName("District");
+            addr.Property(a => a.Province).HasMaxLength(100).HasColumnName("Province");
         });
 
         builder.OwnsOne(x => x.Location, loc =>
         {
-            loc.Property(l => l.Latitude).HasPrecision(10, 7).HasColumnName("Latitude");
-            loc.Property(l => l.Longitude).HasPrecision(10, 7).HasColumnName("Longitude");
+            loc.Property(l => l.Latitude).HasPrecision(9, 6).HasColumnName("Latitude");
+            loc.Property(l => l.Longitude).HasPrecision(9, 6).HasColumnName("Longitude");
         });
 
-        builder.Property(x => x.PlotLocationType).HasMaxLength(20);
-        builder.Property(x => x.PricePerUnit).HasPrecision(19, 4);
-        builder.Property(x => x.OfferingPrice).HasPrecision(19, 4);
-        builder.Property(x => x.SellingPrice).HasPrecision(19, 4);
-        builder.Property(x => x.PhoneNo).HasMaxLength(50);
-        builder.Property(x => x.InformationDate).IsRequired();
-        builder.Property(x => x.Website).HasMaxLength(500);
+        builder.Property(x => x.PlotLocationType).HasMaxLength(100);
+        builder.Property(x => x.PlotLocationTypeOther).HasMaxLength(1000);
+        builder.Property(x => x.PricePerUnit).HasPrecision(17, 2);
+        builder.Property(x => x.OfferingPrice).HasPrecision(17, 2);
+        builder.Property(x => x.SellingPrice).HasPrecision(17, 2);
+        builder.Property(x => x.PhoneNo).HasMaxLength(20);
+        builder.Property(x => x.InformationDate);
+        builder.Property(x => x.Website).HasMaxLength(100);
         builder.Property(x => x.SourceUrl).HasMaxLength(1000);
         builder.Property(x => x.Remark).HasMaxLength(4000);
 

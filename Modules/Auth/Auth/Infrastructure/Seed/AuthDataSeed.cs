@@ -104,6 +104,9 @@ public class AuthDataSeed(
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "STANDALONE_USE",
                 "HISTORY_SEARCH_VIEW",
+                "SUPPORTING_DATA_MAINT_EDIT",
+                "SUPPORTING_DATA_MAINT_VIEW",
+                "SUPPORTING_DATA_MAINT_REMOVE",
                 ..appraisalSectionViews, ..appraisalSectionEdits
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalCheckerRoleName,
@@ -113,6 +116,8 @@ public class AuthDataSeed(
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_CHECK",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
+                "SUPPORTING_DATA_MAINT_DECISION",
+                "SUPPORTING_DATA_MAINT_VIEW",
                 ..appraisalSectionViews
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalVerifierRoleName,
@@ -131,6 +136,9 @@ public class AuthDataSeed(
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE",
                 "HISTORY_SEARCH_VIEW",
+                "SUPPORTING_DATA_MAINT_EDIT",
+                "SUPPORTING_DATA_MAINT_VIEW",
+                "SUPPORTING_DATA_MAINT_REMOVE",
                 ..appraisalSectionViews, ..appraisalSectionEdits
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalCheckerRoleName,
@@ -140,7 +148,7 @@ public class AuthDataSeed(
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_CHECK",
                 "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
-                "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
+                "STANDALONE_USE", "HISTORY_SEARCH_VIEW","SUPPORTING_DATA_MAINT_EDIT", "SUPPORTING_DATA_MAINT_VIEW",
                 ..appraisalSectionViews
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalVerifierRoleName,
@@ -544,6 +552,15 @@ public class AuthDataSeed(
             // History Search (FSD §2.6.7)
             ("HISTORY_SEARCH_VIEW", "View History Search",
                 "Search historical collateral + market comparable pins on map", "Common"),
+            // Supporting Data Maintenance
+            ("SUPPORTING_DATA_MAINT_VIEW", "View Supporting Data", "View supporting data",
+                "Common"),
+            ("SUPPORTING_DATA_MAINT_EDIT", "Edit Supporting Data", "Edit supporting data",
+                "Common"),
+            ("SUPPORTING_DATA_MAINT_DECISION", "Make Decisions on Supporting Data", "Make decisions on supporting data",
+                "Common"),
+            ("SUPPORTING_DATA_MAINT_REMOVE", "Remove  Supporting Data", "Remove supporting data",
+                "Common"),
             // Block Unit Maintenance (FSD §2.6.10) — internal admin only
             ("BLOCK_UNIT_MAINT_VIEW", "View Block Unit Maintenance",
                 "View block/project unit listing and sale-status details", "Appraisal"),
@@ -580,7 +597,7 @@ public class AuthDataSeed(
             ("MONITORING:PENDING_EVALUATION", "Monitoring: Pending Evaluation",
                 "View pending company evaluation monitoring screen", "Common"),
             ("MONITORING:MEETING_FOLLOWUP", "Monitoring: Meeting Follow Up",
-                "Monitor pending committee-approval tasks across all 3 tiers (SUB_COMMITTEE, COMMITTEE, COMMITTEE_WITH_MEETING)", "Common")
+                "Monitor pending committee-approval tasks across all 3 tiers (SUB_COMMITTEE, COMMITTEE, COMMITTEE_WITH_MEETING)", "Common"),
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)

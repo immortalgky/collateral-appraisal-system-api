@@ -1,7 +1,8 @@
 namespace Appraisal.Application.Features.SupportingDataMaintenance.SubmitSupportingData;
 
 public class SubmitSupportingDataCommandHandler(
-    ISupportingDataRepository repo
+    ISupportingDataRepository repo,
+    ICurrentUserService currentUserService
 ) : ICommandHandler<SubmitSupportingDataCommand, SubmitSupportingDataResult>
 {
     public async Task<SubmitSupportingDataResult> Handle(
@@ -29,7 +30,7 @@ public class SubmitSupportingDataCommandHandler(
                 cmd.Header.ImportChannel,
                 cmd.Header.ImportDate,
                 cmd.Header.SourceOfData,
-                cmd.Header.AppraisalCompany,
+                currentUserService.CompanyId,
                 cmd.Header.Description,
                 cmd.Header.Remark));
 
@@ -45,7 +46,7 @@ public class SubmitSupportingDataCommandHandler(
                 cmd.Header.ImportChannel,
                 cmd.Header.ImportDate,
                 cmd.Header.SourceOfData,
-                cmd.Header.AppraisalCompany,
+                currentUserService.CompanyId,
                 cmd.Header.Description,
                 cmd.Header.Remark));
         }

@@ -15,7 +15,7 @@ internal class CreateDraftSupportingDataCommandHandler(ISupportingDataRepository
             cmd.Header.ImportChannel,
             cmd.Header.ImportDate,
             cmd.Header.SourceOfData,
-            cmd.Header.AppraisalCompany,
+            currentUserService.CompanyId,
             cmd.Header.Description,
             cmd.Header.Remark));
 

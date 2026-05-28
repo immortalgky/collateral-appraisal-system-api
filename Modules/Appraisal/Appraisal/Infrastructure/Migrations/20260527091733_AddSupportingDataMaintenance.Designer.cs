@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    [Migration("20260526181511_AddSupportingDataMaintenance")]
+    [Migration("20260527091733_AddSupportingDataMaintenance")]
     partial class AddSupportingDataMaintenance
     {
         /// <inheritdoc />
@@ -7279,9 +7279,8 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("AppraisalCompany")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                    b.Property<Guid?>("AppraisalCompanyId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -7294,12 +7293,12 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("ImportChannel")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
 
                     b.Property<DateTime?>("ImportDate")
                         .HasColumnType("datetime2");
@@ -7309,8 +7308,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(4000)");
 
                     b.Property<string>("SourceOfData")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -7347,13 +7346,13 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<string>("BuildingType")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
 
                     b.Property<string>("CollateralType")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -7366,55 +7365,59 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Developer")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime>("InformationDate")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal?>("LandArea")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
 
                     b.Property<string>("ModelName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<decimal?>("OfferingPrice")
-                        .HasPrecision(19, 4)
-                        .HasColumnType("decimal(19,4)");
-
-                    b.Property<string>("PhoneNo")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<string>("PlotLocationType")
+                    b.Property<decimal?>("OfferingPrice")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<string>("PhoneNo")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("PlotLocationType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PlotLocationTypeOther")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<decimal?>("PricePerUnit")
-                        .HasPrecision(19, 4)
-                        .HasColumnType("decimal(19,4)");
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
 
                     b.Property<string>("ProjectName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("PropertyName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Remark")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
                     b.Property<string>("RoomFloor")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
 
                     b.Property<decimal?>("SellingPrice")
-                        .HasPrecision(19, 4)
-                        .HasColumnType("decimal(19,4)");
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
 
                     b.Property<string>("SourceUrl")
                         .HasMaxLength(1000)
@@ -7434,12 +7437,12 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal?>("UsableArea")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
 
                     b.Property<string>("Website")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 
@@ -12198,8 +12201,8 @@ namespace Appraisal.Infrastructure.Migrations
 
                             b1.Property<string>("Value")
                                 .IsRequired()
-                                .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)")
+                                .HasMaxLength(15)
+                                .HasColumnType("nvarchar(15)")
                                 .HasColumnName("SupportingNumber");
 
                             b1.HasKey("SupportingDataId");
@@ -12230,13 +12233,13 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<decimal>("Latitude")
-                                .HasPrecision(10, 7)
-                                .HasColumnType("decimal(10,7)")
+                                .HasPrecision(9, 6)
+                                .HasColumnType("decimal(9,6)")
                                 .HasColumnName("Latitude");
 
                             b1.Property<decimal>("Longitude")
-                                .HasPrecision(10, 7)
-                                .HasColumnType("decimal(10,7)")
+                                .HasPrecision(9, 6)
+                                .HasColumnType("decimal(9,6)")
                                 .HasColumnName("Longitude");
 
                             b1.HasKey("SupportingDataDetailId");
@@ -12253,8 +12256,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("District")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
                                 .HasColumnName("District");
 
                             b1.Property<string>("HouseNo")
@@ -12263,13 +12266,13 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnName("HouseNo");
 
                             b1.Property<string>("Province")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
                                 .HasColumnName("Province");
 
                             b1.Property<string>("SubDistrict")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
                                 .HasColumnName("SubDistrict");
 
                             b1.HasKey("SupportingDataDetailId");

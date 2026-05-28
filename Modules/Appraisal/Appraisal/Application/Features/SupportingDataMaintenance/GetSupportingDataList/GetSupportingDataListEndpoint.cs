@@ -10,13 +10,16 @@ public class GetSupportingDataListEndpoint : ICarterModule
         app.MapGet("/supporting-data", async (
             [AsParameters] PaginationRequest pagination,
             [FromQuery] string? status,
-            [FromQuery] DateTime? importDate,
+            [FromQuery] DateTime? dateFrom,
+            [FromQuery] DateTime? dateTo,
+            [FromQuery] DateTime? lastModifiedDateFrom,
+            [FromQuery] DateTime? lastModifiedDateTo,
             [FromQuery] string? supportingNumber,
             ISender sender,
             CancellationToken cancellationToken
         ) =>
         {
-            var filter = new GetSupportingDataListQuery(pagination.PageNumber, pagination.PageSize, status, importDate, supportingNumber);
+            var filter = new GetSupportingDataListQuery(pagination.PageNumber, pagination.PageSize, status, dateFrom, dateTo, lastModifiedDateFrom, lastModifiedDateTo, supportingNumber);
 
             var result = await sender.Send(filter, cancellationToken);
 

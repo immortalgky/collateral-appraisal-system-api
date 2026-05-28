@@ -15,16 +15,35 @@ public class SupportingDataRepository(AppraisalDbContext dbContext)
 
 
     public Task<PaginatedResult<SupportingData>> GetListAsync(
-    PaginationRequest pagination, string? status, DateTime? importDate,
-    string? supportingNumber, CancellationToken cancellationToken = default)
+        PaginationRequest pagination,
+        string? status,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        DateTime? lastModifiedDateFrom,
+        DateTime? lastModifiedDateTo,
+        string? supportingNumber,
+        CancellationToken cancellationToken = default
+    )
     {
         var query = _db.SupportingData.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(status))
-            query = query.Where(s => s.Status.Code == status);
+        {
+            var targetStatus = SupportingStatus.FromString(status);
+            query = query.Where(s => s.Status == targetStatus);
+        }
 
-        if (importDate.HasValue)
-            query = query.Where(s => s.ImportDate.HasValue && s.ImportDate.Value.Date == importDate.Value.Date);
+        if (dateFrom.HasValue)
+            query = query.Where(s => s.CreatedAt >= dateFrom.Value.Date);
+
+        if (dateTo.HasValue)
+            query = query.Where(s => s.CreatedAt < dateTo.Value.Date.AddDays(1));
+
+        if (lastModifiedDateFrom.HasValue)
+            query = query.Where(s => s.UpdatedAt >= lastModifiedDateFrom.Value.Date);
+
+        if (lastModifiedDateTo.HasValue)
+            query = query.Where(s => s.UpdatedAt < lastModifiedDateTo.Value.Date.AddDays(1));
 
         if (!string.IsNullOrWhiteSpace(supportingNumber))
             query = query.Where(s =>
@@ -32,7 +51,7 @@ public class SupportingDataRepository(AppraisalDbContext dbContext)
                 s.SupportingNumber.Value.Contains(supportingNumber));
 
         return query
-            .OrderByDescending(s => s.ImportDate)
+            .OrderBy(s => s.CreatedAt)
             .ToPaginatedResultAsync(pagination, cancellationToken);
     }
 
@@ -44,7 +63,7 @@ public class SupportingDataRepository(AppraisalDbContext dbContext)
         return _db.SupportingDataDetails
             .AsNoTracking()
             .Where(d => d.SupportingDataId == supportingId)
-            .OrderByDescending(d => d.InformationDate)
+            .OrderByDescending(d => d.CreatedAt)
             .ThenBy(d => d.Id)
             .ToPaginatedResultAsync(pagination, cancellationToken);
     }

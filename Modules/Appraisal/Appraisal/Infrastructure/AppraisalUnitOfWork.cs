@@ -125,6 +125,19 @@ public class AppraisalUnitOfWork : IAppraisalUnitOfWork
         }
 
         // Invoice numbers are user-input only — no auto-generation.
+
+        // Supporting numbers: fromat SUP-{000001}-{YYYY} e.g. "SUP-000001-2569"
+        var newSupportings = _context.ChangeTracker
+            .Entries<Domain.SupportingDataMaintenance.SupportingData>()
+            .Where(e => e.State == EntityState.Added && e.Entity.SupportingNumber == null)
+            .Select(e => e.Entity)
+            .ToList();
+
+        foreach (var supporting in newSupportings)
+        {
+            var next = await GetNextRunningNumberAsync(RunningNumberType.SUPPORTING_MAINTENANCE, thaiYear, cancellationToken);
+            supporting.SetSupportingNumber(SupportingNumber.Create($"SUP-{next:D6}-{thaiYear}"));
+        }
     }
 
     private async Task<int> GetNextRunningNumberAsync(
@@ -155,6 +168,7 @@ public class AppraisalUnitOfWork : IAppraisalUnitOfWork
             RunningNumberType.APPRAISAL => ("APPRAISAL", "A"),
             RunningNumberType.MARKET_COMPARABLE => ("MARKET_COMPARABLE", "MKC"),
             RunningNumberType.QUOTATION => ("QUOTATION", "QTN"),
+            RunningNumberType.SUPPORTING_MAINTENANCE => ("SUPPORTING_MAINTENANCE", "SUP"),
             _ => throw new ArgumentOutOfRangeException(nameof(type))
         };
 

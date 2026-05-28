@@ -2,13 +2,14 @@ namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupporting
 
 public record GetSupportingDataByIdResult(
     Guid Id,
-    bool HasAuthorityToDecision,
     string? SupportingNumber,
+    bool HasAuthorityToEdit,
+    bool HasAuthorityToDecision,
     string Status,
     string? ImportChannel,
     DateTime? ImportDate,
     string? SourceOfData,
-    string? AppraisalCompany,
+    Guid? AppraisalCompanyId,
     string? Description,
     string? Remark
 );

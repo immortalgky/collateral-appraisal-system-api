@@ -6,7 +6,7 @@ public class SupportingData : Aggregate<Guid>
     public string? ImportChannel { get; private set; } = default!;
     public DateTime? ImportDate { get; private set; }
     public string? SourceOfData { get; private set; } = default!;
-    public string? AppraisalCompany { get; private set; }
+    public Guid? AppraisalCompanyId { get; private set; }
     public string? Description { get; private set; }
     public SupportingStatus Status { get; private set; } = default!;
     public string? Remark { get; private set; }
@@ -20,7 +20,6 @@ public class SupportingData : Aggregate<Guid>
     {
         Id = Guid.CreateVersion7();
         Status = SupportingStatus.Draft;
-        SupportingNumber = SupportingNumber.Create($"SUP-{DateTime.UtcNow:yyyyMMddHHmmss}-{Id.ToString()[..8].ToUpper()}");
         Apply(data);
         AddDomainEvent(new SupportingDataCreatedEvent(Id));
     }
@@ -35,7 +34,6 @@ public class SupportingData : Aggregate<Guid>
         rc.AddErrorIf(string.IsNullOrWhiteSpace(ImportDate?.ToString()), "ImportDate is required.");
         rc.AddErrorIf(string.IsNullOrWhiteSpace(ImportChannel), "ImportChannel is required.");
         rc.AddErrorIf(string.IsNullOrWhiteSpace(SourceOfData), "SourceOfData is required.");
-        rc.AddErrorIf(string.IsNullOrWhiteSpace(AppraisalCompany), "AppraisalCompany is required.");
         rc.ThrowIfInvalid();
     }
 
@@ -82,7 +80,7 @@ public class SupportingData : Aggregate<Guid>
         ImportChannel = d.ImportChannel;
         ImportDate = d.ImportDate;
         SourceOfData = d.SourceOfData;
-        AppraisalCompany = d.AppraisalCompany;
+        AppraisalCompanyId = d.AppraisalCompanyId;
         Description = d.Description;
         Remark = d.Remark;
     }
@@ -118,6 +116,10 @@ public class SupportingData : Aggregate<Guid>
             Status = SupportingStatus.RoutedBack;
             Remark = remark;
         }
+        else
+        {
+            throw new DomainException($"Invalid decision: {decision}");
+        }
     }
 
     private void Guard(SupportingStatus expected)
@@ -131,7 +133,7 @@ public record SupportingDataHeader(
     string? ImportChannel,
     DateTime? ImportDate,
     string? SourceOfData,
-    string? AppraisalCompany,
+    Guid? AppraisalCompanyId,
     string? Description,
     string? Remark
 );

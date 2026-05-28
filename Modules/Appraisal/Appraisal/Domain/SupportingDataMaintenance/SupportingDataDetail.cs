@@ -18,6 +18,7 @@ public class SupportingDataDetail : Entity<Guid>
     public GeoLocation? Location { get; private set; }
 
     public string? PlotLocationType { get; private set; }
+    public string? PlotLocationTypeOther { get; private set; }
     public decimal? PricePerUnit { get; private set; }
     public decimal? OfferingPrice { get; private set; }
     public decimal? SellingPrice { get; private set; }
@@ -63,6 +64,7 @@ public class SupportingDataDetail : Entity<Guid>
         Address = SupportingAddress.Create(d.HouseNo, d.SubDistrict, d.District, d.Province);
         Location = (d.Latitude.HasValue && d.Longitude.HasValue) ? GeoLocation.Create(d.Latitude.Value, d.Longitude.Value) : null;
         PlotLocationType = d.PlotLocationType;
+        PlotLocationTypeOther = d.PlotLocationTypeOther;
         PricePerUnit = d.PricePerUnit;
         OfferingPrice = d.OfferingPrice;
         SellingPrice = d.SellingPrice;
@@ -91,6 +93,7 @@ public record SupportingDataDetailData(
     decimal? Latitude,
     decimal? Longitude,
     string? PlotLocationType,
+    string? PlotLocationTypeOther,
     decimal? PricePerUnit,
     decimal? OfferingPrice,
     decimal? SellingPrice,

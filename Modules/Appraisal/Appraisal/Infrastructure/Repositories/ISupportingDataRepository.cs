@@ -9,7 +9,10 @@ public interface ISupportingDataRepository : IRepository<SupportingData, Guid>
     Task<PaginatedResult<SupportingData>> GetListAsync(
         PaginationRequest pagination,
         string? status,
-        DateTime? importDate,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        DateTime? lastModifiedDateFrom,
+        DateTime? lastModifiedDateTo,
         string? supportingNumber,
         CancellationToken ct = default);
 

@@ -1,6 +1,9 @@
 namespace Appraisal.Application.Features.SupportingDataMaintenance.CreateSupportingData;
 
-internal class CreateSupportingDataCommandHandler(ISupportingDataRepository repo, ICurrentUserService currentUserService)
+internal class CreateSupportingDataCommandHandler(
+        ISupportingDataRepository repo,
+        ICurrentUserService currentUserService
+    )
     : ICommandHandler<CreateSupportingDataCommand, CreateSupportingDataResult>
 {
     public async Task<CreateSupportingDataResult> Handle(
@@ -15,7 +18,7 @@ internal class CreateSupportingDataCommandHandler(ISupportingDataRepository repo
             cmd.Header.ImportChannel,
             cmd.Header.ImportDate,
             cmd.Header.SourceOfData,
-            cmd.Header.AppraisalCompany,
+            currentUserService.CompanyId,
             cmd.Header.Description,
             cmd.Header.Remark));
 

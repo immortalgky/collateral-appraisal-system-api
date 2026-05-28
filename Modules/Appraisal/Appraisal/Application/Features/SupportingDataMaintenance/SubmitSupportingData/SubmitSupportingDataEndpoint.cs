@@ -15,7 +15,6 @@ public class SubmitSupportingDataEndpoint : ICarterModule
                 request.Header.ImportChannel,
                 request.Header.ImportDate,
                 request.Header.SourceOfData,
-                request.Header.AppraisalCompany,
                 request.Header.Description,
                 request.Header.Decision,
                 request.Header.Remark)
