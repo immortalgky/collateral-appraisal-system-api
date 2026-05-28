@@ -51,7 +51,7 @@ public class SupportingDataDetailConfiguration : IEntityTypeConfiguration<Suppor
         builder.Property(x => x.PropertyName).HasMaxLength(100);
         builder.Property(x => x.Developer).HasMaxLength(50);
         builder.Property(x => x.ModelName).HasMaxLength(50);
-        builder.Property(x => x.CollateralType).HasMaxLength(2);
+        builder.Property(x => x.CollateralType).HasMaxLength(3);
         builder.Property(x => x.BuildingType).HasMaxLength(2);
         builder.Property(x => x.LandArea).HasPrecision(17, 2);
         builder.Property(x => x.UsableArea).HasPrecision(17, 2);
@@ -83,7 +83,41 @@ public class SupportingDataDetailConfiguration : IEntityTypeConfiguration<Suppor
         builder.Property(x => x.SourceUrl).HasMaxLength(1000);
         builder.Property(x => x.Remark).HasMaxLength(4000);
 
+        builder.HasMany(x => x.Images)
+            .WithOne()
+            .HasForeignKey(i => i.SupportingDataDetailId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasIndex(x => x.SupportingDataId).HasDatabaseName("IX_SupportingDataDetails_SupportingDataId");
         builder.HasIndex(x => x.CollateralType).HasDatabaseName("IX_SupportingDataDetails_CollateralType");
+    }
+}
+
+public class SupportingDataDetailImageConfiguration : IEntityTypeConfiguration<SupportingDataDetailImage>
+{
+    public void Configure(EntityTypeBuilder<SupportingDataDetailImage> builder)
+    {
+        builder.ToTable("SupportingDataDetailImages");
+
+        builder.HasKey(i => i.Id);
+        builder.Property(i => i.Id).ValueGeneratedNever();
+
+        builder.Property(i => i.SupportingDataDetailId).IsRequired();
+        builder.Property(i => i.DocumentId).IsRequired();
+        builder.Property(i => i.StorageUrl).IsRequired().HasMaxLength(2000);
+        builder.Property(i => i.FileName).HasMaxLength(500);
+        builder.Property(i => i.Title).HasMaxLength(200);
+        builder.Property(i => i.Description).HasMaxLength(500);
+        builder.Property(i => i.DisplaySequence).IsRequired();
+
+        builder.Property(i => i.CreatedAt).IsRequired();
+        builder.Property(i => i.CreatedBy).IsRequired();
+        builder.Ignore(i => i.UpdatedAt);
+        builder.Ignore(i => i.UpdatedBy);
+
+        builder.HasIndex(i => i.SupportingDataDetailId)
+            .HasDatabaseName("IX_SupportingDataDetailImages_DetailId");
+        builder.HasIndex(i => new { i.SupportingDataDetailId, i.DisplaySequence })
+            .HasDatabaseName("IX_SupportingDataDetailImages_DetailId_Sequence");
     }
 }

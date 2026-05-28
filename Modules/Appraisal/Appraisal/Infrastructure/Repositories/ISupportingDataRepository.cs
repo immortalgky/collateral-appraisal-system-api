@@ -6,6 +6,9 @@ public interface ISupportingDataRepository : IRepository<SupportingData, Guid>
 
     Task<SupportingDataDetail?> GetDetailByIdAsync(Guid id, CancellationToken ct = default);
 
+    /// <summary>Loads the detail including its Images collection (needed for add/remove image handlers).</summary>
+    Task<SupportingDataDetail?> GetDetailByIdWithImagesAsync(Guid id, CancellationToken ct = default);
+
     Task<PaginatedResult<SupportingData>> GetListAsync(
         PaginationRequest pagination,
         string? status,

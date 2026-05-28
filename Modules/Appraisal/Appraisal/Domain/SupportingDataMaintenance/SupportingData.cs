@@ -14,6 +14,7 @@ public class SupportingData : Aggregate<Guid>
     private readonly List<SupportingDataDetail> _details = [];
     public IReadOnlyList<SupportingDataDetail> Details => _details.AsReadOnly();
 
+
     private SupportingData() { /* EF */ }
 
     private SupportingData(SupportingDataHeader data)

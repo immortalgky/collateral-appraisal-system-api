@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.SupportingDataMaintenance.AddSupportingDetailImage;
+
+public record AddSupportingDetailImageResult(Guid ImageId);

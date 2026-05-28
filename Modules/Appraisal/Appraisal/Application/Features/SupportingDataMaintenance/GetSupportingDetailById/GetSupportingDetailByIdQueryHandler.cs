@@ -7,10 +7,22 @@ public class GetSupportingDetailByIdQueryHandler(ISupportingDataRepository repo)
         GetSupportingDetailByIdQuery query,
         CancellationToken cancellationToken)
     {
-        var detail = await repo.GetDetailByIdAsync(query.DetailId, cancellationToken);
+        var detail = await repo.GetDetailByIdWithImagesAsync(query.DetailId, cancellationToken);
 
         if (detail is null || detail.SupportingDataId != query.SupportingId)
             throw new SupportingDataDetailNotFoundException(query.DetailId);
+
+        var images = detail.Images
+            .OrderBy(i => i.DisplaySequence)
+            .Select(i => new SupportingDetailImageDto(
+                i.Id,
+                i.DocumentId,
+                i.StorageUrl,
+                i.FileName,
+                i.Title,
+                i.Description,
+                i.DisplaySequence))
+            .ToList();
 
         return new GetSupportingDetailByIdResult(
             detail.Id,
@@ -37,6 +49,7 @@ public class GetSupportingDetailByIdQueryHandler(ISupportingDataRepository repo)
             detail.InformationDate,
             detail.Website,
             detail.SourceUrl,
-            detail.Remark);
+            detail.Remark,
+            images);
     }
 }

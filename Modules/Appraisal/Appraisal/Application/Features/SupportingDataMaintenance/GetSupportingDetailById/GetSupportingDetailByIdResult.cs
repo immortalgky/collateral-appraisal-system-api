@@ -1,5 +1,15 @@
 namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupportingDetailById;
 
+public record SupportingDetailImageDto(
+    Guid Id,
+    Guid DocumentId,
+    string StorageUrl,
+    string? FileName,
+    string? Title,
+    string? Description,
+    int DisplaySequence
+);
+
 public record GetSupportingDetailByIdResult(
     Guid Id,
     string? PropertyName,
@@ -25,5 +35,6 @@ public record GetSupportingDetailByIdResult(
     DateTime InformationDate,
     string? Website,
     string? SourceUrl,
-    string? Remark
+    string? Remark,
+    IReadOnlyList<SupportingDetailImageDto> Images
 );

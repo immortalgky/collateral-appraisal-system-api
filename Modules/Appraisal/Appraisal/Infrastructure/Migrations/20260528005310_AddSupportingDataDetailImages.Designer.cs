@@ -4,6 +4,7 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260528005310_AddSupportingDataDetailImages")]
+    partial class AddSupportingDataDetailImages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -7348,8 +7351,8 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<string>("CollateralType")
                         .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("nvarchar(3)");
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");

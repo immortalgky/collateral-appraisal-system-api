@@ -4,14 +4,13 @@ public class SubmitSupportingDataEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/supporting-data/submit/{supportingId:guid}", async (
-            Guid supportingId,
+        app.MapPost("/supporting-data/submit/", async (
             SubmitSupportingDataRequest request,
             ISender sender,
             CancellationToken cancellationToken
         ) =>
         {
-            var command = new SubmitSupportingDataCommand(supportingId, new SupportingDataHeaderDto(
+            var command = new SubmitSupportingDataCommand(request.SupportingId, new SupportingDataHeaderDto(
                 request.Header.ImportChannel,
                 request.Header.ImportDate,
                 request.Header.SourceOfData,

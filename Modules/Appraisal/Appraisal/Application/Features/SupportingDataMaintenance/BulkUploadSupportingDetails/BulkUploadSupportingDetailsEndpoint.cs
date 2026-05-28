@@ -13,7 +13,7 @@ public class BulkUploadSupportingDetailsEndpoint : ICarterModule
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    // ── File-level guards ──────────────────────────────────
+                    // File-level guards 
                     var extension = Path.GetExtension(file.FileName);
                     if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
                     {
@@ -32,10 +32,10 @@ public class BulkUploadSupportingDetailsEndpoint : ICarterModule
                             statusCode: StatusCodes.Status400BadRequest);
                     }
 
-                    // ── Dispatch command ───────────────────────────────────
+                    // Dispatch command 
                     using var stream = file.OpenReadStream();
                     var command = new BulkUploadSupportingDetailsCommand(supportingId, stream);
-                    var result  = await sender.Send(command, cancellationToken);
+                    var result = await sender.Send(command, cancellationToken);
 
                     var response = new BulkUploadSupportingDetailsResponse(result.InsertedCount);
 

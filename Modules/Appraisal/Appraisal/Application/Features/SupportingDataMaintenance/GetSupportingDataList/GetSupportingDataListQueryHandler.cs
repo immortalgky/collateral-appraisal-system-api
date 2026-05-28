@@ -27,6 +27,15 @@ public class GetSupportingDataListQueryHandler(ISupportingDataRepository repo, I
             s.UpdatedBy
             ));
 
+        if (currentUserService.CompanyId is not null)
+        {
+            items = items.Where(s => s.AppraisalCompanyId == currentUserService.CompanyId);
+        }
+        else
+        {
+            items = items.Where(s => s.AppraisalCompanyId == null);
+        }
+
         // If user doesn't have edit permission, mean they normally staff. so, they should not see the supporting data in Draft or RoutedBack status.
         if (!hasEditPermission)
         {

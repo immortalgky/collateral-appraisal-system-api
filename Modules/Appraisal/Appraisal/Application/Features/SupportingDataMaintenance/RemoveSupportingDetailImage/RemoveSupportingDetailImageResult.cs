@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.SupportingDataMaintenance.RemoveSupportingDetailImage;
+
+public record RemoveSupportingDetailImageResult(bool IsSuccessful);

@@ -28,6 +28,9 @@ public class SupportingDataDetail : Entity<Guid>
     public string? SourceUrl { get; private set; }
     public string? Remark { get; private set; }
 
+    private readonly List<SupportingDataDetailImage> _images = [];
+    public IReadOnlyCollection<SupportingDataDetailImage> Images => _images.AsReadOnly();
+
     private SupportingDataDetail() { /* EF */ }
 
     private SupportingDataDetail(Guid supportingDataId, SupportingDataDetailData data)
@@ -41,6 +44,27 @@ public class SupportingDataDetail : Entity<Guid>
         => new(supportingDataId, data);
 
     internal void Update(SupportingDataDetailData data) => Apply(data);
+
+    public SupportingDataDetailImage AddImage(
+        Guid documentId,
+        string storageUrl,
+        string? fileName,
+        string? title = null,
+        string? description = null)
+    {
+        var sequence = _images.Count;
+        var image = SupportingDataDetailImage.Create(
+            Id, documentId, storageUrl, fileName, sequence, title, description);
+        _images.Add(image);
+        return image;
+    }
+
+    public void RemoveImage(Guid imageId)
+    {
+        var image = _images.FirstOrDefault(i => i.Id == imageId)
+            ?? throw new InvalidOperationException($"Image {imageId} not found on this detail.");
+        _images.Remove(image);
+    }
 
     public void Validate()
     {

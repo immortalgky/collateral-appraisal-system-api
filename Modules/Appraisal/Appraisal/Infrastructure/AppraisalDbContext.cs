@@ -201,6 +201,7 @@ public class AppraisalDbContext : DbContext
     // =====================================================
     public DbSet<Domain.SupportingDataMaintenance.SupportingData> SupportingData => Set<Domain.SupportingDataMaintenance.SupportingData>();
     public DbSet<Domain.SupportingDataMaintenance.SupportingDataDetail> SupportingDataDetails => Set<Domain.SupportingDataMaintenance.SupportingDataDetail>();
+    public DbSet<Domain.SupportingDataMaintenance.SupportingDataDetailImage> SupportingDataDetailImages => Set<Domain.SupportingDataMaintenance.SupportingDataDetailImage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

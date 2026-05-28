@@ -52,7 +52,6 @@ public class SubmitSupportingDataCommandHandler(
         }
 
         supportingData.Submit(cmd.Header.Decision, cmd.Header.Remark);
-        await repo.SaveChangesAsync(ct);
         return new SubmitSupportingDataResult(true);
     }
 }

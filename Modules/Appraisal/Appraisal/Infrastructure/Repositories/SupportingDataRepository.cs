@@ -13,6 +13,11 @@ public class SupportingDataRepository(AppraisalDbContext dbContext)
     public Task<SupportingDataDetail?> GetDetailByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => _db.SupportingDataDetails.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
 
+    public Task<SupportingDataDetail?> GetDetailByIdWithImagesAsync(Guid id, CancellationToken cancellationToken = default)
+        => _db.SupportingDataDetails
+              .Include(d => d.Images)
+              .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+
 
     public Task<PaginatedResult<SupportingData>> GetListAsync(
         PaginationRequest pagination,
