@@ -4,22 +4,33 @@ public class CreateParameterCommandHandler(
 ) : ICommandHandler<CreateParameterCommand, CreateParameterResult>
 {
     public async Task<CreateParameterResult> Handle(
-        CreateParameterCommand command,
-        CancellationToken cancellationToken)
-    {
-        var parameter = Parameter.Parameters.Models.Parameter.Create(
-            group: command.Group,
-            country: command.Country,
-            language: command.Language,
-            code: command.Code,
-            description: command.Description,
-            isActive: command.IsActive,
-            seqNo: command.SeqNo
-        );
+    CreateParameterCommand command,
+    CancellationToken cancellationToken)
+{
+    var paramTh = Parameter.Parameters.Models.Parameter.Create(
+        group: command.Group,
+        country: command.Country,
+        language: "TH",
+        code: command.Code,
+        description: command.DescriptionTh,
+        isActive: command.IsActive,
+        seqNo: command.SeqNo
+    );
 
-        await parameterRepository.AddAsync(parameter, cancellationToken);
-        await parameterRepository.SaveChangesAsync(cancellationToken);
+    var paramEn = Parameter.Parameters.Models.Parameter.Create(
+        group: command.Group,
+        country: command.Country,
+        language: "EN",
+        code: command.Code,
+        description: command.DescriptionEn,
+        isActive: command.IsActive,
+        seqNo: command.SeqNo
+    );
 
-        return new CreateParameterResult(parameter.Id);
-    }
+    await parameterRepository.AddAsync(paramTh, cancellationToken);
+    await parameterRepository.AddAsync(paramEn, cancellationToken);
+    await parameterRepository.SaveChangesAsync(cancellationToken);
+
+    return new CreateParameterResult(paramTh.Id);
+}
 }

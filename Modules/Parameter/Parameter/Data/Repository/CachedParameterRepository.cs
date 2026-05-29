@@ -3,29 +3,19 @@ using Microsoft.Extensions.Primitives;
 
 namespace Parameter.Data.Repository;
 
-public class CachedParameterRepository(
-    IParameterRepository inner,
-    IMemoryCache cache,
-    ParameterCacheInvalidator invalidator) : IParameterRepository
+public class CachedParameterRepository(IParameterRepository inner,IMemoryCache cache) : IParameterRepository
 {
-    private CancellationTokenSource _cts = new();
-
-    private MemoryCacheEntryOptions CacheOptions => new MemoryCacheEntryOptions()
-    .AddExpirationToken(new CancellationChangeToken(invalidator.Token));
-
-
     public async Task<List<Parameters.Models.Parameter>> GetParameter(
         ParameterDto request, bool asNoTracking = true,
         CancellationToken cancellationToken = default)
     {
         var cacheKey = $"parameter:{request.ParId}:{request.Group}:{request.Country}:{request.Language}:{request.Code}:{request.Description}:{request.IsActive}:{request.SeqNo}";
-
         if (cache.TryGetValue(cacheKey, out List<Parameters.Models.Parameter>? cached))
             return cached!;
 
         var result = await inner.GetParameter(request, asNoTracking, cancellationToken);
 
-        cache.Set(cacheKey, result, CacheOptions);
+        cache.Set(cacheKey, result);
 
         return result;
     }
@@ -54,21 +44,5 @@ public class CachedParameterRepository(
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         await inner.SaveChangesAsync(cancellationToken);
-        invalidator.InvalidateAll();
     }
-}
-
-
-public class ParameterCacheInvalidator
-{
-    private CancellationTokenSource _cts = new();
-
-    public CancellationToken Token => _cts.Token;
-
-    public void InvalidateAll()
-{    var oldCts = _cts;
-    _cts = new CancellationTokenSource();
-    oldCts.Cancel();
-    oldCts.Dispose();
-}
 }
