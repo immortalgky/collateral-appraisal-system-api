@@ -126,7 +126,7 @@ public class AppraisalUnitOfWork : IAppraisalUnitOfWork
 
         // Invoice numbers are user-input only — no auto-generation.
 
-        // Supporting numbers: fromat SUP-{000001}-{YYYY} e.g. "SUP-000001-2569"
+        // Supporting numbers: format SUP-{000001}-{YYYY} e.g. "SUP-000001-2569"
         var newSupportings = _context.ChangeTracker
             .Entries<Domain.SupportingDataMaintenance.SupportingData>()
             .Where(e => e.State == EntityState.Added && e.Entity.SupportingNumber == null)

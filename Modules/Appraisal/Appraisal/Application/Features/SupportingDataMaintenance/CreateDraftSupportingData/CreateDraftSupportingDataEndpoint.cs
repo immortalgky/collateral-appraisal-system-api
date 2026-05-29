@@ -24,6 +24,7 @@ public class CreateDraftSupportingDataEndpoint : ICarterModule
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Create new draft supporting data")
         .WithDescription("Create a new draft supporting data record for appraisal reference.")
-        .WithTags("SupportingData");
+        .WithTags("SupportingData")
+        .RequireAuthorization();
     }
 }

@@ -10,7 +10,7 @@ public class SupportingDataConfiguration : IEntityTypeConfiguration<SupportingDa
 
         builder.OwnsOne(x => x.SupportingNumber, sn =>
         {
-            // Supporting numbers: fromat SUP-{000001}-{YYYY} e.g. "SUP-000001-2569"
+            // Supporting numbers: format SUP-{000001}-{YYYY} e.g. "SUP-000001-2569"
             sn.Property(p => p.Value).HasMaxLength(15).HasColumnName("SupportingNumber");
             sn.HasIndex(p => p.Value).HasDatabaseName("IX_SupportingData_SupportingNumber");
         });

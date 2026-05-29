@@ -1,3 +1,0 @@
-namespace Appraisal.Application.Features.SupportingDataMaintenance.CreateSupportingData;
-
-public record CreateSupportingDataResult(Guid SupportingId);

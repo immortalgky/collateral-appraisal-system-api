@@ -1,3 +1,0 @@
-namespace Appraisal.Application.Features.SupportingDataMaintenance.UpdateSupportingData;
-
-public record UpdateSupportingDataResponse(Guid SupportingId);

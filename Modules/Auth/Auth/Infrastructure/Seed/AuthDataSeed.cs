@@ -559,7 +559,7 @@ public class AuthDataSeed(
                 "Common"),
             ("SUPPORTING_DATA_MAINT_DECISION", "Make Decisions on Supporting Data", "Make decisions on supporting data",
                 "Common"),
-            ("SUPPORTING_DATA_MAINT_REMOVE", "Remove  Supporting Data", "Remove supporting data",
+            ("SUPPORTING_DATA_MAINT_REMOVE", "Remove Supporting Data", "Remove supporting data",
                 "Common"),
             // Block Unit Maintenance (FSD §2.6.10) — internal admin only
             ("BLOCK_UNIT_MAINT_VIEW", "View Block Unit Maintenance",

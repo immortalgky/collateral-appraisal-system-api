@@ -5,8 +5,6 @@ public class GetSupportingDataListQueryHandler(ISupportingDataRepository repo, I
     public async Task<GetSupportingDataListResult> Handle(
     GetSupportingDataListQuery req, CancellationToken ct)
     {
-        var hasRemovePermission = currentUserService.HasPermission("SUPPORTING_DATA_MAINT_REMOVE"); // check permission to remove supporting data
-        var hasEditPermission = currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT"); // check permission to create new supporting data
 
         var page = new PaginationRequest(req.Page, req.PageSize);
 
@@ -27,21 +25,8 @@ public class GetSupportingDataListQueryHandler(ISupportingDataRepository repo, I
             s.UpdatedBy
             ));
 
-        if (currentUserService.CompanyId is not null)
-        {
-            items = items.Where(s => s.AppraisalCompanyId == currentUserService.CompanyId);
-        }
-        else
-        {
-            items = items.Where(s => s.AppraisalCompanyId == null);
-        }
-
-        // If user doesn't have edit permission, mean they normally staff. so, they should not see the supporting data in Draft or RoutedBack status.
-        if (!hasEditPermission)
-        {
-            items = items.Where(s => s.Status != SupportingStatus.Draft && s.Status != SupportingStatus.RoutedBack);
-        }
-
+        var hasRemovePermission = currentUserService.HasPermission("SUPPORTING_DATA_MAINT_REMOVE"); // check permission to remove supporting data
+        var hasEditPermission = currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT"); // check permission to create new supporting data
 
         return new GetSupportingDataListResult(
             items,

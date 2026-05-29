@@ -9,6 +9,6 @@ public record GetSupportingDataByIdResponse(
     string? ImportChannel,
     DateTime? ImportDate,
     string? SourceOfData,
-    string? AppraisalCompany,
+    Guid? AppraisalCompanyId,
     string? Description,
     string? Remark) : IQuery<GetSupportingDataByIdResult>;

@@ -12,6 +12,16 @@ public class SubmitSupportingDataCommandHandler(
         // (Approve / Reject / Route back / Cancel). In that case we must
         // NOT touch the header fields — only the status transition matters.
         var isCheckerDecision = !string.IsNullOrWhiteSpace(cmd.Header.Decision);
+        if (isCheckerDecision)
+        {
+            if (!currentUserService.HasPermission("SUPPORTING_DATA_MAINT_DECISION"))
+                throw new UnauthorizedAccessException("You are not allowed to make decisions on supporting data.");
+        }
+        else
+        {
+            if (!currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT"))
+                throw new UnauthorizedAccessException("You are not allowed to submit supporting data.");
+        }
 
         SupportingData supportingData;
         if (isCheckerDecision)

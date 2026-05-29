@@ -1,9 +1,10 @@
 namespace Appraisal.Infrastructure.Repositories;
 
-public class SupportingDataRepository(AppraisalDbContext dbContext)
+public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUserService currentUserService)
     : BaseRepository<SupportingData, Guid>(dbContext), ISupportingDataRepository
 {
     private readonly AppraisalDbContext _db = dbContext;
+    private readonly ICurrentUserService _currentUserService = currentUserService;
 
     public Task<SupportingData?> GetByIdWithDetailsAsync(Guid id, CancellationToken cancellationToken = default)
         => _db.SupportingData
@@ -31,6 +32,21 @@ public class SupportingDataRepository(AppraisalDbContext dbContext)
     )
     {
         var query = _db.SupportingData.AsNoTracking().AsQueryable();
+
+        if (currentUserService.CompanyId is not null)
+        {
+            query = query.Where(s => s.AppraisalCompanyId == currentUserService.CompanyId);
+        }
+        else
+        {
+            query = query.Where(s => s.AppraisalCompanyId == null);
+        }
+
+        // If user doesn't have edit permission. they should not see the supporting data in Draft or RoutedBack status.
+        if (!currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT"))
+        {
+            query = query.Where(s => s.Status != SupportingStatus.Draft && s.Status != SupportingStatus.RoutedBack);
+        }
 
         if (!string.IsNullOrWhiteSpace(status))
         {
