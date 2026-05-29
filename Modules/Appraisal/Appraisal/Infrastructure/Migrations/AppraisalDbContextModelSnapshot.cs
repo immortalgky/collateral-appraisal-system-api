@@ -7271,6 +7271,243 @@ namespace Appraisal.Infrastructure.Migrations
                     b.ToTable("AutoAssignmentRules", "appraisal");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingData", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AppraisalCompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ImportChannel")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<DateTime?>("ImportDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Remark")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("SourceOfData")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("Status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ImportDate")
+                        .IsDescending()
+                        .HasDatabaseName("IX_SupportingData_ImportDate");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_SupportingData_Status");
+
+                    b.ToTable("SupportingData", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingDataDetail", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BuildingType")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("CollateralType")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Developer")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("InformationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("LandArea")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<string>("ModelName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal?>("OfferingPrice")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<string>("PhoneNo")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PlotLocationType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PlotLocationTypeOther")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<decimal?>("PricePerUnit")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<string>("ProjectName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PropertyName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Remark")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("RoomFloor")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<decimal?>("SellingPrice")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<string>("SourceUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("SupportingDataId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("UsableArea")
+                        .HasPrecision(17, 2)
+                        .HasColumnType("decimal(17,2)");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollateralType")
+                        .HasDatabaseName("IX_SupportingDataDetails_CollateralType");
+
+                    b.HasIndex("SupportingDataId")
+                        .HasDatabaseName("IX_SupportingDataDetails_SupportingDataId");
+
+                    b.ToTable("SupportingDataDetails", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingDataDetailImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("DisplaySequence")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("StorageUrl")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("SupportingDataDetailId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupportingDataDetailId")
+                        .HasDatabaseName("IX_SupportingDataDetailImages_DetailId");
+
+                    b.HasIndex("SupportingDataDetailId", "DisplaySequence")
+                        .HasDatabaseName("IX_SupportingDataDetailImages_DetailId_Sequence");
+
+                    b.ToTable("SupportingDataDetailImages", "appraisal");
+                });
+
             modelBuilder.Entity("Shared.Data.Lease.BackgroundServiceLease", b =>
                 {
                     b.Property<string>("Id")
@@ -12008,6 +12245,112 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasConstraintName("FK_QuotationSharedDocuments_QuotationRequests_QuotationRequestId");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingData", b =>
+                {
+                    b.OwnsOne("Appraisal.Domain.SupportingDataMaintenance.SupportingNumber", "SupportingNumber", b1 =>
+                        {
+                            b1.Property<Guid>("SupportingDataId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Value")
+                                .IsRequired()
+                                .HasMaxLength(15)
+                                .HasColumnType("nvarchar(15)")
+                                .HasColumnName("SupportingNumber");
+
+                            b1.HasKey("SupportingDataId");
+
+                            b1.HasIndex("Value")
+                                .HasDatabaseName("IX_SupportingData_SupportingNumber");
+
+                            b1.ToTable("SupportingData", "appraisal");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SupportingDataId");
+                        });
+
+                    b.Navigation("SupportingNumber");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingDataDetail", b =>
+                {
+                    b.HasOne("Appraisal.Domain.SupportingDataMaintenance.SupportingData", null)
+                        .WithMany("Details")
+                        .HasForeignKey("SupportingDataId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Appraisal.Domain.SupportingDataMaintenance.GeoLocation", "Location", b1 =>
+                        {
+                            b1.Property<Guid>("SupportingDataDetailId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<decimal>("Latitude")
+                                .HasPrecision(9, 6)
+                                .HasColumnType("decimal(9,6)")
+                                .HasColumnName("Latitude");
+
+                            b1.Property<decimal>("Longitude")
+                                .HasPrecision(9, 6)
+                                .HasColumnType("decimal(9,6)")
+                                .HasColumnName("Longitude");
+
+                            b1.HasKey("SupportingDataDetailId");
+
+                            b1.ToTable("SupportingDataDetails", "appraisal");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SupportingDataDetailId");
+                        });
+
+                    b.OwnsOne("Appraisal.Domain.SupportingDataMaintenance.SupportingAddress", "Address", b1 =>
+                        {
+                            b1.Property<Guid>("SupportingDataDetailId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("District");
+
+                            b1.Property<string>("HouseNo")
+                                .HasMaxLength(30)
+                                .HasColumnType("nvarchar(30)")
+                                .HasColumnName("HouseNo");
+
+                            b1.Property<string>("Province")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("Province");
+
+                            b1.Property<string>("SubDistrict")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("SubDistrict");
+
+                            b1.HasKey("SupportingDataDetailId");
+
+                            b1.ToTable("SupportingDataDetails", "appraisal");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SupportingDataDetailId");
+                        });
+
+                    b.Navigation("Address")
+                        .IsRequired();
+
+                    b.Navigation("Location");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingDataDetailImage", b =>
+                {
+                    b.HasOne("Appraisal.Domain.SupportingDataMaintenance.SupportingDataDetail", null)
+                        .WithMany("Images")
+                        .HasForeignKey("SupportingDataDetailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.Appointment", b =>
                 {
                     b.Navigation("History");
@@ -12208,6 +12551,16 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Navigation("Quotations");
 
                     b.Navigation("SharedDocuments");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingData", b =>
+                {
+                    b.Navigation("Details");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingDataDetail", b =>
+                {
+                    b.Navigation("Images");
                 });
 #pragma warning restore 612, 618
         }

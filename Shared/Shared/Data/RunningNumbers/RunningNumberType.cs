@@ -7,5 +7,6 @@ public enum RunningNumberType
     MARKET_COMPARABLE = 3,
     QUOTATION = 4,
     MEETING = 5,
-    INVOICE = 6
+    INVOICE = 6,
+    SUPPORTING_MAINTENANCE = 7
 }

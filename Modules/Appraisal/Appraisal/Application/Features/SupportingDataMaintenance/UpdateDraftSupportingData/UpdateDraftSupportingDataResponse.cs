@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.SupportingDataMaintenance.UpdateDraftSupportingData;
+
+public record UpdateDraftSupportingDataResponse(Guid SupportingId);

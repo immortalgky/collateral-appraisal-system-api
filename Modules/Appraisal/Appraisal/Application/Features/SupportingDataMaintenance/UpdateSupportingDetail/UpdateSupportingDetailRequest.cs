@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.SupportingDataMaintenance.UpdateSupportingDetail;
+
+public record UpdateSupportingDetailRequest(SupportingDataDetailDto Detail);

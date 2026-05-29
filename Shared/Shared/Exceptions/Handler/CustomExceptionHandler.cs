@@ -23,6 +23,12 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 "InvalidRequestFormat",
                 httpContext.Response.StatusCode = StatusCodes.Status400BadRequest
             ),
+            BulkUploadParseException =>
+            (
+                exception.Message,
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest
+            ),
             BadRequestException =>
             (
                 exception.Message,
@@ -97,6 +103,9 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
 
         if (exception is ValidationException validationException)
             problemDetails.Extensions.Add("ValidationErrors", validationException.Errors);
+
+        if (exception is BulkUploadParseException bulkEx)
+            problemDetails.Extensions.Add("rowErrors", bulkEx.RowErrors);
 
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
         return true;

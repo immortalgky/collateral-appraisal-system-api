@@ -91,6 +91,10 @@ public static class AppraisalModule
         // Background services
         services.AddHostedService<QuotationAutoCloseService>();
 
+        // Register supporting data repository
+        services.AddScoped<ISupportingDataRepository, SupportingDataRepository>();
+        services.AddScoped<IRepository<SupportingData, Guid>, SupportingDataRepository>();
+
         return services;
     }
 

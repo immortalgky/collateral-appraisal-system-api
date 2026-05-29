@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.SupportingDataMaintenance.SubmitSupportingData;
+
+public record SubmitSupportingDataRequest(Guid? SupportingId, SupportingDataHeaderDto Header);
