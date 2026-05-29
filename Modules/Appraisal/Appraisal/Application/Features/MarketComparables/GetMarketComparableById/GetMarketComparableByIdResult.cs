@@ -28,6 +28,10 @@ public record MarketComparableDetailDto
     public string? OfferPriceUnit { get; set; }
     public string? SalePriceUnit { get; set; }
 
+    // Location (WGS-84) — drives the History Search / 360 map pins
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+
     // Notes
     public string? Notes { get; set; }
 
