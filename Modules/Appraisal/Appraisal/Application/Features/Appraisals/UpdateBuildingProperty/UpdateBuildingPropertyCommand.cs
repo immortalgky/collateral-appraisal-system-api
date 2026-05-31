@@ -9,7 +9,7 @@ public record UpdateBuildingPropertyCommand(
     Guid AppraisalId,
     Guid PropertyId,
   // Property Identification
-  string? PropertyName = null,
+    string? PropertyName = null,
     string? BuildingNumber = null,
     string? ModelName = null,
     string? BuiltOnTitleNumber = null,
