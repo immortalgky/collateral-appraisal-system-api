@@ -19,15 +19,13 @@ public class GetPendingExternalGroupedQueryHandler(
         GetPendingExternalGroupedQuery query,
         CancellationToken cancellationToken)
     {
-        var activityIds = scopeService.GetExternalActivityIds();
-        if (activityIds.Length == 0)
-            return new MonitoringGroupedResult([], 0);
+        var scope = scopeService.ResolveExternalScope();
 
         var conditions = new List<string> { "MonitoringType = 'External'" };
         var parameters = new DynamicParameters();
 
-        conditions.Add("ActivityId IN @ActivityIds");
-        parameters.Add("ActivityIds", activityIds);
+        if (!scopeService.TryBuildActivityFilter(scope, conditions, parameters))
+            return new MonitoringGroupedResult([], 0);
 
         var filter = query.Filter;
         if (filter.SlaStatus is { Length: > 0 })

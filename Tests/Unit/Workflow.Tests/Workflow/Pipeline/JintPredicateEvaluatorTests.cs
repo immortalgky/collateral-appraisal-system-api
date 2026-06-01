@@ -1,6 +1,4 @@
 using FluentAssertions;
-using Microsoft.Extensions.Logging;
-using NSubstitute;
 using Workflow.Workflow.Pipeline;
 using Xunit;
 
@@ -13,8 +11,7 @@ namespace Workflow.Tests.Workflow.Pipeline;
 /// </summary>
 public class JintPredicateEvaluatorTests
 {
-    private static JintPredicateEvaluator BuildSut() =>
-        new(Substitute.For<ILogger<JintPredicateEvaluator>>());
+    private static JintPredicateEvaluator BuildSut() => new();
 
     private static ProcessStepContext EmptyCtx() => new()
     {
@@ -162,5 +159,105 @@ public class JintPredicateEvaluatorTests
         var sut = BuildSut();
         var error = sut.TryPrepare("{{{{not valid js");
         error.Should().NotBeNullOrEmpty("malformed JS should produce a compile error");
+    }
+
+    // ── EvaluateExpression (per-rule escape-hatch) ──────────────────────
+
+    // T9: EvaluateExpression with true literal returns true
+    [Fact]
+    public void EvaluateExpression_TrueLiteral_ReturnsTrue()
+    {
+        var sut = BuildSut();
+        var result = sut.EvaluateExpression("true", EmptyCtx());
+        result.Should().BeTrue();
+    }
+
+    // T10: EvaluateExpression with false literal returns false
+    [Fact]
+    public void EvaluateExpression_FalseLiteral_ReturnsFalse()
+    {
+        var sut = BuildSut();
+        var result = sut.EvaluateExpression("false", EmptyCtx());
+        result.Should().BeFalse();
+    }
+
+    // T11: EvaluateExpression can access workflow.variables (same sandbox as Evaluate)
+    [Fact]
+    public void EvaluateExpression_WorkflowVariablesAccess_ReturnsCorrectBoolean()
+    {
+        var sut = BuildSut();
+        var ctx = new ProcessStepContext
+        {
+            WorkflowInstanceId = Guid.NewGuid(),
+            ActivityId = "test",
+            ActivityName = "test",
+            CompletedBy = "user",
+            UserRoles = [],
+            Variables = new Dictionary<string, object?> { ["channel"] = "SIBS" },
+            Input = new Dictionary<string, object?>()
+        };
+
+        var result = sut.EvaluateExpression("workflow.variables.channel === 'SIBS'", ctx);
+        result.Should().BeTrue();
+    }
+
+    // T12: EvaluateExpression with appraisal scope injected
+    [Fact]
+    public void EvaluateExpression_AppraisalDataInjected_AccessibleInExpression()
+    {
+        var sut = BuildSut();
+        var ctx = new ProcessStepContext
+        {
+            WorkflowInstanceId = Guid.NewGuid(),
+            ActivityId = "test",
+            ActivityName = "test",
+            CompletedBy = "user",
+            UserRoles = [],
+            Variables = new Dictionary<string, object?>(),
+            Input = new Dictionary<string, object?>(),
+            AppraisalData = new Dictionary<string, object?>
+            {
+                ["facilityLimit"] = 100_000_000m
+            }
+        };
+
+        // appraisal is injected as a JS object when AppraisalData is non-empty
+        var result = sut.EvaluateExpression("appraisal.facilityLimit > 50000000", ctx);
+        result.Should().BeTrue("facilityLimit 100M > 50M should evaluate to true");
+    }
+
+    // T13: EvaluateExpression non-boolean result throws PredicateEvaluationException
+    [Fact]
+    public void EvaluateExpression_NonBooleanResult_ThrowsPredicateEvaluationException()
+    {
+        var sut = BuildSut();
+        var act = () => sut.EvaluateExpression("'not a boolean'", EmptyCtx());
+        act.Should().Throw<PredicateEvaluationException>(
+            "returning a non-boolean from EvaluateExpression should throw");
+    }
+
+    // T14: EvaluateExpression caches by expression content (same expression reused)
+    [Fact]
+    public void EvaluateExpression_SameExpression_CachedAndReused()
+    {
+        var sut = BuildSut();
+        // Should not throw on second call with identical expression
+        var r1 = sut.EvaluateExpression("true", EmptyCtx());
+        var r2 = sut.EvaluateExpression("true", EmptyCtx());
+
+        r1.Should().BeTrue();
+        r2.Should().BeTrue();
+    }
+
+    // T15: EvaluateExpression different expressions cached independently
+    [Fact]
+    public void EvaluateExpression_DifferentExpressions_EvaluateIndependently()
+    {
+        var sut = BuildSut();
+        var r1 = sut.EvaluateExpression("true", EmptyCtx());
+        var r2 = sut.EvaluateExpression("false", EmptyCtx());
+
+        r1.Should().BeTrue();
+        r2.Should().BeFalse();
     }
 }

@@ -14,6 +14,16 @@ public interface IPredicateEvaluator
     bool Evaluate(string expression, Guid configurationId, int configurationVersion, ProcessStepContext ctx);
 
     /// <summary>
+    /// Evaluates an arbitrary boolean expression (e.g. a per-rule escape-hatch expression)
+    /// against the provided context. The compiled script is cached by a stable hash of
+    /// <paramref name="expression"/> — NOT by (configId, version) — to avoid collisions
+    /// when multiple rules on the same config row have different expressions.
+    /// Throws <see cref="PredicateEvaluationException"/> on compile/runtime error or
+    /// when the expression returns a non-boolean.
+    /// </summary>
+    bool EvaluateExpression(string expression, ProcessStepContext ctx);
+
+    /// <summary>
     /// Attempts to compile the expression without executing it (for admin validation).
     /// Returns null on success; an error message on failure.
     /// </summary>

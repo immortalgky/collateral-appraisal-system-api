@@ -2,6 +2,7 @@ namespace Workflow.Domain;
 
 public class ApprovalVote : Entity<Guid>
 {
+    public Guid AppraisalId { get; private set; }
     public Guid WorkflowInstanceId { get; private set; }
     public string ActivityId { get; private set; } = default!;
     public Guid ActivityExecutionId { get; private set; }
@@ -14,7 +15,7 @@ public class ApprovalVote : Entity<Guid>
     private ApprovalVote() { }
 
     public static ApprovalVote Create(
-        Guid workflowInstanceId, string activityId, Guid activityExecutionId,
+        Guid appraisalId, Guid workflowInstanceId, string activityId, Guid activityExecutionId,
         string member, string? memberRole, string vote, string? comments)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(member);
@@ -23,6 +24,7 @@ public class ApprovalVote : Entity<Guid>
         return new ApprovalVote
         {
             Id = Guid.CreateVersion7(),
+            AppraisalId = appraisalId,
             WorkflowInstanceId = workflowInstanceId,
             ActivityId = activityId,
             ActivityExecutionId = activityExecutionId,

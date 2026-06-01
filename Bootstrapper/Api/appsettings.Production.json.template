@@ -127,5 +127,22 @@
   "HealthChecks": {
     "AllowCachingResponses": false,
     "CacheDuration": "00:00:30"
+  },
+  "Reappraisal": {
+    "FileSource": "Sftp",
+    "Local": {
+      "Path": "./reappraisal/inbox",
+      "ProcessedPath": "./reappraisal/processed",
+      "FilePattern": "AS400_COLLATREV_*.txt"
+    },
+    "Sftp": {
+      "Host": "#{REAPPRAISAL_SFTP_HOST}#",
+      "Port": 22,
+      "Username": "#{REAPPRAISAL_SFTP_USERNAME}#",
+      "Password": "#{REAPPRAISAL_SFTP_PASSWORD}#",
+      "RemoteDirectory": "/incoming/collatrev",
+      "FilePattern": "AS400_COLLATREV_*.txt",
+      "ProcessedDirectory": "/processed/collatrev"
+    }
   }
 }

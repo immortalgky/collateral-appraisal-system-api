@@ -1,0 +1,65 @@
+### ===========================================================================
+### Publish edited appraisal-workflow.json as a NEW version (in-flight-safe)
+###
+### Run the requests top-to-bottom. Publishing a new version auto-deprecates the
+### prior published version but does NOT touch running instances: each instance is
+### pinned to its WorkflowDefinitionVersionId and resumes against that schema.
+### Only newly started appraisals use the new version.
+###
+### Do NOT re-POST to /api/workflows/definitions to apply edits — that creates a
+### SEPARATE definition (always v1) and collides on the unique (Name, Version) index.
+### Versioning stays under the same definitionId via the endpoints below.
+### ===========================================================================
+
+@actor = system
+
+### 0. Find the appraisal definition id — copy the "Collateral Appraisal Workflow"
+###    id from the response into @definitionId below.
+GET {{baseUrl}}/api/workflows/definitions
+X-Dev-Auth: dev-bypass
+
+### >>> paste the id from step 0 here <<<
+@definitionId = 019DBA9C-D7D1-7DD9-8B88-A815ACF8EFEA
+
+### 1. Create a new DRAFT version (clones the current published schema; overwritten in step 2)
+# @name createDraft
+POST {{baseUrl}}/api/workflows/definitions/{{definitionId}}/versions
+X-Dev-Auth: dev-bypass
+Content-Type: application/json
+
+{ "createdBy": "{{actor}}" }
+
+### versionId captured from the create-draft response
+@versionId = 019e8456-1f13-74e5-88cd-a1722513492c
+
+### 2. Push the edited appraisal-workflow.json into the draft.
+###    The file's top-level "workflowSchema" binds; name/description/category/createdBy are ignored.
+PUT {{baseUrl}}/api/workflows/definitions/{{definitionId}}/versions/{{versionId}}/schema
+X-Dev-Auth: dev-bypass
+Content-Type: application/json
+
+< ../../Modules/Workflow/Workflow/Workflow/Config/appraisal-workflow.json
+
+### 3. Preview publish impact -> returns breakingChangeHash + safe/unsafe running-instance counts
+# @name preview
+POST {{baseUrl}}/api/workflows/definitions/{{definitionId}}/versions/{{versionId}}/publish/preview
+X-Dev-Auth: dev-bypass
+
+### confirmed hash captured from the preview response
+#@breakingChangeHash = {{preview.response.body.$.breakingChangeHash}}
+
+@breakingChangeHash = 10f8c245cee7405d01fbdfe3d4f4b91721946d341d33c95344c0f1be9fd53b80
+
+### 4. Publish. Prior published version auto-deprecates; in-flight instances are untouched.
+POST {{baseUrl}}/api/workflows/definitions/{{definitionId}}/versions/{{versionId}}/publish
+X-Dev-Auth: dev-bypass
+Content-Type: application/json
+
+{
+  "publishedBy": "{{actor}}",
+  "confirmedBreakingChangeHash": "{{breakingChangeHash}}"
+}
+
+### 5. (OPTIONAL) Inspect version history — confirm new version Published, old Deprecated
+GET {{baseUrl}}/api/workflows/definitions/{{definitionId}}/versions
+X-Dev-Auth: dev-bypass

@@ -8,9 +8,9 @@ public class WorkflowDefinition : Entity<Guid>
     public bool IsActive { get; private set; }
     public string JsonDefinition { get; private set; } = default!;
     public string Category { get; private set; } = default!;
-    public new DateTime CreatedOn { get; private set; }
+    public DateTime CreatedOn { get; private set; }
     public new string CreatedBy { get; private set; } = default!;
-    public new DateTime? UpdatedOn { get; private set; }
+    public DateTime? UpdatedOn { get; private set; }
     public new string? UpdatedBy { get; private set; }
 
     private WorkflowDefinition()

@@ -119,6 +119,33 @@ public class Appointment : Entity<Guid>
         ActionDate = DateTime.Now;
     }
 
+    /// <summary>
+    /// Reverts the appointment to the last approved date when a reschedule request is rejected.
+    /// Decrements RescheduleCount (undo the increment from Reschedule).
+    /// Does NOT re-approve automatically — appointment remains Pending until re-approved.
+    /// </summary>
+    public void RejectReschedule(string changedBy, string? reason = null)
+    {
+        // Find the date that was active just before the most recent reschedule.
+        // The most recent "Rescheduled" history entry captured the prior date.
+        var lastRescheduledHistory = _history
+            .Where(h => h.ChangeType == "Rescheduled")
+            .OrderByDescending(h => h.ChangedAt)
+            .FirstOrDefault();
+
+        RecordHistory("Cancelled", changedBy, reason); // record the revert as a cancellation of the pending change
+
+        if (lastRescheduledHistory is not null)
+        {
+            AppointmentDateTime = lastRescheduledHistory.PreviousAppointmentDateTime;
+            if (RescheduleCount > 0) RescheduleCount--;
+        }
+
+        Reason = reason;
+        ActionDate = DateTime.Now;
+        // Keep status as-is (Pending — must be re-approved for the reverted date)
+    }
+
     private void RecordHistory(string changeType, string changedBy, string? reason)
     {
         var history = AppointmentHistory.Create(

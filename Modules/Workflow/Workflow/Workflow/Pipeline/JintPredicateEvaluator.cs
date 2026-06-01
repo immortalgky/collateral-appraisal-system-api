@@ -3,19 +3,23 @@ using System.Text.Json;
 using Acornima.Ast;
 using Jint;
 using Jint.Native;
-using Microsoft.Extensions.Logging;
 
 namespace Workflow.Workflow.Pipeline;
 
 /// <summary>
 /// Evaluates sandboxed JavaScript RunIfExpressions using Jint 4.x.
 /// Compile cache is keyed by (ConfigurationId, Version) so a version bump auto-invalidates.
+/// Per-rule expression cache is keyed by expression content hash to avoid collisions
+/// when N rules on the same config row carry different expressions.
 /// Each evaluation creates a fresh Engine instance (stateless, thread-safe by design).
 /// </summary>
-public sealed class JintPredicateEvaluator(ILogger<JintPredicateEvaluator> logger) : IPredicateEvaluator
+public sealed class JintPredicateEvaluator : IPredicateEvaluator
 {
     // Cache of compiled scripts keyed by (configId, version)
     private readonly ConcurrentDictionary<(Guid, int), Prepared<Script>> _cache = new();
+
+    // Cache for per-rule arbitrary expressions — keyed by expression content (stable hash)
+    private readonly ConcurrentDictionary<string, Prepared<Script>> _expressionCache = new(StringComparer.Ordinal);
 
     public bool Evaluate(
         string expression,
@@ -46,6 +50,31 @@ public sealed class JintPredicateEvaluator(ILogger<JintPredicateEvaluator> logge
 
         throw new PredicateEvaluationException(
             $"RunIfExpression must return a boolean but returned '{result.Type}'");
+    }
+
+    public bool EvaluateExpression(string expression, ProcessStepContext ctx)
+    {
+        var prepared = _expressionCache.GetOrAdd(expression, _ => PrepareScript(expression));
+
+        var engine = BuildEngine();
+        InjectContext(engine, ctx);
+
+        JsValue result;
+        try
+        {
+            result = engine.Evaluate(prepared);
+        }
+        catch (Exception ex)
+        {
+            throw new PredicateEvaluationException(
+                $"Expression threw at runtime: {ex.Message}", ex);
+        }
+
+        if (result.IsBoolean())
+            return result.AsBoolean();
+
+        throw new PredicateEvaluationException(
+            $"Expression must return a boolean but returned '{result.Type}'");
     }
 
     public string? TryPrepare(string expression)
@@ -102,6 +131,12 @@ public sealed class JintPredicateEvaluator(ILogger<JintPredicateEvaluator> logge
             ["roles"] = ctx.UserRoles.ToArray()
         };
         engine.SetValue("user", userContext);
+
+        // Inject appraisal field data when available (populated by ValidateAppraisalFieldsStep).
+        if (ctx.AppraisalData.Count > 0)
+        {
+            engine.SetValue("appraisal", FlattenDict(ctx.AppraisalData));
+        }
     }
 
     /// <summary>

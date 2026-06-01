@@ -40,6 +40,28 @@ public class ActivityProcessConfigurationSeeder(
                 1,
                 "system",
                 """{"decisionField":"decisionTaken","constraints":{"INT":"facilityLimit <= 50000000"}}"""),
+
+            // site-inspection (sortOrder 2): generic field rules demonstrating ValidateAppraisalFields.
+            // Requires that facilityLimit is present before the site-inspection step completes.
+            ActivityProcessConfiguration.Create(
+                "site-inspection",
+                "Validate Appraisal Fields",
+                "ValidateAppraisalFields",
+                StepKind.Validation,
+                2,
+                "system",
+                """{"rules":[{"fieldKey":"facilityLimit","op":"Required","message":"Facility limit must be set before completing site inspection."}],"mode":"AllMustPass"}"""),
+
+            // ext-appraisal-assignment: per-property mandatory fields for land and condo types.
+            // Demonstrates ValidatePropertyMandatoryFields with type-specific field requirements.
+            ActivityProcessConfiguration.Create(
+                "ext-appraisal-assignment",
+                "Validate Property Mandatory Fields",
+                "ValidatePropertyMandatoryFields",
+                StepKind.Validation,
+                1,
+                "system",
+                """{"requiredByType":{"L":["TitleNumber","LandOffice","Province"],"U":["Province","District"]}}"""),
         };
 
         await context.ActivityProcessConfigurations.AddRangeAsync(configs);

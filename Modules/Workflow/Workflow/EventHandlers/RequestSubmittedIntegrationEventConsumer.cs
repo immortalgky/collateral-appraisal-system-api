@@ -110,20 +110,23 @@ public class RequestSubmittedIntegrationEventConsumer(
                 }
             }
 
+            // Resolve the workflow definition up-front so its id can be carried on the
+            // AppraisalCreationRequestedIntegrationEvent — the Appraisal module needs it to
+            // resolve the workflow-scope SLA budget and stamp the appraisal-level SLA fields.
+            var definition = await workflowDefinitionRepository.GetLatestVersion(WorkflowName, ct)
+                             ?? throw new InvalidOperationException(
+                                 $"Workflow definition '{WorkflowName}' not found.");
+
             var shouldEmit = await triggerEvaluator.ShouldEmitAsync(
                 "__on_workflow_start__", initialVariables, ct: ct);
 
             if (shouldEmit)
             {
                 outbox.Publish(
-                    BuildCreationRequestedEvent(message, resolvedSourceAppraisalId),
+                    BuildCreationRequestedEvent(message, resolvedSourceAppraisalId, definition.Id),
                     message.RequestId.ToString());
                 initialVariables["appraisalCreationRequested"] = true;
             }
-
-            var definition = await workflowDefinitionRepository.GetLatestVersion(WorkflowName, ct)
-                             ?? throw new InvalidOperationException(
-                                 $"Workflow definition '{WorkflowName}' not found.");
 
             var instance = await workflowService.StartWorkflowAsync(
                 definition.Id,
@@ -176,7 +179,7 @@ public class RequestSubmittedIntegrationEventConsumer(
 
         var resolvedSourceAppraisalId = await ResolveProgressiveSourceAsync(message, ct);
         outbox.Publish(
-            BuildCreationRequestedEvent(message, resolvedSourceAppraisalId),
+            BuildCreationRequestedEvent(message, resolvedSourceAppraisalId, existing.WorkflowDefinitionId),
             message.RequestId.ToString());
         existing.UpdateVariables(new Dictionary<string, object>
         {
@@ -212,6 +215,7 @@ public class RequestSubmittedIntegrationEventConsumer(
         {
             ["requestId"] = message.RequestId,
             ["channel"] = message.Channel ?? string.Empty,
+            ["entrySource"] = message.EntrySource ?? string.Empty,
             ["priority"] = message.Priority ?? "normal",
             ["isPma"] = message.IsPma,
             ["facilityLimit"] = message.FacilityLimit ?? 0m,
@@ -223,10 +227,12 @@ public class RequestSubmittedIntegrationEventConsumer(
 
     private static AppraisalCreationRequestedIntegrationEvent BuildCreationRequestedEvent(
         RequestSubmittedIntegrationEvent message,
-        Guid? resolvedPrevAppraisalId)
+        Guid? resolvedPrevAppraisalId,
+        Guid workflowDefinitionId)
     {
         return new AppraisalCreationRequestedIntegrationEvent
         {
+            WorkflowDefinitionId = workflowDefinitionId,
             RequestId = message.RequestId,
             RequestTitles = message.RequestTitles,
             Appointment = message.Appointment,
@@ -243,7 +249,8 @@ public class RequestSubmittedIntegrationEventConsumer(
             RequestedBy = message.RequestedBy,
             RequestedAt = message.RequestedAt,
             PrevAppraisalId = resolvedPrevAppraisalId,
-            AppraisalType = message.AppraisalType
+            AppraisalType = message.AppraisalType,
+            GroupTag = message.GroupTag
         };
     }
 

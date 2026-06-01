@@ -7,9 +7,12 @@ using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Request.Infrastructure;
+using Request.Infrastructure.Reappraisal;
 using Scalar.AspNetCore;
+using Dapper;
 using Shared.Configurations;
 using Shared.Data;
+using Shared.Data.Dapper;
 using Shared.Data.Outbox;
 using Shared.Logging;
 using Shared.Security;
@@ -30,6 +33,9 @@ builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(conte
 
 // Add shared services (time abstraction, security, etc.)
 builder.Services.AddSharedServices(builder.Configuration);
+
+// Dapper type handlers — DateOnly columns are returned by SqlClient as DateTime.
+SqlMapper.AddTypeHandler(new DateOnlyTypeHandler());
 builder.Services.AddHangfire(builder.Configuration);
 
 // Common services: carter, mediatR, fluentvalidators, etc.
@@ -356,6 +362,14 @@ RecurringJob.AddOrUpdate<OutboxCleanupJob<WorkflowDbContext>>(
 // Logs cleanup: purge dbo.Logs rows older than 30 days, daily at 3 AM
 RecurringJob.AddOrUpdate<LogsCleanupJob>(
     "logs-cleanup", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(3));
+
+// Reappraisal ingestion: ingest AS400 COLLATREV files monthly.
+// TODO(confirm): cron day/time — currently first of month at 01:00 UTC (Bangkok UTC+7 = 08:00).
+// TODO(confirm): if the file arrives on a fixed day other than the 1st, adjust the cron.
+// In dev, trigger manually via Hangfire dashboard (/hangfire → "Trigger now").
+RecurringJob.AddOrUpdate<ReappraisalIngestionJob>(
+    "reappraisal-ingestion", j => j.ExecuteAsync(CancellationToken.None),
+    Cron.Monthly(1, 1)); // 1st of each month at 01:00 UTC
 
 await app.RunAsync();
 

@@ -18,10 +18,218 @@ namespace Request.Infrastructure.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("request")
-                .HasAnnotation("ProductVersion", "9.0.5")
+                .HasAnnotation("ProductVersion", "9.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("Request.Domain.Reappraisal.ReappraisalCandidate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AoCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("AoName")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ApplicationNumber")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
+                    b.Property<string>("BusinessSize")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("BusinessSizeDesc")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("CarCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("CifName")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("CifNumber")
+                        .IsRequired()
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
+                    b.Property<string>("CollateralAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CollateralCategory")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("CollateralCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("CollateralDescription")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CollateralId")
+                        .IsRequired()
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
+                    b.Property<string>("CollateralName")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("CountAgeingDate")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CpNumber")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<decimal?>("CurrentValue")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<DateOnly>("EffectiveDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("EffectiveDateAppraisal")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ExternalValuerName")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("FacilityCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<decimal?>("FacilityLimit")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<string>("FacilitySequence")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
+                    b.Property<string>("FlagGreaterAge4Y")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("FlagLessAge4Y")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("Group")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("IBGRetail")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("IngestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InternalExternal")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("InternalValuerName")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<decimal?>("Latitude")
+                        .HasPrecision(10, 7)
+                        .HasColumnType("decimal(10,7)");
+
+                    b.Property<decimal?>("Longitude")
+                        .HasPrecision(10, 7)
+                        .HasColumnType("decimal(10,7)");
+
+                    b.Property<decimal?>("MortgageAmount")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<int?>("PastDueDay")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("ReviewDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ReviewType")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("RowHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("SllDescription")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("SllOver100M")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<DateOnly>("SourceFileDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("SourceFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("Stage")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SurveyNumber")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("TitleNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateOnly?>("ValuationDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewDate")
+                        .HasDatabaseName("IX_ReappraisalCandidate_ReviewDate");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_ReappraisalCandidate_Status_Pending")
+                        .HasFilter("[Status] = 'Pending'");
+
+                    b.HasIndex("SourceFileDate", "CollateralId", "SurveyNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ReappraisalCandidate_FileDate_CollateralId_SurveyNumber");
+
+                    b.ToTable("ReappraisalCandidates", "request");
+                });
 
             modelBuilder.Entity("Request.Domain.RequestComments.RequestComment", b =>
                 {
@@ -644,6 +852,35 @@ namespace Request.Infrastructure.Migrations
                                 .HasForeignKey("RequestId");
                         });
 
+                    b.OwnsOne("Shared.Models.UserInfo", "Requestor", b1 =>
+                        {
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("UserId")
+                                .IsRequired()
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("Requestor");
+
+                            b1.Property<string>("Username")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("RequestorName");
+
+                            b1.HasKey("RequestId");
+
+                            b1.HasIndex("UserId")
+                                .HasDatabaseName("IX_Request_Requestor")
+                                .HasFilter("[IsDeleted] = 0");
+
+                            b1.ToTable("Requests", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestId");
+                        });
+
                     b.OwnsMany("Request.Domain.Requests.RequestCustomer", "Customers", b1 =>
                         {
                             b1.Property<long>("Id")
@@ -712,64 +949,6 @@ namespace Request.Infrastructure.Migrations
 
                             b1.WithOwner()
                                 .HasForeignKey("RequestId");
-
-                            b1.OwnsOne("Request.Domain.Requests.Address", "Address", b2 =>
-                                {
-                                    b2.Property<Guid>("RequestDetailRequestId")
-                                        .HasColumnType("uniqueidentifier");
-
-                                    b2.Property<string>("District")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("District");
-
-                                    b2.Property<string>("HouseNumber")
-                                        .HasMaxLength(30)
-                                        .HasColumnType("nvarchar(30)")
-                                        .HasColumnName("HouseNumber");
-
-                                    b2.Property<string>("Moo")
-                                        .HasMaxLength(50)
-                                        .HasColumnType("nvarchar(50)")
-                                        .HasColumnName("Moo");
-
-                                    b2.Property<string>("Postcode")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("Postcode");
-
-                                    b2.Property<string>("ProjectName")
-                                        .HasMaxLength(100)
-                                        .HasColumnType("nvarchar(100)")
-                                        .HasColumnName("ProjectName");
-
-                                    b2.Property<string>("Province")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("Province");
-
-                                    b2.Property<string>("Road")
-                                        .HasMaxLength(50)
-                                        .HasColumnType("nvarchar(50)")
-                                        .HasColumnName("Road");
-
-                                    b2.Property<string>("Soi")
-                                        .HasMaxLength(50)
-                                        .HasColumnType("nvarchar(50)")
-                                        .HasColumnName("Soi");
-
-                                    b2.Property<string>("SubDistrict")
-                                        .HasMaxLength(10)
-                                        .HasColumnType("nvarchar(10)")
-                                        .HasColumnName("SubDistrict");
-
-                                    b2.HasKey("RequestDetailRequestId");
-
-                                    b2.ToTable("RequestDetails", "request");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("RequestDetailRequestId");
-                                });
 
                             b1.OwnsOne("Request.Domain.Requests.Appointment", "Appointment", b2 =>
                                 {
@@ -896,6 +1075,64 @@ namespace Request.Infrastructure.Migrations
                                         .HasForeignKey("RequestDetailRequestId");
                                 });
 
+                            b1.OwnsOne("Request.Domain.Requests.Address", "Address", b2 =>
+                                {
+                                    b2.Property<Guid>("RequestDetailRequestId")
+                                        .HasColumnType("uniqueidentifier");
+
+                                    b2.Property<string>("District")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("District");
+
+                                    b2.Property<string>("HouseNumber")
+                                        .HasMaxLength(30)
+                                        .HasColumnType("nvarchar(30)")
+                                        .HasColumnName("HouseNumber");
+
+                                    b2.Property<string>("Moo")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Moo");
+
+                                    b2.Property<string>("Postcode")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("Postcode");
+
+                                    b2.Property<string>("ProjectName")
+                                        .HasMaxLength(100)
+                                        .HasColumnType("nvarchar(100)")
+                                        .HasColumnName("ProjectName");
+
+                                    b2.Property<string>("Province")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("Province");
+
+                                    b2.Property<string>("Road")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Road");
+
+                                    b2.Property<string>("Soi")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
+                                        .HasColumnName("Soi");
+
+                                    b2.Property<string>("SubDistrict")
+                                        .HasMaxLength(10)
+                                        .HasColumnType("nvarchar(10)")
+                                        .HasColumnName("SubDistrict");
+
+                                    b2.HasKey("RequestDetailRequestId");
+
+                                    b2.ToTable("RequestDetails", "request");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("RequestDetailRequestId");
+                                });
+
                             b1.Navigation("Address");
 
                             b1.Navigation("Appointment");
@@ -994,6 +1231,28 @@ namespace Request.Infrastructure.Migrations
                                 .HasForeignKey("RequestId");
                         });
 
+                    b.OwnsOne("Request.Domain.Requests.RequestNumber", "RequestNumber", b1 =>
+                        {
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Value")
+                                .IsRequired()
+                                .HasMaxLength(255)
+                                .HasColumnType("nvarchar(255)")
+                                .HasColumnName("RequestNumber");
+
+                            b1.HasKey("RequestId");
+
+                            b1.HasIndex("Value")
+                                .HasDatabaseName("IX_Request_RequestNumber");
+
+                            b1.ToTable("Requests", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestId");
+                        });
+
                     b.OwnsMany("Request.Domain.Requests.RequestProperty", "Properties", b1 =>
                         {
                             b1.Property<long>("Id")
@@ -1028,57 +1287,6 @@ namespace Request.Infrastructure.Migrations
                             b1.HasIndex("RequestId");
 
                             b1.ToTable("RequestProperties", "request");
-
-                            b1.WithOwner()
-                                .HasForeignKey("RequestId");
-                        });
-
-                    b.OwnsOne("Request.Domain.Requests.RequestNumber", "RequestNumber", b1 =>
-                        {
-                            b1.Property<Guid>("RequestId")
-                                .HasColumnType("uniqueidentifier");
-
-                            b1.Property<string>("Value")
-                                .IsRequired()
-                                .HasMaxLength(255)
-                                .HasColumnType("nvarchar(255)")
-                                .HasColumnName("RequestNumber");
-
-                            b1.HasKey("RequestId");
-
-                            b1.HasIndex("Value")
-                                .HasDatabaseName("IX_Request_RequestNumber");
-
-                            b1.ToTable("Requests", "request");
-
-                            b1.WithOwner()
-                                .HasForeignKey("RequestId");
-                        });
-
-                    b.OwnsOne("Shared.Models.UserInfo", "Requestor", b1 =>
-                        {
-                            b1.Property<Guid>("RequestId")
-                                .HasColumnType("uniqueidentifier");
-
-                            b1.Property<string>("UserId")
-                                .IsRequired()
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
-                                .HasColumnName("Requestor");
-
-                            b1.Property<string>("Username")
-                                .IsRequired()
-                                .HasMaxLength(100)
-                                .HasColumnType("nvarchar(100)")
-                                .HasColumnName("RequestorName");
-
-                            b1.HasKey("RequestId");
-
-                            b1.HasIndex("UserId")
-                                .HasDatabaseName("IX_Request_Requestor")
-                                .HasFilter("[IsDeleted] = 0");
-
-                            b1.ToTable("Requests", "request");
 
                             b1.WithOwner()
                                 .HasForeignKey("RequestId");

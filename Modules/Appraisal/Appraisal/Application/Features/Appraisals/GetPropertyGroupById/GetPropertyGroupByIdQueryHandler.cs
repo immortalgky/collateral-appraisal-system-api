@@ -6,7 +6,6 @@ namespace Appraisal.Application.Features.Appraisals.GetPropertyGroupById;
 /// Handler for getting a property group by ID
 /// </summary>
 public class GetPropertyGroupByIdQueryHandler(
-    IAppraisalRepository appraisalRepository,
     ISqlConnectionFactory sqlConnectionFactory
 ) : IQueryHandler<GetPropertyGroupByIdQuery, GetPropertyGroupByIdResult>
 {

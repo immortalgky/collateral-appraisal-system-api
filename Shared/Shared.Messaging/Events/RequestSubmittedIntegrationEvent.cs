@@ -27,4 +27,13 @@ public record RequestSubmittedIntegrationEvent : IntegrationEvent
     // Construction Inspection fields
     public Guid? PrevAppraisalId { get; set; }
     public string? AppraisalType { get; set; }
+
+    // Reappraisal batch label — NULL for non-reappraisal requests.
+    // Flows through to Appraisal.GroupTag; not stored on Request.
+    public string? GroupTag { get; set; }
+
+    // How the request entered the system — "UI" vs "API". Drives whether the workflow
+    // applies the appraisal-initiation-check task. Distinct from business Channel; not stored
+    // on Request. NULL for reappraisal (it discriminates on Channel == 'SIBS').
+    public string? EntrySource { get; set; }
 }

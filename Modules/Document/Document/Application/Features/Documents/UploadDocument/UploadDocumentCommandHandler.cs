@@ -6,7 +6,6 @@ namespace Document.Domain.Documents.Features.UploadDocument;
 
 internal class UploadDocumentCommandHandler(
     IDocumentUnitOfWork uow,
-    IDocumentRepository documentRepository,
     IDocumentService documentService,
     ILogger<UploadDocumentCommandHandler> logger
 ) : ICommandHandler<UploadDocumentCommand, UploadDocumentResult>

@@ -70,9 +70,10 @@ public class AppraisalFee : Entity<Guid>
         };
     }
 
-    public AppraisalFeeItem AddItem(string feeCode, string feeDescription, decimal feeAmount)
+    public AppraisalFeeItem AddItem(string feeCode, string feeDescription, decimal feeAmount,
+        bool requiresApproval = false)
     {
-        var item = AppraisalFeeItem.Create(Id, feeCode, feeDescription, feeAmount);
+        var item = AppraisalFeeItem.Create(Id, feeCode, feeDescription, feeAmount, requiresApproval);
         _items.Add(item);
         RecalculateFromItems();
         return item;
@@ -102,11 +103,16 @@ public class AppraisalFee : Entity<Guid>
 
     public void RecalculateFromItems()
     {
-        TotalFeeBeforeVAT = _items.Sum(i => i.FeeAmount);
+        // Only count items that are approved or do not require approval.
+        // Items with ApprovalStatus == "Pending" or "Rejected" are excluded from billable totals
+        // (consumption-point gate per the FeeAppointmentApproval feature design).
+        TotalFeeBeforeVAT = _items
+            .Where(i => !i.RequiresApproval || i.ApprovalStatus == "Approved")
+            .Sum(i => i.FeeAmount);
         VATAmount = TotalFeeBeforeVAT * VATRate / 100;
         TotalFeeAfterVAT = TotalFeeBeforeVAT + VATAmount;
         CustomerPayableAmount = TotalFeeAfterVAT - BankAbsorbAmount;
-        OutstandingAmount = CustomerPayableAmount - TotalPaidAmount;
+        OutstandingAmount = TotalFeeAfterVAT - TotalPaidAmount;
         UpdatePaymentStatus();
     }
 
@@ -119,7 +125,7 @@ public class AppraisalFee : Entity<Guid>
     {
         BankAbsorbAmount = amount;
         CustomerPayableAmount = TotalFeeAfterVAT - BankAbsorbAmount;
-        OutstandingAmount = CustomerPayableAmount - TotalPaidAmount;
+        OutstandingAmount = TotalFeeAfterVAT - TotalPaidAmount;
         UpdatePaymentStatus();
     }
 
@@ -131,11 +137,39 @@ public class AppraisalFee : Entity<Guid>
     public void RecordPayment(decimal paymentAmount, DateTime paymentDate,
         string? paymentMethod = null, string? paymentReference = null, string? remarks = null)
     {
-        var payment = AppraisalFeePaymentHistory.Create(
-            Id, paymentAmount, paymentDate, paymentMethod, paymentReference, remarks);
-        _paymentHistory.Add(payment);
-
+        AddPayment(paymentAmount, paymentDate, paymentMethod, paymentReference, remarks, PaymentSource.Customer);
         RecalculateFromPayments();
+    }
+
+    /// <summary>
+    /// Settles the bank-absorbed portion of this fee.
+    /// Inserts a synthetic BankAbsorb payment-history row (idempotent — will not insert a second row).
+    /// Call this when the invoice is marked Paid.
+    /// </summary>
+    public void SettleBankAbsorbed(DateTime paidDate, string? reference = null, string? remarks = null)
+    {
+        if (BankAbsorbAmount <= 0)
+            return;
+
+        // Idempotency: only insert once
+        if (_paymentHistory.Any(p => p.Source == PaymentSource.BankAbsorb))
+            return;
+
+        AddPayment(BankAbsorbAmount, paidDate, paymentMethod: null, reference, remarks, PaymentSource.BankAbsorb);
+        RecalculateFromPayments();
+    }
+
+    private void AddPayment(
+        decimal paymentAmount,
+        DateTime paymentDate,
+        string? paymentMethod,
+        string? paymentReference,
+        string? remarks,
+        string source)
+    {
+        var payment = AppraisalFeePaymentHistory.Create(
+            Id, paymentAmount, paymentDate, paymentMethod, paymentReference, remarks, source);
+        _paymentHistory.Add(payment);
     }
 
     public void UpdatePayment(Guid paymentId, decimal paymentAmount, DateTime paymentDate)
@@ -143,6 +177,9 @@ public class AppraisalFee : Entity<Guid>
         var payment = _paymentHistory.FirstOrDefault(p => p.Id == paymentId);
         if (payment == null)
             throw new NotFoundException($"Payment for {paymentDate} not found");
+
+        if (payment.Source == PaymentSource.BankAbsorb)
+            throw new InvalidOperationException("Bank-absorbed settlement payments cannot be edited.");
 
         payment.Update(paymentAmount, paymentDate);
 
@@ -155,6 +192,9 @@ public class AppraisalFee : Entity<Guid>
         if (payment == null)
             throw new NotFoundException($"Payment {paymentId} not found");
 
+        if (payment.Source == PaymentSource.BankAbsorb)
+            throw new InvalidOperationException("Bank-absorbed settlement payments cannot be deleted.");
+
         _paymentHistory.Remove(payment);
 
         RecalculateFromPayments();
@@ -163,19 +203,37 @@ public class AppraisalFee : Entity<Guid>
     public void RecalculateFromPayments()
     {
         TotalPaidAmount = _paymentHistory.Sum(p => p.PaymentAmount);
-        OutstandingAmount = CustomerPayableAmount - TotalPaidAmount;
+        OutstandingAmount = TotalFeeAfterVAT - TotalPaidAmount;
         UpdatePaymentStatus();
     }
 
     private void UpdatePaymentStatus()
     {
-        if (TotalPaidAmount >= CustomerPayableAmount && CustomerPayableAmount > 0)
-            PaymentStatus = "Paid";
-        else if (BankAbsorbAmount >= TotalFeeAfterVAT  && TotalFeeAfterVAT  > 0)
-            PaymentStatus = "Paid";
-        else if (TotalPaidAmount > 0)
-            PaymentStatus = "Partial";
-        else
+        if (TotalFeeAfterVAT <= 0)
+        {
             PaymentStatus = "NotPaid";
+            return;
+        }
+
+        if (TotalPaidAmount >= TotalFeeAfterVAT)
+        {
+            PaymentStatus = "Paid";
+            return;
+        }
+
+        // Customer has paid their share but the bank absorb row has not been inserted yet
+        var customerPaid = _paymentHistory
+            .Where(p => p.Source != PaymentSource.BankAbsorb)
+            .Sum(p => p.PaymentAmount);
+        var bankSettled = BankAbsorbAmount <= 0
+                          || _paymentHistory.Any(p => p.Source == PaymentSource.BankAbsorb);
+
+        if (customerPaid >= CustomerPayableAmount && BankAbsorbAmount > 0 && !bankSettled)
+        {
+            PaymentStatus = "PendingInvoice";
+            return;
+        }
+
+        PaymentStatus = TotalPaidAmount > 0 ? "Partial" : "NotPaid";
     }
 }

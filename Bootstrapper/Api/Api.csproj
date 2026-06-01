@@ -51,6 +51,8 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Folder Include="reappraisal\inbox\" />
+        <Folder Include="reappraisal\processed\"/>
         <Folder Include="wwwroot\"/>
     </ItemGroup>
 

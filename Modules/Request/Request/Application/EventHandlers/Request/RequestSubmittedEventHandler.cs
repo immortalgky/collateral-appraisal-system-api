@@ -63,7 +63,11 @@ public class RequestSubmittedEventHandler(
             RequestedBy = notification.Request.Requestor.UserId,
             RequestedAt = notification.Request.RequestedAt,
             PrevAppraisalId = notification.Request.Detail?.PrevAppraisalId,
-            AppraisalType = notification.Request.Purpose is "06" or "11" ? "Progressive" : null
+            AppraisalType = notification.Request.Purpose == "03" ? "ReAppraisal"
+                : notification.Request.Purpose is "06" or "11" ? "Progressive"
+                : null,
+            GroupTag = notification.GroupTag,
+            EntrySource = notification.EntrySource
         };
 
         outbox.Publish(integrationEvent, correlationId: notification.Request.Id.ToString());

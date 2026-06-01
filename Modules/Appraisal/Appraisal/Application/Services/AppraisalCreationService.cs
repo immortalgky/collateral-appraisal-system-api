@@ -39,6 +39,7 @@ public class AppraisalCreationService(
         Guid? prevAppraisalId = null,
         string? appraisalType = null,
         Guid? workflowDefinitionId = null,
+        string? groupTag = null,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Creating appraisal from request {RequestId} with {TitleCount} titles",
@@ -77,20 +78,27 @@ public class AppraisalCreationService(
                             && prevAppraisalId.HasValue;
         var isBlock = titlesToProcess.Any(t => ProjectCodes.Contains(t.CollateralType ?? ""));
 
-        // Step 3: Resolve workflow-level SLA budget. workflowDefinitionId is optional because the caller
-        // (AppraisalCreationRequestedIntegrationEventHandler) may not always know the definition ID at
-        // creation time. When null, the appraisal SLA hours remain null instead of using a hardcoded fallback.
+        // Step 3: Resolve workflow-level SLA budget. The publish paths now carry WorkflowDefinitionId,
+        // so this is normally non-null. Kept optional as a defensive guard: when null (e.g. a future
+        // caller without workflow context), SLA stays null rather than using a hardcoded fallback.
+        // Use the snapshot's business-hours-aware DueAt (already in application-local time) rather
+        // than recomputing a naive calendar delta, and anchor it to the same base time the appraisal
+        // records below (requestedAt ?? ApplicationNow) so SLAHours, SLADueDate and the base agree.
         int? appraisalSlaHours = null;
+        DateTime? appraisalSlaDueDate = null;
         if (workflowDefinitionId.HasValue)
         {
+            var slaBase = requestedAt ?? dateTimeProvider.ApplicationNow;
             var slaSnapshot = await slaCalculatorClient.GetWorkflowSlaAsync(
-                workflowDefinitionId.Value, loanType: null, startedAt: DateTime.Now, cancellationToken);
+                workflowDefinitionId.Value, loanType: null, startedAt: slaBase, cancellationToken);
             appraisalSlaHours = slaSnapshot?.DurationHours;
+            appraisalSlaDueDate = slaSnapshot?.DueAt;
         }
 
         // Step 4: Create Appraisal aggregate
         var resolvedAppraisalType =
             isProgressive ? AppraisalTypes.Progressive
+            : appraisalType == AppraisalTypes.ReAppraisal ? AppraisalTypes.ReAppraisal
             : isBlock ? AppraisalTypes.PreAppraisal
             : AppraisalTypes.New;
         var appraisal = Domain.Appraisals.Appraisal.Create(
@@ -99,6 +107,7 @@ public class AppraisalCreationService(
             priority ?? "Normal",
             dateTimeProvider.ApplicationNow,
             appraisalSlaHours,
+            appraisalSlaDueDate,
             requestedBy ?? createdBy,
             isPma,
             purpose,
@@ -107,7 +116,11 @@ public class AppraisalCreationService(
             facilityLimit,
             hasAppraisalBook,
             requestedAt,
-            isProgressive ? prevAppraisalId : null);
+            prevAppraisalId);
+
+        // Stamp the reappraisal batch tag when provided (system-only; no user edit path).
+        if (!string.IsNullOrWhiteSpace(groupTag))
+            appraisal.SetGroupTag(groupTag);
 
         // Track prior→new property mapping so we can duplicate PropertyPhotoMapping rows
         // AFTER Phase 1 SaveChanges (which is where DB-generated IDs land on the new properties).

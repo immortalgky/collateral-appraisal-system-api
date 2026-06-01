@@ -7,6 +7,8 @@ using Workflow.Workflow.Models;
 using Workflow.Data.Entities;
 using Workflow.Sla.Models;
 using Workflow.DocumentFollowups.Domain;
+using Workflow.FeeAppointmentApprovals.Domain;
+using Workflow.FeeAppointmentApprovals.Infrastructure;
 
 namespace Workflow.Data;
 
@@ -49,6 +51,11 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
 
     // Document followup entities
     public DbSet<DocumentFollowup> DocumentFollowups => Set<DocumentFollowup>();
+
+    // Fee appointment approval entities
+    public DbSet<FeeAppointmentApproval> FeeAppointmentApprovals => Set<FeeAppointmentApproval>();
+    public DbSet<FeeApprovalTier> FeeApprovalTiers => Set<FeeApprovalTier>();
+    public DbSet<AppointmentApprovalRule> AppointmentApprovalRules => Set<AppointmentApprovalRule>();
 
     // Meeting entities
     public DbSet<Meeting> Meetings => Set<Meeting>();

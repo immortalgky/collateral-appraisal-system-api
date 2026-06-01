@@ -98,6 +98,10 @@ public class AppraisalFeePaymentHistoryConfiguration : IEntityTypeConfiguration<
         builder.Property(p => p.PaymentMethod).HasMaxLength(50);
         builder.Property(p => p.PaymentReference).HasMaxLength(100);
         builder.Property(p => p.Remarks).HasMaxLength(4000);
+        builder.Property(p => p.Source)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasDefaultValue(PaymentSource.Customer);
 
         builder.HasIndex(p => p.AppraisalFeeId);
     }

@@ -61,6 +61,11 @@ public class Appraisal : Aggregate<Guid>
     public string? CancelledBy { get; private set; }
     public string? CancelReason { get; private set; }
 
+    // Reappraisal batch label — system-assigned, not user-editable.
+    // NULL for appraisals that are not part of a periodical reappraisal batch.
+    // Canonical home for the value produced by ReappraisalGroupNumberGenerator.
+    public string? GroupTag { get; private set; }
+
     // Soft Delete
     public SoftDelete SoftDelete { get; private set; } = SoftDelete.NotDeleted();
 
@@ -75,6 +80,7 @@ public class Appraisal : Aggregate<Guid>
         string appraisalType,
         string priority,
         int? slaHours,
+        DateTime? slaDueDate,
         bool isPma,
         string? purpose,
         string? channel,
@@ -104,7 +110,11 @@ public class Appraisal : Aggregate<Guid>
 
         if (slaHours.HasValue)
         {
-            SLADueDate = (requestedAt ?? now).AddHours(slaHours.Value);
+            // Prefer the precomputed business-hours-aware due date (application-local) from the SLA
+            // policy snapshot; fall back to a naive calendar delta off the local base (requestedAt ??
+            // now, both ApplicationNow-local) when no due date is supplied (e.g. the manual
+            // CreateAppraisal path, which has no workflow/SLA-policy context).
+            SLADueDate = slaDueDate ?? (requestedAt ?? now).AddHours(slaHours.Value);
             SLAStatus = "OnTrack";
         }
     }
@@ -118,6 +128,7 @@ public class Appraisal : Aggregate<Guid>
         string priority,
         DateTime now,
         int? slaHours = null,
+        DateTime? slaDueDate = null,
         string? requestedBy = null,
         bool isPma = false,
         string? purpose = null,
@@ -131,7 +142,7 @@ public class Appraisal : Aggregate<Guid>
         ArgumentException.ThrowIfNullOrWhiteSpace(appraisalType);
         ArgumentException.ThrowIfNullOrWhiteSpace(priority);
 
-        var appraisal = new Appraisal(requestId, appraisalType, priority, slaHours,
+        var appraisal = new Appraisal(requestId, appraisalType, priority, slaHours, slaDueDate,
             isPma, purpose, channel, bankingSegment, facilityLimit, hasAppraisalBook,
             requestedBy, requestedAt, prevAppraisalId, now);
         appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal, requestedBy));
@@ -147,6 +158,20 @@ public class Appraisal : Aggregate<Guid>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(number);
         AppraisalNumber = number;
+    }
+
+    /// <summary>
+    /// Sets the reappraisal batch group tag (e.g. "26G000001").
+    /// System-only — called once during appraisal creation for reappraisal batches.
+    /// Idempotent: re-setting the same value is allowed.
+    /// </summary>
+    public void SetGroupTag(string tag)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tag);
+        var trimmed = tag.Trim();
+        if (trimmed.Length > 40)
+            throw new ArgumentException("GroupTag must not exceed 40 characters.", nameof(tag));
+        GroupTag = trimmed;
     }
 
     #region Property Management

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Workflow.Workflow.Pipeline.Validation;
 
 namespace Workflow.Workflow.Pipeline;
 
@@ -9,6 +10,10 @@ namespace Workflow.Workflow.Pipeline;
 public sealed record ProcessStepContext
 {
     public Guid WorkflowInstanceId { get; init; }
+
+    /// <summary>The workflow definition this instance runs under. Used by steps that publish
+    /// integration events needing the definition id (e.g. appraisal creation → workflow-scope SLA).</summary>
+    public Guid WorkflowDefinitionId { get; init; }
 
     /// <summary>The workflow activity execution id for this completion attempt.</summary>
     public Guid WorkflowActivityExecutionId { get; init; }
@@ -44,6 +49,17 @@ public sealed record ProcessStepContext
     /// Appraisal ID from Variables["appraisalId"]. Null before appraisal creation.
     /// </summary>
     public Guid? AppraisalId { get; init; }
+
+    // ── Appraisal data scope (set by steps that load validation context) ──
+
+    /// <summary>
+    /// Optional flat dictionary of appraisal field values keyed by <see cref="Validation.AppraisalFieldRegistry"/> key.
+    /// Populated by <c>ValidateAppraisalFieldsStep</c> before evaluating expression rules,
+    /// and injected into the Jint sandbox as the <c>appraisal</c> global.
+    /// Default is an empty dictionary.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?> AppraisalData { get; init; } =
+        new Dictionary<string, object?>();
 
     // ── B5: Explicit variable mutation API ────────────────────────────────
 

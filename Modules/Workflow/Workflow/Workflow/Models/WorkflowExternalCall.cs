@@ -13,7 +13,7 @@ public class WorkflowExternalCall : Entity<Guid>
     public Dictionary<string, string> Headers { get; private set; } = new();
     public string IdempotencyKey { get; private set; } = default!;
     public ExternalCallStatus Status { get; private set; }
-    public DateTime CreatedAt { get; private set; }
+    public new DateTime CreatedAt { get; private set; }
     public DateTime? StartedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
     public string? ResponsePayload { get; private set; }
