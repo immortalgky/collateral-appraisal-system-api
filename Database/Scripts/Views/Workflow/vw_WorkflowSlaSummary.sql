@@ -12,9 +12,11 @@ SELECT
     wi.CurrentActivityId,
     wi.CurrentAssignee,
     wi.StartedBy,
-    DATEDIFF(HOUR, wi.StartedOn, COALESCE(wi.CompletedOn, GETUTCDATE())) AS ElapsedHours,
+    -- StartedOn / CompletedOn / WorkflowDueAt are stored in application-local time, so compare
+    -- against local GETDATE() (not GETUTCDATE()) — matching the other SLA/task list views.
+    DATEDIFF(HOUR, wi.StartedOn, COALESCE(wi.CompletedOn, GETDATE())) AS ElapsedHours,
     CASE
-        WHEN wi.WorkflowDueAt IS NOT NULL THEN DATEDIFF(HOUR, GETUTCDATE(), wi.WorkflowDueAt)
+        WHEN wi.WorkflowDueAt IS NOT NULL THEN DATEDIFF(HOUR, GETDATE(), wi.WorkflowDueAt)
         ELSE NULL
         END AS RemainingHours,
     -- Count of breached activities for this workflow

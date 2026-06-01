@@ -91,6 +91,7 @@ public class EmitAppraisalCreationRequestedStep(
 
             outbox.Publish(new AppraisalCreationRequestedIntegrationEvent
             {
+                WorkflowDefinitionId = ctx.WorkflowDefinitionId,
                 RequestId = source.RequestId,
                 RequestTitles = source.RequestTitles,
                 Appointment = source.Appointment,
@@ -107,7 +108,8 @@ public class EmitAppraisalCreationRequestedStep(
                 RequestedBy = source.RequestedBy,
                 RequestedAt = source.RequestedAt,
                 PrevAppraisalId = source.PrevAppraisalId,
-                AppraisalType = source.AppraisalType
+                AppraisalType = source.AppraisalType,
+                GroupTag = source.GroupTag
             }, source.RequestId.ToString());
 
             // B5: Queue the write via SetVariable so it is persisted to the WorkflowInstance

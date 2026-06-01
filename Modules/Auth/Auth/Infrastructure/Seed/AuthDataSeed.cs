@@ -71,7 +71,9 @@ public class AuthDataSeed(
                 "COLLATERAL_ADMIN",
                 "INVOICE_VIEW", "INVOICE_APPROVE", "REPORT_EVALUATION_VIEW",
                 "STANDALONE_USE",
-                "BLOCK_UNIT_MAINT_VIEW", "BLOCK_UNIT_MAINT_EDIT",
+                "BLOCK_UNIT_MAINT_VIEW", "BLOCK_UNIT_MAINT_EDIT", "REAPPRAISAL_VIEW",
+                "TASK_FEE_APPOINTMENT_APPROVAL", "FEE_APPROVAL_CONFIG", "APPOINTMENT_APPROVAL_CONFIG",
+                "WORKFLOW_ADMIN",
                 ..appraisalSectionViews
             ]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
@@ -91,7 +93,8 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "REQUEST_CREATE", "TASK_LIST_VIEW",
                 "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION", "TASK_PROVIDE_ADDITIONAL_DOCS",
-                "QUOTATION_VIEW", "TASK_QUOTATION_PICK_WINNER"
+                "QUOTATION_VIEW", "TASK_QUOTATION_PICK_WINNER",
+                "STANDALONE_USE", "REAPPRAISAL_VIEW"
             ]);
         await SeedRoleWithPermissionsAsync(RequestCheckerRoleName,
             "Request Checker — reviews and approves incoming appraisal requests.",
@@ -116,6 +119,7 @@ public class AuthDataSeed(
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_CHECK",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
+                "TASK_FEE_APPOINTMENT_APPROVAL",
                 "SUPPORTING_DATA_MAINT_DECISION",
                 "SUPPORTING_DATA_MAINT_VIEW",
                 ..appraisalSectionViews
@@ -566,6 +570,11 @@ public class AuthDataSeed(
                 "View block/project unit listing and sale-status details", "Appraisal"),
             ("BLOCK_UNIT_MAINT_EDIT", "Edit Block Unit Maintenance",
                 "Update unit sold status, purchase method, and financing bank", "Appraisal"),
+            // Periodical Reappraisal — AS400 (FSD §3.6)
+            ("REAPPRAISAL_VIEW", "View Reappraisal (AS400)",
+                "Browse AS400 reappraisal candidates and initiate reappraisal requests", "Request"),
+            ("REAPPRAISAL_GENERATE_TEST_FILE", "Generate Reappraisal Test File (QA)",
+                "Generate a COLLATREV test file from completed appraisals (QA/testing)", "Request"),
             // Webhook Deliveries admin
             ("WEBHOOK_DELIVERIES_VIEW", "View Webhook Deliveries",
                 "View paginated webhook delivery list and delivery details", "Integration"),
@@ -595,12 +604,41 @@ public class AuthDataSeed(
                 "Monitor external appraisal verification tasks", "Common"),
             ("MONITORING:PENDING_EXTERNAL:ADMIN", "Monitoring: Pending External (Admin)",
                 "Monitor external appraisal assignment tasks", "Common"),
+            // Team-scoped variants (:TEAM) — restrict the layer to the monitor's own team members
+            ("MONITORING:PENDING_INTERNAL:STAFF:TEAM", "Monitoring: Pending Internal (Staff) — own team only",
+                "Monitor internal appraisal execution and book verification tasks of own team members", "Common"),
+            ("MONITORING:PENDING_INTERNAL:CHECKER:TEAM", "Monitoring: Pending Internal (Checker) — own team only",
+                "Monitor internal appraisal check tasks of own team members", "Common"),
+            ("MONITORING:PENDING_INTERNAL:VERIFIER:TEAM", "Monitoring: Pending Internal (Verifier) — own team only",
+                "Monitor internal appraisal verification tasks of own team members", "Common"),
+            ("MONITORING:PENDING_INTERNAL:APPROVER:TEAM", "Monitoring: Pending Internal (Approver) — own team only",
+                "Monitor pending approval (committee) tasks of own team members", "Common"),
+            ("MONITORING:PENDING_INTERNAL:ADMIN:TEAM", "Monitoring: Pending Internal (Admin) — own team only",
+                "Monitor internal appraisal assignment tasks of own team members", "Common"),
+            ("MONITORING:PENDING_EXTERNAL:STAFF:TEAM", "Monitoring: Pending External (Staff) — own team only",
+                "Monitor external appraisal execution tasks of own team members", "Common"),
+            ("MONITORING:PENDING_EXTERNAL:CHECKER:TEAM", "Monitoring: Pending External (Checker) — own team only",
+                "Monitor external appraisal check tasks of own team members", "Common"),
+            ("MONITORING:PENDING_EXTERNAL:VERIFIER:TEAM", "Monitoring: Pending External (Verifier) — own team only",
+                "Monitor external appraisal verification tasks of own team members", "Common"),
+            ("MONITORING:PENDING_EXTERNAL:ADMIN:TEAM", "Monitoring: Pending External (Admin) — own team only",
+                "Monitor external appraisal assignment tasks of own team members", "Common"),
             ("MONITORING:PENDING_FOLLOWUP", "Monitoring: Pending Follow Up",
                 "View pending document followup monitoring screen", "Common"),
             ("MONITORING:PENDING_EVALUATION", "Monitoring: Pending Evaluation",
                 "View pending company evaluation monitoring screen", "Common"),
             ("MONITORING:MEETING_FOLLOWUP", "Monitoring: Meeting Follow Up",
                 "Monitor pending committee-approval tasks across all 3 tiers (SUB_COMMITTEE, COMMITTEE, COMMITTEE_WITH_MEETING)", "Common"),
+            // Fee & Appointment Approval feature
+            ("TASK_FEE_APPOINTMENT_APPROVAL", "Task: Fee & Appointment Approval",
+                "Access fee and appointment change approval tasks raised by external companies", "Workflow"),
+            ("FEE_APPROVAL_CONFIG", "Manage Fee Approval Tiers",
+                "View and edit the fee approval tier matrix", "Workflow"),
+            ("APPOINTMENT_APPROVAL_CONFIG", "Manage Appointment Approval Rule",
+                "View and edit the appointment change approval rule", "Workflow"),
+            // Workflow step validation admin (configurable activity-completion validation rules)
+            ("WORKFLOW_ADMIN", "Workflow Step Validation Admin",
+                "View and manage configurable activity-completion validation step rules", "Workflow")
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)

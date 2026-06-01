@@ -3,8 +3,13 @@ namespace Common.Application.Features.Monitoring.Shared;
 /// <summary>
 /// Permission codes for the Monitoring feature (FSD §2.6.8).
 /// Uppercase with colon-separated scope segments. Within-segment words use underscore.
-/// Format: MODULE:SCREEN[:SCOPE_OR_LAYER]
+/// Format: MODULE:SCREEN:LAYER[:TEAM]
 /// Example: MONITORING:PENDING_INTERNAL:CHECKER
+///
+/// Layer-scoped screens (Pending Internal / External) accept an optional trailing :TEAM
+/// modifier. Without it the monitor sees every staff's tasks in that stage; with it the
+/// monitor sees only tasks assigned to members of their own auth.Teams team. The two can be
+/// mixed across layers (e.g. CHECKER:TEAM + VERIFIER). See <see cref="MonitoringScopeService"/>.
 /// </summary>
 public static class MonitoringPermissions
 {

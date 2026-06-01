@@ -782,7 +782,7 @@
         "id": "start-to-appraisal-initiation-check",
         "from": "start",
         "to": "appraisal-initiation-check",
-        "condition": "channel == 'MANUAL'",
+        "condition": "entrySource == 'UI'",
         "properties": {},
         "type": "Conditional"
       },
@@ -790,7 +790,7 @@
         "id": "start-to-await-appraisal-created",
         "from": "start",
         "to": "await-appraisal-created",
-        "condition": "channel != 'MANUAL'",
+        "condition": "entrySource != 'UI'",
         "properties": {},
         "type": "Conditional"
       },
@@ -803,12 +803,20 @@
         "type": "Conditional"
       },
       {
+        "id": "await-appraisal-created-to-assignment",
+        "from": "await-appraisal-created",
+        "to": "appraisal-assignment",
+        "condition": "channel == 'SIBS'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
         "id": "await-appraisal-created-to-routing",
         "from": "await-appraisal-created",
         "to": "initial-routing",
-        "condition": null,
+        "condition": "channel != 'SIBS'",
         "properties": {},
-        "type": "Normal"
+        "type": "Conditional"
       },
       {
         "id": "appraisal-initiation-check-route-back",
@@ -830,9 +838,17 @@
         "id": "appraisal-initiation-to-appraisal-initiation-check",
         "from": "appraisal-initiation",
         "to": "appraisal-initiation-check",
-        "condition": null,
+        "condition": "entrySource == 'UI'",
         "properties": {},
-        "type": "Normal"
+        "type": "Conditional"
+      },
+      {
+        "id": "appraisal-initiation-to-appraisal-assignment-non-ui",
+        "from": "appraisal-initiation",
+        "to": "appraisal-assignment",
+        "condition": "entrySource != 'UI'",
+        "properties": {},
+        "type": "Conditional"
       },
       {
         "id": "routing-to-admin",
@@ -958,7 +974,15 @@
         "id": "ext-assignment-route-back",
         "from": "ext-appraisal-assignment",
         "to": "appraisal-initiation-check",
-        "condition": "decision == 'route_back'",
+        "condition": "decision == 'route_back' && entrySource == 'UI'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "ext-assignment-route-back-non-ui",
+        "from": "ext-appraisal-assignment",
+        "to": "appraisal-assignment",
+        "condition": "decision == 'route_back' && entrySource != 'UI'",
         "properties": {},
         "type": "Conditional"
       },

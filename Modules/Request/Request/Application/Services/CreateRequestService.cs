@@ -46,7 +46,9 @@ public class CreateRequestService(
         // a throw in Submit() still rolls back via TransactionalBehavior.
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        request.Submit(submittedAt);
+        // Sole caller is the Integration (API) module — mark the entry source so the workflow
+        // skips the appraisal-initiation-check task that the UI path requires.
+        request.Submit(submittedAt, entrySource: "API");
 
         return (request, titles);
     }

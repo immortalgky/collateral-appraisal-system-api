@@ -6,9 +6,11 @@ using Request.Application.Services;
 using Request.Domain.RequestComments;
 using Request.Domain.RequestTitles;
 using Request.Infrastructure;
+using Request.Infrastructure.Reappraisal;
 using Request.Infrastructure.Repositories;
 using Request.Infrastructure.Seed;
 using Shared.Data.Interceptors;
+using Shared.Reappraisal;
 
 namespace Request;
 
@@ -31,6 +33,25 @@ public static class RequestModule
         services.AddScoped<IRepository<RequestComment, Guid>, RequestCommentRepository>();
 
         services.AddScoped<IAppraisalNumberGenerator, AppraisalNumberGenerator>();
+        services.AddScoped<IReappraisalGroupNumberGenerator, ReappraisalGroupNumberGenerator>();
+
+        // Reappraisal file ingestion: config-switched Local (dev) / SFTP (UAT-prod).
+        services.Configure<ReappraisalOptions>(configuration.GetSection(ReappraisalOptions.SectionName));
+        var fileSourceType = configuration
+            .GetSection(ReappraisalOptions.SectionName)
+            .GetValue<string>("FileSource") ?? "Local";
+
+        if (string.Equals(fileSourceType, "Sftp", StringComparison.OrdinalIgnoreCase))
+            services.AddScoped<IReappraisalFileSource, SftpFileSource>();
+        else
+            services.AddScoped<IReappraisalFileSource, LocalFolderFileSource>();
+
+        services.AddScoped<CollatrevFileParser>();
+        services.AddScoped<ReappraisalIngestionJob>();
+
+        // Dev-only test-file generator (endpoint gated to Development in GenerateTestFileEndpoint).
+        services.AddSingleton<CollatrevFileWriter>();
+        services.AddScoped<CollatrevTestFileBuilder>();
         services.AddScoped<IRequestSyncService, RequestSyncService>();
         services.AddScoped<
             Request.Contracts.RequestDocuments.IRequestDocumentAttacher,

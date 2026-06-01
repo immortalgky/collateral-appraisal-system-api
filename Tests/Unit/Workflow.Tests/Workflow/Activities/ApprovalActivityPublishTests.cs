@@ -90,7 +90,7 @@ public class ApprovalActivityPublishTests
             .Returns(false);
 
         // Returning the one "approve" vote (quorum=1 so this is the deciding vote)
-        var approveVote = ApprovalVote.Create(instance.Id, activityId, execution.Id, "voter1", "Analyst", "approve", null);
+        var approveVote = ApprovalVote.Create(appraisalId, instance.Id, activityId, execution.Id, "voter1", "Analyst", "approve", null);
         _voteRepository.GetVotesForExecutionAsync(execution.Id, Arg.Any<CancellationToken>())
             .Returns(new List<ApprovalVote> { approveVote });
 
@@ -168,7 +168,7 @@ public class ApprovalActivityPublishTests
         _voteRepository.HasMemberVotedAsync(execution.Id, "voter1", Arg.Any<CancellationToken>())
             .Returns(false);
 
-        var approveVote = ApprovalVote.Create(instance.Id, activityId, execution.Id, "voter1", null, "approve", null);
+        var approveVote = ApprovalVote.Create(appraisalId, instance.Id, activityId, execution.Id, "voter1", null, "approve", null);
         _voteRepository.GetVotesForExecutionAsync(execution.Id, Arg.Any<CancellationToken>())
             .Returns(new List<ApprovalVote> { approveVote });
 

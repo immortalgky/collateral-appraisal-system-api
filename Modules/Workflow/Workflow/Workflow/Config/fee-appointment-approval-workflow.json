@@ -1,0 +1,94 @@
+{
+  "name": "Fee Appointment Approval Workflow",
+  "description": "Single-approver approval workflow for external company fee and appointment change requests",
+  "category": "Appraisal",
+  "createdBy": "system-admin",
+  "workflowSchema": {
+    "id": "fee-appointment-approval-workflow",
+    "name": "Fee Appointment Approval Workflow",
+    "description": "Single-approver approval workflow for external company fee and appointment change requests",
+    "category": "Appraisal",
+    "activities": [
+      {
+        "id": "start",
+        "name": "Workflow Start",
+        "type": "StartActivity",
+        "description": "Initial workflow entry point",
+        "properties": {},
+        "position": { "x": 100, "y": 100 },
+        "requiredRoles": [],
+        "isStartActivity": true,
+        "isEndActivity": false
+      },
+      {
+        "id": "fee-appointment-approval",
+        "name": "Approve Fee & Appointment Change",
+        "type": "TaskActivity",
+        "description": "Approver reviews and decides on the bundled fee/appointment change request",
+        "properties": {
+          "activityName": "ApproveFeeAppointmentChange",
+          "assigneeGroup": "Approver",
+          "assignmentStrategies": "variable_assignee",
+          "assigneeVariable": "approverAssignee",
+          "assignedTypeVariable": "assignedType",
+          "initialAssignmentStrategies": [ "variable_assignee" ],
+          "revisitAssignmentStrategies": [ "variable_assignee" ],
+          "timeoutDuration": "PT24H",
+          "actions": [
+            { "value": "approve", "label": "Approve", "assignmentMode": "system", "movement": "F" },
+            { "value": "reject",  "label": "Reject",  "assignmentMode": "system", "movement": "F" }
+          ]
+        },
+        "position": { "x": 250, "y": 100 },
+        "requiredRoles": [],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
+        "id": "workflow-completed",
+        "name": "Approval Completed",
+        "type": "EndActivity",
+        "description": "Fee and appointment approval workflow completed",
+        "properties": {
+          "completionMessage": "Fee and appointment approval resolved"
+        },
+        "position": { "x": 400, "y": 100 },
+        "requiredRoles": [],
+        "isStartActivity": false,
+        "isEndActivity": true
+      }
+    ],
+    "transitions": [
+      {
+        "id": "start-to-approval",
+        "from": "start",
+        "to": "fee-appointment-approval",
+        "condition": null,
+        "properties": {},
+        "type": "Normal"
+      },
+      {
+        "id": "approval-to-end",
+        "from": "fee-appointment-approval",
+        "to": "workflow-completed",
+        "condition": null,
+        "properties": {},
+        "type": "Normal"
+      }
+    ],
+    "variables": {
+      "feeAppointmentApprovalId": "",
+      "appraisalId": "",
+      "approverAssignee": "",
+      "assignedType": "",
+      "decisionTaken": ""
+    },
+    "metadata": {
+      "author": "System Admin",
+      "createdDate": "2026-05-31T00:00:00Z",
+      "version": "1.0",
+      "tags": [ "appraisal", "fee", "appointment", "approval" ],
+      "customProperties": {}
+    }
+  }
+}

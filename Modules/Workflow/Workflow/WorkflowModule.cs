@@ -24,6 +24,8 @@ using Workflow.Sla.Services;
 using Workflow.Workflow.Hubs;
 using Workflow.DocumentFollowups.Application;
 using Workflow.DocumentFollowups.Infrastructure;
+using Workflow.FeeAppointmentApprovals.Application.Policy;
+using Workflow.FeeAppointmentApprovals.Infrastructure;
 using Workflow.Meetings.Configuration;
 using Appraisal.Contracts.Services;
 using Workflow.Tasks.Services;
@@ -196,6 +198,8 @@ public static class WorkflowModule
         services.AddScoped<IActivityProcessStep, SetVariableStep>();
         services.AddScoped<IActivityProcessStep, RequireDocumentFollowupClearedStep>();
         services.AddScoped<IActivityProcessStep, RequireNoActiveQuotationStep>();
+        services.AddScoped<IActivityProcessStep, ValidateAppraisalFieldsStep>();
+        services.AddScoped<IActivityProcessStep, ValidatePropertyMandatoryFieldsStep>();
         services.AddSingleton<IStepCatalog>(sp =>
         {
             // Build catalog from a transient scope so we get one instance of each step for descriptor reading
@@ -205,11 +209,17 @@ public static class WorkflowModule
         });
         services.AddSingleton<IPredicateEvaluator, JintPredicateEvaluator>();
         services.AddScoped<IActivityProcessExecutionSink, ActivityProcessExecutionSink>();
+        // SignalR-backed progress reporter pushes per-step events to user-{userId} group.
+        // NoOpActivityProgressReporter is available for callers without a live Hub context.
+        services.AddScoped<IActivityProgressReporter, SignalRActivityProgressReporter>();
         services.AddScoped<IActivityProcessPipeline, ActivityProcessPipeline>();
         services.AddScoped<AppraisalCreationTriggerEvaluator>();
 
         // Document followup services
         services.AddScoped<IDocumentFollowupGate, DocumentFollowupGate>();
+
+        // Fee appointment approval services
+        services.AddScoped<IFeeAppointmentApprovalPolicyService, FeeAppointmentApprovalPolicyService>();
 
         // Data seeders
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Data.Seed.ActivityProcessConfigurationSeeder>();
@@ -218,6 +228,8 @@ public static class WorkflowModule
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Workflow.Infrastructure.Seed.QuotationWorkflowDefinitionSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Sla.Infrastructure.Seed.BusinessHoursConfigSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Sla.Infrastructure.Seed.AppraisalSlaPolicySeeder>();
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, FeeAppointmentApprovalWorkflowDefinitionSeeder>();
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, FeeApprovalDefaultConfigSeeder>();
 
         // Workflow DbContext with its own migration assembly and history table
         services.AddDbContext<WorkflowDbContext>((sp, options) =>

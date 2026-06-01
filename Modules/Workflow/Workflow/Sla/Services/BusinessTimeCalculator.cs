@@ -10,7 +10,10 @@ public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache ca
     {
         var config = await GetBusinessHoursConfigAsync(ct);
         if (config is null)
-            return from.AddHours(hours); // fallback to calendar time
+            // Fallback to plain calendar time when no business-hours config is seeded. Surface the
+            // result as Unspecified-local to match the main return path (all current callers pass a
+            // local `from`), so the method's output Kind is consistent regardless of config presence.
+            return DateTime.SpecifyKind(from.AddHours(hours), DateTimeKind.Unspecified);
 
         var tz = TimeZoneInfo.FindSystemTimeZoneById(config.TimeZone);
         var holidays = await GetHolidaysAsync(from, hours, ct);
@@ -96,7 +99,13 @@ public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache ca
             }
         }
 
-        return TimeZoneInfo.ConvertTimeToUtc(current, tz);
+        // Return the cursor as application-local wall-clock (the configured business timezone),
+        // NOT UTC. The whole app persists and compares dates in local time (IDateTimeProvider.
+        // ApplicationNow, GETDATE() in views, SlaMonitorService compares against ApplicationNow),
+        // so returning local keeps SLA due dates consistent with CreatedAt and removes the need for
+        // per-caller UTC→local conversion. `current` is already wall-clock in `tz`; surface it as
+        // Unspecified to match the Kind produced by IDateTimeProvider.ApplicationNow.
+        return DateTime.SpecifyKind(current, DateTimeKind.Unspecified);
     }
 
     private async Task<BusinessHoursConfigDto?> GetBusinessHoursConfigAsync(CancellationToken ct)

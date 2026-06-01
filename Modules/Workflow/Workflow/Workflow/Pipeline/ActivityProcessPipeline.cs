@@ -14,6 +14,7 @@ namespace Workflow.Workflow.Pipeline;
 /// Phase 2: If Validations pass, Action steps run; first failure halts (stop-on-first).
 /// Trace rows are persisted via IActivityProcessExecutionSink on a separate connection
 /// so they survive an outer transaction rollback.
+/// Progress events are pushed via IActivityProgressReporter (no-op by default).
 /// </summary>
 public sealed class ActivityProcessPipeline : IActivityProcessPipeline
 {
@@ -21,6 +22,7 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
     private readonly IWorkflowInstanceRepository _workflowInstanceRepository;
     private readonly IPredicateEvaluator _predicateEvaluator;
     private readonly IActivityProcessExecutionSink _executionSink;
+    private readonly IActivityProgressReporter _progressReporter;
     private readonly ILogger<ActivityProcessPipeline> _logger;
     private readonly Dictionary<string, IActivityProcessStep> _stepsByName;
 
@@ -30,12 +32,14 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
         IPredicateEvaluator predicateEvaluator,
         IEnumerable<IActivityProcessStep> steps,
         IActivityProcessExecutionSink executionSink,
+        IActivityProgressReporter progressReporter,
         ILogger<ActivityProcessPipeline> logger)
     {
         _dbContext = dbContext;
         _workflowInstanceRepository = workflowInstanceRepository;
         _predicateEvaluator = predicateEvaluator;
         _executionSink = executionSink;
+        _progressReporter = progressReporter;
         _logger = logger;
 
         _stepsByName = steps.ToDictionary(
@@ -64,6 +68,20 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
             return PipelineResult.Success();
         }
 
+        // Build StepInfo list from ordered configs for the progress reporter.
+        // DisplayName is resolved from the registered step descriptor; falls back to StepName.
+        var stepInfos = configs.Select(c =>
+        {
+            var displayName = _stepsByName.TryGetValue(c.ProcessorName, out var s)
+                ? s.Descriptor.DisplayName
+                : c.StepName;
+            return new StepInfo(c.ProcessorName, displayName, c.SortOrder, c.Kind.ToString());
+        }).ToList();
+
+        await TryReportAsync(() =>
+            _progressReporter.PipelineStarted(
+                workflowActivityExecutionId, activityName, stepInfos, completedBy, ct));
+
         // Load workflow instance for Variables + CorrelationId
         var workflowInstance = await _workflowInstanceRepository.GetByIdAsync(workflowInstanceId, ct)
             ?? throw new InvalidOperationException($"Workflow instance {workflowInstanceId} not found");
@@ -78,6 +96,7 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
         var baseCtx = new ProcessStepContext
         {
             WorkflowInstanceId = workflowInstanceId,
+            WorkflowDefinitionId = workflowInstance.WorkflowDefinitionId,
             WorkflowActivityExecutionId = workflowActivityExecutionId,
             ActivityId = activityName,    // W9: populated from activityName (correct for lookup)
             ActivityName = activityName,
@@ -100,9 +119,18 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
         var validationConfigs = configs.Where(c => c.Kind == StepKind.Validation).ToList();
         foreach (var config in validationConfigs)
         {
+            var stepInfo = BuildStepInfo(config);
+            await TryReportAsync(() =>
+                _progressReporter.StepStarted(workflowActivityExecutionId, stepInfo, completedBy, ct));
+
             var ctx = WithParameters(baseCtx, config.ParametersJson);
             var (trace, failure) = await ExecuteStepAsync(
                 config, ctx, workflowInstanceId, workflowActivityExecutionId, ct);
+
+            await TryReportAsync(() =>
+                _progressReporter.StepFinished(
+                    workflowActivityExecutionId, stepInfo,
+                    trace.Outcome.ToString(), trace.DurationMs, completedBy, ct));
 
             traces.Add(trace);
 
@@ -127,15 +155,27 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
             }
 
             await _executionSink.PersistAsync(traces, ct);
+            await TryReportAsync(() =>
+                _progressReporter.PipelineFinished(
+                    workflowActivityExecutionId, "ValidationsFailed", completedBy, ct));
             return PipelineResult.ValidationsFailed(validationFailures);
         }
 
         StepFailure? actionFailure = null;
         foreach (var config in actionConfigs)
         {
+            var stepInfo = BuildStepInfo(config);
+            await TryReportAsync(() =>
+                _progressReporter.StepStarted(workflowActivityExecutionId, stepInfo, completedBy, ct));
+
             var ctx = WithParameters(baseCtx, config.ParametersJson);
             var (trace, failure) = await ExecuteStepAsync(
                 config, ctx, workflowInstanceId, workflowActivityExecutionId, ct);
+
+            await TryReportAsync(() =>
+                _progressReporter.StepFinished(
+                    workflowActivityExecutionId, stepInfo,
+                    trace.Outcome.ToString(), trace.DurationMs, completedBy, ct));
 
             traces.Add(trace);
 
@@ -149,7 +189,12 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
         await _executionSink.PersistAsync(traces, ct);
 
         if (actionFailure is not null)
+        {
+            await TryReportAsync(() =>
+                _progressReporter.PipelineFinished(
+                    workflowActivityExecutionId, "ActionFailed", completedBy, ct));
             return PipelineResult.ActionFailed(actionFailure);
+        }
 
         // B5: Merge pending variable writes into the workflow instance and persist.
         if (pendingVariableWrites.Count > 0)
@@ -166,6 +211,10 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
             fresh.UpdateVariables(mergeDict);
             await _workflowInstanceRepository.UpdateAsync(fresh, ct);
         }
+
+        await TryReportAsync(() =>
+            _progressReporter.PipelineFinished(
+                workflowActivityExecutionId, "Success", completedBy, ct));
 
         return PipelineResult.Success();
     }
@@ -346,4 +395,32 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
 
     private static string TrimMessage(string msg) =>
         msg.Length > 1000 ? msg[..1000] : msg;
+
+    /// <summary>
+    /// Builds a <see cref="StepInfo"/> for a config row, resolving DisplayName from the
+    /// registered step descriptor when available (falls back to config.StepName).
+    /// </summary>
+    private StepInfo BuildStepInfo(ActivityProcessConfiguration config)
+    {
+        var displayName = _stepsByName.TryGetValue(config.ProcessorName, out var step)
+            ? step.Descriptor.DisplayName
+            : config.StepName;
+        return new StepInfo(config.ProcessorName, displayName, config.SortOrder, config.Kind.ToString());
+    }
+
+    /// <summary>
+    /// Invokes a reporter method and swallows any exception so it can never throw into
+    /// the pipeline transaction. Errors are logged at Warning level.
+    /// </summary>
+    private async Task TryReportAsync(Func<Task> report)
+    {
+        try
+        {
+            await report();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Progress reporter threw; pipeline unaffected");
+        }
+    }
 }

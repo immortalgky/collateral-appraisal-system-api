@@ -28,18 +28,18 @@ public class GetTopBreachesQueryHandler(
     {
         var limit = Math.Clamp(query.Limit, 1, 50);
 
-        var internalActivityIds = scopeService.GetInternalActivityIds();
-        var externalActivityIds = scopeService.GetExternalActivityIds();
+        var internalScope = scopeService.ResolveInternalScope();
+        var externalScope = scopeService.ResolveExternalScope();
         var hasFollowup = currentUserService.HasAnyPermission(MonitoringPermissions.PendingFollowup);
 
         // Build UNION ALL branches only for sections the user is permitted to see.
         var branches = new List<string>();
         var parameters = new DynamicParameters();
 
-        if (internalActivityIds.Length > 0)
+        var internalScopeSql = scopeService.BuildActivityScopeSql(internalScope, parameters, "Internal");
+        if (internalScopeSql is not null)
         {
-            parameters.Add("InternalActivityIds", internalActivityIds);
-            branches.Add(@"
+            branches.Add($@"
     SELECT
         AppraisalId,
         AppraisalNumber,
@@ -49,14 +49,14 @@ public class GetTopBreachesQueryHandler(
         TaskType
     FROM common.vw_MonitoringPendingTasks
     WHERE MonitoringType = 'Internal'
-      AND ActivityId IN @InternalActivityIds
+      AND {internalScopeSql}
       AND OlaVarianceHours > 0");
         }
 
-        if (externalActivityIds.Length > 0)
+        var externalScopeSql = scopeService.BuildActivityScopeSql(externalScope, parameters, "External");
+        if (externalScopeSql is not null)
         {
-            parameters.Add("ExternalActivityIds", externalActivityIds);
-            branches.Add(@"
+            branches.Add($@"
     SELECT
         AppraisalId,
         AppraisalNumber,
@@ -66,7 +66,7 @@ public class GetTopBreachesQueryHandler(
         TaskType
     FROM common.vw_MonitoringPendingTasks
     WHERE MonitoringType = 'External'
-      AND ActivityId IN @ExternalActivityIds
+      AND {externalScopeSql}
       AND OlaVarianceHours > 0");
         }
 

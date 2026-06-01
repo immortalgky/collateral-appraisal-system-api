@@ -39,13 +39,16 @@ public static class HangfireExtensions
         return services;
     }
 
-    public static IApplicationBuilder UseHangfire(this IApplicationBuilder app)
+    public static WebApplication UseHangfire(this WebApplication app)
     {
-        app.UseHangfireDashboard("/hangfire", new DashboardOptions
+        // Use endpoint-routing variant + .AllowAnonymous() so the dashboard isn't blocked by the
+        // global RequireAuthenticatedUser fallback policy (same opt-out pattern as /openapi, /scalar).
+        // Access control is enforced by HangfireAuthorizationFilter (localhost-only in dev).
+        app.MapHangfireDashboard("/hangfire", new DashboardOptions
         {
             Authorization = new[] { new HangfireAuthorizationFilter() },
             DashboardTitle = "Hangfire Dashboard"
-        });
+        }).AllowAnonymous();
 
         return app;
     }

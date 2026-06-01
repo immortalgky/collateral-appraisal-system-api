@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Workflow.Data.Entities;
@@ -14,15 +15,21 @@ public class ValidateDecisionConstraintsStep(
     IExpressionEvaluator expressionEvaluator,
     ILogger<ValidateDecisionConstraintsStep> logger) : IActivityProcessStep
 {
+    /// <summary>
+    /// Parameters for the ValidateDecisionConstraints step.
+    /// Maps specific decision values to constraint expressions that must be satisfied.
+    /// </summary>
     public sealed record Parameters
     {
         /// <summary>Name of the input field carrying the decision value (e.g., "decision").</summary>
+        [Description("Input field name that carries the decision value (e.g. 'decision', 'decisionTaken').")]
         public string DecisionField { get; init; } = "decision";
 
         /// <summary>
-        /// Map of decision value → constraint expression.
+        /// Map of decision value → constraint expression evaluated against workflow variables.
         /// e.g. {"INT": "workflow.variables.facilityLimit &lt;= 50000000"}
         /// </summary>
+        [Description("Map of decision value → constraint expression. The expression must return true to allow the decision. Evaluated against workflow.variables.*.")]
         public Dictionary<string, string>? Constraints { get; init; }
     }
 
@@ -30,7 +37,16 @@ public class ValidateDecisionConstraintsStep(
         name: "ValidateDecisionConstraints",
         displayName: "Validate Decision Constraints",
         kind: StepKind.Validation,
-        description: "Blocks a decision value when its associated constraint expression is not satisfied.");
+        description: "Blocks a specific decision value when its associated constraint expression (evaluated over workflow variables) is not satisfied.",
+        exampleParametersJson: """
+            {
+              "decisionField": "decisionTaken",
+              "constraints": {
+                "INT": "workflow.variables.facilityLimit <= 50000000",
+                "EXT": "workflow.variables.facilityLimit > 0"
+              }
+            }
+            """);
 
     public Task<ProcessStepResult> ExecuteAsync(ProcessStepContext ctx, CancellationToken ct)
     {

@@ -75,13 +75,14 @@ public class GetAppraisalFeesQueryHandler(ISqlConnectionFactory connectionFactor
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var paymentSql = """
-                         SELECT 
+                         SELECT
                             h.Id,
                             h.AppraisalFeeId,
                             h.PaymentDate,
                             h.PaymentAmount,
+                            h.Source,
                             h.CreatedAt
-                         FROM appraisal.AppraisalFeePaymentHistory h 
+                         FROM appraisal.AppraisalFeePaymentHistory h
                          WHERE AppraisalFeeId IN @FeeIds
                          ORDER BY PaymentDate, CreatedAt
                          """;

@@ -62,6 +62,13 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
 
         builder.Property(a => a.RequestedAt);
 
+        // Reappraisal batch group tag — system-assigned, NULL for non-reappraisal appraisals.
+        builder.Property(a => a.GroupTag)
+            .HasMaxLength(40);
+        builder.HasIndex(a => a.GroupTag)
+            .HasDatabaseName("IX_Appraisals_GroupTag")
+            .HasFilter("[GroupTag] IS NOT NULL");
+
         // Status Value Object (stored as string)
         builder.OwnsOne(a => a.Status, status =>
         {

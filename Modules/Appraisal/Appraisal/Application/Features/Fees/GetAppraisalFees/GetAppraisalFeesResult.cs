@@ -49,4 +49,10 @@ public record PaymentHistoryDto
     public Guid AppraisalFeeId { get; set; }
     public decimal PaymentAmount { get; set; }
     public DateTime PaymentDate { get; set; }
+    /// <summary>
+    /// "Customer" for real cash/transfer payments; "BankAbsorb" for the synthetic
+    /// row created when the invoice is marked Paid. The frontend uses this to
+    /// display or hide the row accordingly.
+    /// </summary>
+    public string Source { get; set; } = "Customer";
 }

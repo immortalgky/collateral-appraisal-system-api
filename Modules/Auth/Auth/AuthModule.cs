@@ -256,6 +256,7 @@ public static class AuthModule
             .AddUserPermissionPolicy("task-monitor.view", "TASK_MONITOR_VIEW")
             .AddUserPermissionPolicy("task-monitor.reassign", "TASK_MONITOR_REASSIGN")
             .AddUserPermissionPolicy("history-search.view", "HISTORY_SEARCH_VIEW")
+            .AddUserPermissionPolicy("reappraisal.generate-test-file", "REAPPRAISAL_GENERATE_TEST_FILE")
             // ── Monitoring feature policies (FSD §2.6.8) ──────────────────────────
             // Any-prefix policies: caller needs ANY permission with the given prefix.
             .AddMonitoringPrefixPolicy("monitoring.pending-internal", "MONITORING:PENDING_INTERNAL:")
