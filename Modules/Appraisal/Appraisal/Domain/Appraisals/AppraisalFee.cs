@@ -84,6 +84,9 @@ public class AppraisalFee : Entity<Guid>
         var item = _items.FirstOrDefault(i => i.Id == feeItemId);
         if (item == null)
             throw new NotFoundException($"Fee item {feeItemId} not found");
+        if (item.IsFinalised)
+            throw new InvalidOperationException(
+                "Cannot modify a fee that has already been approved or rejected.");
         item.Update(feeCode, feeDescription, feeAmount);
         RecalculateFromItems();
         return item;
@@ -114,6 +117,38 @@ public class AppraisalFee : Entity<Guid>
         CustomerPayableAmount = TotalFeeAfterVAT - BankAbsorbAmount;
         OutstandingAmount = TotalFeeAfterVAT - TotalPaidAmount;
         UpdatePaymentStatus();
+    }
+
+    /// <summary>
+    /// Re-evaluates the whole set of company-added fee items as a single group based on the
+    /// policy verdict, then recalculates totals.
+    ///
+    /// "Company-added" is defined as Source == "User" AND ApprovalStatus != "Approved".
+    /// The base appraisal fee (added by AssignmentFeeService), construction-inspection fees, and
+    /// any other system-created items have Source == "System" and are never touched here.
+    /// Bank-approved items (ApprovalStatus == "Approved") are excluded — their state is final.
+    /// </summary>
+    /// <param name="requiresApproval">
+    /// true  → set all eligible items to Pending (RequiresApproval=true, ApprovalStatus="Pending")
+    /// false → set all eligible items to Billable (RequiresApproval=false, ApprovalStatus=null)
+    /// </param>
+    public void ReevaluateAddedFees(bool requiresApproval)
+    {
+        // Only user-entered items in a non-final state (draft/pending). Approved and Rejected
+        // fees are final and must not be flipped back.
+        var companyAdded = _items
+            .Where(i => i.IsActiveAddedFee)
+            .ToList();
+
+        foreach (var item in companyAdded)
+        {
+            if (requiresApproval)
+                item.MakePendingApproval();
+            else
+                item.MakeBillable();
+        }
+
+        RecalculateFromItems();
     }
 
     public void SetFeePaymentType(string feePaymentType)

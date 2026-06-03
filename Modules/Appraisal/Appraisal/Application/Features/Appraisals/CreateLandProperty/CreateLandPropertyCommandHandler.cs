@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.Shared;
+
 namespace Appraisal.Application.Features.Appraisals.CreateLandProperty;
 
 /// <summary>
@@ -109,7 +111,8 @@ public class CreateLandPropertyCommandHandler(
             command.PondDepth,
             command.HasBuilding,
             command.HasBuildingOther,
-            command.Remark);
+            command.Remark,
+            command.IsRentedOut);
 
         // Add land titles if provided
         if (command.Titles is { Count: > 0 })
@@ -144,6 +147,54 @@ public class CreateLandPropertyCommandHandler(
 
                 landDetail.AddTitle(title);
             }
+
+        // Rental: if rented out, ensure lease/rental owned entities exist and apply initial data.
+        if (command.IsRentedOut == true)
+        {
+            if (property.LeaseAgreementDetail is null)
+                property.SetLeaseAgreementDetail(LeaseAgreementDetail.Create(property.Id));
+            if (property.RentalInfo is null)
+                property.SetRentalInfo(RentalInfo.Create(property.Id));
+
+            if (command.LeaseAgreement is not null)
+            {
+                property.LeaseAgreementDetail!.Update(
+                    command.LeaseAgreement.LesseeName, command.LeaseAgreement.LessorName,
+                    command.LeaseAgreement.LeasePeriodAsContract, command.LeaseAgreement.RemainingLeaseAsAppraisalDate,
+                    command.LeaseAgreement.ContractNo, command.LeaseAgreement.LeaseStartDate, command.LeaseAgreement.LeaseEndDate,
+                    command.LeaseAgreement.LeaseRentFee, command.LeaseAgreement.RentAdjust,
+                    command.LeaseAgreement.Sublease, command.LeaseAgreement.AdditionalExpenses,
+                    command.LeaseAgreement.LeaseTerminate, command.LeaseAgreement.ContractRenewal,
+                    command.LeaseAgreement.RentalTermsImpactingPropertyUse, command.LeaseAgreement.TerminationOfLease,
+                    command.LeaseAgreement.Remark);
+            }
+
+            if (command.RentalInfo is not null)
+            {
+                var rentalInfo = property.RentalInfo!;
+                rentalInfo.Update(
+                    command.RentalInfo.NumberOfYears, command.RentalInfo.FirstYearStartDate,
+                    command.RentalInfo.ContractRentalFeePerYear, command.RentalInfo.UpFrontTotalAmount,
+                    command.RentalInfo.GrowthRateType, command.RentalInfo.GrowthRatePercent,
+                    command.RentalInfo.GrowthIntervalYears);
+
+                if (command.RentalInfo.UpFrontEntries is not null)
+                {
+                    rentalInfo.ClearUpFrontEntries();
+                    foreach (var entry in command.RentalInfo.UpFrontEntries)
+                        rentalInfo.AddUpFrontEntry(entry.AtYear, entry.UpFrontAmount);
+                }
+
+                if (command.RentalInfo.GrowthPeriodEntries is not null)
+                {
+                    rentalInfo.ClearGrowthPeriodEntries();
+                    foreach (var entry in command.RentalInfo.GrowthPeriodEntries)
+                        rentalInfo.AddGrowthPeriodEntry(entry.FromYear, entry.ToYear, entry.GrowthRate, entry.GrowthAmount, entry.TotalAmount);
+                }
+
+                RentalScheduleComputer.ComputeAndSave(rentalInfo, command.RentalInfo.ScheduleOverrides);
+            }
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

@@ -99,7 +99,11 @@ public record CreateLandPropertyRequest(
     string? HasBuildingOther = null,
     string? Remark = null,
     // Land Titles
-    List<LandTitleItemRequest>? Titles = null
+    List<LandTitleItemRequest>? Titles = null,
+    // Rented-out land: lease agreement & rental info (sent when IsRentedOut == true)
+    bool? IsRentedOut = null,
+    Shared.LeaseAgreementData? LeaseAgreement = null,
+    Shared.RentalInfoData? RentalInfo = null
 );
 
 public record LandTitleItemRequest(

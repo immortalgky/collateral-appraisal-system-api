@@ -386,6 +386,7 @@ public class Appraisal : Aggregate<Guid>
         if (source.PropertyType == PropertyType.Land)
         {
             newProperty.SetLandDetail(LandAppraisalDetail.CopyFrom(source.LandDetail!, newProperty.Id));
+            CopyRentedOutLeaseInfo(source, newProperty);
         }
         else if (source.PropertyType == PropertyType.Building)
         {
@@ -396,6 +397,7 @@ public class Appraisal : Aggregate<Guid>
             newProperty.SetLandAndBuildingDetails(
                 LandAppraisalDetail.CopyFrom(source.LandDetail!, newProperty.Id),
                 BuildingAppraisalDetail.CopyFrom(source.BuildingDetail!, newProperty.Id));
+            CopyRentedOutLeaseInfo(source, newProperty);
         }
         else if (source.PropertyType == PropertyType.Condo)
         {
@@ -446,6 +448,23 @@ public class Appraisal : Aggregate<Guid>
         _properties.Add(newProperty);
 
         return newProperty;
+    }
+
+    /// <summary>
+    /// Copy lease agreement &amp; rental info for a rented-out plain Land / Land &amp; Building property.
+    /// Leasehold property types copy these unconditionally; plain land only when IsRentedOut is set.
+    /// </summary>
+    private static void CopyRentedOutLeaseInfo(AppraisalProperty source, AppraisalProperty newProperty)
+    {
+        if (source.LandDetail?.IsRentedOut != true)
+            return;
+
+        if (source.LeaseAgreementDetail is not null)
+            newProperty.SetLeaseAgreementDetail(
+                LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail, newProperty.Id));
+
+        if (source.RentalInfo is not null)
+            newProperty.SetRentalInfo(RentalInfo.CopyFrom(source.RentalInfo, newProperty.Id));
     }
 
     /// <summary>

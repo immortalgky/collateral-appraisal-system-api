@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 
 namespace Appraisal.Application.Features.Appraisals.CreateLandAndBuildingProperty;
@@ -168,5 +169,9 @@ public record CreateLandAndBuildingPropertyCommand(
     // Surfaces
     List<SurfaceItemData>? Surfaces = null,
     // Construction Inspection (null = skip)
-    ConstructionInspectionData? ConstructionInspection = null
+    ConstructionInspectionData? ConstructionInspection = null,
+    // Rental
+    bool? IsRentedOut = null,
+    LeaseAgreementData? LeaseAgreement = null,
+    RentalInfoData? RentalInfo = null
 ) : ICommand<CreateLandAndBuildingPropertyResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

@@ -194,13 +194,15 @@ public class GetAppraisalForCollateralQueryHandler(
         // Step 2: query PricingAnalyses (regular DbSet) for these group ids
         var pricingAnalyses = await dbContext.PricingAnalyses
             .AsNoTracking()
-            .Where(pa => pa.PropertyGroupId != null && groupIds.Contains(pa.PropertyGroupId!.Value))
-            .Select(pa => new { pa.PropertyGroupId, pa.FinalAppraisedValue })
+            .Where(pa => pa.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+                         && pa.AnchorId != null
+                         && groupIds.Contains(pa.AnchorId!.Value))
+            .Select(pa => new { AnchorId = pa.AnchorId, pa.FinalAppraisedValue })
             .ToListAsync(ct);
 
-        // Step 3: join in-memory — PropertyGroupId → FinalAppraisedValue
+        // Step 3: join in-memory — AnchorId (= PropertyGroupId) → FinalAppraisedValue
         var groupValues = pricingAnalyses
-            .GroupBy(pa => pa.PropertyGroupId!.Value)
+            .GroupBy(pa => pa.AnchorId!.Value)
             .ToDictionary(g => g.Key, g => g.Select(x => x.FinalAppraisedValue).FirstOrDefault(v => v.HasValue));
 
         // Step 4: map AppraisalPropertyId → FinalAppraisedValue via groupToProperties
@@ -252,10 +254,12 @@ public class GetAppraisalForCollateralQueryHandler(
         // We project to anonymous types to avoid loading unnecessary child collections.
         var analyses = await dbContext.PricingAnalyses
             .AsNoTracking()
-            .Where(pa => pa.PropertyGroupId != null && groupIds.Contains(pa.PropertyGroupId!.Value))
+            .Where(pa => pa.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+                         && pa.AnchorId != null
+                         && groupIds.Contains(pa.AnchorId!.Value))
             .Select(pa => new
             {
-                pa.PropertyGroupId,
+                AnchorId = pa.AnchorId,
                 Approaches = pa.Approaches.Select(a => new
                 {
                     a.ApproachType,
@@ -281,7 +285,7 @@ public class GetAppraisalForCollateralQueryHandler(
 
         foreach (var pa in analyses)
         {
-            if (pa.PropertyGroupId is null) continue;
+            if (pa.AnchorId is null) continue;
 
             // Prefer the selected cost approach; fall back to any selected approach; then first
             var selectedApproach = pa.Approaches.FirstOrDefault(a => a.IsSelected && a.ApproachType == "Cost")
@@ -307,7 +311,7 @@ public class GetAppraisalForCollateralQueryHandler(
                                       ?? fv?.FinalValueAdjusted
                                       ?? fv?.FinalValueRounded;
 
-            groupPricing[pa.PropertyGroupId.Value] = new PricingInfoForCollateral(
+            groupPricing[pa.AnchorId.Value] = new PricingInfoForCollateral(
                 IsCostApproach: isCostApproach,
                 UnitPrice: unitPrice,
                 BuildingCost: buildingCost,

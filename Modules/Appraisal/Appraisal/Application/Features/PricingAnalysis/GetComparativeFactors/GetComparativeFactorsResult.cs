@@ -35,7 +35,8 @@ public record ComparativeFactorDto(
     string? FactorCode,
     int DisplaySequence,
     bool IsSelectedForScoring,
-    string? Remarks
+    string? Remarks,
+    string? CollateralValue = null
 );
 
 /// <summary>

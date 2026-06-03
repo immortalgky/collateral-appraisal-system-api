@@ -1,26 +1,33 @@
+using System.Text.Json.Serialization;
+
 namespace Workflow.FeeAppointmentApprovals.Domain;
 
 /// <summary>
 /// A single component within a FeeAppointmentApproval bundle.
 /// LineType = Appointment carries the NewDate snapshot; LineType = Fee carries FeeCode/Description/Amount.
+///
+/// Persisted as a JSON column (see FeeAppointmentApprovalConfiguration). The properties have
+/// private setters, so each carries [JsonInclude] — otherwise System.Text.Json silently skips
+/// them on deserialization and every line reads back as a default Appointment line with null
+/// values.
 /// </summary>
 public class FeeAppointmentApprovalLine
 {
-    public Guid Id { get; private set; }
-    public FeeApprovalLineType LineType { get; private set; }
-    public Guid TargetId { get; private set; }
+    [JsonInclude] public Guid Id { get; private set; }
+    [JsonInclude] public FeeApprovalLineType LineType { get; private set; }
+    [JsonInclude] public Guid TargetId { get; private set; }
 
     // Appointment snapshot
-    public DateTime? NewDate { get; private set; }
-    public int? RescheduleCount { get; private set; }
+    [JsonInclude] public DateTime? NewDate { get; private set; }
+    [JsonInclude] public int? RescheduleCount { get; private set; }
 
     // Fee snapshot
-    public string? FeeCode { get; private set; }
-    public string? FeeDescription { get; private set; }
-    public decimal? FeeAmount { get; private set; }
+    [JsonInclude] public string? FeeCode { get; private set; }
+    [JsonInclude] public string? FeeDescription { get; private set; }
+    [JsonInclude] public decimal? FeeAmount { get; private set; }
 
-    public FeeApprovalLineStatus LineStatus { get; private set; }
-    public string? DecisionReason { get; private set; }
+    [JsonInclude] public FeeApprovalLineStatus LineStatus { get; private set; }
+    [JsonInclude] public string? DecisionReason { get; private set; }
 
     // Public for EF JSON deserialization
     public FeeAppointmentApprovalLine() { }

@@ -141,7 +141,7 @@ public class SaveComparativeAnalysisCommandHandler(
                 // Update existing
                 var existing = method.GetComparativeFactor(input.Id.Value);
                 if (existing is not null)
-                    existing.Update(input.DisplaySequence, input.IsSelectedForScoring, input.Remarks);
+                    existing.Update(input.DisplaySequence, input.IsSelectedForScoring, input.Remarks, input.CollateralValue);
             }
             else
             {
@@ -150,7 +150,8 @@ public class SaveComparativeAnalysisCommandHandler(
                     input.FactorId,
                     input.DisplaySequence,
                     input.IsSelectedForScoring,
-                    input.Remarks
+                    input.Remarks,
+                    input.CollateralValue
                 );
             }
     }

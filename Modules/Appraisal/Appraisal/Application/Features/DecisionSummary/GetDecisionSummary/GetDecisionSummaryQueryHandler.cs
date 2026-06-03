@@ -173,7 +173,7 @@ public class GetDecisionSummaryQueryHandler(
                    paa.IsSelected,
                    pa.FinalAppraisedValue AS GroupSummaryValue
             FROM appraisal.PropertyGroups pg
-            JOIN appraisal.PricingAnalysis pa ON pa.PropertyGroupId = pg.Id
+            JOIN appraisal.PricingAnalysis pa ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
             JOIN appraisal.PricingAnalysisApproaches paa ON paa.PricingAnalysisId = pa.Id
             WHERE pg.AppraisalId = @AppraisalId
             """;
@@ -260,7 +260,7 @@ public class GetDecisionSummaryQueryHandler(
                    paa.IsSelected
             FROM appraisal.ProjectModels pm
             JOIN appraisal.Projects p ON p.Id = pm.ProjectId
-            LEFT JOIN appraisal.PricingAnalysis pa ON pa.ProjectModelId = pm.Id
+            LEFT JOIN appraisal.PricingAnalysis pa ON pa.AnchorId = pm.Id AND pa.SubjectType = 1
             LEFT JOIN appraisal.PricingAnalysisApproaches paa ON paa.PricingAnalysisId = pa.Id
             WHERE p.AppraisalId = @AppraisalId
             ORDER BY pm.Id, paa.ApproachType
@@ -374,8 +374,8 @@ public class GetDecisionSummaryQueryHandler(
             FROM appraisal.PricingFinalValues pfv
             JOIN appraisal.PricingAnalysisMethods pam ON pam.Id = pfv.PricingMethodId
             JOIN appraisal.PricingAnalysisApproaches paa ON paa.Id = pam.ApproachId
-            JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId
-            JOIN appraisal.PropertyGroups pg ON pg.Id = pa.PropertyGroupId
+            JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId AND pa.SubjectType = 0
+            JOIN appraisal.PropertyGroups pg ON pg.Id = pa.AnchorId
             WHERE pg.AppraisalId = @AppraisalId
             """;
 

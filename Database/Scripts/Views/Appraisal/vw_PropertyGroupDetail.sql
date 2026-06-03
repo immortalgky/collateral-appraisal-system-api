@@ -46,7 +46,7 @@ SELECT PG.AppraisalId,
            WHEN AP.PropertyType = 'U' THEN C.TitleNumber
            END                                                       AS TitleNo
 FROM appraisal.PropertyGroups PG
-         LEFT JOIN appraisal.PricingAnalysis PA ON PA.PropertyGroupId = PG.Id
+         LEFT JOIN appraisal.PricingAnalysis PA ON PA.AnchorId = PG.Id AND PA.SubjectType = 0
          LEFT JOIN appraisal.PropertyGroupItems PGI ON PGI.PropertyGroupId = PG.Id
          LEFT JOIN appraisal.AppraisalProperties AP ON AP.Id = PGI.AppraisalPropertyId
          LEFT JOIN appraisal.LandAppraisalDetails L ON L.AppraisalPropertyId = AP.Id

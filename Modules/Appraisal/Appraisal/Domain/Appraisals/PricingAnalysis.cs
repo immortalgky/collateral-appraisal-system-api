@@ -1,17 +1,30 @@
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
-/// Discriminates whether this PricingAnalysis belongs to a PropertyGroup or a ProjectModel.
+/// Discriminates whether this PricingAnalysis belongs to a PropertyGroup, a ProjectModel,
+/// or is a reusable market-reference analysis anchored to a non-group field.
 /// </summary>
 public enum PricingAnalysisSubjectType
 {
     PropertyGroup = 0,
-    ProjectModel = 1
+    ProjectModel = 1,
+    MachineryCostRef = 2,
+    IncomeLandRef = 3,
+    LeaseholdLandRef = 4,
+    RoomIncomeRef = 5,
+    ProfitRentRef = 6
 }
 
 /// <summary>
-/// Pricing analysis container — 1:1 with either a PropertyGroup or a ProjectModel.
-/// Exactly one of PropertyGroupId / ProjectModelId is non-null (enforced by domain factory and DB CHECK constraint).
+/// Pricing analysis container.
+/// <para>For <c>PropertyGroup</c> and <c>ProjectModel</c> subjects, <c>AnchorId</c> holds the respective id
+/// (replacing the former <c>PropertyGroupId</c>/<c>ProjectModelId</c> columns).</para>
+/// <para>For reference subjects (MachineryCostRef…ProfitRentRef), <c>AnchorId</c> is the owning
+/// entity id (e.g. AppraisalProperty for machinery, IncomeAnalysisId for income/leasehold land),
+/// <c>AnchorRefKey</c> is an optional discriminator within that anchor (e.g. room-type name),
+/// and <c>HostMethodId</c> is the <c>PricingAnalysisMethod</c> that logically owns the field.</para>
+/// <para>The composite (<c>SubjectType</c>, <c>AnchorId</c>, <c>AnchorRefKey</c>) is unique
+/// (filtered index — only non-null <c>AnchorId</c> rows — allowing at most one analysis per target).</para>
 /// </summary>
 public class PricingAnalysis : Aggregate<Guid>
 {
@@ -19,8 +32,23 @@ public class PricingAnalysis : Aggregate<Guid>
     public IReadOnlyList<PricingAnalysisApproach> Approaches => _approaches.AsReadOnly();
 
     public PricingAnalysisSubjectType SubjectType { get; private set; }
-    public Guid? PropertyGroupId { get; private set; }
-    public Guid? ProjectModelId { get; private set; }
+
+    /// <summary>
+    /// Generic anchor: PropertyGroup id, ProjectModel id, or reference-subject id depending on SubjectType.
+    /// Always non-null (enforced by DB CHECK constraint).
+    /// </summary>
+    public Guid? AnchorId { get; private set; }
+
+    /// <summary>
+    /// Optional secondary discriminator within the anchor (e.g. room-type name for RoomIncomeRef).
+    /// </summary>
+    public string? AnchorRefKey { get; private set; }
+
+    /// <summary>
+    /// For reference rows only: the PricingAnalysisMethod whose field this reference feeds into.
+    /// Used as the cleanup scope — when the host method is removed all its references are deleted.
+    /// </summary>
+    public Guid? HostMethodId { get; private set; }
 
     // Status
     public string Status { get; private set; } = null!; // Draft, InProgress, Completed
@@ -35,9 +63,9 @@ public class PricingAnalysis : Aggregate<Guid>
     {
     }
 
-    /// <summary>
-    /// Creates a PricingAnalysis for a PropertyGroup.
-    /// </summary>
+    // ── Factory methods ───────────────────────────────────────────────────────
+
+    /// <summary>Creates a PricingAnalysis for a PropertyGroup.</summary>
     public static PricingAnalysis CreateForPropertyGroup(Guid propertyGroupId)
     {
         if (propertyGroupId == Guid.Empty)
@@ -47,8 +75,7 @@ public class PricingAnalysis : Aggregate<Guid>
         {
             Id = Guid.CreateVersion7(),
             SubjectType = PricingAnalysisSubjectType.PropertyGroup,
-            PropertyGroupId = propertyGroupId,
-            ProjectModelId = null,
+            AnchorId = propertyGroupId,
             Status = "Draft"
         };
     }
@@ -66,11 +93,44 @@ public class PricingAnalysis : Aggregate<Guid>
         {
             Id = Guid.CreateVersion7(),
             SubjectType = PricingAnalysisSubjectType.ProjectModel,
-            PropertyGroupId = null,
-            ProjectModelId = projectModelId,
+            AnchorId = projectModelId,
             Status = "Draft"
         };
     }
+
+    /// <summary>
+    /// Creates a reference PricingAnalysis anchored to a non-group field.
+    /// </summary>
+    /// <param name="subjectType">One of the Ref subtypes (MachineryCostRef…ProfitRentRef).</param>
+    /// <param name="anchorId">Owning entity id (e.g. AppraisalProperty id for machinery).</param>
+    /// <param name="anchorRefKey">Optional sub-key within the anchor (e.g. room-type name).</param>
+    /// <param name="hostMethodId">PricingAnalysisMethod that logically owns the field. Used for cleanup.</param>
+    public static PricingAnalysis CreateForReference(
+        PricingAnalysisSubjectType subjectType,
+        Guid anchorId,
+        string? anchorRefKey = null,
+        Guid? hostMethodId = null)
+    {
+        if (subjectType is PricingAnalysisSubjectType.PropertyGroup or PricingAnalysisSubjectType.ProjectModel)
+            throw new ArgumentException(
+                "Use CreateForPropertyGroup / CreateForProjectModel for non-reference subject types.",
+                nameof(subjectType));
+
+        if (anchorId == Guid.Empty)
+            throw new ArgumentException("AnchorId must not be empty.", nameof(anchorId));
+
+        return new PricingAnalysis
+        {
+            Id = Guid.CreateVersion7(),
+            SubjectType = subjectType,
+            AnchorId = anchorId,
+            AnchorRefKey = anchorRefKey,
+            HostMethodId = hostMethodId,
+            Status = "Draft"
+        };
+    }
+
+    // ── Approach management ───────────────────────────────────────────────────
 
     public PricingAnalysisApproach AddApproach(string approachType, decimal? weight = null)
     {
@@ -116,15 +176,22 @@ public class PricingAnalysis : Aggregate<Guid>
     {
         FinalAppraisedValue = value;
 
-        if (SubjectType == PricingAnalysisSubjectType.PropertyGroup && PropertyGroupId.HasValue)
+        switch (SubjectType)
         {
-            // Triggers recalculation of the appraisal-level ValuationAnalysis summary.
-            AddDomainEvent(new AppraisalFinalValuesChangedEvent(PropertyGroupId.Value));
-        }
-        else if (SubjectType == PricingAnalysisSubjectType.ProjectModel && ProjectModelId.HasValue)
-        {
-            // Future subscribers can use this to propagate the model's standard price downstream.
-            AddDomainEvent(new ProjectModelPricingFinalValueChangedEvent(Id, ProjectModelId.Value, value));
+            case PricingAnalysisSubjectType.PropertyGroup when AnchorId.HasValue:
+                // Triggers recalculation of the appraisal-level ValuationAnalysis summary.
+                AddDomainEvent(new AppraisalFinalValuesChangedEvent(AnchorId.Value));
+                break;
+
+            case PricingAnalysisSubjectType.ProjectModel when AnchorId.HasValue:
+                // Future subscribers can use this to propagate the model's standard price downstream.
+                AddDomainEvent(new ProjectModelPricingFinalValueChangedEvent(Id, AnchorId.Value, value));
+                break;
+
+            // All reference subject types fire NO event — they are independent market references
+            // and must not pollute the appraisal-level valuation rollup.
+            default:
+                break;
         }
     }
 
@@ -148,8 +215,7 @@ public class PricingAnalysis : Aggregate<Guid>
         {
             Id = Guid.CreateVersion7(),
             SubjectType = PricingAnalysisSubjectType.PropertyGroup,
-            PropertyGroupId = newPropertyGroupId,
-            ProjectModelId = null,
+            AnchorId = newPropertyGroupId,
             Status = "Draft",
             FinalAppraisedValue = source.FinalAppraisedValue,
             UseSystemCalc = source.UseSystemCalc

@@ -5,6 +5,7 @@ SELECT
     a.Id                                    AS AppraisalId,
     a.AppraisalNumber,
     a.Status                                AS AppraisalStatus,
+    a.BankingSegment                        AS BankingSegment,
 
     -- Customer name from request
     c.Name                                  AS CustomerName,

@@ -59,7 +59,9 @@ public class GetAppraisalFeesQueryHandler(ISqlConnectionFactory connectionFactor
                            i.ApprovalStatus,
                            i.ApprovedBy,
                            i.ApprovedAt,
-                           i.RejectionReason
+                           i.RejectionReason,
+                           i.ApprovalSubmittedAt,
+                           i.Source
                        FROM appraisal.AppraisalFeeItems i
                        WHERE i.AppraisalFeeId IN @FeeIds
                        ORDER BY i.FeeCode

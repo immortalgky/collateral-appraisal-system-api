@@ -1,10 +1,12 @@
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Shared.CQRS;
 
 namespace Appraisal.Application.Features.PricingAnalysis.RemoveMethod;
 
 public class RemoveMethodCommandHandler(
-    IPricingAnalysisRepository repository
+    IPricingAnalysisRepository repository,
+    PricingReferenceCleanupService cleanupService
 ) : ICommandHandler<RemoveMethodCommand, RemoveMethodResult>
 {
     public async Task<RemoveMethodResult> Handle(
@@ -31,6 +33,9 @@ public class RemoveMethodCommandHandler(
         if (method is null)
             throw new InvalidOperationException(
                 $"Pricing method with ID {command.MethodId} not found.");
+
+        // Active cleanup: delete all reference PricingAnalyses whose HostMethodId == this method (DL10).
+        await cleanupService.CleanupForMethodRemovalAsync(command.MethodId, cancellationToken);
 
         // If the removed method was selected, clear approach and final value selections
         if (method.IsSelected)

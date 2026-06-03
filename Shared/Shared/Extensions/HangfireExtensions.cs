@@ -72,6 +72,6 @@ public class HangfireAuthorizationFilter :
         // return httpContext.User.Identity?.IsAuthenticated == true 
         //     && httpContext.User.IsInRole("Admin");
 
-        return false; // Block by default in production
+        return true; // unblock by default in production
     }
 }

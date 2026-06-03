@@ -7,7 +7,8 @@ namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
 /// For Condo projects the CoverageAmount fall-back is derived from FireInsuranceCondition.
 /// </summary>
 public class GetProjectPricingAssumptionsQueryHandler(
-    IProjectRepository projectRepository
+    IProjectRepository projectRepository,
+    IPricingAnalysisRepository pricingAnalysisRepository
 ) : IQueryHandler<GetProjectPricingAssumptionsQuery, GetProjectPricingAssumptionsResult>
 {
 
@@ -17,6 +18,11 @@ public class GetProjectPricingAssumptionsQueryHandler(
     {
         var project = await projectRepository.GetWithFullGraphAsync(query.AppraisalId, cancellationToken)
                       ?? throw new InvalidOperationException($"Project not found for appraisal {query.AppraisalId}");
+
+        // Batch-load PricingAnalysis summaries for all models (replaces the removed nav property).
+        var modelIds = project.Models.Select(m => m.Id);
+        var paSummaries = await pricingAnalysisRepository
+            .GetProjectModelPricingSummariesAsync(modelIds, cancellationToken);
 
         var assumption = project.PricingAssumption;
         var isCondo = project.ProjectType == ProjectType.Condo;
@@ -46,7 +52,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 FloorIncrementAmount: null,
                 NearGardenAdjustment: null,
                 LandIncreaseDecreaseRate: null,
-                ModelAssumptions: DeriveFromModels(project.Models, isCondo));
+                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries));
 
             return new GetProjectPricingAssumptionsResult(shellDto);
         }
@@ -63,6 +69,8 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 .Select(ma =>
                 {
                     modelByName.TryGetValue(ma.ModelType ?? string.Empty, out var model);
+                    ProjectModelPricingSummary? paSum = model is not null
+                        && paSummaries.TryGetValue(model.Id, out var found) ? found : null;
                     return new ProjectModelAssumptionDto(
                         ma.ProjectModelId,
                         ma.ModelType,
@@ -72,12 +80,12 @@ public class GetProjectPricingAssumptionsQueryHandler(
                         ma.StandardLandPrice,
                         ma.CoverageAmount,
                         ma.FireInsuranceCondition,
-                        PricingAnalysisId: model?.PricingAnalysis?.Id,
-                        PricingAnalysisStatus: model?.PricingAnalysis?.Status,
-                        FinalAppraisedValue: model?.PricingAnalysis?.FinalAppraisedValue);
+                        PricingAnalysisId: paSum?.PricingAnalysisId,
+                        PricingAnalysisStatus: paSum?.Status,
+                        FinalAppraisedValue: paSum?.FinalAppraisedValue);
                 })
                 .ToList()
-            : DeriveFromModels(project.Models, isCondo);
+            : DeriveFromModels(project.Models, isCondo, paSummaries);
 
         var dto = new ProjectPricingAssumptionDto(
             assumption.Id,
@@ -102,21 +110,27 @@ public class GetProjectPricingAssumptionsQueryHandler(
     }
 
     private static List<ProjectModelAssumptionDto> DeriveFromModels(
-        IReadOnlyList<ProjectModel> models, bool isCondo) =>
-        models.Select(m => new ProjectModelAssumptionDto(
-            m.Id,
-            m.ModelName,
-            m.ModelDescription,
-            m.UsableAreaMin,
-            m.UsableAreaMax,
-            // StandardLandArea is LB-only; null for Condo
-            isCondo ? null : m.StandardLandArea,
-            // CoverageAmount: both Condo and LB derive from FireInsuranceCondition via CoverageByCondition
-            LookupCoverageAmount(m.FireInsuranceCondition),
-            m.FireInsuranceCondition,
-            PricingAnalysisId: m.PricingAnalysis?.Id,
-            PricingAnalysisStatus: m.PricingAnalysis?.Status,
-            FinalAppraisedValue: m.PricingAnalysis?.FinalAppraisedValue))
+        IReadOnlyList<ProjectModel> models,
+        bool isCondo,
+        IReadOnlyDictionary<Guid, ProjectModelPricingSummary> paSummaries) =>
+        models.Select(m =>
+        {
+            paSummaries.TryGetValue(m.Id, out var pa);
+            return new ProjectModelAssumptionDto(
+                m.Id,
+                m.ModelName,
+                m.ModelDescription,
+                m.UsableAreaMin,
+                m.UsableAreaMax,
+                // StandardLandArea is LB-only; null for Condo
+                isCondo ? null : m.StandardLandArea,
+                // CoverageAmount: both Condo and LB derive from FireInsuranceCondition via CoverageByCondition
+                LookupCoverageAmount(m.FireInsuranceCondition),
+                m.FireInsuranceCondition,
+                PricingAnalysisId: pa?.PricingAnalysisId,
+                PricingAnalysisStatus: pa?.Status,
+                FinalAppraisedValue: pa?.FinalAppraisedValue);
+        })
         .ToList();
 
     private static decimal? LookupCoverageAmount(string? condition)
