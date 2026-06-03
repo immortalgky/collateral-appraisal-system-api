@@ -897,12 +897,14 @@ public class AppraisalCreationService(
             .ThenInclude(m => m.HypothesisAnalysis!)
             .ThenInclude(h => h.CostItems)
             .ThenInclude(ci => ci.DepreciationPeriods)
-            .Where(p => p.PropertyGroupId != null && priorGroupIds.Contains(p.PropertyGroupId.Value))
+            .Where(p => p.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+                        && p.AnchorId != null
+                        && priorGroupIds.Contains(p.AnchorId.Value))
             .ToListAsync(cancellationToken);
 
         foreach (var prior in priorPricingAnalyses)
         {
-            if (!priorToNewGroupIds.TryGetValue(prior.PropertyGroupId!.Value, out var newGroupId))
+            if (!priorToNewGroupIds.TryGetValue(prior.AnchorId!.Value, out var newGroupId))
                 continue;
 
             var clone = PricingAnalysis.CloneForGroup(prior, newGroupId, priorToNewPropertyIds);

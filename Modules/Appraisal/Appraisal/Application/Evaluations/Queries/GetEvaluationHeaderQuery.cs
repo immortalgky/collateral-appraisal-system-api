@@ -8,6 +8,7 @@ public record AppraisalEvaluationHeader(
     Guid      AppraisalId,
     string?   AppraisalNumber,
     string?   AppraisalStatus,
+    string?   BankingSegment,
     string?   CustomerName,
     DateTime? ReportReceivedDate,
     string?   AppraiserCompanyName,
@@ -24,7 +25,7 @@ public class GetEvaluationHeaderQueryHandler(ISqlConnectionFactory connectionFac
         CancellationToken cancellationToken)
     {
         const string sql =
-            "SELECT AppraisalId, AppraisalNumber, AppraisalStatus, CustomerName, " +
+            "SELECT AppraisalId, AppraisalNumber, AppraisalStatus, BankingSegment, CustomerName, " +
             "ReportReceivedDate, AppraiserCompanyName, AssigneeCompanyId, " +
             "CollateralTypes, InspectionDates, DepartmentOfAppraisal " +
             "FROM appraisal.vw_AppraisalEvaluationHeader " +

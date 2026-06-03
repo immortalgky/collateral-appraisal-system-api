@@ -41,6 +41,10 @@ public record AppraisalFeeItemDto
     public Guid? ApprovedBy { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public string? RejectionReason { get; set; }
+
+    // Inline-edit approval markers
+    public DateTime? ApprovalSubmittedAt { get; set; }
+    public string Source { get; set; } = "System";
 }
 
 public record PaymentHistoryDto

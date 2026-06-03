@@ -1,6 +1,8 @@
+using Workflow.Contracts.FeeAppointmentApprovals;
+
 namespace Appraisal.Application.Features.Fees.RemoveFeeItem;
 
-public class RemoveFeeItemCommandHandler(AppraisalDbContext dbContext) : ICommandHandler<RemoveFeeItemCommand>
+public class RemoveFeeItemCommandHandler(AppraisalDbContext dbContext, ISender sender) : ICommandHandler<RemoveFeeItemCommand>
 {
     public async Task<Unit> Handle(RemoveFeeItemCommand command, CancellationToken cancellationToken)
     {
@@ -10,7 +12,31 @@ public class RemoveFeeItemCommandHandler(AppraisalDbContext dbContext) : IComman
         if (fee is null)
             throw new NotFoundException("Fee", command.FeeId);
 
+        // Edit lock: reject if any item is awaiting approval (submitted but not resolved)
+        if (fee.Items.Any(i => i.ApprovalSubmittedAt.HasValue && i.ApprovalStatus == "Pending"))
+            throw new InvalidOperationException(
+                "Cannot remove a fee item: an approval is currently awaiting review. Wait for the approval to be resolved before making further changes.");
+
         fee.RemoveItem(command.FeeItemId);
+
+        // Compute cumulative total of active USER-entered items (draft/pending; excludes
+        // finalised Approved/Rejected) after removal — mirrors ReevaluateAddedFees predicate.
+        var cumulativeTotal = fee.Items
+            .Where(i => i.IsActiveAddedFee)
+            .Sum(i => i.FeeAmount);
+
+        // Evaluate policy at edit time (read-only cross-module query)
+        var verdict = await sender.Send(
+            new EvaluateFeeAppointmentApprovalQuery(
+                command.AppraisalId,
+                RequestSource: "Ext",
+                ProposedAppointmentDate: null,
+                RescheduleCount: null,
+                CumulativeAddedFeeTotal: cumulativeTotal),
+            cancellationToken);
+
+        // Re-evaluate the whole set of company-added items as a unit
+        fee.ReevaluateAddedFees(verdict.FeesRequireApproval);
 
         return Unit.Value;
     }

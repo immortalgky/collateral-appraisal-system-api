@@ -82,6 +82,10 @@ public class FeeAppointmentApprovalResolvedIntegrationEventHandler(
             {
                 logger.LogInformation("Appointment {Id} already in status '{Status}', skipping reject-reschedule", outcome.TargetId, appointment.Status);
             }
+
+            // Clear approval markers on rejection so a new draft can begin.
+            // On approval, Approve() already clears them.
+            appointment.ClearApprovalMarkers();
         }
     }
 
@@ -111,7 +115,10 @@ public class FeeAppointmentApprovalResolvedIntegrationEventHandler(
         }
         else
         {
-            // Idempotent: only Reject when still Pending
+            // Idempotent: only Reject when still Pending.
+            // Reject() sets ApprovalStatus="Rejected" and clears ApprovalSubmittedAt; it keeps
+            // RequiresApproval=true so the rejected fee stays out of the billable total.
+            // (Do NOT ClearApprovalMarkers here — that would null the "Rejected" status.)
             if (feeItem.ApprovalStatus == "Pending")
             {
                 feeItem.Reject(Guid.Empty, outcome.Reason ?? "Rejected by approver");

@@ -24,9 +24,10 @@ public class GetHypothesisAnalysisQueryHandler(
 
         // Fetch system land area from titles (PropertyGroup only)
         decimal? totalLandAreaFromTitles = null;
-        if (pricingAnalysis.PropertyGroupId.HasValue)
+        if (pricingAnalysis.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+            && pricingAnalysis.AnchorId.HasValue)
             totalLandAreaFromTitles = await propertyDataService.GetTotalLandAreaFromTitlesAsync(
-                pricingAnalysis.PropertyGroupId.Value, cancellationToken);
+                pricingAnalysis.AnchorId.Value, cancellationToken);
 
         if (method.HypothesisAnalysis is null)
         {

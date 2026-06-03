@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.Shared;
+
 namespace Appraisal.Application.Features.Appraisals.CreateLandProperty;
 
 /// <summary>
@@ -101,7 +103,11 @@ public record CreateLandPropertyCommand(
     string? HasBuildingOther = null,
     string? Remark = null,
     // Land Titles
-    List<LandTitleItemData>? Titles = null
+    List<LandTitleItemData>? Titles = null,
+    // Rental
+    bool? IsRentedOut = null,
+    LeaseAgreementData? LeaseAgreement = null,
+    RentalInfoData? RentalInfo = null
 ) : ICommand<CreateLandPropertyResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
 
 public record LandTitleItemData(

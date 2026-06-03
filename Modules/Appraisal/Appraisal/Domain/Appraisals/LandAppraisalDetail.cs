@@ -113,6 +113,9 @@ public class LandAppraisalDetail : Entity<Guid>
     public string? HasBuildingOther { get; private set; }
     public string? Remark { get; private set; }
 
+    // Rental Flag
+    public bool? IsRentedOut { get; private set; }
+
     // Computed: total land area across all titles
     public decimal TotalLandAreaInSqWa =>
         _titles.Where(t => t.Area != null && t.Area.HasValue)
@@ -221,7 +224,9 @@ public class LandAppraisalDetail : Entity<Guid>
         decimal? pondDepth = null,
         bool? hasBuilding = null,
         string? hasBuildingOther = null,
-        string? remark = null)
+        string? remark = null,
+        // Rental Flag
+        bool? isRentedOut = null)
     {
         // Property Identification
         PropertyName = propertyName;
@@ -318,6 +323,9 @@ public class LandAppraisalDetail : Entity<Guid>
         HasBuilding = hasBuilding;
         HasBuildingOther = hasBuildingOther;
         Remark = remark;
+
+        // Rental Flag
+        IsRentedOut = isRentedOut;
     }
 
     public static LandAppraisalDetail CopyFrom(LandAppraisalDetail source, Guid newPropertyId)
@@ -404,7 +412,8 @@ public class LandAppraisalDetail : Entity<Guid>
             PondDepth = source.PondDepth,
             HasBuilding = source.HasBuilding,
             HasBuildingOther = source.HasBuildingOther,
-            Remark = source.Remark
+            Remark = source.Remark,
+            IsRentedOut = source.IsRentedOut
         };
 
         foreach (var title in source.Titles)

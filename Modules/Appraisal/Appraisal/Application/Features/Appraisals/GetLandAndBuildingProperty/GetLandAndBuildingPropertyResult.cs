@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+using Appraisal.Application.Features.Appraisals.Shared;
 
 namespace Appraisal.Application.Features.Appraisals.GetLandAndBuildingProperty;
 
@@ -168,5 +169,10 @@ public record GetLandAndBuildingPropertyResult(
     // Surfaces
     IReadOnlyList<BuildingAppraisalSurfaceDto> Surfaces,
     // Construction Inspection
-    ConstructionInspectionDto? ConstructionInspection
+    ConstructionInspectionDto? ConstructionInspection,
+    // Rental Flag
+    bool? IsRentedOut = null,
+    // Lease Agreement & Rental Info (populated when IsRentedOut == true)
+    LeaseAgreementDetailDto? LeaseAgreement = null,
+    RentalInfoDto? RentalInfo = null
 );

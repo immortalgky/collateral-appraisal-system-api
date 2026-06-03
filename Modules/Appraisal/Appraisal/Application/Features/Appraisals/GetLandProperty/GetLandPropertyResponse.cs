@@ -121,4 +121,9 @@ public record GetLandPropertyResponse
 
     // Land Titles
     public List<LandTitleItemData>? Titles { get; init; }
+
+    // Rented-out land: lease agreement & rental info (populated when IsRentedOut == true)
+    public bool? IsRentedOut { get; init; }
+    public Shared.LeaseAgreementDetailDto? LeaseAgreement { get; init; }
+    public Shared.RentalInfoDto? RentalInfo { get; init; }
 }

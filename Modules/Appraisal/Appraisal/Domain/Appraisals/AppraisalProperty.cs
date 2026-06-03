@@ -156,25 +156,41 @@ public class AppraisalProperty : Entity<Guid>
     }
 
     /// <summary>
-    /// Set the lease agreement detail for this property (LSL, LSB, or LS)
+    /// Set the lease agreement detail for this property (LSL, LSB, LS, Land, or LandAndBuilding)
     /// </summary>
     public void SetLeaseAgreementDetail(LeaseAgreementDetail detail)
     {
-        if (!PropertyType.IsLeaseAgreement)
+        if (!PropertyType.IsLeaseAgreement && !PropertyType.HasLandDetail)
             throw new InvalidOperationException($"Cannot set lease agreement detail for property type '{PropertyType}'");
 
         LeaseAgreementDetail = detail;
     }
 
     /// <summary>
-    /// Set the rental info for this property (LSL, LSB, or LS)
+    /// Set the rental info for this property (LSL, LSB, LS, Land, or LandAndBuilding)
     /// </summary>
     public void SetRentalInfo(RentalInfo info)
     {
-        if (!PropertyType.IsLeaseAgreement)
+        if (!PropertyType.IsLeaseAgreement && !PropertyType.HasLandDetail)
             throw new InvalidOperationException($"Cannot set rental info for property type '{PropertyType}'");
 
         RentalInfo = info;
+    }
+
+    /// <summary>
+    /// Clear the lease agreement detail for this property (nulls the owned entity, cascading the delete)
+    /// </summary>
+    public void ClearLeaseAgreementDetail()
+    {
+        LeaseAgreementDetail = null;
+    }
+
+    /// <summary>
+    /// Clear the rental info for this property (nulls the owned entity, cascading the delete)
+    /// </summary>
+    public void ClearRentalInfo()
+    {
+        RentalInfo = null;
     }
 
     /// <summary>

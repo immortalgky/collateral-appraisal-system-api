@@ -79,6 +79,10 @@ public class AppraisalFeeItemConfiguration : IEntityTypeConfiguration<AppraisalF
         builder.Property(i => i.ApprovalStatus).HasMaxLength(50);
         builder.Property(i => i.RejectionReason).HasMaxLength(4000);
 
+        // Inline-edit approval markers
+        builder.Property(i => i.ApprovalSubmittedAt);
+        builder.Property(i => i.Source).HasMaxLength(20).HasDefaultValue(FeeItemSource.System);
+
         builder.HasIndex(i => i.AppraisalFeeId);
     }
 }

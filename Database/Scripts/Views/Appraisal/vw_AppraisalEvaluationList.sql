@@ -28,16 +28,16 @@ SELECT
     -- Composite score — only computed when an evaluation row exists.
     -- Ratings are nullable (Pending rows may have partial selections); treat NULL as 0
     -- so a partial draft still produces a usable partial score.
-    -- Weights MUST stay in sync with AppraisalEvaluation.Criterion{N}Weight constants
-    -- (Modules/Appraisal/.../Domain/Evaluations/AppraisalEvaluation.cs).
+    -- Weights are loaded from appraisal.EvaluationCriteriaConfigs keyed by BankingSegment.
+    -- NULL BankingSegment defaults to 'IBG' weights (ISNULL fallback in OUTER APPLY).
     CASE
         WHEN e.Id IS NOT NULL
             THEN CAST(
-                (0.40 * ISNULL(e.Criteria1Rating, 0))
-                    + (0.30 * ISNULL(e.Criteria2Rating, 0))
-                    + (0.10 * ISNULL(e.Criteria3Rating, 0))
-                    + (0.10 * ISNULL(e.Criteria4Rating, 0))
-                    + (0.10 * ISNULL(e.Criteria5Rating, 0))
+                (ISNULL(w.W1, 0) * ISNULL(e.Criteria1Rating, 0))
+                    + (ISNULL(w.W2, 0) * ISNULL(e.Criteria2Rating, 0))
+                    + (ISNULL(w.W3, 0) * ISNULL(e.Criteria3Rating, 0))
+                    + (ISNULL(w.W4, 0) * ISNULL(e.Criteria4Rating, 0))
+                    + (ISNULL(w.W5, 0) * ISNULL(e.Criteria5Rating, 0))
             AS DECIMAL(5, 2))
         ELSE NULL
         END                                 AS TotalScore
@@ -75,8 +75,22 @@ ON ext.AppraisalId = a.Id AND ext.rn = 1
     -- Evaluation (may not exist)
     LEFT JOIN appraisal.AppraisalEvaluations e ON e.AppraisalId = a.Id
 
+    -- Config-driven weights: pivot the 5 slots for this appraisal's BankingSegment.
+    -- ISNULL(a.BankingSegment, 'IBG') defaults NULL-segment appraisals to IBG weights.
+    -- UPPER() comparison is case-insensitive.
+    OUTER APPLY (
+        SELECT
+            MAX(CASE WHEN cfg.CriteriaSlot = 1 THEN cfg.Weight END) AS W1,
+            MAX(CASE WHEN cfg.CriteriaSlot = 2 THEN cfg.Weight END) AS W2,
+            MAX(CASE WHEN cfg.CriteriaSlot = 3 THEN cfg.Weight END) AS W3,
+            MAX(CASE WHEN cfg.CriteriaSlot = 4 THEN cfg.Weight END) AS W4,
+            MAX(CASE WHEN cfg.CriteriaSlot = 5 THEN cfg.Weight END) AS W5
+        FROM appraisal.EvaluationCriteriaConfigs cfg
+        WHERE UPPER(cfg.BankingSegment) = UPPER(ISNULL(a.BankingSegment, 'IBG'))
+    ) w
+
 -- Worklist: every appraisal whose current external assignment has been submitted.
--- Evaluations in any state (Pending / Draft / Completed) all surface here; the
+-- Evaluations in any state (Pending / Completed) all surface here; the
 -- caller filters by EvaluationStatus to split active work from history.
 WHERE a.IsDeleted = 0
   AND ext.SubmittedAt IS NOT NULL

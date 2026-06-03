@@ -12,7 +12,7 @@ public class RemoveFeeItemEndpoint : ICarterModule
                 ISender sender,
                 CancellationToken cancellationToken) =>
             {
-                var command = new RemoveFeeItemCommand(feeId, feeItemId);
+                var command = new RemoveFeeItemCommand(appraisalId, feeId, feeItemId);
 
                 await sender.Send(command, cancellationToken);
 

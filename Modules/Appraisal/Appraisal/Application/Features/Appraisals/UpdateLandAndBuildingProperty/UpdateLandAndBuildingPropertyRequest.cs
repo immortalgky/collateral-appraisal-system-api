@@ -163,5 +163,9 @@ public record UpdateLandAndBuildingPropertyRequest(
     // Surfaces (null = no-op, list = sync)
     List<SurfaceItemData>? Surfaces = null,
     // Construction Inspection (null = no-op)
-    ConstructionInspectionData? ConstructionInspection = null
+    ConstructionInspectionData? ConstructionInspection = null,
+    // Rented-out land: lease agreement & rental info (sent when IsRentedOut == true)
+    bool? IsRentedOut = null,
+    Shared.LeaseAgreementData? LeaseAgreement = null,
+    Shared.RentalInfoData? RentalInfo = null
 );

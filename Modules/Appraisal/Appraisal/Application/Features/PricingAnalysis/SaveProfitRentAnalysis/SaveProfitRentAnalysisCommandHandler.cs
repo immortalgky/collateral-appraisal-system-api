@@ -23,7 +23,8 @@ public class SaveProfitRentAnalysisCommandHandler(
                                  $"PricingAnalysis {command.PricingAnalysisId} not found");
 
         // Guard before any mutation: ProfitRent is only valid for PropertyGroup-subject analyses.
-        if (!pricingAnalysis.PropertyGroupId.HasValue)
+        if (pricingAnalysis.SubjectType != PricingAnalysisSubjectType.PropertyGroup
+            || !pricingAnalysis.AnchorId.HasValue)
             throw new BadRequestException(
                 "ProfitRent analysis is only supported for PropertyGroup-subject pricing analyses.");
 
@@ -63,7 +64,7 @@ public class SaveProfitRentAnalysisCommandHandler(
         method.SetRemark(command.Remark);
 
         var propertyData = await propertyDataService.GetPropertyDataAsync(
-            pricingAnalysis.PropertyGroupId.Value, cancellationToken);
+            pricingAnalysis.AnchorId!.Value, cancellationToken);
 
         // Build appraisal schedule
         var schedule = PricingPropertyDataService.BuildAppraisalSchedule(

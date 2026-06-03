@@ -23,7 +23,8 @@ public class SaveLeaseholdAnalysisCommandHandler(
                                  $"PricingAnalysis {command.PricingAnalysisId} not found");
 
         // Guard before any mutation: Leasehold is only valid for PropertyGroup-subject analyses.
-        if (!pricingAnalysis.PropertyGroupId.HasValue)
+        if (pricingAnalysis.SubjectType != PricingAnalysisSubjectType.PropertyGroup
+            || !pricingAnalysis.AnchorId.HasValue)
             throw new BadRequestException(
                 "Leasehold analysis is only supported for PropertyGroup-subject pricing analyses.");
 
@@ -81,7 +82,7 @@ public class SaveLeaseholdAnalysisCommandHandler(
 
         // Fetch rental schedule and property data using shared service.
         var propertyData = await propertyDataService.GetPropertyDataAsync(
-            pricingAnalysis.PropertyGroupId.Value, cancellationToken);
+            pricingAnalysis.AnchorId!.Value, cancellationToken);
 
         // Build appraisal schedule and map to leasehold record type
         var sharedSchedule = PricingPropertyDataService.BuildAppraisalSchedule(
