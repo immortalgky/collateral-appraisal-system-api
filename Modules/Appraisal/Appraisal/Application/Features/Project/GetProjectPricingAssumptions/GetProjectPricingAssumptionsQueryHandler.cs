@@ -1,3 +1,5 @@
+using PricingAnalysisEntity = Appraisal.Domain.Appraisals.PricingAnalysis;
+
 namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
 
 /// <summary>
@@ -15,7 +17,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
         GetProjectPricingAssumptionsQuery query,
         CancellationToken cancellationToken)
     {
-        var project = await projectRepository.GetWithFullGraphAsync(query.AppraisalId, cancellationToken)
+        var project = await projectRepository.GetWithPricingGraphAsync(query.AppraisalId, cancellationToken)
                       ?? throw new InvalidOperationException($"Project not found for appraisal {query.AppraisalId}");
 
         var assumption = project.PricingAssumption;
@@ -63,6 +65,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 .Select(ma =>
                 {
                     modelByName.TryGetValue(ma.ModelType ?? string.Empty, out var model);
+
                     return new ProjectModelAssumptionDto(
                         ma.ProjectModelId,
                         ma.ModelType,
@@ -74,8 +77,11 @@ public class GetProjectPricingAssumptionsQueryHandler(
                         ma.FireInsuranceCondition,
                         PricingAnalysisId: model?.PricingAnalysis?.Id,
                         PricingAnalysisStatus: model?.PricingAnalysis?.Status,
-                        FinalAppraisedValue: model?.PricingAnalysis?.FinalAppraisedValue);
+                        FinalValueAdjusted: GetFinalValueAdjusted(model?.PricingAnalysis),
+                        AppraisalPrice: GetAppraisalPrice(model?.PricingAnalysis),
+                        StandardPriceUnit: ma.StandardPriceUnit);
                 })
+                .OrderBy(ma => ma.ModelType)
                 .ToList()
             : DeriveFromModels(project.Models, isCondo);
 
@@ -116,9 +122,25 @@ public class GetProjectPricingAssumptionsQueryHandler(
             m.FireInsuranceCondition,
             PricingAnalysisId: m.PricingAnalysis?.Id,
             PricingAnalysisStatus: m.PricingAnalysis?.Status,
-            FinalAppraisedValue: m.PricingAnalysis?.FinalAppraisedValue))
+            FinalValueAdjusted: GetFinalValueAdjusted(m.PricingAnalysis),
+            AppraisalPrice: GetAppraisalPrice(m.PricingAnalysis),
+            StandardPriceUnit: null
+            ))
         .ToList();
 
     private static decimal? LookupCoverageAmount(string? condition)
         => CoverageByCondition.Lookup(condition);
+
+    private static decimal? GetFinalValueAdjusted(PricingAnalysisEntity? pa)
+        => pa?
+            .Approaches.FirstOrDefault(a => a.IsSelected)
+            ?.Methods.FirstOrDefault(m => m.IsSelected)
+            ?.FinalValue?.FinalValueAdjusted;
+
+    private static decimal? GetAppraisalPrice(PricingAnalysisEntity? pa)
+        => pa?
+            .Approaches.FirstOrDefault(a => a.IsSelected)
+            ?.Methods.FirstOrDefault(m => m.IsSelected)
+            ?.FinalValue?.AppraisalPrice
+            ?? pa?.FinalAppraisedValue;
 }

@@ -33,6 +33,7 @@ public record SaveProjectPricingAssumptionsRequest(
 /// </summary>
 public record ProjectModelAssumptionData(
     Guid ProjectModelId,
+    StandardPriceUnit StandardPriceUnit,
     string? ModelType = null,
     string? ModelDescription = null,
     decimal? UsableAreaFrom = null,

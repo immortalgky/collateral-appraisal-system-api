@@ -68,6 +68,21 @@ public class ProjectRepository(AppraisalDbContext dbContext) : IProjectRepositor
     }
 
     /// <inheritdoc />
+    public async Task<Project?> GetWithPricingGraphAsync(Guid appraisalId, CancellationToken ct = default)
+    {
+        return await _dbContext.Projects
+        .Include(p => p.Models)
+            .ThenInclude(m => m.PricingAnalysis)
+                .ThenInclude(pa => pa!.Approaches)
+                    .ThenInclude(a => a.Methods)
+                        .ThenInclude(m => m.FinalValue)
+        .Include(p => p.PricingAssumption)
+            .ThenInclude(a => a!.ModelAssumptions)
+        .AsSplitQuery()
+        .FirstOrDefaultAsync(p => p.AppraisalId == appraisalId, ct);
+    }
+
+    /// <inheritdoc />
     public void Add(Project project)
     {
         _dbContext.Projects.Add(project);
@@ -78,4 +93,5 @@ public class ProjectRepository(AppraisalDbContext dbContext) : IProjectRepositor
     {
         _dbContext.Projects.Update(project);
     }
+
 }

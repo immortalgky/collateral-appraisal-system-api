@@ -532,10 +532,19 @@ public class Project : Aggregate<Guid>
                 .ToDictionary(g => g.Key, g =>
                 {
                     var ma = g.First();
-                    // StandardPrice now comes from PricingAnalysis.FinalAppraisedValue on the matching model.
                     var model = _models.FirstOrDefault(m => m.Id == ma.ProjectModelId);
+                    var pa = model?.PricingAnalysis;
+                    var selectedMethod = pa?.Approaches.FirstOrDefault(a => a.IsSelected)?.Methods.FirstOrDefault(m => m.IsSelected);
+
+                    var priceUnit = ma.StandardPriceUnit;
+
+                    var standardPrice = priceUnit == StandardPriceUnit.BahtPerUnit
+                        ? selectedMethod?.FinalValue?.AppraisalPrice ?? pa?.FinalAppraisedValue ?? 0m
+                        : selectedMethod?.FinalValue?.FinalValueAdjusted ?? pa?.FinalAppraisedValue ?? 0m;
+
                     return (
-                        StandardPrice: model?.PricingAnalysis?.FinalAppraisedValue ?? 0m,
+                        StandardPrice: standardPrice,
+                        StandardPriceUnit: priceUnit,
                         CoverageAmount: ma.CoverageAmount);
                 })
             : _models
@@ -543,6 +552,7 @@ public class Project : Aggregate<Guid>
                 .GroupBy(m => m.ModelName!)
                 .ToDictionary(g => g.Key, g => (
                     StandardPrice: g.First().PricingAnalysis?.FinalAppraisedValue ?? 0m,
+                    StandardPriceUnit: StandardPriceUnit.PerSquareMeter,
                     CoverageAmount: CoverageByCondition.Lookup(g.First().FireInsuranceCondition)));
 
         var results = new List<ProjectUnitPrice>();
@@ -555,9 +565,11 @@ public class Project : Aggregate<Guid>
 
             decimal standardPrice = 0m;
             decimal? coverageAmount = null;
+            StandardPriceUnit standardPriceUnit = StandardPriceUnit.BahtPerUnit;
             if (unit.ModelType != null && modelLookup.TryGetValue(unit.ModelType, out var matched))
             {
                 standardPrice = matched.StandardPrice;
+                standardPriceUnit = matched.StandardPriceUnit;
                 coverageAmount = matched.CoverageAmount;
             }
 
@@ -573,7 +585,9 @@ public class Project : Aggregate<Guid>
             var adjustPriceLocation = rawLocationAdjustment;
 
             var usableAreaForCondo = unit.UsableArea ?? 0m;
-            var standardPriceTotal = standardPrice * usableAreaForCondo;
+            var standardPriceTotal = standardPriceUnit == StandardPriceUnit.BahtPerUnit
+                                        ? standardPrice
+                                        : standardPrice * usableAreaForCondo;
             var locationContribution = ApplyLocationMethod(
                 adjustPriceLocation,
                 assumption.LocationMethod,

@@ -31,6 +31,14 @@ public interface IProjectRepository
     /// </summary>
     Task<ProjectTower?> GetTowerByIdWithImagesAsync(Guid towerId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Gets a project with Models and their full PricingAnalysis graph
+    /// (Approaches → Methods → FinalValue) eagerly loaded.
+    /// Use this when you need FinalValueAdjusted / AppraisalPrice per model.
+    /// Other handlers should continue using GetWithFullGraphAsync.
+    /// </summary>
+    Task<Project?> GetWithPricingGraphAsync(Guid appraisalId, CancellationToken ct = default);
+
     /// <summary>Stages a new project for insertion.</summary>
     void Add(Project project);
 
