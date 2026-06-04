@@ -17,8 +17,8 @@ namespace Request.Application.Features.Reappraisal.CreateBlockReappraisal;
 ///
 /// Cross-module safety:
 ///   Saves only the Request module's DbContext. The Collateral module's BlockReappraisalDue
-///   row is marked Consumed by the Collateral endpoint handler in its own DbContext save,
-///   after this command succeeds.
+///   row is claimed (Pending → Consumed) by the orchestrating Bootstrapper endpoint via an
+///   atomic SQL UPDATE *before* this command runs, so this handler never touches Collateral.
 /// </summary>
 public class CreateBlockReappraisalCommandHandler(
     ICreateRequestService createRequestService,

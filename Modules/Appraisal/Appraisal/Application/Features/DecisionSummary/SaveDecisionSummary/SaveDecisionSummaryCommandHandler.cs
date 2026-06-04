@@ -106,12 +106,14 @@ public class SaveDecisionSummaryCommandHandler(
 
         if (projectId.HasValue)
         {
+            // Exclude sold units — block building insurance covers remaining unsold inventory only,
+            // consistent with the unit-price appraisal and the Decision Summary block totals.
             const string blockInsuranceSql = """
                 SELECT ISNULL(SUM(pup.CoverageAmount), 0)
                 FROM appraisal.ProjectUnitPrices pup
                 JOIN appraisal.ProjectUnits pu ON pu.Id = pup.ProjectUnitId
                 JOIN appraisal.Projects p ON p.Id = pu.ProjectId
-                WHERE p.AppraisalId = @AppraisalId
+                WHERE p.AppraisalId = @AppraisalId AND pu.IsSold = 0
                 """;
 
             return await connectionFactory.QueryFirstOrDefaultAsync<decimal>(blockInsuranceSql, blockParam);

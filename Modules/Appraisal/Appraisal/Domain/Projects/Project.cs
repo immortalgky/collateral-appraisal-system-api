@@ -413,6 +413,24 @@ public class Project : Aggregate<Guid>
         return upload;
     }
 
+    /// <summary>
+    /// Records an upload-history row WITHOUT touching units. Used by the block-reappraisal
+    /// re-match flow (which reconciles existing seeded units rather than replacing them), so the
+    /// revised Excel still appears in the Unit Listing "Upload History". Marks this upload as the
+    /// current "Used" one and the previous uploads as unused, mirroring <see cref="ReplaceUnits"/>.
+    /// </summary>
+    public ProjectUnitUpload RecordReappraisalUpload(string fileName, Guid? documentId)
+    {
+        var upload = ProjectUnitUpload.Create(Id, fileName, documentId);
+        _unitUploads.Add(upload);
+
+        foreach (var existing in _unitUploads.Where(u => u.IsUsed && u.Id != upload.Id))
+            existing.MarkAsUnused();
+        upload.MarkAsUsed();
+
+        return upload;
+    }
+
     // =========================================================================
     // Pricing assumption (type-aware)
     // =========================================================================

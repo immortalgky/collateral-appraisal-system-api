@@ -1,12 +1,9 @@
 using Carter;
-using Collateral.CollateralMasters.Models;
-using Collateral.Data;
 using Dapper;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
 using Request.Application.Features.Reappraisal.CreateBlockReappraisal;
 using Request.Contracts.Requests.Dtos;
 using Shared.Data;
@@ -15,7 +12,7 @@ using Shared.Identity;
 namespace Api.Endpoints.BlockReappraisal;
 
 /// <summary>
-/// Adds the "Create New Appraisal Request" action to the block-reappraisal screen (Phase D).
+/// Adds the "Create New Appraisal Request" action to the block-reappraisal screen.
 ///
 /// Route: POST /block-reappraisal/{collateralMasterId}/create
 ///
@@ -23,10 +20,10 @@ namespace Api.Endpoints.BlockReappraisal;
 /// (ProjectDetails / BlockReappraisalDue) and the Request module (CreateBlockReappraisalCommand)
 /// without introducing a module-to-module project reference.
 ///
-/// Two-save pattern (by design — acceptable):
-///   1. Request module: CreateBlockReappraisalCommandHandler saves its own DbContext.
-///   2. Collateral module: this endpoint marks BlockReappraisalDue as Consumed after
-///      the command succeeds. Not atomic — the daily scan reconciles any partial failures.
+/// Double-submit safety: the BlockReappraisalDue row is claimed with a single atomic
+/// UPDATE (Pending → Consumed). Only the caller that flips it proceeds to create the Request;
+/// concurrent callers see 0 rows affected and are rejected. Not transactional with the Request
+/// create — if the create fails, the daily scan re-adds the row while the project is still due.
 /// </summary>
 public class BlockReappraisalCreateEndpoint : ICarterModule
 {
@@ -38,7 +35,6 @@ public class BlockReappraisalCreateEndpoint : ICarterModule
                     Guid collateralMasterId,
                     ISender sender,
                     ISqlConnectionFactory connectionFactory,
-                    CollateralDbContext collateralDbContext,
                     ICurrentUserService currentUser,
                     CancellationToken cancellationToken) =>
                 {
@@ -52,7 +48,9 @@ public class BlockReappraisalCreateEndpoint : ICarterModule
                           AND pd.IsDeleted = 0
                         """;
 
-                    var prevAppraisalId = await connectionFactory.GetOpenConnection()
+                    var connection = connectionFactory.GetOpenConnection();
+
+                    var prevAppraisalId = await connection
                         .QueryFirstOrDefaultAsync<Guid?>(sql, new { CollateralMasterId = collateralMasterId });
 
                     if (prevAppraisalId is null)
@@ -62,15 +60,22 @@ public class BlockReappraisalCreateEndpoint : ICarterModule
                                      "The block project must have been appraised at least once before creating a reappraisal."
                         });
 
-                    // ── Synchronous double-submit guard ───────────────────────────────────
-                    // The due row must still be Pending. A second click after a successful
-                    // create finds it Consumed and is rejected here, before another Request is
-                    // spawned (the async appraisal-creation window leaves the command-level
-                    // in-flight dedupe blind to the very first create).
-                    var dueRow = await collateralDbContext.BlockReappraisalDue
-                        .FirstOrDefaultAsync(r => r.CollateralMasterId == collateralMasterId, cancellationToken);
+                    // ── Atomic double-submit claim ─────────────────────────────────────────
+                    // Only the caller that flips Pending → Consumed proceeds; concurrent callers
+                    // see 0 rows affected and are rejected. This eliminates the duplicate-Request
+                    // race (the command-level in-flight dedupe is blind until the new appraisal
+                    // materializes asynchronously). If the create later fails, the daily scan
+                    // re-adds the row while the project is still due.
+                    const string claimSql = """
+                        UPDATE collateral.BlockReappraisalDue
+                           SET Status = 'Consumed', UpdatedAt = GETUTCDATE()
+                         WHERE CollateralMasterId = @CollateralMasterId AND Status = 'Pending'
+                        """;
 
-                    if (dueRow is null || dueRow.Status != "Pending")
+                    var claimed = await connection.ExecuteAsync(
+                        claimSql, new { CollateralMasterId = collateralMasterId });
+
+                    if (claimed == 0)
                         return Results.Ok(new CreateBlockReappraisalResult(
                             CreatedRequestId: null,
                             RequestNumber: null,
@@ -79,10 +84,8 @@ public class BlockReappraisalCreateEndpoint : ICarterModule
                             SkipReason: "AlreadyInProgress"));
 
                     // ── Resolve user from authenticated principal ─────────────────────────
-                    // userId  = bank-code login (from "name" / preferred_username claim).
-                    // username = display name — same source here; no separate display-name claim
-                    //            is exposed by ICurrentUserService. Downstream Request module
-                    //            stores both fields for audit; the bank-code value is load-bearing.
+                    // userId/username both resolve to the bank-code login; ICurrentUserService
+                    // exposes no separate display-name claim. The bank-code value is load-bearing.
                     var bankCode = currentUser.Username ?? "unknown";
                     var userInfo = new UserInfoDto(UserId: bankCode, Username: bankCode);
 
@@ -94,15 +97,9 @@ public class BlockReappraisalCreateEndpoint : ICarterModule
 
                     var result = await sender.Send(command, cancellationToken);
 
-                    // ── On success, consume the due row in Collateral DbContext ───────────
-                    // Two separate module saves; not atomic — acceptable: the daily scan
-                    // reconciles any Pending rows that already have an in-flight request.
-                    if (!result.Skipped)
-                    {
-                        dueRow.MarkConsumed();
-                        await collateralDbContext.SaveChangesAsync(cancellationToken);
-                    }
-
+                    // The due row was already claimed (Consumed) above; a Skipped result (a real
+                    // in-flight reappraisal already existed) is still correct — the project should
+                    // not remain in the due list either way.
                     return Results.Ok(result);
                 })
             .WithName("CreateBlockReappraisal")
@@ -113,7 +110,7 @@ public class BlockReappraisalCreateEndpoint : ICarterModule
             .WithDescription(
                 "Creates a new reappraisal Request for a due block-project collateral master. " +
                 "Copies loan / address / contact / titles / documents from the prior Request. " +
-                "Returns Skipped=true if a non-terminal reappraisal is already in-flight.")
+                "Returns Skipped=true if the due row is already claimed or a non-terminal reappraisal is in-flight.")
             .WithTags("BlockReappraisal")
             .RequireAuthorization();
     }
