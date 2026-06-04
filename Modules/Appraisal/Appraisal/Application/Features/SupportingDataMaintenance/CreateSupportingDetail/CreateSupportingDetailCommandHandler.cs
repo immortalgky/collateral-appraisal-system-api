@@ -6,10 +6,8 @@ internal class CreateSupportingDetailCommandHandler(ISupportingDataRepository re
     public async Task<CreateSupportingDetailResult> Handle(
         CreateSupportingDetailCommand cmd, CancellationToken ct)
     {
-        if (currentUserService.IsInRole("IntAppraisalChecker") || currentUserService.IsInRole("ExtAppraisalChecker"))
-        {
-            throw new UnauthorizedAccessException("Checkers are not allowed to create supporting details.");
-        }
+        if (!currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT"))
+            throw new UnauthorizedAccessException("You are not allowed to edit supporting data.");
 
         var supportingData = await repo.GetByIdWithDetailsAsync(cmd.SupportingId, ct) ?? throw new NotFoundException($"Supporting data with ID {cmd.SupportingId} not found.");
 

@@ -24,6 +24,7 @@ public class CreateSupportingDetailEndpoint : ICarterModule
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Create new supporting detail")
         .WithDescription("Create a new supporting detail record for appraisal reference.")
-        .WithTags("SupportingData");
+        .WithTags("SupportingData")
+        .RequireAuthorization();
     }
 }

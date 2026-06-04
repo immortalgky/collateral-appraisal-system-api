@@ -3,6 +3,9 @@ namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupporting
 public class GetSupportingDetailByIdQueryHandler(ISupportingDataRepository repo, ICurrentUserService currentUserService)
     : IQueryHandler<GetSupportingDetailByIdQuery, GetSupportingDetailByIdResult>
 {
+    private static readonly HashSet<string> CannotEditStatuses =
+        new(StringComparer.Ordinal) { "Approved", "Rejected", "Cancelled" };
+
     public async Task<GetSupportingDetailByIdResult> Handle(
         GetSupportingDetailByIdQuery query,
         CancellationToken cancellationToken)
@@ -13,11 +16,7 @@ public class GetSupportingDetailByIdQueryHandler(ISupportingDataRepository repo,
         if (detail is null || detail.SupportingDataId != query.SupportingId)
             throw new SupportingDataDetailNotFoundException(query.DetailId);
 
-        var isArchived = status == SupportingStatus.Approved
-                        || status == SupportingStatus.Rejected
-                        || status == SupportingStatus.Cancelled;
-
-        var hasEditPermission = currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT") && !isArchived;
+        var hasEditPermission = currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT") && !CannotEditStatuses.Contains(status?.Code);
 
         var images = detail.Images
             .OrderBy(i => i.DisplaySequence)

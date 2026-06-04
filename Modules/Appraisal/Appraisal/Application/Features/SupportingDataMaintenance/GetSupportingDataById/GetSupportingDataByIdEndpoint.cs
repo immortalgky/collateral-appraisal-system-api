@@ -21,6 +21,7 @@ public class GetSupportingDataByIdEndpoint : ICarterModule
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Get supporting data by ID")
         .WithDescription("Retrieves a specific supporting data record by its unique identifier.")
-        .WithTags("SupportingData");
+        .WithTags("SupportingData")
+        .RequireAuthorization();
     }
 }

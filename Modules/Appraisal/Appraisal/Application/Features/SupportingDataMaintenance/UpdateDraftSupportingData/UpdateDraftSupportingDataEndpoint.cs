@@ -32,6 +32,7 @@ public class UpdateDraftSupportingDataEndpoint : ICarterModule
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Update an existing draft supporting data")
         .WithDescription("Update an existing draft supporting data record for appraisal reference.")
-        .WithTags("SupportingData");
+        .WithTags("SupportingData")
+        .RequireAuthorization();
     }
 }

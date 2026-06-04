@@ -16,6 +16,7 @@ public class DeleteSupportingDetailByIdEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Delete supporting detail by ID")
             .WithDescription("Deletes a supporting detail record by its Id.")
-            .WithTags("SupportingData");
+            .WithTags("SupportingData")
+            .RequireAuthorization();
     }
 }

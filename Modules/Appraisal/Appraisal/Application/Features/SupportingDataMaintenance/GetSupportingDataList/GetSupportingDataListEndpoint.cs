@@ -33,6 +33,7 @@ public class GetSupportingDataListEndpoint : ICarterModule
         .ProducesProblem(StatusCodes.Status401Unauthorized)
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Get supporting data list")
-        .WithDescription("Retrieves a paginated list of supporting data records with optional filtering by status, import data, and supporting number.");
+        .WithDescription("Retrieves a paginated list of supporting data records with optional filtering by status, import data, and supporting number.")
+        .RequireAuthorization();
     }
 }
