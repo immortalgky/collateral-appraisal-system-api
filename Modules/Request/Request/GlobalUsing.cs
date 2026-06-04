@@ -58,6 +58,7 @@ global using Request.Application.Features.Reappraisal.GetCandidates;
 global using Request.Application.Features.Reappraisal.GetCandidateById;
 global using Request.Application.Features.Reappraisal.InitiateReappraisal;
 global using Request.Application.Features.Reappraisal.DeleteCandidate;
+global using Request.Application.Features.Reappraisal.CreateBlockReappraisal;
 
 // RequestTitles Aggregate (includes TitleDocument as child entity)
 global using Request.Domain.RequestTitles;

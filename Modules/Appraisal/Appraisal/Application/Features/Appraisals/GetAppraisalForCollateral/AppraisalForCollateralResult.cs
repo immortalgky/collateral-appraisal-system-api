@@ -22,7 +22,71 @@ public record AppraisalForCollateralResult(
     // Construction Inspection Fee (per-assignment) — captured from the latest assignment's AppraisalFee.
     // Stamped onto every CollateralEngagement so a future Construction Inspection appraisal can reuse it.
     decimal? ConstructionInspectionFeeAmount,
-    IReadOnlyList<AppraisalPropertyForCollateral> Properties
+    IReadOnlyList<AppraisalPropertyForCollateral> Properties,
+    // Block-project appraisals: populated when a Project exists for this AppraisalId.
+    // null for all other appraisal types (land, condo unit, leasehold, machine).
+    ProjectForCollateral? Project,
+    // Lineage link used by the project branch for reappraisal dedup.
+    Guid? PrevAppraisalId
+);
+
+// ---------------------------------------------------------------------------
+// Block-project DTOs (PRJ collateral type)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Snapshot of the Project aggregate transferred to the Collateral module.
+/// Populated only when the appraisal has a 1:1 Project (block-condo or LandAndBuilding village).
+/// </summary>
+public record ProjectForCollateral(
+    string ProjectType,          // "Condo" | "LandAndBuilding"
+    string? ProjectName,
+    string? Developer,
+    string? Address,             // AdministrativeAddress province + district composite (informational)
+    string? Province,
+    decimal? Latitude,
+    decimal? Longitude,
+    int TotalUnits,
+    int RemainingUnits,
+    decimal? ProjectSellingPrice, // Sum of all unit SellingPrices (O4 in spec)
+    IReadOnlyList<ProjectUnitForCollateral> Units,
+    IReadOnlyList<ProjectModelForCollateral> Models,
+    IReadOnlyList<ProjectTowerForCollateral> Towers
+);
+
+/// <summary>Per-unit snapshot for the StructureJson field of ProjectDetail.</summary>
+public record ProjectUnitForCollateral(
+    int SequenceNumber,
+    bool IsSold,
+    string? ModelType,
+    decimal? UsableArea,
+    decimal? SellingPrice,
+    // Condo-side
+    int? Floor,
+    string? TowerName,
+    string? CondoRegistrationNumber,
+    string? RoomNumber,
+    // LandAndBuilding-side
+    string? PlotNumber,
+    string? HouseNumber,
+    int? NumberOfFloors,
+    decimal? LandArea
+);
+
+/// <summary>Minimal model stats snapshot.</summary>
+public record ProjectModelForCollateral(
+    string? ModelName,
+    decimal? StartingPriceMin,
+    decimal? StartingPriceMax,
+    decimal? UsableAreaMin,
+    decimal? UsableAreaMax
+);
+
+/// <summary>Minimal tower snapshot (Condo only).</summary>
+public record ProjectTowerForCollateral(
+    string? TowerName,
+    int? NumberOfUnits,
+    int? NumberOfFloors
 );
 
 /// <summary>

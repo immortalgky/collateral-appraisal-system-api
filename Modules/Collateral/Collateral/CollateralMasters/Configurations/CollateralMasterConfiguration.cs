@@ -93,6 +93,22 @@ public class CollateralMasterConfiguration : IEntityTypeConfiguration<Collateral
             .HasForeignKey<MachineDetail>(d => d.CollateralMasterId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Navigation: ProjectDetail (1:1)
+        builder.HasOne(m => m.ProjectDetail)
+            .WithOne()
+            .HasForeignKey<ProjectDetail>(d => d.CollateralMasterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Reappraisal exclusion columns
+        builder.Property(m => m.ExcludedFromReappraisal)
+            .IsRequired()
+            .HasDefaultValue(false);
+        builder.Property(m => m.ExcludedFromReappraisalAt)
+            .IsRequired(false);
+        builder.Property(m => m.ExcludedFromReappraisalBy)
+            .HasMaxLength(100)
+            .IsRequired(false);
+
         // Ignore EF backing field for domain events
         builder.Ignore(m => m.DomainEvents);
     }

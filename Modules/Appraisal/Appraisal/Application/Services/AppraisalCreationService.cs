@@ -13,6 +13,7 @@ namespace Appraisal.Application.Services;
 /// </summary>
 public class AppraisalCreationService(
     IAppraisalRepository appraisalRepository,
+    IProjectRepository projectRepository,
     IAppraisalUnitOfWork unitOfWork,
     AppraisalDbContext dbContext,
     ICurrentUserService currentUserService,
@@ -220,6 +221,12 @@ public class AppraisalCreationService(
                 logger.LogInformation(
                     "Initialized Project {ProjectId} (type={ProjectType}) for appraisal {AppraisalId}",
                     project.Id, projectType, appraisal.Id);
+
+                // Block reappraisal: seed unsold units from the prior project so the appraiser
+                // starts from the remaining inventory rather than an empty sheet.
+                // Parity with CI's null-prior handling: if prior project is missing, log and skip.
+                if (prevAppraisalId.HasValue)
+                    await SeedProjectUnitsFromPriorAsync(project, prevAppraisalId.Value, cancellationToken);
             }
 
             // Phase 2: Create group(s) + assignment, then save so the assignment row exists in DB
@@ -941,5 +948,73 @@ public class AppraisalCreationService(
         logger.LogInformation(
             "CI comparables clone: cloned {Count} AppraisalComparable row(s) from prior {PrevAppraisalId}.",
             priorComparables.Count, prevAppraisalId);
+    }
+
+    /// <summary>
+    /// Seeds the new block Project with the unsold units from the prior appraisal's Project.
+    /// Called only for block reappraisals (prevAppraisalId.HasValue).
+    /// If the prior Project does not exist (first-time block or orphaned data), logs a warning
+    /// and leaves the new project as an empty header — parity with CI's null-prior handling.
+    /// </summary>
+    private async Task SeedProjectUnitsFromPriorAsync(
+        Project project,
+        Guid prevAppraisalId,
+        CancellationToken cancellationToken)
+    {
+        var priorProject = await projectRepository.GetWithFullGraphAsync(prevAppraisalId, cancellationToken);
+
+        if (priorProject is null)
+        {
+            logger.LogWarning(
+                "Block reappraisal seed: prior project for appraisal {PrevAppraisalId} not found. " +
+                "New project {ProjectId} will start with an empty unit list.",
+                prevAppraisalId, project.Id);
+            return;
+        }
+
+        var unsoldUnits = priorProject.Units.Where(u => !u.IsSold).ToList();
+
+        if (unsoldUnits.Count == 0)
+        {
+            logger.LogInformation(
+                "Block reappraisal seed: prior project for appraisal {PrevAppraisalId} has no unsold units. " +
+                "New project {ProjectId} will start with an empty unit list.",
+                prevAppraisalId, project.Id);
+            return;
+        }
+
+        // Recreate each unsold unit via the domain factory, preserving business-key fields.
+        // IsSold defaults to false in the factory — correct for remaining inventory.
+        var seededUnits = project.ProjectType == ProjectType.Condo
+            ? unsoldUnits.Select((u, idx) => ProjectUnit.CreateCondo(
+                projectId: project.Id,
+                uploadBatchId: Guid.Empty,  // ImportUnits sets the real batchId
+                sequenceNumber: idx + 1,
+                floor: u.Floor,
+                towerName: u.TowerName,
+                condoRegistrationNumber: u.CondoRegistrationNumber,
+                roomNumber: u.RoomNumber,
+                modelType: u.ModelType,
+                usableArea: u.UsableArea,
+                sellingPrice: u.SellingPrice)).ToList()
+            : unsoldUnits.Select((u, idx) => ProjectUnit.CreateLandAndBuilding(
+                projectId: project.Id,
+                uploadBatchId: Guid.Empty,  // ImportUnits sets the real batchId
+                sequenceNumber: idx + 1,
+                plotNumber: u.PlotNumber,
+                houseNumber: u.HouseNumber,
+                modelType: u.ModelType,
+                numberOfFloors: u.NumberOfFloors,
+                landArea: u.LandArea,
+                usableArea: u.UsableArea,
+                sellingPrice: u.SellingPrice)).ToList();
+
+        project.ImportUnits("Seeded from prior appraisal", documentId: null, seededUnits);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Block reappraisal seed: seeded {Count} unsold unit(s) from prior project (appraisal {PrevAppraisalId}) " +
+            "into new project {ProjectId}.",
+            seededUnits.Count, prevAppraisalId, project.Id);
     }
 }
