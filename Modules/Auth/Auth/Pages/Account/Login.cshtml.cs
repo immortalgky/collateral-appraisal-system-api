@@ -191,7 +191,8 @@ public class Login(
 
         // If the user must change their password, append a flag so the SPA can intercept
         // and redirect to the change-password screen before allowing normal navigation.
-        if (user?.MustChangePassword == true)
+        // Only append to LOCAL urls — never leak account state to an external domain.
+        if (user?.MustChangePassword == true && Url.IsLocalUrl(redirectUrl))
         {
             var separator = redirectUrl.Contains('?') ? "&" : "?";
             redirectUrl += $"{separator}mustChangePassword=true";

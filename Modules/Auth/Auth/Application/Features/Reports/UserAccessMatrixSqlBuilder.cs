@@ -96,9 +96,9 @@ internal static class UserAccessMatrixSqlBuilder
             conditions.Add("""
                 EXISTS (
                     SELECT 1
-                    FROM auth.TeamUsers tu
+                    FROM auth.TeamMembers tu
                     JOIN auth.Teams t ON t.Id = tu.TeamId
-                    WHERE tu.UserId = u.Id AND t.Id = @TeamId AND t.IsDeleted = 0
+                    WHERE tu.UserId = u.Id AND t.Id = @TeamId AND t.IsActive = 1
                 )
                 """);
             p.Add("TeamId", teamId.Value);
@@ -137,9 +137,9 @@ internal static class UserAccessMatrixSqlBuilder
                 '') AS Groups,
             COALESCE(
                 (SELECT STRING_AGG(t.Name, ', ') WITHIN GROUP (ORDER BY t.Name)
-                 FROM auth.TeamUsers tu
+                 FROM auth.TeamMembers tu
                  JOIN auth.Teams t ON t.Id = tu.TeamId
-                 WHERE tu.UserId = u.Id AND t.IsDeleted = 0),
+                 WHERE tu.UserId = u.Id AND t.IsActive = 1),
                 '') AS Teams
         """;
 

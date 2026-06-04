@@ -64,14 +64,16 @@ public class GetUsersQueryHandler(
             .GroupBy(x => x.UserId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.RoleName).ToList());
 
-        var now = dateTimeProvider.ApplicationNow;
+        // Compare in UTC: LockoutEnd is a DateTimeOffset; comparing its UTC instant
+        // against UtcNow avoids implicit local-offset conversion bugs.
+        var nowUtc = dateTimeProvider.UtcNow;
 
         var items = users.Select(u => new UserListItemDto(
             u.Id, u.UserName ?? "", u.FirstName, u.LastName,
             u.Email, u.AvatarUrl, u.Position, u.Department, u.CompanyId, u.AuthSource,
             rolesByUser.TryGetValue(u.Id, out var roles) ? roles : [],
             u.IsActive,
-            u.LockoutEnd.HasValue && u.LockoutEnd.Value > now));
+            u.LockoutEnd.HasValue && u.LockoutEnd.Value.UtcDateTime > nowUtc));
 
         return new GetUsersResult(items, total, pageNumber, pageSize);
     }

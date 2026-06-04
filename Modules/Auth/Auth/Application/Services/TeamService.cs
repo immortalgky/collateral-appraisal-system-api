@@ -46,14 +46,15 @@ public class TeamService(
             ?? throw new KeyNotFoundException($"Team {id} not found.");
 
         var beforeIds = team.Members.Select(m => m.UserId).ToList();
+        var afterIds = memberUserIds.Distinct().ToList();
 
         var existing = dbContext.TeamMembers.Where(m => m.TeamId == id);
         dbContext.TeamMembers.RemoveRange(existing);
 
-        foreach (var userId in memberUserIds)
+        foreach (var userId in afterIds)
             dbContext.TeamMembers.Add(new TeamMember { TeamId = id, UserId = userId });
 
-        auditWriter.RecordAssignmentChange(AuditEntityType.Team, id, team.Name, beforeIds, memberUserIds, "members");
+        auditWriter.RecordAssignmentChange(AuditEntityType.Team, id, team.Name, beforeIds, afterIds, "members");
         await teamRepository.SaveChangesAsync(cancellationToken);
     }
 
