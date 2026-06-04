@@ -12,10 +12,10 @@ public class PricingAnalysisConfiguration : IEntityTypeConfiguration<PricingAnal
     {
         builder.ToTable("PricingAnalysis", t =>
         {
-            // XOR constraint: exactly one of the two subject FKs must be non-null.
+            // AnchorId is always non-null — enforced by CHECK constraint.
             t.HasCheckConstraint(
-                "CK_PricingAnalysis_SubjectXor",
-                "([PropertyGroupId] IS NOT NULL AND [ProjectModelId] IS NULL) OR ([PropertyGroupId] IS NULL AND [ProjectModelId] IS NOT NULL)");
+                "CK_PricingAnalysis_AnchorNotNull",
+                "[AnchorId] IS NOT NULL");
         });
 
         builder.HasKey(p => p.Id);
@@ -23,24 +23,19 @@ public class PricingAnalysisConfiguration : IEntityTypeConfiguration<PricingAnal
 
         builder.Property(p => p.SubjectType).IsRequired();
 
-        // PropertyGroupId: nullable; filtered unique index (not null rows only)
-        builder.Property(p => p.PropertyGroupId).IsRequired(false);
-        builder.HasIndex(p => p.PropertyGroupId)
-            .IsUnique()
-            .HasFilter("[PropertyGroupId] IS NOT NULL");
+        // Generic anchor fields (replace the former PropertyGroupId / ProjectModelId columns).
+        builder.Property(p => p.AnchorId).IsRequired(false); // nullable in DB, non-null enforced by CHECK above
+        builder.Property(p => p.AnchorRefKey).IsRequired(false).HasMaxLength(200);
+        builder.Property(p => p.HostMethodId).IsRequired(false);
 
-        // ProjectModelId: nullable; filtered unique index (not null rows only)
-        builder.Property(p => p.ProjectModelId).IsRequired(false);
-        builder.HasIndex(p => p.ProjectModelId)
+        // Composite unique: one PricingAnalysis per (SubjectType, AnchorId, AnchorRefKey) target.
+        // Filtered to non-null AnchorId rows only (no constraint on orphaned rows if any exist historically).
+        builder.HasIndex(p => new { p.SubjectType, p.AnchorId, p.AnchorRefKey })
             .IsUnique()
-            .HasFilter("[ProjectModelId] IS NOT NULL");
+            .HasFilter("[AnchorId] IS NOT NULL");
 
-        // FK: PricingAnalysis.ProjectModelId → ProjectModels.Id (cascade)
-        builder.HasOne<ProjectModel>()
-            .WithOne(m => m.PricingAnalysis)
-            .HasForeignKey<PricingAnalysis>(p => p.ProjectModelId)
-            .OnDelete(DeleteBehavior.Cascade)
-            .IsRequired(false);
+        // No FK from PricingAnalysis → ProjectModels: replaced by app-level cleanup in
+        // DeleteProjectModelCommandHandler (via PricingReferenceCleanupService).
 
         builder.Property(p => p.Status).IsRequired().HasMaxLength(50);
 
@@ -270,6 +265,7 @@ public class PricingComparativeFactorConfiguration : IEntityTypeConfiguration<Pr
         builder.Property(f => f.DisplaySequence).IsRequired();
         builder.Property(f => f.IsSelectedForScoring).IsRequired().HasDefaultValue(false);
         builder.Property(f => f.Remarks).HasMaxLength(500);
+        builder.Property(f => f.CollateralValue).IsRequired(false).HasMaxLength(500);
 
         builder.HasIndex(f => f.PricingMethodId);
         builder.HasIndex(f => new { f.PricingMethodId, f.FactorId }).IsUnique();

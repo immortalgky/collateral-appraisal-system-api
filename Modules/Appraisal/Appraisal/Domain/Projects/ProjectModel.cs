@@ -30,10 +30,6 @@ public class ProjectModel : Entity<Guid>
     public decimal? StartingPriceMin { get; private set; }
     public decimal? StartingPriceMax { get; private set; }
 
-    // Standard price is derived from PricingAnalysis.FinalAppraisedValue (no longer stored here).
-    // Navigate via PricingAnalysis?.FinalAppraisedValue.
-    public PricingAnalysis? PricingAnalysis { get; private set; }
-
     public bool? HasMezzanine { get; private set; }
 
     // Usable Area

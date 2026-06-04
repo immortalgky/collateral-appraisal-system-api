@@ -194,6 +194,8 @@ public static class AuthModule
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IGroupService, GroupService>();
+        services.AddScoped<ITeamService, TeamService>();
+        services.AddScoped<IAuthAuditWriter, AuthAuditWriter>();
         services.AddScoped<IUserLookupService, UserLookupService>();
         services.AddScoped<PermissionResolver>();
 
@@ -206,6 +208,7 @@ public static class AuthModule
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<ICompanyRepository, CompanyRepository>();
         services.AddScoped<IGroupRepository, GroupRepository>();
+        services.AddScoped<ITeamRepository, TeamRepository>();
 
         return services;
     }
@@ -234,6 +237,8 @@ public static class AuthModule
             .AddUserPermissionPolicy("CanManagePermissions", "PERMISSION_MANAGE")
             .AddUserPermissionPolicy("CanManageRoles", "ROLE_MANAGE")
             .AddUserPermissionPolicy("CanManageGroups", "GROUP_MANAGE")
+            .AddUserPermissionPolicy("CanManageTeams", "TEAM_MANAGE")
+            .AddUserPermissionPolicy("CanViewAuthAudit", "AUTH_AUDIT_VIEW")
             .AddUserPermissionPolicy("CanManageUsers", "USER_MANAGE")
             .AddUserPermissionPolicy("CanManageMenus", "MENU_MANAGE")
             .AddUserPermissionPolicy("CanManageCompanies", "COMPANY_MANAGE")
@@ -256,6 +261,7 @@ public static class AuthModule
             .AddUserPermissionPolicy("task-monitor.view", "TASK_MONITOR_VIEW")
             .AddUserPermissionPolicy("task-monitor.reassign", "TASK_MONITOR_REASSIGN")
             .AddUserPermissionPolicy("history-search.view", "HISTORY_SEARCH_VIEW")
+            .AddUserPermissionPolicy("reappraisal.generate-test-file", "REAPPRAISAL_GENERATE_TEST_FILE")
             // ── Monitoring feature policies (FSD §2.6.8) ──────────────────────────
             // Any-prefix policies: caller needs ANY permission with the given prefix.
             .AddMonitoringPrefixPolicy("monitoring.pending-internal", "MONITORING:PENDING_INTERNAL:")

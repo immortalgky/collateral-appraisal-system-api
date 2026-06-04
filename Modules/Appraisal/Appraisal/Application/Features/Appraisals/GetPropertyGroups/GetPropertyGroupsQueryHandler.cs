@@ -14,7 +14,7 @@ public class GetPropertyGroupsQueryHandler(
         var appraisal = await appraisalRepository.GetByIdAsync(query.AppraisalId, cancellationToken)
                         ?? throw new InvalidOperationException($"Appraisal {query.AppraisalId} not found");
 
-        var groups = appraisal.Groups.Select(g => new PropertyGroupDto(
+        var groups = appraisal.Groups.OrderBy(g => g.GroupNumber).Select(g => new PropertyGroupDto(
             g.Id,
             g.GroupNumber,
             g.GroupName,

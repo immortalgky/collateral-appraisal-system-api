@@ -1,10 +1,14 @@
 using Common.Application.Features.Monitoring.Shared;
 using Common.Infrastructure;
+using Common.Infrastructure.Configuration;
+using Common.Infrastructure.Seed;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Configuration;
 using Shared.Data.Extensions;
+using Shared.Data.Seed;
 
 namespace Common;
 
@@ -24,6 +28,13 @@ public static class CommonModule
 
         // Monitoring feature services
         services.AddScoped<MonitoringScopeService>();
+
+        // System configuration reader (cross-module, backed by IMemoryCache)
+        services.AddMemoryCache();
+        services.AddScoped<ISystemConfigurationReader, SystemConfigurationReader>();
+
+        // Seeders
+        services.AddScoped<IDataSeeder<CommonDbContext>, SystemConfigurationDataSeed>();
 
         return services;
     }

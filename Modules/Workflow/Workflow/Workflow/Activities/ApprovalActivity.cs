@@ -213,8 +213,15 @@ public class ApprovalActivity : WorkflowActivityBase
             // Immediate route-back check
             if (vote.Equals("route_back", StringComparison.OrdinalIgnoreCase))
             {
+                var rbAppraisalId = ResolveAppraisalId(context.Variables);
+                if (rbAppraisalId is null)
+                    _logger.LogWarning(
+                        "ApprovalActivity {ActivityId}: appraisalId missing from variables; route_back vote by {Voter} stored with empty AppraisalId and will be invisible to history.",
+                        context.ActivityId, voter);
+
                 // Save the route_back vote for audit
                 var rbVote = ApprovalVote.Create(
+                    rbAppraisalId ?? Guid.Empty,
                     context.WorkflowInstanceId, context.ActivityId, executionId,
                     voter, memberInfo.Role, vote, comments);
                 await _voteRepository.AddVoteAsync(rbVote, cancellationToken);
@@ -223,8 +230,6 @@ public class ApprovalActivity : WorkflowActivityBase
                 // and the activity execution row so the next activity inherits "B".
                 var rbMovement = ResolveActionMovement(context, vote);
                 execution.StampMovement(rbMovement);
-
-                var rbAppraisalId = ResolveAppraisalId(context.Variables);
 
                 // Publish task completed for this member
                 await _publisher.Publish(new TaskCompletedDomainEvent(
@@ -250,12 +255,19 @@ public class ApprovalActivity : WorkflowActivityBase
             if (hasVoted)
                 return ActivityResult.Failed($"Member '{voter}' has already voted in this round");
 
+            var voteAppraisalId = ResolveAppraisalId(context.Variables);
+            if (voteAppraisalId is null)
+                _logger.LogWarning(
+                    "ApprovalActivity {ActivityId}: appraisalId missing from variables; vote by {Voter} stored with empty AppraisalId and will be invisible to history.",
+                    context.ActivityId, voter);
+
             // Record the vote. The DB has a unique index on (ActivityExecutionId, Member)
             // so a concurrent duplicate will throw DbUpdateException even if HasMemberVotedAsync passed.
             ApprovalVote approvalVote;
             try
             {
                 approvalVote = ApprovalVote.Create(
+                    voteAppraisalId ?? Guid.Empty,
                     context.WorkflowInstanceId, context.ActivityId, executionId,
                     voter, memberInfo.Role, vote, comments);
                 await _voteRepository.AddVoteAsync(approvalVote, cancellationToken);
@@ -268,8 +280,6 @@ public class ApprovalActivity : WorkflowActivityBase
             // Resolve movement for this vote — used on the per-member completed task
             // stamp and, if the quorum is reached below, on the activity execution row.
             var voteMovement = ResolveActionMovement(context, vote);
-
-            var voteAppraisalId = ResolveAppraisalId(context.Variables);
 
             // Publish task completed for this member
             await _publisher.Publish(new TaskCompletedDomainEvent(

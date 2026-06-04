@@ -168,5 +168,9 @@ public record GetLandAndBuildingPropertyResponse(
     // Surfaces
     IReadOnlyList<BuildingAppraisalSurfaceDto> Surfaces,
     // Construction Inspection
-    ConstructionInspectionDto? ConstructionInspection
+    ConstructionInspectionDto? ConstructionInspection,
+    // Rented-out land: lease agreement & rental info (populated when IsRentedOut == true)
+    bool? IsRentedOut = null,
+    Shared.LeaseAgreementDetailDto? LeaseAgreement = null,
+    Shared.RentalInfoDto? RentalInfo = null
 );

@@ -13,6 +13,7 @@ SELECT a.Id,
        a.Channel,
        a.BankingSegment,
        a.FacilityLimit,
+       a.GroupTag,
        a.RequestedBy,
        a.RequestedAt,
        a.SLAHours,
@@ -38,11 +39,13 @@ SELECT a.Id,
        ld.SubDistrict,
        -- Latest appointment
        apt.AppointmentDateTime,
-       -- SLA computed fields
-       DATEDIFF(HOUR, a.CreatedAt, GETUTCDATE())                                           AS ElapsedHours,
+       -- SLA computed fields. CreatedAt / SLADueDate are stored in application-local time
+       -- (stamped via IDateTimeProvider.ApplicationNow), so compare against local GETDATE(),
+       -- not GETUTCDATE() — matching the convention in the other SLA/task list views.
+       DATEDIFF(HOUR, a.CreatedAt, GETDATE())                                              AS ElapsedHours,
        CASE
            WHEN a.SLADueDate IS NOT NULL
-               THEN DATEDIFF(HOUR, GETUTCDATE(), a.SLADueDate)
+               THEN DATEDIFF(HOUR, GETDATE(), a.SLADueDate)
            END                                                                             AS RemainingHours
 FROM appraisal.Appraisals a
          LEFT JOIN request.Requests r ON r.Id = a.RequestId

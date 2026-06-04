@@ -9,7 +9,7 @@ public class Request : Aggregate<Guid>
     public UserInfo Requestor { get; private set; } = default!;
     public DateTime? RequestedAt { get; private set; }
     public UserInfo Creator { get; private set; } = default!;
-    public DateTime CreatedAt { get; private set; }
+    public new DateTime CreatedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
     public string? Priority { get; private set; }
     public bool IsPma { get; private set; }
@@ -150,9 +150,15 @@ public class Request : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Submits the request.
+    /// Submits the request. <paramref name="groupTag"/> is a transient hint for reappraisal
+    /// batches — it is NOT persisted on Request; it flows into <see cref="RequestSubmittedEvent"/>
+    /// so downstream handlers can stamp <c>Appraisal.GroupTag</c> when the Appraisal is created.
+    /// <paramref name="entrySource"/> is likewise transient — it records HOW the request entered
+    /// the system (<c>UI</c> vs <c>API</c>) so the workflow can decide whether the
+    /// <c>appraisal-initiation-check</c> task applies. It is distinct from the business
+    /// <c>Channel</c> and is NOT persisted on Request.
     /// </summary>
-    public void Submit(DateTime submittedAt)
+    public void Submit(DateTime submittedAt, string? groupTag = null, string? entrySource = null)
     {
         RuleCheck.Valid()
             .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
@@ -161,7 +167,7 @@ public class Request : Aggregate<Guid>
 
         UpdateStatus(RequestStatus.Submitted);
         RequestedAt = submittedAt;
-        AddDomainEvent(new RequestSubmittedEvent(this));
+        AddDomainEvent(new RequestSubmittedEvent(this, groupTag, entrySource));
     }
 
     public void Complete(DateTime completedAt)

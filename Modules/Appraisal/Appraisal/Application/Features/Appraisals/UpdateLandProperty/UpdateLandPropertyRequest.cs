@@ -99,5 +99,9 @@ public record UpdateLandPropertyRequest(
     string? HasBuildingOther = null,
     string? Remark = null,
     // Land Titles
-    List<LandTitleItemData>? Titles = null
+    List<LandTitleItemData>? Titles = null,
+    // Rented-out land: lease agreement & rental info (sent when IsRentedOut == true)
+    bool? IsRentedOut = null,
+    Shared.LeaseAgreementData? LeaseAgreement = null,
+    Shared.RentalInfoData? RentalInfo = null
 );

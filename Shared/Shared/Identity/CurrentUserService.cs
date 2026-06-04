@@ -17,6 +17,7 @@ public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICur
     }
 
     public string? Username => User?.FindFirst("name")?.Value;
+    public string? UserCode => User?.FindFirst("preferred_username")?.Value;
     public bool IsAuthenticated => User?.Identity?.IsAuthenticated ?? false;
 
     public IReadOnlyList<string> Permissions

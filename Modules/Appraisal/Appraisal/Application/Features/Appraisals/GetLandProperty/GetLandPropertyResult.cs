@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+using Appraisal.Application.Features.Appraisals.Shared;
 
 namespace Appraisal.Application.Features.Appraisals.GetLandProperty;
 
@@ -120,6 +121,13 @@ public record GetLandPropertyResult
     public string? Remark { get; init; }
     public decimal TotalLandAreaInSqWa { get; init; }
 
+    // Rental Flag
+    public bool? IsRentedOut { get; init; }
+
     // Land Titles
     public List<LandTitleItemData>? Titles { get; init; }
+
+    // Lease Agreement & Rental Info (populated when IsRentedOut == true)
+    public LeaseAgreementDetailDto? LeaseAgreement { get; init; }
+    public RentalInfoDto? RentalInfo { get; init; }
 }

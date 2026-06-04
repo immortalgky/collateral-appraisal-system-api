@@ -13,7 +13,7 @@ public class AppointmentHistory : Entity<Guid>
     public string? PreviousLocationDetail { get; private set; }
 
     // Change Details
-    public string ChangeType { get; private set; } = null!; // Rescheduled, Cancelled, StatusChanged
+    public string ChangeType { get; private set; } = null!; // Rescheduled, Cancelled, RescheduleRejected, StatusChanged
     public string? ChangeReason { get; private set; }
     public DateTime ChangedAt { get; private set; }
     public string ChangedBy { get; private set; } = default!;
@@ -32,8 +32,10 @@ public class AppointmentHistory : Entity<Guid>
         string? changeReason,
         string changedBy)
     {
-        if (changeType != "Rescheduled" && changeType != "Cancelled" && changeType != "StatusChanged")
-            throw new ArgumentException("ChangeType must be 'Rescheduled', 'Cancelled', or 'StatusChanged'");
+        if (changeType != "Rescheduled" && changeType != "Cancelled"
+            && changeType != "RescheduleRejected" && changeType != "StatusChanged")
+            throw new ArgumentException(
+                "ChangeType must be 'Rescheduled', 'Cancelled', 'RescheduleRejected', or 'StatusChanged'");
 
         return new AppointmentHistory
         {

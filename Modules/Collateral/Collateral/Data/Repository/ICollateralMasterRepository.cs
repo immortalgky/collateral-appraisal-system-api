@@ -95,5 +95,13 @@ public interface ICollateralMasterRepository
     /// </summary>
     Task<List<Guid>> GetActiveLeaseholdIdsForUnderlyingAsync(Guid underlyingMasterId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Finds the PRJ, IsMaster, non-deleted master whose ProjectDetail.AppraisalSummary.LastAppraisalId
+    /// equals <paramref name="lastAppraisalId"/>. Used by the project-branch upsert to detect a
+    /// previously-created master for the same appraisal lineage (reappraisal dedup).
+    /// Includes ProjectDetail and Engagements.
+    /// </summary>
+    Task<CollateralMaster?> FindProjectMasterByLastAppraisalIdAsync(Guid lastAppraisalId, CancellationToken ct = default);
+
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

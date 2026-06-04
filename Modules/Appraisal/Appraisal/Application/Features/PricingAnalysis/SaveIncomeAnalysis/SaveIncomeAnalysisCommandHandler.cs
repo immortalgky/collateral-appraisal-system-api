@@ -1,5 +1,6 @@
 using Appraisal.Application.Configurations;
 using Appraisal.Application.Features.Appraisals.GetRentalInfo;
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Appraisals.Income;
 using Appraisal.Domain.Appraisals.Income.MethodDetails;
@@ -16,6 +17,7 @@ public class SaveIncomeAnalysisCommandHandler(
     IAppraisalUnitOfWork unitOfWork,
     IncomeCalculationService calcService,
     ISender mediator,
+    PricingReferenceCleanupService cleanupService,
     ILogger<SaveIncomeAnalysisCommandHandler> logger
 ) : ICommandHandler<SaveIncomeAnalysisCommand, SaveIncomeAnalysisResult>
 {
@@ -168,6 +170,13 @@ public class SaveIncomeAnalysisCommandHandler(
             if (parentApproach.IsSelected)
                 pricingAnalysis.SetFinalValues(methodValue);
         }
+
+        // Active cleanup (DL10): reconcile RoomIncomeRef analyses when Method01 room types change.
+        // Collect all remaining room-type names from Method01 assumptions in the current sections.
+        // Always run — an empty set means every room (or the whole Method01 assumption) was removed,
+        // so all RoomIncomeRef analyses hosted by this method must be deleted.
+        var remainingRooms = GatherMethod01RoomNames(command.Sections);
+        await cleanupService.CleanupForIncomeRoomsAsync(command.MethodId, remainingRooms, cancellationToken);
 
         return new SaveIncomeAnalysisResult(IncomeAnalysisMapper.ToDto(analysis));
     }
@@ -340,6 +349,31 @@ public class SaveIncomeAnalysisCommandHandler(
         return pairs;
     }
     
+    /// <summary>
+    /// Gathers the distinct room-type names present in all Method01 assumptions across all sections.
+    /// Used to determine which RoomIncomeRef analyses are still valid after a save.
+    /// </summary>
+    private static IReadOnlyCollection<string> GatherMethod01RoomNames(IReadOnlyList<IncomeSectionInput> sections)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var section in sections)
+        foreach (var category in section.Categories)
+        foreach (var assumption in category.Assumptions)
+        {
+            if (!string.Equals(assumption.MethodTypeCode, "M01", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var roomNames = PricingReferenceCleanupService.ExtractRoomNamesFromMethod01(
+                assumption.Detail.GetRawText());
+
+            foreach (var name in roomNames)
+                names.Add(name);
+        }
+
+        return names;
+    }
+
     private static decimal[] BuildContractRentalFeeArray(
         IReadOnlyList<ScheduleEntryDto> entries,
         int totalYears)

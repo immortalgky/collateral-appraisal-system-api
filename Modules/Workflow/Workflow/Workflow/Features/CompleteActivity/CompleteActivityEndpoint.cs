@@ -105,6 +105,16 @@ public record CompleteActivityCommand : ICommand<CompleteActivityResponse>, ITra
     public Dictionary<string, AssignmentOverrideRequest>? NextAssignmentOverrides { get; init; }
 }
 
+/// <summary>
+/// A single structured validation error surfaced in a ValidationFailed response.
+/// Carries the originating step name and a machine-readable error code so the FE
+/// can distinguish rule types without string-matching the message.
+/// </summary>
+public sealed record StructuredValidationError(
+    string StepName,
+    string ErrorCode,
+    string Message);
+
 public record CompleteActivityResponse
 {
     public Guid WorkflowInstanceId { get; init; }
@@ -114,7 +124,7 @@ public record CompleteActivityResponse
     public string? CurrentAssignee { get; init; }
     public string? NextAssignee { get; init; }
     public bool IsCompleted { get; init; }
-    public List<string>? ValidationErrors { get; init; }
+    public List<StructuredValidationError>? ValidationErrors { get; init; }
 }
 
 public class CompleteActivityCommandHandler(
@@ -164,12 +174,16 @@ public class CompleteActivityCommandHandler(
             }
 
             // Validation failure: nothing was mutated, return a clean failure response.
+            // Map the already-structured StepFailures to StructuredValidationError so the
+            // FE receives {stepName, errorCode, message} for each failure.
             return new CompleteActivityResponse
             {
                 WorkflowInstanceId = request.WorkflowInstanceId,
                 WorkflowActivityExecutionId = workflowActivityExecutionId,
                 Status = "ValidationFailed",
-                ValidationErrors = pipelineResult.AllErrors().ToList()
+                ValidationErrors = pipelineResult.ValidationFailures
+                    .Select(f => new StructuredValidationError(f.StepName, f.ErrorCode, f.Message))
+                    .ToList()
             };
         }
 

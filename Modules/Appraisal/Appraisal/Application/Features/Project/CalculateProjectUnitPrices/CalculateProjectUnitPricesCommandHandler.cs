@@ -1,4 +1,5 @@
 using Appraisal.Application.Configurations;
+using Appraisal.Domain.Appraisals;
 using DomainProject = Appraisal.Domain.Projects.Project;
 
 namespace Appraisal.Application.Features.Project.CalculateProjectUnitPrices;
@@ -11,6 +12,7 @@ namespace Appraisal.Application.Features.Project.CalculateProjectUnitPrices;
 /// </summary>
 public class CalculateProjectUnitPricesCommandHandler(
     IProjectRepository projectRepository,
+    IPricingAnalysisRepository pricingAnalysisRepository,
     AppraisalDbContext dbContext,
     IAppraisalUnitOfWork unitOfWork
 ) : ICommandHandler<CalculateProjectUnitPricesCommand>
@@ -30,8 +32,16 @@ public class CalculateProjectUnitPricesCommandHandler(
 
         var existingPriceMap = existingPrices.ToDictionary(p => p.ProjectUnitId);
 
+        // Fetch PricingAnalysis FinalAppraisedValue per model id (separate aggregate — no nav property).
+        var modelIds = project.Models.Select(m => m.Id);
+        var paSummaries = await pricingAnalysisRepository
+            .GetProjectModelPricingSummariesAsync(modelIds, cancellationToken);
+        var standardPriceByModelId = paSummaries.ToDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value.FinalAppraisedValue);
+
         // Domain method performs all type-specific calculations and returns the updated price rows
-        var prices = project.CalculateUnitPrices(existingPriceMap);
+        var prices = project.CalculateUnitPrices(existingPriceMap, standardPriceByModelId);
 
         // Upsert: new rows get Added, existing rows were mutated in-place by the domain method
         foreach (var price in prices)

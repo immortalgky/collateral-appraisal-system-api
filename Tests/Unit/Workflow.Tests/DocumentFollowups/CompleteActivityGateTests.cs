@@ -61,8 +61,10 @@ public class CompleteActivityGateTests
         }, CancellationToken.None);
 
         response.Status.Should().Be("ValidationFailed");
-        response.ValidationErrors.Should().ContainSingle()
-            .Which.Should().Contain("open document followups");
+        response.ValidationErrors.Should().ContainSingle().Which.Should().Match<StructuredValidationError>(e =>
+            e.StepName == "RequireDocumentFollowupCleared" &&
+            e.ErrorCode == "OPEN_DOCUMENT_FOLLOWUPS" &&
+            e.Message.Contains("open document followups"));
 
         await workflowService.DidNotReceiveWithAnyArgs().ResumeWorkflowAsync(
             default, default!, default!, default, default, default);

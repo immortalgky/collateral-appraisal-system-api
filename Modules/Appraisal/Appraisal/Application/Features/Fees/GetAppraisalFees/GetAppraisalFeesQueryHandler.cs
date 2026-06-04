@@ -59,7 +59,9 @@ public class GetAppraisalFeesQueryHandler(ISqlConnectionFactory connectionFactor
                            i.ApprovalStatus,
                            i.ApprovedBy,
                            i.ApprovedAt,
-                           i.RejectionReason
+                           i.RejectionReason,
+                           i.ApprovalSubmittedAt,
+                           i.Source
                        FROM appraisal.AppraisalFeeItems i
                        WHERE i.AppraisalFeeId IN @FeeIds
                        ORDER BY i.FeeCode
@@ -75,13 +77,14 @@ public class GetAppraisalFeesQueryHandler(ISqlConnectionFactory connectionFactor
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var paymentSql = """
-                         SELECT 
+                         SELECT
                             h.Id,
                             h.AppraisalFeeId,
                             h.PaymentDate,
                             h.PaymentAmount,
+                            h.Source,
                             h.CreatedAt
-                         FROM appraisal.AppraisalFeePaymentHistory h 
+                         FROM appraisal.AppraisalFeePaymentHistory h
                          WHERE AppraisalFeeId IN @FeeIds
                          ORDER BY PaymentDate, CreatedAt
                          """;

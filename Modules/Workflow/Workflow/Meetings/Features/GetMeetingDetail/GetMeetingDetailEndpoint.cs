@@ -107,7 +107,6 @@ public record MeetingItemsGroupedDto(
     List<MeetingItemGroupDto> AcknowledgementItems);
 
 public class GetMeetingDetailQueryHandler(
-    IMeetingRepository meetingRepository,
     ISqlConnectionFactory sqlConnectionFactory,
     IDateTimeProvider dateTimeProvider)
     : IQueryHandler<GetMeetingDetailQuery, MeetingDetailDto>

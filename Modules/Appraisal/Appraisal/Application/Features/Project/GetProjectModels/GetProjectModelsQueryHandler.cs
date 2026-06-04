@@ -2,7 +2,8 @@ namespace Appraisal.Application.Features.Project.GetProjectModels;
 
 /// <summary>Handler for getting all models for a project.</summary>
 public class GetProjectModelsQueryHandler(
-    IProjectRepository projectRepository
+    IProjectRepository projectRepository,
+    IPricingAnalysisRepository pricingAnalysisRepository
 ) : IQueryHandler<GetProjectModelsQuery, GetProjectModelsResult>
 {
     public async Task<GetProjectModelsResult> Handle(
@@ -14,12 +15,19 @@ public class GetProjectModelsQueryHandler(
         if (project is null)
             return new GetProjectModelsResult([]);
 
-        var models = project.Models.Select(MapToDto).ToList();
+        // Batch-load PricingAnalysis summaries (Id, Status, FinalAppraisedValue) for all models.
+        var modelIds = project.Models.Select(m => m.Id);
+        var paSummaries = await pricingAnalysisRepository
+            .GetProjectModelPricingSummariesAsync(modelIds, cancellationToken);
+
+        var models = project.Models.Select(m => MapToDto(m, paSummaries)).ToList();
 
         return new GetProjectModelsResult(models);
     }
 
-    internal static ProjectModelDto MapToDto(Domain.Projects.ProjectModel m) =>
+    internal static ProjectModelDto MapToDto(
+        Domain.Projects.ProjectModel m,
+        IReadOnlyDictionary<Guid, ProjectModelPricingSummary> paSummaries) =>
         new(
             Id: m.Id,
             ProjectId: m.ProjectId,
@@ -80,9 +88,9 @@ public class GetProjectModelsQueryHandler(
             ConstructionTypeOther: m.ConstructionTypeOther,
             UtilizationType: m.UtilizationType,
             UtilizationTypeOther: m.UtilizationTypeOther,
-            PricingAnalysisId: m.PricingAnalysis?.Id,
-            PricingAnalysisStatus: m.PricingAnalysis?.Status,
-            FinalAppraisedValue: m.PricingAnalysis?.FinalAppraisedValue,
+            PricingAnalysisId: paSummaries.TryGetValue(m.Id, out var pa) ? pa.PricingAnalysisId : null,
+            PricingAnalysisStatus: pa?.Status,
+            FinalAppraisedValue: pa?.FinalAppraisedValue,
             AreaDetails: m.AreaDetails
                 .Select(a => new ProjectModelAreaDetailDto(a.Id, a.AreaDescription, a.AreaSize))
                 .ToList(),

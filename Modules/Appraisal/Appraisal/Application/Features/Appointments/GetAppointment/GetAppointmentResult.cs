@@ -21,4 +21,12 @@ public sealed record AppointmentDto
     public string? ContactPerson { get; set; }
     public string? ContactPhone { get; set; }
     public DateTime? CreatedOn { get; set; }
+
+    // Inline-edit approval markers (added for the inline-edit + pending-approval feature)
+    public bool RequiresApproval { get; set; }
+    public DateTime? ApprovalSubmittedAt { get; set; }
+
+    // The previous (pre-reschedule) date, shown struck-through next to the proposed date while
+    // the reschedule is awaiting approval. Null unless RequiresApproval.
+    public DateTime? PreviousDate { get; set; }
 }

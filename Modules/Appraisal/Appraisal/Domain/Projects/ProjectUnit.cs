@@ -162,6 +162,19 @@ public class ProjectUnit : Entity<Guid>
         }
     }
 
+    /// <summary>
+    /// System-driven sold mark for block reappraisal Excel re-match: a prior unit absent from the
+    /// new Excel is treated as sold, but the purchase method is unknown.
+    /// Bypasses the Cash/Loan invariant of <see cref="SetSaleInfo"/> on purpose — the user can
+    /// later correct PurchaseBy via the Block Unit Maintenance screen.
+    /// </summary>
+    public void MarkSoldByReappraisal()
+    {
+        IsSold = true;
+        PurchaseBy = null;
+        LoanBankName = null;
+    }
+
     internal void SetUploadBatchId(Guid uploadBatchId)
     {
         UploadBatchId = uploadBatchId;

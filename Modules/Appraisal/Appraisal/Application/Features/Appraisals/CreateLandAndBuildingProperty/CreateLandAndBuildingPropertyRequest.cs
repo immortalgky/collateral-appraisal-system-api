@@ -177,5 +177,9 @@ public record CreateLandAndBuildingPropertyRequest(
     // Surfaces
     List<SurfaceItemData>? Surfaces = null,
     // Construction Inspection (null = skip)
-    ConstructionInspectionData? ConstructionInspection = null
+    ConstructionInspectionData? ConstructionInspection = null,
+    // Rented-out land: lease agreement & rental info (sent when IsRentedOut == true)
+    bool? IsRentedOut = null,
+    Shared.LeaseAgreementData? LeaseAgreement = null,
+    Shared.RentalInfoData? RentalInfo = null
 );

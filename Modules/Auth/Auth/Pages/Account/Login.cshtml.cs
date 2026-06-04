@@ -3,6 +3,7 @@ using Auth.Application.Configurations;
 using Auth.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
+using Shared.Time;
 
 namespace Auth.Pages.Account;
 
@@ -12,7 +13,8 @@ public class Login(
     UserManager<ApplicationUser> userManager,
     ILdapAuthenticationService ldapService,
     IOptions<LdapConfiguration> ldapOptions,
-    ILogger<Login> logger)
+    ILogger<Login> logger,
+    IDateTimeProvider dateTimeProvider)
     : PageModel
 {
     private readonly LdapConfiguration _ldapConfig = ldapOptions.Value;
@@ -57,9 +59,16 @@ public class Login(
                     return Page();
                 }
 
+                if (!user.IsActive)
+                {
+                    Error = "This account is deactivated. Contact your administrator.";
+                    return Page();
+                }
+
+                await StampLastLoginAsync(user);
                 await signInManager.SignInAsync(user, RememberMe);
                 logger.LogInformation("User {Username} logged in via LDAP", Username);
-                return Redirect(GetSafeRedirectUrl());
+                return Redirect(GetSafeRedirectUrl(user));
             }
 
             if (!_ldapConfig.FallbackToLocalAuth)
@@ -73,12 +82,24 @@ public class Login(
             logger.LogInformation("LDAP auth failed for {Username}, falling back to local auth", Username);
         }
 
-        // Local authentication path (existing behavior)
+        // Local authentication path
+        // Resolve the user before issuing any session so we can reject inactive
+        // accounts without ever establishing a cookie.
+        var localUser = await userManager.FindByNameAsync(Username);
+        if (localUser is not null && !localUser.IsActive)
+        {
+            Error = "This account is deactivated. Contact your administrator.";
+            return Page();
+        }
+
         var result = await signInManager.PasswordSignInAsync(Username, Password, RememberMe, lockoutOnFailure: true);
         if (result.Succeeded)
         {
+            if (localUser is not null)
+                await StampLastLoginAsync(localUser);
+
             logger.LogInformation("User {Username} logged in successfully", Username);
-            return Redirect(GetSafeRedirectUrl());
+            return Redirect(GetSafeRedirectUrl(localUser));
         }
 
         if (result.IsLockedOut)
@@ -89,6 +110,20 @@ public class Login(
 
         Error = "Invalid login attempt.";
         return Page();
+    }
+
+    private async Task StampLastLoginAsync(ApplicationUser user)
+    {
+        user.LastLoginAt = dateTimeProvider.ApplicationNow;
+        try
+        {
+            await userManager.UpdateAsync(user);
+        }
+        catch (Exception ex)
+        {
+            // A transient store failure must not invalidate an otherwise-valid login
+            logger.LogWarning(ex, "Failed to stamp LastLoginAt for user {Username} — login proceeds", user.UserName);
+        }
     }
 
     private async Task<ApplicationUser?> FindOrCreateLdapUserAsync(LdapUserInfo info)
@@ -144,7 +179,7 @@ public class Login(
         return user;
     }
 
-    private string GetSafeRedirectUrl()
+    private string GetSafeRedirectUrl(ApplicationUser? user = null)
     {
         var redirectUrl = string.IsNullOrEmpty(ReturnUrl) ? "/" : ReturnUrl;
 
@@ -152,6 +187,15 @@ public class Login(
         {
             logger.LogWarning("Invalid return URL: {ReturnUrl}, redirecting to home", redirectUrl);
             redirectUrl = "/";
+        }
+
+        // If the user must change their password, append a flag so the SPA can intercept
+        // and redirect to the change-password screen before allowing normal navigation.
+        // Only append to LOCAL urls — never leak account state to an external domain.
+        if (user?.MustChangePassword == true && Url.IsLocalUrl(redirectUrl))
+        {
+            var separator = redirectUrl.Contains('?') ? "&" : "?";
+            redirectUrl += $"{separator}mustChangePassword=true";
         }
 
         return redirectUrl;

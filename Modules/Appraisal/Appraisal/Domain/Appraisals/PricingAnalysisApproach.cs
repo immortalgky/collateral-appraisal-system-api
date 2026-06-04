@@ -54,6 +54,18 @@ public class PricingAnalysisApproach : Entity<Guid>
         return clone;
     }
 
+    /// <summary>
+    /// Clones <paramref name="source"/> into this approach and returns the cloned method.
+    /// Used by <see cref="PricingAnalysis.CreateReferenceFromMethod"/> to attach a deep-copied
+    /// method without going through the factory guard in <see cref="AddMethod"/>.
+    /// </summary>
+    public PricingAnalysisMethod AttachClonedMethod(PricingAnalysisMethod source)
+    {
+        var clone = PricingAnalysisMethod.CloneForApproach(source, Id);
+        _methods.Add(clone);
+        return clone;
+    }
+
     public PricingAnalysisMethod AddMethod(string methodType, string status = "Selected")
     {
         var method = PricingAnalysisMethod.Create(Id, methodType, status);

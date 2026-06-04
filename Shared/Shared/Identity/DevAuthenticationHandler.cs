@@ -30,6 +30,7 @@ public class DevAuthenticationHandler(
         {
             new Claim("sub", devId),
             new Claim("name", "dev-user"),
+            new Claim("preferred_username", "dev-user"), // bank code (UserCode) — used for actor/audit stamping
             new Claim("company_id", devId),
             // Permissions
             new Claim("permissions", "auth:read"),

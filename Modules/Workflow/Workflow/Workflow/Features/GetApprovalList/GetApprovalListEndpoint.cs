@@ -172,90 +172,21 @@ public class GetApprovalListQueryHandler(
             meetingRef);
     }
 
-    private static int? DeriveTier(string? committeeCode) => committeeCode switch
-    {
-        "SUB_COMMITTEE" => 1,
-        "COMMITTEE" => 2,
-        "COMMITTEE_WITH_MEETING" => 3,
-        _ => null
-    };
+    private static int? DeriveTier(string? committeeCode) =>
+        ApprovalListProjection.DeriveTier(committeeCode);
 
     private static bool EvaluateCondition(
         ApprovalConditionInfo condition,
         List<ApprovalMemberInfo> members,
-        List<ApprovalVote> votes)
-    {
-        switch (condition.ConditionType)
-        {
-            case nameof(ConditionType.RoleRequired):
-                if (string.IsNullOrEmpty(condition.RoleRequired)) return true;
-                // Requires a member holding the given role to have cast an "approve" vote.
-                var memberWithRole = members
-                    .Where(m => string.Equals(m.Role, condition.RoleRequired, StringComparison.OrdinalIgnoreCase))
-                    .Select(m => m.Username)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                return votes.Any(v =>
-                    memberWithRole.Contains(v.Member) &&
-                    string.Equals(v.Vote, "approve", StringComparison.OrdinalIgnoreCase));
+        List<ApprovalVote> votes) =>
+        ApprovalListProjection.EvaluateCondition(condition, members, votes);
 
-            case nameof(ConditionType.MinVotes):
-                var required = condition.MinVotesRequired ?? 0;
-                return votes.Count(v => string.Equals(v.Vote, "approve", StringComparison.OrdinalIgnoreCase)) >= required;
+    private static T? GetVariableAs<T>(Dictionary<string, object> variables, string key) =>
+        ApprovalListProjection.GetVariableAs<T>(variables, key);
 
-            default:
-                return false;
-        }
-    }
+    private static int GetRequiredQuorum(QuorumConfig config, int totalMembers) =>
+        ApprovalListProjection.GetRequiredQuorum(config, totalMembers);
 
-    private static T? GetVariableAs<T>(Dictionary<string, object> variables, string key)
-    {
-        if (!variables.TryGetValue(key, out var value) || value is null)
-            return default;
-
-        if (value is T typed) return typed;
-
-        if (value is System.Text.Json.JsonElement je)
-        {
-            try
-            {
-                return je.Deserialize<T>(new System.Text.Json.JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
-                });
-            }
-            catch { return default; }
-        }
-
-        try
-        {
-            var json = System.Text.Json.JsonSerializer.Serialize(value);
-            return System.Text.Json.JsonSerializer.Deserialize<T>(json, new System.Text.Json.JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-        }
-        catch { return default; }
-    }
-
-    private static int GetRequiredQuorum(QuorumConfig config, int totalMembers)
-    {
-        return config.Type.ToLowerInvariant() switch
-        {
-            "fixed" => config.Value,
-            "percentage" => (int)Math.Ceiling(totalMembers * config.Value / 100.0),
-            _ => totalMembers
-        };
-    }
-
-    private static bool CheckMajority(MajorityConfig config, int targetCount, int totalVotes, int totalMembers)
-    {
-        return config.Type.ToLowerInvariant() switch
-        {
-            "simple" => targetCount > totalVotes / 2.0,
-            "twothirds" => targetCount >= Math.Ceiling(totalVotes * 2.0 / 3.0),
-            "unanimous" => targetCount == totalMembers,
-            _ => false
-        };
-    }
+    private static bool CheckMajority(MajorityConfig config, int targetCount, int totalVotes, int totalMembers) =>
+        ApprovalListProjection.CheckMajority(config, targetCount, totalVotes, totalMembers);
 }

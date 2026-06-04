@@ -29,6 +29,7 @@ public class AppraisalDbContext : DbContext
     // Evaluation Entities
     // =====================================================
     public DbSet<AppraisalEvaluation> AppraisalEvaluations => Set<AppraisalEvaluation>();
+    public DbSet<EvaluationCriteriaConfig> EvaluationCriteriaConfigs => Set<EvaluationCriteriaConfig>();
 
     // =====================================================
     // Property Detail Entities

@@ -36,10 +36,12 @@ public class GetTaskByIdQueryHandler(
             COALESCE(df.RequestId, qr.RequestId, pt.CorrelationId) AS RequestId,
             -- Resolve the effective AppraisalId:
             --   1. document-followup tasks: df.AppraisalId
-            --   2. quotation-workflow tasks: first linked appraisal via QuotationRequestAppraisals
-            --   3. regular appraisal-workflow tasks: appraisal whose RequestId = pt.CorrelationId
+            --   2. fee/appointment-approval sub-workflow tasks: faa.AppraisalId
+            --   3. quotation-workflow tasks: first linked appraisal via QuotationRequestAppraisals
+            --   4. regular appraisal-workflow tasks: appraisal whose RequestId = pt.CorrelationId
             COALESCE(
                 df.AppraisalId,
+                faa.AppraisalId,
                 qra_first.AppraisalId,
                 (SELECT TOP 1 Id FROM appraisal.Appraisals
                  WHERE RequestId = pt.CorrelationId
@@ -50,6 +52,10 @@ public class GetTaskByIdQueryHandler(
         OUTER APPLY (SELECT TOP 1 RequestId, AppraisalId
                      FROM workflow.DocumentFollowups
                      WHERE FollowupWorkflowInstanceId = pt.WorkflowInstanceId) df
+        -- Fee/appointment-approval sub-workflow tasks: resolve AppraisalId via FollowupWorkflowInstanceId
+        OUTER APPLY (SELECT TOP 1 AppraisalId
+                     FROM workflow.FeeAppointmentApprovals
+                     WHERE FollowupWorkflowInstanceId = pt.WorkflowInstanceId) faa
         -- Quotation tasks: pt.CorrelationId = QuotationRequestId for quotation-workflow instances
         OUTER APPLY (SELECT TOP 1 qr2.Id, qr2.RequestId
                      FROM appraisal.QuotationRequests qr2

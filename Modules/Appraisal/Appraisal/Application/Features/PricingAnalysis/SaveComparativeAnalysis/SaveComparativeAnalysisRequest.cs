@@ -19,15 +19,20 @@ public record SaveComparativeAnalysisRequest(
 );
 
 /// <summary>
-/// Step 1 - Factor selection for comparison
-/// Id = null for new items, existing Id for updates
+/// Step 1 - Factor selection for comparison.
+/// Id = null for new items, existing Id for updates.
 /// </summary>
 public record ComparativeFactorInput(
     Guid? Id, // null = create new, existing = update
     Guid FactorId,
     int DisplaySequence,
     bool IsSelectedForScoring,
-    string? Remarks = null
+    string? Remarks = null,
+    /// <summary>
+    /// Persisted subject-column value for reference analyses where no backing property exists
+    /// (e.g. room-type or profit-rent). Ignored for normal property-group analyses.
+    /// </summary>
+    string? CollateralValue = null
 );
 
 /// <summary>

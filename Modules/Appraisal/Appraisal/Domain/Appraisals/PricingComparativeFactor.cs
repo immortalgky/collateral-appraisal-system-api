@@ -12,6 +12,12 @@ public class PricingComparativeFactor : Entity<Guid>
     public bool IsSelectedForScoring { get; private set; } // Marks factors used in Step 2
     public string? Remarks { get; private set; }
 
+    /// <summary>
+    /// Persisted subject-column value for reference analyses where no backing property exists
+    /// (e.g. room-type or profit-rent references). Null for normal property-group analyses.
+    /// </summary>
+    public string? CollateralValue { get; private set; }
+
     private PricingComparativeFactor() { }
 
     public static PricingComparativeFactor Create(
@@ -19,7 +25,8 @@ public class PricingComparativeFactor : Entity<Guid>
         Guid factorId,
         int displaySequence,
         bool isSelectedForScoring = false,
-        string? remarks = null)
+        string? remarks = null,
+        string? collateralValue = null)
     {
         return new PricingComparativeFactor
         {
@@ -28,7 +35,8 @@ public class PricingComparativeFactor : Entity<Guid>
             FactorId = factorId,
             DisplaySequence = displaySequence,
             IsSelectedForScoring = isSelectedForScoring,
-            Remarks = remarks
+            Remarks = remarks,
+            CollateralValue = collateralValue
         };
     }
 
@@ -42,7 +50,8 @@ public class PricingComparativeFactor : Entity<Guid>
             FactorId = source.FactorId,
             DisplaySequence = source.DisplaySequence,
             IsSelectedForScoring = source.IsSelectedForScoring,
-            Remarks = source.Remarks
+            Remarks = source.Remarks,
+            CollateralValue = source.CollateralValue
         };
     }
 
@@ -62,12 +71,13 @@ public class PricingComparativeFactor : Entity<Guid>
     }
 
     /// <summary>
-    /// Updates all properties at once
+    /// Updates all properties at once.
     /// </summary>
-    public void Update(int displaySequence, bool isSelectedForScoring, string? remarks)
+    public void Update(int displaySequence, bool isSelectedForScoring, string? remarks, string? collateralValue = null)
     {
         DisplaySequence = displaySequence;
         IsSelectedForScoring = isSelectedForScoring;
         Remarks = remarks;
+        CollateralValue = collateralValue;
     }
 }

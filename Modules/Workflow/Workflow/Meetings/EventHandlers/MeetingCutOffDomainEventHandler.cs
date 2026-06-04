@@ -14,13 +14,10 @@ namespace Workflow.Meetings.EventHandlers;
 /// already loaded in-process, but ack items loaded separately (e.g. in a different query path)
 /// need to be updated here as a bridge between the domain and the read-model rows.
 /// </summary>
-public class MeetingCutOffDomainEventHandler(
-    WorkflowDbContext dbContext,
-    IWorkflowUnitOfWork unitOfWork,
-    ILogger<MeetingCutOffDomainEventHandler> logger)
+public class MeetingCutOffDomainEventHandler
     : INotificationHandler<MeetingCutOffDomainEvent>
 {
-    public async Task Handle(MeetingCutOffDomainEvent notification, CancellationToken cancellationToken)
+    public Task Handle(MeetingCutOffDomainEvent notification, CancellationToken cancellationToken)
     {
         // if (notification.IncludedAppraisalIds.Count == 0)
         //     return;
@@ -44,5 +41,6 @@ public class MeetingCutOffDomainEventHandler(
         //
         //     await unitOfWork.SaveChangesAsync(cancellationToken);
         // }
+        return Task.CompletedTask;
     }
 }

@@ -77,7 +77,12 @@ public class AppraisalFeeItemConfiguration : IEntityTypeConfiguration<AppraisalF
         // Approval
         builder.Property(i => i.RequiresApproval).HasDefaultValue(false);
         builder.Property(i => i.ApprovalStatus).HasMaxLength(50);
+        builder.Property(i => i.ApprovedBy).HasMaxLength(100); // bank code (e.g. "P5229")
         builder.Property(i => i.RejectionReason).HasMaxLength(4000);
+
+        // Inline-edit approval markers
+        builder.Property(i => i.ApprovalSubmittedAt);
+        builder.Property(i => i.Source).HasMaxLength(20).HasDefaultValue(FeeItemSource.System);
 
         builder.HasIndex(i => i.AppraisalFeeId);
     }
@@ -98,6 +103,10 @@ public class AppraisalFeePaymentHistoryConfiguration : IEntityTypeConfiguration<
         builder.Property(p => p.PaymentMethod).HasMaxLength(50);
         builder.Property(p => p.PaymentReference).HasMaxLength(100);
         builder.Property(p => p.Remarks).HasMaxLength(4000);
+        builder.Property(p => p.Source)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasDefaultValue(PaymentSource.Customer);
 
         builder.HasIndex(p => p.AppraisalFeeId);
     }

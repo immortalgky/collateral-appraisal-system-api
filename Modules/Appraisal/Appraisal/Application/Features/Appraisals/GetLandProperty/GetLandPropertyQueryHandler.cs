@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+using Appraisal.Application.Features.Appraisals.Shared;
 using Shared.Dtos;
 
 namespace Appraisal.Application.Features.Appraisals.GetLandProperty;
@@ -128,6 +129,10 @@ public class GetLandPropertyQueryHandler(
             HasBuildingOther = landDetail?.HasBuildingOther,
             Remark = landDetail?.Remark,
             TotalLandAreaInSqWa = landDetail?.TotalLandAreaInSqWa ?? 0,
+
+            IsRentedOut = landDetail?.IsRentedOut,
+            LeaseAgreement = LeaseAgreementMapper.MapLeaseAgreement(property.LeaseAgreementDetail),
+            RentalInfo = LeaseAgreementMapper.MapRentalInfo(property.RentalInfo),
 
             Titles = landDetail?.Titles.Select(title => new LandTitleItemData(
                 title.Id,

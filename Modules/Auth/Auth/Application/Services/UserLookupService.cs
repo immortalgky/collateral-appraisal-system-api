@@ -1,7 +1,6 @@
 using Auth.Contracts.Users;
 using Auth.Domain.Companies;
 using Auth.Domain.Identity;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace Auth.Application.Services;
@@ -11,9 +10,7 @@ namespace Auth.Application.Services;
 /// Returns first/last name (and company name when available) for a batch of usernames
 /// in a single round-trip.
 /// </summary>
-public class UserLookupService(
-    UserManager<ApplicationUser> userManager,
-    AuthDbContext db) : IUserLookupService
+public class UserLookupService(AuthDbContext db) : IUserLookupService
 {
     public async Task<IReadOnlyDictionary<string, UserLookupDto>> GetByUsernamesAsync(
         IEnumerable<string> usernames,

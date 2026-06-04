@@ -46,9 +46,10 @@ public class PreviewHypothesisAnalysisCommandHandler(
 
         // ── Fetch system land area from titles (PropertyGroup only) ───────
         decimal? totalLandAreaFromTitles = null;
-        if (pricingAnalysis.PropertyGroupId.HasValue)
+        if (pricingAnalysis.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+            && pricingAnalysis.AnchorId.HasValue)
             totalLandAreaFromTitles = await propertyDataService.GetTotalLandAreaFromTitlesAsync(
-                pricingAnalysis.PropertyGroupId.Value, cancellationToken);
+                pricingAnalysis.AnchorId.Value, cancellationToken);
 
         // Build a transient cost-item list from command inputs (no aggregate mutation)
         var transientCostItems = BuildTransientCostItems(analysis.Id, command.CostItems);

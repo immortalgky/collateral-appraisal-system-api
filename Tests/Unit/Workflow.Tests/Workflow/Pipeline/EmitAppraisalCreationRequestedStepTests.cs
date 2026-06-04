@@ -13,6 +13,8 @@ namespace Workflow.Tests.Workflow.Pipeline;
 
 public class EmitAppraisalCreationRequestedStepTests
 {
+    private static readonly Guid TestWorkflowDefinitionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
     private readonly IIntegrationEventOutbox _outbox;
     private readonly AppraisalCreationTriggerEvaluator _triggerEvaluator;
     private readonly ILogger<EmitAppraisalCreationRequestedStep> _logger;
@@ -197,7 +199,8 @@ public class EmitAppraisalCreationRequestedStepTests
         _outbox.Received(1).Publish(
             Arg.Is<AppraisalCreationRequestedIntegrationEvent>(e =>
                 e.PrevAppraisalId == prevAppraisalId &&
-                e.AppraisalType == "Progressive"),
+                e.AppraisalType == "Progressive" &&
+                e.WorkflowDefinitionId == TestWorkflowDefinitionId),
             Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>());
     }
 
@@ -212,6 +215,7 @@ public class EmitAppraisalCreationRequestedStepTests
             CorrelationId = Guid.NewGuid(),
             AppraisalId = null,
             WorkflowInstanceId = Guid.NewGuid(),
+            WorkflowDefinitionId = TestWorkflowDefinitionId,
             ActivityName = "appraisal-initiation-check",
             CompletedBy = "test.user",
             Input = input ?? new Dictionary<string, object?>(),

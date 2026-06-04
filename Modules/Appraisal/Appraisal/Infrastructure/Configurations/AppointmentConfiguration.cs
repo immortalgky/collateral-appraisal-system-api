@@ -22,6 +22,10 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         builder.Property(a => a.ApprovedBy).HasMaxLength(100);
         builder.Property(a => a.RescheduleCount).HasDefaultValue(0);
 
+        // Inline-edit approval markers
+        builder.Property(a => a.RequiresApproval).HasDefaultValue(false).IsRequired();
+        builder.Property(a => a.ApprovalSubmittedAt);
+
         builder.Property(a => a.AppointedBy).IsRequired().HasMaxLength(100);
         builder.Property(a => a.ContactPerson).HasMaxLength(200);
         builder.Property(a => a.ContactPhone).HasMaxLength(50);
