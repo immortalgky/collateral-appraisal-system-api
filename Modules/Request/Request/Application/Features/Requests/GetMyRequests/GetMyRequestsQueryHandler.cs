@@ -18,8 +18,7 @@ internal class GetMyRequestsQueryHandler(RequestDbContext dbContext, ICurrentUse
         // Filter by status (default: Draft or New)
         if (!string.IsNullOrWhiteSpace(query.Status))
         {
-            var status = RequestStatus.FromString(query.Status.ToUpperInvariant());
-            queryable = queryable.Where(r => r.Status == status);
+            queryable = queryable.Where(r => r.Status == query.Status);
         }
         else
         {
