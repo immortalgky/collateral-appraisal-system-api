@@ -20,4 +20,5 @@ public record FeeApprovalRequestedLineDto(
     int? RescheduleCount,
     string? FeeCode,
     string? FeeDescription,
-    decimal? FeeAmount);
+    decimal? FeeAmount,
+    DateTime? PreviousDate = null); // appointment change: the date before this reschedule

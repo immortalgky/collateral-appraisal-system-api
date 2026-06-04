@@ -77,6 +77,7 @@ public class AppraisalFeeItemConfiguration : IEntityTypeConfiguration<AppraisalF
         // Approval
         builder.Property(i => i.RequiresApproval).HasDefaultValue(false);
         builder.Property(i => i.ApprovalStatus).HasMaxLength(50);
+        builder.Property(i => i.ApprovedBy).HasMaxLength(100); // bank code (e.g. "P5229")
         builder.Property(i => i.RejectionReason).HasMaxLength(4000);
 
         // Inline-edit approval markers

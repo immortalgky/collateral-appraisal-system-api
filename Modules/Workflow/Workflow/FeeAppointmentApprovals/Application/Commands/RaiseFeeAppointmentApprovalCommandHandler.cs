@@ -70,7 +70,7 @@ public class RaiseFeeAppointmentApprovalCommandHandler(
                 if (!dto.NewDate.HasValue)
                     throw new ArgumentException("Appointment line must have NewDate");
                 domainLines.Add(FeeAppointmentApprovalLine.CreateAppointment(
-                    dto.TargetId, dto.NewDate.Value, dto.RescheduleCount ?? 0));
+                    dto.TargetId, dto.NewDate.Value, dto.RescheduleCount ?? 0, dto.PreviousDate));
             }
             else if (dto.LineType == "Fee")
             {

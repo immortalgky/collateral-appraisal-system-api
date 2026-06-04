@@ -38,7 +38,7 @@ public record AppraisalFeeItemDto
     public decimal FeeAmount { get; set; }
     public bool RequiresApproval { get; set; }
     public string? ApprovalStatus { get; set; }
-    public Guid? ApprovedBy { get; set; }
+    public string? ApprovedBy { get; set; } // bank code (e.g. "P5229")
     public DateTime? ApprovedAt { get; set; }
     public string? RejectionReason { get; set; }
 

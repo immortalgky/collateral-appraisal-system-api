@@ -23,4 +23,5 @@ public record FeeApprovalLineDto(
     string? FeeDescription,
     decimal? FeeAmount,
     string LineStatus,
-    string? DecisionReason);
+    string? DecisionReason,
+    DateTime? PreviousDate);

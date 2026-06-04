@@ -57,6 +57,7 @@ public class FeeAppointmentApprovalResolvedNotificationHandler(
         {
             AppraisalId = notification.AppraisalId,
             ApprovalId = notification.ApprovalId,
+            ResolvedByCode = notification.ResolvedByCode,
             LineOutcomes = notification.LineOutcomes
                 .Select(o => new FeeApprovalLineOutcome(
                     o.LineType, o.TargetId, o.Decision, o.Reason))

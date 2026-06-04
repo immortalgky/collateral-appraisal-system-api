@@ -92,7 +92,7 @@ public class FeeAppointmentApprovalDomainTests
         var fee = NewFeeWithBase(5000m);
         var approved = AddCompanyFee(fee, "02", 1000m);
         approved.MakePendingApproval();
-        approved.Approve(Guid.NewGuid());
+        approved.Approve("P5229");
         Assert.Equal("Approved", approved.ApprovalStatus);
 
         // A later re-evaluation must leave the bank-approved item untouched.
@@ -111,7 +111,7 @@ public class FeeAppointmentApprovalDomainTests
         AddCompanyFee(fee, "02", 200m);                 // counts
         var approved = AddCompanyFee(fee, "03", 300m);  // excluded once approved
         approved.MakePendingApproval();
-        approved.Approve(Guid.NewGuid());
+        approved.Approve("P5229");
 
         var cumulative = fee.Items
             .Where(i => i.Source == FeeItemSource.User && i.ApprovalStatus != "Approved")
@@ -142,7 +142,7 @@ public class FeeAppointmentApprovalDomainTests
         item.MarkApprovalSubmitted();
         Assert.NotNull(item.ApprovalSubmittedAt);
 
-        item.Approve(Guid.NewGuid());
+        item.Approve("P5229");
 
         Assert.Equal("Approved", item.ApprovalStatus);
         Assert.False(item.RequiresApproval);
@@ -157,7 +157,7 @@ public class FeeAppointmentApprovalDomainTests
     {
         var fee = NewFeeWithBase();
         var item = AddCompanyFee(fee, "02", 100m); // billable, ApprovalStatus == null
-        Assert.Throws<InvalidOperationException>(() => item.Approve(Guid.NewGuid()));
+        Assert.Throws<InvalidOperationException>(() => item.Approve("P5229"));
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public class FeeAppointmentApprovalDomainTests
         item.MakePendingApproval();
         item.MarkApprovalSubmitted();
 
-        item.Reject(Guid.Empty, "Test");
+        item.Reject("P5229", "Test");
 
         Assert.Equal("Rejected", item.ApprovalStatus); // not nulled
         Assert.Null(item.ApprovalSubmittedAt);          // awaiting badge clears
@@ -185,7 +185,7 @@ public class FeeAppointmentApprovalDomainTests
         var fee = NewFeeWithBase(5000m);
         var rejected = AddCompanyFee(fee, "02", 1000m);
         rejected.MakePendingApproval();
-        rejected.Reject(Guid.Empty, "no");
+        rejected.Reject("P5229", "no");
 
         // A later add triggers re-evaluation — the rejected fee must stay Rejected.
         fee.ReevaluateAddedFees(requiresApproval: true);
@@ -202,7 +202,7 @@ public class FeeAppointmentApprovalDomainTests
         var item = AddCompanyFee(fee, "02", 1000m);
         item.Id = Guid.NewGuid(); // Create() leaves Id empty (EF assigns); set a unique one for lookup
         item.MakePendingApproval();
-        item.Approve(Guid.NewGuid());
+        item.Approve("P5229");
 
         Assert.Throws<InvalidOperationException>(
             () => fee.UpdateItem(item.Id, "02", "changed", 2000m));

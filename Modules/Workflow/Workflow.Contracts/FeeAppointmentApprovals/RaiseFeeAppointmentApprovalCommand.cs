@@ -18,6 +18,7 @@ public record RaiseFeeApprovalLineDto(
     int? RescheduleCount,        // appointment change: current reschedule count after Reschedule()
     string? FeeCode,
     string? FeeDescription,
-    decimal? FeeAmount);
+    decimal? FeeAmount,
+    DateTime? PreviousDate = null); // appointment change: the date before this reschedule
 
 public record RaiseFeeAppointmentApprovalResult(Guid ApprovalId, Guid FollowupWorkflowInstanceId);

@@ -178,7 +178,7 @@ public class Appointment : Entity<Guid>
             .OrderByDescending(h => h.ChangedAt)
             .FirstOrDefault();
 
-        RecordHistory("Cancelled", changedBy, reason); // record the revert as a cancellation of the pending change
+        RecordHistory("RescheduleRejected", changedBy, reason); // distinct from a user cancellation — this is an approver rejecting a pending reschedule
 
         if (lastRescheduledHistory is not null)
         {

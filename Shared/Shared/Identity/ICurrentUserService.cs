@@ -15,6 +15,14 @@ public interface ICurrentUserService
     string? Username { get; }
 
     /// <summary>
+    /// Gets the current user's bank code (e.g. "P5229") from the "preferred_username" claim
+    /// (= AspNetUsers.UserName). This is the canonical user identifier used for actor/audit
+    /// fields throughout the domain — prefer this over <see cref="UserId"/> (Guid) for stamping
+    /// who performed an action. Returns null if not authenticated.
+    /// </summary>
+    string? UserCode { get; }
+
+    /// <summary>
     /// Gets whether the current request has an authenticated user.
     /// </summary>
     bool IsAuthenticated { get; }

@@ -19,6 +19,7 @@ public class FeeAppointmentApprovalLine
 
     // Appointment snapshot
     [JsonInclude] public DateTime? NewDate { get; private set; }
+    [JsonInclude] public DateTime? PreviousDate { get; private set; }
     [JsonInclude] public int? RescheduleCount { get; private set; }
 
     // Fee snapshot
@@ -33,7 +34,7 @@ public class FeeAppointmentApprovalLine
     public FeeAppointmentApprovalLine() { }
 
     internal static FeeAppointmentApprovalLine CreateAppointment(
-        Guid targetId, DateTime newDate, int rescheduleCount)
+        Guid targetId, DateTime newDate, int rescheduleCount, DateTime? previousDate = null)
     {
         return new FeeAppointmentApprovalLine
         {
@@ -41,6 +42,7 @@ public class FeeAppointmentApprovalLine
             LineType = FeeApprovalLineType.Appointment,
             TargetId = targetId,
             NewDate = newDate,
+            PreviousDate = previousDate,
             RescheduleCount = rescheduleCount,
             LineStatus = FeeApprovalLineStatus.Pending
         };
