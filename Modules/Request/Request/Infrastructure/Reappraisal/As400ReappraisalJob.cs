@@ -27,22 +27,22 @@ namespace Request.Infrastructure.Reappraisal;
 /// reappears, RowHash dedupe makes unchanged rows a no-op and the Consumed/Deleted skip above protects
 /// staff actions. Multi-server safety relies on Hangfire single-execution of the recurring job.
 /// </summary>
-public class ReappraisalIngestionJob(
+public class As400ReappraisalJob(
     RequestDbContext dbContext,
     ISqlConnectionFactory connectionFactory,
     IReappraisalFileSource fileSource,
     CollatrevFileParser parser,
-    ILogger<ReappraisalIngestionJob> logger)
+    ILogger<As400ReappraisalJob> logger)
 {
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("[REAPPRAISAL-INGEST] Starting ingestion run");
+        logger.LogInformation("[REAPPRAISAL-AS400] Starting ingestion run");
 
         var files = await fileSource.ListFilesAsync(cancellationToken);
 
         if (files.Count == 0)
         {
-            logger.LogInformation("[REAPPRAISAL-INGEST] No files found — nothing to do");
+            logger.LogInformation("[REAPPRAISAL-AS400] No files found — nothing to do");
             return;
         }
 
@@ -54,22 +54,22 @@ public class ReappraisalIngestionJob(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "[REAPPRAISAL-INGEST] Failed to ingest {File}", file.FileName);
+                logger.LogError(ex, "[REAPPRAISAL-AS400] Failed to ingest {File}", file.FileName);
                 // Continue with next file.
             }
         }
 
-        logger.LogInformation("[REAPPRAISAL-INGEST] Ingestion run complete");
+        logger.LogInformation("[REAPPRAISAL-AS400] Ingestion run complete");
     }
 
     private async Task IngestFileAsync(ReappraisalFileInfo file, CancellationToken cancellationToken)
     {
-        logger.LogInformation("[REAPPRAISAL-INGEST] Processing {File}", file.FileName);
+        logger.LogInformation("[REAPPRAISAL-AS400] Processing {File}", file.FileName);
 
         var fileDate = CollatrevFileParser.ParseFilenameDate(file.FileName);
         if (fileDate is null)
         {
-            logger.LogWarning("[REAPPRAISAL-INGEST] Cannot parse date from filename '{File}', skipping", file.FileName);
+            logger.LogWarning("[REAPPRAISAL-AS400] Cannot parse date from filename '{File}', skipping", file.FileName);
             return;
         }
 
@@ -225,12 +225,12 @@ public class ReappraisalIngestionJob(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        logger.LogInformation("[REAPPRAISAL-INGEST] Ingested {Count} records from {File}",
+        logger.LogInformation("[REAPPRAISAL-AS400] Ingested {Count} records from {File}",
             parsedFile.Details.Count, file.FileName);
 
         await fileSource.ArchiveAsync(file, cancellationToken);
 
-        logger.LogInformation("[REAPPRAISAL-INGEST] Archived {File}", file.FileName);
+        logger.LogInformation("[REAPPRAISAL-AS400] Archived {File}", file.FileName);
     }
 
     private async Task<ParsedReappraisalFile> ParseFileAsync(

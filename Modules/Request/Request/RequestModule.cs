@@ -47,7 +47,7 @@ public static class RequestModule
             services.AddScoped<IReappraisalFileSource, LocalFolderFileSource>();
 
         services.AddScoped<CollatrevFileParser>();
-        services.AddScoped<ReappraisalIngestionJob>();
+        services.AddScoped<As400ReappraisalJob>();
 
         // Dev-only test-file generator (endpoint gated to Development in GenerateTestFileEndpoint).
         services.AddSingleton<CollatrevFileWriter>();
