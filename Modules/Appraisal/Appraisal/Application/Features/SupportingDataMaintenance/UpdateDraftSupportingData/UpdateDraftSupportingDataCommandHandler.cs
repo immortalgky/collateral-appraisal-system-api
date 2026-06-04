@@ -8,10 +8,8 @@ public class UpdateDraftSupportingDataCommandHandler(
     public async Task<UpdateDraftSupportingDataResult> Handle(
         UpdateDraftSupportingDataCommand cmd, CancellationToken ct)
     {
-        if (currentUserService.IsInRole("IntAppraisalChecker") || currentUserService.IsInRole("ExtAppraisalChecker"))
-        {
-            throw new UnauthorizedAccessException("Checkers are not allowed to update draft supporting data.");
-        }
+        if (!currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT"))
+            throw new UnauthorizedAccessException("You are not allowed to edit supporting data.");
 
         var supportingData = await repo.GetByIdAsync(cmd.SupportingId, ct)
             ?? throw new SupportingDataNotFoundException(cmd.SupportingId);

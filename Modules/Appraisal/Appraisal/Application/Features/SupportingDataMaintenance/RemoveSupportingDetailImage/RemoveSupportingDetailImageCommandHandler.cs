@@ -10,7 +10,7 @@ public class RemoveSupportingDetailImageCommandHandler(ISupportingDataRepository
         RemoveSupportingDetailImageCommand command,
         CancellationToken cancellationToken)
     {
-        var detail = await repo.GetDetailByIdWithImagesAsync(command.DetailId, cancellationToken);
+        var (detail, status) = await repo.GetDetailByIdWithImagesAsync(command.DetailId, cancellationToken);
 
         if (detail is null || detail.SupportingDataId != command.SupportingId)
             throw new InvalidOperationException(

@@ -30,6 +30,7 @@ public class RemoveSupportingDetailImageEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Remove image from supporting detail")
             .WithDescription("Removes a photo from a supporting detail record.")
-            .WithTags("SupportingData");
+            .WithTags("SupportingData")
+            .RequireAuthorization();
     }
 }

@@ -63,7 +63,8 @@ public class SupportingData : Aggregate<Guid>
     /// </summary>
     public void RemoveDetail(Guid detailId)
     {
-        var detail = _details.FirstOrDefault(d => d.Id == detailId);
+        var detail = _details.FirstOrDefault(d => d.Id == detailId)
+        ?? throw new SupportingDataDetailNotFoundException(detailId);
         _details.Remove(detail);
     }
 
@@ -92,6 +93,7 @@ public class SupportingData : Aggregate<Guid>
         if (Status == SupportingStatus.Draft || Status == SupportingStatus.RoutedBack)
         {
             Status = SupportingStatus.Pending;
+            Remark = remark;
         }
         else if (decision == SupportingStatus.Approved)
         {

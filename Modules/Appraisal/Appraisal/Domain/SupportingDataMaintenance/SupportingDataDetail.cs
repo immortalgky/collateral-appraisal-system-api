@@ -2,8 +2,7 @@ namespace Appraisal.Domain.SupportingDataMaintenance;
 
 public class SupportingDataDetail : Entity<Guid>
 {
-    public Guid SupportingDataId { get; private set; }   // FK to parent
-
+    public Guid SupportingDataId { get; private set; } // FK to parent
     public string? PropertyName { get; private set; }
     public string? Developer { get; private set; }
     public string? ModelName { get; private set; }
@@ -17,7 +16,7 @@ public class SupportingDataDetail : Entity<Guid>
     public SupportingAddress Address { get; private set; } = default!;
     public GeoLocation? Location { get; private set; }
 
-    public string? PlotLocationType { get; private set; }
+    public List<string>? PlotLocationType { get; private set; }
     public string? PlotLocationTypeOther { get; private set; }
     public decimal? PricePerUnit { get; private set; }
     public decimal? OfferingPrice { get; private set; }
@@ -116,7 +115,7 @@ public record SupportingDataDetailData(
     string? Province,
     decimal? Latitude,
     decimal? Longitude,
-    string? PlotLocationType,
+    List<string?> PlotLocationType,
     string? PlotLocationTypeOther,
     decimal? PricePerUnit,
     decimal? OfferingPrice,

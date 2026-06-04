@@ -14,10 +14,22 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
     public Task<SupportingDataDetail?> GetDetailByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => _db.SupportingDataDetails.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
 
-    public Task<SupportingDataDetail?> GetDetailByIdWithImagesAsync(Guid id, CancellationToken cancellationToken = default)
-        => _db.SupportingDataDetails
-              .Include(d => d.Images)
-              .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+    public async Task<(SupportingDataDetail?, SupportingStatus?)> GetDetailByIdWithImagesAsync(
+    Guid id, CancellationToken cancellationToken = default)
+    {
+        var detail = await _db.SupportingDataDetails
+            .Include(d => d.Images)
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+
+        if (detail is null) return (null, null);
+
+        var status = await _db.SupportingData
+            .Where(s => s.Id == detail.SupportingDataId)
+            .Select(s => s.Status)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return (detail, status);
+    }
 
 
     public Task<PaginatedResult<SupportingData>> GetListAsync(
@@ -28,6 +40,9 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
         DateTime? lastModifiedDateFrom,
         DateTime? lastModifiedDateTo,
         string? supportingNumber,
+        string? search,
+        string? sortBy,
+        string? sortDir,
         CancellationToken cancellationToken = default
     )
     {
@@ -46,6 +61,10 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
         if (!currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT"))
         {
             query = query.Where(s => s.Status != SupportingStatus.Draft && s.Status != SupportingStatus.RoutedBack);
+        }
+        else
+        {
+            query = query.Where(s => s.Status != SupportingStatus.Pending);
         }
 
         if (!string.IsNullOrWhiteSpace(status))
@@ -71,9 +90,27 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
                 s.SupportingNumber != null &&
                 s.SupportingNumber.Value.Contains(supportingNumber));
 
-        return query
-            .OrderBy(s => s.CreatedAt)
-            .ToPaginatedResultAsync(pagination, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(s =>
+                s.SupportingNumber != null &&
+                s.SupportingNumber.Value.Contains(search));
+
+        var isDesc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+        query = sortBy switch
+        {
+            "supportingNumber" => isDesc
+                ? query.OrderByDescending(s => s.SupportingNumber!.Value)
+                : query.OrderBy(s => s.SupportingNumber!.Value),
+            "status" => isDesc
+                ? query.OrderByDescending(s => s.Status)
+                : query.OrderBy(s => s.Status),
+            "createdDate" => isDesc
+                ? query.OrderByDescending(s => s.CreatedAt)
+                : query.OrderBy(s => s.CreatedAt),
+            _ => query.OrderBy(s => s.CreatedAt),
+        };
+
+        return query.ToPaginatedResultAsync(pagination, cancellationToken);
     }
 
     public Task<PaginatedResult<SupportingDataDetail>> GetDetailListAsync(

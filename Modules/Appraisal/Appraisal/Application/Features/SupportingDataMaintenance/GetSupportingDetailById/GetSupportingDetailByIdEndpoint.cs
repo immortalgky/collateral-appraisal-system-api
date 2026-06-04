@@ -21,6 +21,7 @@ public class GetSupportingDetailByIdEndpoint : ICarterModule
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Get supporting detail by ID")
         .WithDescription("Retrieves a specific supporting detail record by its unique identifier, scoped under its parent supporting data record.")
-        .WithTags("SupportingData");
+        .WithTags("SupportingData")
+        .RequireAuthorization();
     }
 }
