@@ -8,7 +8,7 @@ public class GetSupportingDataListQueryHandler(ISupportingDataRepository repo, I
 
         var page = new PaginationRequest(req.Page, req.PageSize);
 
-        var paged = await repo.GetListAsync(page, req.Status, req.DateFrom, req.DateTo, req.LastModifiedDateFrom, req.LastModifiedDateTo, req.SupportingNumber, ct);
+        var paged = await repo.GetListAsync(page, req.Status, req.DateFrom, req.DateTo, req.LastModifiedDateFrom, req.LastModifiedDateTo, req.SupportingNumber, req.Search, req.SortBy, req.SortDir, ct);
 
         var items = paged.Items.Select(s => new SupportingDataListItem(
             s.Id,

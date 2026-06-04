@@ -17,6 +17,9 @@ public interface ISupportingDataRepository : IRepository<SupportingData, Guid>
         DateTime? lastModifiedDateFrom,
         DateTime? lastModifiedDateTo,
         string? supportingNumber,
+        string? search,
+        string? sortBy,
+        string? sortDir,
         CancellationToken ct = default);
 
     Task<PaginatedResult<SupportingDataDetail>> GetDetailListAsync(

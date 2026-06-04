@@ -8,5 +8,8 @@ public record GetSupportingDataListQuery(
     DateTime? DateTo,
     DateTime? LastModifiedDateFrom,
     DateTime? LastModifiedDateTo,
-    string? SupportingNumber
+    string? SupportingNumber,
+    string? Search,
+    string? SortBy,
+    string? SortDir
 ) : IQuery<GetSupportingDataListResult>;
