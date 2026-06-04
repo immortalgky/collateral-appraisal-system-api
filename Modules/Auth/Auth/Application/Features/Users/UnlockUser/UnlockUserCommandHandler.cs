@@ -17,8 +17,13 @@ public class UnlockUserCommandHandler(
         var user = await userManager.FindByIdAsync(command.UserId.ToString())
             ?? throw new NotFoundException("User", command.UserId);
 
-        await userManager.SetLockoutEndDateAsync(user, null);
-        await userManager.ResetAccessFailedCountAsync(user);
+        var lockoutResult = await userManager.SetLockoutEndDateAsync(user, null);
+        if (!lockoutResult.Succeeded)
+            throw new InvalidOperationException(string.Join("; ", lockoutResult.Errors.Select(e => e.Description)));
+
+        var resetResult = await userManager.ResetAccessFailedCountAsync(user);
+        if (!resetResult.Succeeded)
+            throw new InvalidOperationException(string.Join("; ", resetResult.Errors.Select(e => e.Description)));
 
         auditWriter.Record(
             AuditAction.Updated,

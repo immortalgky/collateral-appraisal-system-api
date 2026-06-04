@@ -29,7 +29,9 @@ public class ResetPasswordCommandHandler(
 
         // Force the user to change their password on next login
         user.MustChangePassword = true;
-        await userManager.UpdateAsync(user);
+        var updateResult = await userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+            throw new InvalidOperationException(string.Join("; ", updateResult.Errors.Select(e => e.Description)));
 
         auditWriter.Record(
             AuditAction.Updated,

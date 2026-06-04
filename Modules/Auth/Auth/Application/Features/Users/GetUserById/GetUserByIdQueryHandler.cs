@@ -54,8 +54,10 @@ public class GetUserByIdQueryHandler(
                 .Select(c => c.Name)
                 .FirstOrDefaultAsync(cancellationToken);
 
-        var now = dateTimeProvider.ApplicationNow;
-        var isLocked = user.LockoutEnd.HasValue && user.LockoutEnd.Value > now;
+        // Compare in UTC: LockoutEnd is a DateTimeOffset; comparing its UTC instant
+        // against UtcNow avoids implicit local-offset conversion bugs.
+        var nowUtc = dateTimeProvider.UtcNow;
+        var isLocked = user.LockoutEnd.HasValue && user.LockoutEnd.Value.UtcDateTime > nowUtc;
 
         return new GetUserByIdResult(
             user.Id,
