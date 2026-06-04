@@ -209,7 +209,12 @@ public class PricingAnalysisRepository(AppraisalDbContext dbContext)
         string? anchorRefKey = null,
         CancellationToken cancellationToken = default)
     {
+        // Include Approaches so callers can read/guard the existing "Market" approach
+        // (the idempotent-return paths in CreateOrGetReference / CreateReferenceFromMethod
+        // rely on this — without it the in-memory collection is empty and a duplicate
+        // approach would be inserted).
         return await _dbContext.PricingAnalyses
+            .Include(pa => pa.Approaches)
             .FirstOrDefaultAsync(
                 pa => pa.SubjectType == subjectType
                       && pa.AnchorId == anchorId

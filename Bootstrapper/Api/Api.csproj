@@ -43,6 +43,7 @@
         <ProjectReference Include="..\..\Modules\Appraisal\Appraisal\Appraisal.csproj"/>
         <ProjectReference Include="..\..\Modules\Integration\Integration\Integration.csproj"/>
         <ProjectReference Include="..\..\Modules\Common\Common\Common.csproj"/>
+        <ProjectReference Include="..\..\Modules\Reporting\Reporting\Reporting.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

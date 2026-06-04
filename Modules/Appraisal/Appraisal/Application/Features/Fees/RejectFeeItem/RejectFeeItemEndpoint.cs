@@ -15,11 +15,11 @@ public class RejectFeeItemEndpoint : ICarterModule
                     CancellationToken cancellationToken
                 ) =>
                 {
+                    // Actor is stamped server-side from the authenticated user (see handler).
                     var command = new RejectFeeItemCommand(
                         appraisalId,
                         feeId,
                         itemId,
-                        request.RejectedBy,
                         request.Reason);
 
                     await sender.Send(command, cancellationToken);

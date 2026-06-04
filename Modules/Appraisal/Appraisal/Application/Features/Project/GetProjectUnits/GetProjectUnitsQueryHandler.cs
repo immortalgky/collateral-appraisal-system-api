@@ -20,8 +20,11 @@ public class GetProjectUnitsQueryHandler(
         if (projectId is null)
             return new GetProjectUnitsResult([], [], [], 0);
 
+        // Unit Listing shows remaining inventory only — sold units (marked via reappraisal
+        // re-match or Block Unit Maintenance) are excluded. Sold units remain visible/editable
+        // on the Block Unit Maintenance screen, which uses a separate endpoint.
         var units = await dbContext.ProjectUnits
-            .Where(u => u.ProjectId == projectId.Value)
+            .Where(u => u.ProjectId == projectId.Value && !u.IsSold)
             .OrderBy(u => u.SequenceNumber)
             .Select(u => new ProjectUnitDto(
                 u.Id, u.ProjectId, u.UploadBatchId, u.SequenceNumber,

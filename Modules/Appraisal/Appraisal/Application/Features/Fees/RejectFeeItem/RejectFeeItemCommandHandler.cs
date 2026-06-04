@@ -2,7 +2,8 @@ namespace Appraisal.Application.Features.Fees.RejectFeeItem;
 
 public class RejectFeeItemCommandHandler(
     IAppraisalRepository appraisalRepository,
-    AppraisalDbContext dbContext)
+    AppraisalDbContext dbContext,
+    ICurrentUserService currentUser)
     : ICommandHandler<RejectFeeItemCommand>
 {
     public async Task<Unit> Handle(
@@ -26,7 +27,8 @@ public class RejectFeeItemCommandHandler(
                            cancellationToken)
                    ?? throw new NotFoundException("AppraisalFeeItem", command.ItemId);
 
-        item.Reject(command.RejectedBy, command.Reason);
+        // Stamp the authenticated caller's bank code — never trust a client-supplied actor.
+        item.Reject(currentUser.UserCode ?? "system", command.Reason);
 
         return Unit.Value;
     }

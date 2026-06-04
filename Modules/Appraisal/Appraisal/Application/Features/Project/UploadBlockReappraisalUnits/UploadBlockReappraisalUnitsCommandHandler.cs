@@ -86,14 +86,16 @@ public class UploadBlockReappraisalUnitsCommandHandler(
             else
             {
                 // Unit is absent from the new Excel — treat as sold (purchase method unknown).
+                // Count only units newly marked sold by this operation, so AutoSold matches its
+                // documented meaning (units already sold beforehand are not re-counted).
                 if (!existingUnit.IsSold)
                 {
                     existingUnit.MarkSoldByReappraisal();
+                    autoSold++;
                     logger.LogInformation(
                         "Block reappraisal re-match: unit {UnitId} (key={Key}) absent from Excel; auto-marked as sold.",
                         existingUnit.Id, key);
                 }
-                autoSold++;
             }
         }
 
@@ -114,6 +116,10 @@ public class UploadBlockReappraisalUnitsCommandHandler(
                     key);
             }
         }
+
+        // Record the revised Excel in Upload History (re-match does not replace units, so this is
+        // the only place the file gets logged). Marked as the current "Used" upload.
+        project.RecordReappraisalUpload(command.FileName, command.DocumentId);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

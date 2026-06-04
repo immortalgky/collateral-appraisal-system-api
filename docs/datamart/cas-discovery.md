@@ -390,7 +390,7 @@ ApplicationLog (history-search base)
 - **Format**: pipe-delimited (`|`) UTF-8 text; Header (H) / Detail (D) / Trailer (T) records; 35 detail fields per row
 - **Parser**: `CollatrevFileParser` (unit-tested from string)
 - **Source abstraction**: `IReappraisalFileSource` — local folder in dev, SFTP in UAT/prod
-- **Schedule**: Hangfire recurring job `reappraisal-ingestion` (1st of each month, 01:00 UTC)
+- **Schedule**: Hangfire recurring job `reappraisal-as400` (1st of each month, 01:00 local)
 - **Pipeline**:
   1. Fetch file via configured source
   2. Parse each row → `ReappraisalCandidate`
@@ -794,7 +794,7 @@ All registered in `Bootstrapper/Api/Program.cs`:
 | `outbox-cleanup-document` | `OutboxCleanupJob<DocumentDbContext>` | Daily 02:00 | Purge delivered outbox rows |
 | `outbox-cleanup-workflow` | `OutboxCleanupJob<WorkflowDbContext>` | Daily 02:00 | Purge delivered outbox rows |
 | `logs-cleanup` | `LogsCleanupJob` | Daily 03:00 | Batched DELETE of `common.Logs` rows older than 30 days |
-| `reappraisal-ingestion` | `ReappraisalIngestionJob` | Monthly | Pull and parse AS400 COLLATREV file |
+| `reappraisal-as400` | `As400ReappraisalJob` | Monthly | Pull and parse AS400 COLLATREV file |
 
 Dashboard at `/hangfire`; localhost-allowed in dev, otherwise blocked by `HangfireAuthorizationFilter` (proper auth is a TODO in the code).
 

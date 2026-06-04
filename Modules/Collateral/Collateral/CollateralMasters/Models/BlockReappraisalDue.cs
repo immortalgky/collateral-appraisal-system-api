@@ -1,7 +1,7 @@
 namespace Collateral.CollateralMasters.Models;
 
 /// <summary>
-/// Materialized read model produced by <see cref="Services.BlockReappraisalDueScanJob"/>.
+/// Materialized read model produced by <see cref="Services.BlockReappraisalJob"/>.
 /// One row per block-project CollateralMaster that is due for reappraisal.
 /// Phase C (screen) reads from this table; Phase D marks rows as Consumed when a
 /// reappraisal request is raised.

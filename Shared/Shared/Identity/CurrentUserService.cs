@@ -17,7 +17,15 @@ public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICur
     }
 
     public string? Username => User?.FindFirst("name")?.Value;
-    public string? UserCode => User?.FindFirst("preferred_username")?.Value;
+
+    // The "name" claim is always present on the access token and equals ApplicationUser.UserName
+    // (the bank code, e.g. "P5229"); preferred_username carries the same value but only ships when
+    // the "profile" scope is requested. Resolve name first so audit stamping never falls back to
+    // "system" unintentionally. Mirrors NotificationHub.ResolveUsername.
+    public string? UserCode =>
+        User?.FindFirst("name")?.Value
+        ?? User?.FindFirst(ClaimTypes.Name)?.Value
+        ?? User?.FindFirst("preferred_username")?.Value;
     public bool IsAuthenticated => User?.Identity?.IsAuthenticated ?? false;
 
     public IReadOnlyList<string> Permissions

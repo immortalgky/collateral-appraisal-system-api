@@ -26,7 +26,7 @@ public static class CollateralModule
         services.AddSingleton<CollateralBackfillJob>();
 
         // Scoped: Hangfire instantiates per execution via DI scope
-        services.AddScoped<BlockReappraisalDueScanJob>();
+        services.AddScoped<BlockReappraisalJob>();
 
         return services;
     }

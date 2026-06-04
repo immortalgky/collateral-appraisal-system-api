@@ -86,6 +86,7 @@ public static class MenuSeedData
             {
                 new("main.reports.completed", "Completed Reports", "file-check", IconStyle.Solid, "text-indigo-500", "/reports/completed", "REPORT_VIEW", null),
                 new("main.reports.statistics", "Statistics", "chart-pie", IconStyle.Solid, "text-indigo-500", "/reports/statistics", "REPORT_STATISTICS_VIEW", null),
+                new("main.reports.pdf-test", "PDF Report Test", "file-pdf", IconStyle.Solid, "text-indigo-500", "/admin/reports/test", "REPORT_VIEW", null),
             }),
         new("main.meetings", "Meetings", "people-arrows", IconStyle.Solid, "text-blue-500", "/meetings", "MEETING_MANAGE", null,
             new List<MenuSeedNode>

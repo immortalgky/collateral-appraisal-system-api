@@ -9,6 +9,8 @@ SELECT
     brd.RemainingUnits,
     brd.LastAppraisedDate,
     brd.DueDate,
-    DATEDIFF(DAY, CAST(GETUTCDATE() AS date), brd.DueDate) AS RemainingDay
+    -- Server-local (Bangkok) today via GETDATE(), never UTC — matches the bank calendar.
+    -- Negative when the due date has already passed (overdue).
+    DATEDIFF(DAY, CAST(GETDATE() AS date), brd.DueDate) AS RemainingDay
 FROM collateral.BlockReappraisalDue brd
 WHERE brd.Status = 'Pending';

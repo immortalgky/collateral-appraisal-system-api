@@ -1,5 +1,6 @@
 using Appraisal.Domain.Appraisals;
 using Shared.CQRS;
+using Shared.Exceptions;
 
 namespace Appraisal.Application.Features.PricingAnalysis.DeletePricingAnalysisReference;
 
@@ -22,7 +23,7 @@ public class DeletePricingAnalysisReferenceCommandHandler(
         if (pa.SubjectType is PricingAnalysisSubjectType.PropertyGroup
             or PricingAnalysisSubjectType.ProjectModel)
         {
-            throw new InvalidOperationException(
+            throw new BadRequestException(
                 "Only market-reference analyses can be deleted via this endpoint.");
         }
 

@@ -275,7 +275,9 @@ public class GetDecisionSummaryQueryHandler(
                    ISNULL(SUM(pup.CoverageAmount), 0) AS BuildingInsurance
             FROM appraisal.ProjectModels pm
             JOIN appraisal.Projects p ON p.Id = pm.ProjectId
-            LEFT JOIN appraisal.ProjectUnits pu ON pu.ProjectModelId = pm.Id
+            -- Exclude sold units from the block appraisal totals (count / appraised value / insurance);
+            -- the appraisal covers remaining unsold inventory only, mirroring the Unit Price listing.
+            LEFT JOIN appraisal.ProjectUnits pu ON pu.ProjectModelId = pm.Id AND pu.IsSold = 0
             LEFT JOIN appraisal.ProjectUnitPrices pup ON pup.ProjectUnitId = pu.Id
             WHERE p.AppraisalId = @AppraisalId
             GROUP BY pm.Id, pm.ModelName

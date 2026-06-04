@@ -4,6 +4,7 @@ using Dapper;
 using Microsoft.Extensions.Logging;
 using Shared.Configuration;
 using Shared.Data;
+using Shared.Time;
 
 namespace Collateral.CollateralMasters.Services;
 
@@ -27,13 +28,14 @@ namespace Collateral.CollateralMasters.Services;
 /// Idempotency: unique index on CollateralMasterId prevents duplicate rows.
 /// Multi-server safety: Hangfire single-execution of a recurring job.
 /// </summary>
-public class BlockReappraisalDueScanJob(
+public class BlockReappraisalJob(
     CollateralDbContext dbContext,
     ISqlConnectionFactory connectionFactory,
     ISystemConfigurationReader configReader,
-    ILogger<BlockReappraisalDueScanJob> logger)
+    IDateTimeProvider dateTimeProvider,
+    ILogger<BlockReappraisalJob> logger)
 {
-    private const string JobTag = "[BLOCK-REAPPRAISAL-SCAN]";
+    private const string JobTag = "[REAPPRAISAL-BLOCK]";
 
     public async Task ExecuteAsync(CancellationToken ct = default)
     {
@@ -45,7 +47,10 @@ public class BlockReappraisalDueScanJob(
         }
         catch (Exception ex)
         {
+            // Re-throw so Hangfire records the run as failed (enabling retry/alerting) instead of
+            // silently marking a failed scan as succeeded.
             logger.LogError(ex, "{Tag} Scan failed", JobTag);
+            throw;
         }
     }
 
@@ -53,6 +58,16 @@ public class BlockReappraisalDueScanJob(
     {
         // 1. Read interval from system config.
         var years = await configReader.GetIntAsync("BlockReappraisalIntervalYears", 5, ct);
+
+        // Guard against an invalid admin-entered value (0 or negative) which would make the
+        // due-date calculation meaningless and could flood the due list.
+        if (years <= 0)
+        {
+            logger.LogWarning(
+                "{Tag} Configured interval {Years} is invalid; falling back to default 5 years", JobTag, years);
+            years = 5;
+        }
+
         logger.LogInformation("{Tag} Using interval {Years} years", JobTag, years);
 
         // 2. Cross-schema Dapper query for due candidates.
@@ -132,7 +147,7 @@ public class BlockReappraisalDueScanJob(
     /// Due = all of:
     ///   - CollateralType = 'PRJ', IsMaster = 1, IsDeleted = 0, ExcludedFromReappraisal = 0
     ///   - LastAppraisedDate IS NOT NULL
-    ///   - DATEADD(YEAR, @Years, LastAppraisedDate) &lt;= today (UTC date)
+    ///   - DATEADD(YEAR, @Years, LastAppraisedDate) &lt;= today (application-local date)
     ///   - No active in-flight reappraisal (Status NOT IN ('Completed','Cancelled'))
     /// </summary>
     private async Task<IReadOnlyList<DueCandidate>> FetchDueCandidatesAsync(int years)
@@ -156,7 +171,8 @@ public class BlockReappraisalDueScanJob(
               AND cm.ExcludedFromReappraisal = 0
               AND pd.IsDeleted       = 0
               AND pd.LastAppraisedDate IS NOT NULL
-              AND DATEADD(YEAR, @Years, pd.LastAppraisedDate) <= CAST(GETUTCDATE() AS date)
+              AND pd.LastAppraisalId   IS NOT NULL
+              AND DATEADD(YEAR, @Years, pd.LastAppraisedDate) <= @Today
               AND NOT EXISTS (
                   SELECT 1
                   FROM appraisal.Appraisals a
@@ -168,6 +184,9 @@ public class BlockReappraisalDueScanJob(
 
         var parameters = new DynamicParameters();
         parameters.Add("Years", years);
+        // Application-local "today" (Bangkok), so the due-date boundary matches the bank's calendar
+        // date regardless of the SQL/host server clock. Sourced from appsettings via IDateTimeProvider.
+        parameters.Add("Today", dateTimeProvider.ApplicationNow.Date);
 
         var connection = connectionFactory.GetOpenConnection();
         var rows = await connection.QueryAsync<DueCandidate>(sql, parameters);

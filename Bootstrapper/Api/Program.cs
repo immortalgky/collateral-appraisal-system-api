@@ -1,5 +1,6 @@
 using Appraisal.Infrastructure;
 using Auth.Infrastructure;
+using Reporting;
 using Common;
 using Document.Data;
 using Hangfire;
@@ -17,6 +18,7 @@ using Shared.Data.Dapper;
 using Shared.Data.Outbox;
 using Shared.Logging;
 using Shared.Security;
+using Shared.Time;
 using Integration.Application.EventHandlers.Outbound;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
@@ -51,13 +53,14 @@ var collateralAssembly = typeof(CollateralModule).Assembly;
 var appraisalAssembly = typeof(AppraisalModule).Assembly;
 var integrationAssembly = typeof(IntegrationModule).Assembly;
 var commonAssembly = typeof(CommonModule).Assembly;
+var reportingAssembly = typeof(ReportingModule).Assembly;
 
 builder.Services.AddCarterWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
     parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly,
-    commonAssembly);
+    commonAssembly, reportingAssembly);
 builder.Services.AddMediatRWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
     parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly,
-    commonAssembly);
+    commonAssembly, reportingAssembly);
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -154,7 +157,8 @@ builder.Services
     .AddCollateralModule(builder.Configuration)
     .AddAppraisalModule(builder.Configuration)
     .AddIntegrationModule(builder.Configuration)
-    .AddCommonModule(builder.Configuration);
+    .AddCommonModule(builder.Configuration)
+    .AddReportingModule(builder.Configuration);
 
 // Shared Data Protection keyring (persisted via AuthDbContext) — required when running behind a
 // load balancer so antiforgery cookies and OpenIddict reference tokens issued on one node can be
@@ -346,38 +350,43 @@ app
     .UseCollateralModule()
     .UseAppraisalModule()
     .UseIntegrationModule()
-    .UseCommonModule();
+    .UseCommonModule()
+    .UseReportingModule();
 
 app.UseHangfire();
 
-// Outbox cleanup: purge processed/dead-letter messages older than 7 days, daily at 2 AM UTC
+// All recurring jobs run in the application's configured timezone (appsettings: TimeZone:DefaultTimeZone),
+// not UTC. Cron hour values below are therefore local hours.
+var appTimeZone = app.Services.GetRequiredService<IDateTimeProvider>().ApplicationTimeZone;
+var jobOptions = new RecurringJobOptions { TimeZone = appTimeZone };
+
+// Outbox cleanup: purge processed/dead-letter messages older than 7 days, daily at 02:00 local
 RecurringJob.AddOrUpdate<OutboxCleanupJob<RequestDbContext>>(
-    "outbox-cleanup-request", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
+    "outbox-cleanup-request", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
 RecurringJob.AddOrUpdate<OutboxCleanupJob<AppraisalDbContext>>(
-    "outbox-cleanup-appraisal", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
+    "outbox-cleanup-appraisal", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
 RecurringJob.AddOrUpdate<OutboxCleanupJob<DocumentDbContext>>(
-    "outbox-cleanup-document", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
+    "outbox-cleanup-document", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
 RecurringJob.AddOrUpdate<OutboxCleanupJob<WorkflowDbContext>>(
-    "outbox-cleanup-workflow", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2));
+    "outbox-cleanup-workflow", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
 
-// Logs cleanup: purge dbo.Logs rows older than 30 days, daily at 3 AM
+// Logs cleanup: purge dbo.Logs rows older than 30 days, daily at 03:00 local
 RecurringJob.AddOrUpdate<LogsCleanupJob>(
-    "logs-cleanup", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(3));
+    "logs-cleanup", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(3), jobOptions);
 
-// Reappraisal ingestion: ingest AS400 COLLATREV files monthly.
-// TODO(confirm): cron day/time — currently first of month at 01:00 UTC (Bangkok UTC+7 = 08:00).
+// Reappraisal (AS400): ingest AS400 COLLATREV files monthly, 1st of month at 01:00 local.
 // TODO(confirm): if the file arrives on a fixed day other than the 1st, adjust the cron.
 // In dev, trigger manually via Hangfire dashboard (/hangfire → "Trigger now").
-RecurringJob.AddOrUpdate<ReappraisalIngestionJob>(
-    "reappraisal-ingestion", j => j.ExecuteAsync(CancellationToken.None),
-    Cron.Monthly(1, 1)); // 1st of each month at 01:00 UTC
+RecurringJob.AddOrUpdate<As400ReappraisalJob>(
+    "reappraisal-as400", j => j.ExecuteAsync(CancellationToken.None),
+    Cron.Monthly(1, 1), jobOptions); // 1st of each month at 01:00 local
 
-// Block reappraisal due scan: daily at 01:00 UTC (Bangkok UTC+7 = 08:00).
+// Reappraisal (block): daily at 01:00 local.
 // Scans collateral.ProjectDetails for block projects past their reappraisal interval and
 // materialises collateral.BlockReappraisalDue for Phase C (due-list screen).
-RecurringJob.AddOrUpdate<BlockReappraisalDueScanJob>(
-    "block-reappraisal-due-scan", j => j.ExecuteAsync(CancellationToken.None),
-    Cron.Daily(1)); // 01:00 UTC = 08:00 Bangkok
+RecurringJob.AddOrUpdate<BlockReappraisalJob>(
+    "reappraisal-block", j => j.ExecuteAsync(CancellationToken.None),
+    Cron.Daily(1), jobOptions); // 01:00 local
 
 await app.RunAsync();
 

@@ -142,9 +142,15 @@ public class AppraisalCreationService(
             //   - Lease land family (LSL, LS): same rule, independent from non-lease family.
             //   - B, LSB: not auto-created (appraiser adds manually).
             //   - U, VEH, VES, MAC: one property per title.
-            var landFamily = titlesToProcess.Where(t => GetAppraisalFamily(t) is "L" or "LB").ToList();
-            var leaseLandFamily = titlesToProcess.Where(t => GetAppraisalFamily(t) is "LSL" or "LS").ToList();
-            var notAutoCreated = titlesToProcess.Where(t => GetAppraisalFamily(t) is "B" or "LSB").ToList();
+            // Block/project codes (32, 33) only create the Project aggregate header (below),
+            // never individual property rows — exclude them from property partitioning.
+            var propertyTitles = titlesToProcess
+                .Where(t => !ProjectCodes.Contains(t.CollateralType ?? ""))
+                .ToList();
+
+            var landFamily = propertyTitles.Where(t => GetAppraisalFamily(t) is "L" or "LB").ToList();
+            var leaseLandFamily = propertyTitles.Where(t => GetAppraisalFamily(t) is "LSL" or "LS").ToList();
+            var notAutoCreated = propertyTitles.Where(t => GetAppraisalFamily(t) is "B" or "LSB").ToList();
 
             foreach (var t in notAutoCreated)
                 logger.LogInformation(
@@ -157,7 +163,7 @@ public class AppraisalCreationService(
             if (leaseLandFamily.Any())
                 CreateLeaseLandFamilyProperty(appraisal, leaseLandFamily);
 
-            foreach (var title in titlesToProcess)
+            foreach (var title in propertyTitles)
                 switch (GetAppraisalFamily(title))
                 {
                     case "U": CreateCondoProperty(appraisal, title); break;

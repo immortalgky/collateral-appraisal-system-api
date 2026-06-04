@@ -13,7 +13,7 @@ namespace Request.Infrastructure.Reappraisal;
 /// (lat/lon enrichment + prior-appraisal linkage) never fires. This generator instead queries completed
 /// appraisals, fills the appraisal-derived fields from actual data, mocks the bank-only fields
 /// (CIF / AO / facility — data the bank's core system would supply), and writes the file into the
-/// ingestion inbox so the existing <see cref="ReappraisalIngestionJob"/> consumes it unchanged.
+/// ingestion inbox so the existing <see cref="As400ReappraisalJob"/> consumes it unchanged.
 ///
 /// Mocked fields are derived deterministically from the row index so repeated runs over the same data
 /// produce an identical file (stable RowHash → ingestion dedupe behaves predictably).
@@ -144,7 +144,7 @@ public sealed class CollatrevTestFileBuilder(
     /// <summary>
     /// Pulls the most-recently-completed appraisals with their first property's detail (Land preferred,
     /// then Condo) and valuation. Cross-schema Dapper read — mirrors the join shape proven in
-    /// <see cref="ReappraisalIngestionJob"/> and <c>vw_AppraisalList</c>.
+    /// <see cref="As400ReappraisalJob"/> and <c>vw_AppraisalList</c>.
     /// </summary>
     private async Task<IReadOnlyList<CompletedAppraisalRow>> QueryCompletedAppraisalsAsync(
         int count,
