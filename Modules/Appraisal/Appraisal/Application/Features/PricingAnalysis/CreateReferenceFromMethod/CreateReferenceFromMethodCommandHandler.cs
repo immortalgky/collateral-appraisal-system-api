@@ -1,5 +1,6 @@
 using Appraisal.Application.Features.PricingAnalysis.CreateOrGetReference;
 using Shared.CQRS;
+using Shared.Exceptions;
 
 namespace Appraisal.Application.Features.PricingAnalysis.CreateReferenceFromMethod;
 
@@ -21,7 +22,7 @@ public class CreateReferenceFromMethodCommandHandler(
     {
         // Guard: this endpoint is land-copy-specific
         if (command.SubjectType != PricingAnalysisSubjectType.IncomeLandRef)
-            throw new InvalidOperationException(
+            throw new BadRequestException(
                 $"CreateReferenceFromMethod only supports SubjectType=IncomeLandRef; got {command.SubjectType}.");
 
         // Idempotent: return existing reference without re-cloning
@@ -33,29 +34,32 @@ public class CreateReferenceFromMethodCommandHandler(
 
         if (existing is not null)
         {
-            var existingMarket = existing.Approaches.FirstOrDefault(a => a.ApproachType == "Market");
+            // Defensive: ensure a Market approach exists rather than leaking Guid.Empty
+            // (mirrors CreateOrGetReferenceCommandHandler).
+            var existingMarket = existing.Approaches.FirstOrDefault(a => a.ApproachType == "Market")
+                                 ?? existing.AddApproach("Market");
             return new CreateOrGetReferenceResult(
                 existing.Id,
-                existingMarket?.Id ?? Guid.Empty,
+                existingMarket.Id,
                 WasCreated: false);
         }
 
         // Load the source PA (must include all data to deep-clone)
         var sourcePa = await repository.GetByIdWithAllDataAsync(
             command.SourcePricingAnalysisId, cancellationToken)
-            ?? throw new InvalidOperationException(
+            ?? throw new NotFoundException(
                 $"Source PricingAnalysis {command.SourcePricingAnalysisId} not found.");
 
         // Find the source method by id across all its approaches
         var sourceMethod = sourcePa.Approaches
             .SelectMany(a => a.Methods)
             .FirstOrDefault(m => m.Id == command.SourceMethodId)
-            ?? throw new InvalidOperationException(
+            ?? throw new NotFoundException(
                 $"Source method {command.SourceMethodId} not found in PricingAnalysis {command.SourcePricingAnalysisId}.");
 
         // Guard: source must be a market-comparison method type
         if (!AllowedSourceMethodTypes.Contains(sourceMethod.MethodType))
-            throw new InvalidOperationException(
+            throw new BadRequestException(
                 $"Source method type '{sourceMethod.MethodType}' is not allowed for cloning. " +
                 $"Expected one of: {string.Join(", ", AllowedSourceMethodTypes)}.");
 
