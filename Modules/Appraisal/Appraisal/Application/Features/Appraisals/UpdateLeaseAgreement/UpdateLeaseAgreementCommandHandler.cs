@@ -15,9 +15,8 @@ public class UpdateLeaseAgreementCommandHandler(
         var property = appraisal.GetProperty(command.PropertyId)
             ?? throw new PropertyNotFoundException(command.PropertyId);
 
-        if (!property.PropertyType.IsLeaseAgreement)
-            throw new InvalidOperationException($"Property {command.PropertyId} is not a lease agreement property");
-
+        // LeaseAgreementDetail is present on lease-agreement properties and on plain
+        // land (L/LB) flagged "rented out to others" — both are valid sources.
         var detail = property.LeaseAgreementDetail
             ?? throw new InvalidOperationException($"Lease agreement detail not found for property {command.PropertyId}");
 

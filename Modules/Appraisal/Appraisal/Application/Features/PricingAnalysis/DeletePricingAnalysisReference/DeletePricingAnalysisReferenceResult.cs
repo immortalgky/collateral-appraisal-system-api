@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.PricingAnalysis.DeletePricingAnalysisReference;
+
+public record DeletePricingAnalysisReferenceResult(bool Success);

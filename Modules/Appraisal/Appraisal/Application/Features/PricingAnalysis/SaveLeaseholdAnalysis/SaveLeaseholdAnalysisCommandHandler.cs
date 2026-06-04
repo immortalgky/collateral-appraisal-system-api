@@ -84,6 +84,14 @@ public class SaveLeaseholdAnalysisCommandHandler(
         var propertyData = await propertyDataService.GetPropertyDataAsync(
             pricingAnalysis.AnchorId!.Value, cancellationToken);
 
+        // Require at least one rental-bearing property (a lease-agreement property,
+        // or plain land rented out to others) rather than silently producing an
+        // all-zero result.
+        if (propertyData.ContractSchedule.Count == 0)
+            throw new BadRequestException(
+                "Leasehold analysis requires at least one property with a rental schedule "
+                + "(a lease-agreement property, or land rented out to others) in the group.");
+
         // Build appraisal schedule and map to leasehold record type
         var sharedSchedule = PricingPropertyDataService.BuildAppraisalSchedule(
             propertyData.ContractSchedule, propertyData.AppointmentDate);
