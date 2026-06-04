@@ -12,5 +12,7 @@ public record UpdateCompanyCommand(
     string? PostalCode,
     string? ContactPerson,
     bool IsActive,
-    List<string>? LoanTypes = null
+    List<string>? LoanTypes = null,
+    string? BankAccountNo = null,
+    string? BankAccountName = null
 ) : ICommand<UpdateCompanyResult>;

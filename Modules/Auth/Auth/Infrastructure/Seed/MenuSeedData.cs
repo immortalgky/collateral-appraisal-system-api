@@ -103,6 +103,7 @@ public static class MenuSeedData
                 new("main.standalone.supporting-data-maintenance", "Supporting Data Maintenance", "circle-info", IconStyle.Solid, "text-teal-500", "/standalone/supporting-data-maintenance", "SUPPORTING_DATA_MAINT_VIEW", "SUPPORTING_DATA_MAINT_EDIT"),
                 new("main.standalone.reappraisal", "Reappraisal (AS400)", "rotate", IconStyle.Solid, "text-teal-500", "/reappraisal", "REAPPRAISAL_VIEW", null),
                 new("main.standalone.reappraisal-testgen", "Generate Reappraisal File", "file-circle-plus", IconStyle.Solid, "text-teal-500", "/reappraisal/generate-test-file", "REAPPRAISAL_GENERATE_TEST_FILE", null),
+                new("main.standalone.block-reappraisal", "Block Reappraisal", "building-circle-arrow-right", IconStyle.Solid, "text-teal-500", "/standalone/block-reappraisal", "BLOCK_REAPPRAISAL_VIEW", "BLOCK_REAPPRAISAL_CREATE"),
             }),
         new("main.parameter", "Parameter", "sliders", IconStyle.Solid, "text-rose-500", "/parameter", "PARAMETER_MANAGE", null),
         new("main.user-management", "User Management", "users", IconStyle.Solid, "text-violet-500", "/users", "USER_MANAGE", null,
@@ -115,6 +116,8 @@ public static class MenuSeedData
                 new("main.user-management.groups", "Groups", "users-rectangle", IconStyle.Solid, "text-violet-500", "/admin/groups", "GROUP_MANAGE", null),
                 new("main.user-management.users", "Users", "circle-user", IconStyle.Solid, "text-violet-500", "/admin/users", "USER_MANAGE", null),
                 new("main.user-management.menus", "Menus", "bars", IconStyle.Solid, "text-violet-500", "/admin/menus", "MENU_MANAGE", "MENU_MANAGE"),
+                new("main.user-management.teams", "Teams", "people-group", IconStyle.Solid, "text-violet-500", "/admin/teams", "TEAM_MANAGE", null),
+                new("main.user-management.companies", "Companies", "building", IconStyle.Solid, "text-violet-500", "/admin/companies", "COMPANY_MANAGE", null),
             }),
         new("main.collateral-master", "Collateral Master", "buildings", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters", "COLLATERAL_ADMIN", null,
             new List<MenuSeedNode>
@@ -133,6 +136,8 @@ public static class MenuSeedData
         new("main.appointment-approval-rule", "Appointment Approval Rule", "calendar-xmark", IconStyle.Solid, "text-orange-500", "/admin/appointment-approval-rule", "APPOINTMENT_APPROVAL_CONFIG", "APPOINTMENT_APPROVAL_CONFIG"),
         new("main.webhook-deliveries", "Webhook Deliveries", "satellite-dish", IconStyle.Solid, "text-slate-500", "/admin/webhook-deliveries", "WEBHOOK_DELIVERIES_VIEW", null),
         new("main.logs", "Application Logs", "file-lines", IconStyle.Solid, "text-slate-500", "/admin/logs", "LOGS_VIEW", null),
+        new("main.audit-log", "Audit Log", "clock-rotate-left", IconStyle.Solid, "text-slate-500", "/admin/audit-logs", "AUTH_AUDIT_VIEW", null),
+        new("main.access-report", "Access Report", "table-list", IconStyle.Solid, "text-slate-500", "/admin/access-report", "AUTH_AUDIT_VIEW", null),
         new("main.template-management", "Template Management", "layer-group", IconStyle.Solid, "text-teal-500", "/market-comparable-factors", "TEMPLATE_MANAGE", "TEMPLATE_MANAGE",
             new List<MenuSeedNode>
             {
@@ -153,6 +158,8 @@ public static class MenuSeedData
             ":basePath/administration", "APPRAISAL_ADMINISTRATION_VIEW", "APPRAISAL_ADMINISTRATION_EDIT"),
         new("appraisal.appointment", "Appointment & Fee", "calendar-check", IconStyle.Solid, "text-orange-500",
             ":basePath/appointment", "APPRAISAL_APPOINTMENT_VIEW", "APPRAISAL_APPOINTMENT_EDIT"),
+        new("appraisal.fee-appointment-approval", "Fee & Appointment Approval", "check-to-slot", IconStyle.Solid, "text-emerald-500",
+            ":basePath/fee-appointment-approval", "TASK_FEE_APPOINTMENT_APPROVAL", null),
         new("appraisal.quotation-submit", "Submit Quotation", "paper-plane", IconStyle.Solid, "text-pink-500",
             ":basePath/quotation/submit", "TASK_QUOTATION_SUBMIT", null),
         new("appraisal.quotation-respond-negotiation", "Respond to Negotiation", "comments-dollar", IconStyle.Solid, "text-pink-500",

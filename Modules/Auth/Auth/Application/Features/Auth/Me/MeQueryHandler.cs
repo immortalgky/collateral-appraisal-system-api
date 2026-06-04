@@ -43,7 +43,8 @@ public class MeQueryHandler(
             user.CompanyId,
             roles.ToList(),
             permissions,
-            groups
+            groups,
+            user.MustChangePassword
         );
     }
 }

@@ -1,3 +1,5 @@
+using Auth.Application.Services;
+using Auth.Domain.Auditing;
 using Auth.Domain.Groups;
 using Auth.Infrastructure;
 using Microsoft.AspNetCore.Identity;
@@ -7,7 +9,8 @@ namespace Auth.Application.Features.Users.UpdateUserGroups;
 
 public class UpdateUserGroupsCommandHandler(
     UserManager<ApplicationUser> userManager,
-    AuthDbContext dbContext)
+    AuthDbContext dbContext,
+    IAuthAuditWriter auditWriter)
     : ICommandHandler<UpdateUserGroupsCommand>
 {
     public async Task<Unit> Handle(UpdateUserGroupsCommand command, CancellationToken cancellationToken)
@@ -39,6 +42,13 @@ public class UpdateUserGroupsCommandHandler(
         foreach (var groupId in requestedGroupIds.Except(currentGroupIds))
             dbContext.GroupUsers.Add(new GroupUser { GroupId = groupId, UserId = command.UserId });
 
+        auditWriter.RecordAssignmentChange(
+            AuditEntityType.User,
+            command.UserId,
+            user.UserName,
+            currentGroupIds,
+            requestedGroupIds,
+            "groups");
         await dbContext.SaveChangesAsync(cancellationToken);
         return Unit.Value;
     }

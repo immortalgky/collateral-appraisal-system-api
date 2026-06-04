@@ -72,6 +72,7 @@ public class AuthDataSeed(
                 "INVOICE_VIEW", "INVOICE_APPROVE", "REPORT_EVALUATION_VIEW",
                 "STANDALONE_USE",
                 "BLOCK_UNIT_MAINT_VIEW", "BLOCK_UNIT_MAINT_EDIT", "REAPPRAISAL_VIEW",
+                "BLOCK_REAPPRAISAL_VIEW", "BLOCK_REAPPRAISAL_CREATE",
                 "TASK_FEE_APPOINTMENT_APPROVAL", "FEE_APPROVAL_CONFIG", "APPOINTMENT_APPROVAL_CONFIG",
                 "WORKFLOW_ADMIN",
                 ..appraisalSectionViews
@@ -94,7 +95,8 @@ public class AuthDataSeed(
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "REQUEST_CREATE", "TASK_LIST_VIEW",
                 "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION", "TASK_PROVIDE_ADDITIONAL_DOCS",
                 "QUOTATION_VIEW", "TASK_QUOTATION_PICK_WINNER",
-                "STANDALONE_USE", "REAPPRAISAL_VIEW"
+                "STANDALONE_USE", "REAPPRAISAL_VIEW",
+                "BLOCK_REAPPRAISAL_VIEW", "BLOCK_REAPPRAISAL_CREATE"
             ]);
         await SeedRoleWithPermissionsAsync(RequestCheckerRoleName,
             "Request Checker — reviews and approves incoming appraisal requests.",
@@ -638,7 +640,17 @@ public class AuthDataSeed(
                 "View and edit the appointment change approval rule", "Workflow"),
             // Workflow step validation admin (configurable activity-completion validation rules)
             ("WORKFLOW_ADMIN", "Workflow Step Validation Admin",
-                "View and manage configurable activity-completion validation step rules", "Workflow")
+                "View and manage configurable activity-completion validation step rules", "Workflow"),
+            // Block Reappraisal screen (FSD §3.7)
+            ("BLOCK_REAPPRAISAL_VIEW", "View Block Reappraisal Due List",
+                "Browse block-project collateral masters pending periodic reappraisal", "Collateral"),
+            ("BLOCK_REAPPRAISAL_CREATE", "Opt-Out Block Reappraisal",
+                "Mark a block-project as reappraisal not required for the current cycle", "Collateral"),
+            // Team maintenance
+            ("TEAM_MANAGE", "Manage Teams", "Create, update, and delete teams and team members", "Auth"),
+            // Auth audit trail
+            ("AUTH_AUDIT_VIEW", "View Auth Audit Trail",
+                "View the user/role/permission/group/team change history", "Auth")
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)

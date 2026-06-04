@@ -1,3 +1,6 @@
+using Auth.Application.Services;
+using Auth.Domain.Auditing;
+using Auth.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Shared.Exceptions;
 
@@ -5,7 +8,9 @@ namespace Auth.Application.Features.Users.UpdateUserRoles;
 
 public class UpdateUserRolesCommandHandler(
     UserManager<ApplicationUser> userManager,
-    RoleManager<ApplicationRole> roleManager)
+    RoleManager<ApplicationRole> roleManager,
+    IAuthAuditWriter auditWriter,
+    AuthDbContext dbContext)
     : ICommandHandler<UpdateUserRolesCommand>
 {
     public async Task<Unit> Handle(UpdateUserRolesCommand command, CancellationToken cancellationToken)
@@ -39,6 +44,15 @@ public class UpdateUserRolesCommandHandler(
             if (!addResult.Succeeded)
                 throw new InvalidOperationException(string.Join("; ", addResult.Errors.Select(e => e.Description)));
         }
+
+        auditWriter.RecordAssignmentChange(
+            AuditEntityType.User,
+            command.UserId,
+            user.UserName,
+            currentRoles,
+            command.RoleNames,
+            "roles");
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return Unit.Value;
     }

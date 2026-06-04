@@ -32,6 +32,8 @@ public class GetCompanyByIdQueryHandler(
             company.Id, company.Name, company.TaxId, company.Phone, company.Email,
             company.Street, company.City, company.Province, company.PostalCode,
             company.ContactPerson, company.IsActive, company.LoanTypes,
+            BankAccountNo:    company.BankAccountNo,
+            BankAccountName:  company.BankAccountName,
             AverageRating:    ov?.AverageRating    ?? 0m,
             EvaluationCount:  ov?.EvaluationCount  ?? 0,
             ActiveAssignments: ov?.ActiveAssignments ?? 0);

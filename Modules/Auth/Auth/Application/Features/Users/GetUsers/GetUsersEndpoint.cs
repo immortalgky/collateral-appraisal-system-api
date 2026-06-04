@@ -10,12 +10,13 @@ public class GetUsersEndpoint : ICarterModule
                     string? search,
                     string? scope,
                     string? role,
+                    bool? isActive,
                     int pageNumber = 1,
                     int pageSize = 20,
                     ISender sender = default!,
                     CancellationToken cancellationToken = default) =>
                 {
-                    var query = new GetUsersQuery(search, scope, role, pageNumber, pageSize);
+                    var query = new GetUsersQuery(search, scope, role, isActive, pageNumber, pageSize);
                     var result = await sender.Send(query, cancellationToken);
                     var response = result.Adapt<GetUsersResponse>();
                     return Results.Ok(response);
@@ -23,7 +24,7 @@ public class GetUsersEndpoint : ICarterModule
             .WithName("GetUsers")
             .Produces<GetUsersResponse>()
             .WithSummary("Get users (admin)")
-            .WithDescription("Get a paginated list of users. Optionally filter by scope (Bank/Company).")
+            .WithDescription("Get a paginated list of users. Optionally filter by scope (Bank/Company), role, and active status.")
             .WithTags("User");
     }
 }

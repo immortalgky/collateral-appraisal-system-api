@@ -10,4 +10,13 @@ public class ApplicationUser : IdentityUser<Guid>
     public Guid? CompanyId { get; set; }
     public string AuthSource { get; set; } = "Local";
     public List<UserPermission> Permissions { get; set; } = default!;
+
+    /// <summary>Whether the account is allowed to sign in. Defaults to true.</summary>
+    public bool IsActive { get; set; } = true;
+
+    /// <summary>Timestamp of the most recent successful login.</summary>
+    public DateTime? LastLoginAt { get; set; }
+
+    /// <summary>When true the user must change their password before using the system.</summary>
+    public bool MustChangePassword { get; set; } = false;
 }

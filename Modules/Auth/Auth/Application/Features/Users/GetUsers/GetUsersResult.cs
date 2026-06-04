@@ -11,6 +11,8 @@ public record UserListItemDto(
     string? Department,
     Guid? CompanyId,
     string AuthSource,
-    List<string> Roles);
+    List<string> Roles,
+    bool IsActive,
+    bool IsLocked);
 
 public record GetUsersResult(IEnumerable<UserListItemDto> Items, long Count, int PageNumber, int PageSize);

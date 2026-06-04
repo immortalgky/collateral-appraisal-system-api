@@ -1,3 +1,5 @@
+using Auth.Application.Services;
+using Auth.Domain.Auditing;
 using Auth.Domain.Identity;
 using Auth.Infrastructure.Repository;
 using Shared.Exceptions;
@@ -5,7 +7,9 @@ using Shared.Pagination;
 
 namespace Auth.Services;
 
-public class PermissionService(IPermissionRepository permissionRepository) : IPermissionService
+public class PermissionService(
+    IPermissionRepository permissionRepository,
+    IAuthAuditWriter auditWriter) : IPermissionService
 {
     public async Task<Permission> CreatePermission(
         string permissionCode,
@@ -16,6 +20,7 @@ public class PermissionService(IPermissionRepository permissionRepository) : IPe
     {
         var permission = Permission.Create(permissionCode, displayName, description, module);
         await permissionRepository.AddAsync(permission, cancellationToken);
+        auditWriter.Record(AuditAction.Created, AuditEntityType.Permission, permission.Id, permissionCode);
         await permissionRepository.SaveChangesAsync(cancellationToken);
         return permission;
     }
@@ -44,6 +49,7 @@ public class PermissionService(IPermissionRepository permissionRepository) : IPe
             ?? throw new NotFoundException("Permission", id);
 
         permission.Update(displayName, description, module);
+        auditWriter.Record(AuditAction.Updated, AuditEntityType.Permission, id, permission.PermissionCode);
         await permissionRepository.SaveChangesAsync(cancellationToken);
         return permission;
     }
@@ -53,6 +59,7 @@ public class PermissionService(IPermissionRepository permissionRepository) : IPe
         var permission = await permissionRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException("Permission", id);
 
+        auditWriter.Record(AuditAction.Deleted, AuditEntityType.Permission, id, permission.PermissionCode);
         await permissionRepository.DeleteAsync(permission, cancellationToken);
         await permissionRepository.SaveChangesAsync(cancellationToken);
     }

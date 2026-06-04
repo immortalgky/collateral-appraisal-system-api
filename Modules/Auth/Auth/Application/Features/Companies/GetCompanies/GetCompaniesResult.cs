@@ -15,6 +15,8 @@ public record CompanyDto(
     string?      ContactPerson,
     bool         IsActive,
     List<string> LoanTypes,
+    string?      BankAccountNo    = null,
+    string?      BankAccountName  = null,
     decimal      AverageRating    = 0m,
     int          EvaluationCount  = 0,
     int          ActiveAssignments = 0);
