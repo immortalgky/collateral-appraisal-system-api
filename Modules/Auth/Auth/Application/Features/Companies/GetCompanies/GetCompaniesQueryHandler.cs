@@ -39,6 +39,8 @@ public class GetCompaniesQueryHandler(
                 c.Id, c.Name, c.TaxId, c.Phone, c.Email,
                 c.Street, c.City, c.Province, c.PostalCode,
                 c.ContactPerson, c.IsActive, c.LoanTypes,
+                BankAccountNo:    c.BankAccountNo,
+                BankAccountName:  c.BankAccountName,
                 AverageRating:    ov?.AverageRating    ?? 0m,
                 EvaluationCount:  ov?.EvaluationCount  ?? 0,
                 ActiveAssignments: ov?.ActiveAssignments ?? 0);

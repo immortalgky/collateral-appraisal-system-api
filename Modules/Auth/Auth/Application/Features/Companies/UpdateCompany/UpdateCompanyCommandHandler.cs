@@ -26,6 +26,8 @@ public class UpdateCompanyCommandHandler(ICompanyRepository companyRepository)
             command.IsActive,
             command.LoanTypes);
 
+        company.SetBankAccount(command.BankAccountNo, command.BankAccountName);
+
         await companyRepository.SaveChangesAsync(cancellationToken);
 
         return new UpdateCompanyResult(true);

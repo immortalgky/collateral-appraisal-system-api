@@ -137,8 +137,12 @@ public class TokenService(
 
     private static IEnumerable<string> GetDestinations(Claim claim)
     {
-        // Subject and Name always go to both tokens (needed for API authorization)
-        if (claim.Type is OpenIddictConstants.Claims.Subject or OpenIddictConstants.Claims.Name)
+        // Subject, Name and PreferredUsername always go to both tokens. The API authenticates with
+        // the ACCESS token and reads preferred_username (the bank code, e.g. "P5229") to stamp the
+        // acting user on audit/actor fields, so it must be present there — not the id-token only.
+        if (claim.Type is OpenIddictConstants.Claims.Subject
+            or OpenIddictConstants.Claims.Name
+            or OpenIddictConstants.Claims.PreferredUsername)
             return [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken];
 
         // Other profile claims (email, given_name, etc.) go to ID Token only (OIDC standard)

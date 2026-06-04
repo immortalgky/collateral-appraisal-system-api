@@ -14,5 +14,6 @@ public record MeResult(
     Guid? CompanyId,
     List<string> Roles,
     List<string> Permissions,
-    List<MeGroupDto> Groups
+    List<MeGroupDto> Groups,
+    bool MustChangePassword
 );

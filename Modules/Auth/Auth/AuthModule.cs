@@ -194,6 +194,8 @@ public static class AuthModule
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IGroupService, GroupService>();
+        services.AddScoped<ITeamService, TeamService>();
+        services.AddScoped<IAuthAuditWriter, AuthAuditWriter>();
         services.AddScoped<IUserLookupService, UserLookupService>();
         services.AddScoped<PermissionResolver>();
 
@@ -206,6 +208,7 @@ public static class AuthModule
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<ICompanyRepository, CompanyRepository>();
         services.AddScoped<IGroupRepository, GroupRepository>();
+        services.AddScoped<ITeamRepository, TeamRepository>();
 
         return services;
     }
@@ -234,6 +237,8 @@ public static class AuthModule
             .AddUserPermissionPolicy("CanManagePermissions", "PERMISSION_MANAGE")
             .AddUserPermissionPolicy("CanManageRoles", "ROLE_MANAGE")
             .AddUserPermissionPolicy("CanManageGroups", "GROUP_MANAGE")
+            .AddUserPermissionPolicy("CanManageTeams", "TEAM_MANAGE")
+            .AddUserPermissionPolicy("CanViewAuthAudit", "AUTH_AUDIT_VIEW")
             .AddUserPermissionPolicy("CanManageUsers", "USER_MANAGE")
             .AddUserPermissionPolicy("CanManageMenus", "MENU_MANAGE")
             .AddUserPermissionPolicy("CanManageCompanies", "COMPANY_MANAGE")

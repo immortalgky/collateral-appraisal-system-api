@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Auth.Application.Services;
 using Auth.Infrastructure.Repository;
 using Auth.Domain.Identity;
+using Auth.Domain.Auditing;
 using Shared.Exceptions;
 using Shared.Pagination;
 
@@ -11,7 +13,8 @@ public class RoleService(
     RoleManager<ApplicationRole> roleManager,
     UserManager<ApplicationUser> userManager,
     IPermissionRepository permissionRepository,
-    AuthDbContext dbContext
+    AuthDbContext dbContext,
+    IAuthAuditWriter auditWriter
 ) : IRoleService
 {
     public async Task<ApplicationRole> CreateRole(
@@ -34,6 +37,12 @@ public class RoleService(
         var result = await roleManager.CreateAsync(role);
         if (!result.Succeeded)
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => $"{e.Code}: {e.Description}")));
+
+        auditWriter.Record(AuditAction.Created, AuditEntityType.Role, role.Id, name);
+        // roleManager.CreateAsync flushes via Identity's store — audit row written in next SaveChanges.
+        // RoleService has no separate SaveChangesAsync call; enqueue only (Identity commits independently).
+        // To flush the audit row we call dbContext.SaveChangesAsync here.
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return role;
     }
@@ -76,6 +85,9 @@ public class RoleService(
         var result = await roleManager.UpdateAsync(role);
         if (!result.Succeeded)
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+
+        auditWriter.Record(AuditAction.Updated, AuditEntityType.Role, id, name);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task UpdateRolePermissions(Guid id, List<Guid> permissionIds, CancellationToken cancellationToken = default)
@@ -85,10 +97,13 @@ public class RoleService(
 
         await PermissionService.ValidatePermissionsExistAsync(permissionIds, permissionRepository, cancellationToken);
 
+        var beforeIds = role.Permissions.Select(rp => rp.PermissionId).ToList();
+
         // Replace permission set
         dbContext.Set<RolePermission>().RemoveRange(role.Permissions);
         role.Permissions = [.. permissionIds.Select(pid => new RolePermission { RoleId = id, PermissionId = pid })];
 
+        auditWriter.RecordAssignmentChange(AuditEntityType.Role, id, role.Name, beforeIds, permissionIds, "permissions");
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -108,6 +123,8 @@ public class RoleService(
 
         var roleName = role.Name!;
         var currentUsers = await userManager.GetUsersInRoleAsync(roleName);
+
+        var beforeIds = currentUsers.Select(u => u.Id).ToList();
 
         // Remove users no longer in list
         foreach (var user in currentUsers)
@@ -133,6 +150,9 @@ public class RoleService(
             if (!result.Succeeded)
                 throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
         }
+
+        auditWriter.RecordAssignmentChange(AuditEntityType.Role, id, roleName, beforeIds, userIds, "users");
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task DeleteRole(Guid id, CancellationToken cancellationToken = default)
@@ -140,6 +160,12 @@ public class RoleService(
         var role = await GetRoleById(id, cancellationToken)
             ?? throw new NotFoundException("Role", id);
 
-        await roleManager.DeleteAsync(role);
+        // Delete first — only audit on confirmed success
+        var deleteResult = await roleManager.DeleteAsync(role);
+        if (!deleteResult.Succeeded)
+            throw new InvalidOperationException(string.Join("; ", deleteResult.Errors.Select(e => e.Description)));
+
+        auditWriter.Record(AuditAction.Deleted, AuditEntityType.Role, id, role.Name);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

@@ -1,9 +1,15 @@
+using Auth.Application.Services;
+using Auth.Domain.Auditing;
+using Auth.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Shared.Exceptions;
 
 namespace Auth.Application.Features.Users.UpdateUser;
 
-public class UpdateUserCommandHandler(UserManager<ApplicationUser> userManager)
+public class UpdateUserCommandHandler(
+    UserManager<ApplicationUser> userManager,
+    IAuthAuditWriter auditWriter,
+    AuthDbContext dbContext)
     : ICommandHandler<UpdateUserCommand>
 {
     public async Task<Unit> Handle(UpdateUserCommand command, CancellationToken cancellationToken)
@@ -20,6 +26,9 @@ public class UpdateUserCommandHandler(UserManager<ApplicationUser> userManager)
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+
+        auditWriter.Record(AuditAction.Updated, AuditEntityType.User, command.Id, user.UserName);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return Unit.Value;
     }
