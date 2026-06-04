@@ -2,8 +2,7 @@ namespace Appraisal.Domain.SupportingDataMaintenance;
 
 public class SupportingDataDetail : Entity<Guid>
 {
-    public Guid SupportingDataId { get; private set; }   // FK to parent
-
+    public Guid SupportingDataId { get; private set; } // FK to parent
     public string? PropertyName { get; private set; }
     public string? Developer { get; private set; }
     public string? ModelName { get; private set; }

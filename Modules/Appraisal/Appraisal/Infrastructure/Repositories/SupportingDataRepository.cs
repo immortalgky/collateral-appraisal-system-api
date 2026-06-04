@@ -14,10 +14,22 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
     public Task<SupportingDataDetail?> GetDetailByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => _db.SupportingDataDetails.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
 
-    public Task<SupportingDataDetail?> GetDetailByIdWithImagesAsync(Guid id, CancellationToken cancellationToken = default)
-        => _db.SupportingDataDetails
-              .Include(d => d.Images)
-              .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+    public async Task<(SupportingDataDetail?, SupportingStatus?)> GetDetailByIdWithImagesAsync(
+    Guid id, CancellationToken cancellationToken = default)
+    {
+        var detail = await _db.SupportingDataDetails
+            .Include(d => d.Images)
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+
+        if (detail is null) return (null, null);
+
+        var status = await _db.SupportingData
+            .Where(s => s.Id == detail.SupportingDataId)
+            .Select(s => s.Status)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return (detail, status);
+    }
 
 
     public Task<PaginatedResult<SupportingData>> GetListAsync(

@@ -12,6 +12,7 @@ public record SupportingDetailImageDto(
 
 public record GetSupportingDetailByIdResult(
     Guid Id,
+    bool HasAuthorityToEdit,
     string? PropertyName,
     string? Developer,
     string? ModelName,

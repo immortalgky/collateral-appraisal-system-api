@@ -7,11 +7,16 @@ public class GetSupportingDataByIdQueryHandler(ISupportingDataRepository repo, I
         GetSupportingDataByIdQuery query,
         CancellationToken cancellationToken)
     {
-        var hasDecisionPermission = currentUserService.HasPermission("SUPPORTING_DATA_MAINT_DECISION"); // check permission to make decision on supporting data
-        var hasEditPermission = currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT"); // check permission to create new supporting data
 
         var s = await repo.GetByIdAsync(query.SupportingId, cancellationToken)
             ?? throw new SupportingDataNotFoundException(query.SupportingId);
+
+        var isArchived = s.Status == SupportingStatus.Approved
+                    || s.Status == SupportingStatus.Rejected
+                    || s.Status == SupportingStatus.Cancelled;
+
+        var hasDecisionPermission = currentUserService.HasPermission("SUPPORTING_DATA_MAINT_DECISION") && !isArchived; // check permission to make decision on supporting data
+        var hasEditPermission = currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT") && !isArchived; // check permission to create new supporting data
 
         return new GetSupportingDataByIdResult(
             s.Id,
