@@ -10,7 +10,7 @@ namespace Request.Application.Features.Reappraisal.GetCandidateById;
 ///
 /// Nearby list draws from TWO sources and merges them:
 ///   1. In-system appraisals from <c>appraisal.vw_AppraisalList</c> with coords via
-///      CROSS APPLY (same pattern as <c>ReappraisalIngestionJob.FetchCoordinatesAsync</c>).
+///      CROSS APPLY (same pattern as <c>As400ReappraisalJob.FetchCoordinatesAsync</c>).
 ///   2. Pending candidates from <c>request.ReappraisalCandidates</c> with a non-null GeoPoint.
 ///
 /// When both sides share the same AppraisalNumber / SurveyNumber they collapse into one row

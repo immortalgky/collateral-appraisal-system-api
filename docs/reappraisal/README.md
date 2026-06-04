@@ -74,8 +74,8 @@ API at `https://localhost:7111`. Startup applies migrations (0a) and seeds the p
 
 ## Step 4 — Trigger ingestion
 Open the Hangfire dashboard `https://localhost:7111/hangfire` → **Recurring Jobs** →
-`reappraisal-ingestion` → **Trigger now** (no need to wait for the monthly cron).
-Watch the console for `[REAPPRAISAL-INGEST]` lines.
+`reappraisal-as400` → **Trigger now** (no need to wait for the monthly cron).
+Watch the console for `[REAPPRAISAL-AS400]` lines.
 
 ## Step 5 — Verify staging
 ```sql
@@ -161,7 +161,7 @@ mv Bootstrapper/Api/reappraisal/processed/AS400_COLLATREV_20260501.txt Bootstrap
 
 ## Troubleshooting
 - **No rows after trigger** — check the inbox path (`Bootstrapper/Api/reappraisal/inbox`), the filename
-  matches `AS400_COLLATREV_YYYYMMDD.txt`, and the console `[REAPPRAISAL-INGEST]` logs for parse errors.
+  matches `AS400_COLLATREV_YYYYMMDD.txt`, and the console `[REAPPRAISAL-AS400]` logs for parse errors.
 - **List endpoint 500 / "invalid object name"** — the view isn't deployed; run Step 0b.
 - **Menu item not visible** — the logged-in role lacks `REAPPRAISAL_VIEW` (use Admin/IntAdmin/RequestMaker)
   or the seed didn't run; restart the API.
