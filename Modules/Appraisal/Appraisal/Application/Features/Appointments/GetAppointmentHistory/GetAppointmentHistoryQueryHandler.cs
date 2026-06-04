@@ -10,21 +10,23 @@ public class GetAppointmentHistoryQueryHandler(ISqlConnectionFactory connectionF
         CancellationToken cancellationToken)
     {
         // Single UNION ALL query:
-        //   Part 1 — appointment history events for the appraisal's latest active appointment.
+        //   Part 1 — appointment history events for ALL appointments of the appraisal (full
+        //            timeline; an appraisal can have more than one appointment after a
+        //            cancel-then-recreate).
         //   Part 2 — fee events (FeeAdded / FeeApproved / FeeRejected) for user-added fee items
         //            on the same assignment chain.
         //
-        // Appointment resolution: same join as vw_AppointmentList
-        //   Appointments.AssignmentId → AppraisalAssignments.Id (where AppraisalId = @AppraisalId)
-        //   We pick the most-recently-created appointment for this appraisal (matches GetAppointment's intent).
+        // Appointment resolution: Appointments.AssignmentId → AppraisalAssignments.Id
+        //   (where AppraisalId = @AppraisalId).
         //
-        // NewDate computation for Rescheduled rows uses LEAD() to find the
-        // PreviousAppointmentDateTime of the next-newer history row. If there is no
-        // newer row the appointment's current AppointmentDateTime is the new date.
+        // NewDate computation for Rescheduled rows uses LEAD() PARTITIONed BY AppointmentId to find
+        // the PreviousAppointmentDateTime of the next-newer history row of the SAME appointment
+        // (so pairing never bleeds across appointments). If there is no newer row the appointment's
+        // current AppointmentDateTime is the new date.
         //
-        // Actor name: actor fields now store the bank code (= AspNetUsers.UserName). Appointment
-        // events keep a defensive dual join (UserName OR Id-as-Guid) so legacy rows that stored a
-        // Guid still resolve; fee events join on UserName directly.
+        // Actor name: actor fields now store the bank code (= AspNetUsers.UserName). Both branches
+        // use a defensive dual join (UserName OR Id-as-Guid via TRY_CONVERT) so legacy rows that
+        // stored a Guid before the ApprovedBy/ChangedBy code migration still resolve to a name.
         const string sql = """
             -- ── Part 1: Appointment history events ──────────────────────────────────────
             SELECT
@@ -151,7 +153,9 @@ public class GetAppointmentHistoryQueryHandler(ISqlConnectionFactory connectionF
             FROM appraisal.AppraisalFeeItems fi
             INNER JOIN appraisal.AppraisalFees af ON af.Id = fi.AppraisalFeeId
             INNER JOIN appraisal.AppraisalAssignments aa ON aa.Id = af.AssignmentId
-            LEFT JOIN auth.AspNetUsers u2 ON u2.UserName = fi.ApprovedBy
+            LEFT JOIN auth.AspNetUsers u2
+                ON u2.UserName = fi.ApprovedBy
+                OR u2.Id = TRY_CONVERT(UNIQUEIDENTIFIER, fi.ApprovedBy)
             WHERE aa.AppraisalId = @AppraisalId
               AND fi.Source = 'User'
               AND fi.ApprovalStatus IN ('Approved', 'Rejected')

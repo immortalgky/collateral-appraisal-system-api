@@ -10,16 +10,15 @@ public class ApproveFeeItemEndpoint : ICarterModule
                     Guid appraisalId,
                     Guid feeId,
                     Guid itemId,
-                    ApproveFeeItemRequest request,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
+                    // Actor is stamped server-side from the authenticated user (see handler).
                     var command = new ApproveFeeItemCommand(
                         appraisalId,
                         feeId,
-                        itemId,
-                        request.ApprovedBy);
+                        itemId);
 
                     await sender.Send(command, cancellationToken);
 
