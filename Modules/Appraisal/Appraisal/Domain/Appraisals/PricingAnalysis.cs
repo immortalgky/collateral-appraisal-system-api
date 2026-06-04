@@ -130,6 +130,57 @@ public class PricingAnalysis : Aggregate<Guid>
         };
     }
 
+    /// <summary>
+    /// Creates a reference PricingAnalysis by deep-cloning a source method into a new "Market" approach.
+    /// The clone is fully independent — editing it never touches the source.
+    /// </summary>
+    /// <param name="subjectType">One of the Ref subtypes (MachineryCostRef…ProfitRentRef). Must not be PropertyGroup/ProjectModel.</param>
+    /// <param name="anchorId">Owning entity id for this reference.</param>
+    /// <param name="hostMethodId">PricingAnalysisMethod that logically owns the field. Used for cleanup.</param>
+    /// <param name="sourceMethod">The Cost-approach method to clone (WQS/SaleGrid/DirectComparison).</param>
+    /// <param name="landAreaOverride">When set, overrides the cloned method's FinalValue.LandArea to this value while preserving LandValue.</param>
+    public static PricingAnalysis CreateReferenceFromMethod(
+        PricingAnalysisSubjectType subjectType,
+        Guid anchorId,
+        Guid? hostMethodId,
+        PricingAnalysisMethod sourceMethod,
+        decimal? landAreaOverride = null)
+    {
+        if (subjectType is PricingAnalysisSubjectType.PropertyGroup or PricingAnalysisSubjectType.ProjectModel)
+            throw new ArgumentException(
+                "Use CreateForPropertyGroup / CreateForProjectModel for non-reference subject types.",
+                nameof(subjectType));
+
+        if (anchorId == Guid.Empty)
+            throw new ArgumentException("AnchorId must not be empty.", nameof(anchorId));
+
+        var pa = new PricingAnalysis
+        {
+            Id = Guid.CreateVersion7(),
+            SubjectType = subjectType,
+            AnchorId = anchorId,
+            AnchorRefKey = null,
+            HostMethodId = hostMethodId,
+            Status = "Draft"
+        };
+
+        var approach = PricingAnalysisApproach.Create(pa.Id, "Market");
+        pa._approaches.Add(approach);
+
+        var clonedMethod = approach.AttachClonedMethod(sourceMethod);
+
+        // Override land area when a partial-land value is specified (DCF non-HBU land reference).
+        // Keep the existing LandValue; only update LandArea.
+        if (landAreaOverride.HasValue && clonedMethod.FinalValue is not null)
+        {
+            clonedMethod.FinalValue.SetLandAreaValues(
+                landAreaOverride.Value,
+                clonedMethod.FinalValue.LandValue ?? 0m);
+        }
+
+        return pa;
+    }
+
     // ── Approach management ───────────────────────────────────────────────────
 
     public PricingAnalysisApproach AddApproach(string approachType, decimal? weight = null)

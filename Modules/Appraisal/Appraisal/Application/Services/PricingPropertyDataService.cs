@@ -95,7 +95,10 @@ public class PricingPropertyDataService(
             .Where(p => propertyIds.Contains(p.Id))
             .ToList();
 
-        // Rental schedule from contract entries
+        // Rental schedule from contract entries — sourced from any rental-bearing
+        // property in the group. RentalInfo is attached only to lease-agreement
+        // properties and to plain land (L/LB) flagged "rented out to others",
+        // so a mixed group only needs at least one such property.
         var contractSchedule = groupProperties
             .Where(p => p.RentalInfo is not null)
             .SelectMany(p => p.RentalInfo!.ScheduleEntries)

@@ -170,6 +170,8 @@ public record PropertyGroupItemDto
     public string? Location { get; set; }
     /// <summary>Title deed no(s): comma-joined LandTitles for land, unit deed for condo.</summary>
     public string? TitleNo { get; set; }
+    /// <summary>True for plain land (L/LB) flagged "rented out to others"; null for non-land types.</summary>
+    public bool? IsRentedOut { get; set; }
     public List<PropertyPhotoDto>? Photos { get; set; }
     /// <summary>Full land titles (land/land-and-building only); null/empty for other types.</summary>
     public List<LandTitleDto>? Titles { get; set; }

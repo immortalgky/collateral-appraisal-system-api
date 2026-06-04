@@ -501,9 +501,13 @@ public class Appraisal : Aggregate<Guid>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(groupName);
 
-        var groupNumber = _groups.Count + 1;
-        var group = PropertyGroup.Create(Id, groupNumber, groupName, description);
+        // Provisional number (count + 1); ResequenceGroups reassigns it and uses it as the
+        // tie-breaker so this new, not-yet-saved group (null CreatedAt) sorts last.
+        var group = PropertyGroup.Create(Id, _groups.Count + 1, groupName, description);
         _groups.Add(group);
+
+        // Order by creation time and reapply group numbers by order
+        ResequenceGroups();
 
         return group;
     }
@@ -552,8 +556,25 @@ public class Appraisal : Aggregate<Guid>
 
         _groups.Remove(group);
 
-        // Resequence remaining groups
-        for (var i = 0; i < _groups.Count; i++) _groups[i].UpdateGroupNumber(i + 1);
+        // Order by creation time and reapply group numbers by order
+        ResequenceGroups();
+    }
+
+    /// <summary>
+    /// Order groups by creation time and reapply contiguous group numbers (1..n).
+    /// A not-yet-saved group has a null CreatedAt and is treated as newest (sorted last,
+    /// since CreateGroup gives it a provisional number of _groups.Count + 1).
+    /// The current GroupNumber is the tie-breaker, keeping the resequence stable (it only
+    /// compacts the numbering and preserves the existing relative order on equal timestamps).
+    /// </summary>
+    private void ResequenceGroups()
+    {
+        var ordered = _groups
+            .OrderBy(g => g.CreatedAt ?? DateTime.MaxValue)
+            .ThenBy(g => g.GroupNumber)
+            .ToList();
+
+        for (var i = 0; i < ordered.Count; i++) ordered[i].UpdateGroupNumber(i + 1);
     }
 
     /// <summary>

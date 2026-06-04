@@ -44,7 +44,8 @@ SELECT PG.AppraisalId,
        CASE
            WHEN AP.PropertyType IN ('L', 'LB') THEN LTN.TitleNumbers
            WHEN AP.PropertyType = 'U' THEN C.TitleNumber
-           END                                                       AS TitleNo
+           END                                                       AS TitleNo,
+       L.IsRentedOut                                                 AS IsRentedOut
 FROM appraisal.PropertyGroups PG
          LEFT JOIN appraisal.PricingAnalysis PA ON PA.AnchorId = PG.Id AND PA.SubjectType = 0
          LEFT JOIN appraisal.PropertyGroupItems PGI ON PGI.PropertyGroupId = PG.Id
