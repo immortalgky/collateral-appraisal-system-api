@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../../Shared/Shared/Shared.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Scriban"/>
+        <PackageReference Include="PuppeteerSharp"/>
+        <PackageReference Include="PdfSharp"/>
+    </ItemGroup>
+
+    <!-- Templates: copy to output directory so they are accessible at runtime -->
+    <ItemGroup>
+        <Content Include="Templates\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+
+</Project>
