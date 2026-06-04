@@ -29,7 +29,8 @@ public class FeeAppointmentApprovalRequestedConsumer(
                 l.RescheduleCount,
                 l.FeeCode,
                 l.FeeDescription,
-                l.FeeAmount))
+                l.FeeAmount,
+                l.PreviousDate))
             .ToList();
 
         var command = new RaiseFeeAppointmentApprovalCommand(

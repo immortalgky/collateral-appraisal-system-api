@@ -198,6 +198,7 @@ internal sealed class FakeCurrentUserService(IEnumerable<string> permissions, st
 
     public Guid? UserId => null;
     public string? Username => username;
+    public string? UserCode => username;
     public bool IsAuthenticated => true;
     public IReadOnlyList<string> Permissions => _permissions;
     public IReadOnlyList<string> Roles => [];

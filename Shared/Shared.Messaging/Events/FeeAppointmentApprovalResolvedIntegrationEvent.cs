@@ -9,6 +9,14 @@ public class FeeAppointmentApprovalResolvedIntegrationEvent
     public Guid AppraisalId { get; init; }
     public Guid ApprovalId { get; init; }
     public IReadOnlyList<FeeApprovalLineOutcome> LineOutcomes { get; init; } = [];
+
+    /// <summary>
+    /// The bank code (e.g. "P5229", = AspNetUsers.UserName) of the user who resolved the approval.
+    /// Used by the Appraisal module to stamp the real approver on the Appointment / AppraisalFeeItem
+    /// instead of a system placeholder. Null only for system-initiated resolutions.
+    /// </summary>
+    public string? ResolvedByCode { get; init; }
+
     public DateTime OccurredOn { get; set; }
 }
 

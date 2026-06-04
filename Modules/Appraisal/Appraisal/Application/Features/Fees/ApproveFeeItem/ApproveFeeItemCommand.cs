@@ -6,5 +6,5 @@ public record ApproveFeeItemCommand(
     Guid AppraisalId,
     Guid FeeId,
     Guid ItemId,
-    Guid ApprovedBy
+    string ApprovedBy
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;

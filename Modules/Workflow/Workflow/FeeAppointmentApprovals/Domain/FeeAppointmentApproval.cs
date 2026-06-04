@@ -95,7 +95,8 @@ public class FeeAppointmentApproval : Aggregate<Guid>
         string appointmentDecision,
         string? appointmentReason,
         string feeDecision,
-        string? feeReason)
+        string? feeReason,
+        string? resolvedByCode = null)
     {
         if (Status != FeeAppointmentApprovalStatus.Open)
             throw new InvalidOperationException("Approval is not open");
@@ -123,7 +124,7 @@ public class FeeAppointmentApproval : Aggregate<Guid>
         Status = FeeAppointmentApprovalStatus.Resolved;
         ResolvedAt = DateTime.Now;
 
-        AddDomainEvent(new FeeAppointmentApprovalResolvedDomainEvent(Id, AppraisalId, outcomes));
+        AddDomainEvent(new FeeAppointmentApprovalResolvedDomainEvent(Id, AppraisalId, outcomes, resolvedByCode));
     }
 
     /// <summary>

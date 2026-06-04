@@ -21,6 +21,12 @@ public class CancelAppointmentCommandHandler(
         if (!assignmentBelongs)
             throw new InvalidOperationException("Appointment does not belong to this appraisal.");
 
+        // Edit lock: reject if an approval is currently awaiting (submitted but not yet resolved) —
+        // mirrors the reschedule guard so a pending reschedule can't be cancelled out from under the approver.
+        if (appointment.ApprovalSubmittedAt.HasValue)
+            throw new InvalidOperationException(
+                "Cannot cancel: an approval is currently awaiting review. Wait for the approval to be resolved.");
+
         appointment.Cancel(command.ChangedBy, command.Reason);
 
         return Unit.Value;

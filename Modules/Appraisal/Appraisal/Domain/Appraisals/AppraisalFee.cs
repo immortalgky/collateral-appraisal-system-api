@@ -114,6 +114,12 @@ public class AppraisalFee : Entity<Guid>
             .Sum(i => i.FeeAmount);
         VATAmount = TotalFeeBeforeVAT * VATRate / 100;
         TotalFeeAfterVAT = TotalFeeBeforeVAT + VATAmount;
+        // Re-clamp the bank absorb so it can never exceed the (possibly reduced) total. Without
+        // this, removing/editing a fee item below a prior full absorb would leave a stale
+        // BankAbsorbAmount, drive CustomerPayableAmount negative, and make the next fee update
+        // PATCH (which re-sends the stale amount) trip the SetBankAbsorb bounds guard.
+        if (BankAbsorbAmount > TotalFeeAfterVAT)
+            BankAbsorbAmount = TotalFeeAfterVAT;
         CustomerPayableAmount = TotalFeeAfterVAT - BankAbsorbAmount;
         OutstandingAmount = TotalFeeAfterVAT - TotalPaidAmount;
         UpdatePaymentStatus();
@@ -158,6 +164,11 @@ public class AppraisalFee : Entity<Guid>
 
     public void SetBankAbsorb(decimal amount)
     {
+        if (amount < 0 || amount > TotalFeeAfterVAT)
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                $"BankAbsorbAmount must be between 0 and TotalFeeAfterVAT ({TotalFeeAfterVAT:F2}) (got {amount:F2}).");
+
         BankAbsorbAmount = amount;
         CustomerPayableAmount = TotalFeeAfterVAT - BankAbsorbAmount;
         OutstandingAmount = TotalFeeAfterVAT - TotalPaidAmount;

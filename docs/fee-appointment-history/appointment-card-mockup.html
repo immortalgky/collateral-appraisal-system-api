@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Appointment Card — redesign options</title>
+<style>
+  :root{
+    --bg:#f1f5f9; --card:#fff; --line:#e7ebf0; --ink:#0f172a; --muted:#64748b; --faint:#94a3b8;
+    --primary:#2563eb; --accent:#ea580c; --accent-bg:#fff7ed;
+    --green:#16a34a; --green-bg:#f0fdf4; --green-bd:#bbf7d0;
+    --amber:#d97706; --amber-bg:#fffbeb; --amber-bd:#fde68a;
+    --red:#dc2626; --red-bg:#fef2f2; --red-bd:#fecaca;
+    --slate-btn:#334155;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 20px 90px}
+  h1{font-size:22px;font-weight:700;margin:0 0 2px}
+  .sub{color:var(--muted);margin:0 0 22px}
+  .toolbar{position:sticky;top:12px;z-index:5;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:24px;box-shadow:0 1px 2px rgba(2,6,23,.04)}
+  .toolbar .lbl{font-weight:600}
+  .seg{display:inline-flex;background:#f1f5f9;border-radius:9px;padding:3px;flex-wrap:wrap}
+  .seg button{border:0;background:transparent;padding:6px 12px;border-radius:7px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+  .seg button.active{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(2,6,23,.12)}
+  .variant{margin-bottom:30px}
+  .variant > .cap{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin:0 0 10px}
+  .variant > .note{color:var(--muted);font-size:13px;margin:10px 2px 0}
+
+  /* shared bits */
+  .pin,.ava{display:inline-flex;align-items:center;justify-content:center}
+  .ava{width:26px;height:26px;border-radius:99px;background:#e2e8f0;color:#64748b;font-size:11px;font-weight:700}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;border:1px solid transparent;white-space:nowrap}
+  .badge.approved{background:var(--green-bg);color:var(--green);border-color:var(--green-bd)}
+  .badge.awaiting{background:#eff6ff;color:var(--primary);border-color:#bfdbfe}
+  .badge.pending{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-bd)}
+  .dot{width:5px;height:5px;border-radius:99px;background:currentColor;display:inline-block}
+  .btn{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:9px 14px;border-radius:10px;cursor:pointer;border:1px solid transparent;background:#fff;transition:.15s}
+  .btn.cancel{border-color:var(--red-bd);background:var(--red-bg);color:var(--red)}
+  .btn.cancel:hover{background:#fee2e2}
+  .btn.resched{background:var(--slate-btn);color:#fff}
+  .btn.resched:hover{background:#1e293b}
+  .btn.ghost{border-color:var(--line);background:#fff;color:var(--muted)}
+  .btn.ghost:hover{background:#f8fafc;color:var(--ink)}
+  .ico{width:15px;height:15px;display:inline-block;vertical-align:-2px}
+  .meta{display:inline-flex;align-items:center;gap:8px;color:var(--faint);font-size:12.5px}
+  .meta a{color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;gap:5px;font-weight:600}
+  .meta a:hover{color:var(--primary)}
+  .muted{color:var(--muted)} .faint{color:var(--faint)}
+
+  /* ============ A: calendar tile ============ */
+  .cardA{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 2px rgba(2,6,23,.05);padding:16px 18px;display:flex;align-items:center;gap:18px}
+  .calA{flex-shrink:0;width:76px;border:1px solid var(--line);border-radius:12px;overflow:hidden;text-align:center;background:#fff}
+  .calA .m{background:var(--accent);color:#fff;font-size:11px;font-weight:700;letter-spacing:.08em;padding:3px 0;text-transform:uppercase}
+  .calA .d{font-size:28px;font-weight:800;line-height:1.1;padding-top:6px;color:var(--ink)}
+  .calA .w{font-size:11px;color:var(--muted);padding-bottom:6px}
+  .Amid{flex:1;min-width:0}
+  .Atime{font-size:16px;font-weight:700;display:flex;align-items:center;gap:7px}
+  .Arow{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:13px;margin-top:3px}
+  .Ameta{margin-top:7px}
+  .Aright{display:flex;flex-direction:column;align-items:flex-end;gap:10px;flex-shrink:0}
+  .Aactions{display:flex;gap:8px}
+
+  /* ============ B: header strip ============ */
+  .cardB{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 2px rgba(2,6,23,.05);overflow:hidden}
+  .Bhead{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--line);background:#f8fafc}
+  .Bhead .t{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .Bhead .sp{flex:1}
+  .Bbody{display:flex;align-items:center;gap:22px;padding:16px 18px}
+  .Bdate{flex-shrink:0;padding-right:22px;border-right:1px solid var(--line)}
+  .Bdate .w{font-size:12px;font-weight:600;color:var(--accent)}
+  .Bdate .d{font-size:19px;font-weight:800;line-height:1.15}
+  .Bdate .ti{font-size:13px;color:var(--muted)}
+  .Bdetails{flex:1;display:flex;flex-direction:column;gap:6px}
+  .Bactions{display:flex;gap:8px;flex-shrink:0}
+
+  /* ============ C: accent bar, two-tier ============ */
+  .cardC{position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 2px rgba(2,6,23,.05);padding:16px 18px 14px 22px;overflow:hidden}
+  .cardC::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent)}
+  .Ctop{display:flex;align-items:flex-start;gap:18px}
+  .Cdate{flex-shrink:0}
+  .Cdate .w{font-size:12px;font-weight:600;color:var(--accent)}
+  .Cdate .d{font-size:20px;font-weight:800;line-height:1.15}
+  .Cdate .ti{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin-top:2px}
+  .Cdetails{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;padding-top:2px}
+  .Cline{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+  .Cright{display:flex;flex-direction:column;align-items:flex-end;gap:10px;flex-shrink:0}
+  .Cactions{display:flex;gap:8px}
+  .Cfoot{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
+
+  /* pending reschedule (old→new) demo */
+  .oldnew{display:inline-flex;align-items:center;gap:9px}
+  .old{color:var(--faint);text-decoration:line-through;text-decoration-color:#fca5a5}
+  .arrow{color:var(--amber);font-weight:700}
+
+  .hideblock{display:none}
+  svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Appointment card — redesign options</h1>
+  <p class="sub">Same data as today (date / time / location / contact / reschedule count / history / status / actions). Pick a direction.</p>
+
+  <div class="toolbar">
+    <span class="lbl">Variant</span>
+    <div class="seg">
+      <button class="active" onclick="show('A')">A · Calendar tile</button>
+      <button onclick="show('B')">B · Header strip</button>
+      <button onclick="show('C')">C · Accent + footer</button>
+    </div>
+    <div class="seg" style="margin-left:auto">
+      <button class="active" onclick="setState('approved')" id="s-approved">Approved</button>
+      <button onclick="setState('awaiting')" id="s-awaiting">Awaiting approval</button>
+    </div>
+  </div>
+
+  <!-- ============ VARIANT A ============ -->
+  <div class="variant" id="vA">
+    <p class="cap">Variant A — Calendar date tile</p>
+    <div class="cardA">
+      <div class="calA">
+        <div class="m">Apr</div>
+        <div class="d">11</div>
+        <div class="w">Sat</div>
+      </div>
+      <div class="Amid">
+        <div class="Atime">
+          <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          9:00 AM
+        </div>
+        <div class="Arow">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          <span class="faint">Location not specified</span>
+        </div>
+        <div class="Arow">
+          <span class="ava">JD</span>
+          <span>John Doe <span class="faint">· 089814xxxx</span></span>
+        </div>
+        <div class="Ameta meta">
+          <span>Rescheduled 3×</span><span class="dot" style="color:#cbd5e1"></span>
+          <a href="#"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>View history <b style="margin-left:2px">(28)</b></a>
+        </div>
+      </div>
+      <div class="Aright">
+        <span class="badge approved st-approved">● Approved</span>
+        <span class="badge awaiting st-awaiting hideblock">Awaiting approval</span>
+        <div class="Aactions">
+          <button class="btn cancel"><svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>Cancel</button>
+          <button class="btn resched"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/></svg>Re-schedule</button>
+        </div>
+      </div>
+    </div>
+    <p class="note">Date reads instantly as a calendar chip; status pill sits above the actions; history is a quiet link in the meta line. Most scannable.</p>
+  </div>
+
+  <!-- ============ VARIANT B ============ -->
+  <div class="variant hideblock" id="vB">
+    <p class="cap">Variant B — Header strip (status + history up top)</p>
+    <div class="cardB">
+      <div class="Bhead">
+        <span class="t">Appointment</span>
+        <span class="badge approved st-approved">● Approved</span>
+        <span class="badge awaiting st-awaiting hideblock">Awaiting approval</span>
+        <span class="sp"></span>
+        <a class="meta" href="#" style="color:var(--muted);font-weight:600;text-decoration:none">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>View history (28)
+        </a>
+      </div>
+      <div class="Bbody">
+        <div class="Bdate">
+          <div class="w">Saturday</div>
+          <div class="d">April 11, 2026</div>
+          <div class="ti">9:00 AM</div>
+        </div>
+        <div class="Bdetails">
+          <div class="meta" style="color:var(--muted);font-size:13px">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            <span class="faint">Location not specified</span>
+          </div>
+          <div class="meta" style="color:var(--muted);font-size:13px">
+            <span class="ava">JD</span><span>John Doe <span class="faint">· 089814xxxx</span></span>
+          </div>
+          <div class="meta"><span>Rescheduled 3×</span></div>
+        </div>
+        <div class="Bactions">
+          <button class="btn cancel"><svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>Cancel</button>
+          <button class="btn resched"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/></svg>Re-schedule</button>
+        </div>
+      </div>
+    </div>
+    <p class="note">Status and history are promoted to a header bar, so the body is just the facts. Good if status matters at a glance; slightly taller.</p>
+  </div>
+
+  <!-- ============ VARIANT C ============ -->
+  <div class="variant hideblock" id="vC">
+    <p class="cap">Variant C — Accent bar + meta footer</p>
+    <div class="cardC">
+      <div class="Ctop">
+        <div class="Cdate">
+          <div class="w">Saturday</div>
+          <div class="d">April 11, 2026</div>
+          <div class="ti"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>9:00 AM</div>
+        </div>
+        <div class="Cdetails">
+          <div class="Cline">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            <span class="faint">Location not specified</span>
+          </div>
+          <div class="Cline">
+            <span class="ava">JD</span><span>John Doe <span class="faint">· 089814xxxx</span></span>
+          </div>
+        </div>
+        <div class="Cright">
+          <span class="badge approved st-approved">● Approved</span>
+          <span class="badge awaiting st-awaiting hideblock">Awaiting approval</span>
+          <div class="Cactions">
+            <button class="btn cancel"><svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>Cancel</button>
+            <button class="btn resched"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/></svg>Re-schedule</button>
+          </div>
+        </div>
+      </div>
+      <div class="Cfoot meta">
+        <svg class="ico" viewBox="0 0 24 24" style="color:#cbd5e1"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/></svg>
+        <span>Rescheduled 3×</span><span class="dot" style="color:#cbd5e1"></span>
+        <a href="#">View full history (28)</a>
+      </div>
+    </div>
+    <p class="note">Coloured accent bar signals status type; reschedule + history live in a clear footer separated from the primary actions. Cleanest separation of concerns.</p>
+  </div>
+
+  <!-- pending reschedule example (applies to whichever variant, shown once) -->
+  <div class="variant" id="pendingDemo">
+    <p class="cap">Pending reschedule state (old → new) — applies to the chosen variant</p>
+    <div class="cardA" style="border-color:#fde68a;background:#fffdf7">
+      <div class="calA" style="border-color:#fde68a">
+        <div class="m" style="background:var(--amber)">Apr</div>
+        <div class="d">16</div>
+        <div class="w">Tue</div>
+      </div>
+      <div class="Amid">
+        <div class="Atime oldnew">
+          <span class="old" style="font-size:13px;font-weight:600">Sat, Apr 11 · 9:00 AM</span>
+          <span class="arrow">→</span>
+          <span>Tue, Apr 16 · 10:00 AM</span>
+        </div>
+        <div class="Arow"><span class="ava">JD</span><span>John Doe <span class="faint">· 089814xxxx</span></span></div>
+        <div class="Ameta meta"><span>Rescheduled 4×</span><span class="dot" style="color:#cbd5e1"></span><a href="#">View history (29)</a></div>
+      </div>
+      <div class="Aright">
+        <span class="badge awaiting">Awaiting approval</span>
+        <div class="Aactions">
+          <button class="btn cancel" style="opacity:.45;cursor:not-allowed">Cancel</button>
+          <button class="btn resched" style="opacity:.45;cursor:not-allowed">Re-schedule</button>
+        </div>
+      </div>
+    </div>
+    <p class="note">While a reschedule awaits approval: old date struck through → new proposed date, amber tint, actions locked. (Same treatment in B/C.)</p>
+  </div>
+</div>
+
+<script>
+  function show(v){
+    ['A','B','C'].forEach(x=>document.getElementById('v'+x).classList.toggle('hideblock',x!==v));
+    document.querySelectorAll('.toolbar .seg:first-of-type button').forEach(b=>b.classList.remove('active'));
+    event.target.classList.add('active');
+  }
+  function setState(s){
+    document.querySelectorAll('.st-approved').forEach(e=>e.classList.toggle('hideblock',s!=='approved'));
+    document.querySelectorAll('.st-awaiting').forEach(e=>e.classList.toggle('hideblock',s!=='awaiting'));
+    document.getElementById('s-approved').classList.toggle('active',s==='approved');
+    document.getElementById('s-awaiting').classList.toggle('active',s==='awaiting');
+  }
+</script>
+</body>
+</html>

@@ -61,12 +61,21 @@ public class SubmitPendingApprovalCommandHandler(
         {
             appointment.MarkApprovalSubmitted();
 
+            // The date before this reschedule — the most recent 'Rescheduled' history entry's
+            // prior value. Snapshotted so the approver can see old → new.
+            var previousDate = appointment.History
+                .Where(h => h.ChangeType == "Rescheduled")
+                .OrderByDescending(h => h.ChangedAt)
+                .Select(h => (DateTime?)h.PreviousAppointmentDateTime)
+                .FirstOrDefault();
+
             requiresApprovalLines.Add(new FeeApprovalRequestedLineDto(
                 "Appointment",
                 appointment.Id,
                 appointment.AppointmentDateTime,
                 appointment.RescheduleCount,
-                null, null, null));
+                null, null, null,
+                previousDate));
 
             logger.LogInformation(
                 "Stamping appointment {AppointmentId} as submitted for appraisal {AppraisalId}",

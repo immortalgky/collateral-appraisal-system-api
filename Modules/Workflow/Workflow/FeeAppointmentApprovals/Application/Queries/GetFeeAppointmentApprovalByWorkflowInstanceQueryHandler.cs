@@ -43,5 +43,6 @@ public class GetFeeAppointmentApprovalByWorkflowInstanceQueryHandler(WorkflowDbC
                 l.FeeDescription,
                 l.FeeAmount,
                 l.LineStatus.ToString(),
-                l.DecisionReason)).ToList());
+                l.DecisionReason,
+                l.PreviousDate)).ToList());
 }

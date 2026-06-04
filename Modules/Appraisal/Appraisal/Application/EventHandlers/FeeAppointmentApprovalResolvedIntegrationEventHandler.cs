@@ -36,16 +36,16 @@ public class FeeAppointmentApprovalResolvedIntegrationEventHandler(
         foreach (var outcome in msg.LineOutcomes)
         {
             if (outcome.LineType == "Appointment")
-                await ApplyAppointmentOutcomeAsync(outcome, context.CancellationToken);
+                await ApplyAppointmentOutcomeAsync(outcome, msg.ResolvedByCode, context.CancellationToken);
             else if (outcome.LineType == "Fee")
-                await ApplyFeeOutcomeAsync(outcome, context.CancellationToken);
+                await ApplyFeeOutcomeAsync(outcome, msg.ResolvedByCode, context.CancellationToken);
         }
 
         await dbContext.SaveChangesAsync(context.CancellationToken);
         await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 
-    private async Task ApplyAppointmentOutcomeAsync(FeeApprovalLineOutcome outcome, CancellationToken ct)
+    private async Task ApplyAppointmentOutcomeAsync(FeeApprovalLineOutcome outcome, string? resolvedByCode, CancellationToken ct)
     {
         var appointment = await dbContext.Appointments
             .Include(a => a.History)
@@ -57,12 +57,16 @@ public class FeeAppointmentApprovalResolvedIntegrationEventHandler(
             return;
         }
 
+        // Stamp the real resolving user's bank code (matches Appointment.ApprovedBy/ChangedBy).
+        // Falls back to the system actor only when the resolution was system-initiated.
+        var actor = resolvedByCode ?? SystemActor;
+
         if (outcome.Decision == "Approved")
         {
             // Idempotent: only call Approve when actually Pending
             if (appointment.Status == "Pending")
             {
-                appointment.Approve(SystemActor);
+                appointment.Approve(actor);
                 logger.LogInformation("Appointment {Id} approved via FeeAppointmentApproval", outcome.TargetId);
             }
             else
@@ -75,21 +79,24 @@ public class FeeAppointmentApprovalResolvedIntegrationEventHandler(
             // Idempotent: only revert when status is Pending (after a Reschedule)
             if (appointment.Status == "Pending")
             {
-                appointment.RejectReschedule(SystemActor, outcome.Reason);
+                appointment.RejectReschedule(actor, outcome.Reason);
                 logger.LogInformation("Appointment {Id} reschedule rejected via FeeAppointmentApproval", outcome.TargetId);
             }
             else
             {
                 logger.LogInformation("Appointment {Id} already in status '{Status}', skipping reject-reschedule", outcome.TargetId, appointment.Status);
             }
-
-            // Clear approval markers on rejection so a new draft can begin.
-            // On approval, Approve() already clears them.
-            appointment.ClearApprovalMarkers();
         }
+
+        // Always clear the approval markers once resolved (approve OR reject), regardless of whether
+        // the status transition was applied. Otherwise an outcome that arrives when the appointment
+        // is no longer Pending (e.g. redelivery, or a status change via another path) would leave
+        // ApprovalSubmittedAt set, permanently blocking cancel/reschedule via the edit-lock guards.
+        // (Approve() already clears them in the Pending case; this makes the two branches symmetric.)
+        appointment.ClearApprovalMarkers();
     }
 
-    private async Task ApplyFeeOutcomeAsync(FeeApprovalLineOutcome outcome, CancellationToken ct)
+    private async Task ApplyFeeOutcomeAsync(FeeApprovalLineOutcome outcome, string? resolvedByCode, CancellationToken ct)
     {
         var feeItem = await dbContext.AppraisalFeeItems
             .FirstOrDefaultAsync(i => i.Id == outcome.TargetId, ct);
@@ -100,12 +107,16 @@ public class FeeAppointmentApprovalResolvedIntegrationEventHandler(
             return;
         }
 
+        // Stamp the real resolving user's bank code. Falls back to the system actor only for
+        // system-initiated resolutions.
+        var approver = resolvedByCode ?? SystemActor;
+
         if (outcome.Decision == "Approved")
         {
             // Idempotent: only Approve when still Pending
             if (feeItem.ApprovalStatus == "Pending")
             {
-                feeItem.Approve(Guid.Empty);
+                feeItem.Approve(approver);
                 logger.LogInformation("FeeItem {Id} approved via FeeAppointmentApproval", outcome.TargetId);
             }
             else
@@ -121,7 +132,7 @@ public class FeeAppointmentApprovalResolvedIntegrationEventHandler(
             // (Do NOT ClearApprovalMarkers here — that would null the "Rejected" status.)
             if (feeItem.ApprovalStatus == "Pending")
             {
-                feeItem.Reject(Guid.Empty, outcome.Reason ?? "Rejected by approver");
+                feeItem.Reject(approver, outcome.Reason ?? "Rejected by approver");
                 logger.LogInformation("FeeItem {Id} rejected via FeeAppointmentApproval", outcome.TargetId);
             }
             else

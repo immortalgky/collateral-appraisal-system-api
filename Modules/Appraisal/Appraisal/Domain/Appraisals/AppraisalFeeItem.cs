@@ -31,7 +31,7 @@ public class AppraisalFeeItem : Entity<Guid>
     // Approval (for additional fees)
     public bool RequiresApproval { get; private set; }
     public string? ApprovalStatus { get; private set; } // Pending, Approved, Rejected
-    public Guid? ApprovedBy { get; private set; }
+    public string? ApprovedBy { get; private set; } // bank code (e.g. "P5229"); "system" for auto/system-resolved
     public DateTime? ApprovedAt { get; private set; }
     public string? RejectionReason { get; private set; }
 
@@ -144,7 +144,7 @@ public class AppraisalFeeItem : Entity<Guid>
         ApprovalSubmittedAt = null;
     }
 
-    public void Approve(Guid approvedBy)
+    public void Approve(string approvedBy)
     {
         if (ApprovalStatus != "Pending")
             throw new InvalidOperationException($"Cannot approve fee item in status '{ApprovalStatus}'");
@@ -158,7 +158,7 @@ public class AppraisalFeeItem : Entity<Guid>
         ApprovalSubmittedAt = null;
     }
 
-    public void Reject(Guid rejectedBy, string reason)
+    public void Reject(string rejectedBy, string reason)
     {
         if (ApprovalStatus != "Pending")
             throw new InvalidOperationException($"Cannot reject fee item in status '{ApprovalStatus}'");

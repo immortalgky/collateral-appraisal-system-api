@@ -79,12 +79,15 @@ public class ResolveFeeAppointmentApprovalCommandHandler(
                 command.ApprovalId, approval.FollowupWorkflowInstanceId);
         }
 
-        // Apply per-component decisions and raise domain event
+        // Apply per-component decisions and raise domain event.
+        // Capture the resolving user's bank code so the Appraisal module can stamp the real
+        // approver (otherwise the fee/appointment outcome records a "system" placeholder).
         approval.Resolve(
             command.AppointmentDecision.Decision,
             command.AppointmentDecision.Reason,
             command.FeeDecision.Decision,
-            command.FeeDecision.Reason);
+            command.FeeDecision.Reason,
+            currentUser.UserCode);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
