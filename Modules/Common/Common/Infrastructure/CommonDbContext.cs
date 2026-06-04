@@ -1,4 +1,5 @@
 using System.Reflection;
+using Common.Domain.Configuration;
 using Common.Domain.Logs;
 using Common.Domain.Notes;
 using Common.Domain.ReadModels;
@@ -16,6 +17,7 @@ public class CommonDbContext(DbContextOptions<CommonDbContext> options) : DbCont
     public DbSet<CompanyAppraisalSummary> CompanyAppraisalSummaries => Set<CompanyAppraisalSummary>();
     public DbSet<DashboardNote> DashboardNotes => Set<DashboardNote>();
     public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
+    public DbSet<SystemConfiguration> SystemConfigurations => Set<SystemConfiguration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

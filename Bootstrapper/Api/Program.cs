@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Request.Infrastructure;
 using Request.Infrastructure.Reappraisal;
+using Collateral.CollateralMasters.Services;
 using Scalar.AspNetCore;
 using Dapper;
 using Shared.Configurations;
@@ -370,6 +371,13 @@ RecurringJob.AddOrUpdate<LogsCleanupJob>(
 RecurringJob.AddOrUpdate<ReappraisalIngestionJob>(
     "reappraisal-ingestion", j => j.ExecuteAsync(CancellationToken.None),
     Cron.Monthly(1, 1)); // 1st of each month at 01:00 UTC
+
+// Block reappraisal due scan: daily at 01:00 UTC (Bangkok UTC+7 = 08:00).
+// Scans collateral.ProjectDetails for block projects past their reappraisal interval and
+// materialises collateral.BlockReappraisalDue for Phase C (due-list screen).
+RecurringJob.AddOrUpdate<BlockReappraisalDueScanJob>(
+    "block-reappraisal-due-scan", j => j.ExecuteAsync(CancellationToken.None),
+    Cron.Daily(1)); // 01:00 UTC = 08:00 Bangkok
 
 await app.RunAsync();
 

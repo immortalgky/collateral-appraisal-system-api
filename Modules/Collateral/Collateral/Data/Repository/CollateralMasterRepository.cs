@@ -304,6 +304,20 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .ToListAsync(ct);
     }
 
+    public async Task<CollateralMaster?> FindProjectMasterByLastAppraisalIdAsync(
+        Guid lastAppraisalId,
+        CancellationToken ct = default)
+        => await dbContext.CollateralMasters
+            .Include(m => m.ProjectDetail)
+            .Include(m => m.Engagements)
+            .Where(m =>
+                !m.IsDeleted &&
+                m.CollateralType == CollateralTypes.Project &&
+                m.IsMaster &&
+                m.ProjectDetail != null &&
+                m.ProjectDetail.AppraisalSummary.LastAppraisalId == lastAppraisalId)
+            .FirstOrDefaultAsync(ct);
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         => await dbContext.SaveChangesAsync(cancellationToken);
 }

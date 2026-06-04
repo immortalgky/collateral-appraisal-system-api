@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Appraisal.Application.Features.Appraisals.GetAppraisalForCollateral;
 using Collateral.CollateralMasters.Exceptions;
 using Microsoft.Data.SqlClient;
@@ -44,6 +45,16 @@ public class CollateralMasterUpsertService(
                 "RequestNumber is empty for AppraisalId={AppraisalId} RequestId={RequestId}. " +
                 "No matching row found in request.Requests — engagement will store empty RequestNumber.",
                 appraisalId, appraisal.RequestId);
+
+        // -----------------------------------------------------------------------
+        // Block-project branch (PRJ) — runs BEFORE the per-property loop.
+        // Block appraisals have no Properties rows so the per-property loop below
+        // is a no-op for them; this branch fills that gap independently.
+        // -----------------------------------------------------------------------
+        if (appraisal.Project is not null)
+        {
+            await UpsertProjectAsync(appraisal, ct);
+        }
 
         var allProperties = appraisal.Properties;
 
@@ -1139,6 +1150,82 @@ public class CollateralMasterUpsertService(
         var start = idx + "unique index '".Length;
         var end = msg.IndexOf('\'', start);
         return end > start ? msg[start..end] : null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Block-project (PRJ) branch
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Upserts a single PRJ CollateralMaster for a block-project appraisal.
+    ///
+    /// Lineage dedup: if the appraisal carries a PrevAppraisalId, we look for an existing
+    /// PRJ master whose LastAppraisalId matches that previous appraisal (i.e. the master was
+    /// last updated by the prior appraisal in the same reappraisal chain). If found, we update
+    /// it in-place. Otherwise we create a fresh master.
+    ///
+    /// Does NOT call SaveChangesAsync — changes are included in the single save at the end of
+    /// ProcessAppraisalAsync.
+    /// </summary>
+    private async Task UpsertProjectAsync(AppraisalForCollateralResult appraisal, CancellationToken ct)
+    {
+        var proj = appraisal.Project!;
+
+        // Serialize the full unit/tower/model snapshot as opaque JSON.
+        var structureJson = JsonSerializer.Serialize(proj);
+
+        // --- Lineage dedup ---
+        CollateralMaster? master = null;
+
+        if (appraisal.PrevAppraisalId.HasValue)
+        {
+            master = await repo.FindProjectMasterByLastAppraisalIdAsync(appraisal.PrevAppraisalId.Value, ct);
+        }
+
+        if (master is null)
+        {
+            // No existing lineage master found — create a fresh PRJ master.
+            master = CollateralMaster.CreateProject(proj.ProjectType, proj.ProjectName);
+            repo.Add(master);
+            logger.LogInformation(
+                "UpsertProjectAsync: created new PRJ master {MasterId} for AppraisalId={AppraisalId}",
+                master.Id, appraisal.AppraisalId);
+        }
+        else
+        {
+            logger.LogInformation(
+                "UpsertProjectAsync: reusing PRJ master {MasterId} via PrevAppraisalId={PrevAppraisalId} for AppraisalId={AppraisalId}",
+                master.Id, appraisal.PrevAppraisalId, appraisal.AppraisalId);
+        }
+
+        // --- Upsert last-known data ---
+        var upsertData = new ProjectUpsertData(
+            ProjectType: proj.ProjectType,
+            ProjectName: proj.ProjectName,
+            Developer: proj.Developer,
+            Address: proj.Address,
+            Province: proj.Province,
+            Latitude: proj.Latitude,
+            Longitude: proj.Longitude,
+            TotalUnits: proj.TotalUnits,
+            RemainingUnits: proj.RemainingUnits,
+            ProjectSellingPrice: proj.ProjectSellingPrice,
+            StructureJson: structureJson,
+            AppraisalId: appraisal.AppraisalId,
+            AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
+            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow
+        );
+
+        master.UpsertFromProjectAppraisal(upsertData);
+
+        // --- Single engagement (idempotent via unique AppraisalId constraint) ---
+        AppendEngagement(
+            master,
+            appraisal,
+            snapshot: structureJson,
+            appraisedCollateralType: CollateralTypes.Project,
+            landAreaInSqWa: null,
+            appraisalValue: proj.ProjectSellingPrice);
     }
 }
 

@@ -1,4 +1,5 @@
 using Appraisal.Domain.Appraisals;
+using Appraisal.Domain.Projects;
 using Appraisal.Infrastructure;
 using Shared.CQRS;
 
@@ -11,7 +12,8 @@ namespace Appraisal.Application.Features.Appraisals.GetAppraisalForCollateral;
 /// </summary>
 public class GetAppraisalForCollateralQueryHandler(
     AppraisalDbContext dbContext,
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    IProjectRepository projectRepository
 ) : IQueryHandler<GetAppraisalForCollateralQuery, AppraisalForCollateralResult?>
 {
     // Condo collateral title type is always DEED — the underlying land title (BuiltOnTitleNumber)
@@ -149,6 +151,11 @@ public class GetAppraisalForCollateralQueryHandler(
             "SELECT RequestNumber FROM request.Requests WHERE Id = @RequestId",
             new { RequestId = appraisal.RequestId });
 
+        // Block-project branch: load Project if one exists for this appraisal.
+        // GetWithFullGraphAsync returns null for non-block appraisals — no overhead.
+        var project = await projectRepository.GetWithFullGraphAsync(appraisal.Id, cancellationToken);
+        var projectDto = project is not null ? MapProject(project) : null;
+
         return new AppraisalForCollateralResult(
             AppraisalId: appraisal.Id,
             AppraisalNumber: appraisal.AppraisalNumber,
@@ -161,8 +168,74 @@ public class GetAppraisalForCollateralQueryHandler(
             CompanyName: companyName,
             AppraisedValue: appraisalTotal,
             ConstructionInspectionFeeAmount: constructionInspectionFee,
-            Properties: properties
+            Properties: properties,
+            Project: projectDto,
+            PrevAppraisalId: appraisal.PrevAppraisalId
         );
+    }
+
+    private static ProjectForCollateral MapProject(Appraisal.Domain.Projects.Project project)
+    {
+        var units = project.Units
+            .Select(u => new ProjectUnitForCollateral(
+                SequenceNumber: u.SequenceNumber,
+                IsSold: u.IsSold,
+                ModelType: u.ModelType,
+                UsableArea: u.UsableArea,
+                SellingPrice: u.SellingPrice,
+                Floor: u.Floor,
+                TowerName: u.TowerName,
+                CondoRegistrationNumber: u.CondoRegistrationNumber,
+                RoomNumber: u.RoomNumber,
+                PlotNumber: u.PlotNumber,
+                HouseNumber: u.HouseNumber,
+                NumberOfFloors: u.NumberOfFloors,
+                LandArea: u.LandArea))
+            .ToList();
+
+        var models = project.Models
+            .Select(m => new ProjectModelForCollateral(
+                ModelName: m.ModelName,
+                StartingPriceMin: m.StartingPriceMin,
+                StartingPriceMax: m.StartingPriceMax,
+                UsableAreaMin: m.UsableAreaMin,
+                UsableAreaMax: m.UsableAreaMax))
+            .ToList();
+
+        var towers = project.Towers
+            .Select(t => new ProjectTowerForCollateral(
+                TowerName: t.TowerName,
+                NumberOfUnits: t.NumberOfUnits,
+                NumberOfFloors: t.NumberOfFloors))
+            .ToList();
+
+        int totalUnits = units.Count;
+        int remainingUnits = units.Count(u => !u.IsSold);
+        decimal? sellingPrice = units.Any(u => u.SellingPrice.HasValue)
+            ? units.Sum(u => u.SellingPrice ?? 0m)
+            : null;
+
+        string projectTypeStr = project.ProjectType.ToString(); // "Condo" | "LandAndBuilding"
+
+        string? address = project.Address is not null
+            ? string.Join(", ", new[] { project.Address.Province, project.Address.District }
+                .Where(s => !string.IsNullOrWhiteSpace(s)))
+            : null;
+
+        return new ProjectForCollateral(
+            ProjectType: projectTypeStr,
+            ProjectName: project.ProjectName,
+            Developer: project.Developer,
+            Address: address,
+            Province: project.Address?.Province,
+            Latitude: project.Coordinates?.Latitude,
+            Longitude: project.Coordinates?.Longitude,
+            TotalUnits: totalUnits,
+            RemainingUnits: remainingUnits,
+            ProjectSellingPrice: sellingPrice,
+            Units: units,
+            Models: models,
+            Towers: towers);
     }
 
     /// <summary>

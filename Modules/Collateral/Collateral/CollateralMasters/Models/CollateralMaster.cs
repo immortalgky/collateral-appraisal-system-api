@@ -83,6 +83,26 @@ public sealed record MachineUpsertData(
     DateTime AppraisalDate
 );
 
+/// <summary>
+/// Parameters passed by the upsert service when updating a PRJ (block-project) master from an appraisal.
+/// </summary>
+public sealed record ProjectUpsertData(
+    string ProjectType,
+    string? ProjectName,
+    string? Developer,
+    string? Address,
+    string? Province,
+    decimal? Latitude,
+    decimal? Longitude,
+    int TotalUnits,
+    int RemainingUnits,
+    decimal? ProjectSellingPrice,
+    string StructureJson,
+    Guid AppraisalId,
+    string AppraisalNumber,
+    DateTime AppraisalDate
+);
+
 public class CollateralMaster : Aggregate<Guid>
 {
     private readonly List<CollateralEngagement> _engagements = [];
@@ -119,6 +139,12 @@ public class CollateralMaster : Aggregate<Guid>
     public CondoDetail? CondoDetail { get; private set; }
     public LeaseholdDetail? LeaseholdDetail { get; private set; }
     public MachineDetail? MachineDetail { get; private set; }
+    public ProjectDetail? ProjectDetail { get; private set; }
+
+    // --- Reappraisal exclusion (all types) ---
+    public bool ExcludedFromReappraisal { get; private set; }
+    public DateTime? ExcludedFromReappraisalAt { get; private set; }
+    public string? ExcludedFromReappraisalBy { get; private set; }
 
     private CollateralMaster() { }
 
@@ -206,6 +232,75 @@ public class CollateralMaster : Aggregate<Guid>
 
         // No domain event for alias creation — alias is a structural detail, not a business event.
         return alias;
+    }
+
+    /// <summary>
+    /// Creates a PRJ (block-project) master. Always IsMaster=true, ParentMasterId=null.
+    /// Attaches a fresh ProjectDetail; caller must subsequently call UpsertFromProjectAppraisal.
+    /// </summary>
+    public static CollateralMaster CreateProject(string projectType, string? projectName)
+    {
+        var master = new CollateralMaster
+        {
+            Id = Guid.CreateVersion7(),
+            CollateralType = CollateralTypes.Project,
+            OwnerName = null,
+            IsDeleted = false,
+            IsMaster = true,
+            ParentMasterId = null,
+        };
+
+        master.ProjectDetail = new ProjectDetail(master.Id, projectType, projectName, isDeleted: false);
+
+        master.AddDomainEvent(new CollateralMasterCreatedEvent(master.Id, master.CollateralType));
+        return master;
+    }
+
+    /// <summary>
+    /// Overwrites last-known fields on a PRJ (block-project) master.
+    /// </summary>
+    public void UpsertFromProjectAppraisal(ProjectUpsertData data)
+    {
+        if (ProjectDetail is null)
+            throw new InvalidOperationException("UpsertFromProjectAppraisal called on a non-Project master.");
+
+        ProjectDetail.UpdateStructure(
+            data.ProjectType,
+            data.ProjectName,
+            data.Developer,
+            data.Address,
+            data.Province,
+            data.Latitude,
+            data.Longitude,
+            data.TotalUnits,
+            data.RemainingUnits,
+            data.ProjectSellingPrice,
+            data.StructureJson);
+
+        ProjectDetail.UpdateAppraisalSummary(
+            data.AppraisalId,
+            data.AppraisalNumber,
+            data.AppraisalDate);
+    }
+
+    /// <summary>
+    /// Marks this master as excluded from the next reappraisal cycle.
+    /// </summary>
+    public void MarkExcludedFromReappraisal(string? by, DateTime now)
+    {
+        ExcludedFromReappraisal = true;
+        ExcludedFromReappraisalAt = now;
+        ExcludedFromReappraisalBy = by;
+    }
+
+    /// <summary>
+    /// Clears the reappraisal-exclusion flag so the master re-enters the next cycle.
+    /// </summary>
+    public void ClearExclusionFromReappraisal()
+    {
+        ExcludedFromReappraisal = false;
+        ExcludedFromReappraisalAt = null;
+        ExcludedFromReappraisalBy = null;
     }
 
     /// <summary>
@@ -558,5 +653,6 @@ public class CollateralMaster : Aggregate<Guid>
         if (CondoDetail is not null) CondoDetail.SetIsDeleted(isDeleted);
         if (LeaseholdDetail is not null) LeaseholdDetail.SetIsDeleted(isDeleted);
         if (MachineDetail is not null) MachineDetail.SetIsDeleted(isDeleted);
+        if (ProjectDetail is not null) ProjectDetail.SetIsDeleted(isDeleted);
     }
 }
