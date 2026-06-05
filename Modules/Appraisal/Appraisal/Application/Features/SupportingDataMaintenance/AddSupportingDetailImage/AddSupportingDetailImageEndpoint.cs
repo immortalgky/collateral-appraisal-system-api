@@ -42,6 +42,7 @@ public class AddSupportingDetailImageEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Add image to supporting detail")
             .WithDescription("Links an uploaded document as a photo on a supporting detail record.")
-            .WithTags("SupportingData");
+            .WithTags("SupportingData")
+            .RequireAuthorization();
     }
 }

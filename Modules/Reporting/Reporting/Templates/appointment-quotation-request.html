@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ใบขอนัดสำรวจและประเมินราคา</title>
+  <style>
+    /*
+     * ── Font loading ─────────────────────────────────────────────────────────
+     * Drop Sarabun.ttf (and Sarabun-Bold.ttf) into the Templates/ folder.
+     * If the TTFs are absent, Chromium falls back to the system Thai font stack
+     * (Noto Sans Thai on Linux, Thonburi on macOS, Leelawadee UI on Windows).
+     * All of these shape Thai correctly in Chromium/HarfBuzz.
+     */
+    @font-face {
+      font-family: 'Sarabun';
+      font-style: normal;
+      font-weight: 400;
+      src: url('Sarabun.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Sarabun';
+      font-style: normal;
+      font-weight: 700;
+      src: url('Sarabun-Bold.ttf') format('truetype');
+    }
+
+    /*
+     * ── Base ─────────────────────────────────────────────────────────────────
+     * Font stack: bundled Sarabun → system Thai (Noto/Thonburi/Leelawadee) → generic
+     */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Sarabun', 'Noto Sans Thai', 'Thonburi', 'Leelawadee UI', sans-serif;
+      font-size: 11pt;
+      line-height: 1.6;
+      color: #000;
+      background: #fff;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 270mm;
+      padding: 15mm;
+      margin: 0 auto;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .header .bank-name {
+      font-size: 18pt;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: #1a237e;
+    }
+    .header .form-title {
+      font-size: 14pt;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .header .form-subtitle {
+      font-size: 10pt;
+      color: #444;
+    }
+
+    /* ── Section divider ────────────────────────────────────────────────────── */
+    .section-header {
+      background: #1a237e;
+      color: #fff;
+      font-weight: 700;
+      padding: 3px 8px;
+      margin: 12px 0 6px;
+      font-size: 10pt;
+    }
+
+    /* ── Field rows ─────────────────────────────────────────────────────────── */
+    .field-row {
+      display: flex;
+      align-items: baseline;
+      margin-bottom: 4px;
+      gap: 6px;
+    }
+    .field-label {
+      min-width: 200px;
+      font-weight: 600;
+      color: #333;
+      flex-shrink: 0;
+    }
+    .field-value {
+      border-bottom: 1px solid #555;
+      flex: 1;
+      min-height: 18px;
+      padding: 0 4px;
+    }
+    .field-value.short { flex: 0 0 120px; }
+    .field-value.medium { flex: 0 0 220px; }
+
+    /* ── Two-column layout ──────────────────────────────────────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 20px;
+    }
+
+    /* ── Checkbox marks ─────────────────────────────────────────────────────── */
+    .checkbox-group {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .checkbox-mark {
+      font-size: 14pt;
+      line-height: 1;
+    }
+
+    /* ── Property table ─────────────────────────────────────────────────────── */
+    table.property-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5pt;
+      margin-top: 6px;
+    }
+    table.property-table th {
+      background: #e8eaf6;
+      border: 1px solid #9fa8da;
+      padding: 4px 6px;
+      text-align: center;
+      font-weight: 700;
+    }
+    table.property-table td {
+      border: 1px solid #c5cae9;
+      padding: 4px 6px;
+      vertical-align: top;
+    }
+    table.property-table tr:nth-child(even) td {
+      background: #f5f5ff;
+    }
+    /* Empty-row filler when no properties */
+    table.property-table tr.empty-row td {
+      height: 22px;
+      background: #fafafa;
+    }
+
+    /* ── Signature block ────────────────────────────────────────────────────── */
+    .signature-block {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 30px;
+      gap: 30px;
+    }
+    .signature-cell {
+      flex: 1;
+      border: 1px solid #9fa8da;
+      border-radius: 4px;
+      padding: 10px 14px;
+    }
+    .signature-cell .sig-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #1a237e;
+    }
+    .signature-line {
+      border-bottom: 1px solid #555;
+      margin: 20px 10px 4px;
+    }
+    .signature-label {
+      font-size: 9pt;
+      text-align: center;
+      color: #555;
+    }
+    .date-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    /* ── Footer note ────────────────────────────────────────────────────────── */
+    .form-footer {
+      margin-top: 20px;
+      font-size: 8.5pt;
+      color: #777;
+      border-top: 1px solid #ccc;
+      padding-top: 6px;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══════════════════════════════════════════════════════════════
+       HEADER
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="header">
+    <div class="bank-name">LH BANK</div>
+    <div class="form-title">ใบขอนัดสำรวจและประเมินราคา</div>
+    <div class="form-subtitle">Appointment &amp; Quotation Request Form</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 1: ข้อมูลผู้ขอ (Requestor Information)
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-header">1. ข้อมูลผู้ขอ / Requestor Information</div>
+
+  <div class="two-col">
+    <div class="field-row">
+      <span class="field-label">ฝ่าย / Division:</span>
+      <span class="field-value">{{ model.division }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">ภาค / Department:</span>
+      <span class="field-value">{{ model.department }}</span>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="field-row">
+      <span class="field-label">งาน / Line of Work:</span>
+      <span class="field-value">{{ model.line_of_work }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">รหัสศูนย์ต้นทุน / Cost Center:</span>
+      <span class="field-value">{{ model.cost_center }}</span>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="field-row">
+      <span class="field-label">ผู้แจ้ง / Referrer:</span>
+      <span class="field-value">{{ model.referrer_name }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">โทรศัพท์ / Tel:</span>
+      <span class="field-value">{{ model.referrer_tel }}</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 2: ข้อมูลลูกค้า (Customer Information)
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-header">2. ข้อมูลลูกค้า / Customer Information</div>
+
+  <div class="field-row">
+    <span class="field-label">ชื่อลูกค้า / Customer Name:</span>
+    <span class="field-value">{{ model.customer_name }}</span>
+  </div>
+
+  <div class="two-col">
+    <div class="field-row">
+      <span class="field-label">ผู้ติดต่อ / Contact Person:</span>
+      <span class="field-value">{{ model.contact_person_name }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">โทรศัพท์ / Tel:</span>
+      <span class="field-value">{{ model.contact_person_tel }}</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 3: วัตถุประสงค์และวงเงิน (Purpose & Loan)
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-header">3. วัตถุประสงค์การประเมินและวงเงิน / Purpose &amp; Loan Amount</div>
+
+  <div class="two-col">
+    <div class="field-row">
+      <span class="field-label">วัตถุประสงค์ / Purpose:</span>
+      <span class="field-value">{{ model.appraisal_purpose }}</span>
+    </div>
+    <div class="field-row">
+      {{-# Format loan_amount with thousands separators + 2 decimals via math.format #}}
+      <span class="field-label">วงเงิน / Loan Amount (THB):</span>
+      <span class="field-value">
+        {{- if model.loan_amount
+          model.loan_amount | math.format "N2"
+        else
+          ""
+        end -}}
+      </span>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 4: รายการหลักประกัน (Collateral Properties)
+       Demonstrates: for-loop, nested conditionals, table rendering
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-header">4. รายการหลักประกัน / Collateral Properties</div>
+
+  <div class="field-row" style="margin-bottom:8px;">
+    <span class="field-label">สถานะหลักประกัน / Collateral Status:</span>
+    <span class="checkbox-group">
+      {{- # Conditional checkbox: ☑ = checked, ☐ = unchecked -}}
+      <span class="checkbox-item">
+        <span class="checkbox-mark">{{ if model.is_new_collateral }}&#9745;{{ else }}&#9744;{{ end }}</span>
+        <span>ใหม่ / New</span>
+      </span>
+      <span class="checkbox-item">
+        <span class="checkbox-mark">{{ if model.is_new_collateral }}&#9744;{{ else }}&#9745;{{ end }}</span>
+        <span>เดิม / Existing</span>
+      </span>
+    </span>
+  </div>
+
+  <table class="property-table">
+    <thead>
+      <tr>
+        <th style="width:30px;">ลำดับ</th>
+        <th style="width:80px;">ประเภททรัพย์</th>
+        <th style="width:80px;">ประเภทอาคาร</th>
+        <th style="width:90px;">โครงการ / หมู่บ้าน</th>
+        <th style="width:60px;">บ้านเลขที่</th>
+        <th style="width:60px;">ซอย</th>
+        <th style="width:70px;">ถนน</th>
+        <th style="width:70px;">ตำบล/แขวง</th>
+        <th style="width:70px;">อำเภอ/เขต</th>
+        <th style="width:70px;">จังหวัด</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{- # Loop over properties collection. Demonstrates for-loop + nested field access. -}}
+      {{ for p in model.properties }}
+      <tr>
+        <td style="text-align:center;">{{ p.row_number }}</td>
+        <td>{{ p.property_type }}</td>
+        <td>{{ p.building_type }}</td>
+        <td>{{ p.village }}</td>
+        <td>{{ p.house_number }}</td>
+        <td>{{ p.soi }}</td>
+        <td>{{ p.road }}</td>
+        <td>{{ p.sub_district }}</td>
+        <td>{{ p.district }}</td>
+        <td>{{ p.province }}</td>
+      </tr>
+      {{ end }}
+      {{- # If no properties, render 3 empty filler rows so the table still prints nicely -}}
+      {{ if model.properties.size == 0 }}
+      <tr class="empty-row"><td colspan="10">&nbsp;</td></tr>
+      <tr class="empty-row"><td colspan="10">&nbsp;</td></tr>
+      <tr class="empty-row"><td colspan="10">&nbsp;</td></tr>
+      {{ end }}
+    </tbody>
+  </table>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 5: ที่อยู่หลักประกัน (Collateral Address)
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-header">5. ที่อยู่หลักประกัน / Collateral Location Address</div>
+
+  <div class="two-col">
+    <div class="field-row">
+      <span class="field-label">บ้านเลขที่ / House No.:</span>
+      <span class="field-value short">{{ model.house_number }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">โครงการ / Project:</span>
+      <span class="field-value">{{ model.project_name }}</span>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="field-row">
+      <span class="field-label">ซอย / Soi:</span>
+      <span class="field-value">{{ model.soi }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">ถนน / Road:</span>
+      <span class="field-value">{{ model.road }}</span>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="field-row">
+      <span class="field-label">ตำบล/แขวง / Sub-district:</span>
+      <span class="field-value">{{ model.sub_district }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">อำเภอ/เขต / District:</span>
+      <span class="field-value">{{ model.district }}</span>
+    </div>
+  </div>
+  <div class="field-row">
+    <span class="field-label">จังหวัด / Province:</span>
+    <span class="field-value medium">{{ model.province }}</span>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 6: ที่อยู่ส่งรายงาน (Mailing / Second Address)
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-header">6. ที่อยู่ส่งรายงาน / Mailing Address (2nd Address)</div>
+
+  <div class="two-col">
+    <div class="field-row">
+      <span class="field-label">บ้านเลขที่ / House No.:</span>
+      <span class="field-value short">{{ model.address2_house_number }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">ซอย / Soi:</span>
+      <span class="field-value">{{ model.address2_soi }}</span>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="field-row">
+      <span class="field-label">ถนน / Road:</span>
+      <span class="field-value">{{ model.address2_road }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">ตำบล/แขวง / Sub-district:</span>
+      <span class="field-value">{{ model.address2_sub_district }}</span>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="field-row">
+      <span class="field-label">อำเภอ/เขต / District:</span>
+      <span class="field-value">{{ model.address2_district }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">จังหวัด / Province:</span>
+      <span class="field-value">{{ model.address2_province }}</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 7: ค่าธรรมเนียม (Fee Payment)
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-header">7. ค่าธรรมเนียม / Fee Payment Type</div>
+
+  <div class="field-row">
+    <span class="field-label">ประเภทการชำระค่าธรรมเนียม:</span>
+    <span class="field-value">{{ model.fee_payment_type }}</span>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SECTION 8: เลขรายงานเดิม (Old Report)
+  ══════════════════════════════════════════════════════════════════ -->
+  {{- if model.old_appraisal_report_number -}}
+  <div class="section-header">8. เลขรายงานเดิม / Old Appraisal Report Number</div>
+  <div class="field-row">
+    <span class="field-label">เลขรายงาน / Report No.:</span>
+    <span class="field-value medium">{{ model.old_appraisal_report_number }}</span>
+  </div>
+  {{- end -}}
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SIGNATURE BLOCK
+       Demonstrates: date formatting (Buddhist era = AD + 543)
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="signature-block">
+    <!-- Maker -->
+    <div class="signature-cell">
+      <div class="sig-title">ผู้ขอ / Requester (Maker)</div>
+      <div class="signature-line"></div>
+      <div class="signature-label">
+        ({{ if model.requester_maker_name; model.requester_maker_name; else; "................................"; end }})
+      </div>
+      <div class="date-row">
+        <span>วันที่ / Date:</span>
+        <span class="field-value">
+          {{- # Thai Buddhist Era date: add 543 to AD year -}}
+          {{- if model.request_date
+            date_day   = model.request_date | date.to_string "%d"
+            date_month = model.request_date | date.to_string "%B"
+            date_year  = model.request_date.year + 543
+            date_day + " " + date_month + " " + date_year
+          else
+            "........./........./........."
+          end -}}
+        </span>
+      </div>
+    </div>
+
+    <!-- Checker -->
+    <div class="signature-cell">
+      <div class="sig-title">ผู้ตรวจ / Checker</div>
+      <div class="signature-line"></div>
+      <div class="signature-label">
+        ({{ if model.requester_checker_name; model.requester_checker_name; else; "................................"; end }})
+      </div>
+      <div class="date-row">
+        <span>วันที่ / Date:</span>
+        <span class="field-value">
+          {{- if model.checker_date
+            chk_day   = model.checker_date | date.to_string "%d"
+            chk_month = model.checker_date | date.to_string "%B"
+            chk_year  = model.checker_date.year + 543
+            chk_day + " " + chk_month + " " + chk_year
+          else
+            "........./........./........."
+          end -}}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-footer">
+    หมายเหตุ: กรุณากรอกข้อมูลให้ครบถ้วน / Please complete all fields. &nbsp;|&nbsp;
+    Generated by CAS Reporting Module
+  </div>
+
+</div><!-- .page -->
+
+<!-- ══════════════════════════════════════════════════════════════
+     SLOT MARKER — The assembler inserts attachment PDFs HERE.
+     Everything after this marker renders on a new PDF page.
+     To embed attachments, populate model.AttachmentsBySlot["attachments"]
+     with the relevant DocumentIds before calling GenerateAsync().
+══════════════════════════════════════════════════════════════════ -->
+<!-- SLOT: attachments -->
+
+</body>
+</html>

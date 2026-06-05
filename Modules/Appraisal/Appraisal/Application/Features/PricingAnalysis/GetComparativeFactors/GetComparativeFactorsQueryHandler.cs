@@ -86,7 +86,8 @@ public class GetComparativeFactorsQueryHandler(
                     factor?.FactorCode,
                     f.DisplaySequence,
                     f.IsSelectedForScoring,
-                    f.Remarks
+                    f.Remarks,
+                    f.CollateralValue
                 );
             })
             .ToList();

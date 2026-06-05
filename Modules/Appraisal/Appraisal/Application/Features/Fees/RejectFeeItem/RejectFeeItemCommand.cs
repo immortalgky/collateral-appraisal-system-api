@@ -6,6 +6,5 @@ public record RejectFeeItemCommand(
     Guid AppraisalId,
     Guid FeeId,
     Guid ItemId,
-    Guid RejectedBy,
     string Reason
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;

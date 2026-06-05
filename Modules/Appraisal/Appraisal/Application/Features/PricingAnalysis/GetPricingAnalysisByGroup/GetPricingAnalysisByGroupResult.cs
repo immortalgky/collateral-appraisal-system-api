@@ -5,7 +5,7 @@ namespace Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysisByGro
 /// </summary>
 public record GetPricingAnalysisByGroupResult(
     Guid? Id,
-    Guid? PropertyGroupId,
+    Guid? AnchorId,
     string? Status,
     decimal? FinalAppraisedValue,
     bool? UseSystemCalc

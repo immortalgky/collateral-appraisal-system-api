@@ -27,4 +27,21 @@ public class ApprovalVoteRepository(WorkflowDbContext dbContext) : IApprovalVote
         // catches duplicates before the quorum/majority check proceeds.
         await dbContext.SaveChangesAsync(ct);
     }
+
+    public async Task<List<ApprovalVote>> GetLatestRoundVotesByAppraisalAsync(
+        Guid appraisalId, string activityId, CancellationToken ct = default)
+    {
+        var latestExecutionId = await dbContext.ApprovalVotes
+            .Where(v => v.AppraisalId == appraisalId && v.ActivityId == activityId)
+            .GroupBy(v => v.ActivityExecutionId)
+            .OrderByDescending(g => g.Max(v => v.VotedAt))
+            .Select(g => (Guid?)g.Key)
+            .FirstOrDefaultAsync(ct);
+
+        if (latestExecutionId is null) return new List<ApprovalVote>();
+
+        return await dbContext.ApprovalVotes
+            .Where(v => v.ActivityExecutionId == latestExecutionId.Value)
+            .ToListAsync(ct);
+    }
 }

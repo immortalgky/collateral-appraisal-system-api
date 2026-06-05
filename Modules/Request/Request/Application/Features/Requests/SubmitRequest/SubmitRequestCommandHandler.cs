@@ -36,7 +36,8 @@ internal class SubmitRequestCommandHandler(
 
         await validator.ValidateAsync(input, cancellationToken);
 
-        request.Submit(dateTimeProvider.Now);
+        // Manual submission from the frontend UI — requires the appraisal-initiation-check task.
+        request.Submit(dateTimeProvider.Now, entrySource: "UI");
 
         return new SubmitRequestResult(true);
     }

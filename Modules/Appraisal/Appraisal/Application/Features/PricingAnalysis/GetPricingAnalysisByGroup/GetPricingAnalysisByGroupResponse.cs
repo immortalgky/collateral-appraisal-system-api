@@ -2,7 +2,7 @@ namespace Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysisByGro
 
 public record GetPricingAnalysisByGroupResponse(
     Guid? Id,
-    Guid? PropertyGroupId,
+    Guid? AnchorId,
     string? Status,
     decimal? FinalMarketValue,
     decimal? FinalAppraisedValue,

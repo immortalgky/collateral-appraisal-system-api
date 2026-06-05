@@ -1,16 +1,22 @@
 namespace Appraisal.Application.Features.SupportingDataMaintenance.GetSupportingDetailById;
 
-public class GetSupportingDetailByIdQueryHandler(ISupportingDataRepository repo)
+public class GetSupportingDetailByIdQueryHandler(ISupportingDataRepository repo, ICurrentUserService currentUserService)
     : IQueryHandler<GetSupportingDetailByIdQuery, GetSupportingDetailByIdResult>
 {
+    private static readonly HashSet<string> CannotEditStatuses =
+        new(StringComparer.Ordinal) { "Approved", "Rejected", "Cancelled" };
+
     public async Task<GetSupportingDetailByIdResult> Handle(
         GetSupportingDetailByIdQuery query,
         CancellationToken cancellationToken)
     {
-        var detail = await repo.GetDetailByIdWithImagesAsync(query.DetailId, cancellationToken);
+        var (detail, status) = await repo.GetDetailByIdWithImagesAsync(query.DetailId, cancellationToken);
+
 
         if (detail is null || detail.SupportingDataId != query.SupportingId)
             throw new SupportingDataDetailNotFoundException(query.DetailId);
+
+        var hasEditPermission = currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT") && !CannotEditStatuses.Contains(status?.Code);
 
         var images = detail.Images
             .OrderBy(i => i.DisplaySequence)
@@ -26,6 +32,7 @@ public class GetSupportingDetailByIdQueryHandler(ISupportingDataRepository repo)
 
         return new GetSupportingDetailByIdResult(
             detail.Id,
+            hasEditPermission,
             detail.PropertyName,
             detail.Developer,
             detail.ModelName,
@@ -42,6 +49,7 @@ public class GetSupportingDetailByIdQueryHandler(ISupportingDataRepository repo)
             detail.Location?.Latitude,
             detail.Location?.Longitude,
             detail.PlotLocationType,
+            detail.PlotLocationTypeOther,
             detail.PricePerUnit,
             detail.OfferingPrice,
             detail.SellingPrice,

@@ -33,7 +33,9 @@ public class AppraisalFinalValuesChangedEventHandler(
         var propertyGroupIds = appraisal.Groups.Select(g => g.Id).ToList();
 
         var pricingAnalyses = await db.PricingAnalyses
-            .Where(pa => pa.PropertyGroupId.HasValue && propertyGroupIds.Contains(pa.PropertyGroupId!.Value))
+            .Where(pa => pa.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+                         && pa.AnchorId.HasValue
+                         && propertyGroupIds.Contains(pa.AnchorId!.Value))
             .ToListAsync(ct);
 
         var total = pricingAnalyses.Sum(pa => pa.FinalAppraisedValue ?? 0m);

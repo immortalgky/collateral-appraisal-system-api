@@ -38,9 +38,13 @@ public record AppraisalFeeItemDto
     public decimal FeeAmount { get; set; }
     public bool RequiresApproval { get; set; }
     public string? ApprovalStatus { get; set; }
-    public Guid? ApprovedBy { get; set; }
+    public string? ApprovedBy { get; set; } // bank code (e.g. "P5229")
     public DateTime? ApprovedAt { get; set; }
     public string? RejectionReason { get; set; }
+
+    // Inline-edit approval markers
+    public DateTime? ApprovalSubmittedAt { get; set; }
+    public string Source { get; set; } = "System";
 }
 
 public record PaymentHistoryDto
@@ -49,4 +53,10 @@ public record PaymentHistoryDto
     public Guid AppraisalFeeId { get; set; }
     public decimal PaymentAmount { get; set; }
     public DateTime PaymentDate { get; set; }
+    /// <summary>
+    /// "Customer" for real cash/transfer payments; "BankAbsorb" for the synthetic
+    /// row created when the invoice is marked Paid. The frontend uses this to
+    /// display or hide the row accordingly.
+    /// </summary>
+    public string Source { get; set; } = "Customer";
 }

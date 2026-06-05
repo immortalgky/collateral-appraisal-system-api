@@ -23,6 +23,68 @@ namespace Collateral.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.BlockReappraisalDue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CollateralMasterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastAppraisedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OldAppraisalNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ProjectName")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<decimal?>("ProjectSellingPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ProjectType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("RemainingUnits")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Pending");
+
+                    b.Property<int>("TotalUnits")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollateralMasterId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BlockReappraisalDue_CollateralMasterId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_BlockReappraisalDue_Status");
+
+                    b.ToTable("BlockReappraisalDue", "collateral");
+                });
+
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralBackfillReport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -255,6 +317,18 @@ namespace Collateral.Migrations
 
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("ExcludedFromReappraisal")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("ExcludedFromReappraisalAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ExcludedFromReappraisalBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -656,6 +730,64 @@ namespace Collateral.Migrations
                     b.ToTable("MachineDetails", "collateral");
                 });
 
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.ProjectDetail", b =>
+                {
+                    b.Property<Guid>("CollateralMasterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Developer")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<decimal?>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<decimal?>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<string>("ProjectName")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<decimal?>("ProjectSellingPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ProjectType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Province")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("RemainingUnits")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StructureJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("TotalUnits")
+                        .HasColumnType("int");
+
+                    b.HasKey("CollateralMasterId");
+
+                    b.ToTable("ProjectDetails", "collateral");
+                });
+
             modelBuilder.Entity("Shared.Data.Outbox.InboxMessage", b =>
                 {
                     b.Property<Guid>("MessageId")
@@ -945,6 +1077,44 @@ namespace Collateral.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.ProjectDetail", b =>
+                {
+                    b.HasOne("Collateral.CollateralMasters.Models.CollateralMaster", null)
+                        .WithOne("ProjectDetail")
+                        .HasForeignKey("Collateral.CollateralMasters.Models.ProjectDetail", "CollateralMasterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Collateral.CollateralMasters.Models.AppraisalSummary", "AppraisalSummary", b1 =>
+                        {
+                            b1.Property<Guid>("ProjectDetailCollateralMasterId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<Guid?>("LastAppraisalId")
+                                .HasColumnType("uniqueidentifier")
+                                .HasColumnName("LastAppraisalId");
+
+                            b1.Property<string>("LastAppraisalNumber")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("LastAppraisalNumber");
+
+                            b1.Property<DateTime?>("LastAppraisedDate")
+                                .HasColumnType("datetime2")
+                                .HasColumnName("LastAppraisedDate");
+
+                            b1.HasKey("ProjectDetailCollateralMasterId");
+
+                            b1.ToTable("ProjectDetails", "collateral");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ProjectDetailCollateralMasterId");
+                        });
+
+                    b.Navigation("AppraisalSummary")
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralEngagement", b =>
                 {
                     b.Navigation("Buildings");
@@ -965,6 +1135,8 @@ namespace Collateral.Migrations
                     b.Navigation("LeaseholdDetail");
 
                     b.Navigation("MachineDetail");
+
+                    b.Navigation("ProjectDetail");
                 });
 #pragma warning restore 612, 618
         }

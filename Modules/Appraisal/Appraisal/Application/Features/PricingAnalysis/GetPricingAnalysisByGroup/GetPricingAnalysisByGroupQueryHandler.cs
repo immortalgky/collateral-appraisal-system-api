@@ -20,7 +20,7 @@ public class GetPricingAnalysisByGroupQueryHandler(
 
         return new GetPricingAnalysisByGroupResult(
             pricingAnalysis.Id,
-            pricingAnalysis.PropertyGroupId,
+            pricingAnalysis.AnchorId,
             pricingAnalysis.Status,
             pricingAnalysis.FinalAppraisedValue,
             pricingAnalysis.UseSystemCalc

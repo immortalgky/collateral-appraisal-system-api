@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Appointment &amp; Fee — History drawer (draft idea)</title>
+<style>
+  :root {
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --line: #e2e8f0;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --faint: #94a3b8;
+    --primary: #2563eb;
+    --amber: #d97706;
+    --amber-bg: #fffbeb;
+    --amber-bd: #fde68a;
+    --green: #16a34a;
+    --green-bg: #f0fdf4;
+    --green-bd: #bbf7d0;
+    --red: #dc2626;
+    --red-bg: #fef2f2;
+    --red-bd: #fecaca;
+    --blue-bg: #eff6ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px; line-height: 1.5;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 28px 20px 80px; }
+  .page-title { font-size: 22px; font-weight: 700; margin: 0 0 2px; }
+  .page-sub { color: var(--muted); margin: 0 0 22px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+  .card-h { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+  .card-h .t { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .card-b { padding: 14px 16px; }
+  .kv { display: flex; justify-content: space-between; padding: 4px 0; }
+  .kv .k { color: var(--muted); }
+  .kv .v { font-weight: 600; }
+  .big-date { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+
+  /* the trigger button (lives in the section header / action bar) */
+  .history-btn {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 14px; font-size: 13px; font-weight: 600; color: var(--ink);
+    box-shadow: 0 1px 2px rgba(15,23,42,.05);
+  }
+  .history-btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+  .history-btn .clk { font-size: 15px; }
+  .history-btn .cnt { background: var(--blue-bg); color: var(--primary); font-size: 11px; font-weight: 700; border-radius: 99px; padding: 1px 8px; }
+
+  .hint-row { display: flex; align-items: center; gap: 12px; margin: 6px 0 4px; }
+  .hint-row .arrow-hint { color: var(--amber); font-size: 13px; font-weight: 600; }
+
+  /* badges */
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 99px; border: 1px solid transparent; white-space: nowrap; }
+  .badge.approved { background: var(--green-bg); color: var(--green); border-color: var(--green-bd); }
+  .badge.rejected { background: var(--red-bg); color: var(--red); border-color: var(--red-bd); }
+  .badge.pending  { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-bd); }
+  .badge.auto     { background: #f1f5f9; color: var(--muted); border-color: var(--line); }
+
+  /* ---------- drawer ---------- */
+  .scrim { position: fixed; inset: 0; background: rgba(15,23,42,.45); opacity: 0; pointer-events: none; transition: opacity .22s ease; z-index: 40; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 460px; max-width: 92vw;
+    background: var(--card); box-shadow: -8px 0 30px rgba(15,23,42,.18);
+    transform: translateX(100%); transition: transform .26s cubic-bezier(.4,0,.2,1);
+    z-index: 50; display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-h { padding: 16px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+  .drawer-h .icon { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--blue-bg); color: var(--primary); font-size: 15px; }
+  .drawer-h h2 { font-size: 15px; margin: 0; }
+  .drawer-h .sub { font-size: 12px; color: var(--faint); }
+  .drawer-h .x { margin-left: auto; border: 0; background: #f1f5f9; width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 15px; color: var(--muted); }
+  .drawer-h .x:hover { background: #e2e8f0; }
+  .drawer-b { overflow-y: auto; padding: 6px 18px 24px; flex: 1; }
+
+  /* filter chips inside drawer */
+  .chips { display: flex; gap: 8px; padding: 12px 0 4px; position: sticky; top: 0; background: #fff; }
+  .chip { border: 1px solid var(--line); background: #fff; border-radius: 99px; padding: 5px 12px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .chip.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* timeline */
+  .tl-item { position: relative; padding: 16px 0 16px 40px; }
+  .tl-item:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 30px; bottom: -6px; width: 2px; background: var(--line); }
+  .tl-node { position: absolute; left: 4px; top: 16px; width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; font-size: 11px; color: #fff; z-index: 1; }
+  .tl-node.appt { background: var(--primary); }
+  .tl-node.fee  { background: #7c3aed; }
+  .tl-node.approved { background: var(--green); }
+  .tl-node.rejected { background: var(--red); }
+  .tl-node.pending  { background: var(--amber); }
+  .tl-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tl-title { font-weight: 700; }
+  .tl-when { width: 100%; font-size: 12px; color: var(--faint); margin-top: 2px; }
+  .tl-body { margin-top: 6px; }
+  .tl-row { color: var(--muted); font-size: 13px; }
+  .tl-actor { font-size: 12px; color: var(--faint); margin-top: 4px; }
+  .change { display: inline-flex; align-items: center; gap: 8px; margin-top: 4px; font-weight: 600; }
+  .old { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--red); }
+  .arrow { color: var(--amber); font-weight: 700; }
+  .new { color: var(--ink); }
+  .reason-quote { margin-top: 8px; padding: 8px 12px; background: #f8fafc; border-left: 3px solid var(--line); border-radius: 0 8px 8px 0; color: var(--muted); font-size: 13px; font-style: italic; }
+  .reason-quote.rej { background: var(--red-bg); border-left-color: var(--red); color: #991b1b; }
+
+  .legend { margin-top: 22px; background: #f8fafc; border: 1px dashed var(--line); border-radius: 12px; padding: 14px 18px; }
+  .legend h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .legend code { background: #eef2ff; color: #3730a3; padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+  .legend li { margin: 4px 0; color: var(--muted); font-size: 13px; }
+  .data-appt { } .data-fee { }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="page-title">Appointment &amp; Fee page</h1>
+  <p class="page-sub">Draft idea · the new <b>View history</b> button opens a slide-out timeline drawer →</p>
+
+  <!-- current-state context -->
+  <div class="context-grid">
+    <div class="card">
+      <div class="card-h"><span class="t">Appointment</span>
+        <span class="badge approved" style="margin-left:auto;">Approved</span>
+      </div>
+      <div class="card-b">
+        <div class="big-date">Tue, 16 Jun 2026 · 10:00</div>
+        <div class="hint-row">
+          <button class="history-btn" onclick="openDrawer()">
+            <span class="clk">🕑</span> View history <span class="cnt">6</span>
+          </button>
+          <span class="arrow-hint">← rescheduled twice</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><span class="t">Fees</span>
+        <span class="v" style="margin-left:auto; font-weight:700;">฿ 5,800.00</span>
+      </div>
+      <div class="card-b">
+        <div class="kv"><span class="k">Appraisal fee <span class="badge auto">System</span></span><span class="v">฿ 4,500.00</span></div>
+        <div class="kv"><span class="k">Travel — remote area <span class="badge approved">Approved</span></span><span class="v">฿ 1,300.00</span></div>
+        <div class="kv"><span class="k" style="color:var(--faint)">Urgent handling <span class="badge rejected">Rejected</span></span><span class="v" style="color:var(--faint); text-decoration:line-through;">฿ 2,000.00</span></div>
+      </div>
+    </div>
+  </div>
+
+  <p style="color:var(--faint); font-size:13px;">↑ The <b>View history</b> button sits on the appointment card (and can mirror into the bottom action bar). Click it to open the drawer.</p>
+
+  <div class="legend">
+    <h3>Where each field comes from (nothing here is invented)</h3>
+    <ul style="margin:0; padding-left:18px;">
+      <li>Date change (old → new), action, when, by, reason → <code>AppointmentHistory</code></li>
+      <li>Appointment approve/reject → <code>AppointmentHistory</code> + <code>Appointment.ApprovedBy/ApprovedAt</code></li>
+      <li>Fee decision, amount, by, reason → <code>AppraisalFeeItem</code> (<code>ApprovalStatus</code>, <code>FeeAmount</code>, <code>ApprovedBy</code>, <code>ApprovedAt</code>, <code>RejectionReason</code>)</li>
+      <li>“Auto-applied” vs “Needs approval” → <code>RequiresApproval</code> / <code>ApprovalSubmittedAt</code></li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ DRAWER ============ -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer" aria-label="History">
+  <div class="drawer-h">
+    <span class="icon">🕑</span>
+    <div>
+      <h2>History</h2>
+      <div class="sub">Appraisal AP-2026-004821 · 6 events</div>
+    </div>
+    <button class="x" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-b">
+    <div class="chips">
+      <span class="chip active" data-f="all" onclick="filt('all')">All</span>
+      <span class="chip" data-f="appt" onclick="filt('appt')">Appointment</span>
+      <span class="chip" data-f="fee" onclick="filt('fee')">Fees</span>
+    </div>
+
+    <div id="timeline">
+      <div class="tl-item data-appt">
+        <div class="tl-node approved">✓</div>
+        <div class="tl-head"><span class="tl-title">Reschedule approved</span><span class="badge approved">Approved</span>
+          <span class="tl-when">Mon, 8 Jun 2026 · 09:14</span></div>
+        <div class="tl-body">
+          <div class="change"><span class="old">Thu, 12 Jun 2026</span><span class="arrow">→</span><span class="new">Tue, 16 Jun 2026 · 10:00</span></div>
+          <div class="tl-actor">Approved by <b>Nattapong S.</b> (bank reviewer)</div>
+        </div>
+      </div>
+
+      <div class="tl-item data-fee">
+        <div class="tl-node rejected">✕</div>
+        <div class="tl-head"><span class="tl-title">Fee rejected — Urgent handling</span><span class="badge rejected">Rejected</span>
+          <span class="tl-when">Mon, 8 Jun 2026 · 09:13</span></div>
+        <div class="tl-body">
+          <div class="tl-row">Urgent handling · <b>฿ 2,000.00</b></div>
+          <div class="tl-actor">Rejected by <b>Nattapong S.</b> (bank reviewer)</div>
+          <div class="reason-quote rej">“Urgent surcharge not justified for this engagement window.”</div>
+        </div>
+      </div>
+
+      <div class="tl-item data-fee">
+        <div class="tl-node fee">฿</div>
+        <div class="tl-head"><span class="tl-title">Submitted for approval</span><span class="badge pending">2 items</span>
+          <span class="tl-when">Fri, 5 Jun 2026 · 16:40</span></div>
+        <div class="tl-body">
+          <div class="tl-row">1 reschedule + 1 added fee bundled for bank review</div>
+          <div class="tl-actor">Submitted by <b>Premier Valuation Co.</b> (external)</div>
+        </div>
+      </div>
+
+      <div class="tl-item data-fee">
+        <div class="tl-node fee">฿</div>
+        <div class="tl-head"><span class="tl-title">Fee added — Travel (remote area)</span><span class="badge pending">Pending → Approved</span>
+          <span class="tl-when">Fri, 5 Jun 2026 · 16:35</span></div>
+        <div class="tl-body">
+          <div class="tl-row">Travel — remote area · <b>฿ 1,300.00</b></div>
+          <div class="tl-actor">Added by <b>Premier Valuation Co.</b> · later approved Mon, 8 Jun</div>
+        </div>
+      </div>
+
+      <div class="tl-item data-appt">
+        <div class="tl-node pending">⟲</div>
+        <div class="tl-head"><span class="tl-title">Reschedule requested</span><span class="badge pending">Needs approval</span>
+          <span class="tl-when">Fri, 5 Jun 2026 · 16:30</span></div>
+        <div class="tl-body">
+          <div class="change"><span class="old">Thu, 12 Jun 2026</span><span class="arrow">→</span><span class="new">Tue, 16 Jun 2026</span></div>
+          <div class="tl-actor">Requested by <b>Premier Valuation Co.</b></div>
+          <div class="reason-quote">“Owner unavailable on the 12th; earliest on-site access is the 16th.”</div>
+        </div>
+      </div>
+
+      <div class="tl-item data-appt">
+        <div class="tl-node approved">✓</div>
+        <div class="tl-head"><span class="tl-title">Reschedule auto-applied</span><span class="badge auto">No approval needed</span>
+          <span class="tl-when">Wed, 3 Jun 2026 · 11:02</span></div>
+        <div class="tl-body">
+          <div class="change"><span class="old">Mon, 9 Jun 2026</span><span class="arrow">→</span><span class="new">Thu, 12 Jun 2026</span></div>
+          <div class="tl-actor">Changed by <b>Premier Valuation Co.</b> · within policy, applied immediately</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<script>
+  function openDrawer() { document.getElementById('drawer').classList.add('open'); document.getElementById('scrim').classList.add('open'); }
+  function closeDrawer() { document.getElementById('drawer').classList.remove('open'); document.getElementById('scrim').classList.remove('open'); }
+  function filt(f) {
+    document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.f === f));
+    document.querySelectorAll('#timeline .tl-item').forEach(it => {
+      const show = f === 'all' || it.classList.contains('data-' + f);
+      it.style.display = show ? '' : 'none';
+    });
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+</script>
+</body>
+</html>

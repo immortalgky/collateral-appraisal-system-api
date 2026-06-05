@@ -33,5 +33,7 @@ public interface IAppraisalCreationService
         // When provided, used to resolve the workflow-level SLA budget via ISlaCalculatorClient.
         // If null, SLA days will also be null on the created Appraisal (no hardcoded fallback).
         Guid? workflowDefinitionId = null,
+        // Reappraisal batch label — stamps Appraisal.GroupTag when non-null/non-empty.
+        string? groupTag = null,
         CancellationToken cancellationToken = default);
 }

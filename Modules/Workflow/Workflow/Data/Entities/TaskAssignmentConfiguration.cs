@@ -62,12 +62,12 @@ public class TaskAssignmentConfiguration : Entity<Guid>
     /// <summary>
     /// Created timestamp
     /// </summary>
-    public DateTime CreatedAt { get; private set; }
+    public new DateTime CreatedAt { get; private set; }
 
     /// <summary>
     /// Last updated timestamp
     /// </summary>
-    public DateTime UpdatedAt { get; private set; }
+    public new DateTime UpdatedAt { get; private set; }
 
     /// <summary>
     /// Created by user

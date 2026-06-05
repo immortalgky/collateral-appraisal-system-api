@@ -50,6 +50,16 @@ global using Request.Domain.Requests;
 global using Request.Domain.Requests.Events;
 global using Request.Domain.Requests.Exceptions;
 
+// Reappraisal domain
+global using Request.Domain.Reappraisal;
+
+// Reappraisal application features
+global using Request.Application.Features.Reappraisal.GetCandidates;
+global using Request.Application.Features.Reappraisal.GetCandidateById;
+global using Request.Application.Features.Reappraisal.InitiateReappraisal;
+global using Request.Application.Features.Reappraisal.DeleteCandidate;
+global using Request.Application.Features.Reappraisal.CreateBlockReappraisal;
+
 // RequestTitles Aggregate (includes TitleDocument as child entity)
 global using Request.Domain.RequestTitles;
 global using Request.Domain.RequestTitles.TitleTypes;

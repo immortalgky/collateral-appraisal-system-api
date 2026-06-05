@@ -61,6 +61,11 @@ public class Appraisal : Aggregate<Guid>
     public string? CancelledBy { get; private set; }
     public string? CancelReason { get; private set; }
 
+    // Reappraisal batch label — system-assigned, not user-editable.
+    // NULL for appraisals that are not part of a periodical reappraisal batch.
+    // Canonical home for the value produced by ReappraisalGroupNumberGenerator.
+    public string? GroupTag { get; private set; }
+
     // Soft Delete
     public SoftDelete SoftDelete { get; private set; } = SoftDelete.NotDeleted();
 
@@ -75,6 +80,7 @@ public class Appraisal : Aggregate<Guid>
         string appraisalType,
         string priority,
         int? slaHours,
+        DateTime? slaDueDate,
         bool isPma,
         string? purpose,
         string? channel,
@@ -104,7 +110,11 @@ public class Appraisal : Aggregate<Guid>
 
         if (slaHours.HasValue)
         {
-            SLADueDate = (requestedAt ?? now).AddHours(slaHours.Value);
+            // Prefer the precomputed business-hours-aware due date (application-local) from the SLA
+            // policy snapshot; fall back to a naive calendar delta off the local base (requestedAt ??
+            // now, both ApplicationNow-local) when no due date is supplied (e.g. the manual
+            // CreateAppraisal path, which has no workflow/SLA-policy context).
+            SLADueDate = slaDueDate ?? (requestedAt ?? now).AddHours(slaHours.Value);
             SLAStatus = "OnTrack";
         }
     }
@@ -118,6 +128,7 @@ public class Appraisal : Aggregate<Guid>
         string priority,
         DateTime now,
         int? slaHours = null,
+        DateTime? slaDueDate = null,
         string? requestedBy = null,
         bool isPma = false,
         string? purpose = null,
@@ -131,7 +142,7 @@ public class Appraisal : Aggregate<Guid>
         ArgumentException.ThrowIfNullOrWhiteSpace(appraisalType);
         ArgumentException.ThrowIfNullOrWhiteSpace(priority);
 
-        var appraisal = new Appraisal(requestId, appraisalType, priority, slaHours,
+        var appraisal = new Appraisal(requestId, appraisalType, priority, slaHours, slaDueDate,
             isPma, purpose, channel, bankingSegment, facilityLimit, hasAppraisalBook,
             requestedBy, requestedAt, prevAppraisalId, now);
         appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal, requestedBy));
@@ -147,6 +158,20 @@ public class Appraisal : Aggregate<Guid>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(number);
         AppraisalNumber = number;
+    }
+
+    /// <summary>
+    /// Sets the reappraisal batch group tag (e.g. "26G000001").
+    /// System-only — called once during appraisal creation for reappraisal batches.
+    /// Idempotent: re-setting the same value is allowed.
+    /// </summary>
+    public void SetGroupTag(string tag)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tag);
+        var trimmed = tag.Trim();
+        if (trimmed.Length > 40)
+            throw new ArgumentException("GroupTag must not exceed 40 characters.", nameof(tag));
+        GroupTag = trimmed;
     }
 
     #region Property Management
@@ -361,6 +386,7 @@ public class Appraisal : Aggregate<Guid>
         if (source.PropertyType == PropertyType.Land)
         {
             newProperty.SetLandDetail(LandAppraisalDetail.CopyFrom(source.LandDetail!, newProperty.Id));
+            CopyRentedOutLeaseInfo(source, newProperty);
         }
         else if (source.PropertyType == PropertyType.Building)
         {
@@ -371,6 +397,7 @@ public class Appraisal : Aggregate<Guid>
             newProperty.SetLandAndBuildingDetails(
                 LandAppraisalDetail.CopyFrom(source.LandDetail!, newProperty.Id),
                 BuildingAppraisalDetail.CopyFrom(source.BuildingDetail!, newProperty.Id));
+            CopyRentedOutLeaseInfo(source, newProperty);
         }
         else if (source.PropertyType == PropertyType.Condo)
         {
@@ -424,6 +451,23 @@ public class Appraisal : Aggregate<Guid>
     }
 
     /// <summary>
+    /// Copy lease agreement &amp; rental info for a rented-out plain Land / Land &amp; Building property.
+    /// Leasehold property types copy these unconditionally; plain land only when IsRentedOut is set.
+    /// </summary>
+    private static void CopyRentedOutLeaseInfo(AppraisalProperty source, AppraisalProperty newProperty)
+    {
+        if (source.LandDetail?.IsRentedOut != true)
+            return;
+
+        if (source.LeaseAgreementDetail is not null)
+            newProperty.SetLeaseAgreementDetail(
+                LeaseAgreementDetail.CopyFrom(source.LeaseAgreementDetail, newProperty.Id));
+
+        if (source.RentalInfo is not null)
+            newProperty.SetRentalInfo(RentalInfo.CopyFrom(source.RentalInfo, newProperty.Id));
+    }
+
+    /// <summary>
     /// Get a property by ID
     /// </summary>
     public AppraisalProperty? GetProperty(Guid propertyId)
@@ -457,9 +501,13 @@ public class Appraisal : Aggregate<Guid>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(groupName);
 
-        var groupNumber = _groups.Count + 1;
-        var group = PropertyGroup.Create(Id, groupNumber, groupName, description);
+        // Provisional number (count + 1); ResequenceGroups reassigns it and uses it as the
+        // tie-breaker so this new, not-yet-saved group (null CreatedAt) sorts last.
+        var group = PropertyGroup.Create(Id, _groups.Count + 1, groupName, description);
         _groups.Add(group);
+
+        // Order by creation time and reapply group numbers by order
+        ResequenceGroups();
 
         return group;
     }
@@ -508,8 +556,25 @@ public class Appraisal : Aggregate<Guid>
 
         _groups.Remove(group);
 
-        // Resequence remaining groups
-        for (var i = 0; i < _groups.Count; i++) _groups[i].UpdateGroupNumber(i + 1);
+        // Order by creation time and reapply group numbers by order
+        ResequenceGroups();
+    }
+
+    /// <summary>
+    /// Order groups by creation time and reapply contiguous group numbers (1..n).
+    /// A not-yet-saved group has a null CreatedAt and is treated as newest (sorted last,
+    /// since CreateGroup gives it a provisional number of _groups.Count + 1).
+    /// The current GroupNumber is the tie-breaker, keeping the resequence stable (it only
+    /// compacts the numbering and preserves the existing relative order on equal timestamps).
+    /// </summary>
+    private void ResequenceGroups()
+    {
+        var ordered = _groups
+            .OrderBy(g => g.CreatedAt ?? DateTime.MaxValue)
+            .ThenBy(g => g.GroupNumber)
+            .ToList();
+
+        for (var i = 0; i < ordered.Count; i++) ordered[i].UpdateGroupNumber(i + 1);
     }
 
     /// <summary>

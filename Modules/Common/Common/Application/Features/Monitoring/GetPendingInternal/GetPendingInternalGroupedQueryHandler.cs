@@ -24,15 +24,13 @@ public class GetPendingInternalGroupedQueryHandler(
         GetPendingInternalGroupedQuery query,
         CancellationToken cancellationToken)
     {
-        var activityIds = scopeService.GetInternalActivityIds();
-        if (activityIds.Length == 0)
-            return new MonitoringGroupedResult([], 0);
+        var scope = scopeService.ResolveInternalScope();
 
         var conditions = new List<string> { "MonitoringType = 'Internal'" };
         var parameters = new DynamicParameters();
 
-        conditions.Add("ActivityId IN @ActivityIds");
-        parameters.Add("ActivityIds", activityIds);
+        if (!scopeService.TryBuildActivityFilter(scope, conditions, parameters))
+            return new MonitoringGroupedResult([], 0);
 
         var filter = query.Filter;
         if (filter.SlaStatus is { Length: > 0 })

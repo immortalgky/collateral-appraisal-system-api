@@ -26,10 +26,7 @@ public class GetPendingInternalQueryHandler(
         GetPendingInternalQuery query,
         CancellationToken cancellationToken)
     {
-        var activityIds = scopeService.GetInternalActivityIds();
-        // If user holds no internal monitoring permission, return empty result
-        if (activityIds.Length == 0)
-            return new PaginatedResult<PendingTaskDto>([], 0, query.Paging.PageNumber, query.Paging.PageSize);
+        var scope = scopeService.ResolveInternalScope();
 
         // Explicit projection: column order MUST match PendingTaskDto's positional record constructor.
         // SELECT * fails because the view exposes more columns (AssignedTo, AssignedType, AssigneeCompanyId,
@@ -62,9 +59,10 @@ FROM common.vw_MonitoringPendingTasks";
         var conditions = new List<string> { "MonitoringType = 'Internal'" };
         var parameters = new DynamicParameters();
 
-        // Activity-ID scope filter (user's layer permissions → activity IDs)
-        conditions.Add("ActivityId IN @ActivityIds");
-        parameters.Add("ActivityIds", activityIds);
+        // Activity + team scope filter (user's layer permissions → activity IDs, optionally
+        // team-restricted). Empty scope ⇒ user holds no internal monitoring permission.
+        if (!scopeService.TryBuildActivityFilter(scope, conditions, parameters))
+            return new PaginatedResult<PendingTaskDto>([], 0, query.Paging.PageNumber, query.Paging.PageSize);
 
         var filter = query.Filter;
         if (filter.SlaStatus is { Length: > 0 })

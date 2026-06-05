@@ -1,3 +1,4 @@
+using Auth.Domain.Auditing;
 using Auth.Domain.Groups;
 using Auth.Infrastructure;
 using Auth.Infrastructure.Repository;
@@ -5,12 +6,16 @@ using Shared.Pagination;
 
 namespace Auth.Application.Services;
 
-public class GroupService(IGroupRepository groupRepository, AuthDbContext dbContext) : IGroupService
+public class GroupService(
+    IGroupRepository groupRepository,
+    AuthDbContext dbContext,
+    IAuthAuditWriter auditWriter) : IGroupService
 {
     public async Task<Group> CreateGroup(string name, string description, string scope, Guid? companyId, CancellationToken cancellationToken = default)
     {
         var group = Group.Create(name, description, scope, companyId);
         await groupRepository.AddAsync(group, cancellationToken);
+        auditWriter.Record(AuditAction.Created, AuditEntityType.Group, group.Id, name);
         await groupRepository.SaveChangesAsync(cancellationToken);
         return group;
     }
@@ -31,6 +36,7 @@ public class GroupService(IGroupRepository groupRepository, AuthDbContext dbCont
             ?? throw new KeyNotFoundException($"Group {id} not found.");
 
         group.Update(name, description);
+        auditWriter.Record(AuditAction.Updated, AuditEntityType.Group, id, name);
         await groupRepository.SaveChangesAsync(cancellationToken);
     }
 
@@ -39,12 +45,15 @@ public class GroupService(IGroupRepository groupRepository, AuthDbContext dbCont
         var group = await groupRepository.GetByIdWithDetailsAsync(id, cancellationToken)
             ?? throw new KeyNotFoundException($"Group {id} not found.");
 
+        var beforeIds = group.Users.Select(u => u.UserId).ToList();
+
         var existing = dbContext.GroupUsers.Where(gu => gu.GroupId == id);
         dbContext.GroupUsers.RemoveRange(existing);
 
         foreach (var userId in userIds)
             dbContext.GroupUsers.Add(new GroupUser { GroupId = id, UserId = userId });
 
+        auditWriter.RecordAssignmentChange(AuditEntityType.Group, id, group.Name, beforeIds, userIds, "users");
         await groupRepository.SaveChangesAsync(cancellationToken);
     }
 
@@ -53,12 +62,18 @@ public class GroupService(IGroupRepository groupRepository, AuthDbContext dbCont
         var group = await groupRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new KeyNotFoundException($"Group {id} not found.");
 
+        var beforeIds = await dbContext.GroupMonitoring
+            .Where(gm => gm.MonitorGroupId == id)
+            .Select(gm => gm.MonitoredGroupId)
+            .ToListAsync(cancellationToken);
+
         var existing = dbContext.GroupMonitoring.Where(gm => gm.MonitorGroupId == id);
         dbContext.GroupMonitoring.RemoveRange(existing);
 
         foreach (var monitoredGroupId in monitoredGroupIds)
             dbContext.GroupMonitoring.Add(new GroupMonitoring { MonitorGroupId = id, MonitoredGroupId = monitoredGroupId });
 
+        auditWriter.RecordAssignmentChange(AuditEntityType.Group, id, group.Name, beforeIds, monitoredGroupIds, "monitoredGroups");
         await groupRepository.SaveChangesAsync(cancellationToken);
     }
 
@@ -68,6 +83,7 @@ public class GroupService(IGroupRepository groupRepository, AuthDbContext dbCont
             ?? throw new KeyNotFoundException($"Group {id} not found.");
 
         group.Delete(deletedBy);
+        auditWriter.Record(AuditAction.Deleted, AuditEntityType.Group, id, group.Name);
         await groupRepository.SaveChangesAsync(cancellationToken);
     }
 }

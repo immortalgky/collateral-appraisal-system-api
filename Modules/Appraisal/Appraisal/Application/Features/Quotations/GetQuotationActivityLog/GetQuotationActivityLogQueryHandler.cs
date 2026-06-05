@@ -10,8 +10,7 @@ namespace Appraisal.Application.Features.Quotations.GetQuotationActivityLog;
 public class GetQuotationActivityLogQueryHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
-    ISqlConnectionFactory connectionFactory,
-    IQuotationTaskOwnershipService taskOwnership)
+    ISqlConnectionFactory connectionFactory)
     : IQueryHandler<GetQuotationActivityLogQuery, List<QuotationActivityLogRow>>
 {
     public async Task<List<QuotationActivityLogRow>> Handle(

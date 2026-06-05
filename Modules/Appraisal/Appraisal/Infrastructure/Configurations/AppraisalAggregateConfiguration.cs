@@ -62,6 +62,13 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
 
         builder.Property(a => a.RequestedAt);
 
+        // Reappraisal batch group tag — system-assigned, NULL for non-reappraisal appraisals.
+        builder.Property(a => a.GroupTag)
+            .HasMaxLength(40);
+        builder.HasIndex(a => a.GroupTag)
+            .HasDatabaseName("IX_Appraisals_GroupTag")
+            .HasFilter("[GroupTag] IS NOT NULL");
+
         // Status Value Object (stored as string)
         builder.OwnsOne(a => a.Status, status =>
         {
@@ -177,8 +184,12 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
 
             // Indexes
             group.HasIndex(g => g.AppraisalId);
-            group.HasIndex(g => new { g.AppraisalId, g.GroupNumber })
-                .IsUnique();
+            // Non-unique: GroupNumber is system-assigned and resequenced on delete.
+            // A unique index forces EF to order the renumber UPDATEs, which it cannot
+            // do across a unique index in one SaveChanges (circular-dependency error).
+            // Identity is PropertyGroup.Id; nothing keys off GroupNumber, so uniqueness
+            // is redundant. Kept as a plain index for ordering/lookup by group number.
+            group.HasIndex(g => new { g.AppraisalId, g.GroupNumber });
         });
 
         builder.HasMany(a => a.Assignments)

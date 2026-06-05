@@ -28,4 +28,12 @@ public record AppraisalCreationRequestedIntegrationEvent : IntegrationEvent
     // Construction Inspection fields
     public Guid? PrevAppraisalId { get; set; }
     public string? AppraisalType { get; set; }
+
+    // Reappraisal batch label — NULL for non-reappraisal requests.
+    // Stamps Appraisal.GroupTag on the newly-created appraisal.
+    public string? GroupTag { get; set; }
+
+    // Workflow definition the appraisal is created under. Carried so the Appraisal module can
+    // resolve the workflow-scope SLA budget (SlaPolicy) and stamp the appraisal-level SLA fields.
+    public Guid? WorkflowDefinitionId { get; set; }
 }

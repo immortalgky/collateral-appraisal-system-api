@@ -1,8 +1,11 @@
+using Workflow.Contracts.FeeAppointmentApprovals;
+
 namespace Appraisal.Application.Features.Appointments.CreateAppointment;
 
 public class CreateAppointmentCommandHandler(
     IAppraisalRepository appraisalRepository,
-    AppraisalDbContext dbContext)
+    AppraisalDbContext dbContext,
+    ISender sender)
     : ICommandHandler<CreateAppointmentCommand, CreateAppointmentResult>
 {
     public async Task<CreateAppointmentResult> Handle(
@@ -37,6 +40,27 @@ public class CreateAppointmentCommandHandler(
             command.ContactPhone);
 
         dbContext.Appointments.Add(appointment);
+
+        // Evaluate policy at creation time (read-only cross-module query)
+        var verdict = await sender.Send(
+            new EvaluateFeeAppointmentApprovalQuery(
+                command.AppraisalId,
+                RequestSource: "Ext",
+                ProposedAppointmentDate: command.AppointmentDateTime,
+                RescheduleCount: appointment.RescheduleCount,
+                CumulativeAddedFeeTotal: null),
+            cancellationToken);
+
+        if (!verdict.AppointmentRequiresApproval)
+        {
+            // Auto-apply: no approval needed — approve immediately
+            appointment.Approve("system");
+        }
+        else
+        {
+            // Flag as requiring approval — user must call Submit for Approval
+            appointment.FlagRequiresApproval();
+        }
 
         return new CreateAppointmentResult(appointment.Id);
     }

@@ -271,18 +271,19 @@ public class PricingAnalysisMethod : Entity<Guid>
     #region Comparative Factor Methods (Step 1)
 
     /// <summary>
-    /// Adds a comparative factor for Step 1 factor selection
+    /// Adds a comparative factor for Step 1 factor selection.
     /// </summary>
     public PricingComparativeFactor AddComparativeFactor(
         Guid factorId,
         int displaySequence,
         bool isSelectedForScoring = false,
-        string? remarks = null)
+        string? remarks = null,
+        string? collateralValue = null)
     {
         if (_comparativeFactors.Any(f => f.FactorId == factorId))
             throw new InvalidOperationException($"Factor {factorId} already exists in comparative factors");
 
-        var factor = PricingComparativeFactor.Create(Id, factorId, displaySequence, isSelectedForScoring, remarks);
+        var factor = PricingComparativeFactor.Create(Id, factorId, displaySequence, isSelectedForScoring, remarks, collateralValue);
         _comparativeFactors.Add(factor);
         return factor;
     }

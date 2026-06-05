@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.CreateLandProperty;
+using Appraisal.Application.Features.Appraisals.Shared;
 
 namespace Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 
@@ -165,7 +166,11 @@ public record UpdateLandAndBuildingPropertyCommand(
     // Surfaces (null = no-op, list = sync)
     List<SurfaceItemData>? Surfaces = null,
     // Construction Inspection (null = no-op)
-    ConstructionInspectionData? ConstructionInspection = null
+    ConstructionInspectionData? ConstructionInspection = null,
+    // Rental
+    bool? IsRentedOut = null,
+    LeaseAgreementData? LeaseAgreement = null,
+    RentalInfoData? RentalInfo = null
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;
 
 public record DepreciationItemData(

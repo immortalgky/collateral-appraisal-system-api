@@ -1,10 +1,15 @@
 using System.Text.Json;
+using Dapper;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NJsonSchema;
+using Shared.Data;
 using Shared.Identity;
 using Workflow.Data;
 using Workflow.Data.Entities;
 using Workflow.Workflow.Pipeline;
+using Workflow.Workflow.Pipeline.Validation;
 
 namespace Workflow.Workflow.Features.Admin;
 
@@ -19,6 +24,61 @@ public class ActivityProcessAdminEndpoints : ICarterModule
 
     public void AddRoutes(IEndpointRouteBuilder app)
     {
+        // ── Validation field registry (for admin field picker) ────────────
+
+        app.MapGet("/api/workflow/admin/validation-fields", () =>
+            {
+                var fields = AppraisalFieldRegistry.Fields.Select(f => new ValidationFieldResponse(
+                    f.Key, f.Column, f.DataType, f.DisplayName));
+                return Results.Ok(fields);
+            })
+            .WithName("GetValidationFields")
+            .WithTags(Tag)
+            .RequireAuthorization(AdminPolicy);
+
+        // ── Per-property validation field picker ──────────────────────────
+        // Returns the column names from vw_AppraisalPropertyValidationContext (minus the
+        // meta columns) so the FE field-picker stays in sync with the view automatically.
+        // If the view does not exist yet (fresh DB), returns an empty list gracefully.
+
+        app.MapGet("/api/workflow/admin/property-validation-fields",
+            async (
+                ISqlConnectionFactory connectionFactory,
+                ILogger<ActivityProcessAdminEndpoints> endpointLogger) =>
+            {
+                try
+                {
+                    using var connection = connectionFactory.GetOpenConnection();
+                    var columns = (await connection.QueryAsync<string>(
+                        """
+                        SELECT COLUMN_NAME
+                        FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_SCHEMA = 'appraisal'
+                          AND TABLE_NAME   = 'vw_AppraisalPropertyValidationContext'
+                          AND COLUMN_NAME NOT IN ('AppraisalId', 'SequenceNumber', 'PropertyType')
+                        ORDER BY ORDINAL_POSITION
+                        """)).ToList();
+
+                    var fields = columns.Select(col => new PropertyValidationFieldResponse(
+                        Key: col,
+                        DisplayName: PrettifyColumnName(col)));
+
+                    return Results.Ok(fields);
+                }
+                catch (SqlException ex) when (ex.Number == 208)
+                {
+                    // SQL Server error 208 = "Invalid object name" — the view has not been
+                    // deployed yet. Return an empty list so fresh-DB setups don't break.
+                    endpointLogger.LogWarning(
+                        "vw_AppraisalPropertyValidationContext does not exist yet (SqlError 208). " +
+                        "Returning empty field list until the view is deployed.");
+                    return Results.Ok(Array.Empty<PropertyValidationFieldResponse>());
+                }
+            })
+            .WithName("GetPropertyValidationFields")
+            .WithTags(Tag)
+            .RequireAuthorization(AdminPolicy);
+
         // ── Step Catalog ───────────────────────────────────────────────────
 
         app.MapGet("/api/workflow/admin/step-catalog", (IStepCatalog catalog) =>
@@ -28,7 +88,8 @@ public class ActivityProcessAdminEndpoints : ICarterModule
                     d.DisplayName,
                     d.Kind.ToString(),
                     d.ParametersSchema.ToJson(),
-                    d.Description));
+                    d.Description,
+                    d.ExampleParametersJson));
                 return Results.Ok(items);
             })
             .WithName("GetStepCatalog")
@@ -236,6 +297,22 @@ public class ActivityProcessAdminEndpoints : ICarterModule
         return errors;
     }
 
+    // ── Column name prettifier ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Splits a PascalCase column name into space-separated words.
+    /// e.g. "TitleNumber" → "Title Number", "LandOffice" → "Land Office".
+    /// Falls back to the raw column name if the input is null or empty.
+    /// </summary>
+    private static string PrettifyColumnName(string? columnName)
+    {
+        if (string.IsNullOrWhiteSpace(columnName)) return columnName ?? "";
+        // Insert a space before each uppercase letter that follows a lowercase letter.
+        var result = System.Text.RegularExpressions.Regex.Replace(
+            columnName, "(?<=[a-z])(?=[A-Z])", " ");
+        return result;
+    }
+
     // ── Mapping helpers ────────────────────────────────────────────────────
 
     private static ProcessConfigResponse MapToResponse(ActivityProcessConfiguration c) =>
@@ -277,7 +354,8 @@ public sealed record StepCatalogItemResponse(
     string DisplayName,
     string Kind,
     string ParametersSchema,
-    string? Description);
+    string? Description,
+    string? ExampleParametersJson);
 
 public sealed record ActivityProcessExecutionResponse(
     Guid Id,
@@ -295,3 +373,16 @@ public sealed record ActivityProcessExecutionResponse(
     DateTime CreatedOn);
 
 public sealed record ConfigEntryError(int Index, string StepName, string Message);
+
+public sealed record ValidationFieldResponse(
+    string Key,
+    string Column,
+    string DataType,
+    string DisplayName);
+
+/// <summary>
+/// Response item for GET /api/workflow/admin/property-validation-fields.
+/// Key = column name (== fieldKey used in requiredByType config).
+/// DisplayName = light human-readable label (PascalCase split to words).
+/// </summary>
+public sealed record PropertyValidationFieldResponse(string Key, string DisplayName);

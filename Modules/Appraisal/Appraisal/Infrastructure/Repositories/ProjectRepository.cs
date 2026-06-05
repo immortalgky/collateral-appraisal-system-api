@@ -37,8 +37,6 @@ public class ProjectRepository(AppraisalDbContext dbContext) : IProjectRepositor
             .Include(p => p.Models)
                 .ThenInclude(m => m.DepreciationDetails)
                     .ThenInclude(d => d.DepreciationPeriods)
-            .Include(p => p.Models)
-                .ThenInclude(m => m.PricingAnalysis)
             .Include(p => p.Units)
             .Include(p => p.UnitUploads)
             // UnitPrices FK is ProjectUnitId → ProjectUnit (configured as 1:1).

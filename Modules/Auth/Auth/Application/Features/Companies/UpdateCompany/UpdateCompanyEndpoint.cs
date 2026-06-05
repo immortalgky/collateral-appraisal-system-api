@@ -9,7 +9,8 @@ public class UpdateCompanyEndpoint : ICarterModule
                 var command = new UpdateCompanyCommand(
                     id, request.Name, request.TaxId, request.Phone, request.Email,
                     request.Street, request.City, request.Province, request.PostalCode,
-                    request.ContactPerson, request.IsActive, request.LoanTypes);
+                    request.ContactPerson, request.IsActive, request.LoanTypes,
+                    request.BankAccountNo, request.BankAccountName);
                 var result = await sender.Send(command);
                 var response = result.Adapt<UpdateCompanyResponse>();
                 return Results.Ok(response);
@@ -18,6 +19,6 @@ public class UpdateCompanyEndpoint : ICarterModule
             .Produces<UpdateCompanyResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update Company")
-            .WithDescription("Update an existing company");
+            .WithDescription("Update an existing company including bank account details.");
     }
 }

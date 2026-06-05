@@ -14,21 +14,31 @@ SELECT aa.Id                                                          AS Assignm
        af.TotalFeeAfterVAT,
        af.BankAbsorbAmount,
        -- PayPartialAmount: amount the customer has already paid against this fee.
-       -- Sourced from AppraisalFee.TotalPaidAmount (customer-side aggregate, maintained
-       -- by AppraisalFee.RecordPayment / RecalculateFromPayments).
-       af.TotalPaidAmount                                              AS PayPartialAmount,
-       -- RemainingFee: outstanding fee after subtracting customer payments and the
-       -- bank-absorb commitment. = TotalFeeAfterVAT - PayPartialAmount - BankAbsorbAmount.
-       af.TotalFeeAfterVAT - af.TotalPaidAmount - af.BankAbsorbAmount  AS RemainingFee,
+       -- Excludes BankAbsorb synthetic rows (inserted when invoice is marked Paid)
+       -- so that the display amount only reflects real cash/transfer payments.
+       (SELECT COALESCE(SUM(h.PaymentAmount), 0)
+        FROM appraisal.AppraisalFeePaymentHistory h
+        WHERE h.AppraisalFeeId = af.Id
+          AND h.Source <> 'BankAbsorb')                               AS PayPartialAmount,
+       -- RemainingFee: outstanding customer portion after their payments.
+       -- = TotalFeeAfterVAT - customer-paid-amount - BankAbsorbAmount.
+       af.TotalFeeAfterVAT
+           - (SELECT COALESCE(SUM(h.PaymentAmount), 0)
+              FROM appraisal.AppraisalFeePaymentHistory h
+              WHERE h.AppraisalFeeId = af.Id
+                AND h.Source <> 'BankAbsorb')
+           - af.BankAbsorbAmount                                       AS RemainingFee,
        -- SubmittedDate: when the appraiser handed the book to the bank for review.
        -- Sourced from aa.SubmittedAt, stamped by AppraisalAssignment.MarkUnderReview()
        -- at the ext-appraisal-verification → appraisal-book-verification handoff.
        aa.SubmittedAt                                                 AS SubmittedDate,
-       -- LastPaymentDate: most recent payment recorded against this fee in the
-       -- AppraisalFeePaymentHistory ledger.
+       -- LastPaymentDate: most recent real customer payment (Source<>'BankAbsorb').
+       -- BankAbsorb rows are excluded because their date is the invoice paid date,
+       -- not a cash/transfer payment from the customer.
        (SELECT MAX(h.PaymentDate)
         FROM appraisal.AppraisalFeePaymentHistory h
-        WHERE h.AppraisalFeeId = af.Id)                               AS LastPaymentDate
+        WHERE h.AppraisalFeeId = af.Id
+          AND h.Source <> 'BankAbsorb')                               AS LastPaymentDate
 FROM appraisal.AppraisalAssignments aa
          INNER JOIN appraisal.AppraisalFees af ON af.AssignmentId = aa.Id
          INNER JOIN appraisal.Appraisals a ON a.Id = aa.AppraisalId

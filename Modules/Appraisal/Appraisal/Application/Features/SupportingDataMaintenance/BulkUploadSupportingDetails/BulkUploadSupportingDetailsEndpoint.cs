@@ -56,6 +56,7 @@ public class BulkUploadSupportingDetailsEndpoint : ICarterModule
                 "All-or-nothing: if any row fails validation the entire upload is rejected and a 400 " +
                 "is returned with a 'rowErrors' array in the ProblemDetails extensions.")
             .WithTags("SupportingDataMaintenance")
-            .DisableAntiforgery();
+            .DisableAntiforgery()
+            .RequireAuthorization();
     }
 }

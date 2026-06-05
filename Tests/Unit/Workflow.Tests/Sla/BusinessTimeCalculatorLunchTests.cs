@@ -74,9 +74,7 @@ public class BusinessTimeCalculatorLunchTests : IDisposable
         var startedAt = new DateTime(2026, 5, 15, 14, 0, 0, DateTimeKind.Unspecified); // Friday 14:00
         var result = await _calculator.AddBusinessHoursAsync(startedAt, 16);
 
-        // Convert result back to Bangkok local time for assertion
-        var bangkokTz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
-        var localResult = TimeZoneInfo.ConvertTimeFromUtc(result, bangkokTz);
+        var localResult = result; // calculator returns Bangkok-local wall-clock directly
 
         localResult.Year.Should().Be(2026);
         localResult.Month.Should().Be(5);
@@ -99,8 +97,7 @@ public class BusinessTimeCalculatorLunchTests : IDisposable
         var startedAt = new DateTime(2026, 5, 15, 12, 30, 0, DateTimeKind.Unspecified); // inside lunch
         var result = await _calculator.AddBusinessHoursAsync(startedAt, 1);
 
-        var bangkokTz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
-        var localResult = TimeZoneInfo.ConvertTimeFromUtc(result, bangkokTz);
+        var localResult = result; // calculator returns Bangkok-local wall-clock directly
 
         localResult.Day.Should().Be(15);    // same Friday
         localResult.Hour.Should().Be(14);
@@ -125,8 +122,7 @@ public class BusinessTimeCalculatorLunchTests : IDisposable
         var startedAt = new DateTime(2026, 5, 15, 14, 0, 0, DateTimeKind.Unspecified); // Friday 14:00
         var result = await _calculator.AddBusinessHoursAsync(startedAt, 16);
 
-        var bangkokTz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
-        var localResult = TimeZoneInfo.ConvertTimeFromUtc(result, bangkokTz);
+        var localResult = result; // calculator returns Bangkok-local wall-clock directly
 
         // Without lunch: 3.5h Fri + 9h Mon + 3.5h Tue = 16h → Tue 12:00
         localResult.Day.Should().Be(19);    // Tuesday
@@ -149,8 +145,7 @@ public class BusinessTimeCalculatorLunchTests : IDisposable
         var startedAt = new DateTime(2026, 5, 15, 11, 0, 0, DateTimeKind.Unspecified); // Friday 11:00
         var result = await _calculator.AddBusinessHoursAsync(startedAt, 2);
 
-        var bangkokTz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
-        var localResult = TimeZoneInfo.ConvertTimeFromUtc(result, bangkokTz);
+        var localResult = result; // calculator returns Bangkok-local wall-clock directly
 
         localResult.Day.Should().Be(15);    // same Friday
         localResult.Hour.Should().Be(14);
@@ -172,8 +167,7 @@ public class BusinessTimeCalculatorLunchTests : IDisposable
         var startedAt = new DateTime(2026, 5, 15, 8, 30, 0, DateTimeKind.Unspecified); // Friday 08:30
         var result = await _calculator.AddBusinessHoursAsync(startedAt, 8);
 
-        var bangkokTz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
-        var localResult = TimeZoneInfo.ConvertTimeFromUtc(result, bangkokTz);
+        var localResult = result; // calculator returns Bangkok-local wall-clock directly
 
         localResult.Day.Should().Be(15);    // same Friday
         localResult.Hour.Should().Be(17);
@@ -248,8 +242,7 @@ public class BusinessTimeCalculatorLunchTests : IDisposable
         var startedAt = new DateTime(2026, 5, 15, 17, 30, 0, DateTimeKind.Unspecified); // Friday 17:30
         var result = await _calculator.AddBusinessHoursAsync(startedAt, 1);
 
-        var bangkokTz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
-        var localResult = TimeZoneInfo.ConvertTimeFromUtc(result, bangkokTz);
+        var localResult = result; // calculator returns Bangkok-local wall-clock directly
 
         // Rolls to Monday, consumes 1h from 08:30 → 09:30
         localResult.Day.Should().Be(18);    // Monday 2026-05-18
@@ -271,8 +264,7 @@ public class BusinessTimeCalculatorLunchTests : IDisposable
         var startedAt = new DateTime(2026, 5, 15, 12, 0, 0, DateTimeKind.Unspecified); // Friday 12:00
         var result = await _calculator.AddBusinessHoursAsync(startedAt, 1);
 
-        var bangkokTz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
-        var localResult = TimeZoneInfo.ConvertTimeFromUtc(result, bangkokTz);
+        var localResult = result; // calculator returns Bangkok-local wall-clock directly
 
         // 12:00 is lunchStart boundary — must skip to 13:00, then consume 1h → 14:00
         localResult.Day.Should().Be(15);    // same Friday
@@ -294,8 +286,7 @@ public class BusinessTimeCalculatorLunchTests : IDisposable
         var startedAt = new DateTime(2026, 5, 15, 13, 0, 0, DateTimeKind.Unspecified); // Friday 13:00
         var result = await _calculator.AddBusinessHoursAsync(startedAt, 1);
 
-        var bangkokTz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
-        var localResult = TimeZoneInfo.ConvertTimeFromUtc(result, bangkokTz);
+        var localResult = result; // calculator returns Bangkok-local wall-clock directly
 
         localResult.Day.Should().Be(15);    // same Friday
         localResult.Hour.Should().Be(14);

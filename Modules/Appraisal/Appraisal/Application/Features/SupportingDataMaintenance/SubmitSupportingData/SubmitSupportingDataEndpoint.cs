@@ -31,6 +31,7 @@ public class SubmitSupportingDataEndpoint : ICarterModule
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Submit an existing supporting data")
         .WithDescription("Submit an existing supporting data record for appraisal reference.")
-        .WithTags("SupportingData");
+        .WithTags("SupportingData")
+        .RequireAuthorization();
     }
 }

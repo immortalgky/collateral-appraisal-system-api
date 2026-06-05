@@ -24,6 +24,7 @@ public class UpdateSupportingDetailEndpoint : ICarterModule
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Update an existing supporting detail")
         .WithDescription("Update an existing supporting detail record under its parent supporting data record.")
-        .WithTags("SupportingData");
+        .WithTags("SupportingData")
+        .RequireAuthorization();
     }
 }

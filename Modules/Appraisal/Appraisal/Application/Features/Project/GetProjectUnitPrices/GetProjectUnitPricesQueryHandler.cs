@@ -27,7 +27,9 @@ public class GetProjectUnitPricesQueryHandler(
             from unit in dbContext.ProjectUnits
             join price in dbContext.ProjectUnitPrices on unit.Id equals price.ProjectUnitId into pricesGroup
             from price in pricesGroup.DefaultIfEmpty()
-            where unit.ProjectId == projectId.Value
+            // Exclude sold units — the unit-price appraisal covers remaining (unsold) inventory
+            // only, mirroring the Unit Listing. Sold units stay editable in Block Unit Maintenance.
+            where unit.ProjectId == projectId.Value && !unit.IsSold
             orderby unit.SequenceNumber
             select new ProjectUnitPriceDto(
                 price != null ? (Guid?)price.Id : null,

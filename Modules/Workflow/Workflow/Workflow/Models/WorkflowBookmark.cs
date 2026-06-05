@@ -12,7 +12,7 @@ public class WorkflowBookmark : Entity<Guid>
     public string? Payload { get; private set; }
     public bool IsConsumed { get; private set; }
     public DateTime? DueAt { get; private set; }
-    public DateTime CreatedAt { get; private set; }
+    public new DateTime CreatedAt { get; private set; }
     public DateTime? ConsumedAt { get; private set; }
     public string? ConsumedBy { get; private set; }
     

@@ -4,7 +4,8 @@ namespace Appraisal.Application.Features.Project.GetProjectModelById;
 
 /// <summary>Handler for getting a single project model by ID.</summary>
 public class GetProjectModelByIdQueryHandler(
-    IProjectRepository projectRepository
+    IProjectRepository projectRepository,
+    IPricingAnalysisRepository pricingAnalysisRepository
 ) : IQueryHandler<GetProjectModelByIdQuery, GetProjectModelByIdResult>
 {
     public async Task<GetProjectModelByIdResult> Handle(
@@ -17,6 +18,9 @@ public class GetProjectModelByIdQueryHandler(
         var model = project.Models.FirstOrDefault(m => m.Id == query.ModelId)
                     ?? throw new InvalidOperationException($"Project model {query.ModelId} not found");
 
-        return new GetProjectModelByIdResult(GetProjectModelsQueryHandler.MapToDto(model));
+        var paSummaries = await pricingAnalysisRepository
+            .GetProjectModelPricingSummariesAsync([model.Id], cancellationToken);
+
+        return new GetProjectModelByIdResult(GetProjectModelsQueryHandler.MapToDto(model, paSummaries));
     }
 }

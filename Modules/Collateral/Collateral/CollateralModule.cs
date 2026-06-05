@@ -25,6 +25,9 @@ public static class CollateralModule
         // Singleton: in-memory job state must survive across requests
         services.AddSingleton<CollateralBackfillJob>();
 
+        // Scoped: Hangfire instantiates per execution via DI scope
+        services.AddScoped<BlockReappraisalJob>();
+
         return services;
     }
 

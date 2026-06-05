@@ -25,4 +25,7 @@ public static class CollateralTypes
 
     /// <summary>Machinery / equipment.</summary>
     public const string Machine = "MAC";
+
+    /// <summary>Block project (condo-block or land-and-building village).</summary>
+    public const string Project = "PRJ";
 }

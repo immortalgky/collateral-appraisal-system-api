@@ -20,6 +20,7 @@ public class GetSupportingDetailListEndpoint : ICarterModule
         .WithName("GetSupportingDetailList")
         .Produces<GetSupportingDetailListResult>()
         .WithSummary("Get supporting detail list")
-        .WithDescription("Retrieves a paginated list of supporting detail records.");
+        .WithDescription("Retrieves a paginated list of supporting detail records.")
+        .RequireAuthorization();
     }
 }

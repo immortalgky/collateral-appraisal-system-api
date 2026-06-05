@@ -25,7 +25,7 @@ public record SupportingDataDetailDto(
     string? Province,
     decimal? Latitude,
     decimal? Longitude,
-    string? PlotLocationType,
+    List<string?> PlotLocationType,
     string? PlotLocationTypeOther,
     decimal? PricePerUnit,
     decimal? OfferingPrice,

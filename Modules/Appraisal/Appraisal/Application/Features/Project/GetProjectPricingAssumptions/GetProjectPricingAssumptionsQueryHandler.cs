@@ -9,7 +9,8 @@ namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
 /// For Condo projects the CoverageAmount fall-back is derived from FireInsuranceCondition.
 /// </summary>
 public class GetProjectPricingAssumptionsQueryHandler(
-    IProjectRepository projectRepository
+    IProjectRepository projectRepository,
+    IPricingAnalysisRepository pricingAnalysisRepository
 ) : IQueryHandler<GetProjectPricingAssumptionsQuery, GetProjectPricingAssumptionsResult>
 {
 
@@ -19,6 +20,11 @@ public class GetProjectPricingAssumptionsQueryHandler(
     {
         var project = await projectRepository.GetWithPricingGraphAsync(query.AppraisalId, cancellationToken)
                       ?? throw new InvalidOperationException($"Project not found for appraisal {query.AppraisalId}");
+
+        // Batch-load PricingAnalysis summaries for all models (replaces the removed nav property).
+        var modelIds = project.Models.Select(m => m.Id);
+        var paSummaries = await pricingAnalysisRepository
+            .GetProjectModelPricingSummariesAsync(modelIds, cancellationToken);
 
         var assumption = project.PricingAssumption;
         var isCondo = project.ProjectType == ProjectType.Condo;
@@ -48,7 +54,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 FloorIncrementAmount: null,
                 NearGardenAdjustment: null,
                 LandIncreaseDecreaseRate: null,
-                ModelAssumptions: DeriveFromModels(project.Models, isCondo));
+                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries));
 
             return new GetProjectPricingAssumptionsResult(shellDto);
         }
@@ -65,7 +71,8 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 .Select(ma =>
                 {
                     modelByName.TryGetValue(ma.ModelType ?? string.Empty, out var model);
-
+                    ProjectModelPricingSummary? paSum = model is not null
+                        && paSummaries.TryGetValue(model.Id, out var found) ? found : null;
                     return new ProjectModelAssumptionDto(
                         ma.ProjectModelId,
                         ma.ModelType,
@@ -75,15 +82,18 @@ public class GetProjectPricingAssumptionsQueryHandler(
                         ma.StandardLandPrice,
                         ma.CoverageAmount,
                         ma.FireInsuranceCondition,
-                        PricingAnalysisId: model?.PricingAnalysis?.Id,
-                        PricingAnalysisStatus: model?.PricingAnalysis?.Status,
+                        // PricingAnalysisId: model?.PricingAnalysis?.Id,
+                        // PricingAnalysisStatus: model?.PricingAnalysis?.Status,
+                        // AppraisalPrice: GetAppraisalPrice(model?.PricingAnalysis),
+                        // StandardPriceUnit: ma.StandardPriceUnit);
+                        PricingAnalysisId: paSum?.PricingAnalysisId,
+                        PricingAnalysisStatus: paSum?.Status,
                         FinalValueAdjusted: GetFinalValueAdjusted(model?.PricingAnalysis),
-                        AppraisalPrice: GetAppraisalPrice(model?.PricingAnalysis),
-                        StandardPriceUnit: ma.StandardPriceUnit);
+                        FinalAppraisedValue: paSum?.FinalAppraisedValue);
                 })
                 .OrderBy(ma => ma.ModelType)
                 .ToList()
-            : DeriveFromModels(project.Models, isCondo);
+            : DeriveFromModels(project.Models, isCondo, paSummaries);
 
         var dto = new ProjectPricingAssumptionDto(
             assumption.Id,

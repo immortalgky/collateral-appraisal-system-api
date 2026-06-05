@@ -15,11 +15,14 @@ public class GetSupportingDataListEndpoint : ICarterModule
             [FromQuery] DateTime? lastModifiedDateFrom,
             [FromQuery] DateTime? lastModifiedDateTo,
             [FromQuery] string? supportingNumber,
+            [FromQuery] string? search,
+            [FromQuery] string? sortBy,
+            [FromQuery] string? sortDir,
             ISender sender,
             CancellationToken cancellationToken
         ) =>
         {
-            var filter = new GetSupportingDataListQuery(pagination.PageNumber, pagination.PageSize, status, dateFrom, dateTo, lastModifiedDateFrom, lastModifiedDateTo, supportingNumber);
+            var filter = new GetSupportingDataListQuery(pagination.PageNumber, pagination.PageSize, status, dateFrom, dateTo, lastModifiedDateFrom, lastModifiedDateTo, supportingNumber, search, sortBy, sortDir);
 
             var result = await sender.Send(filter, cancellationToken);
 
@@ -30,6 +33,7 @@ public class GetSupportingDataListEndpoint : ICarterModule
         .ProducesProblem(StatusCodes.Status401Unauthorized)
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Get supporting data list")
-        .WithDescription("Retrieves a paginated list of supporting data records with optional filtering by status, import data, and supporting number.");
+        .WithDescription("Retrieves a paginated list of supporting data records with optional filtering by status, import data, and supporting number.")
+        .RequireAuthorization();
     }
 }

@@ -1,9 +1,13 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Shared.Time;
 
 namespace Auth.Application.Features.Users.GetUsers;
 
-public class GetUsersQueryHandler(UserManager<ApplicationUser> userManager, AuthDbContext dbContext)
+public class GetUsersQueryHandler(
+    UserManager<ApplicationUser> userManager,
+    AuthDbContext dbContext,
+    IDateTimeProvider dateTimeProvider)
     : IQueryHandler<GetUsersQuery, GetUsersResult>
 {
     public async Task<GetUsersResult> Handle(GetUsersQuery query, CancellationToken cancellationToken)
@@ -28,6 +32,10 @@ public class GetUsersQueryHandler(UserManager<ApplicationUser> userManager, Auth
             q = q.Where(u => dbContext.UserRoles
                 .Any(ur => ur.UserId == u.Id &&
                            dbContext.Roles.Any(r => r.Id == ur.RoleId && r.Name == query.Role)));
+
+        // Active status filter
+        if (query.IsActive.HasValue)
+            q = q.Where(u => u.IsActive == query.IsActive.Value);
 
         var total = await q.LongCountAsync(cancellationToken);
 
@@ -56,10 +64,16 @@ public class GetUsersQueryHandler(UserManager<ApplicationUser> userManager, Auth
             .GroupBy(x => x.UserId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.RoleName).ToList());
 
+        // Compare in UTC: LockoutEnd is a DateTimeOffset; comparing its UTC instant
+        // against UtcNow avoids implicit local-offset conversion bugs.
+        var nowUtc = dateTimeProvider.UtcNow;
+
         var items = users.Select(u => new UserListItemDto(
             u.Id, u.UserName ?? "", u.FirstName, u.LastName,
             u.Email, u.AvatarUrl, u.Position, u.Department, u.CompanyId, u.AuthSource,
-            rolesByUser.TryGetValue(u.Id, out var roles) ? roles : []));
+            rolesByUser.TryGetValue(u.Id, out var roles) ? roles : [],
+            u.IsActive,
+            u.LockoutEnd.HasValue && u.LockoutEnd.Value.UtcDateTime > nowUtc));
 
         return new GetUsersResult(items, total, pageNumber, pageSize);
     }

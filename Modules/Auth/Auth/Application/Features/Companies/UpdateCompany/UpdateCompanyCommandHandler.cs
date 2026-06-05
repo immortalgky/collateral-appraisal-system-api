@@ -26,6 +26,11 @@ public class UpdateCompanyCommandHandler(ICompanyRepository companyRepository)
             command.IsActive,
             command.LoanTypes);
 
+        // Full-record PUT: bank account is always (re)applied. Callers send the current
+        // values back (and null to intentionally clear) — do NOT guard on "provided",
+        // that would break intentional clearing.
+        company.SetBankAccount(command.BankAccountNo, command.BankAccountName);
+
         await companyRepository.SaveChangesAsync(cancellationToken);
 
         return new UpdateCompanyResult(true);

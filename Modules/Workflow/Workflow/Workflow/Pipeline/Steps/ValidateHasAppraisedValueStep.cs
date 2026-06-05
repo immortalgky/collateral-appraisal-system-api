@@ -18,7 +18,8 @@ public class ValidateHasAppraisedValueStep(
         name: "ValidateHasAppraisedValue",
         displayName: "Validate Has Appraised Value",
         kind: StepKind.Validation,
-        description: "Ensures the appraisal has at least one property with an appraised value > 0.");
+        description: "Blocks completion until the appraisal has at least one property with an appraised value > 0 in ValuationAnalyses. No parameters required.",
+        exampleParametersJson: "{}");
 
     public async Task<ProcessStepResult> ExecuteAsync(ProcessStepContext ctx, CancellationToken ct)
     {

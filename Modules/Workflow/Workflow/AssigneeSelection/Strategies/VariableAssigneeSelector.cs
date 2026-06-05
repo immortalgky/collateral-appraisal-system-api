@@ -45,16 +45,30 @@ public class VariableAssigneeSelector : IAssigneeSelector
                 AssigneeSelectionResult.Failure($"Workflow variable '{variableName}' is not set or empty"));
         }
 
+        // Read the optional assignedType from a second workflow variable (assignedTypeVariable).
+        // When assignedType == "2" the assigneeId is a group/pool name, not a personal username.
+        // Setting AssignedType in metadata causes TaskActivity to emit PendingTask.AssignedType="2"
+        // so the task is visible in GetPoolTasks (which filters on AssignedType='2' AND AssigneeUserId IN groups).
+        var assignedTypeVarName = GetStringValue(context.Properties, "assignedTypeVariable");
+        var assignedType = "1"; // default: direct user
+        if (!string.IsNullOrWhiteSpace(assignedTypeVarName))
+        {
+            var typeFromVar = GetStringValue(context.Variables, assignedTypeVarName);
+            if (!string.IsNullOrWhiteSpace(typeFromVar))
+                assignedType = typeFromVar;
+        }
+
         _logger.LogInformation(
-            "VariableAssignee selector assigned user {Username} for activity {ActivityName} from variable {VariableName}",
-            username, context.ActivityName, variableName);
+            "VariableAssignee selector assigned {Assignee} (type={AssignedType}) for activity {ActivityName} from variable {VariableName}",
+            username, assignedType, context.ActivityName, variableName);
 
         return Task.FromResult(
             AssigneeSelectionResult.Success(username, new Dictionary<string, object>
             {
                 ["SelectionStrategy"] = "VariableAssignee",
                 ["SourceVariable"] = variableName,
-                ["ResolvedAssignee"] = username
+                ["ResolvedAssignee"] = username,
+                ["AssignedType"] = assignedType
             }));
     }
 

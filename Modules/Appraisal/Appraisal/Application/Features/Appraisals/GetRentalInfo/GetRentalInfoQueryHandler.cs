@@ -15,9 +15,8 @@ public class GetRentalInfoQueryHandler(
         var property = appraisal.GetProperty(query.PropertyId)
             ?? throw new PropertyNotFoundException(query.PropertyId);
 
-        if (!property.PropertyType.IsLeaseAgreement)
-            throw new InvalidOperationException($"Property {query.PropertyId} is not a lease agreement property");
-
+        // RentalInfo is present on lease-agreement properties and on plain land
+        // (L/LB) flagged "rented out to others" — both are valid sources.
         var info = property.RentalInfo
             ?? throw new InvalidOperationException($"Rental info not found for property {query.PropertyId}");
 

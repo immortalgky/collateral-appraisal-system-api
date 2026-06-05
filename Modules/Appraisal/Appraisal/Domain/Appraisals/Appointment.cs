@@ -28,6 +28,20 @@ public class Appointment : Entity<Guid>
     public DateTime? ApprovedAt { get; private set; }
     public int RescheduleCount { get; private set; }
 
+    // Inline-edit approval markers
+    /// <summary>
+    /// True when the appointment is in Pending state and an approval will be needed
+    /// (set by the inline reschedule/create handlers after policy evaluation).
+    /// Cleared when auto-approved or when the approval is resolved.
+    /// </summary>
+    public bool RequiresApproval { get; private set; }
+
+    /// <summary>
+    /// Stamped when Submit for Approval is called. Null means the change is a draft
+    /// that has not yet been submitted for bank review.
+    /// </summary>
+    public DateTime? ApprovalSubmittedAt { get; private set; }
+
     // Contact Person
     public string AppointedBy { get; private set; } = default!;
     public string? ContactPerson { get; private set; }
@@ -83,6 +97,9 @@ public class Appointment : Entity<Guid>
         ApprovedBy = approvedBy;
         ApprovedAt = DateTime.Now;
         ActionDate = DateTime.Now;
+        // Clear approval markers — auto-applied or bank-approved; no pending draft remains.
+        RequiresApproval = false;
+        ApprovalSubmittedAt = null;
     }
 
     public void Complete(string changedBy)
@@ -117,6 +134,61 @@ public class Appointment : Entity<Guid>
         RescheduleCount++;
         Status = "Pending"; // Reset to pending for re-approval
         ActionDate = DateTime.Now;
+    }
+
+    /// <summary>
+    /// Flags this appointment as requiring bank approval (set after policy evaluation
+    /// in the inline reschedule/create handler when the policy returns true).
+    /// </summary>
+    public void FlagRequiresApproval()
+    {
+        RequiresApproval = true;
+    }
+
+    /// <summary>
+    /// Stamps the moment the pending appointment was submitted for bank approval.
+    /// Prevents further edits until the approval is resolved.
+    /// </summary>
+    public void MarkApprovalSubmitted()
+    {
+        ApprovalSubmittedAt = DateTime.Now;
+    }
+
+    /// <summary>
+    /// Clears the approval markers after a resolution (approve or reject) so that
+    /// a fresh draft can begin after a rejection.
+    /// </summary>
+    public void ClearApprovalMarkers()
+    {
+        RequiresApproval = false;
+        ApprovalSubmittedAt = null;
+    }
+
+    /// <summary>
+    /// Reverts the appointment to the last approved date when a reschedule request is rejected.
+    /// Decrements RescheduleCount (undo the increment from Reschedule).
+    /// Does NOT re-approve automatically — appointment remains Pending until re-approved.
+    /// </summary>
+    public void RejectReschedule(string changedBy, string? reason = null)
+    {
+        // Find the date that was active just before the most recent reschedule.
+        // The most recent "Rescheduled" history entry captured the prior date.
+        var lastRescheduledHistory = _history
+            .Where(h => h.ChangeType == "Rescheduled")
+            .OrderByDescending(h => h.ChangedAt)
+            .FirstOrDefault();
+
+        RecordHistory("RescheduleRejected", changedBy, reason); // distinct from a user cancellation — this is an approver rejecting a pending reschedule
+
+        if (lastRescheduledHistory is not null)
+        {
+            AppointmentDateTime = lastRescheduledHistory.PreviousAppointmentDateTime;
+            if (RescheduleCount > 0) RescheduleCount--;
+        }
+
+        Reason = reason;
+        ActionDate = DateTime.Now;
+        // Keep status as-is (Pending — must be re-approved for the reverted date)
     }
 
     private void RecordHistory(string changeType, string changedBy, string? reason)

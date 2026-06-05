@@ -30,6 +30,7 @@ public class GetSupportingDetailListQueryHandler(
             d.Location?.Latitude,
             d.Location?.Longitude,
             d.PlotLocationType,
+            d.PlotLocationTypeOther,
             d.PricePerUnit,
             d.OfferingPrice,
             d.SellingPrice,

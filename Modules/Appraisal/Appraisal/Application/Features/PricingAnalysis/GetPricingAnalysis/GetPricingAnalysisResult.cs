@@ -5,8 +5,10 @@ namespace Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysis;
 /// </summary>
 public record GetPricingAnalysisResult(
     Guid Id,
-    Guid? PropertyGroupId,
-    Guid? ProjectModelId,
+    PricingAnalysisSubjectType SubjectType,
+    Guid? AnchorId,
+    string? AnchorRefKey,
+    Guid? HostMethodId,
     string Status,
     decimal? FinalAppraisedValue,
     bool UseSystemCalc,

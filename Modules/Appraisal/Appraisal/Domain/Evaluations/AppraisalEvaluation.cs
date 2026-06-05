@@ -7,29 +7,6 @@ namespace Appraisal.Domain.Evaluations;
 /// </summary>
 public class AppraisalEvaluation : Entity<Guid>
 {
-    // ── Criterion weights ───────────────────────────────────────────────────
-    // Source of truth for the composite-score formula. Must stay in lockstep
-    // with the literals in appraisal.vw_AppraisalEvaluationList.sql — keep both
-    // in sync if weights ever change.
-    public const decimal Criterion1Weight = 0.40m;
-    public const decimal Criterion2Weight = 0.30m;
-    public const decimal Criterion3Weight = 0.10m;
-    public const decimal Criterion4Weight = 0.10m;
-    public const decimal Criterion5Weight = 0.10m;
-
-    /// <summary>
-    /// Computes the composite quality score using the weighted criteria.
-    /// Missing ratings count as 0 so partial Pending rows still produce a
-    /// usable partial score — mirrors the SQL view's behaviour.
-    /// </summary>
-    public static decimal ComputeTotalScore(
-        int? c1, int? c2, int? c3, int? c4, int? c5) =>
-        Criterion1Weight * (c1 ?? 0)
-      + Criterion2Weight * (c2 ?? 0)
-      + Criterion3Weight * (c3 ?? 0)
-      + Criterion4Weight * (c4 ?? 0)
-      + Criterion5Weight * (c5 ?? 0);
-
     // ── Core identifiers ────────────────────────────────────────────────────
     public Guid AppraisalId { get; private set; }
 

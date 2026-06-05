@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Projects;
 
 namespace Appraisal.Infrastructure.Configurations.Projects;
@@ -34,14 +33,10 @@ public class ProjectModelConfiguration : IEntityTypeConfiguration<ProjectModel>
         // Pricing — both Condo and LB use a min/max range.
         builder.Property(e => e.StartingPriceMin).HasPrecision(18, 2);
         builder.Property(e => e.StartingPriceMax).HasPrecision(18, 2);
-        // StandardPrice column dropped — standard price is now derived from PricingAnalysis.FinalAppraisedValue.
-
-        // 1:1 inverse navigation only — FK, cascade, and filtered unique index are all
-        // declared on the PricingAnalysis side in PricingConfiguration.cs.
-        builder.HasOne(e => e.PricingAnalysis)
-            .WithOne()
-            .HasForeignKey<PricingAnalysis>(pa => pa.ProjectModelId)
-            .IsRequired(false);
+        // StandardPrice is derived from IPricingAnalysisRepository.GetProjectModelPricingSummariesAsync
+        // at the query-handler layer. No EF navigation is configured here — PricingAnalysis is a
+        // separate aggregate and AnchorId is polymorphic (shared across PropertyGroup, ProjectModel, and
+        // reference rows), so a DB-level FK from AnchorId → ProjectModels.Id would be incorrect.
 
         // Usable Area
         builder.Property(e => e.UsableAreaMin).HasPrecision(10, 2);

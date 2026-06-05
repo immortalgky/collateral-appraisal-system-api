@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Appraisal.Infrastructure.Configurations;
 
 public class SupportingDataConfiguration : IEntityTypeConfiguration<SupportingData>
@@ -72,7 +74,11 @@ public class SupportingDataDetailConfiguration : IEntityTypeConfiguration<Suppor
             loc.Property(l => l.Longitude).HasPrecision(9, 6).HasColumnName("Longitude");
         });
 
-        builder.Property(x => x.PlotLocationType).HasMaxLength(100);
+        builder.Property(x => x.PlotLocationType)
+            .HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+            .HasColumnType("nvarchar(500)");
         builder.Property(x => x.PlotLocationTypeOther).HasMaxLength(1000);
         builder.Property(x => x.PricePerUnit).HasPrecision(17, 2);
         builder.Property(x => x.OfferingPrice).HasPrecision(17, 2);

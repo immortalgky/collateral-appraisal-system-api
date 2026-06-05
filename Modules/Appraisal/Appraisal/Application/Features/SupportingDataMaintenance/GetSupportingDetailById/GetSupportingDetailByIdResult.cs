@@ -12,6 +12,7 @@ public record SupportingDetailImageDto(
 
 public record GetSupportingDetailByIdResult(
     Guid Id,
+    bool HasAuthorityToEdit,
     string? PropertyName,
     string? Developer,
     string? ModelName,
@@ -27,7 +28,8 @@ public record GetSupportingDetailByIdResult(
     string? Province,
     decimal? Latitude,
     decimal? Longitude,
-    string? PlotLocationType,
+    List<string?> PlotLocationType,
+    string? PlotLocationTypeOther,
     decimal? PricePerUnit,
     decimal? OfferingPrice,
     decimal? SellingPrice,

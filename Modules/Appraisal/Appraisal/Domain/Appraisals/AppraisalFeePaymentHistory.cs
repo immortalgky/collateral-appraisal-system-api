@@ -1,6 +1,17 @@
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
+/// Discriminator constants for AppraisalFeePaymentHistory.Source.
+/// "Customer" — a real cash/transfer payment from the customer.
+/// "BankAbsorb" — a synthetic settlement row created when the bank pays the invoice.
+/// </summary>
+public static class PaymentSource
+{
+    public const string Customer = "Customer";
+    public const string BankAbsorb = "BankAbsorb";
+}
+
+/// <summary>
 /// Payment history for an AppraisalFee.
 /// Tracks individual payments for partial/full payment tracking.
 /// </summary>
@@ -17,6 +28,12 @@ public class AppraisalFeePaymentHistory : Entity<Guid>
     // Remarks
     public string? Remarks { get; private set; }
 
+    /// <summary>
+    /// Discriminator: "Customer" for real cash/transfer payments; "BankAbsorb" for
+    /// the synthetic row inserted when the bank settles the invoice.
+    /// </summary>
+    public string Source { get; private set; } = PaymentSource.Customer;
+
     private AppraisalFeePaymentHistory()
     {
         // For EF Core
@@ -28,7 +45,8 @@ public class AppraisalFeePaymentHistory : Entity<Guid>
         DateTime paymentDate,
         string? paymentMethod = null,
         string? paymentReference = null,
-        string? remarks = null)
+        string? remarks = null,
+        string source = PaymentSource.Customer)
     {
         return new AppraisalFeePaymentHistory
         {
@@ -38,7 +56,8 @@ public class AppraisalFeePaymentHistory : Entity<Guid>
             PaymentDate = paymentDate,
             PaymentMethod = paymentMethod,
             PaymentReference = paymentReference,
-            Remarks = remarks
+            Remarks = remarks,
+            Source = source
         };
     }
 

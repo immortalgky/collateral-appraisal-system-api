@@ -73,12 +73,23 @@ public class ActivityProcessPipelineTests
         sink.PersistAsync(Arg.Any<IReadOnlyList<ActivityProcessExecution>>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
+        var reporter = Substitute.For<IActivityProgressReporter>();
+        reporter.PipelineStarted(default, default!, default!, default!, default)
+            .ReturnsForAnyArgs(Task.CompletedTask);
+        reporter.StepStarted(default, default!, default!, default)
+            .ReturnsForAnyArgs(Task.CompletedTask);
+        reporter.StepFinished(default, default!, default!, default, default!, default)
+            .ReturnsForAnyArgs(Task.CompletedTask);
+        reporter.PipelineFinished(default, default!, default!, default)
+            .ReturnsForAnyArgs(Task.CompletedTask);
+
         return new ActivityProcessPipeline(
             db,
             instanceRepo,
             predicateEvaluator,
             steps,
             sink,
+            reporter,
             Substitute.For<ILogger<ActivityProcessPipeline>>());
     }
 

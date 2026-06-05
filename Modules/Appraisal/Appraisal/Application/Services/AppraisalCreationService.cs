@@ -13,6 +13,7 @@ namespace Appraisal.Application.Services;
 /// </summary>
 public class AppraisalCreationService(
     IAppraisalRepository appraisalRepository,
+    IProjectRepository projectRepository,
     IAppraisalUnitOfWork unitOfWork,
     AppraisalDbContext dbContext,
     ICurrentUserService currentUserService,
@@ -39,6 +40,7 @@ public class AppraisalCreationService(
         Guid? prevAppraisalId = null,
         string? appraisalType = null,
         Guid? workflowDefinitionId = null,
+        string? groupTag = null,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Creating appraisal from request {RequestId} with {TitleCount} titles",
@@ -77,20 +79,27 @@ public class AppraisalCreationService(
                             && prevAppraisalId.HasValue;
         var isBlock = titlesToProcess.Any(t => ProjectCodes.Contains(t.CollateralType ?? ""));
 
-        // Step 3: Resolve workflow-level SLA budget. workflowDefinitionId is optional because the caller
-        // (AppraisalCreationRequestedIntegrationEventHandler) may not always know the definition ID at
-        // creation time. When null, the appraisal SLA hours remain null instead of using a hardcoded fallback.
+        // Step 3: Resolve workflow-level SLA budget. The publish paths now carry WorkflowDefinitionId,
+        // so this is normally non-null. Kept optional as a defensive guard: when null (e.g. a future
+        // caller without workflow context), SLA stays null rather than using a hardcoded fallback.
+        // Use the snapshot's business-hours-aware DueAt (already in application-local time) rather
+        // than recomputing a naive calendar delta, and anchor it to the same base time the appraisal
+        // records below (requestedAt ?? ApplicationNow) so SLAHours, SLADueDate and the base agree.
         int? appraisalSlaHours = null;
+        DateTime? appraisalSlaDueDate = null;
         if (workflowDefinitionId.HasValue)
         {
+            var slaBase = requestedAt ?? dateTimeProvider.ApplicationNow;
             var slaSnapshot = await slaCalculatorClient.GetWorkflowSlaAsync(
-                workflowDefinitionId.Value, loanType: null, startedAt: DateTime.Now, cancellationToken);
+                workflowDefinitionId.Value, loanType: null, startedAt: slaBase, cancellationToken);
             appraisalSlaHours = slaSnapshot?.DurationHours;
+            appraisalSlaDueDate = slaSnapshot?.DueAt;
         }
 
         // Step 4: Create Appraisal aggregate
         var resolvedAppraisalType =
             isProgressive ? AppraisalTypes.Progressive
+            : appraisalType == AppraisalTypes.ReAppraisal ? AppraisalTypes.ReAppraisal
             : isBlock ? AppraisalTypes.PreAppraisal
             : AppraisalTypes.New;
         var appraisal = Domain.Appraisals.Appraisal.Create(
@@ -99,6 +108,7 @@ public class AppraisalCreationService(
             priority ?? "Normal",
             dateTimeProvider.ApplicationNow,
             appraisalSlaHours,
+            appraisalSlaDueDate,
             requestedBy ?? createdBy,
             isPma,
             purpose,
@@ -107,7 +117,11 @@ public class AppraisalCreationService(
             facilityLimit,
             hasAppraisalBook,
             requestedAt,
-            isProgressive ? prevAppraisalId : null);
+            prevAppraisalId);
+
+        // Stamp the reappraisal batch tag when provided (system-only; no user edit path).
+        if (!string.IsNullOrWhiteSpace(groupTag))
+            appraisal.SetGroupTag(groupTag);
 
         // Track prior→new property mapping so we can duplicate PropertyPhotoMapping rows
         // AFTER Phase 1 SaveChanges (which is where DB-generated IDs land on the new properties).
@@ -128,9 +142,15 @@ public class AppraisalCreationService(
             //   - Lease land family (LSL, LS): same rule, independent from non-lease family.
             //   - B, LSB: not auto-created (appraiser adds manually).
             //   - U, VEH, VES, MAC: one property per title.
-            var landFamily = titlesToProcess.Where(t => GetAppraisalFamily(t) is "L" or "LB").ToList();
-            var leaseLandFamily = titlesToProcess.Where(t => GetAppraisalFamily(t) is "LSL" or "LS").ToList();
-            var notAutoCreated = titlesToProcess.Where(t => GetAppraisalFamily(t) is "B" or "LSB").ToList();
+            // Block/project codes (32, 33) only create the Project aggregate header (below),
+            // never individual property rows — exclude them from property partitioning.
+            var propertyTitles = titlesToProcess
+                .Where(t => !ProjectCodes.Contains(t.CollateralType ?? ""))
+                .ToList();
+
+            var landFamily = propertyTitles.Where(t => GetAppraisalFamily(t) is "L" or "LB").ToList();
+            var leaseLandFamily = propertyTitles.Where(t => GetAppraisalFamily(t) is "LSL" or "LS").ToList();
+            var notAutoCreated = propertyTitles.Where(t => GetAppraisalFamily(t) is "B" or "LSB").ToList();
 
             foreach (var t in notAutoCreated)
                 logger.LogInformation(
@@ -143,7 +163,7 @@ public class AppraisalCreationService(
             if (leaseLandFamily.Any())
                 CreateLeaseLandFamilyProperty(appraisal, leaseLandFamily);
 
-            foreach (var title in titlesToProcess)
+            foreach (var title in propertyTitles)
                 switch (GetAppraisalFamily(title))
                 {
                     case "U": CreateCondoProperty(appraisal, title); break;
@@ -207,6 +227,12 @@ public class AppraisalCreationService(
                 logger.LogInformation(
                     "Initialized Project {ProjectId} (type={ProjectType}) for appraisal {AppraisalId}",
                     project.Id, projectType, appraisal.Id);
+
+                // Block reappraisal: seed unsold units from the prior project so the appraiser
+                // starts from the remaining inventory rather than an empty sheet.
+                // Parity with CI's null-prior handling: if prior project is missing, log and skip.
+                if (prevAppraisalId.HasValue)
+                    await SeedProjectUnitsFromPriorAsync(project, prevAppraisalId.Value, cancellationToken);
             }
 
             // Phase 2: Create group(s) + assignment, then save so the assignment row exists in DB
@@ -884,12 +910,14 @@ public class AppraisalCreationService(
             .ThenInclude(m => m.HypothesisAnalysis!)
             .ThenInclude(h => h.CostItems)
             .ThenInclude(ci => ci.DepreciationPeriods)
-            .Where(p => p.PropertyGroupId != null && priorGroupIds.Contains(p.PropertyGroupId.Value))
+            .Where(p => p.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+                        && p.AnchorId != null
+                        && priorGroupIds.Contains(p.AnchorId.Value))
             .ToListAsync(cancellationToken);
 
         foreach (var prior in priorPricingAnalyses)
         {
-            if (!priorToNewGroupIds.TryGetValue(prior.PropertyGroupId!.Value, out var newGroupId))
+            if (!priorToNewGroupIds.TryGetValue(prior.AnchorId!.Value, out var newGroupId))
                 continue;
 
             var clone = PricingAnalysis.CloneForGroup(prior, newGroupId, priorToNewPropertyIds);
@@ -926,5 +954,73 @@ public class AppraisalCreationService(
         logger.LogInformation(
             "CI comparables clone: cloned {Count} AppraisalComparable row(s) from prior {PrevAppraisalId}.",
             priorComparables.Count, prevAppraisalId);
+    }
+
+    /// <summary>
+    /// Seeds the new block Project with the unsold units from the prior appraisal's Project.
+    /// Called only for block reappraisals (prevAppraisalId.HasValue).
+    /// If the prior Project does not exist (first-time block or orphaned data), logs a warning
+    /// and leaves the new project as an empty header — parity with CI's null-prior handling.
+    /// </summary>
+    private async Task SeedProjectUnitsFromPriorAsync(
+        Project project,
+        Guid prevAppraisalId,
+        CancellationToken cancellationToken)
+    {
+        var priorProject = await projectRepository.GetWithFullGraphAsync(prevAppraisalId, cancellationToken);
+
+        if (priorProject is null)
+        {
+            logger.LogWarning(
+                "Block reappraisal seed: prior project for appraisal {PrevAppraisalId} not found. " +
+                "New project {ProjectId} will start with an empty unit list.",
+                prevAppraisalId, project.Id);
+            return;
+        }
+
+        var unsoldUnits = priorProject.Units.Where(u => !u.IsSold).ToList();
+
+        if (unsoldUnits.Count == 0)
+        {
+            logger.LogInformation(
+                "Block reappraisal seed: prior project for appraisal {PrevAppraisalId} has no unsold units. " +
+                "New project {ProjectId} will start with an empty unit list.",
+                prevAppraisalId, project.Id);
+            return;
+        }
+
+        // Recreate each unsold unit via the domain factory, preserving business-key fields.
+        // IsSold defaults to false in the factory — correct for remaining inventory.
+        var seededUnits = project.ProjectType == ProjectType.Condo
+            ? unsoldUnits.Select((u, idx) => ProjectUnit.CreateCondo(
+                projectId: project.Id,
+                uploadBatchId: Guid.Empty,  // ImportUnits sets the real batchId
+                sequenceNumber: idx + 1,
+                floor: u.Floor,
+                towerName: u.TowerName,
+                condoRegistrationNumber: u.CondoRegistrationNumber,
+                roomNumber: u.RoomNumber,
+                modelType: u.ModelType,
+                usableArea: u.UsableArea,
+                sellingPrice: u.SellingPrice)).ToList()
+            : unsoldUnits.Select((u, idx) => ProjectUnit.CreateLandAndBuilding(
+                projectId: project.Id,
+                uploadBatchId: Guid.Empty,  // ImportUnits sets the real batchId
+                sequenceNumber: idx + 1,
+                plotNumber: u.PlotNumber,
+                houseNumber: u.HouseNumber,
+                modelType: u.ModelType,
+                numberOfFloors: u.NumberOfFloors,
+                landArea: u.LandArea,
+                usableArea: u.UsableArea,
+                sellingPrice: u.SellingPrice)).ToList();
+
+        project.ImportUnits("Seeded from prior appraisal", documentId: null, seededUnits);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Block reappraisal seed: seeded {Count} unsold unit(s) from prior project (appraisal {PrevAppraisalId}) " +
+            "into new project {ProjectId}.",
+            seededUnits.Count, prevAppraisalId, project.Id);
     }
 }

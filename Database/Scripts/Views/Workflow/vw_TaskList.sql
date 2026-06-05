@@ -39,8 +39,9 @@ SELECT pt.Id                                                                    
        pt.LockedAt,
        -- TaskId: the domain entity id that FE should route to.
        -- Quotation tasks use the QuotationRequestId; document-followup tasks use DocumentFollowup.Id;
+       -- fee-appointment approval tasks use FeeAppointmentApproval.Id;
        -- regular tasks have NULL (FE falls back to workflowInstanceId, preserving legacy behaviour).
-       COALESCE(qr.Id, df.Id)                                                             AS TaskId,
+       COALESCE(qr.Id, df.Id, faa.Id)                                                    AS TaskId,
        -- Quotation context (resolved via CorrelationId = QuotationRequestId for quotation-workflow tasks)
        qr.Id                                                                              AS QuotationRequestId,
        qr.QuotationNumber,
@@ -56,6 +57,11 @@ FROM workflow.PendingTasks pt
          OUTER APPLY (SELECT TOP 1 Id, RequestId, AppraisalId
                       FROM workflow.DocumentFollowups
                       WHERE FollowupWorkflowInstanceId = pt.WorkflowInstanceId) df
+         -- Fee-appointment approval tasks: resolve the FeeAppointmentApproval.Id and AppraisalId
+         -- by matching FollowupWorkflowInstanceId. No JSON reads on Variables.
+         OUTER APPLY (SELECT TOP 1 Id, AppraisalId
+                      FROM workflow.FeeAppointmentApprovals
+                      WHERE FollowupWorkflowInstanceId = pt.WorkflowInstanceId) faa
          -- Quotation context: pt.CorrelationId = QuotationRequestId for quotation-workflow tasks
          OUTER APPLY (SELECT TOP 1 qr2.Id, qr2.QuotationNumber, qr2.Status, qr2.CutOffTime, qr2.RmUsername
                       FROM appraisal.QuotationRequests qr2
@@ -72,15 +78,18 @@ FROM workflow.PendingTasks pt
                       FROM appraisal.Appraisals a2
                       WHERE a2.Id = qra_first.QuotationAppraisalId) qra_appraisal
          LEFT JOIN appraisal.Appraisals a ON a.Id = COALESCE(
-             qra_appraisal.Id,  -- quotation task: pick first appraisal from the quotation
-             -- followup or regular task: join via RequestId
+             qra_appraisal.Id,          -- quotation task: pick first appraisal from the quotation
+             faa.AppraisalId,           -- fee-appointment approval task: resolve directly from AppraisalId
+             df.AppraisalId,            -- document-followup task: use the stored AppraisalId
+             -- regular appraisal-workflow task: join via RequestId
              (SELECT TOP 1 a3.Id FROM appraisal.Appraisals a3
               WHERE a3.RequestId = COALESCE(df.RequestId, pt.CorrelationId))
          )
          LEFT JOIN request.Requests r ON r.Id = COALESCE(
              qra_appraisal.RequestId,   -- quotation task: request from the linked appraisal
              df.RequestId,              -- followup task
-             pt.CorrelationId           -- regular appraisal-workflow task
+             a.RequestId,               -- fee-approval/regular tasks resolved via Appraisal
+             pt.CorrelationId           -- regular appraisal-workflow task (fallback)
          )
          OUTER APPLY (SELECT TOP 1 Name
                           FROM request.RequestCustomers

@@ -75,6 +75,7 @@ public static class AppraisalModule
 
         // Register Application Services (pricing)
         services.AddScoped<PricingPropertyDataService>();
+        services.AddScoped<PricingReferenceCleanupService>();
 
         // Register Domain Services
         // IncomeCalculationService is scoped so it can carry ILogger (injected by DI).
@@ -87,6 +88,7 @@ public static class AppraisalModule
         // Register Data Seeders
         services.AddScoped<IDataSeeder<AppraisalDbContext>, AppendixTypeDataSeed>();
         services.AddScoped<IDataSeeder<AppraisalDbContext>, CommitteeThresholdDataSeed>();
+        services.AddScoped<IDataSeeder<AppraisalDbContext>, EvaluationCriteriaConfigDataSeed>();
 
         // Background services
         services.AddHostedService<QuotationAutoCloseService>();

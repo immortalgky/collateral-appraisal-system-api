@@ -18,6 +18,15 @@ public class ChangePasswordCommandHandler(UserManager<ApplicationUser> userManag
         if (!result.Succeeded)
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
 
+        // Clear the must-change-password flag if it was set (e.g. after admin reset)
+        if (user.MustChangePassword)
+        {
+            user.MustChangePassword = false;
+            var updateResult = await userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+                throw new InvalidOperationException(string.Join("; ", updateResult.Errors.Select(e => e.Description)));
+        }
+
         return Unit.Value;
     }
 }
