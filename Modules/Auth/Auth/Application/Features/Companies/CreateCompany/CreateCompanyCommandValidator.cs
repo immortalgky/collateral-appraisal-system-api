@@ -14,5 +14,6 @@ public class CreateCompanyCommandValidator : AbstractValidator<CreateCompanyComm
         RuleFor(x => x.City).MaximumLength(100);
         RuleFor(x => x.Province).MaximumLength(100);
         RuleFor(x => x.PostalCode).MaximumLength(20);
+        RuleFor(x => x.ContactPerson).MaximumLength(200);
     }
 }

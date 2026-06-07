@@ -28,6 +28,10 @@ public class WebhookDelivery : Entity<Guid>
         AttemptCount = 0;
     }
 
+    // Defensive cap on the outbound webhook body. Payload is internally generated, so this
+    // guards against pathological sizes rather than untrusted input; tune if event payloads grow.
+    public const int MaxPayloadLength = 1_000_000;
+
     public static WebhookDelivery Create(
         Guid subscriptionId,
         string eventType,
@@ -35,6 +39,11 @@ public class WebhookDelivery : Entity<Guid>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(eventType);
         ArgumentException.ThrowIfNullOrWhiteSpace(payload);
+
+        if (payload.Length > MaxPayloadLength)
+            throw new ArgumentException(
+                $"Webhook payload exceeds the maximum allowed length of {MaxPayloadLength} characters.",
+                nameof(payload));
 
         return new WebhookDelivery(subscriptionId, eventType, payload);
     }

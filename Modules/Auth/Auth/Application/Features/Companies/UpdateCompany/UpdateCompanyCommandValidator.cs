@@ -15,6 +15,7 @@ public class UpdateCompanyCommandValidator : AbstractValidator<UpdateCompanyComm
         RuleFor(x => x.City).MaximumLength(100);
         RuleFor(x => x.Province).MaximumLength(100);
         RuleFor(x => x.PostalCode).MaximumLength(20);
+        RuleFor(x => x.ContactPerson).MaximumLength(200);
         RuleFor(x => x.BankAccountNo).MaximumLength(20);
         RuleFor(x => x.BankAccountName).MaximumLength(200);
     }

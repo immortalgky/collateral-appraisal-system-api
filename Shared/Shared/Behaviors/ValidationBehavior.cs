@@ -1,11 +1,14 @@
 using FluentValidation;
 using MediatR;
-using Shared.CQRS;
 
 namespace Shared.Behaviors;
 
+// Validates any request (commands AND queries) that has registered validators. Requests without
+// a validator pass through (empty validator set). Note: this intentionally has no ICommand
+// constraint — IQuery requests must be validated too, and several query validators in the
+// codebase rely on this behavior running for IQuery.
 public class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TRequest>> validators)
-    : IPipelineBehavior<TRequest, TResponse> where TRequest : ICommand<TResponse>
+    : IPipelineBehavior<TRequest, TResponse> where TRequest : notnull
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
