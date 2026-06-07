@@ -26,7 +26,7 @@ public class GetAppointmentEndpoint : ICarterModule
             .Produces<GetAppointmentResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get active appointment")
-            .WithDescription("Get the active appointment (Pending or Approved) for an appraisal.")
+            .WithDescription("Get the active appointment (Pending or Appointed) for an appraisal.")
             .WithTags("Appointment");
     }
 }

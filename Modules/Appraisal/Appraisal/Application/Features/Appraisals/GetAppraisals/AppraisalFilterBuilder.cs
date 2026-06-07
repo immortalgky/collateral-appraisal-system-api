@@ -146,8 +146,22 @@ internal static class AppraisalFilterBuilder
     {
         var sortField = AllowedSortFields.Contains(filter?.SortBy ?? "") ? filter!.SortBy! : "CreatedAt";
         var sortDir = string.Equals(filter?.SortDir, "asc", StringComparison.OrdinalIgnoreCase) ? "ASC" : "DESC";
-        return $"{sortField} {sortDir}";
+
+        // ElapsedHours/RemainingHours are no longer columns on the view (computed in C# via
+        // IBusinessTimeCalculator). Their business-time values are monotonic in the underlying
+        // timestamps, so translate the sort for exact ordering:
+        //   ElapsedHours  ASC  ≡ CreatedAt  DESC (least elapsed = most recently created)
+        //   RemainingHours ASC ≡ SLADueDate ASC  (least remaining = earliest due)
+        return sortField switch
+        {
+            "ElapsedHours" => $"CreatedAt {Invert(sortDir)}",
+            "RemainingHours" => $"SLADueDate {sortDir}",
+            _ => $"{sortField} {sortDir}"
+        };
     }
+
+    private static string Invert(string dir) =>
+        string.Equals(dir, "ASC", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
 
     private static void AddMultiValueFilter(
         List<string> conditions, DynamicParameters parameters,
