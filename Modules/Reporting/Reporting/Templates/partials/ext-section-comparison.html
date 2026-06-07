@@ -1,0 +1,23 @@
+{{- if model.comparison_section -}}
+<div class="section-bar">ข้อมูลตลาดเปรียบเทียบในการประเมินมูลค่าหลักทรัพย์</div>
+
+{{ if model.comparison_section.comparable_headers && model.comparison_section.comparable_headers.size > 0 }}
+<table class="grid">
+  <thead>
+    <tr>
+      <th>รายละเอียด</th>
+      {{ for h in model.comparison_section.comparable_headers }}<th>{{ h }}</th>{{ end }}
+    </tr>
+  </thead>
+  <tbody>
+    {{ for row in model.comparison_section.rows }}
+    <tr>
+      <td>{{ row.factor_name }}</td>
+      {{ for v in row.values }}<td>{{ v }}</td>{{ end }}
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ end }}
+
+{{- end -}}

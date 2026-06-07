@@ -1,0 +1,119 @@
+{{ if model.building_section }}
+<div class="section-bar">รายละเอียดอาคาร</div>
+
+<div class="pad">
+
+  <div class="section-bar" style="font-size:8pt; font-weight:600; text-align:left; padding:2px 6px;">รายละเอียดสิ่งปลูกสร้าง</div>
+
+  <div class="cols2" style="margin-top:4px;">
+    <div class="kv"><span class="k">เลขที่บ้าน :</span><span class="v">{{ model.building_section.house_number }}</span></div>
+    <div class="kv"><span class="k">ประเภทอาคาร :</span><span class="v">{{ model.building_section.building_type_text }}{{ if model.building_section.number_of_floors }} ({{ model.building_section.number_of_floors }} ชั้น){{ end }}{{ if model.building_section.model_name }} รุ่น {{ model.building_section.model_name }}{{ end }}</span></div>
+  </div>
+
+  <div class="cols2">
+    <div class="kv"><span class="k">ชื่ออาคาร :</span><span class="v">{{ model.building_section.building_name }}</span></div>
+    <div class="kv"><span class="k">ชื่อเจ้าของ :</span><span class="v">{{ model.building_section.owner_name }}</span></div>
+  </div>
+
+  <div class="cols2">
+    <div class="kv"><span class="k">เลขที่โฉนดที่ตั้งอาคาร :</span><span class="v">{{ model.building_section.built_on_title_number }}</span></div>
+    <div class="kv">
+      <span class="k">ใบอนุญาตก่อสร้าง :</span>
+      <span class="v">{{ if model.building_section.license_source }}ออกโดย {{ model.building_section.license_source }} {{ end }}{{ if model.building_section.license_number }}เลขที่ {{ model.building_section.license_number }}{{ end }}</span>
+    </div>
+  </div>
+
+  <div class="cols3">
+    <div class="kv"><span class="k">พื้นที่ใช้สอย (ตร.ม.) :</span><span class="v num">{{ if model.building_section.usable_area; model.building_section.usable_area | math.format "N2"; end }}</span></div>
+    <div class="kv"><span class="k">ขนาด (กว้าง × ยาว) :</span><span class="v">{{ model.building_section.size_text }}</span></div>
+    <div class="kv"><span class="k">อายุอาคาร (ปี) :</span><span class="v">{{ model.building_section.building_age }}</span></div>
+  </div>
+
+  <div class="cols2">
+    <div class="kv"><span class="k">สภาพอาคาร :</span><span class="v">{{ model.building_section.building_condition }}</span></div>
+    <div class="kv"><span class="k">การบำรุงรักษา :</span><span class="v">{{ model.building_section.maintenance }}</span></div>
+  </div>
+
+  <div class="cols3">
+    <div class="kv"><span class="k">คุณภาพวัสดุ :</span><span class="v">{{ model.building_section.material_quality }}</span></div>
+    <div class="kv"><span class="k">รูปแบบอาคาร :</span><span class="v">{{ model.building_section.building_form }}</span></div>
+    <div class="kv"><span class="k">การใช้ประโยชน์ :</span><span class="v">{{ model.building_section.utilization }}</span></div>
+  </div>
+
+  <div class="section-bar" style="font-size:8pt; font-weight:600; text-align:left; padding:2px 6px; margin-top:4px;">โครงสร้างของอาคาร</div>
+
+  <div class="cols2" style="margin-top:4px;">
+    <div class="kv"><span class="k">โครงสร้างหลัก :</span><span class="v">{{ model.building_section.main_structure }}</span></div>
+    <div class="kv"><span class="k">วัสดุหลังคา :</span><span class="v">{{ model.building_section.roof_material }}</span></div>
+  </div>
+
+  <div class="cols2">
+    <div class="kv"><span class="k">ผนัง :</span><span class="v">{{ model.building_section.wall }}</span></div>
+    <div class="kv"><span class="k">ฝ้าเพดาน :</span><span class="v">{{ model.building_section.ceiling }}</span></div>
+  </div>
+
+  <div class="cols2">
+    <div class="kv"><span class="k">การทาสี / ตกแต่ง :</span><span class="v">{{ model.building_section.painting }}</span></div>
+    <div class="kv"><span class="k">ประตู :</span><span class="v">{{ model.building_section.door }}</span></div>
+  </div>
+
+  <div class="cols3">
+    <div class="kv"><span class="k">หน้าต่าง :</span><span class="v">{{ model.building_section.window }}</span></div>
+    <div class="kv"><span class="k">สุขาภิบาล :</span><span class="v">{{ model.building_section.sanitary }}</span></div>
+    <div class="kv"><span class="k">การตกแต่ง :</span><span class="v">{{ model.building_section.decoration }}</span></div>
+  </div>
+
+</div>
+
+{{ if model.building_section.cost_rows.size > 0 }}
+<div class="section-bar">รายการประเมินทรัพย์สินโดยวิธีต้นทุน</div>
+
+<table class="grid">
+  <thead>
+    <tr>
+      <th style="width:28px;">ลำดับ</th>
+      <th>รายการสิ่งปลูกสร้าง</th>
+      <th style="width:68px;">พื้นที่<br/>(ตร.ม.)</th>
+      <th style="width:72px;">มูลค่าทดแทนใหม่<br/>หน่วยละ</th>
+      <th style="width:72px;">รวม</th>
+      <th style="width:40px;">อายุ<br/>(ปี)</th>
+      <th style="width:50px;">ค่าเสื่อม<br/>ปีละ %</th>
+      <th style="width:42px;">รวม %</th>
+      <th style="width:80px;">มูลค่าหลังหัก<br/>ค่าเสื่อม</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ for row in model.building_section.cost_rows }}
+    <tr>
+      <td class="ctr">{{ row.sequence }}</td>
+      <td>{{ row.area_item_name }}</td>
+      <td class="num">{{ if row.area; row.area | math.format "N2"; end }}</td>
+      <td class="num">{{ if row.price_per_sqm; row.price_per_sqm | math.format "N2"; end }}</td>
+      <td class="num">{{ if row.price; row.price | math.format "N2"; end }}</td>
+      <td class="ctr">{{ row.age_years }}</td>
+      <td class="num">{{ if row.depreciation_pct_per_year; row.depreciation_pct_per_year | math.format "N2"; end }}</td>
+      <td class="num">{{ if row.total_depreciation_pct; row.total_depreciation_pct | math.format "N2"; end }}</td>
+      <td class="num">{{ if row.value_after_depreciation; row.value_after_depreciation | math.format "N2"; end }}</td>
+    </tr>
+    {{ end }}
+    <tr style="font-weight:700; background:#f5f5f5;">
+      <td class="ctr" colspan="2">รวม</td>
+      <td class="num">{{ if model.building_section.total_area; model.building_section.total_area | math.format "N2"; end }}</td>
+      <td></td>
+      <td class="num">{{ if model.building_section.total_price; model.building_section.total_price | math.format "N2"; end }}</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="num">{{ if model.building_section.total_value_after_depreciation; model.building_section.total_value_after_depreciation | math.format "N2"; end }}</td>
+    </tr>
+  </tbody>
+</table>
+{{ end }}
+
+{{ if model.building_section.remark }}
+<div class="pad" style="margin-top:2px;">
+  <div class="kv"><span class="k">หมายเหตุ :</span><span class="v">{{ model.building_section.remark }}</span></div>
+</div>
+{{ end }}
+
+{{ end }}

@@ -14,4 +14,13 @@ public interface IPdfAssembler
     Task<byte[]> AssembleAsync(
         IReadOnlyList<RenderSegment> segments,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Concatenates already-rendered PDFs (e.g. the child forms of a composite report) into
+    /// one document, preserving order. Returns the single input unchanged when there is exactly
+    /// one; a valid one-page blank PDF when the list is empty.
+    /// </summary>
+    Task<byte[]> MergeAsync(
+        IReadOnlyList<byte[]> pdfs,
+        CancellationToken cancellationToken);
 }

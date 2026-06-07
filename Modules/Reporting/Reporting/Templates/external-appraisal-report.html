@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <title>รายงานประเมินมูลค่าทรัพย์สิน</title>
+  <style>
+    @font-face { font-family:'Sarabun'; font-weight:400; src:url('Sarabun.ttf') format('truetype'); }
+    @font-face { font-family:'Sarabun'; font-weight:700; src:url('Sarabun-Bold.ttf') format('truetype'); }
+
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      font-family:'Sarabun','Noto Sans Thai','Thonburi','Leelawadee UI',sans-serif;
+      font-size:10pt; line-height:1.5; color:#000; background:#fff;
+    }
+
+    /* ═══ PAGE 1 — COVER ═══════════════════════════════════════════════════════ */
+    .cover {
+      width:100%; min-height:100vh;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      padding:60px 80px;
+      page-break-after:always;
+    }
+    .cover-logo-box {
+      position:absolute; top:40px; right:60px;
+      width:90px; height:60px;
+      border:1.5px solid #333;
+      display:flex; align-items:center; justify-content:center;
+      font-size:8pt; color:#666; letter-spacing:1px;
+    }
+    .cover-title {
+      font-size:22pt; font-weight:700;
+      text-align:center; margin-bottom:32px;
+      line-height:1.35;
+    }
+    .cover-sub {
+      font-size:12pt; text-align:center; margin-bottom:6px;
+    }
+    .cover-sub-bold { font-size:12pt; font-weight:700; text-align:center; margin-bottom:4px; }
+    .cover-property-type { font-size:10.5pt; text-align:center; margin-bottom:4px; color:#333; }
+    .cover-location { font-size:10.5pt; text-align:center; margin-bottom:32px; color:#333; }
+    .cover-section-label { font-size:10pt; text-align:center; margin-bottom:4px; color:#555; }
+    .cover-bank { font-size:12pt; font-weight:700; text-align:center; margin-bottom:28px; }
+    .cover-by-label { font-size:10pt; text-align:center; margin-bottom:4px; color:#555; }
+    .cover-company { font-size:12pt; font-weight:700; text-align:center; margin-bottom:4px; }
+    .cover-addr { font-size:9.5pt; text-align:center; color:#444; margin-bottom:2px; }
+    .cover-tel  { font-size:9.5pt; text-align:center; color:#444; }
+
+    /* ═══ PAGE 2 — COMPANY LETTER ═══════════════════════════════════════════════ */
+    .letter {
+      width:100%; padding:40px 60px;
+      page-break-before:auto;
+    }
+    .letter-header-row {
+      display:flex; justify-content:space-between; align-items:flex-start;
+      margin-bottom:8px;
+    }
+    .letter-report-no { font-size:10pt; }
+    .letter-logo-box {
+      width:90px; height:60px;
+      border:1.5px solid #333;
+      display:flex; align-items:center; justify-content:center;
+      font-size:8pt; color:#666; letter-spacing:1px;
+    }
+    .letter-date { text-align:center; margin-bottom:12px; font-size:10.5pt; }
+    .letter-re   { margin-bottom:4px; font-size:10.5pt; }
+    .letter-to   { margin-bottom:16px; font-size:10.5pt; }
+    .letter-intro { margin-bottom:16px; font-size:10.5pt; line-height:1.6; }
+
+    /* Key–value table inside the letter */
+    table.kv-table {
+      width:100%; border-collapse:collapse;
+      margin-bottom:18px; font-size:10pt;
+    }
+    table.kv-table td {
+      border:1px solid #555;
+      padding:5px 8px;
+      vertical-align:top;
+    }
+    table.kv-table td.kv-label {
+      width:38%; font-weight:600; background:#fafafa;
+    }
+    table.kv-table td.kv-value {
+      width:62%;
+    }
+
+    .letter-closing { margin-bottom:18px; font-size:10.5pt; line-height:1.6; }
+    .letter-surveyor { margin-bottom:28px; font-size:10pt; }
+
+    /* 3-column signature block */
+    table.sig-table {
+      width:100%; border-collapse:collapse;
+      margin-top:32px; font-size:10pt;
+    }
+    table.sig-table td {
+      text-align:center; vertical-align:top;
+      padding:0 12px;
+      width:33.33%;
+    }
+    .sig-line {
+      border-bottom:1px solid #555;
+      margin-bottom:6px;
+      height:38px;
+    }
+    .sig-name { font-weight:600; margin-bottom:2px; }
+    .sig-role { font-size:9pt; color:#444; }
+
+    /* Shared form/table classes used by the detail-section partials (§2.1.2.3–2.1.2.7). */
+    {{ include 'partials/summary-styles' }}
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     PAGE 1 — COVER
+     §2.1.2.1  หน้าปกรายงานประเมินมูลค่าทรัพย์สิน
+  ══════════════════════════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-logo-box">LOGO</div>
+
+  <div class="cover-title">รายงานประเมินมูลค่าทรัพย์สิน</div>
+
+  <div class="cover-sub">
+    {{ model.customer_name }}
+    {{ if model.appraisal_book_number }}({{ model.appraisal_book_number }}){{ end }}
+  </div>
+
+  {{ if model.property_type_summary }}
+  <div class="cover-property-type">ประเภททรัพย์สิน : {{ model.property_type_summary }}</div>
+  {{ end }}
+
+  {{ if model.collateral_location }}
+  <div class="cover-location">ที่ตั้งทรัพย์สิน : {{ model.collateral_location }}</div>
+  {{ end }}
+
+  <div class="cover-section-label">เสนอ</div>
+  <div class="cover-bank">{{ model.bank_name }}</div>
+
+  <div class="cover-by-label">จัดทำโดย</div>
+  <div class="cover-company">{{ model.company_name }}</div>
+  {{ if model.company_address }}<div class="cover-addr">{{ model.company_address }}</div>{{ end }}
+  {{ if model.company_tel }}<div class="cover-tel">โทรศัพท์: {{ model.company_tel }}</div>{{ end }}
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     PAGE 2 — COMPANY LETTER
+     §2.1.2.2  จดหมายนำส่งบริษัท
+  ══════════════════════════════════════════════════════════════════════════════ -->
+<div class="letter">
+
+  <!-- Header row: report no (left) + logo placeholder (right) -->
+  <div class="letter-header-row">
+    <div class="letter-report-no">รายงานเลขที่ {{ model.appraisal_book_number }}</div>
+    <div class="letter-logo-box">LOGO</div>
+  </div>
+
+  <!-- Date -->
+  <div class="letter-date">วันที่ {{ thai.date model.verify_date }}</div>
+
+  <!-- Subject / To -->
+  <div class="letter-re">เรื่อง&nbsp;&nbsp; แจ้งผลการประเมินมูลค่าทรัพย์สิน</div>
+  <div class="letter-to">เรียน&nbsp;&nbsp; {{ model.bank_name }}</div>
+
+  <!-- Intro paragraph -->
+  <div class="letter-intro">
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ตามที่ {{ model.company_name }} ได้รับมอบหมายให้ดำเนินการประเมินมูลค่าทรัพย์สิน
+    ให้แก่ {{ model.customer_name }} นั้น บริษัทฯ ได้ดำเนินการประเมินราคาทรัพย์สินเป็นที่เรียบร้อยแล้ว
+    ขอเรียนแจ้งผลการประเมินมูลค่าทรัพย์สิน ดังนี้
+  </div>
+
+  <!-- Key–value table: rows rendered only when value is non-null -->
+  <table class="kv-table">
+    {{ if model.customer_name }}
+    <tr>
+      <td class="kv-label">ลูกค้า</td>
+      <td class="kv-value">{{ model.customer_name }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.property_type_summary }}
+    <tr>
+      <td class="kv-label">ประเภททรัพย์สิน</td>
+      <td class="kv-value">{{ model.property_type_summary }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.collateral_location }}
+    <tr>
+      <td class="kv-label">ที่ตั้งทรัพย์สิน</td>
+      <td class="kv-value">{{ model.collateral_location }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.gps }}
+    <tr>
+      <td class="kv-label">ค่าพิกัด GPS</td>
+      <td class="kv-value">{{ model.gps }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.title_deed_numbers }}
+    <tr>
+      <td class="kv-label">เอกสารสิทธิ์ที่ดิน</td>
+      <td class="kv-value">{{ model.title_deed_numbers }} จำนวน {{ model.total_title_deeds }} ฉบับ</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.land_area_text }}
+    <tr>
+      <td class="kv-label">เนื้อที่ดิน</td>
+      <td class="kv-value">{{ model.land_area_text }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.land_owner }}
+    <tr>
+      <td class="kv-label">ผู้ถือกรรมสิทธิ์ที่ดิน</td>
+      <td class="kv-value">{{ model.land_owner }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.building_details_text }}
+    <tr>
+      <td class="kv-label">อาคารสิ่งปลูกสร้าง</td>
+      <td class="kv-value">{{ model.building_details_text }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.building_owner }}
+    <tr>
+      <td class="kv-label">ผู้ถือกรรมสิทธิ์สิ่งปลูกสร้าง</td>
+      <td class="kv-value">{{ model.building_owner }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.condo_owner }}
+    <tr>
+      <td class="kv-label">ผู้ถือกรรมสิทธิ์ห้องชุด</td>
+      <td class="kv-value">{{ model.condo_owner }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.machine_registration_numbers }}
+    <tr>
+      <td class="kv-label">เลขทะเบียนเครื่องจักร</td>
+      <td class="kv-value">{{ model.machine_registration_numbers }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.obligation }}
+    <tr>
+      <td class="kv-label">ภาระผูกพัน</td>
+      <td class="kv-value">{{ model.obligation }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.city_planning_act }}
+    <tr>
+      <td class="kv-label">พรบ.ผังเมือง</td>
+      <td class="kv-value">{{ model.city_planning_act }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.appraisal_purpose }}
+    <tr>
+      <td class="kv-label">วัตถุประสงค์การประเมิน</td>
+      <td class="kv-value">{{ model.appraisal_purpose }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.price_method }}
+    <tr>
+      <td class="kv-label">วิธีการประเมินมูลค่า</td>
+      <td class="kv-value">{{ model.price_method }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.appraisal_date }}
+    <tr>
+      <td class="kv-label">วันที่ประเมินมูลค่า</td>
+      <td class="kv-value">{{ thai.date model.appraisal_date }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.collateral_value }}
+    <tr>
+      <td class="kv-label">มูลค่าทรัพย์สิน</td>
+      <td class="kv-value">
+        {{ model.collateral_value | math.format "N2" }} บาท
+        ({{ thai.baht_text model.collateral_value }})
+      </td>
+    </tr>
+    {{ end }}
+
+    {{ if model.forced_sale_value }}
+    <tr>
+      <td class="kv-label">มูลค่าบังคับขาย 70%</td>
+      <td class="kv-value">
+        {{ model.forced_sale_value | math.format "N2" }} บาท
+        ({{ thai.baht_text model.forced_sale_value }})
+      </td>
+    </tr>
+    {{ end }}
+
+    {{ if model.fire_insurance_value }}
+    <tr>
+      <td class="kv-label">มูลค่าประกันอัคคีภัย</td>
+      <td class="kv-value">
+        {{ model.fire_insurance_value | math.format "N2" }} บาท
+        ({{ thai.baht_text model.fire_insurance_value }})
+      </td>
+    </tr>
+    {{ end }}
+  </table>
+
+  <!-- Closing paragraph -->
+  <div class="letter-closing">
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;รายละเอียดการประเมินมูลค่าทรัพย์สินปรากฏตามรายงานที่แนบมาพร้อมนี้
+  </div>
+  <div class="letter-closing" style="margin-top:-12px;">
+    จึงเรียนมาเพื่อโปรดพิจารณา
+  </div>
+
+  <!-- Surveyor line -->
+  {{ if model.surveyor_name }}
+  <div class="letter-surveyor">ผู้สำรวจ : {{ model.surveyor_name }}</div>
+  {{ end }}
+
+  <!-- Signature block: 3 columns -->
+  <div style="margin-top:4px; font-size:10pt;">ขอแสดงความนับถือ</div>
+  <table class="sig-table">
+    <tr>
+      <td>
+        <div class="sig-line"></div>
+        <div class="sig-name">{{ model.checker_name }}</div>
+        <div class="sig-role">ผู้ตรวจสอบรายงาน</div>
+      </td>
+      <td>
+        <div class="sig-line"></div>
+        <div class="sig-name">{{ model.verify_name }}</div>
+        <div class="sig-role">
+          ผู้ประเมินหลักชั้นวุฒิ
+          {{ if model.verify_license_no }}เลขที่ {{ model.verify_license_no }}{{ end }}
+        </div>
+      </td>
+      <td>
+        <div class="sig-line"></div>
+        <div class="sig-name">{{ model.director_name }}</div>
+        <div class="sig-role">กรรมการผู้มีอำนาจลงนาม</div>
+      </td>
+    </tr>
+  </table>
+
+</div>
+
+<!-- Detail sections (§2.1.2.3–2.1.2.7) — each on a new page when its collateral type is present -->
+{{ if model.condo_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-condo' }}</div>{{ end }}
+{{ if model.land_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-land' }}</div>{{ end }}
+{{ if model.building_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-building' }}</div>{{ end }}
+{{ if model.construction_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-construction' }}</div>{{ end }}
+{{ if model.machine_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-machine' }}</div>{{ end }}
+
+<!-- Price-analysis sections (§2.1.2.8–2.1.2.11) -->
+{{ if model.comparison_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-comparison' }}</div>{{ end }}
+{{ if model.wqs_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-wqs' }}</div>{{ end }}
+{{ if model.sale_grid_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-salegrid' }}</div>{{ end }}
+{{ if model.cost_machine_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-costmachine' }}</div>{{ end }}
+
+{{ if model.appendix_section }}{{ include 'partials/ext-section-appendix' }}{{ end }}
+<!-- SLOT: appendix -->
+
+</body>
+</html>

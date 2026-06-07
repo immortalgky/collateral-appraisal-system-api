@@ -8,12 +8,17 @@
 
     <ItemGroup>
         <ProjectReference Include="../../../Shared/Shared/Shared.csproj"/>
+        <ProjectReference Include="../../../Shared/Shared.Messaging/Shared.Messaging.csproj"/>
+        <ProjectReference Include="../../Workflow/Workflow.Contracts/Workflow.Contracts.csproj"/>
+        <ProjectReference Include="../Reporting.Contracts/Reporting.Contracts.csproj"/>
+        <ProjectReference Include="../Reporting.Data/Reporting.Data.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Scriban"/>
         <PackageReference Include="PuppeteerSharp"/>
         <PackageReference Include="PdfSharp"/>
+        <PackageReference Include="ClosedXML"/>
     </ItemGroup>
 
     <!-- Templates: copy to output directory so they are accessible at runtime -->

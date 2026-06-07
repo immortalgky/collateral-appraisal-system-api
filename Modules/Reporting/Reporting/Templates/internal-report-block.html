@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <title>เล่มรายงานประเมินใน – Block</title>
+  <style>{{ include 'partials/summary-styles' }}</style>
+</head>
+<body>
+
+{{ include 'partials/summary-block-body' }}
+
+{{ if model.comparison_section }}
+<div style="page-break-before:always;">
+  {{ include 'partials/ext-section-comparison' }}
+</div>
+{{ end }}
+
+{{ if model.wqs_section }}
+<div style="page-break-before:always;">
+  {{ include 'partials/ext-section-wqs' }}
+</div>
+{{ end }}
+
+{{ if model.sale_grid_section }}
+<div style="page-break-before:always;">
+  {{ include 'partials/ext-section-salegrid' }}
+</div>
+{{ end }}
+
+{{ if model.appendix_section }}
+{{ include 'partials/ext-section-appendix' }}
+{{ end }}
+
+<!-- SLOT: appendix -->
+
+</body>
+</html>

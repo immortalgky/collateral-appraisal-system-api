@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Request.Infrastructure;
 using Request.Infrastructure.Reappraisal;
 using Collateral.CollateralMasters.Services;
+using Reporting.Application.Services;
 using Scalar.AspNetCore;
 using Dapper;
 using Shared.Configurations;
@@ -81,6 +82,7 @@ builder.Services.AddHostedService<IntegrationEventDeliveryService<RequestDbConte
 builder.Services.AddHostedService<IntegrationEventDeliveryService<AppraisalDbContext>>();
 builder.Services.AddHostedService<IntegrationEventDeliveryService<DocumentDbContext>>();
 builder.Services.AddHostedService<IntegrationEventDeliveryService<WorkflowDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<Reporting.Data.ReportingDbContext>>();
 
 builder.Services.AddMassTransit(config =>
 {
@@ -387,6 +389,12 @@ RecurringJob.AddOrUpdate<As400ReappraisalJob>(
 RecurringJob.AddOrUpdate<BlockReappraisalJob>(
     "reappraisal-block", j => j.ExecuteAsync(CancellationToken.None),
     Cron.Daily(1), jobOptions); // 01:00 local
+
+// Report artifact cleanup: delete expired job rows and their on-disk PDF files daily at 03:00 local.
+// Retention period is controlled by Reporting:ArtifactRetentionDays (default 7 days).
+RecurringJob.AddOrUpdate<ReportArtifactCleanupJob>(
+    "report-artifact-cleanup", j => j.ExecuteAsync(CancellationToken.None),
+    Cron.Daily(3), jobOptions); // 03:00 local
 
 await app.RunAsync();
 

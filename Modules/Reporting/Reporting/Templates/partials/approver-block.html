@@ -1,0 +1,62 @@
+<!--
+  Shared partial: Committee / Approver block (FSD fields 42–51), matches image30.png.
+  Shares the parent Scriban scope. Expects: model.show_meeting, model.meeting_number,
+  model.meeting_date, model.collateral_address, model.total_appraisal_value,
+  model.approver_decision_approved, model.approvers (name/position/comment/approved),
+  model.approver_summary_comment. Reused by every summary report.
+-->
+{{ if model.show_meeting || model.approvers.size > 0 }}
+<div class="section-bar">มติคณะกรรมการกำหนดราคาประเมิน{{ if model.show_meeting && model.meeting_number }} ในการประชุมครั้งที่ {{ model.meeting_number }} วันที่ {{ thai.date model.meeting_date }}{{ end }}</div>
+
+<div class="pad">
+  <div class="kv"><span class="k">รายการทรัพย์สิน :</span><span class="v">{{ model.collateral_address }}</span></div>
+  <div class="kv">
+    <span class="k">ราคาประเมิน :</span>
+    <span class="v">{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; end }}
+      {{ if model.total_appraisal_value }}( {{ thai.baht_text model.total_appraisal_value }} ){{ end }}</span>
+  </div>
+
+  <table class="grid" style="margin-top:3px;">
+    <thead>
+      <tr>
+        <th style="width:120px;">มติ (อนุมัติ / ไม่อนุมัติ)</th>
+        <th>รายชื่อคณะกรรมการ (ลงนาม)</th>
+        <th style="width:230px;">ความเห็นเพิ่มเติม</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ for a in model.approvers }}
+      <tr>
+        <td class="ctr">
+          <span class="chk">{{ if a.approved == true }}&#9745;{{ else }}&#9744;{{ end }}</span> อนุมัติ
+          &nbsp;
+          <span class="chk">{{ if a.approved == false }}&#9745;{{ else }}&#9744;{{ end }}</span> ไม่อนุมัติ
+        </td>
+        <td>
+          {{ a.name }}
+          {{ if a.position }}<div style="font-size:7.5pt; color:#333;">{{ a.position }}</div>{{ end }}
+        </td>
+        <td>{{ a.comment }}</td>
+      </tr>
+      {{ end }}
+      {{ if model.approvers.size == 0 }}
+      <tr>
+        <td class="ctr">
+          <span class="chk">{{ if model.approver_decision_approved == true }}&#9745;{{ else }}&#9744;{{ end }}</span> อนุมัติ
+          &nbsp;
+          <span class="chk">{{ if model.approver_decision_approved == false }}&#9745;{{ else }}&#9744;{{ end }}</span> ไม่อนุมัติ
+        </td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+
+  {{ if model.approver_summary_comment }}
+  <div class="kv" style="margin-top:4px;">
+    <span class="k">สรุปความเห็นมติคณะกรรมการ :</span><span class="v">{{ model.approver_summary_comment }}</span>
+  </div>
+  {{ end }}
+</div>
+{{ end }}

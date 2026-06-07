@@ -1,0 +1,59 @@
+{{ if model.construction_section && model.construction_section.buildings.size > 0 }}
+<div class="section-bar">ตารางรายละเอียดความคืบหน้างานก่อสร้าง</div>
+
+{{ for building in model.construction_section.buildings }}
+<div class="pad" style="padding-bottom:2px;">
+  <strong>{{ if building.building_name }}{{ building.building_name }}{{ else }}อาคาร{{ end }}</strong>
+</div>
+
+<table class="grid">
+  <thead>
+    <tr>
+      <th>รายการ</th>
+      <th class="num" style="width:110px;">มูลค่าก่อสร้าง (บาท)</th>
+      <th class="num" style="width:72px;">สัดส่วน (%)</th>
+      <th class="num" style="width:80px;">ครั้งก่อนหน้า (%)</th>
+      <th class="num" style="width:72px;">ปัจจุบัน (%)</th>
+      <th class="num" style="width:110px;">ครั้งก่อนหน้า (บาท)</th>
+      <th class="num" style="width:110px;">ปัจจุบัน (บาท)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ for group in building.groups }}
+    <tr style="background:#f5f5f5; font-weight:700;">
+      <td colspan="7">{{ group.group_name }}</td>
+    </tr>
+    {{ for item in group.items }}
+    <tr>
+      <td style="padding-left:14px;">{{ item.item_name }}</td>
+      <td class="num">{{ if item.value; item.value | math.format "N2"; else; "-"; end }}</td>
+      <td class="num">{{ if item.proportion_pct; item.proportion_pct | math.format "N2"; else; "-"; end }}%</td>
+      <td class="num">{{ if item.previous_pct; item.previous_pct | math.format "N2"; else; "-"; end }}%</td>
+      <td class="num">{{ if item.current_pct; item.current_pct | math.format "N2"; else; "-"; end }}%</td>
+      <td class="num">{{ if item.previous_value; item.previous_value | math.format "N2"; else; "-"; end }}</td>
+      <td class="num">{{ if item.current_value; item.current_value | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    {{ end }}
+    <tr style="font-weight:700; background:#ececec;">
+      <td>รวม{{ group.group_name }}</td>
+      <td class="num">{{ if group.value; group.value | math.format "N2"; else; "-"; end }}</td>
+      <td class="num">{{ if group.proportion_pct; group.proportion_pct | math.format "N2"; else; "-"; end }}%</td>
+      <td class="num">{{ if group.previous_pct; group.previous_pct | math.format "N2"; else; "-"; end }}%</td>
+      <td class="num">{{ if group.current_pct; group.current_pct | math.format "N2"; else; "-"; end }}%</td>
+      <td class="num">{{ if group.previous_value; group.previous_value | math.format "N2"; else; "-"; end }}</td>
+      <td class="num">{{ if group.current_value; group.current_value | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    {{ end }}
+    <tr style="font-weight:700; background:#d9d9d9;">
+      <td>รวมมูลค่าอาคาร</td>
+      <td class="num">{{ if building.total_value; building.total_value | math.format "N2"; else; "-"; end }}</td>
+      <td class="num">{{ if building.total_proportion_pct; building.total_proportion_pct | math.format "N2"; else; "-"; end }}%</td>
+      <td class="num">{{ if building.total_previous_pct; building.total_previous_pct | math.format "N2"; else; "-"; end }}%</td>
+      <td class="num">{{ if building.total_current_pct; building.total_current_pct | math.format "N2"; else; "-"; end }}%</td>
+      <td class="num">{{ if building.total_previous_value; building.total_previous_value | math.format "N2"; else; "-"; end }}</td>
+      <td class="num">{{ if building.total_current_value; building.total_current_value | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+  </tbody>
+</table>
+{{ end }}
+{{ end }}

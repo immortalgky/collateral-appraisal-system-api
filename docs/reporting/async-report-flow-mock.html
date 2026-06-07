@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Document Generation — User Journey Mock</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+    --blue:#2563eb; --green:#16a34a; --amber:#d97706; --red:#dc2626; --chip:#f1f5f9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+       background:linear-gradient(180deg,#1e293b,#0f172a);color:var(--ink);padding:24px}
+  h1{color:#e2e8f0;font-size:18px;margin:0 0 4px}
+  .sub{color:#94a3b8;margin:0 0 20px;font-size:13px}
+  .wrap{display:grid;grid-template-columns:1fr 360px;gap:16px;max-width:1080px;margin:auto}
+  .app{background:var(--panel);border-radius:14px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+  .topbar{display:flex;align-items:center;justify-content:space-between;
+          padding:12px 16px;border-bottom:1px solid var(--line);background:#f8fafc}
+  .brand{font-weight:700}
+  .conn{display:flex;align-items:center;gap:8px;font-size:12px}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .on .dot{background:var(--green)} .off .dot{background:var(--red)}
+  .toggle{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:20px;
+          padding:5px 10px;font-size:12px;font-weight:600}
+  .bell{position:relative;cursor:pointer;font-size:18px}
+  .badge{position:absolute;top:-6px;right:-8px;background:var(--red);color:#fff;border-radius:10px;
+         font-size:10px;padding:1px 5px;font-weight:700}
+  .body{padding:18px 16px;min-height:340px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;
+        display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .rtitle{font-weight:600}
+  .tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;letter-spacing:.04em}
+  .tag.async{background:#eff6ff;color:var(--blue)} .tag.sync{background:#f0fdf4;color:var(--green)}
+  .btns{display:flex;gap:6px}
+  button.act{border:1px solid var(--blue);background:var(--blue);color:#fff;border-radius:8px;
+        padding:6px 12px;font-weight:600;cursor:pointer}
+  button.ghost{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;
+        padding:6px 12px;font-weight:600;cursor:pointer}
+  .chip{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;
+        padding:5px 10px;border-radius:20px;background:var(--chip);color:var(--muted)}
+  .chip.gen{background:#fff7ed;color:var(--amber)}
+  .chip.ready{background:#f0fdf4;color:var(--green)}
+  .chip.fail{background:#fef2f2;color:var(--red)}
+  .spin{width:12px;height:12px;border:2px solid #fdba74;border-top-color:transparent;border-radius:50%;
+        animation:s .8s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .dropdown{position:absolute;right:16px;top:52px;width:300px;background:#fff;border:1px solid var(--line);
+        border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);z-index:5;overflow:hidden}
+  .dropdown h4{margin:0;padding:10px 12px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .note{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+  .note:hover{background:#f8fafc}
+  .note b{display:block;font-size:13px} .note span{font-size:11px;color:var(--muted)}
+  .empty{padding:18px 12px;color:var(--muted);font-size:12px;text-align:center}
+  .pdf{margin-top:14px;border:1px dashed var(--line);border-radius:10px;padding:24px;text-align:center;
+       background:#fafafa;color:var(--muted)}
+  .pdf b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(120px);
+        background:#0f172a;color:#fff;padding:12px 16px;border-radius:10px;display:flex;gap:12px;
+        align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.4);transition:.35s;z-index:9}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .toast button{background:#2563eb;border:0;color:#fff;border-radius:7px;padding:5px 10px;font-weight:600;cursor:pointer}
+  /* log panel */
+  .log{background:#0b1220;border-radius:14px;padding:14px;color:#cbd5e1;font:12px/1.6 ui-monospace,Menlo,monospace;
+       height:520px;overflow:auto}
+  .log h3{color:#93c5fd;font:600 12px system-ui;margin:0 0 10px;letter-spacing:.05em;text-transform:uppercase}
+  .ev{padding:4px 0;border-bottom:1px solid #1e293b;white-space:pre-wrap}
+  .fe{color:#7dd3fc} .be{color:#86efac} .bg{color:#fcd34d} .sig{color:#f0abfc} .err{color:#fca5a5}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 0;font-size:11px;color:#94a3b8}
+  .legend i{font-style:normal;font-weight:700}
+  .hint{color:#94a3b8;font-size:12px;margin:10px 0 0}
+</style>
+</head>
+<body>
+  <h1>Document Generation — User Journey</h1>
+  <p class="sub">Click <b>View</b> / <b>Generate</b>. Toggle the connection to OFF before a job finishes to see disconnect recovery.</p>
+
+  <div class="wrap">
+    <div class="app">
+      <div class="topbar">
+        <div class="brand">📄 Appraisal&nbsp;#A-2026-00417</div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <div id="conn" class="conn on"><span class="dot"></span><span id="connTxt">Realtime: Online</span></div>
+          <button class="toggle" onclick="toggleConn()">Toggle connection</button>
+          <div class="bell" onclick="toggleBell()">🔔<span id="bellBadge" class="badge" style="display:none">0</span></div>
+        </div>
+      </div>
+
+      <div class="body">
+        <div class="card">
+          <div>
+            <div class="rtitle">Appraisal Summary – Land &amp; Building</div>
+            <div style="font-size:12px;color:var(--muted)">Heavy document · 16 queries · ~6&nbsp;s</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="tag async">ASYNC</span>
+            <div id="chipSlot"></div>
+            <div class="btns">
+              <button class="act" onclick="startAsync('view')">View</button>
+              <button class="ghost" onclick="startAsync('generate')">Generate</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div>
+            <div class="rtitle">Appointment / Quotation Form</div>
+            <div style="font-size:12px;color:var(--muted)">Light document · opens instantly</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="tag sync">SYNC</span>
+            <div class="btns"><button class="act" onclick="openSync()">View</button></div>
+          </div>
+        </div>
+
+        <div id="pdfSlot"></div>
+        <p class="hint" id="hint">Async reports return immediately (202) and finish in the background — you keep working.</p>
+      </div>
+    </div>
+
+    <div class="log">
+      <h3>FE ⇄ BE event log</h3>
+      <div id="events"></div>
+      <div class="legend">
+        <span><i class="fe">FE</i> client</span><span><i class="be">BE</i> api</span>
+        <span><i class="bg">JOB</i> hangfire</span><span><i class="sig">SIG</i> signalr</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="dropdown"></div>
+  <div id="toast" class="toast"><span id="toastMsg"></span><button onclick="downloadFromToast()">Download</button></div>
+
+<script>
+let online=true, bell=[], jobSeq=0, openBellOpen=false, pendingToastJob=null;
+
+function log(kind,msg){
+  const map={FE:'fe',BE:'be',JOB:'bg',SIG:'sig',ERR:'err'};
+  const el=document.getElementById('events');
+  const d=document.createElement('div'); d.className='ev';
+  d.innerHTML=`<span class="${map[kind]}">${kind.padEnd(3)}</span>  ${msg}`;
+  el.appendChild(d); el.scrollTop=el.scrollHeight;
+}
+function toggleConn(){
+  online=!online;
+  const c=document.getElementById('conn');
+  c.className='conn '+(online?'on':'off');
+  document.getElementById('connTxt').textContent='Realtime: '+(online?'Online':'Offline');
+  log(online?'SIG':'ERR', online?'SignalR reconnected → rejoin group user-{P5229}':'SignalR connection LOST');
+  if(online){ reconcile(); }            // ← on reconnect, reconcile missed jobs
+}
+function setChip(html){ document.getElementById('chipSlot').innerHTML=html; }
+
+function startAsync(mode){
+  const job={id:'job-'+(++jobSeq), report:'Appraisal Summary – Land & Building',
+             file:'appraisal-summary-land-building.pdf', mode, status:'Running'};
+  window._job=job;
+  log('FE',`POST /reports/appraisal-summary-land-building/A417/jobs   (mode=${mode})`);
+  log('BE',`201→ insert ReportJobs(${job.id}, Pending) → enqueue Hangfire → 202 {jobId}`);
+  setChip(`<span class="chip gen"><span class="spin"></span> Generating…</span>`);
+  document.getElementById('hint').textContent =
+     mode==='view' ? 'Tracking job — will auto-open when ready. Try toggling connection OFF now.'
+                   : 'Tracking job — you’ll get a bell notification when ready. Try toggling OFF now.';
+  log('FE','start polling GET /reports/jobs/'+job.id+'  (every 2.5s, backoff)');
+
+  // background generation (~3s)
+  setTimeout(()=>{
+    log('JOB',`ReportGenerationJob: render PDF → write NAS/reports/${job.id}.pdf → ReportJobs=Completed`);
+    log('JOB','publish ReportGenerationCompletedIntegrationEvent');
+    log('BE','Notification handler: persist UserNotification(+ActionUrl) ');
+    job.status='Completed';
+    // Channel A: realtime — only if connected at this instant
+    if(online){
+      log('SIG','push ReceiveNotification(type=ReportReady) → user-{P5229}');
+      deliverReady(job,'realtime');
+    } else {
+      log('ERR','realtime push NOT delivered (client offline) — but bell row persisted + pollable');
+      // Channel B: polling still catches it if the page stayed open
+      setTimeout(()=>{ if(window._job===job){
+        log('FE','poll GET /reports/jobs/'+job.id+' → 200 {status:Completed}');
+        deliverReady(job,'poll'); } }, 2600);
+    }
+  }, 3000);
+}
+
+function deliverReady(job, via){
+  // idempotent: first channel wins
+  if(job._delivered) return; job._delivered=true;
+  setChip(`<span class="chip ready">✓ Ready</span>`);
+  addBell(job);
+  log('FE',`job ${job.id} → Ready (via ${via})`);
+  if(job.mode==='view'){ openPdf(job.file,'Auto-opened (View)'); }
+  else { showToast(job); }
+}
+
+function reconcile(){
+  log('FE','GET /reports/jobs   (owner-scoped reconcile on reconnect)');
+  const j=window._job;
+  if(j && j.status==='Completed' && !j._delivered){
+    log('BE','200→ [{'+j.id+', Completed}]');
+    deliverReady(j,'reconcile');
+  } else {
+    log('BE','200→ (no outstanding jobs to rehydrate)');
+  }
+}
+
+function addBell(job){
+  bell.unshift({title:'Report ready', sub:job.report+' · '+new Date().toLocaleTimeString(), file:job.file});
+  const b=document.getElementById('bellBadge'); b.style.display='inline-block'; b.textContent=bell.length;
+  if(openBellOpen) renderBell();
+}
+function showToast(job){
+  pendingToastJob=job;
+  document.getElementById('toastMsg').textContent='✓ '+job.report+' is ready';
+  document.getElementById('toast').classList.add('show');
+  setTimeout(()=>document.getElementById('toast').classList.remove('show'),6000);
+}
+function downloadFromToast(){ if(pendingToastJob) openPdf(pendingToastJob.file,'Downloaded from toast');
+  document.getElementById('toast').classList.remove('show'); }
+
+function toggleBell(){ openBellOpen=!openBellOpen; openBellOpen?renderBell():closeBell(); }
+function closeBell(){ document.getElementById('dropdown').innerHTML=''; }
+function renderBell(){
+  const d=document.getElementById('dropdown');
+  d.innerHTML=`<div class="dropdown"><h4>NOTIFICATIONS</h4>${
+    bell.length? bell.map((n,i)=>`<div class="note" onclick="bellClick(${i})">
+        <b>🔔 ${n.title}</b><span>${n.sub} · click to download</span></div>`).join('')
+    : '<div class="empty">No notifications</div>'}</div>`;
+}
+function bellClick(i){ log('FE','GET /reports/jobs/{id}/download  (from bell)'); openPdf(bell[i].file,'Opened from bell'); }
+
+function openPdf(file,how){
+  log('FE',`GET /reports/jobs/{id}/download → stream ${file}`);
+  document.getElementById('pdfSlot').innerHTML=
+    `<div class="pdf"><b>📄 ${file}</b>${how} — PDF rendered & streamed from NAS</div>`;
+}
+function openSync(){
+  log('FE','GET /reports/appointment-quotation-request/A417  (mode=Sync → open in tab)');
+  log('BE','generate inline → 200 application/pdf (stream)');
+  openPdf('appointment-quotation-request.pdf','Sync — opened directly');
+}
+log('FE','app loaded · GET /reports/definitions → modes cached (async badge shown)');
+</script>
+</body>
+</html>

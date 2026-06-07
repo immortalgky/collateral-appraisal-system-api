@@ -16,6 +16,7 @@ using Parameter.Data;
 using Integration.Infrastructure;
 using Appraisal.Infrastructure;
 using Collateral.Data;
+using Reporting.Data;
 
 namespace Database.Extensions;
 
@@ -150,6 +151,15 @@ public static class ServiceCollectionExtensions
             {
                 sqlOptions.MigrationsAssembly(typeof(CollateralDbContext).Assembly.GetName().Name);
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "collateral");
+            });
+        });
+
+        services.AddDbContext<ReportingDbContext>(options =>
+        {
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.MigrationsAssembly(typeof(ReportingDbContext).Assembly.GetName().Name);
+                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "reporting");
             });
         });
 
