@@ -1,3 +1,4 @@
+using Auth.Contracts.Users;
 using MassTransit;
 using Notification.Data;
 using Notification.Domain.Notifications.Models;
@@ -8,21 +9,23 @@ using Shared.Messaging.Filters;
 namespace Notification.Domain.Notifications.EventHandlers;
 
 /// <summary>
-/// Notifies the admin pool that quotation submissions have closed and bids are ready for review.
+/// Notifies all IntAdmin users that quotation submissions have closed and bids are ready for review.
+/// Fires both when all companies respond and when the cut-off time passes (both paths publish this event
+/// via CloseQuotationCommandHandler).
 /// </summary>
 public class QuotationSubmissionsClosedNotificationHandler(
     INotificationService notificationService,
+    IUserLookupService userLookupService,
     ILogger<QuotationSubmissionsClosedNotificationHandler> logger,
     InboxGuard<NotificationDbContext> inboxGuard) : IConsumer<QuotationSubmissionsClosedIntegrationEvent>
 {
-    private const string AdminGroupName = "Admin";
-
     public async Task Consume(ConsumeContext<QuotationSubmissionsClosedIntegrationEvent> context)
     {
         if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
             return;
 
         var message = context.Message;
+        var ct = context.CancellationToken;
 
         logger.LogInformation(
             "Processing QuotationSubmissionsClosed notification for QuotationRequestId={QuotationRequestId}",
@@ -36,35 +39,28 @@ public class QuotationSubmissionsClosedNotificationHandler(
                 { "requestId", message.RequestId }
             };
 
-            if (message.AdminUserIds.Length > 0)
+            var adminUsernames = await userLookupService.GetUsernamesInRoleAsync("IntAdmin", ct: ct);
+
+            foreach (var username in adminUsernames)
             {
-                // Notify specific admins if provided
-                foreach (var adminId in message.AdminUserIds)
-                {
-                    await notificationService.SendNotificationToUserAsync(
-                        adminId,
-                        "Quotation Submissions Closed",
-                        "Quotation submissions have closed. Please review the bids and build a shortlist.",
-                        NotificationType.WorkflowTransition,
-                        metadata: metadata);
-                }
-            }
-            else
-            {
-                // Broadcast to the admin group
-                await notificationService.SendNotificationToGroupAsync(
-                    AdminGroupName,
-                    "Quotation Submissions Closed",
-                    "Quotation submissions have closed. Please review the bids and build a shortlist.",
+                await notificationService.SendNotificationToUserAsync(
+                    username,
+                    "Quotation Under Admin Review",
+                    "Quotation submissions are ready — please review the bids and build a shortlist.",
                     NotificationType.WorkflowTransition,
                     metadata: metadata);
             }
 
-            logger.LogInformation(
-                "Sent QuotationSubmissionsClosed notification for QuotationRequestId={QuotationRequestId}",
-                message.QuotationRequestId);
+            if (adminUsernames.Length == 0)
+                logger.LogWarning(
+                    "No IntAdmin users found to notify for QuotationRequestId={QuotationRequestId}",
+                    message.QuotationRequestId);
 
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
+            logger.LogInformation(
+                "Sent QuotationSubmissionsClosed notification to {Count} IntAdmin user(s) for QuotationRequestId={QuotationRequestId}",
+                adminUsernames.Length, message.QuotationRequestId);
+
+            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
         }
         catch (Exception ex)
         {

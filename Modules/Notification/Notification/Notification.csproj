@@ -18,6 +18,8 @@
     <ItemGroup>
         <ProjectReference Include="../../../Shared/Shared/Shared.csproj"/>
         <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj"/>
+        <ProjectReference Include="..\Notification.Contracts\Notification.Contracts.csproj"/>
+        <ProjectReference Include="..\..\Auth\Auth.Contracts\Auth.Contracts.csproj"/>
     </ItemGroup>
 
 </Project>

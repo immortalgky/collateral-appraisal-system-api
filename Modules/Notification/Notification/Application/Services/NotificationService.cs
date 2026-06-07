@@ -149,7 +149,7 @@ public class NotificationService : INotificationService
         await _notificationRepository.AddNotificationAsync(notification);
 
         // Send real-time notification via SignalR
-        await _hubContext.Clients.Group($"User_{username}")
+        await _hubContext.Clients.Group($"user-{username}")
             .SendAsync("ReceiveNotification", new NotificationDto(
                 notification.Id,
                 notification.Title,

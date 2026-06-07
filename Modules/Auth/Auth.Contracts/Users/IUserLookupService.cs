@@ -10,4 +10,13 @@ public interface IUserLookupService
     Task<IReadOnlyDictionary<string, UserLookupDto>> GetByUsernamesAsync(
         IEnumerable<string> usernames,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Returns the usernames (bank codes) of all active users in the given role.
+    /// When <paramref name="companyId"/> is provided, only users belonging to that company are returned.
+    /// </summary>
+    Task<string[]> GetUsernamesInRoleAsync(
+        string role,
+        Guid? companyId = null,
+        CancellationToken ct = default);
 }

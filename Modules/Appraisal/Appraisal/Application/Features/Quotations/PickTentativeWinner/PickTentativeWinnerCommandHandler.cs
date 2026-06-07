@@ -72,16 +72,6 @@ public class PickTentativeWinnerCommandHandler(
 
         quotationRepository.Update(quotation);
 
-        outbox.Publish(new TentativeWinnerPickedIntegrationEvent
-        {
-            QuotationRequestId = quotation.Id,
-            RequestId = quotation.RequestId ?? Guid.Empty,
-            CompanyId = pickedQuotation.CompanyId,
-            CompanyQuotationId = command.CompanyQuotationId,
-            PickedBy = command.Actor.Username,
-            Role = role
-        }, correlationId: quotation.Id.ToString());
-
         // Resume the workflow step the engine is parked on. Admin direct-pick happens on
         // "admin-review-submissions" (decision SelectAsWinner → admin-finalize); the normal RM
         // flow happens on "rm-pick-winner" (decision Pick → admin-finalize).
