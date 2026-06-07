@@ -8,20 +8,19 @@ public class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior<TReque
     where TRequest : notnull, IRequest<TResponse>
     where TResponse : notnull
 {
-    public Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
+    public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
         logger.LogInformation("[START] Handle request={Request} - Response={Response} - {Request}", typeof(TRequest).Name, typeof(TResponse).Name, request);
 
-        var timer = new Stopwatch();
-        timer.Start();
+        var timer = Stopwatch.StartNew();
 
-        var response = next(cancellationToken);
+        var response = await next(cancellationToken);
 
         timer.Stop();
         var timeTaken = timer.Elapsed;
-        if (timeTaken.Seconds > 3)
+        if (timeTaken.TotalSeconds > 3)
         {
-            logger.LogWarning("[PERFORMANCE] The request {Request} took {TimeTaken} second", typeof(TRequest).Name, timeTaken.Seconds);
+            logger.LogWarning("[PERFORMANCE] The request {Request} took {TimeTaken:0.00} seconds", typeof(TRequest).Name, timeTaken.TotalSeconds);
         }
 
         logger.LogInformation("[END] Handled {Request} with {Response}", typeof(TRequest).Name, typeof(TResponse).Name);
