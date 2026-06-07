@@ -20,7 +20,7 @@ public class NotificationHub : Hub
         var username = ResolveUsername();
         if (!string.IsNullOrEmpty(username))
         {
-            await Groups.AddToGroupAsync(Context.ConnectionId, $"User_{username}");
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"user-{username}");
         }
 
         await base.OnConnectedAsync();
@@ -31,13 +31,13 @@ public class NotificationHub : Hub
         var username = ResolveUsername();
         if (!string.IsNullOrEmpty(username))
         {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"User_{username}");
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user-{username}");
         }
 
         await base.OnDisconnectedAsync(exception);
     }
 
-    // NotificationService publishes to group "User_{username}" using the login string
+    // NotificationService publishes to group "user-{username}" using the login string
     // (e.g. "sth.staff2"). The "name" claim is always present in the access token
     // (TokenService.GetDestinations forces it to both tokens) and equals ApplicationUser.UserName,
     // so it's the reliable primary source. ClaimTypes.Name is the fallback in case OpenIddict's

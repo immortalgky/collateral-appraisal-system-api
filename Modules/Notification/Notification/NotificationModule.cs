@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Notification.Contracts.Realtime;
 using Notification.Data;
 using Notification.Data.Repository;
 using Notification.Data.Seed;
@@ -47,6 +48,7 @@ public static class NotificationModule
         // Register notification services
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
 
         // Register data seeder
         services.AddScoped<IDataSeeder<NotificationDbContext>, NotificationDataSeed>();

@@ -43,8 +43,7 @@ public class CloseQuotationCommandHandler(
             outbox.Publish(new QuotationSubmissionsClosedIntegrationEvent
             {
                 QuotationRequestId = quotation.Id,
-                RequestId = quotation.RequestId ?? Guid.Empty,
-                AdminUserIds = []   // Notification handler will broadcast to admin group
+                RequestId = quotation.RequestId ?? Guid.Empty
             }, correlationId: quotation.Id.ToString());
         }
 

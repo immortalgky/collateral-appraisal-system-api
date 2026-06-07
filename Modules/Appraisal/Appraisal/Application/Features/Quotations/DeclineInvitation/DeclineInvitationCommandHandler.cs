@@ -96,8 +96,7 @@ public class DeclineInvitationCommandHandler(
             outbox.Publish(new QuotationSubmissionsClosedIntegrationEvent
             {
                 QuotationRequestId = quotation.Id,
-                RequestId = quotation.RequestId ?? Guid.Empty,
-                AdminUserIds = []
+                RequestId = quotation.RequestId ?? Guid.Empty
             }, correlationId: quotation.Id.ToString());
         }
 
