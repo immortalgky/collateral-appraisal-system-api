@@ -37,12 +37,14 @@ public sealed class ActivityProcessExecutionSink(
                     (Id, WorkflowInstanceId, WorkflowActivityExecutionId, ConfigurationId,
                      ConfigurationVersion, StepName, Kind, SortOrder,
                      RunIfExpressionSnapshot, ParametersJsonSnapshot,
-                     Outcome, SkipReason, DurationMs, ErrorMessage, CreatedOn)
+                     Outcome, SkipReason, DurationMs, ErrorMessage,
+                     Severity, Acknowledged, AcknowledgedBy, AcknowledgedToken, CreatedOn)
                 VALUES
                     (@Id, @WorkflowInstanceId, @WorkflowActivityExecutionId, @ConfigurationId,
                      @ConfigurationVersion, @StepName, @Kind, @SortOrder,
                      @RunIfExpressionSnapshot, @ParametersJsonSnapshot,
-                     @Outcome, @SkipReason, @DurationMs, @ErrorMessage, @CreatedOn)
+                     @Outcome, @SkipReason, @DurationMs, @ErrorMessage,
+                     @Severity, @Acknowledged, @AcknowledgedBy, @AcknowledgedToken, @CreatedOn)
                 """;
 
             foreach (var row in rows)
@@ -62,6 +64,10 @@ public sealed class ActivityProcessExecutionSink(
                 p.Add("@SkipReason", row.SkipReason.HasValue ? (byte?)row.SkipReason.Value : null);
                 p.Add("@DurationMs", row.DurationMs);
                 p.Add("@ErrorMessage", row.ErrorMessage);
+                p.Add("@Severity", (byte)row.Severity);
+                p.Add("@Acknowledged", row.Acknowledged);
+                p.Add("@AcknowledgedBy", row.AcknowledgedBy);
+                p.Add("@AcknowledgedToken", row.AcknowledgedToken);
                 p.Add("@CreatedOn", row.CreatedOn);
 
                 await connection.ExecuteAsync(sql, p, transaction: (IDbTransaction)tx);

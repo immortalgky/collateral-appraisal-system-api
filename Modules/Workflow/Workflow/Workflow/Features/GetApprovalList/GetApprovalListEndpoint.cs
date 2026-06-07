@@ -46,7 +46,10 @@ public record GetApprovalListResponse(
     bool MajorityMet,
     List<ApprovalMemberStatus> Members,
     List<ApprovalConditionStatus> Conditions,
-    MeetingReference? MeetingRef);
+    MeetingReference? MeetingRef,
+    // Authoritative round status ("Approved" | "Returned" | "Pending"), voting-mode aware.
+    // The UI must use this rather than re-deriving from QuorumMet/MajorityMet.
+    string Status);
 
 public record ApprovalMemberStatus(
     string Username,
@@ -141,6 +144,12 @@ public class GetApprovalListQueryHandler(
             c.MinVotesRequired,
             EvaluateCondition(c, members, votes))).ToList();
 
+        // Authoritative round status (voting-mode aware), mirroring the engine's decision rule.
+        var votingMode = GetVariableAs<string>(instance.Variables, $"{normalizedId}_votingMode");
+        var conditionsMet = conditionStatuses.All(c => c.Met);
+        var status = ApprovalListProjection.DeriveStatus(
+            votingMode, totalVotes, totalMembers, quorumMet, majorityMet, conditionsMet, votes);
+
         // Derive tier from committee code (1/2/3 for SUB_COMMITTEE/COMMITTEE/COMMITTEE_WITH_MEETING)
         var tier = DeriveTier(committeeCode);
 
@@ -169,7 +178,8 @@ public class GetApprovalListQueryHandler(
             majorityMet,
             memberStatuses,
             conditionStatuses,
-            meetingRef);
+            meetingRef,
+            status);
     }
 
     private static int? DeriveTier(string? committeeCode) =>

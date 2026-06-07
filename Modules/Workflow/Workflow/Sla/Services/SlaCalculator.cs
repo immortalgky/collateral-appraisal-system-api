@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Workflow.Contracts.Sla;
 using Workflow.Data;
 using Workflow.Sla.Models;
 
@@ -7,7 +8,7 @@ namespace Workflow.Sla.Services;
 
 public class SlaCalculator(
     WorkflowDbContext dbContext,
-    Shared.Sla.IBusinessTimeCalculator businessTimeCalculator,
+    IBusinessTimeCalculator businessTimeCalculator,
     ILogger<SlaCalculator> logger) : ISlaCalculator
 {
     /// <remarks>

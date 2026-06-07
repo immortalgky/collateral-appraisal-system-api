@@ -53,6 +53,7 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
         string completedBy,
         IReadOnlyList<string> userRoles,
         IReadOnlyDictionary<string, object?> input,
+        IReadOnlyCollection<string> acknowledgedWarningTokens,
         CancellationToken ct)
     {
         // Load active configs ordered: Validations first, then Actions, then by SortOrder
@@ -90,6 +91,10 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
         var correlationId = ResolveCorrelationId(workflowInstance.CorrelationId, workflowInstanceId);
         var appraisalId = ResolveAppraisalId(workflowInstance.Variables);
 
+        // Resolve the completing decision's movement (F/B/C) so forward-only validations can
+        // gate on `activity.movement === 'F'` and skip on route-back / cancel.
+        var movement = ResolveMovement(workflowInstance, activityName, input);
+
         // B5: Collect pending variable writes separately so mutations survive the pipeline.
         var pendingVariableWrites = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
@@ -101,6 +106,7 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
             ActivityId = activityName,    // W9: populated from activityName (correct for lookup)
             ActivityName = activityName,
             CompletedBy = completedBy,
+            Movement = movement,
             UserRoles = userRoles,         // W10: populated from caller (ICurrentUserService.Roles)
             Variables = variables,
             Input = input,
@@ -111,8 +117,10 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
         };
 
         var traces = new List<ActivityProcessExecution>();
-        var validationFailures = new List<StepFailure>();
-        var validationsPassed = true;
+        var errorFailures = new List<StepFailure>();
+        var warningFailures = new List<StepFailure>();
+        // Map ackToken → its Warning-severity trace row, so acknowledged warnings can be stamped.
+        var warningTracesByToken = new Dictionary<string, ActivityProcessExecution>(StringComparer.Ordinal);
 
         // ── Validations phase (collect-all) ───────────────────────────────
 
@@ -136,8 +144,17 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
 
             if (failure is not null)
             {
-                validationFailures.Add(failure);
-                validationsPassed = false;
+                // Effective severity: hard failures (errored/not-found/expression-error) are always
+                // Error (fail-closed); only a clean business Failed honours the configured severity.
+                if (failure.Severity == StepSeverity.Warning && failure.AckToken is not null)
+                {
+                    warningFailures.Add(failure);
+                    warningTracesByToken[failure.AckToken] = trace;
+                }
+                else
+                {
+                    errorFailures.Add(failure);
+                }
             }
         }
 
@@ -145,7 +162,8 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
 
         var actionConfigs = configs.Where(c => c.Kind == StepKind.Action).ToList();
 
-        if (!validationsPassed)
+        // Any blocking error → fail; no mutation (today's path).
+        if (errorFailures.Count > 0)
         {
             foreach (var config in actionConfigs)
             {
@@ -158,7 +176,45 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
             await TryReportAsync(() =>
                 _progressReporter.PipelineFinished(
                     workflowActivityExecutionId, "ValidationsFailed", completedBy, ct));
-            return PipelineResult.ValidationsFailed(validationFailures);
+            return PipelineResult.ValidationsFailed(errorFailures);
+        }
+
+        // No errors, but ≥1 warning: proceed only if EVERY warning token was acknowledged.
+        if (warningFailures.Count > 0)
+        {
+            var ackSet = acknowledgedWarningTokens as ISet<string>
+                         ?? new HashSet<string>(acknowledgedWarningTokens, StringComparer.Ordinal);
+
+            var unacknowledged = warningFailures
+                .Where(w => w.AckToken is null || !ackSet.Contains(w.AckToken))
+                .ToList();
+
+            if (unacknowledged.Count > 0)
+            {
+                // Soft gate: surface warnings, run no Actions, mutate nothing.
+                foreach (var config in actionConfigs)
+                {
+                    traces.Add(TraceSkipped(
+                        workflowInstanceId, workflowActivityExecutionId,
+                        config, SkipReason.WarningsPending));
+                }
+
+                await _executionSink.PersistAsync(traces, ct);
+                await TryReportAsync(() =>
+                    _progressReporter.PipelineFinished(
+                        workflowActivityExecutionId, "WarningsPending", completedBy, ct));
+                return PipelineResult.WarningsPending(warningFailures);
+            }
+
+            // All warnings acknowledged — stamp the audit trail and continue to Actions.
+            foreach (var w in warningFailures)
+            {
+                if (w.AckToken is not null
+                    && warningTracesByToken.TryGetValue(w.AckToken, out var wTrace))
+                {
+                    wTrace.MarkAcknowledged(completedBy, w.AckToken);
+                }
+            }
         }
 
         StepFailure? actionFailure = null;
@@ -232,19 +288,24 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
         // StepName is the human-readable label; ProcessorName is the stable DI key.
         var stepName = config.ProcessorName;
 
-        // Resolve step from DI dictionary
+        // Resolve step from DI dictionary.
+        // Fail-closed (Part D): an unknown ProcessorName must BLOCK, never silently pass —
+        // a misconfigured pipeline should not let an activity complete unchecked.
         if (!_stepsByName.TryGetValue(stepName, out var step))
         {
             _logger.LogError(
                 "Step '{ProcessorName}' (StepName='{StepName}') not found in registered steps — " +
-                "this indicates a config/DI mismatch. Aborting pipeline.",
+                "this indicates a config/DI mismatch. Blocking completion (fail-closed).",
                 config.ProcessorName, config.StepName);
             var unknownTrace = ActivityProcessExecution.Record(
                 workflowInstanceId, workflowActivityExecutionId,
                 config.Id, config.Version, stepName, config.Kind, config.SortOrder,
                 config.RunIfExpression, config.ParametersJson,
-                StepOutcome.Skipped, null, 0, "Step not found in registered steps");
-            return (unknownTrace, null);
+                StepOutcome.Errored, null, 0, "Step not found in registered steps",
+                StepSeverity.Error);
+            return (unknownTrace,
+                new StepFailure(stepName, "StepNotFound",
+                    $"Configured step '{stepName}' is not registered.", StepSeverity.Error));
         }
 
         // Evaluate RunIfExpression
@@ -302,29 +363,38 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
                     workflowInstanceId, workflowActivityExecutionId,
                     config.Id, config.Version, stepName, config.Kind, config.SortOrder,
                     config.RunIfExpression, config.ParametersJson,
-                    StepOutcome.Passed, null, durationMs, null);
+                    StepOutcome.Passed, null, durationMs, null, config.Severity);
                 break;
 
             case ProcessStepResult.Failed f:
+                // A clean business failure honours the configured severity (Error blocks;
+                // Warning is acknowledge-to-continue). Compute a stable ackToken for warnings.
+                var severity = config.Severity;
+                var token = severity == StepSeverity.Warning
+                    ? ComputeAckToken(stepName, severity, f.Message, config.Version)
+                    : null;
                 _logger.LogWarning(
-                    "Step '{StepName}' failed: [{ErrorCode}] {Message}", stepName, f.ErrorCode, f.Message);
+                    "Step '{StepName}' failed ({Severity}): [{ErrorCode}] {Message}",
+                    stepName, severity, f.ErrorCode, f.Message);
                 trace = ActivityProcessExecution.Record(
                     workflowInstanceId, workflowActivityExecutionId,
                     config.Id, config.Version, stepName, config.Kind, config.SortOrder,
                     config.RunIfExpression, config.ParametersJson,
-                    StepOutcome.Failed, null, durationMs, TrimMessage(f.Message));
-                failure = new StepFailure(stepName, f.ErrorCode, f.Message);
+                    StepOutcome.Failed, null, durationMs, TrimMessage(f.Message), severity);
+                failure = new StepFailure(stepName, f.ErrorCode, f.Message, severity, token);
                 break;
 
             case ProcessStepResult.Errored e:
+                // Fail-closed: an unhandled exception always blocks, regardless of config severity.
                 _logger.LogError(e.Exception,
                     "Step '{StepName}' threw an unhandled exception", stepName);
                 trace = ActivityProcessExecution.Record(
                     workflowInstanceId, workflowActivityExecutionId,
                     config.Id, config.Version, stepName, config.Kind, config.SortOrder,
                     config.RunIfExpression, config.ParametersJson,
-                    StepOutcome.Errored, null, durationMs, TrimMessage(e.Exception.Message));
-                failure = new StepFailure(stepName, "UnhandledError", e.Exception.Message);
+                    StepOutcome.Errored, null, durationMs, TrimMessage(e.Exception.Message),
+                    StepSeverity.Error);
+                failure = new StepFailure(stepName, "UnhandledError", e.Exception.Message, StepSeverity.Error);
                 break;
 
             default:
@@ -332,8 +402,8 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
                     workflowInstanceId, workflowActivityExecutionId,
                     config.Id, config.Version, stepName, config.Kind, config.SortOrder,
                     config.RunIfExpression, config.ParametersJson,
-                    StepOutcome.Errored, null, durationMs, "Unknown result type");
-                failure = new StepFailure(stepName, "UnknownResult", "Unknown result type");
+                    StepOutcome.Errored, null, durationMs, "Unknown result type", StepSeverity.Error);
+                failure = new StepFailure(stepName, "UnknownResult", "Unknown result type", StepSeverity.Error);
                 break;
         }
 
@@ -395,6 +465,72 @@ public sealed class ActivityProcessPipeline : IActivityProcessPipeline
 
     private static string TrimMessage(string msg) =>
         msg.Length > 1000 ? msg[..1000] : msg;
+
+    /// <summary>
+    /// Resolves the movement ("F"/"B"/"C") of the completing decision by matching the decision
+    /// value in <paramref name="input"/> against the activity's <c>actions[].movement</c> in the
+    /// workflow definition. Returns "F" when no decision is present or no action matches, so
+    /// activities without an explicit decision keep validating forward.
+    /// </summary>
+    private static string ResolveMovement(
+        global::Workflow.Workflow.Models.WorkflowInstance instance,
+        string activityName,
+        IReadOnlyDictionary<string, object?> input)
+    {
+        // The completing decision is sent under the BARE key "decisionTaken" — that is what the
+        // caller/FE sends and what TaskActivity reads (TaskActivity.cs:183). The activity-prefixed
+        // form "{normalizedActivityId}_decisionTaken" is only written into Variables LATER, during
+        // ResumeWorkflow (which runs after this pipeline), so read the bare key first and fall back
+        // to the prefixed form defensively.
+        if (!input.TryGetValue("decisionTaken", out var decisionRaw) || decisionRaw is null)
+        {
+            var prefixedKey = activityName.Replace("-", "_") + "_decisionTaken";
+            input.TryGetValue(prefixedKey, out decisionRaw);
+        }
+        if (decisionRaw is null)
+            return "F";
+
+        var decision = decisionRaw is JsonElement dje
+            ? (dje.ValueKind == JsonValueKind.String ? dje.GetString() : dje.ToString())
+            : decisionRaw.ToString();
+        if (string.IsNullOrWhiteSpace(decision))
+            return "F";
+
+        var properties = global::Workflow.AssigneeSelection.Pipeline.ActivityPropertiesExtractor.Extract(instance, activityName);
+        if (!properties.TryGetValue("actions", out var actionsObj)
+            || actionsObj is not JsonElement actions
+            || actions.ValueKind != JsonValueKind.Array)
+            return "F";
+
+        foreach (var action in actions.EnumerateArray())
+        {
+            if (!action.TryGetProperty("value", out var valEl)) continue;
+            var value = valEl.ValueKind == JsonValueKind.String ? valEl.GetString() : valEl.ToString();
+            if (!string.Equals(value, decision, StringComparison.OrdinalIgnoreCase)) continue;
+
+            if (!action.TryGetProperty("movement", out var movEl)) return "F";
+            var movement = movEl.ValueKind == JsonValueKind.String ? movEl.GetString() : null;
+            return movement?.ToUpperInvariant() switch
+            {
+                "B" => "B",
+                "C" => "C",
+                _ => "F"
+            };
+        }
+
+        return "F";
+    }
+
+    /// <summary>
+    /// Stable identity of a warning so an acknowledgement is bound to the exact warning shown.
+    /// A changed message or config version yields a different token, forcing re-acknowledgement.
+    /// </summary>
+    private static string ComputeAckToken(string stepName, StepSeverity severity, string message, int configVersion)
+    {
+        var raw = $"{stepName}:{severity}:{message}:{configVersion}";
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(raw));
+        return Convert.ToHexString(bytes);
+    }
 
     /// <summary>
     /// Builds a <see cref="StepInfo"/> for a config row, resolving DisplayName from the

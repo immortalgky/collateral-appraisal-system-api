@@ -19,7 +19,23 @@ public static class DapperPaginationExtensions
         string orderBy,
         PaginationRequest request,
         object? param = null)
-        => connectionFactory.GetOpenConnection().QueryPaginatedAsync<T>(sql, orderBy, request, param);
+        => connectionFactory.GetOpenConnection().QueryPaginatedAsync<T>(sql, null, orderBy, request, param);
+
+    /// <summary>
+    /// Paginated query with an OPTIONAL custom count statement. When <paramref name="countSql"/>
+    /// is non-null it is used verbatim for the total count instead of wrapping
+    /// <paramref name="sql"/> in <c>SELECT COUNT(*) FROM (…)</c>. Use this to count off a cheap
+    /// base table (e.g. against the same parameters) when the data query reads an expensive
+    /// view whose enrichment the count doesn't need.
+    /// </summary>
+    public static Task<PaginatedResult<T>> QueryPaginatedAsync<T>(
+        this ISqlConnectionFactory connectionFactory,
+        string sql,
+        string? countSql,
+        string orderBy,
+        PaginationRequest request,
+        object? param = null)
+        => connectionFactory.GetOpenConnection().QueryPaginatedAsync<T>(sql, countSql, orderBy, request, param);
 
     /// <summary>
     /// Executes a paginated query on a caller-supplied connection. Use this overload
@@ -28,16 +44,29 @@ public static class DapperPaginationExtensions
     /// MultipleActiveResultSets. Pair with `ISqlConnectionFactory.CreateNewConnection()`
     /// and `using var conn = …` for proper disposal.
     /// </summary>
-    public static async Task<PaginatedResult<T>> QueryPaginatedAsync<T>(
+    public static Task<PaginatedResult<T>> QueryPaginatedAsync<T>(
         this IDbConnection connection,
         string sql,
         string orderBy,
         PaginationRequest request,
         object? param = null)
+        => connection.QueryPaginatedAsync<T>(sql, null, orderBy, request, param);
+
+    /// <summary>
+    /// Paginated query on a caller-supplied connection with an OPTIONAL custom count
+    /// statement (see the factory overload for semantics).
+    /// </summary>
+    public static async Task<PaginatedResult<T>> QueryPaginatedAsync<T>(
+        this IDbConnection connection,
+        string sql,
+        string? countSql,
+        string orderBy,
+        PaginationRequest request,
+        object? param = null)
     {
-        // Count query
-        var countSql = $"SELECT COUNT(*) FROM ({sql}) AS CountQuery";
-        var count = await connection.ExecuteScalarAsync<int>(countSql, param);
+        // Count query — use the caller-supplied cheap count when provided.
+        var effectiveCountSql = countSql ?? $"SELECT COUNT(*) FROM ({sql}) AS CountQuery";
+        var count = await connection.ExecuteScalarAsync<int>(effectiveCountSql, param);
 
         // Data query with pagination
         var offset = request.PageNumber * request.PageSize;

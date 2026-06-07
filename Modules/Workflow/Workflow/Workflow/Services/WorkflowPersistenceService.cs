@@ -505,6 +505,21 @@ public class WorkflowPersistenceService : IWorkflowPersistenceService
         }
     }
 
+    public async Task<bool> IsInProgressActivityOfTypeAsync(
+        Guid workflowInstanceId,
+        string activityId,
+        string activityType,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.WorkflowActivityExecutions
+            .AsNoTracking()
+            .AnyAsync(e => e.WorkflowInstanceId == workflowInstanceId
+                           && e.ActivityId == activityId
+                           && e.ActivityType == activityType
+                           && e.Status == ActivityExecutionStatus.InProgress,
+                cancellationToken);
+    }
+
     /// <summary>
     /// Securely deserializes workflow schema JSON with validation
     /// </summary>

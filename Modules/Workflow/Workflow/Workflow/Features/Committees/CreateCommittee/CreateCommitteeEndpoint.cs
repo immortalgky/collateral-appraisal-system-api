@@ -29,6 +29,7 @@ public record CreateCommitteeRequest(
     string QuorumType,
     int QuorumValue,
     string MajorityType,
+    string? VotingMode,
     List<CreateCommitteeMemberRequest>? Members,
     List<CreateCommitteeThresholdRequest>? Thresholds,
     List<CreateCommitteeConditionRequest>? Conditions);
@@ -58,8 +59,12 @@ public class CreateCommitteeCommandHandler(
         if (!Enum.TryParse<MajorityType>(req.MajorityType, ignoreCase: true, out var majorityType))
             throw new ArgumentException($"Invalid MajorityType '{req.MajorityType}'. Allowed values: {string.Join(", ", Enum.GetNames<MajorityType>())}");
 
+        var votingMode = VotingMode.WaitForAll;
+        if (!string.IsNullOrWhiteSpace(req.VotingMode)
+            && !Enum.TryParse(req.VotingMode, ignoreCase: true, out votingMode))
+            throw new ArgumentException($"Invalid VotingMode '{req.VotingMode}'. Allowed values: {string.Join(", ", Enum.GetNames<VotingMode>())}");
 
-        var committee = Committee.Create(req.Name, req.Code, req.Description, quorumType, req.QuorumValue, majorityType);
+        var committee = Committee.Create(req.Name, req.Code, req.Description, quorumType, req.QuorumValue, majorityType, votingMode);
 
         if (req.Members is not null)
         {

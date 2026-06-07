@@ -96,6 +96,7 @@ public class ActivityProcessPipelineTests
     private static IReadOnlyList<string> NoRoles => Array.Empty<string>();
     private static IReadOnlyDictionary<string, object?> NoInput =>
         new Dictionary<string, object?>();
+    private static IReadOnlyCollection<string> NoAck => Array.Empty<string>();
 
     // ── Tests ─────────────────────────────────────────────────────────────
 
@@ -127,7 +128,7 @@ public class ActivityProcessPipelineTests
         var pipeline = BuildPipeline(db, instanceRepo, predicateEvaluator, [v1, v2, a1]);
 
         var result = await pipeline.ExecuteAsync(
-            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, CancellationToken.None);
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, NoAck, CancellationToken.None);
 
         // Both validation failures collected
         result.IsSuccess.Should().BeFalse();
@@ -165,7 +166,7 @@ public class ActivityProcessPipelineTests
         var pipeline = BuildPipeline(db, instanceRepo, predicateEvaluator, [a1, a2]);
 
         var result = await pipeline.ExecuteAsync(
-            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, CancellationToken.None);
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, NoAck, CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
         result.ActionFailure.Should().NotBeNull();
@@ -206,7 +207,7 @@ public class ActivityProcessPipelineTests
         var pipeline = BuildPipeline(db, instanceRepo, predicateEvaluator, [v1], sink);
 
         var result = await pipeline.ExecuteAsync(
-            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, CancellationToken.None);
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, NoAck, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         // The step was skipped — actual execution not called
@@ -246,7 +247,7 @@ public class ActivityProcessPipelineTests
         var pipeline = BuildPipeline(db, instanceRepo, predicateEvaluator, [v1], sink);
 
         var result = await pipeline.ExecuteAsync(
-            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, CancellationToken.None);
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, NoAck, CancellationToken.None);
 
         // Pipeline fails (expression error is treated as a step failure)
         result.IsSuccess.Should().BeFalse();
@@ -302,10 +303,206 @@ public class ActivityProcessPipelineTests
         var pipeline = BuildPipeline(db, instanceRepo, predicateEvaluator, [v1, a1]);
 
         var result = await pipeline.ExecuteAsync(
-            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, CancellationToken.None);
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, NoAck, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         // Validation ran before Action regardless of SortOrder
         executionOrder.Should().Equal("ValA", "ActA");
+    }
+
+    // ── Severity / warning acknowledge-to-continue ─────────────────────────
+
+    private static ActivityProcessConfiguration MakeConfig(
+        string activityName, string processorName, StepKind kind, int sortOrder,
+        StepSeverity severity, string? runIfExpression = null)
+    {
+        return ActivityProcessConfiguration.Create(
+            activityName, processorName + " label", processorName, kind, sortOrder,
+            "system", null, runIfExpression, severity);
+    }
+
+    // D: an unknown ProcessorName must BLOCK (fail-closed), never silently pass.
+    [Fact]
+    public async Task UnknownStep_FailsClosed_BlocksCompletion()
+    {
+        await using var db = NewDb();
+        var workflowInstanceId = Guid.NewGuid();
+        var activityName = "test-activity";
+
+        // Config references a processor with no registered step.
+        db.ActivityProcessConfigurations.Add(
+            MakeConfig(activityName, "GhostStep", StepKind.Validation, 1));
+        await db.SaveChangesAsync();
+
+        var instanceRepo = Substitute.For<IWorkflowInstanceRepository>();
+        instanceRepo.GetByIdAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(MakeWorkflowInstance(workflowInstanceId));
+
+        // No steps registered → GhostStep cannot resolve.
+        var pipeline = BuildPipeline(db, instanceRepo, Substitute.For<IPredicateEvaluator>(), []);
+
+        var result = await pipeline.ExecuteAsync(
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, NoAck, CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ValidationFailures.Should().ContainSingle(f => f.ErrorCode == "StepNotFound");
+    }
+
+    // C2: a Warning-only failure with no acknowledgement → WarningsPending, no Actions, no mutation.
+    [Fact]
+    public async Task WarningOnly_NoAck_ReturnsWarningsPending_NoActions()
+    {
+        await using var db = NewDb();
+        var workflowInstanceId = Guid.NewGuid();
+        var activityName = "test-activity";
+
+        var v1 = MakeStep("WarnA", StepKind.Validation, ProcessStepResult.Fail("SOFT", "soft issue"));
+        var a1 = MakeStep("ActA", StepKind.Action, ProcessStepResult.Pass());
+
+        db.ActivityProcessConfigurations.AddRange(
+            MakeConfig(activityName, "WarnA", StepKind.Validation, 1, StepSeverity.Warning),
+            MakeConfig(activityName, "ActA", StepKind.Action, 1));
+        await db.SaveChangesAsync();
+
+        var instanceRepo = Substitute.For<IWorkflowInstanceRepository>();
+        instanceRepo.GetByIdAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(MakeWorkflowInstance(workflowInstanceId));
+
+        var pipeline = BuildPipeline(db, instanceRepo, Substitute.For<IPredicateEvaluator>(), [v1, a1]);
+
+        var result = await pipeline.ExecuteAsync(
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, NoAck, CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.RequiresAcknowledgement.Should().BeTrue();
+        result.Warnings.Should().ContainSingle().Which.AckToken.Should().NotBeNullOrEmpty();
+        result.ValidationFailures.Should().BeEmpty();
+        await a1.DidNotReceiveWithAnyArgs().ExecuteAsync(default!, default);
+    }
+
+    // C2: acknowledging the exact warning token lets the pipeline proceed to Actions.
+    [Fact]
+    public async Task WarningOnly_WithMatchingToken_Proceeds()
+    {
+        await using var db = NewDb();
+        var workflowInstanceId = Guid.NewGuid();
+        var activityName = "test-activity";
+
+        var v1 = MakeStep("WarnA", StepKind.Validation, ProcessStepResult.Fail("SOFT", "soft issue"));
+        var a1 = MakeStep("ActA", StepKind.Action, ProcessStepResult.Pass());
+
+        db.ActivityProcessConfigurations.AddRange(
+            MakeConfig(activityName, "WarnA", StepKind.Validation, 1, StepSeverity.Warning),
+            MakeConfig(activityName, "ActA", StepKind.Action, 1));
+        await db.SaveChangesAsync();
+
+        var instanceRepo = Substitute.For<IWorkflowInstanceRepository>();
+        instanceRepo.GetByIdAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(MakeWorkflowInstance(workflowInstanceId));
+        instanceRepo.UpdateAsync(Arg.Any<WorkflowInstance>(), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var pipeline = BuildPipeline(db, instanceRepo, Substitute.For<IPredicateEvaluator>(), [v1, a1]);
+
+        // First run surfaces the token...
+        var first = await pipeline.ExecuteAsync(
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, NoAck, CancellationToken.None);
+        var token = first.Warnings.Single().AckToken!;
+
+        // ...re-run acknowledging it → proceeds.
+        var second = await pipeline.ExecuteAsync(
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, [token], CancellationToken.None);
+
+        second.IsSuccess.Should().BeTrue();
+        await a1.ReceivedWithAnyArgs(1).ExecuteAsync(default!, default);
+    }
+
+    // C2: a newly-surfaced warning (different token) is not covered by a stale acknowledgement.
+    [Fact]
+    public async Task NewWarning_NotAcknowledged_RePrompts()
+    {
+        await using var db = NewDb();
+        var workflowInstanceId = Guid.NewGuid();
+        var activityName = "test-activity";
+
+        var warnA = MakeStep("WarnA", StepKind.Validation, ProcessStepResult.Fail("SOFT_A", "soft A"));
+        var warnB = MakeStep("WarnB", StepKind.Validation, ProcessStepResult.Fail("SOFT_B", "soft B"));
+
+        db.ActivityProcessConfigurations.AddRange(
+            MakeConfig(activityName, "WarnA", StepKind.Validation, 1, StepSeverity.Warning),
+            MakeConfig(activityName, "WarnB", StepKind.Validation, 2, StepSeverity.Warning));
+        await db.SaveChangesAsync();
+
+        var instanceRepo = Substitute.For<IWorkflowInstanceRepository>();
+        instanceRepo.GetByIdAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(MakeWorkflowInstance(workflowInstanceId));
+
+        var pipeline = BuildPipeline(db, instanceRepo, Substitute.For<IPredicateEvaluator>(), [warnA, warnB]);
+
+        var first = await pipeline.ExecuteAsync(
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, NoAck, CancellationToken.None);
+        var tokenA = first.Warnings.First(w => w.StepName == "WarnA").AckToken!;
+
+        // Acknowledge only WarnA's token → WarnB still pending → re-prompt.
+        var second = await pipeline.ExecuteAsync(
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, [tokenA], CancellationToken.None);
+
+        second.RequiresAcknowledgement.Should().BeTrue();
+        second.Warnings.Should().Contain(w => w.StepName == "WarnB");
+    }
+
+    // E: a forward-only validation (RunIf activity.movement === 'F') is skipped on route-back.
+    [Theory]
+    [InlineData("R", true)]   // Route Back → movement B → forward-only check skipped → success
+    [InlineData("P", false)]  // Proceed   → movement F → forward-only check runs → blocked
+    public async Task MovementGate_ForwardOnlyValidation_SkipsOnRouteBack(string decision, bool shouldSucceed)
+    {
+        await using var db = NewDb();
+        var workflowInstanceId = Guid.NewGuid();
+        var activityName = "ext-appraisal-execution";
+
+        // A validation that always fails — gated to forward movement only.
+        var v1 = MakeStep("BlockingVal", StepKind.Validation, ProcessStepResult.Fail("HARD", "missing data"));
+        db.ActivityProcessConfigurations.Add(
+            MakeConfig(activityName, "BlockingVal", StepKind.Validation, 1,
+                StepSeverity.Error, runIfExpression: "activity.movement === 'F'"));
+        await db.SaveChangesAsync();
+
+        // Definition declares P=Forward, R=Backward for this activity.
+        const string definitionJson = """
+            {"activities":[{"id":"ext-appraisal-execution","properties":{"actions":[
+              {"value":"P","movement":"F"},
+              {"value":"R","movement":"B"}
+            ]}}]}
+            """;
+        var instance = BuildInstanceWithDefinition(workflowInstanceId, definitionJson);
+
+        var instanceRepo = Substitute.For<IWorkflowInstanceRepository>();
+        instanceRepo.GetByIdAsync(workflowInstanceId, Arg.Any<CancellationToken>()).Returns(instance);
+
+        // Use the REAL Jint evaluator so activity.movement gating is exercised end-to-end.
+        var pipeline = BuildPipeline(db, instanceRepo, new JintPredicateEvaluator(), [v1]);
+
+        // The caller sends the BARE key "decisionTaken" (matches TaskActivity + the real FE contract).
+        var input = new Dictionary<string, object?>
+        {
+            ["decisionTaken"] = decision
+        };
+
+        var result = await pipeline.ExecuteAsync(
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, input, NoAck, CancellationToken.None);
+
+        result.IsSuccess.Should().Be(shouldSucceed);
+    }
+
+    private static WorkflowInstance BuildInstanceWithDefinition(Guid id, string definitionJson)
+    {
+        var definition = global::Workflow.Workflow.Models.WorkflowDefinition.Create(
+            "test-wf", "desc", definitionJson, "Test", "tester");
+        var instance = WorkflowInstance.Create(definition.Id, "wf-1", null, "tester");
+        instance.Id = id;
+        typeof(WorkflowInstance).GetProperty(nameof(WorkflowInstance.WorkflowDefinition))!
+            .SetValue(instance, definition);
+        return instance;
     }
 }

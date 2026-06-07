@@ -20,7 +20,10 @@ public record ApprovalGroupInfo(
     MajorityConfig Majority,
     List<ApprovalConditionInfo> Conditions,
     string? CommitteeName,
-    string? CommitteeCode);
+    string? CommitteeCode,
+    // Defaults to "Quorum" to preserve the pre-existing early-decide behavior for inline approval
+    // groups; committee-backed groups override this from Committee.VotingMode (seeded WaitForAll).
+    string VotingMode = "Quorum");
 
 public record ApprovalMemberInfo(string Username, string? Role);
 

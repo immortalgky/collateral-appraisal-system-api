@@ -37,6 +37,7 @@ public class CompleteActivityGateTests
                 Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(),
                 Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(),
                 Arg.Any<IReadOnlyDictionary<string, object?>>(),
+                Arg.Any<IReadOnlyCollection<string>>(),
                 Arg.Any<CancellationToken>())
             .Returns(PipelineResult.ValidationsFailed([
                 new StepFailure("RequireDocumentFollowupCleared", "OPEN_DOCUMENT_FOLLOWUPS",
@@ -91,6 +92,7 @@ public class CompleteActivityGateTests
                 Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(),
                 Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(),
                 Arg.Any<IReadOnlyDictionary<string, object?>>(),
+                Arg.Any<IReadOnlyCollection<string>>(),
                 Arg.Any<CancellationToken>())
             .Returns(PipelineResult.Success());
 

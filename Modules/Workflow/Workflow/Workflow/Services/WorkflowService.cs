@@ -189,6 +189,22 @@ public class WorkflowService : IWorkflowService
             _logger.LogInformation("SERVICE: Resuming workflow {WorkflowInstanceId} at activity {ActivityId}",
                 workflowInstanceId, activityId);
 
+            // Serialize concurrent committee-approval votes on the same instance. Acquired BEFORE the
+            // engine loads the instance, so a second simultaneous voter WAITS here (sp_getapplock
+            // blocks up to the timeout — it does not fail just because the lock is held) and then
+            // loads fresh state: if the first vote already decided the round it sees it Completed and
+            // resolves gracefully; otherwise it records its own vote. Scoped to approval resumes only;
+            // the lock is held by the ambient transaction and released on commit/rollback.
+            if (await _persistenceService.IsInProgressActivityOfTypeAsync(
+                    workflowInstanceId, activityId, ActivityTypes.ApprovalActivity, cancellationToken))
+            {
+                var lockResult = await _persistenceService.AcquireApplicationLockAsync(
+                    $"wf-approval:{workflowInstanceId}", "Exclusive", 30000, cancellationToken);
+                if (lockResult < 0)
+                    throw new ConflictException(
+                        $"Approval for workflow {workflowInstanceId} is busy (lock code {lockResult}); please retry.");
+            }
+
             var executionResult = await _workflowEngine.ResumeWorkflowAsync(
                 workflowInstanceId, activityId, completedBy, input, nextAssignmentOverrides, cancellationToken);
 

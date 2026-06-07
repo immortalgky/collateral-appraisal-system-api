@@ -13,5 +13,6 @@ public interface IActivityProcessPipeline
         string completedBy,
         IReadOnlyList<string> userRoles,
         IReadOnlyDictionary<string, object?> input,
+        IReadOnlyCollection<string> acknowledgedWarningTokens,
         CancellationToken ct);
 }

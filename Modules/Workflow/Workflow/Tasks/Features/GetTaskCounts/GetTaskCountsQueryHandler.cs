@@ -40,19 +40,21 @@ public class GetTaskCountsQueryHandler(
         }
 
         var sql = $@"
-SELECT
-    ActivityId,
-    SUM(CASE WHEN AssignedType = '1' AND AssigneeUserId = @AssigneeUserId THEN 1 ELSE 0 END) AS MyCount,
-    SUM(CASE WHEN AssignedType = '2' AND {poolClauseSql} THEN 1 ELSE 0 END) AS PoolCount
-FROM workflow.vw_TaskList
-WHERE ActivityId IS NOT NULL
-  AND (
-    (AssignedType = '1' AND AssigneeUserId = @AssigneeUserId)
-    OR (AssignedType = '2' AND {poolClauseSql})
-  )
+SELECT ActivityId,
+       SUM(CASE WHEN AssignedType = '1' AND AssigneeUserId = @AssigneeUserId THEN 1 ELSE 0 END) AS MyCount,
+       SUM(CASE WHEN AssignedType = '2' AND {poolClauseSql} THEN 1 ELSE 0 END) AS PoolCount
+FROM (SELECT ActivityId,
+             AssignedType,
+             AssignedTo        AS AssigneeUserId,
+             AssigneeCompanyId AS AssigneeCompanyId
+      FROM workflow.PendingTasks
+      WHERE ActivityId IS NOT NULL) t
+WHERE (
+        (AssignedType = '1' AND AssigneeUserId = @AssigneeUserId)
+        OR (AssignedType = '2' AND {poolClauseSql})
+      )
 GROUP BY ActivityId
-HAVING
-    SUM(CASE WHEN AssignedType = '1' AND AssigneeUserId = @AssigneeUserId THEN 1 ELSE 0 END) > 0
+HAVING SUM(CASE WHEN AssignedType = '1' AND AssigneeUserId = @AssigneeUserId THEN 1 ELSE 0 END) > 0
     OR SUM(CASE WHEN AssignedType = '2' AND {poolClauseSql} THEN 1 ELSE 0 END) > 0;
 ";
 

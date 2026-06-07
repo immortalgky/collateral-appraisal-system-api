@@ -132,4 +132,15 @@ public interface IWorkflowPersistenceService
         string lockMode = "Exclusive",
         int timeoutMs = 30000,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns true if an in-progress activity execution of the given type exists for the
+    /// (instance, activity). Used to scope per-instance serialization to specific activity types
+    /// (e.g. only lock committee-approval resumes).
+    /// </summary>
+    Task<bool> IsInProgressActivityOfTypeAsync(
+        Guid workflowInstanceId,
+        string activityId,
+        string activityType,
+        CancellationToken cancellationToken = default);
 }
