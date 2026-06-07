@@ -10,11 +10,13 @@ public interface IMeetingRepository
 
     /// <summary>
     /// Returns the lowest-MeetingNoSeq meeting in the same year that is earlier than the given seq
-    /// and has not yet ended (Status != Ended, != Cancelled). Used to enforce sequential cut-off
-    /// ordering: a meeting cannot be cut off until every earlier meeting has ended. Returns null
-    /// if none exists.
+    /// and whose scheduled end time has not yet passed (EndAt != null and EndAt &gt; now,
+    /// Status != Cancelled). Used to enforce sequential cut-off ordering: a meeting cannot be cut
+    /// off while an earlier meeting's scheduled window is still ongoing. A meeting with no scheduled
+    /// end date never blocks, and routed-back/unfinished cases do not block once the scheduled end
+    /// time has passed. Returns null if none exists.
     /// </summary>
-    Task<Meeting?> GetEarlierUnendedMeetingAsync(int meetingNoYear, int meetingNoSeq, CancellationToken ct = default);
+    Task<Meeting?> GetEarlierUnpassedMeetingAsync(int meetingNoYear, int meetingNoSeq, DateTime now, CancellationToken ct = default);
 
     /// <summary>
     /// Returns the first non-cancelled meeting whose scheduled window overlaps the half-open

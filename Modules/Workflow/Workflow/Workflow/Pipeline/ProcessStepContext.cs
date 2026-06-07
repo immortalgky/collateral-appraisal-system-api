@@ -22,6 +22,14 @@ public sealed record ProcessStepContext
     public string ActivityName { get; init; } = default!;
     public string CompletedBy { get; init; } = default!;
 
+    /// <summary>
+    /// Direction of the completing decision: "F" (forward), "B" (back/route-back), "C" (cancel).
+    /// Resolved from the activity's actions[].movement against the decision in Input.
+    /// Defaults to "F". Injected into Jint as <c>activity.movement</c> so forward-only
+    /// validations gate on <c>RunIf: activity.movement === 'F'</c>.
+    /// </summary>
+    public string Movement { get; init; } = "F";
+
     /// <summary>Roles held by the completing user.</summary>
     public IReadOnlyList<string> UserRoles { get; init; } = [];
 

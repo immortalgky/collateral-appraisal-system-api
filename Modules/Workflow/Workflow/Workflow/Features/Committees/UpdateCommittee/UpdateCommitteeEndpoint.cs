@@ -30,7 +30,8 @@ public record UpdateCommitteeRequest(
     string QuorumType,
     int QuorumValue,
     string MajorityType,
-    bool IsActive);
+    bool IsActive,
+    string? VotingMode = null);
 
 public record UpdateCommitteeCommand(Guid Id, UpdateCommitteeRequest Request) : ICommand<UpdateCommitteeResponse>, ITransactionalCommand<IWorkflowUnitOfWork>;
 
@@ -51,8 +52,13 @@ public class UpdateCommitteeCommandHandler(
         if (!Enum.TryParse<MajorityType>(req.MajorityType, ignoreCase: true, out var majorityType))
             throw new ArgumentException($"Invalid MajorityType '{req.MajorityType}'. Allowed values: {string.Join(", ", Enum.GetNames<MajorityType>())}");
 
+        // Preserve the existing voting mode when the request omits it.
+        var votingMode = committee.VotingMode;
+        if (!string.IsNullOrWhiteSpace(req.VotingMode)
+            && !Enum.TryParse(req.VotingMode, ignoreCase: true, out votingMode))
+            throw new ArgumentException($"Invalid VotingMode '{req.VotingMode}'. Allowed values: {string.Join(", ", Enum.GetNames<VotingMode>())}");
 
-        committee.Update(req.Name, req.Description, quorumType, req.QuorumValue, majorityType, req.IsActive);
+        committee.Update(req.Name, req.Description, quorumType, req.QuorumValue, majorityType, req.IsActive, votingMode);
 
         await committeeRepository.UpdateAsync(committee, ct);
 

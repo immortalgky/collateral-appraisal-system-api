@@ -57,21 +57,25 @@ public class CommitteeDataSeed(
 
         logger.LogInformation("Seeding workflow committees...");
 
+        // Sub committee: every member must vote and all must approve (consensus).
         var subCommittee = Committee.Create(
             "Sub Committee",
             "SUB_COMMITTEE",
             "Sub committee for appraisals up to 10M",
             QuorumType.Fixed,
             2,
-            MajorityType.Unanimous);
+            MajorityType.Unanimous,
+            VotingMode.WaitForAll);
 
+        // Committee: every member must vote, then a simple majority of all members approves.
         var committee = Committee.Create(
             "Committee",
             "COMMITTEE",
             "Committee for appraisals between 10M and 30M",
             QuorumType.Fixed,
             3,
-            MajorityType.Unanimous);
+            MajorityType.Simple,
+            VotingMode.WaitForAll);
 
         var committeeWithMeeting = Committee.Create(
             "Committee With Meeting",
@@ -79,7 +83,8 @@ public class CommitteeDataSeed(
             "Committee for appraisals above 30M — requires a meeting and UW vote",
             QuorumType.Fixed,
             3,
-            MajorityType.Unanimous);
+            MajorityType.Unanimous,
+            VotingMode.WaitForAll);
 
         context.Committees.Add(subCommittee);
         context.Committees.Add(committee);

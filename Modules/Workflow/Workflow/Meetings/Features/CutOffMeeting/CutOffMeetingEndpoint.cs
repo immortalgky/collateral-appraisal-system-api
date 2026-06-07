@@ -38,11 +38,12 @@ public class CutOffMeetingCommandHandler(
 
         if (meeting.MeetingNoYear is int year && meeting.MeetingNoSeq is int seq)
         {
-            var blocker = await meetingRepository.GetEarlierUnendedMeetingAsync(year, seq, ct);
+            var blocker = await meetingRepository.GetEarlierUnpassedMeetingAsync(
+                year, seq, dateTimeProvider.ApplicationNow, ct);
             if (blocker is not null)
                 throw new ConflictException(
                     $"Cannot cut off meeting {meeting.MeetingNo}. " +
-                    $"Meeting {blocker.MeetingNo} must end first.");
+                    $"Meeting {blocker.MeetingNo}'s scheduled end time has not passed yet.");
         }
 
         // Load queued items not yet assigned to any meeting

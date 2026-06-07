@@ -136,12 +136,15 @@ public class ValidateAppraisalFieldsStep(
         {
             using var connection = connectionFactory.GetOpenConnection();
 
-            // Load the validation-context row once.
-            var row = await connection.QueryFirstOrDefaultAsync<Dictionary<string, object>>(
+            // Load the validation-context row once. Use the dynamic/DapperRow path (same as
+            // ValidatePropertyMandatoryFieldsStep): the resulting IDictionary is CASE-INSENSITIVE,
+            // so registry column lookups are robust to column-name casing — unlike a plain
+            // Dictionary<string,object> which is case-sensitive and silently misses every column.
+            var queried = await connection.QueryAsync(
                 "SELECT * FROM appraisal.vw_AppraisalValidationContext WHERE AppraisalId = @AppraisalId",
                 new { AppraisalId = ctx.AppraisalId.Value });
 
-            if (row is null)
+            if (queried.FirstOrDefault() is not IDictionary<string, object> row)
             {
                 logger.LogWarning(
                     "Appraisal {AppraisalId} not found in vw_AppraisalValidationContext",
@@ -275,7 +278,7 @@ public class ValidateAppraisalFieldsStep(
         if (fieldDef.DataType == "boolean")
         {
             var actual = ToBoolean(rawValue);
-            var expected = string.Equals(rule.Value, "true", StringComparison.OrdinalIgnoreCase);
+            var expected = ToBoolean(rule.Value);   // accepts "true"/"True" or "1"
 
             bool passed = op switch
             {
@@ -319,7 +322,7 @@ public class ValidateAppraisalFieldsStep(
     /// Builds a fieldKey → value dictionary from the raw Dapper row using the registry.
     /// </summary>
     private static IReadOnlyDictionary<string, object?> BuildFieldData(
-        Dictionary<string, object> row)
+        IDictionary<string, object> row)
     {
         var result = new Dictionary<string, object?>(AppraisalFieldRegistry.Fields.Count,
             StringComparer.OrdinalIgnoreCase);
@@ -335,13 +338,29 @@ public class ValidateAppraisalFieldsStep(
         return result;
     }
 
+    /// <summary>
+    /// Interprets a value as a boolean. Handles every numeric boxing SQL Server / Dapper can
+    /// produce for a 0/1 flag column (int, long, short, byte, decimal/float/double, bit→bool)
+    /// plus string forms ("1"/"true"/"yes"). Anything else (incl. null) is false.
+    /// This tolerance matters because the validation-context view exposes flags as
+    /// `CASE … THEN 1 ELSE 0 END`, and the exact CLR type depends on the column/driver.
+    /// </summary>
     private static bool ToBoolean(object? value) =>
         value switch
         {
+            null => false,
             bool b => b,
+            byte by => by != 0,
+            short s => s != 0,
             int i => i != 0,
             long l => l != 0,
-            byte by => by != 0,
+            decimal d => d != 0,
+            double db => db != 0,
+            float f => f != 0,
+            string str => str.Trim() is var t
+                && (t == "1"
+                    || string.Equals(t, "true", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(t, "yes", StringComparison.OrdinalIgnoreCase)),
             _ => false
         };
 

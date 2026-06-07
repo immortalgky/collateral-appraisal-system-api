@@ -89,6 +89,7 @@ public class ActivityProgressReporterTests
 
     private static IReadOnlyList<string> NoRoles => Array.Empty<string>();
     private static IReadOnlyDictionary<string, object?> NoInput => new Dictionary<string, object?>();
+    private static IReadOnlyCollection<string> NoAck => Array.Empty<string>();
 
     // ── Tests ─────────────────────────────────────────────────────────────
 
@@ -118,7 +119,7 @@ public class ActivityProgressReporterTests
         var execId = Guid.NewGuid();
 
         var result = await pipeline.ExecuteAsync(
-            workflowInstanceId, execId, activityName, completedBy, NoRoles, NoInput, CancellationToken.None);
+            workflowInstanceId, execId, activityName, completedBy, NoRoles, NoInput, NoAck, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
 
@@ -162,7 +163,7 @@ public class ActivityProgressReporterTests
         var execId = Guid.NewGuid();
 
         var result = await pipeline.ExecuteAsync(
-            workflowInstanceId, execId, activityName, completedBy, NoRoles, NoInput, CancellationToken.None);
+            workflowInstanceId, execId, activityName, completedBy, NoRoles, NoInput, NoAck, CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
         await reporter.Received(1).PipelineFinished(execId, "ValidationsFailed", completedBy, Arg.Any<CancellationToken>());
@@ -192,7 +193,7 @@ public class ActivityProgressReporterTests
         var execId = Guid.NewGuid();
 
         var result = await pipeline.ExecuteAsync(
-            workflowInstanceId, execId, activityName, completedBy, NoRoles, NoInput, CancellationToken.None);
+            workflowInstanceId, execId, activityName, completedBy, NoRoles, NoInput, NoAck, CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
         await reporter.Received(1).PipelineFinished(execId, "ActionFailed", completedBy, Arg.Any<CancellationToken>());
@@ -231,7 +232,7 @@ public class ActivityProgressReporterTests
 
         // Should not throw despite the reporter throwing
         var result = await pipeline.ExecuteAsync(
-            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, CancellationToken.None);
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, NoAck, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue("a throwing reporter must never affect the pipeline result");
     }
@@ -263,7 +264,7 @@ public class ActivityProgressReporterTests
         var pipeline = BuildPipeline(db, instanceRepo, [v1], reporter);
 
         await pipeline.ExecuteAsync(
-            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, CancellationToken.None);
+            workflowInstanceId, Guid.NewGuid(), activityName, "user", NoRoles, NoInput, NoAck, CancellationToken.None);
 
         capturedSteps.Should().NotBeNull();
         capturedSteps!.Should().HaveCount(1);

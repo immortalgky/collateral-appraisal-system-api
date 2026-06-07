@@ -24,6 +24,7 @@ public class CompleteActivityEndpoint : ICarterModule
                     ActivityId = activityId,
                     CompletedBy = currentUserService.Username!,
                     Input = request.Input,
+                    AcknowledgedWarningTokens = request.AcknowledgedWarningTokens,
                     NextAssignmentOverrides = request.NextAssignmentOverrides
                 };
 
@@ -57,6 +58,14 @@ public record CompleteActivityRequest
 {
     public string CompletedBy { get; init; } = default!;
     public Dictionary<string, object> Input { get; init; } = new();
+
+    /// <summary>
+    /// Tokens of warnings the user has seen and chosen to proceed past (acknowledge-to-continue).
+    /// On the first Complete call this is empty → the pipeline returns WarningsRequireAcknowledgement.
+    /// The FE re-sends the call with the tokens it displayed. A newly-surfaced warning whose token
+    /// is not in this list re-prompts rather than slipping through.
+    /// </summary>
+    public List<string> AcknowledgedWarningTokens { get; init; } = new();
 
     /// <summary>
     /// Assignment overrides for upcoming activities
@@ -102,6 +111,7 @@ public record CompleteActivityCommand : ICommand<CompleteActivityResponse>, ITra
     public string ActivityId { get; init; } = default!;
     public string CompletedBy { get; init; } = default!;
     public Dictionary<string, object> Input { get; init; } = new();
+    public List<string> AcknowledgedWarningTokens { get; init; } = new();
     public Dictionary<string, AssignmentOverrideRequest>? NextAssignmentOverrides { get; init; }
 }
 
@@ -115,6 +125,15 @@ public sealed record StructuredValidationError(
     string ErrorCode,
     string Message);
 
+/// <summary>
+/// A single acknowledge-to-continue warning. The FE shows <see cref="Message"/> and, on
+/// "Continue anyway", echoes <see cref="AckToken"/> back in AcknowledgedWarningTokens.
+/// </summary>
+public sealed record StructuredWarning(
+    string StepName,
+    string Message,
+    string AckToken);
+
 public record CompleteActivityResponse
 {
     public Guid WorkflowInstanceId { get; init; }
@@ -125,6 +144,7 @@ public record CompleteActivityResponse
     public string? NextAssignee { get; init; }
     public bool IsCompleted { get; init; }
     public List<StructuredValidationError>? ValidationErrors { get; init; }
+    public List<StructuredWarning>? Warnings { get; init; }
 }
 
 public class CompleteActivityCommandHandler(
@@ -162,6 +182,7 @@ public class CompleteActivityCommandHandler(
             request.CompletedBy,
             userRoles,
             input,
+            request.AcknowledgedWarningTokens,
             cancellationToken);
 
         // B4: Distinguish Validation failures (no mutation) from Action failures (need rollback).
@@ -171,6 +192,21 @@ public class CompleteActivityCommandHandler(
             {
                 // Action failure: mutations may have occurred — force a rollback via exception.
                 throw new WorkflowActionFailedException(pipelineResult.ActionFailure);
+            }
+
+            // Warnings pending: no mutation, no advance. The user must acknowledge the listed
+            // warnings (re-POST with their ackTokens) to continue.
+            if (pipelineResult.RequiresAcknowledgement)
+            {
+                return new CompleteActivityResponse
+                {
+                    WorkflowInstanceId = request.WorkflowInstanceId,
+                    WorkflowActivityExecutionId = workflowActivityExecutionId,
+                    Status = "WarningsRequireAcknowledgement",
+                    Warnings = pipelineResult.Warnings
+                        .Select(w => new StructuredWarning(w.StepName, w.Message, w.AckToken!))
+                        .ToList()
+                };
             }
 
             // Validation failure: nothing was mutated, return a clean failure response.

@@ -1,11 +1,15 @@
 using Dapper;
 using Shared.Data;
 using Shared.Pagination;
+using Workflow.Contracts.Sla;
+using Shared.Time;
 
 namespace Workflow.Tasks.Features.GetTasks;
 
 public class GetTasksQueryHandler(
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    IBusinessTimeCalculator businessTime,
+    IDateTimeProvider clock
 ) : IQueryHandler<GetTasksQuery, GetTasksResult>
 {
     private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
@@ -105,7 +109,18 @@ public class GetTasksQueryHandler(
 
         var sortField = AllowedSortFields.Contains(filter?.SortBy ?? "") ? filter!.SortBy! : "AssignedDate";
         var sortDir = string.Equals(filter?.SortDir, "asc", StringComparison.OrdinalIgnoreCase) ? "ASC" : "DESC";
-        var orderBy = $"{sortField} {sortDir}";
+
+        // ElapsedHours/RemainingHours are no longer columns on the view (computed in C# below).
+        // Their business-time values are monotonic in the underlying timestamps, so we translate
+        // the sort to those columns for exact ordering:
+        //   ElapsedHours  ASC  ≡ AssignedDate DESC (least elapsed = most recent assignment)
+        //   RemainingHours ASC ≡ DueAt        ASC  (least remaining = earliest due)
+        var orderBy = sortField switch
+        {
+            "ElapsedHours" => $"AssignedDate {Invert(sortDir)}",
+            "RemainingHours" => $"DueAt {sortDir}",
+            _ => $"{sortField} {sortDir}"
+        };
 
         var result = await connectionFactory.QueryPaginatedAsync<TaskDto>(
             sql,
@@ -113,6 +128,21 @@ public class GetTasksQueryHandler(
             query.PaginationRequest,
             parameters);
 
-        return new GetTasksResult(result);
+        // Business-time Elapsed/Remaining: exclude weekends, holidays and lunch via the shared
+        // calculator. Only the returned page is recomputed; the calculator caches config/holidays.
+        var now = clock.ApplicationNow;
+        var items = new List<TaskDto>();
+        foreach (var t in result.Items)
+        {
+            var (elapsed, remaining) =
+                await businessTime.ComputeElapsedRemainingHoursAsync(now, t.AssignedDate, t.DueAt, cancellationToken);
+            items.Add(t with { ElapsedHours = elapsed, RemainingHours = remaining });
+        }
+
+        var paged = new PaginatedResult<TaskDto>(items, result.Count, result.PageNumber, result.PageSize);
+        return new GetTasksResult(paged);
     }
+
+    private static string Invert(string dir) =>
+        string.Equals(dir, "ASC", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
 }

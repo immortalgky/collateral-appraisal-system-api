@@ -2,12 +2,16 @@ using Dapper;
 using Shared.Data;
 using Shared.Identity;
 using Shared.Pagination;
+using Workflow.Contracts.Sla;
+using Shared.Time;
 
 namespace Workflow.Tasks.Features.GetMonitoredTasks;
 
 public class GetMonitoredTasksQueryHandler(
     ISqlConnectionFactory connectionFactory,
-    ICurrentUserService currentUserService
+    ICurrentUserService currentUserService,
+    IBusinessTimeCalculator businessTime,
+    IDateTimeProvider clock
 ) : IQueryHandler<GetMonitoredTasksQuery, GetMonitoredTasksResult>
 {
     private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
@@ -106,11 +110,38 @@ public class GetMonitoredTasksQueryHandler(
 
         var sortField = AllowedSortFields.Contains(filter?.SortBy ?? "") ? filter!.SortBy! : "AssignedAt";
         var sortDir = string.Equals(filter?.SortDir, "asc", StringComparison.OrdinalIgnoreCase) ? "ASC" : "DESC";
-        var orderBy = $"{sortField} {sortDir}";
+
+        // ElapsedHours/RemainingHours are no longer columns on vw_TaskMonitor (computed in C# via
+        // IBusinessTimeCalculator). Their business-time values are monotonic in the underlying
+        // timestamps, so translate the sort for exact ordering — and to avoid ORDER BY referencing
+        // a dropped column:
+        //   ElapsedHours  ASC  ≡ AssignedAt DESC (least elapsed = most recent assignment)
+        //   RemainingHours ASC ≡ DueAt      ASC  (least remaining = earliest due)
+        var orderBy = sortField switch
+        {
+            "ElapsedHours" => $"AssignedAt {Invert(sortDir)}",
+            "RemainingHours" => $"DueAt {sortDir}",
+            _ => $"{sortField} {sortDir}"
+        };
 
         var result = await connectionFactory.QueryPaginatedAsync<MonitoredTaskDto>(
             sql, orderBy, query.PaginationRequest, parameters);
 
-        return new GetMonitoredTasksResult(result);
+        // Business-time Elapsed/Remaining: exclude weekends, holidays and lunch via the shared
+        // calculator. Only the returned page is recomputed; the calculator caches config/holidays.
+        var now = clock.ApplicationNow;
+        var items = new List<MonitoredTaskDto>();
+        foreach (var t in result.Items)
+        {
+            var (elapsed, remaining) =
+                await businessTime.ComputeElapsedRemainingHoursAsync(now, t.AssignedAt, t.DueAt, cancellationToken);
+            items.Add(t with { ElapsedHours = elapsed, RemainingHours = remaining });
+        }
+
+        var paged = new PaginatedResult<MonitoredTaskDto>(items, result.Count, result.PageNumber, result.PageSize);
+        return new GetMonitoredTasksResult(paged);
     }
+
+    private static string Invert(string dir) =>
+        string.Equals(dir, "ASC", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
 }

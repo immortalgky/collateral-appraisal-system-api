@@ -29,6 +29,11 @@ public class ActivityProcessConfigurationConfiguration : IEntityTypeConfiguratio
             .HasColumnType("tinyint")
             .HasDefaultValue(StepKind.Validation);
 
+        builder.Property(x => x.Severity)
+            .IsRequired()
+            .HasColumnType("tinyint")
+            .HasDefaultValue(StepSeverity.Error);
+
         builder.Property(x => x.SortOrder)
             .IsRequired();
 
@@ -65,5 +70,11 @@ public class ActivityProcessConfigurationConfiguration : IEntityTypeConfiguratio
 
         builder.HasIndex(x => new { x.ActivityName, x.IsActive, x.SortOrder })
             .HasDatabaseName("IX_ActivityProcessConfigurations_Activity_Active_Sort");
+
+        // One config row per (activity, step). The admin PUT and the seeder both key by this pair
+        // (admin ToDictionary throws on duplicate ProcessorName) — enforce it at the DB too.
+        builder.HasIndex(x => new { x.ActivityName, x.ProcessorName })
+            .IsUnique()
+            .HasDatabaseName("UX_ActivityProcessConfigurations_Activity_Processor");
     }
 }

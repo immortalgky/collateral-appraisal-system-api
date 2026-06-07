@@ -49,7 +49,12 @@ SELECT
     CASE
         WHEN NULLIF(COALESCE(lad.SubDistrict, cad.SubDistrict), '') IS NOT NULL
             THEN 1 ELSE 0
-    END                                                                     AS SubDistrict
+    END                                                                     AS SubDistrict,
+
+    -- ── Condo unit identity (from CondoAppraisalDetails; 0 for non-condo) ─
+    CASE WHEN NULLIF(cad.RoomNumber, '')     IS NOT NULL THEN 1 ELSE 0 END   AS RoomNumber,
+    CASE WHEN NULLIF(cad.BuildingNumber, '') IS NOT NULL THEN 1 ELSE 0 END   AS BuildingNumber,
+    CASE WHEN NULLIF(cad.FloorNumber, '')    IS NOT NULL THEN 1 ELSE 0 END   AS FloorNumber
 
 FROM appraisal.AppraisalProperties p
          LEFT JOIN appraisal.LandAppraisalDetails  lad ON lad.AppraisalPropertyId = p.Id

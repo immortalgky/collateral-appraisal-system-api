@@ -21,7 +21,6 @@ using Workflow.Workflow.Pipeline.Steps;
 using Workflow.Workflow.Services;
 using Workflow.Infrastructure;
 using Workflow.Sla.Services;
-using Workflow.Workflow.Hubs;
 using Workflow.DocumentFollowups.Application;
 using Workflow.DocumentFollowups.Infrastructure;
 using Workflow.FeeAppointmentApprovals.Application.Policy;
@@ -172,7 +171,7 @@ public static class WorkflowModule
         services.AddScoped<IWorkflowRelayService, WorkflowRelayService>();
 
         // SLA services
-        services.AddScoped<Shared.Sla.IBusinessTimeCalculator, BusinessTimeCalculator>();
+        services.AddScoped<Contracts.Sla.IBusinessTimeCalculator, BusinessTimeCalculator>();
         services.AddScoped<ISlaCalculator, SlaCalculator>();
         services.AddScoped<ISlaCalculatorClient, SlaCalculatorClient>();
         services.AddHostedService<SlaMonitorService>();
@@ -190,7 +189,8 @@ public static class WorkflowModule
         services.AddScoped<Appraisal.Contracts.Services.IPoolTaskClauseService, Tasks.Services.PoolTaskClauseService>();
 
         // Activity process pipeline (pluggable pipeline v2)
-        services.AddScoped<IActivityProcessStep, UpdateAssignmentStatusStep>();
+        // (UpdateAssignmentStatusStep removed — assignment status is event-driven via the
+        //  WorkflowTransitioned consumer in the Appraisal module.)
         services.AddScoped<IActivityProcessStep, ValidateHasAppraisedValueStep>();
         services.AddScoped<IActivityProcessStep, ValidateTaskOwnershipStep>();
         services.AddScoped<IActivityProcessStep, ValidateDecisionConstraintsStep>();
@@ -250,9 +250,6 @@ public static class WorkflowModule
     public static IApplicationBuilder UseWorkflowModule(this IApplicationBuilder app)
     {
         app.UseMigration<WorkflowDbContext>();
-
-        // Configure SignalR workflow hub
-        app.UseEndpoints(endpoints => { endpoints.MapHub<WorkflowHub>("/workflowHub"); });
 
         return app;
     }

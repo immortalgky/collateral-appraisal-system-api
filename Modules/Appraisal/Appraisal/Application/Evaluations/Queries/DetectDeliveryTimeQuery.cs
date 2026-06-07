@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Shared.Sla;
+using Workflow.Contracts.Sla;
 
 namespace Appraisal.Application.Evaluations.Queries;
 

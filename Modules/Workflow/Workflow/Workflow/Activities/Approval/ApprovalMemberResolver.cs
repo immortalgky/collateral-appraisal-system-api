@@ -170,6 +170,6 @@ public class ApprovalMemberResolver(
             .ToList();
 
         return new ApprovalGroupInfo(members, quorum, majority, conditions,
-            committee.Name, committee.Code);
+            committee.Name, committee.Code, committee.VotingMode.ToString());
     }
 }

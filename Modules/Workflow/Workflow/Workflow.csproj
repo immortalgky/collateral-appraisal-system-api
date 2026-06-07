@@ -9,6 +9,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Workflow.Contracts\Workflow.Contracts.csproj" />
         <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj" />
+        <ProjectReference Include="..\..\Notification\Notification.Contracts\Notification.Contracts.csproj" />
         <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj" />
         <ProjectReference Include="..\..\Appraisal\Appraisal.Contracts\Appraisal.Contracts.csproj" />
         <ProjectReference Include="..\..\Collateral\Collateral.Contracts\Collateral.Contracts.csproj" />
@@ -20,6 +21,11 @@
 
     <ItemGroup>
         <Folder Include="Infrastructure\Seed\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Expose internal projection helpers (e.g. ApprovalListProjection) to the unit-test assembly. -->
+        <InternalsVisibleTo Include="Workflow.Tests" />
     </ItemGroup>
 
     <ItemGroup>
