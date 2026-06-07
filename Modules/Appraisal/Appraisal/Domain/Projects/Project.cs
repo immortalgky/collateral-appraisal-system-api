@@ -532,7 +532,7 @@ public class Project : Aggregate<Guid>
     /// </param>
     public IReadOnlyList<ProjectUnitPrice> CalculateUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
-        IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId)
+        IReadOnlyDictionary<Guid, ProjectModelPricingSummary?> projectModelPricingSummary)
     {
         if (PricingAssumption is null)
             throw new InvalidProjectStateException(
@@ -540,13 +540,13 @@ public class Project : Aggregate<Guid>
 
         // TODO(Land): LandAndBuildingLike path — both LB and Land use the same calculation in v1
         return ProjectType == ProjectType.Condo
-            ? CalculateCondoUnitPrices(existingPriceMap, standardPriceByModelId)
-            : CalculateLandAndBuildingUnitPrices(existingPriceMap, standardPriceByModelId);
+            ? CalculateCondoUnitPrices(existingPriceMap, projectModelPricingSummary)
+            : CalculateLandAndBuildingUnitPrices(existingPriceMap, projectModelPricingSummary);
     }
 
     private IReadOnlyList<ProjectUnitPrice> CalculateCondoUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
-        IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId)
+        IReadOnlyDictionary<Guid, ProjectModelPricingSummary?> projectModelPricingSummary)
     {
         var assumption = PricingAssumption!;
         var hasPersistedAssumptions = assumption.ModelAssumptions.Count > 0;
@@ -558,15 +558,14 @@ public class Project : Aggregate<Guid>
                 .ToDictionary(g => g.Key, g =>
                 {
                     var ma = g.First();
-                    var model = _models.FirstOrDefault(m => m.Id == ma.ProjectModelId);
-                    var pa = model?.PricingAnalysis;
-                    var selectedMethod = pa?.Approaches.FirstOrDefault(a => a.IsSelected)?.Methods.FirstOrDefault(m => m.IsSelected);
+                    var model = projectModelPricingSummary.GetValueOrDefault(ma.ProjectModelId);
+                    var pa = model?.FinalAppraisedValue;
 
-                    var priceUnit = ma.StandardPriceUnit;
+                    var priceUnit = ma?.StandardPriceUnit ?? StandardPriceUnit.BahtPerUnit;
 
                     var standardPrice = priceUnit == StandardPriceUnit.BahtPerUnit
-                        ? selectedMethod?.FinalValue?.AppraisalPrice ?? pa?.FinalAppraisedValue ?? 0m
-                        : selectedMethod?.FinalValue?.FinalValueAdjusted ?? pa?.FinalAppraisedValue ?? 0m;
+                        ? model?.FinalAppraisedValue ?? 0m
+                        : model?.FinalValueAdjusted ?? 0m;
 
                     return (
                         StandardPrice: standardPrice,
@@ -577,7 +576,7 @@ public class Project : Aggregate<Guid>
                 .Where(m => m.ModelName != null)
                 .GroupBy(m => m.ModelName!)
                 .ToDictionary(g => g.Key, g => (
-                    StandardPrice: g.First().PricingAnalysis?.FinalAppraisedValue ?? 0m,
+                    StandardPrice: projectModelPricingSummary.TryGetValue(g.First().Id, out var paSum) ? paSum?.FinalAppraisedValue ?? 0m : 0m,
                     StandardPriceUnit: StandardPriceUnit.PerSquareMeter,
                     CoverageAmount: CoverageByCondition.Lookup(g.First().FireInsuranceCondition)));
 
@@ -648,7 +647,7 @@ public class Project : Aggregate<Guid>
 
     private IReadOnlyList<ProjectUnitPrice> CalculateLandAndBuildingUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
-        IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId)
+        IReadOnlyDictionary<Guid, ProjectModelPricingSummary?> projectModelPricingSummary)
     {
         var assumption = PricingAssumption!;
 
@@ -682,7 +681,7 @@ public class Project : Aggregate<Guid>
                 // StandardPrice is the model's total appraised value (Baht) — NOT per sq.m.
                 // Do not multiply by usable area for LB.
                 // FinalAppraisedValue is supplied by the handler from IPricingAnalysisRepository.
-                standardPrice = standardPriceByModelId.TryGetValue(projectModel.Id, out var sp) ? sp ?? 0m : 0m;
+                standardPrice = projectModelPricingSummary.TryGetValue(projectModel.Id, out var sp) ? sp?.FinalAppraisedValue ?? 0m : 0m;
             }
             var coverageAmount = modelAssumption?.CoverageAmount;
             var usableArea = unit.UsableArea ?? 0m;

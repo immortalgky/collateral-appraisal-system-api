@@ -18,7 +18,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
         GetProjectPricingAssumptionsQuery query,
         CancellationToken cancellationToken)
     {
-        var project = await projectRepository.GetWithPricingGraphAsync(query.AppraisalId, cancellationToken)
+        var project = await projectRepository.GetWithFullGraphAsync(query.AppraisalId, cancellationToken)
                       ?? throw new InvalidOperationException($"Project not found for appraisal {query.AppraisalId}");
 
         // Batch-load PricingAnalysis summaries for all models (replaces the removed nav property).
@@ -82,14 +82,12 @@ public class GetProjectPricingAssumptionsQueryHandler(
                         ma.StandardLandPrice,
                         ma.CoverageAmount,
                         ma.FireInsuranceCondition,
-                        // PricingAnalysisId: model?.PricingAnalysis?.Id,
-                        // PricingAnalysisStatus: model?.PricingAnalysis?.Status,
-                        // AppraisalPrice: GetAppraisalPrice(model?.PricingAnalysis),
-                        // StandardPriceUnit: ma.StandardPriceUnit);
                         PricingAnalysisId: paSum?.PricingAnalysisId,
                         PricingAnalysisStatus: paSum?.Status,
-                        FinalValueAdjusted: GetFinalValueAdjusted(model?.PricingAnalysis),
-                        FinalAppraisedValue: paSum?.FinalAppraisedValue);
+                        FinalValueAdjusted: paSum?.FinalValueAdjusted,
+                        AppraisalPrice: paSum?.FinalAppraisedValue,
+                        StandardPriceUnit: ma.StandardPriceUnit
+                        );
                 })
                 .OrderBy(ma => ma.ModelType)
                 .ToList()
@@ -118,8 +116,13 @@ public class GetProjectPricingAssumptionsQueryHandler(
     }
 
     private static List<ProjectModelAssumptionDto> DeriveFromModels(
-        IReadOnlyList<ProjectModel> models, bool isCondo) =>
-        models.Select(m => new ProjectModelAssumptionDto(
+        IReadOnlyList<ProjectModel> models,
+        bool isCondo,
+        IReadOnlyDictionary<Guid, ProjectModelPricingSummary> paSummaries) =>
+        models.Select(m =>
+        {
+            paSummaries.TryGetValue(m.Id, out var pa);
+            return new ProjectModelAssumptionDto(
             m.Id,
             m.ModelName,
             m.ModelDescription,
@@ -130,27 +133,15 @@ public class GetProjectPricingAssumptionsQueryHandler(
             // CoverageAmount: both Condo and LB derive from FireInsuranceCondition via CoverageByCondition
             LookupCoverageAmount(m.FireInsuranceCondition),
             m.FireInsuranceCondition,
-            PricingAnalysisId: m.PricingAnalysis?.Id,
-            PricingAnalysisStatus: m.PricingAnalysis?.Status,
-            FinalValueAdjusted: GetFinalValueAdjusted(m.PricingAnalysis),
-            AppraisalPrice: GetAppraisalPrice(m.PricingAnalysis),
+            PricingAnalysisId: pa?.PricingAnalysisId,
+            PricingAnalysisStatus: pa?.Status,
+            FinalValueAdjusted: pa?.FinalValueAdjusted,
+            AppraisalPrice: pa?.FinalAppraisedValue,
             StandardPriceUnit: null
-            ))
+            );
+        })
         .ToList();
 
     private static decimal? LookupCoverageAmount(string? condition)
         => CoverageByCondition.Lookup(condition);
-
-    private static decimal? GetFinalValueAdjusted(PricingAnalysisEntity? pa)
-        => pa?
-            .Approaches.FirstOrDefault(a => a.IsSelected)
-            ?.Methods.FirstOrDefault(m => m.IsSelected)
-            ?.FinalValue?.FinalValueAdjusted;
-
-    private static decimal? GetAppraisalPrice(PricingAnalysisEntity? pa)
-        => pa?
-            .Approaches.FirstOrDefault(a => a.IsSelected)
-            ?.Methods.FirstOrDefault(m => m.IsSelected)
-            ?.FinalValue?.AppraisalPrice
-            ?? pa?.FinalAppraisedValue;
 }
