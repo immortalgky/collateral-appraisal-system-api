@@ -1,9 +1,9 @@
-using Appraisal.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceList;
-using Appraisal.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceUnits;
-using Appraisal.Application.Features.BlockUnitMaintenance.UpdateProjectUnitSaleInfo;
-using Appraisal.Domain.Projects;
+using Collateral.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceList;
+using Collateral.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceUnits;
+using Collateral.Application.Features.BlockUnitMaintenance.UpdateProjectUnitSaleInfo;
+using Microsoft.AspNetCore.Mvc;
 
-namespace Appraisal.Application.Features.BlockUnitMaintenance;
+namespace Collateral.Application.Features.BlockUnitMaintenance;
 
 public class BlockUnitMaintenanceEndpoints : ICarterModule
 {
@@ -34,13 +34,13 @@ public class BlockUnitMaintenanceEndpoints : ICarterModule
             .WithTags("BlockUnitMaintenance")
             .RequireAuthorization();
 
-        // GET /block-unit-maintenance/{projectId}/units — unit rows for a project.
-        app.MapGet("/block-unit-maintenance/{projectId:guid}/units", async (
-                Guid projectId,
+        // GET /block-unit-maintenance/{collateralMasterId}/units — unit rows for a project.
+        app.MapGet("/block-unit-maintenance/{collateralMasterId:guid}/units", async (
+                Guid collateralMasterId,
                 ISender sender,
                 CancellationToken ct = default) =>
             {
-                var query = new GetBlockUnitMaintenanceUnitsQuery(projectId);
+                var query = new GetBlockUnitMaintenanceUnitsQuery(collateralMasterId);
                 var result = await sender.Send(query, ct);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             })
@@ -49,13 +49,13 @@ public class BlockUnitMaintenanceEndpoints : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get units for a project")
             .WithDescription(
-                "Returns all units for the given project with their current sale-tracking fields.")
+                "Returns all units for the given collateral master project with their current sale-tracking fields.")
             .WithTags("BlockUnitMaintenance")
             .RequireAuthorization();
 
-        // PUT /block-unit-maintenance/{projectId}/units — bulk update sale info.
-        app.MapPut("/block-unit-maintenance/{projectId:guid}/units", async (
-                Guid projectId,
+        // PUT /block-unit-maintenance/{collateralMasterId}/units — bulk update sale info.
+        app.MapPut("/block-unit-maintenance/{collateralMasterId:guid}/units", async (
+                Guid collateralMasterId,
                 UpdateProjectUnitSaleInfoRequest request,
                 ISender sender,
                 CancellationToken ct = default) =>
@@ -69,7 +69,7 @@ public class BlockUnitMaintenanceEndpoints : ICarterModule
                     .ToList()
                     .AsReadOnly();
 
-                var command = new UpdateProjectUnitSaleInfoCommand(projectId, items);
+                var command = new UpdateProjectUnitSaleInfoCommand(collateralMasterId, items);
                 await sender.Send(command, ct);
                 return Results.NoContent();
             })

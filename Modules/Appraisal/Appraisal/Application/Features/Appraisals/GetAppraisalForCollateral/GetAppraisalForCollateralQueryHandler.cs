@@ -154,7 +154,31 @@ public class GetAppraisalForCollateralQueryHandler(
         // Block-project branch: load Project if one exists for this appraisal.
         // GetWithFullGraphAsync returns null for non-block appraisals — no overhead.
         var project = await projectRepository.GetWithFullGraphAsync(appraisal.Id, cancellationToken);
-        var projectDto = project is not null ? MapProject(project) : null;
+
+        ProjectForCollateral? projectDto = null;
+        string? customerName = null;
+
+        if (project is not null)
+        {
+            // Load per-unit pricing — ProjectUnitPrices are NOT navigable from the Project aggregate.
+            // Query the DbSet directly and join in-memory to each unit.
+            var unitIds = project.Units.Select(u => u.Id).ToList();
+            var unitPriceLookup = unitIds.Count > 0
+                ? (await dbContext.ProjectUnitPrices
+                    .AsNoTracking()
+                    .Where(p => unitIds.Contains(p.ProjectUnitId))
+                    .Select(p => new { p.ProjectUnitId, p.TotalAppraisalValueRounded })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(p => p.ProjectUnitId, p => p.TotalAppraisalValueRounded)
+                : new Dictionary<Guid, decimal?>();
+
+            projectDto = MapProject(project, unitPriceLookup);
+
+            // CustomerName from request.RequestCustomers — same TOP 1 pattern as vw_BlockMaintenanceList.
+            customerName = await connectionFactory.QueryFirstOrDefaultAsync<string?>(
+                "SELECT TOP 1 rc.Name FROM request.RequestCustomers rc WHERE rc.RequestId = @RequestId",
+                new { RequestId = appraisal.RequestId });
+        }
 
         return new AppraisalForCollateralResult(
             AppraisalId: appraisal.Id,
@@ -170,27 +194,38 @@ public class GetAppraisalForCollateralQueryHandler(
             ConstructionInspectionFeeAmount: constructionInspectionFee,
             Properties: properties,
             Project: projectDto,
-            PrevAppraisalId: appraisal.PrevAppraisalId
+            PrevAppraisalId: appraisal.PrevAppraisalId,
+            CustomerName: customerName
         );
     }
 
-    private static ProjectForCollateral MapProject(Appraisal.Domain.Projects.Project project)
+    private static ProjectForCollateral MapProject(
+        Appraisal.Domain.Projects.Project project,
+        Dictionary<Guid, decimal?> unitPriceLookup)
     {
         var units = project.Units
-            .Select(u => new ProjectUnitForCollateral(
-                SequenceNumber: u.SequenceNumber,
-                IsSold: u.IsSold,
-                ModelType: u.ModelType,
-                UsableArea: u.UsableArea,
-                SellingPrice: u.SellingPrice,
-                Floor: u.Floor,
-                TowerName: u.TowerName,
-                CondoRegistrationNumber: u.CondoRegistrationNumber,
-                RoomNumber: u.RoomNumber,
-                PlotNumber: u.PlotNumber,
-                HouseNumber: u.HouseNumber,
-                NumberOfFloors: u.NumberOfFloors,
-                LandArea: u.LandArea))
+            .Select(u =>
+            {
+                unitPriceLookup.TryGetValue(u.Id, out var appraisedValue);
+                return new ProjectUnitForCollateral(
+                    SequenceNumber: u.SequenceNumber,
+                    IsSold: u.IsSold,
+                    ModelType: u.ModelType,
+                    UsableArea: u.UsableArea,
+                    SellingPrice: u.SellingPrice,
+                    Floor: u.Floor,
+                    TowerName: u.TowerName,
+                    CondoRegistrationNumber: u.CondoRegistrationNumber,
+                    RoomNumber: u.RoomNumber,
+                    PlotNumber: u.PlotNumber,
+                    HouseNumber: u.HouseNumber,
+                    NumberOfFloors: u.NumberOfFloors,
+                    LandArea: u.LandArea,
+                    // PurchaseBy stored as enum NAME string; null when not sold / method unknown.
+                    PurchaseBy: u.PurchaseBy?.ToString(),
+                    LoanBankName: u.LoanBankName,
+                    AppraisedValue: appraisedValue);
+            })
             .ToList();
 
         var models = project.Models

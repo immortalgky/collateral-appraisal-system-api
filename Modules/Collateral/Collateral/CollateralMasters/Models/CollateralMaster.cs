@@ -97,7 +97,11 @@ public sealed record ProjectUpsertData(
     int TotalUnits,
     int RemainingUnits,
     decimal? ProjectSellingPrice,
-    string StructureJson,
+    // Per-unit master rows to replace the existing set.
+    // Empty list is valid (no units yet); the existing rows will still be deleted.
+    IReadOnlyList<ProjectUnit> Units,
+    // Customer name from request.RequestCustomers (TOP 1 by RequestId).
+    string? CustomerName,
     Guid AppraisalId,
     string AppraisalNumber,
     DateTime AppraisalDate
@@ -115,6 +119,14 @@ public class CollateralMaster : Aggregate<Guid>
 
     public string CollateralType { get; private set; } = null!;
     public string? OwnerName { get; private set; }
+
+    /// <summary>
+    /// Customer name for PRJ (block-project) masters — distinct from <see cref="OwnerName"/>
+    /// (which is the developer/property owner). Populated by Phase 2 upsert from appraisal data.
+    /// Phase 1: always null on creation.
+    /// </summary>
+    public string? CustomerName { get; private set; }
+
     public bool IsDeleted { get; private set; }
 
     /// <summary>
@@ -245,6 +257,7 @@ public class CollateralMaster : Aggregate<Guid>
             Id = Guid.CreateVersion7(),
             CollateralType = CollateralTypes.Project,
             OwnerName = null,
+            CustomerName = null, // Phase 2 populates from appraisal data
             IsDeleted = false,
             IsMaster = true,
             ParentMasterId = null,
@@ -274,13 +287,33 @@ public class CollateralMaster : Aggregate<Guid>
             data.Longitude,
             data.TotalUnits,
             data.RemainingUnits,
-            data.ProjectSellingPrice,
-            data.StructureJson);
+            data.ProjectSellingPrice);
+
+        // Replace the unit set with the incoming snapshot. FindProjectMasterByLastAppraisalIdAsync
+        // eager-loads ProjectDetail.Units, so clearing the tracked collection makes EF delete the
+        // orphaned old rows (required FK + cascade) and insert the new ones in the SAME SaveChanges —
+        // an atomic replace for both first-appraisal (empty) and reappraisal (full swap).
+        ProjectDetail.ReplaceUnits(data.Units);
+
+        // Recalculate RemainingUnits from the in-memory unit sale flags.
+        // TotalUnits was already set by UpdateStructure (from the appraisal-side count).
+        ProjectDetail.RecountRemaining();
+
+        SetCustomerName(data.CustomerName);
 
         ProjectDetail.UpdateAppraisalSummary(
             data.AppraisalId,
             data.AppraisalNumber,
             data.AppraisalDate);
+    }
+
+    /// <summary>
+    /// Sets the customer name for a PRJ master. Called by the upsert service on each appraisal completion.
+    /// Null is accepted (customer may not be available in the request).
+    /// </summary>
+    public void SetCustomerName(string? customerName)
+    {
+        CustomerName = customerName;
     }
 
     /// <summary>

@@ -6,13 +6,15 @@ namespace Appraisal.Application.Features.Project.UploadBlockReappraisalUnits;
 /// Re-matches an updated units Excel against the seeded units of a block reappraisal project.
 ///
 /// Match rules (normalized = trim + lowercase):
-///   Condo:          CondoRegistrationNumber when non-empty, else (TowerName + "|" + RoomNumber)
+///   Condo:           CondoRegistrationNumber when non-empty, else (TowerName + "|" + RoomNumber)
 ///   LandAndBuilding: PlotNumber when non-empty, else HouseNumber
 ///
 /// Actions:
-///   key IS in incoming set  → ensure IsSold=false (unit is still available)
-///   key NOT in incoming set → MarkSoldByReappraisal() (system marks as sold, PurchaseBy=null)
-///   incoming row with NO existing match → counted in Added, NOT persisted in v1
+///   key IS in incoming set AND attributes match   → leave IsSold unchanged (already-sold units stay sold)
+///   key IS in incoming set BUT attributes differ  → REJECT with BadRequestException (MatchDifference)
+///   key NOT in incoming set AND unit is NOT sold  → MarkSoldByReappraisal()
+///   key NOT in incoming set AND unit IS sold      → leave as-is (already sold stays sold)
+///   incoming row with NO existing match            → counted in Added, NOT persisted in v1
 /// </summary>
 public class UploadBlockReappraisalUnitsCommandHandler(
     IProjectRepository projectRepository,
@@ -39,29 +41,55 @@ public class UploadBlockReappraisalUnitsCommandHandler(
             throw new BadRequestException(
                 $"Too many units. Maximum allowed is {MaxUnits}, but the file contains {incomingUnits.Count}.");
 
-        // Build a key set from the incoming Excel rows — blank keys are excluded so units
-        // with no usable identity never collapse into one bucket and mis-match each other.
-        var incomingKeys = new HashSet<string>(
-            incomingUnits.Select(u => BuildKey(u, project.ProjectType)).Where(k => !IsBlankKey(k)),
-            StringComparer.OrdinalIgnoreCase);
+        // Build a key→incoming-unit map (blank keys excluded).
+        var incomingByKey = incomingUnits
+            .Select(u => (Unit: u, Key: BlockReappraisalMatcher.BuildKey(u, project.ProjectType)))
+            .Where(x => !BlockReappraisalMatcher.IsBlankKey(x.Key))
+            .GroupBy(x => x.Key, x => x.Unit, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
-        // Build a key map from the existing project units (blank keys excluded) for fast lookup.
+        // Build a key map from the existing project units (blank keys excluded) for Added counting.
         var existingByKey = project.Units
-            .Select(u => (Unit: u, Key: BuildKey(u, project.ProjectType)))
-            .Where(x => !IsBlankKey(x.Key))
+            .Select(u => (Unit: u, Key: BlockReappraisalMatcher.BuildKey(u, project.ProjectType)))
+            .Where(x => !BlockReappraisalMatcher.IsBlankKey(x.Key))
             .GroupBy(x => x.Key, x => x.Unit, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
-        int matchedUnsold = 0;
+        // Guard: reject if any NOT-sold unit is present in the Excel but has attribute differences.
+        // Apply must only flip sold/unsold status — never silently adopt attributes from the Excel.
+        int matchDifferenceCount = 0;
+        foreach (var existingUnit in project.Units)
+        {
+            if (existingUnit.IsSold)
+                continue; // already-sold units are left untouched regardless
+
+            var key = BlockReappraisalMatcher.BuildKey(existingUnit, project.ProjectType);
+            if (BlockReappraisalMatcher.IsBlankKey(key))
+                continue;
+
+            if (incomingByKey.TryGetValue(key, out var incomingMatch))
+            {
+                if (BlockReappraisalMatcher.AttributesDiffer(
+                        existingUnit, incomingMatch, project.ProjectType, out _))
+                    matchDifferenceCount++;
+            }
+        }
+
+        if (matchDifferenceCount > 0)
+            throw new BadRequestException(
+                $"Resolve {matchDifferenceCount} mismatched unit(s) before applying — " +
+                "fix the Excel and re-upload, or use the preview endpoint to see which units differ.");
+
+        int matchedCount = 0;
         int autoSold = 0;
         int skipped = 0;
 
         foreach (var existingUnit in project.Units)
         {
-            var key = BuildKey(existingUnit, project.ProjectType);
+            var key = BlockReappraisalMatcher.BuildKey(existingUnit, project.ProjectType);
 
             // Units without a usable business key cannot be safely matched — never auto-sell them.
-            if (IsBlankKey(key))
+            if (BlockReappraisalMatcher.IsBlankKey(key))
             {
                 skipped++;
                 logger.LogWarning(
@@ -70,24 +98,16 @@ public class UploadBlockReappraisalUnitsCommandHandler(
                 continue;
             }
 
-            if (incomingKeys.Contains(key))
+            if (incomingByKey.ContainsKey(key))
             {
-                // Unit is present in the new Excel — it is still unsold.
-                // SetSaleInfo(false, null, null) resets IsSold without the PurchaseBy invariant.
-                if (existingUnit.IsSold)
-                {
-                    existingUnit.SetSaleInfo(false, null, null);
-                    logger.LogInformation(
-                        "Block reappraisal re-match: unit {UnitId} (key={Key}) was sold but reappeared in Excel; reset to unsold.",
-                        existingUnit.Id, key);
-                }
-                matchedUnsold++;
+                // Unit is present in the new Excel.
+                // Already-sold units stay sold — BUM edits the master; we don't reset sold status.
+                matchedCount++;
             }
             else
             {
-                // Unit is absent from the new Excel — treat as sold (purchase method unknown).
-                // Count only units newly marked sold by this operation, so AutoSold matches its
-                // documented meaning (units already sold beforehand are not re-counted).
+                // Unit is absent from the new Excel.
+                // Only flip NOT-sold units to sold; already-sold units stay sold.
                 if (!existingUnit.IsSold)
                 {
                     existingUnit.MarkSoldByReappraisal();
@@ -104,8 +124,8 @@ public class UploadBlockReappraisalUnitsCommandHandler(
         int added = 0;
         foreach (var incomingUnit in incomingUnits)
         {
-            var key = BuildKey(incomingUnit, project.ProjectType);
-            if (IsBlankKey(key))
+            var key = BlockReappraisalMatcher.BuildKey(incomingUnit, project.ProjectType);
+            if (BlockReappraisalMatcher.IsBlankKey(key))
                 continue;
             if (!existingByKey.ContainsKey(key))
             {
@@ -117,56 +137,17 @@ public class UploadBlockReappraisalUnitsCommandHandler(
             }
         }
 
-        // Record the revised Excel in Upload History (re-match does not replace units, so this is
-        // the only place the file gets logged). Marked as the current "Used" upload.
+        // Record the revised Excel in Upload History.
         project.RecordReappraisalUpload(command.FileName, command.DocumentId);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
             "Block reappraisal re-match complete for appraisal {AppraisalId}: " +
-            "MatchedUnsold={MatchedUnsold}, AutoSold={AutoSold}, Added(not persisted)={Added}, " +
+            "Matched={Matched}, AutoSold={AutoSold}, Added(not persisted)={Added}, " +
             "Skipped(no key)={Skipped}.",
-            command.AppraisalId, matchedUnsold, autoSold, added, skipped);
+            command.AppraisalId, matchedCount, autoSold, added, skipped);
 
-        return new UploadBlockReappraisalUnitsResult(matchedUnsold, autoSold, added);
+        return new UploadBlockReappraisalUnitsResult(matchedCount, autoSold, added);
     }
-
-    /// <summary>
-    /// Builds a normalized business key for matching existing and incoming units.
-    ///
-    /// Condo:  CondoRegistrationNumber (trimmed, lowercased) when non-empty;
-    ///         otherwise (TowerName|RoomNumber) composite — handles units with no reg number yet.
-    ///
-    /// L&amp;B:  PlotNumber (trimmed, lowercased) when non-empty;
-    ///         otherwise HouseNumber — handles units where PlotNumber is absent.
-    /// </summary>
-    private static string BuildKey(ProjectUnit unit, ProjectType projectType)
-    {
-        if (projectType == ProjectType.Condo)
-        {
-            var reg = unit.CondoRegistrationNumber?.Trim().ToLowerInvariant();
-            if (!string.IsNullOrEmpty(reg))
-                return reg;
-
-            var tower = unit.TowerName?.Trim().ToLowerInvariant() ?? string.Empty;
-            var room = unit.RoomNumber?.Trim().ToLowerInvariant() ?? string.Empty;
-            return $"{tower}|{room}";
-        }
-        else
-        {
-            var plot = unit.PlotNumber?.Trim().ToLowerInvariant();
-            if (!string.IsNullOrEmpty(plot))
-                return plot;
-
-            return unit.HouseNumber?.Trim().ToLowerInvariant() ?? string.Empty;
-        }
-    }
-
-    /// <summary>
-    /// A key is "blank" (no usable identity) when it is empty/whitespace or the empty Condo
-    /// composite "|". Such units cannot be safely matched and must never be auto-sold.
-    /// </summary>
-    private static bool IsBlankKey(string key) =>
-        string.IsNullOrWhiteSpace(key) || key == "|";
 }

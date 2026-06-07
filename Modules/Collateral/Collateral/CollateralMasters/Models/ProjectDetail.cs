@@ -5,12 +5,14 @@ namespace Collateral.CollateralMasters.Models;
 /// Mirrors CondoDetail conventions: private EF ctor, internal domain ctor,
 /// UpdateStructure mutator, owned AppraisalSummary, synced IsDeleted.
 ///
-/// StructureJson stores a serialized snapshot of units/towers/models at the time
-/// of last appraisal completion — the Collateral module never needs to parse it
-/// back; it is opaque storage for audit / reappraisal prefill by the FE.
+/// Phase 1: <c>StructureJson</c> has been replaced by a first-class
+/// <see cref="ProjectUnit"/> child collection (see <c>collateral.ProjectUnits</c> table).
+/// The opaque JSON blob is no longer stored here.
 /// </summary>
 public class ProjectDetail
 {
+    private readonly List<ProjectUnit> _units = [];
+
     public Guid CollateralMasterId { get; private set; }
 
     // Project-level fields (last-known)
@@ -25,8 +27,11 @@ public class ProjectDetail
     public int RemainingUnits { get; private set; }
     public decimal? ProjectSellingPrice { get; private set; }
 
-    // Opaque JSON snapshot of unit/tower/model list at last appraisal
-    public string StructureJson { get; private set; } = "{}";
+    /// <summary>
+    /// First-class per-unit records. Populated by Phase 2 upsert from appraisal data.
+    /// Phase 1: collection exists in schema; no rows are inserted yet.
+    /// </summary>
+    public IReadOnlyList<ProjectUnit> Units => _units.AsReadOnly();
 
     // Appraisal summary (owned VO)
     public AppraisalSummary AppraisalSummary { get; private set; } = null!;
@@ -46,7 +51,9 @@ public class ProjectDetail
     }
 
     /// <summary>
-    /// Overwrites all last-known fields with data from the latest appraisal.
+    /// Overwrites all last-known scalar fields with data from the latest appraisal.
+    /// <c>StructureJson</c> has been removed — unit records are managed via
+    /// <see cref="ReplaceUnits"/> instead (Phase 2).
     /// </summary>
     public void UpdateStructure(
         string projectType,
@@ -58,8 +65,7 @@ public class ProjectDetail
         decimal? longitude,
         int totalUnits,
         int remainingUnits,
-        decimal? projectSellingPrice,
-        string structureJson)
+        decimal? projectSellingPrice)
     {
         ProjectType = projectType;
         ProjectName = projectName;
@@ -71,7 +77,27 @@ public class ProjectDetail
         TotalUnits = totalUnits;
         RemainingUnits = remainingUnits;
         ProjectSellingPrice = projectSellingPrice;
-        StructureJson = structureJson;
+    }
+
+    /// <summary>
+    /// Replaces the unit collection wholesale from a new appraisal snapshot.
+    /// Clears existing units then adds all incoming units.
+    /// Phase 2 upsert calls this after building the <see cref="ProjectUnit"/> list from appraisal data.
+    /// </summary>
+    public void ReplaceUnits(IEnumerable<ProjectUnit> units)
+    {
+        _units.Clear();
+        _units.AddRange(units);
+    }
+
+    /// <summary>
+    /// Recalculates <see cref="RemainingUnits"/> as the count of units where
+    /// <see cref="ProjectUnit.IsSold"/> is false.
+    /// Call after any mutation that changes sale status (e.g. block-reappraisal sold-mark).
+    /// </summary>
+    public void RecountRemaining()
+    {
+        RemainingUnits = _units.Count(u => !u.IsSold);
     }
 
     /// <summary>Stamps the appraisal summary owned VO.</summary>

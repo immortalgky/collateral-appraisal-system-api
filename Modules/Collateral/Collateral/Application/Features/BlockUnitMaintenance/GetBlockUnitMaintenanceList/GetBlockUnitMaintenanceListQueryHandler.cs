@@ -1,6 +1,6 @@
 using Dapper;
 
-namespace Appraisal.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceList;
+namespace Collateral.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceList;
 
 public class GetBlockUnitMaintenanceListQueryHandler(
     ISqlConnectionFactory sqlConnectionFactory)
@@ -16,7 +16,7 @@ public class GetBlockUnitMaintenanceListQueryHandler(
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             conditions.Add(
-                "(AppraisalReportNo LIKE @Search OR ProjectName LIKE @Search)");
+                "(AppraisalReportNo LIKE @Search OR ProjectName LIKE @Search OR CustomerName LIKE @Search)");
             parameters.Add("Search", $"%{request.Search}%");
         }
 
@@ -40,16 +40,16 @@ public class GetBlockUnitMaintenanceListQueryHandler(
         var sortColumn = request.SortBy?.ToLowerInvariant() switch
         {
             "appraisalreportno" => "AppraisalReportNo",
-            "projectname" => "ProjectName",
-            "customername" => "CustomerName",
-            "projecttype" => "ProjectType",
-            "developer" => "Developer",
-            "totalunits" => "TotalUnits",
-            "soldunits" => "SoldUnits",
-            "unsoldunits" => "UnsoldUnits",
-            "updatedon" => "UpdatedOn",
-            "updatedby" => "UpdatedBy",
-            _ => null
+            "projectname"       => "ProjectName",
+            "customername"      => "CustomerName",
+            "projecttype"       => "ProjectType",
+            "developer"         => "Developer",
+            "totalunits"        => "TotalUnits",
+            "soldunits"         => "SoldUnits",
+            "unsoldunits"       => "UnsoldUnits",
+            "updatedon"         => "UpdatedOn",
+            "updatedby"         => "UpdatedBy",
+            _                   => null
         };
 
         var sortDir = string.Equals(request.SortDir, "asc", StringComparison.OrdinalIgnoreCase)
@@ -60,9 +60,9 @@ public class GetBlockUnitMaintenanceListQueryHandler(
             ? $"{sortColumn} {sortDir}, UpdatedOn DESC"
             : "UpdatedOn DESC";
 
-        const string view = "appraisal.vw_BlockMaintenanceList";
+        const string view = "collateral.vw_BlockMaintenanceList";
         const string listColumns = """
-            ProjectId, AppraisalId, AppraisalReportNo, CustomerName,
+            CollateralMasterId, AppraisalReportNo, CustomerName,
             ProjectName, ProjectType, Developer,
             TotalUnits, SoldUnits, UnsoldUnits, UpdatedOn, UpdatedBy
             """;
@@ -71,7 +71,7 @@ public class GetBlockUnitMaintenanceListQueryHandler(
         var dataSql =
             $"SELECT {listColumns} FROM {view} {where} " +
             $"ORDER BY {orderBy} OFFSET {offset} ROWS FETCH NEXT {request.PageSize} ROWS ONLY";
-        var countSql = $"SELECT COUNT(ProjectId) FROM {view} {where}";
+        var countSql = $"SELECT COUNT(CollateralMasterId) FROM {view} {where}";
 
         var connection = sqlConnectionFactory.GetOpenConnection();
 
