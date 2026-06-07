@@ -1,8 +1,7 @@
-namespace Appraisal.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceList;
+namespace Collateral.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceList;
 
 public record BlockUnitMaintenanceListDto(
-    Guid ProjectId,
-    Guid AppraisalId,
+    Guid CollateralMasterId,
     string? AppraisalReportNo,
     string? CustomerName,
     string? ProjectName,

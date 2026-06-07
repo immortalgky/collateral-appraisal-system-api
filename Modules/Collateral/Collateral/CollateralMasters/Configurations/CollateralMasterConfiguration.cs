@@ -13,6 +13,7 @@ public class CollateralMasterConfiguration : IEntityTypeConfiguration<Collateral
 
         builder.Property(m => m.CollateralType).IsRequired().HasMaxLength(20);
         builder.Property(m => m.OwnerName).HasMaxLength(200);
+        builder.Property(m => m.CustomerName).HasMaxLength(200).IsRequired(false);
         builder.Property(m => m.IsDeleted).IsRequired().HasDefaultValue(false);
 
         builder.Property(m => m.IsMaster)

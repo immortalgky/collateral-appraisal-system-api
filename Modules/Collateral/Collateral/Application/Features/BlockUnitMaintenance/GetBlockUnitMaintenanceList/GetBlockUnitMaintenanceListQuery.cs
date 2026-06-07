@@ -1,4 +1,4 @@
-namespace Appraisal.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceList;
+namespace Collateral.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceList;
 
 public record GetBlockUnitMaintenanceListQuery(
     int PageNumber,

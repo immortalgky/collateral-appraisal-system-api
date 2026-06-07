@@ -1,7 +1,7 @@
-namespace Appraisal.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceUnits;
+namespace Collateral.Application.Features.BlockUnitMaintenance.GetBlockUnitMaintenanceUnits;
 
 /// <summary>
-/// Read-only projection of a ProjectUnit for the Block Unit Maintenance screen.
+/// Read-only projection of a collateral.ProjectUnit for the Block Unit Maintenance screen.
 /// Includes the three sale-tracking fields plus enough context for the inline table.
 /// </summary>
 public record BlockUnitMaintenanceUnitDto(
@@ -22,16 +22,16 @@ public record BlockUnitMaintenanceUnitDto(
     decimal? LandArea,
     // Sale tracking
     bool IsSold,
-    // "Cash" | "Loan" | null — enum name, not the underlying int
+    // "Cash" | "Loan" | null — enum name string (stored as nvarchar(10) in collateral.ProjectUnits)
     string? PurchaseBy,
     string? LoanBankName
 );
 
 /// <summary>
-/// Project header info shown in the detail-page hero.
+/// Project header info shown in the detail-page hero, sourced from collateral.ProjectDetails.
 /// </summary>
 public record BlockUnitMaintenanceProjectDto(
-    Guid ProjectId,
+    Guid CollateralMasterId,
     string? AppraisalReportNo,
     string? ProjectName,
     string ProjectType

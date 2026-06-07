@@ -20,7 +20,7 @@ public class ProjectDetailConfiguration : IEntityTypeConfiguration<ProjectDetail
         builder.Property(d => d.TotalUnits).IsRequired();
         builder.Property(d => d.RemainingUnits).IsRequired();
         builder.Property(d => d.ProjectSellingPrice).HasPrecision(18, 2);
-        builder.Property(d => d.StructureJson).IsRequired().HasColumnType("nvarchar(max)");
+        // StructureJson column removed in Phase 1 — replaced by collateral.ProjectUnits table.
 
         // AppraisalSummary (owned — flat columns, same pattern as CondoDetail)
         builder.OwnsOne(d => d.AppraisalSummary, s =>
@@ -31,5 +31,13 @@ public class ProjectDetailConfiguration : IEntityTypeConfiguration<ProjectDetail
         });
 
         builder.Property(d => d.IsDeleted).IsRequired().HasDefaultValue(false);
+
+        // Navigation: Units (1:N via CollateralMasterId FK on ProjectUnit)
+        builder.HasMany(d => d.Units)
+            .WithOne()
+            .HasForeignKey(u => u.CollateralMasterId)
+            .OnDelete(DeleteBehavior.Cascade)
+            .HasConstraintName("FK_ProjectUnits_CollateralMasters");
+        builder.Navigation(d => d.Units).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

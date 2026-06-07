@@ -1098,6 +1098,74 @@ public class CollateralMasterUpsertService(
         string titleType, string titleNo)
         => $"{landOffice}|{province}|{amphur}|{tambon}|{titleType}|{titleNo}";
 
+    /// <summary>
+    /// Translates the Appraisal-side <see cref="ProjectUnitForCollateral"/> DTOs into
+    /// Collateral-module <see cref="Collateral.CollateralMasters.Models.ProjectUnit"/> entities
+    /// ready for insertion. Branches on ProjectType to call the correct factory.
+    ///
+    /// PurchaseBy translation: the DTO carries the enum NAME string ("Cash"/"Loan"/null).
+    /// We parse it into <see cref="Collateral.CollateralMasters.Models.UnitPurchaseMethod"/> and
+    /// apply domain invariants via <c>SetSaleInfo</c> (when method is known) or
+    /// <c>MarkSold</c> (when sold but method unknown — bypasses the invariant to allow
+    /// the user to correct via BUM screen).
+    /// </summary>
+    private static IReadOnlyList<CollateralMasters.Models.ProjectUnit> MapProjectUnits(
+        Guid collateralMasterId,
+        ProjectForCollateral proj)
+    {
+        var units = new List<CollateralMasters.Models.ProjectUnit>(proj.Units.Count);
+        bool isCondo = string.Equals(proj.ProjectType, "Condo", StringComparison.OrdinalIgnoreCase);
+
+        foreach (var dto in proj.Units)
+        {
+            CollateralMasters.Models.ProjectUnit unit = isCondo
+                ? CollateralMasters.Models.ProjectUnit.CreateCondo(
+                    collateralMasterId: collateralMasterId,
+                    sequenceNumber: dto.SequenceNumber,
+                    floor: dto.Floor,
+                    towerName: dto.TowerName,
+                    condoRegistrationNumber: dto.CondoRegistrationNumber,
+                    roomNumber: dto.RoomNumber,
+                    modelType: dto.ModelType,
+                    usableArea: dto.UsableArea,
+                    sellingPrice: dto.SellingPrice)
+                : CollateralMasters.Models.ProjectUnit.CreateLandAndBuilding(
+                    collateralMasterId: collateralMasterId,
+                    sequenceNumber: dto.SequenceNumber,
+                    plotNumber: dto.PlotNumber,
+                    houseNumber: dto.HouseNumber,
+                    modelType: dto.ModelType,
+                    numberOfFloors: dto.NumberOfFloors,
+                    landArea: dto.LandArea,
+                    usableArea: dto.UsableArea,
+                    sellingPrice: dto.SellingPrice);
+
+            // Apply sale-status. When PurchaseBy parses successfully we use SetSaleInfo (enforces
+            // the Loan→LoanBankName invariant). When the unit is sold but PurchaseBy is unknown
+            // (null or unrecognised string) we call MarkSold, which bypasses the invariant — the
+            // user corrects via the BUM screen (consistent with Appraisal MarkSoldByReappraisal).
+            if (dto.IsSold)
+            {
+                if (dto.PurchaseBy is not null
+                    && Enum.TryParse<CollateralMasters.Models.UnitPurchaseMethod>(dto.PurchaseBy, out var method)
+                    && Enum.IsDefined(method))
+                {
+                    unit.SetSaleInfo(isSold: true, purchaseBy: method, loanBankName: dto.LoanBankName);
+                }
+                else
+                {
+                    unit.MarkSold();
+                }
+            }
+
+            unit.SetLastAppraisedValue(dto.AppraisedValue);
+
+            units.Add(unit);
+        }
+
+        return units;
+    }
+
     private void AppendEngagement(
         CollateralMaster primaryMaster,
         AppraisalForCollateralResult appraisal,
@@ -1171,7 +1239,9 @@ public class CollateralMasterUpsertService(
     {
         var proj = appraisal.Project!;
 
-        // Serialize the full unit/tower/model snapshot as opaque JSON.
+        // Serialize the project snapshot for the engagement audit record.
+        // NOTE: this is used only for CollateralEngagement.Snapshot (audit trail), NOT for
+        // ProjectDetail storage. ProjectDetail.StructureJson has been removed in Phase 1.
         var structureJson = JsonSerializer.Serialize(proj);
 
         // --- Lineage dedup ---
@@ -1198,6 +1268,15 @@ public class CollateralMasterUpsertService(
                 master.Id, appraisal.PrevAppraisalId, appraisal.AppraisalId);
         }
 
+        // --- Map DTO units → Collateral ProjectUnit entities ---
+        var collateralUnits = MapProjectUnits(master.Id, proj);
+
+        // --- Replace happens through the tracked ProjectDetail.Units collection (ProjectDetail.ReplaceUnits
+        // clears + re-adds). FindProjectMasterByLastAppraisalIdAsync eagerly loads Units, so EF deletes the
+        // orphaned old rows and inserts the new ones in the SAME SaveChanges — atomic for both first-appraisal
+        // (empty collection) and reappraisal (full replace). No eager ExecuteDeleteAsync (would commit before
+        // the insert, risking unit loss if the later save throws). ---
+
         // --- Upsert last-known data ---
         var upsertData = new ProjectUpsertData(
             ProjectType: proj.ProjectType,
@@ -1210,7 +1289,8 @@ public class CollateralMasterUpsertService(
             TotalUnits: proj.TotalUnits,
             RemainingUnits: proj.RemainingUnits,
             ProjectSellingPrice: proj.ProjectSellingPrice,
-            StructureJson: structureJson,
+            Units: collateralUnits,
+            CustomerName: appraisal.CustomerName,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
             AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow

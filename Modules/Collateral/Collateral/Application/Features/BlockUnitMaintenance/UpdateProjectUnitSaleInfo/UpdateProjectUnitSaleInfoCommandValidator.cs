@@ -1,15 +1,14 @@
-using Appraisal.Domain.Projects;
 using FluentValidation;
 
-namespace Appraisal.Application.Features.BlockUnitMaintenance.UpdateProjectUnitSaleInfo;
+namespace Collateral.Application.Features.BlockUnitMaintenance.UpdateProjectUnitSaleInfo;
 
 public class UpdateProjectUnitSaleInfoCommandValidator
     : AbstractValidator<UpdateProjectUnitSaleInfoCommand>
 {
     public UpdateProjectUnitSaleInfoCommandValidator()
     {
-        RuleFor(x => x.ProjectId)
-            .NotEmpty().WithMessage("ProjectId is required.");
+        RuleFor(x => x.CollateralMasterId)
+            .NotEmpty().WithMessage("CollateralMasterId is required.");
 
         RuleFor(x => x.Items)
             .NotNull().WithMessage("Items list is required.")
