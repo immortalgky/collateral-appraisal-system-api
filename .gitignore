@@ -80,6 +80,7 @@ docker-volumes/
 # Runtime user uploads (local-only; never commit)
 # -------------------------------------
 Bootstrapper/Api/wwwroot/uploads/documents/
+Bootstrapper/Api/wwwroot/uploads/reports/
 
 # -------------------------------------
 # Local Claude artifacts (local-only)
