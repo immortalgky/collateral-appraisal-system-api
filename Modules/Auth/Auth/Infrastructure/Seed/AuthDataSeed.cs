@@ -64,7 +64,7 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
                 "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN",
-                "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW",
+                "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_OP_VIEW",
                 "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE",
                 "QUOTATION_VIEW", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT",
                 "TASK_QUOTATION_REVIEW", "TASK_QUOTATION_FINALIZE",
@@ -498,6 +498,7 @@ public class AuthDataSeed(
             ("APPRAISAL_REVIEW", "Review Appraisals", "Review appraisals pending checker/verifier action", "Appraisal"),
             ("REPORT_VIEW", "View Reports", "View completed reports", "Common"),
             ("REPORT_STATISTICS_VIEW", "View Report Statistics", "View report statistics dashboards", "Common"),
+            ("REPORT_OP_VIEW", "View Operational Reports", "View operational/MIS reports (FSD Ch.9)", "Common"),
             ("STANDALONE_USE", "Use Standalone Tools", "Access standalone appraisal tools", "Common"),
             ("PARAMETER_MANAGE", "Manage Parameters", "Manage system parameters", "Common"),
             ("WORKFLOW_MANAGE", "Manage Workflows", "Manage workflow definitions", "Workflow"),

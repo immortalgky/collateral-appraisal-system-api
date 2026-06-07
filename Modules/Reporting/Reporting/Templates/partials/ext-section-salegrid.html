@@ -1,0 +1,56 @@
+{{- if model.sale_grid_section -}}
+<div class="section-bar">ตารางการปรับมูลค่าหลักทรัพย์ (วิธีปรับเปรียบเทียบข้อมูลตลาด)</div>
+
+{{ if model.sale_grid_section.comparable_headers && model.sale_grid_section.comparable_headers.size > 0 }}
+<table class="grid">
+  <thead>
+    <tr>
+      <th style="min-width:130px;">รายการ</th>
+      {{ for hdr in model.sale_grid_section.comparable_headers }}
+      <th class="ctr">{{ hdr }}</th>
+      {{ end }}
+      <th class="ctr">ทรัพย์สิน (SP)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ for row in model.sale_grid_section.rows }}
+    {{ if row.label == "มูลค่าทรัพย์สิน (SP)" }}
+    <tr style="font-weight:700;">
+      <td>{{ row.label }}</td>
+      {{ for i in (0..(model.sale_grid_section.comparable_headers.size - 1)) }}
+      <td class="num">{{ row.values[i] }}</td>
+      {{ end }}
+      <td class="num"></td>
+    </tr>
+    {{ else }}
+    <tr>
+      <td>{{ row.label }}</td>
+      {{ for i in (0..(model.sale_grid_section.comparable_headers.size - 1)) }}
+      <td class="num">{{ row.values[i] }}</td>
+      {{ end }}
+      <td class="num"></td>
+    </tr>
+    {{ end }}
+    {{ end }}
+  </tbody>
+</table>
+{{ end }}
+
+{{ if model.sale_grid_section.summary_value || model.sale_grid_section.summary_value_rounded }}
+<table class="totals">
+  {{ if model.sale_grid_section.summary_value }}
+  <tr>
+    <td class="tl">สรุปมูลค่าทรัพย์สิน</td>
+    <td class="tv">{{ model.sale_grid_section.summary_value | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+  {{ if model.sale_grid_section.summary_value_rounded }}
+  <tr>
+    <td class="tl">สรุปมูลค่าทรัพย์สิน (ปัดเศษ)</td>
+    <td class="tv">{{ model.sale_grid_section.summary_value_rounded | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+</table>
+{{ end }}
+
+{{- end -}}

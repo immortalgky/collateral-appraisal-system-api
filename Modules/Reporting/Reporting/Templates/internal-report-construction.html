@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <title>เล่มรายงานประเมินใน – ตรวจงวดงาน</title>
+  <style>{{ include 'partials/summary-styles' }}</style>
+</head>
+<body>
+
+{{ include 'partials/summary-construction-body' }}
+
+{{ if model.land_section }}
+<div style="page-break-before:always;">
+  {{ include 'partials/ext-section-land' }}
+</div>
+{{ end }}
+
+{{ if model.building_section }}
+<div style="page-break-before:always;">
+  {{ include 'partials/ext-section-building' }}
+</div>
+{{ end }}
+
+{{ if model.construction_section }}
+<div style="page-break-before:always;">
+  {{ include 'partials/ext-section-construction' }}
+</div>
+{{ end }}
+
+{{ if model.comparison_section }}
+<div style="page-break-before:always;">
+  {{ include 'partials/ext-section-comparison' }}
+</div>
+{{ end }}
+
+{{ if model.wqs_section }}
+<div style="page-break-before:always;">
+  {{ include 'partials/ext-section-wqs' }}
+</div>
+{{ end }}
+
+{{ if model.sale_grid_section }}
+<div style="page-break-before:always;">
+  {{ include 'partials/ext-section-salegrid' }}
+</div>
+{{ end }}
+
+{{ if model.appendix_section }}
+{{ include 'partials/ext-section-appendix' }}
+{{ end }}
+
+<!-- SLOT: appendix -->
+
+</body>
+</html>

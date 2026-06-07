@@ -1,4 +1,5 @@
 using Reporting.Application.Services;
+using Reporting.Infrastructure.Templates;
 using Scriban;
 using Scriban.Runtime;
 
@@ -42,15 +43,26 @@ internal sealed class ScribanTemplateRenderer(
             throw new InvalidOperationException($"Template parse failed: {errors}");
         }
 
-        // Wrap model in a ScriptObject so Scriban can walk its properties.
-        // We build a nested ScriptObject for `model` and add it to the global context.
-        var modelObject = new ScriptObject();
-        modelObject.Import(model, renamer: StandardMemberRenamer.Rename);
-
+        // Materialise the model into a ScriptObject graph with ALL string values
+        // HTML-encoded. Scriban does NOT auto-escape, and the rendered HTML is loaded
+        // by real headless Chromium — so DB-sourced free text (customer/owner names,
+        // committee comments) must be encoded here, at the single chokepoint, to prevent
+        // stored-XSS / layout corruption. Numbers/dates/bools pass through unchanged so
+        // math.format / thai.date keep working.
         var scriptObject = new ScriptObject();
-        scriptObject.Add("model", modelObject);
+        scriptObject.Add("model", ToScriptValue(model));
+        // `thai` helper object: thai.baht_text / thai.date / thai.date_short.
+        scriptObject.Add("thai", ThaiScribanFunctions.Create());
 
-        var context = new TemplateContext { MemberRenamer = StandardMemberRenamer.Rename };
+        var context = new TemplateContext
+        {
+            MemberRenamer = StandardMemberRenamer.Rename,
+            // Enables {{ include 'partials/...' }} — lets composite reports share sections.
+            TemplateLoader = new FilePartialTemplateLoader()
+        };
+        // Pin formatting culture so math.format separators are deterministic across
+        // servers regardless of the host/request locale (invariant = "1,234,567.89").
+        context.PushCulture(System.Globalization.CultureInfo.InvariantCulture);
         context.PushGlobal(scriptObject);
 
         var renderedHtml = await template.RenderAsync(context);
@@ -60,6 +72,52 @@ internal sealed class ScribanTemplateRenderer(
 
         // ── 3. Split on <!-- SLOT: name --> markers ──────────────────────────────
         return SplitIntoSegments(renderedHtml, attachmentsBySlot);
+    }
+
+    /// <summary>
+    /// Recursively converts a model object graph into Scriban values, HTML-encoding every
+    /// string. POCO properties are renamed to snake_case; numbers/dates/bools/Guids pass
+    /// through so template formatting (math.format, thai.date) still works. Lists become
+    /// ScriptArray (so <c>.size</c> and for-loops work); dictionaries become ScriptObject.
+    /// </summary>
+    private static object? ToScriptValue(object? value)
+    {
+        if (value is null)
+            return null;
+        if (value is string s)
+            return System.Net.WebUtility.HtmlEncode(s);
+        if (value is bool or char
+            or sbyte or byte or short or ushort or int or uint or long or ulong
+            or float or double or decimal
+            or DateTime or DateTimeOffset or TimeSpan or Guid or Enum)
+            return value;
+
+        if (value is System.Collections.IDictionary dict)
+        {
+            var obj = new ScriptObject();
+            foreach (System.Collections.DictionaryEntry e in dict)
+                obj[Convert.ToString(e.Key) ?? string.Empty] = ToScriptValue(e.Value);
+            return obj;
+        }
+
+        if (value is System.Collections.IEnumerable seq)
+        {
+            var arr = new ScriptArray();
+            foreach (var item in seq)
+                arr.Add(ToScriptValue(item));
+            return arr;
+        }
+
+        // Plain POCO — expose each readable property under its snake_case name.
+        var script = new ScriptObject();
+        foreach (var prop in value.GetType().GetProperties(
+                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        {
+            if (!prop.CanRead || prop.GetIndexParameters().Length > 0)
+                continue;
+            script[StandardMemberRenamer.Rename(prop)] = ToScriptValue(prop.GetValue(value));
+        }
+        return script;
     }
 
     private static IReadOnlyDictionary<string, IReadOnlyList<Guid>> ExtractAttachmentsBySlot(object model)
@@ -128,6 +186,11 @@ internal sealed class ScribanTemplateRenderer(
     {
         if (string.IsNullOrWhiteSpace(html))
             return false;
+
+        // Media tags carry visible content with no text (e.g. an image-only appendix page).
+        if (System.Text.RegularExpressions.Regex.IsMatch(
+                html, "<(img|svg|canvas)\\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            return true;
 
         // Strip tags; if nothing but whitespace remains, there's no visible text.
         var withoutTags = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]*>", string.Empty);

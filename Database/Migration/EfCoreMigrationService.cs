@@ -12,6 +12,7 @@ using Auth.Domain.Identity;
 using Appraisal.Infrastructure;
 using Collateral.Data;
 using Common.Infrastructure;
+using Reporting.Data;
 using Parameter.Data;
 using Integration.Infrastructure;
 
@@ -84,7 +85,8 @@ public class EfCoreMigrationService : IEfCoreMigrationService
             typeof(AuthDbContext),
             typeof(IntegrationDbContext),
             typeof(AppraisalDbContext),
-            typeof(CollateralDbContext)
+            typeof(CollateralDbContext),
+            typeof(ReportingDbContext)
         };
     }
 
@@ -102,6 +104,7 @@ public class EfCoreMigrationService : IEfCoreMigrationService
             nameof(IntegrationDbContext) => CreateIntegrationDbContext(connectionString),
             nameof(AppraisalDbContext) => CreateAppraisalDbContext(connectionString),
             nameof(CollateralDbContext) => CreateCollateralDbContext(connectionString),
+            nameof(ReportingDbContext) => CreateReportingDbContext(connectionString),
             _ => throw new ArgumentException($"Unknown context type: {contextType.Name}")
         };
     }
@@ -219,6 +222,17 @@ public class EfCoreMigrationService : IEfCoreMigrationService
             sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "collateral");
         });
         return new CollateralDbContext(optionsBuilder.Options);
+    }
+
+    private ReportingDbContext CreateReportingDbContext(string connectionString)
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<ReportingDbContext>();
+        optionsBuilder.UseSqlServer(connectionString, sqlOptions =>
+        {
+            sqlOptions.MigrationsAssembly(typeof(ReportingDbContext).Assembly.GetName().Name);
+            sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "reporting");
+        });
+        return new ReportingDbContext(optionsBuilder.Options);
     }
 
     private async Task ProcessMigrations(DbContext context, Type contextType)

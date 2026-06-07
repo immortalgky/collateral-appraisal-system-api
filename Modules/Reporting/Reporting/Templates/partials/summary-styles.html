@@ -1,0 +1,72 @@
+/* Shared CSS for the FSD Appraisal Summary forms (Land&Building / Condo / Machine / ...).
+   Include it inside a style tag via Scriban include of 'partials/summary-styles'.
+   NOTE: keep this file free of Scriban {{ }} tokens (they execute even inside HTML
+   comments — a literal include token here self-recurses). One stylesheet so every
+   summary report stays visually consistent. */
+/* Fonts: drop Sarabun.ttf / Sarabun-Bold.ttf into Templates/. Falls back to system Thai. */
+@font-face { font-family:'Sarabun'; font-weight:400; src:url('Sarabun.ttf') format('truetype'); }
+@font-face { font-family:'Sarabun'; font-weight:700; src:url('Sarabun-Bold.ttf') format('truetype'); }
+
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:'Sarabun','Noto Sans Thai','Thonburi','Leelawadee UI',sans-serif;
+  font-size:8.5pt; line-height:1.25; color:#000; background:#fff;
+}
+
+/* Outer form frame */
+.form { width:100%; border:1.4px solid #000; }
+
+/* ── Header ─────────────────────────────────────────────── */
+.head { display:flex; align-items:stretch; border-bottom:1.4px solid #000; }
+.head .logo {
+  width:140px; padding:5px 8px; border-right:1px solid #000;
+  display:flex; flex-direction:column; justify-content:center;
+}
+.head .logo .lh { font-size:17pt; font-weight:700; letter-spacing:1px; }
+.head .logo .lh .b { color:#e60012; }
+.head .logo .bars { height:5px; margin-top:2px;
+  background:linear-gradient(90deg,#e60012 0 20%,#f39800 20% 40%,#009944 40% 60%,#0068b7 60% 80%,#920783 80% 100%); }
+.head .title { flex:1; display:flex; align-items:center; justify-content:center;
+  font-size:13pt; font-weight:700; text-align:center; padding:4px; }
+.head .meta { width:230px; padding:5px 8px; border-left:1px solid #000; font-size:8pt; }
+.head .meta .row { display:flex; justify-content:space-between; gap:6px; margin-bottom:3px; }
+.head .meta .lbl { color:#000; font-weight:600; white-space:nowrap; }
+.head .meta .val { text-align:right; flex:1; }
+
+/* ── Generic label:value rows ───────────────────────────── */
+.pad { padding:5px 8px; }
+.kv { display:flex; align-items:baseline; gap:4px; margin-bottom:2.5px; }
+.kv .k { font-weight:600; white-space:nowrap; }
+.kv .v { flex:1; border-bottom:1px dotted #999; min-height:14px; }
+.cols2 { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
+.cols3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 16px; }
+.sep { border-top:1px solid #000; }
+
+/* ── Tables ─────────────────────────────────────────────── */
+table.grid { width:100%; border-collapse:collapse; font-size:8pt; }
+table.grid th, table.grid td { border:1px solid #000; padding:3px 5px; vertical-align:top; }
+table.grid th { background:#ececec; text-align:center; font-weight:700; }
+.num { text-align:right; white-space:nowrap; }
+.ctr { text-align:center; }
+.chk { font-size:11pt; line-height:1; }
+
+/* ── Totals (right-aligned boxes) ───────────────────────── */
+table.totals { width:100%; border-collapse:collapse; font-size:8.5pt; margin-top:-1px; }
+table.totals td { border:1px solid #000; padding:3px 6px; }
+table.totals td.tl { text-align:right; font-weight:600; }
+table.totals td.tv { text-align:right; width:150px; font-weight:700; }
+table.totals td.tt { text-align:right; font-style:italic; color:#333; }
+
+.section-bar { background:#d9d9d9; border-top:1px solid #000; border-bottom:1px solid #000;
+  font-weight:700; text-align:center; padding:2px; font-size:8.5pt; }
+
+.methods { display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
+.methods .m { display:flex; align-items:center; gap:4px; }
+
+.comment-box { border:1px solid #000; min-height:42px; padding:4px 6px; margin-top:3px; }
+
+/* ── Sign-off ───────────────────────────────────────────── */
+.signoff { display:grid; grid-template-columns:1fr 1fr 1fr; }
+.signoff .cell { border:1px solid #000; padding:6px; text-align:center; }
+.signoff .nm { margin-top:18px; }
+.signoff .pos { font-size:7.5pt; color:#333; margin-top:2px; }

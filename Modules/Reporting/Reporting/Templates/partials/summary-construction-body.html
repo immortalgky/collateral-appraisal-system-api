@@ -1,0 +1,168 @@
+<!--
+  Partial: body content of สรุปรายงานการตรวจงานก่อสร้าง (FSD §2.1.4).
+  Included by appraisal-summary-construction.html and internal-report-construction.html.
+  Shares the parent Scriban scope; expects: model.* (AppraisalSummaryModel snake_case fields).
+-->
+<div class="form">
+
+  <!-- ════ HEADER ════ -->
+  <div class="head">
+    <div class="logo">
+      <div class="lh">LH <span class="b">BANK</span></div>
+      <div class="bars"></div>
+    </div>
+    <div class="title">สรุปรายงานการตรวจงานก่อสร้าง</div>
+    <div class="meta">
+      <div class="row"><span class="lbl">รายงานเลขที่</span><span class="val">{{ model.appraisal_book_number }}</span></div>
+      <div class="row"><span class="lbl">วันที่สำรวจและประเมินราคา</span><span class="val">{{ thai.date model.appraisal_date }}</span></div>
+    </div>
+  </div>
+
+  <!-- ════ INFO BLOCK ════ -->
+  <div class="pad">
+    <div class="kv"><span class="k">ชื่อลูกค้า :</span><span class="v">{{ model.customer_name }}</span></div>
+    <div class="kv"><span class="k">ผู้แจ้ง :</span><span class="v">{{ model.ao_name }}</span></div>
+    <div class="cols2">
+      <div class="kv"><span class="k">วัตถุประสงค์ :</span><span class="v">{{ model.appraisal_purpose }}</span></div>
+      <div class="kv"><span class="k">ประเภททรัพย์สิน :</span><span class="v">{{ model.property_type }}</span></div>
+    </div>
+    <div class="kv"><span class="k">ที่ตั้งทรัพย์สิน :</span><span class="v">{{ model.collateral_address }}</span></div>
+    <div class="kv"><span class="k">ผู้ประเมินราคา :</span><span class="v">{{ model.appraiser }}</span></div>
+  </div>
+
+  <!-- ════ อ้างอิง ROW ════ -->
+  <div class="pad sep">
+    <div class="kv">
+      <span class="k">อ้างอิง :</span>
+      <span class="v">
+        <span class="m">
+          <span class="chk">{{ if model.is_refer_appraisal_book }}&#9745;{{ else }}&#9744;{{ end }}</span>
+          รายงานการประเมิน เลขที่
+          {{ if model.is_refer_appraisal_book && model.refer_appraisal_book_number }}{{ model.refer_appraisal_book_number }}{{ else }}.......................{{ end }}
+        </span>
+        &nbsp;&nbsp;
+        <span class="m">
+          <span class="chk">{{ if model.is_refer_construction_book }}&#9745;{{ else }}&#9744;{{ end }}</span>
+          รายงานการตรวจงานก่อสร้าง เลขที่
+          {{ if model.is_refer_construction_book && model.refer_construction_book_number }}{{ model.refer_construction_book_number }}{{ else }}.......................{{ end }}
+        </span>
+        &nbsp;&nbsp;
+        <span class="m">
+          ตรวจครั้งที่
+          {{ if model.inspection_round }}{{ model.inspection_round }}{{ else }}.....{{ end }}
+        </span>
+      </span>
+    </div>
+  </div>
+
+  <!-- ════ รายงานการตรวจงานก่อสร้าง SECTION ════ -->
+  <div class="section-bar">รายงานการตรวจงานก่อสร้าง</div>
+
+  <div class="pad">
+    <div class="kv"><span class="k">ชื่ออาคาร :</span><span class="v">{{ model.building_name }}</span></div>
+  </div>
+
+  <!-- Value totals table -->
+  <table class="totals">
+    <tr>
+      <td class="tl">ราคาประเมิน เนื่องจากงานเสร็จ 100%</td>
+      <td class="tv">{{ if model.building_value100; model.building_value100 | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    <tr>
+      <td class="tl">ราคาประเมินที่ดิน</td>
+      <td class="tv">{{ if model.land_appraisal_value; model.land_appraisal_value | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    <tr>
+      <td class="tl">มูลค่าอาคาร ณ ปัจจุบัน</td>
+      <td class="tv">{{ if model.current_building_value; model.current_building_value | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    <tr>
+      <td class="tl">รวมราคา ที่ดิน+อาคาร (100%)</td>
+      <td class="tv">{{ if model.total_land_building100; model.total_land_building100 | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    <tr>
+      <td class="tl">รวมราคา ที่ดิน+อาคาร ณ ปัจจุบัน</td>
+      <td class="tv">{{ if model.total_land_current_building; model.total_land_current_building | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    {{ if model.total_land_current_building }}
+    <tr>
+      <td class="tt" colspan="2">( {{ thai.baht_text model.total_land_current_building }} )</td>
+    </tr>
+    {{ end }}
+  </table>
+
+  <!-- ════ เอกสารประกอบ CHECKBOXES ════ -->
+  <div class="pad sep">
+    <div class="kv">
+      <span class="k">เอกสารประกอบ :</span>
+      <span class="v methods">
+        <span class="m">
+          <span class="chk">{{ if model.has_construction_license }}&#9745;{{ else }}&#9744;{{ end }}</span>
+          สำเนาใบอนุญาตก่อสร้าง
+        </span>
+        <span class="m">
+          <span class="chk">{{ if model.has_progress_table }}&#9745;{{ else }}&#9744;{{ end }}</span>
+          ตารางแสดงผลงานการก่อสร้าง
+        </span>
+        <span class="m">
+          <span class="chk">{{ if model.has_construction_photo }}&#9745;{{ else }}&#9744;{{ end }}</span>
+          ภาพถ่ายการก่อสร้าง
+        </span>
+      </span>
+    </div>
+  </div>
+
+  <!-- ════ สรุปผลการตรวจงวดงานก่อสร้าง SECTION ════ -->
+  <div class="section-bar">สรุปผลการตรวจงวดงานก่อสร้าง</div>
+
+  <table class="grid">
+    <thead>
+      <tr>
+        <th>รายการ</th>
+        <th style="width:160px;">ผลงานก่อนหน้า/เดิม</th>
+        <th style="width:160px;">ผลงานที่สร้างเพิ่มขึ้น</th>
+        <th style="width:160px;">รวมผลการดำเนินงาน</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>รวมผลงานก่อสร้าง</td>
+        <td class="num">
+          {{ if model.previous_progress_pct }}{{ model.previous_progress_pct | math.format "N2" }}%{{ else }}-{{ end }}
+        </td>
+        <td class="num">
+          {{ if model.additional_progress_pct }}{{ model.additional_progress_pct | math.format "N2" }}%{{ else }}-{{ end }}
+        </td>
+        <td class="num">
+          {{ if model.total_progress_pct }}{{ model.total_progress_pct | math.format "N2" }}%{{ else }}-{{ end }}
+        </td>
+      </tr>
+      <tr>
+        <td colspan="4"><strong>หมายเหตุ :</strong> {{ model.construction_remark }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ════ SIGN-OFF (3 cols: ผู้ประเมิน / ผู้ตรวจสอบ / ผู้สอบทาน) ════ -->
+  <div class="signoff">
+    <div class="cell">
+      <div>ผู้ประเมิน</div>
+      <div class="nm">( {{ if model.appraisal_staff_name; model.appraisal_staff_name; else; ".............................."; end }} )</div>
+      <div class="pos">{{ model.appraisal_staff_position }}</div>
+    </div>
+    <div class="cell">
+      <div>ผู้ตรวจสอบ</div>
+      <div class="nm">( {{ if model.appraisal_checker_name; model.appraisal_checker_name; else; ".............................."; end }} )</div>
+      <div class="pos">{{ model.appraisal_checker_position }}</div>
+    </div>
+    <div class="cell">
+      <div>ผู้สอบทาน</div>
+      <div class="nm">( {{ if model.appraisal_verify_name; model.appraisal_verify_name; else; ".............................."; end }} )</div>
+      <div class="pos">{{ model.appraisal_verify_position }}</div>
+    </div>
+  </div>
+
+  <!-- ════ COMMITTEE BLOCK (shared partial) ════ -->
+  {{ include 'partials/approver-block' }}
+
+</div>
