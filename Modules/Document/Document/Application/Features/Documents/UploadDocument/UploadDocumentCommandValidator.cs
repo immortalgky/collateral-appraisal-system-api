@@ -35,8 +35,8 @@ public class UploadDocumentCommandValidator : AbstractValidator<UploadDocumentCo
         RuleFor(x => x.DocumentType)
             .NotEmpty()
             .WithMessage("Document type is required")
-            .MaximumLength(50)
-            .WithMessage("Document type cannot exceed 50 characters");
+            .MaximumLength(10)
+            .WithMessage("Document type cannot exceed 10 characters");
 
         // RuleFor(x => x.DocumentCategory)
         //     .NotEmpty()
