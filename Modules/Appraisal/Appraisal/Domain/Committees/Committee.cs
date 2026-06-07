@@ -86,25 +86,4 @@ public class Committee : Aggregate<Guid>
     {
         IsActive = true;
     }
-
-    public bool HasQuorum(int presentCount)
-    {
-        return QuorumType switch
-        {
-            "Fixed" => presentCount >= QuorumValue,
-            "Percentage" => presentCount >= _members.Count(m => m.IsActive) * QuorumValue / 100,
-            _ => false
-        };
-    }
-
-    public bool HasMajority(int approveCount, int totalVotes)
-    {
-        return MajorityType switch
-        {
-            "Simple" => approveCount > totalVotes / 2,
-            "TwoThirds" => approveCount >= totalVotes * 2 / 3,
-            "Unanimous" => approveCount == totalVotes,
-            _ => false
-        };
-    }
 }

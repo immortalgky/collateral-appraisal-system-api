@@ -12,7 +12,7 @@ public class GetAppointmentQueryHandler(ISqlConnectionFactory connectionFactory)
         const string sql = """
                            SELECT TOP 1 * FROM appraisal.vw_AppointmentList
                            WHERE AppraisalId = @AppraisalId
-                             AND Status IN ('Pending', 'Approved')
+                             AND Status IN ('Pending', 'Appointed')
                            ORDER BY CreatedAt DESC
                            """;
 

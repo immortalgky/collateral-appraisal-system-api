@@ -164,13 +164,24 @@ public class AppraisalFee : Entity<Guid>
 
     public void SetBankAbsorb(decimal amount)
     {
-        if (amount < 0 || amount > TotalFeeAfterVAT)
+        if (amount < 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(amount), $"BankAbsorbAmount cannot be negative (got {amount:F2}).");
+
+        // The upper bound only applies once a billable total exists. On a freshly-created shell fee
+        // the items are added later (AssignmentFeeService.EnsureAssignmentFeeItemsAsync once the real
+        // assignee is known), so TotalFeeAfterVAT is still 0 and the absorb amount carried on the
+        // request can't be validated against it yet — defer it. RecalculateFromItems re-clamps the
+        // amount down to the real total when items materialise.
+        if (TotalFeeAfterVAT > 0 && amount > TotalFeeAfterVAT)
             throw new ArgumentOutOfRangeException(
                 nameof(amount),
                 $"BankAbsorbAmount must be between 0 and TotalFeeAfterVAT ({TotalFeeAfterVAT:F2}) (got {amount:F2}).");
 
         BankAbsorbAmount = amount;
-        CustomerPayableAmount = TotalFeeAfterVAT - BankAbsorbAmount;
+        // Floor at 0 so the shell never persists a negative customer-payable while it transiently
+        // holds absorb > total (0). Corrected on the next RecalculateFromItems once items exist.
+        CustomerPayableAmount = Math.Max(0m, TotalFeeAfterVAT - BankAbsorbAmount);
         OutstandingAmount = TotalFeeAfterVAT - TotalPaidAmount;
         UpdatePaymentStatus();
     }
