@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Shared;
 using Shared.Identity;
 
 namespace Appraisal.Application.Features.FeeAppointment.SubmitPendingApproval;
@@ -15,16 +16,15 @@ public class SubmitPendingApprovalEndpoint : ICarterModule
                 ICurrentUserService currentUser,
                 CancellationToken ct) =>
             {
-                var companyId = currentUser.CompanyId?.ToString()
-                                ?? throw new InvalidOperationException("company_id claim is required for this endpoint");
-
                 var requestedBy = currentUser.Username
                                   ?? throw new InvalidOperationException("User not authenticated");
+
+                var requestSource = currentUser.ToFeeApprovalRequestSource();
 
                 await sender.Send(new SubmitPendingApprovalCommand(
                     appraisalId,
                     body.AssignmentId,
-                    companyId,
+                    requestSource,
                     requestedBy), ct);
 
                 return Results.Accepted();

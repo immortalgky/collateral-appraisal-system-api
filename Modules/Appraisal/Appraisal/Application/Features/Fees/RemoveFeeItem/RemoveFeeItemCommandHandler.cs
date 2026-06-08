@@ -1,8 +1,10 @@
+using Appraisal.Application.Features.Shared;
+using Shared.Identity;
 using Workflow.Contracts.FeeAppointmentApprovals;
 
 namespace Appraisal.Application.Features.Fees.RemoveFeeItem;
 
-public class RemoveFeeItemCommandHandler(AppraisalDbContext dbContext, ISender sender) : ICommandHandler<RemoveFeeItemCommand>
+public class RemoveFeeItemCommandHandler(AppraisalDbContext dbContext, ISender sender, ICurrentUserService currentUser) : ICommandHandler<RemoveFeeItemCommand>
 {
     public async Task<Unit> Handle(RemoveFeeItemCommand command, CancellationToken cancellationToken)
     {
@@ -25,11 +27,13 @@ public class RemoveFeeItemCommandHandler(AppraisalDbContext dbContext, ISender s
             .Where(i => i.IsActiveAddedFee)
             .Sum(i => i.FeeAmount);
 
+        var requestSource = currentUser.ToFeeApprovalRequestSource();
+
         // Evaluate policy at edit time (read-only cross-module query)
         var verdict = await sender.Send(
             new EvaluateFeeAppointmentApprovalQuery(
                 command.AppraisalId,
-                RequestSource: "Ext",
+                RequestSource: requestSource,
                 ProposedAppointmentDate: null,
                 RescheduleCount: null,
                 CumulativeAddedFeeTotal: cumulativeTotal),

@@ -1,3 +1,4 @@
+using Workflow.Contracts.FeeAppointmentApprovals;
 using Workflow.FeeAppointmentApprovals.Infrastructure;
 
 namespace Workflow.FeeAppointmentApprovals.Endpoints;
@@ -12,7 +13,7 @@ public record CreateFeeApprovalTierRequest(
     string TierLabel,
     int Priority,
     bool IsActive = true,
-    string AppliesTo = "Ext");
+    string AppliesTo = FeeApprovalRequestSource.External);
 
 public record UpdateFeeApprovalTierRequest(
     decimal MinAmount,

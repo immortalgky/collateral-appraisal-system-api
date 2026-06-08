@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Shared;
+using Shared.Identity;
 using Workflow.Contracts.FeeAppointmentApprovals;
 
 namespace Appraisal.Application.Features.Appointments.RescheduleAppointment;
@@ -5,7 +7,8 @@ namespace Appraisal.Application.Features.Appointments.RescheduleAppointment;
 public class RescheduleAppointmentCommandHandler(
     IAppraisalRepository appraisalRepository,
     AppraisalDbContext dbContext,
-    ISender sender)
+    ISender sender,
+    ICurrentUserService currentUser)
     : ICommandHandler<RescheduleAppointmentCommand>
 {
     public async Task<Unit> Handle(
@@ -31,11 +34,15 @@ public class RescheduleAppointmentCommandHandler(
 
         appointment.Reschedule(command.ChangedBy, command.NewDateTime, command.Reason);
 
+        // Derive request source from the acting user — external companies use "Ext" approval rules;
+        // internal bank users use "Int" rules (no company_id claim required).
+        var requestSource = currentUser.ToFeeApprovalRequestSource();
+
         // Evaluate policy at edit time (read-only cross-module query)
         var verdict = await sender.Send(
             new EvaluateFeeAppointmentApprovalQuery(
                 command.AppraisalId,
-                RequestSource: "Ext",
+                RequestSource: requestSource,
                 ProposedAppointmentDate: command.NewDateTime,
                 RescheduleCount: appointment.RescheduleCount,
                 CumulativeAddedFeeTotal: null),

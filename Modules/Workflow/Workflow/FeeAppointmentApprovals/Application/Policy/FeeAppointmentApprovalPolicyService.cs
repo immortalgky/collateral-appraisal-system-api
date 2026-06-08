@@ -1,3 +1,4 @@
+using Workflow.Contracts.FeeAppointmentApprovals;
 using Workflow.FeeAppointmentApprovals.Infrastructure;
 
 namespace Workflow.FeeAppointmentApprovals.Application.Policy;
@@ -20,7 +21,7 @@ public class FeeAppointmentApprovalPolicyService(
     {
         var rule = await dbContext.AppointmentApprovalRules
             .AsNoTracking()
-            .Where(r => r.AppliesTo == "Both" || r.AppliesTo == requestSource)
+            .Where(r => r.AppliesTo == FeeApprovalRequestSource.Both || r.AppliesTo == requestSource)
             .OrderByDescending(r => r.Id) // take the most recently inserted active rule
             .FirstOrDefaultAsync(ct);
 
@@ -88,7 +89,7 @@ public class FeeAppointmentApprovalPolicyService(
         var tiers = await dbContext.FeeApprovalTiers
             .AsNoTracking()
             .Where(t => t.IsActive
-                        && (t.AppliesTo == "Both" || t.AppliesTo == requestSource)
+                        && (t.AppliesTo == FeeApprovalRequestSource.Both || t.AppliesTo == requestSource)
                         && t.MinAmount <= totalFeeAmount
                         && (t.MaxAmount == null || t.MaxAmount >= totalFeeAmount))
             .OrderBy(t => t.Priority)
@@ -106,7 +107,7 @@ public class FeeAppointmentApprovalPolicyService(
     {
         var tier = await dbContext.FeeApprovalTiers
             .AsNoTracking()
-            .Where(t => t.IsActive && (t.AppliesTo == "Both" || t.AppliesTo == requestSource))
+            .Where(t => t.IsActive && (t.AppliesTo == FeeApprovalRequestSource.Both || t.AppliesTo == requestSource))
             .OrderBy(t => t.Priority)
             .FirstOrDefaultAsync(ct);
 

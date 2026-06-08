@@ -1,4 +1,5 @@
 using Shared.Data.Seed;
+using Workflow.Contracts.FeeAppointmentApprovals;
 
 namespace Workflow.FeeAppointmentApprovals.Infrastructure;
 
@@ -49,7 +50,7 @@ public class FeeApprovalDefaultConfigSeeder(
                 tierLabel: "IntAdmin",
                 priority: 1,
                 isActive: true,
-                appliesTo: "Ext"),
+                appliesTo: FeeApprovalRequestSource.External),
 
             // Tier 2: any fee amount over 3000 → IntAppraisalChecker group (higher priority = strictest)
             FeeApprovalTier.Create(
@@ -60,7 +61,7 @@ public class FeeApprovalDefaultConfigSeeder(
                 tierLabel: "IntAppraisalChecker",
                 priority: 2,
                 isActive: true,
-                appliesTo: "Ext")
+                appliesTo: FeeApprovalRequestSource.External)
         };
 
         context.FeeApprovalTiers.AddRange(tiers);
@@ -84,7 +85,7 @@ public class FeeApprovalDefaultConfigSeeder(
             leadTimeDays: 2,
             rescheduleEnabled: true,
             rescheduleThreshold: 2,
-            appliesTo: "Ext");
+            appliesTo: FeeApprovalRequestSource.External);
 
         context.AppointmentApprovalRules.Add(rule);
         await context.SaveChangesAsync();
