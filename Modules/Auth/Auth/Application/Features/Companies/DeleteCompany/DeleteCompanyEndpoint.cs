@@ -14,6 +14,7 @@ public class DeleteCompanyEndpoint : ICarterModule
             .Produces<DeleteCompanyResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Delete Company")
-            .WithDescription("Soft delete a company");
+            .WithDescription("Soft delete a company")
+            .RequireAuthorization("CanManageCompanies");
     }
 }

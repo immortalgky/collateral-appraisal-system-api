@@ -651,7 +651,10 @@ public class AuthDataSeed(
             ("TEAM_MANAGE", "Manage Teams", "Create, update, and delete teams and team members", "Auth"),
             // Auth audit trail
             ("AUTH_AUDIT_VIEW", "View Auth Audit Trail",
-                "View the user/role/permission/group/team change history", "Auth")
+                "View the user/role/permission/group/team change history", "Auth"),
+            // Company maintenance
+            ("COMPANY_MANAGE", "Manage Companies",
+                "Create, update, and delete external appraisal companies", "Auth")
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)
