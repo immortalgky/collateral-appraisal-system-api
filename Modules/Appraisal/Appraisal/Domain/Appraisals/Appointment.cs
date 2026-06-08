@@ -163,21 +163,9 @@ public class Appointment : Entity<Guid>
     /// </summary>
     public void RejectReschedule(string changedBy, string? reason = null)
     {
-        // Find the date that was active just before the most recent reschedule.
-        // The most recent "Rescheduled" history entry captured the prior date.
-        var lastRescheduledHistory = _history
-            .Where(h => h.ChangeType == "Rescheduled")
-            .OrderByDescending(h => h.ChangedAt)
-            .FirstOrDefault();
-
-        RecordHistory("RescheduleRejected", changedBy, reason); // distinct from a user cancellation — this is an approver rejecting a pending reschedule
-
-        if (lastRescheduledHistory is not null)
-        {
-            AppointmentDateTime = lastRescheduledHistory.PreviousAppointmentDateTime;
-            if (RescheduleCount > 0) RescheduleCount--;
-            Status = "Appointed"; // Restore to Appointed — the previously-confirmed date is reinstated
-        }
+        // distinct from a user cancellation — this is an approver rejecting a pending reschedule
+        RecordHistory("RescheduleRejected", changedBy, reason);
+        RevertToLastConfirmedDate();
 
         Reason = reason;
         ActionDate = DateTime.Now;
@@ -194,7 +182,22 @@ public class Appointment : Entity<Guid>
             throw new InvalidOperationException($"Cannot cancel reschedule in status '{Status}'");
 
         RecordHistory("RescheduleCancelled", changedBy, reason);
+        RevertToLastConfirmedDate();
 
+        Reason = reason;
+        ActionDate = DateTime.Now;
+        ClearApprovalMarkers();
+    }
+
+    /// <summary>
+    /// Reverts to the date active just before the most recent reschedule: the latest "Rescheduled"
+    /// history entry captured that prior date. Decrements RescheduleCount (undo the increment from
+    /// Reschedule) and restores Status to "Appointed". Shared by RejectReschedule and CancelReschedule.
+    /// Callers must RecordHistory FIRST so the pre-revert snapshot is captured (the "Rescheduled"
+    /// filter excludes the just-added row, so ordering is safe).
+    /// </summary>
+    private void RevertToLastConfirmedDate()
+    {
         var lastRescheduledHistory = _history
             .Where(h => h.ChangeType == "Rescheduled")
             .OrderByDescending(h => h.ChangedAt)
@@ -206,10 +209,6 @@ public class Appointment : Entity<Guid>
             if (RescheduleCount > 0) RescheduleCount--;
             Status = "Appointed";
         }
-
-        Reason = reason;
-        ActionDate = DateTime.Now;
-        ClearApprovalMarkers();
     }
 
     private void RecordHistory(string changeType, string changedBy, string? reason)

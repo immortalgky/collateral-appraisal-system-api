@@ -1,5 +1,5 @@
+using Appraisal.Application.Features.Shared;
 using Shared.Identity;
-using Workflow.Contracts.FeeAppointmentApprovals;
 
 namespace Appraisal.Application.Features.FeeAppointment.SubmitPendingApproval;
 
@@ -19,9 +19,7 @@ public class SubmitPendingApprovalEndpoint : ICarterModule
                 var requestedBy = currentUser.Username
                                   ?? throw new InvalidOperationException("User not authenticated");
 
-                var requestSource = currentUser.IsExternal
-                    ? FeeApprovalRequestSource.External
-                    : FeeApprovalRequestSource.Internal;
+                var requestSource = currentUser.ToFeeApprovalRequestSource();
 
                 await sender.Send(new SubmitPendingApprovalCommand(
                     appraisalId,

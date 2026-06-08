@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Shared;
 using Shared.Identity;
 using Workflow.Contracts.FeeAppointmentApprovals;
 
@@ -28,9 +29,7 @@ public class UpdateFeeItemCommandHandler(AppraisalDbContext dbContext, ISender s
             .Where(i => i.IsActiveAddedFee)
             .Sum(i => i.FeeAmount);
 
-        var requestSource = currentUser.IsExternal
-            ? FeeApprovalRequestSource.External
-            : FeeApprovalRequestSource.Internal;
+        var requestSource = currentUser.ToFeeApprovalRequestSource();
 
         // Evaluate policy at edit time (read-only cross-module query)
         var verdict = await sender.Send(

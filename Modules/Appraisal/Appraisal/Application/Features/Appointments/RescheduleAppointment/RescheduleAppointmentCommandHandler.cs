@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Shared;
 using Shared.Identity;
 using Workflow.Contracts.FeeAppointmentApprovals;
 
@@ -35,9 +36,7 @@ public class RescheduleAppointmentCommandHandler(
 
         // Derive request source from the acting user — external companies use "Ext" approval rules;
         // internal bank users use "Int" rules (no company_id claim required).
-        var requestSource = currentUser.IsExternal
-            ? FeeApprovalRequestSource.External
-            : FeeApprovalRequestSource.Internal;
+        var requestSource = currentUser.ToFeeApprovalRequestSource();
 
         // Evaluate policy at edit time (read-only cross-module query)
         var verdict = await sender.Send(

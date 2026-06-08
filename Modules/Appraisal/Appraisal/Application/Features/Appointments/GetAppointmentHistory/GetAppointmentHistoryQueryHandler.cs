@@ -46,9 +46,10 @@ public class GetAppointmentHistoryQueryHandler(ISqlConnectionFactory connectionF
                 SELECT
                     ah.Id,
                     CASE ah.ChangeType
-                        WHEN 'Rescheduled'        THEN 'AppointmentRescheduled'
-                        WHEN 'Cancelled'          THEN 'AppointmentCancelled'
-                        WHEN 'RescheduleRejected' THEN 'AppointmentRejected'
+                        WHEN 'Rescheduled'         THEN 'AppointmentRescheduled'
+                        WHEN 'Cancelled'           THEN 'AppointmentCancelled'
+                        WHEN 'RescheduleRejected'  THEN 'AppointmentRejected'
+                        WHEN 'RescheduleCancelled' THEN 'AppointmentRescheduleCancelled'
                         WHEN 'StatusChanged'      THEN
                             CASE
                                 WHEN (ah.ChangeReason LIKE 'Approved%' OR ah.ChangeReason LIKE 'Appointed%') THEN 'AppointmentApproved'
@@ -57,9 +58,10 @@ public class GetAppointmentHistoryQueryHandler(ISqlConnectionFactory connectionF
                         ELSE NULL
                     END                                                     AS EventType,
                     CASE ah.ChangeType
-                        WHEN 'Rescheduled'        THEN 'Appointment Rescheduled'
-                        WHEN 'Cancelled'          THEN 'Appointment Cancelled'
-                        WHEN 'RescheduleRejected' THEN 'Reschedule Rejected'
+                        WHEN 'Rescheduled'         THEN 'Appointment Rescheduled'
+                        WHEN 'Cancelled'           THEN 'Appointment Cancelled'
+                        WHEN 'RescheduleRejected'  THEN 'Reschedule Rejected'
+                        WHEN 'RescheduleCancelled' THEN 'Reschedule Cancelled'
                         WHEN 'StatusChanged'      THEN
                             CASE
                                 WHEN (ah.ChangeReason LIKE 'Approved%' OR ah.ChangeReason LIKE 'Appointed%') THEN 'Appointment Approved'
@@ -84,6 +86,7 @@ public class GetAppointmentHistoryQueryHandler(ISqlConnectionFactory connectionF
                         WHEN ah.ChangeType = 'Rescheduled'                             THEN 'Pending'
                         WHEN ah.ChangeType = 'Cancelled'                               THEN 'Cancelled'
                         WHEN ah.ChangeType = 'RescheduleRejected'                      THEN 'Rejected'
+                        WHEN ah.ChangeType = 'RescheduleCancelled'                     THEN 'Cancelled'
                         WHEN ah.ChangeType = 'StatusChanged'
                              AND (ah.ChangeReason LIKE 'Approved%' OR ah.ChangeReason LIKE 'Appointed%')                      THEN 'Approved'
                         ELSE NULL
