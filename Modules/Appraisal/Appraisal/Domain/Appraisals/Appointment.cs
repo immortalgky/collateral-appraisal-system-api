@@ -183,6 +183,35 @@ public class Appointment : Entity<Guid>
         ActionDate = DateTime.Now;
     }
 
+    /// <summary>
+    /// Discards a draft reschedule that is in Pending status but has NOT yet been submitted
+    /// for approval (ApprovalSubmittedAt is null). Reverts AppointmentDateTime to the last
+    /// confirmed date, decrements RescheduleCount, and returns Status to "Appointed".
+    /// </summary>
+    public void CancelReschedule(string changedBy, string? reason = null)
+    {
+        if (Status != "Pending")
+            throw new InvalidOperationException($"Cannot cancel reschedule in status '{Status}'");
+
+        RecordHistory("RescheduleCancelled", changedBy, reason);
+
+        var lastRescheduledHistory = _history
+            .Where(h => h.ChangeType == "Rescheduled")
+            .OrderByDescending(h => h.ChangedAt)
+            .FirstOrDefault();
+
+        if (lastRescheduledHistory is not null)
+        {
+            AppointmentDateTime = lastRescheduledHistory.PreviousAppointmentDateTime;
+            if (RescheduleCount > 0) RescheduleCount--;
+            Status = "Appointed";
+        }
+
+        Reason = reason;
+        ActionDate = DateTime.Now;
+        ClearApprovalMarkers();
+    }
+
     private void RecordHistory(string changeType, string changedBy, string? reason)
     {
         var history = AppointmentHistory.Create(

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Workflow.Contracts.FeeAppointmentApprovals;
 using Workflow.FeeAppointmentApprovals.Domain;
 
 namespace Workflow.FeeAppointmentApprovals.Infrastructure;
@@ -95,7 +96,7 @@ public class FeeApprovalTierConfiguration : IEntityTypeConfiguration<FeeApproval
         builder.Property(x => x.AppliesTo)
             .IsRequired()
             .HasMaxLength(10)
-            .HasDefaultValue("Ext");
+            .HasDefaultValue(FeeApprovalRequestSource.External);
     }
 }
 
@@ -115,6 +116,6 @@ public class AppointmentApprovalRuleConfiguration : IEntityTypeConfiguration<App
         builder.Property(x => x.AppliesTo)
             .IsRequired()
             .HasMaxLength(10)
-            .HasDefaultValue("Ext");
+            .HasDefaultValue(FeeApprovalRequestSource.External);
     }
 }

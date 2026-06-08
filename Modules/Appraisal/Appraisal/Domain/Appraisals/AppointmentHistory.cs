@@ -33,9 +33,10 @@ public class AppointmentHistory : Entity<Guid>
         string changedBy)
     {
         if (changeType != "Rescheduled" && changeType != "Cancelled"
-            && changeType != "RescheduleRejected" && changeType != "StatusChanged")
+            && changeType != "RescheduleRejected" && changeType != "StatusChanged"
+            && changeType != "RescheduleCancelled")
             throw new ArgumentException(
-                "ChangeType must be 'Rescheduled', 'Cancelled', 'RescheduleRejected', or 'StatusChanged'");
+                "ChangeType must be 'Rescheduled', 'Cancelled', 'RescheduleRejected', 'RescheduleCancelled', or 'StatusChanged'");
 
         return new AppointmentHistory
         {

@@ -1,4 +1,5 @@
 using Shared.DDD;
+using Workflow.Contracts.FeeAppointmentApprovals;
 
 namespace Workflow.FeeAppointmentApprovals.Infrastructure;
 
@@ -31,7 +32,7 @@ public class FeeApprovalTier : Entity<Guid>
     public bool IsActive { get; private set; }
 
     /// <summary>"Ext", "Int", or "Both" — which RequestSource this tier applies to.</summary>
-    public string AppliesTo { get; private set; } = "Ext";
+    public string AppliesTo { get; private set; } = FeeApprovalRequestSource.External;
 
     private FeeApprovalTier() { }
 
@@ -43,7 +44,7 @@ public class FeeApprovalTier : Entity<Guid>
         string tierLabel,
         int priority,
         bool isActive = true,
-        string appliesTo = "Ext")
+        string appliesTo = FeeApprovalRequestSource.External)
     {
         return new FeeApprovalTier
         {

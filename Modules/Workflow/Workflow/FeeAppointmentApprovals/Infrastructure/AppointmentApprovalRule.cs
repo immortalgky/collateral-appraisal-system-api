@@ -1,4 +1,5 @@
 using Shared.DDD;
+using Workflow.Contracts.FeeAppointmentApprovals;
 
 namespace Workflow.FeeAppointmentApprovals.Infrastructure;
 
@@ -27,7 +28,7 @@ public class AppointmentApprovalRule : Entity<Guid>
     public int? RescheduleThreshold { get; private set; }
 
     /// <summary>"Ext", "Int", or "Both"</summary>
-    public string AppliesTo { get; private set; } = "Ext";
+    public string AppliesTo { get; private set; } = FeeApprovalRequestSource.External;
 
     private AppointmentApprovalRule() { }
 
@@ -38,7 +39,7 @@ public class AppointmentApprovalRule : Entity<Guid>
         int? leadTimeDays,
         bool rescheduleEnabled,
         int? rescheduleThreshold,
-        string appliesTo = "Ext")
+        string appliesTo = FeeApprovalRequestSource.External)
     {
         return new AppointmentApprovalRule
         {
