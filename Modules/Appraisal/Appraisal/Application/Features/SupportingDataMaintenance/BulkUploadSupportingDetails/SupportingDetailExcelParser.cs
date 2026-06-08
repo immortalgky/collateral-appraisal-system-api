@@ -42,19 +42,10 @@ internal static class SupportingDetailExcelParser
         // Optional columns (ResolveOptional returns null if not found)
         var propertyNameCol = ResolveOptional(headers, "Property Name", "PropertyName");
         var developerCol = ResolveOptional(headers, "Developer");
-        var modelNameCol = ResolveOptional(headers, "Model Name", "ModelName");
         var landAreaCol = ResolveOptional(headers, "Land Area", "LandArea");
         var usableAreaCol = ResolveOptional(headers, "Usable Area", "UsableArea");
-        var projectNameCol = ResolveOptional(headers, "Project Name", "ProjectName");
-        var roomFloorCol = ResolveOptional(headers, "Room Floor", "RoomFloor", "Floor");
-        var houseNoCol = ResolveOptional(headers, "House No", "HouseNo", "House Number");
-        var subDistrictCol = ResolveOptional(headers, "Sub District", "SubDistrict");
-        var districtCol = ResolveOptional(headers, "District");
-        var provinceCol = ResolveOptional(headers, "Province");
         var latitudeCol = ResolveOptional(headers, "Latitude", "Lat");
         var longitudeCol = ResolveOptional(headers, "Longitude", "Lng", "Long");
-        var plotLocationTypeCol = ResolveOptional(headers, "Plot Location Type", "PlotLocationType");
-        var plotLocationTypeOtherCol = ResolveOptional(headers, "Plot Location Type Other", "PlotLocationTypeOther");
         var pricePerUnitCol = ResolveOptional(headers, "Price Per Unit", "PricePerUnit");
         var offeringPriceCol = ResolveOptional(headers, "Offering Price", "OfferingPrice");
         var sellingPriceCol = ResolveOptional(headers, "Selling Price", "SellingPrice");
@@ -118,17 +109,17 @@ internal static class SupportingDetailExcelParser
                 results.Add(new SupportingDataDetailData(
                     PropertyName: GetStringOrNull(ws, row, propertyNameCol),
                     Developer: GetStringOrNull(ws, row, developerCol),
-                    ModelName: GetStringOrNull(ws, row, modelNameCol),
+                    ModelName: null,
                     CollateralType: collateralType!,
                     BuildingType: buildingType!,
                     LandArea: landArea,
                     UsableArea: usableArea,
-                    ProjectName: GetStringOrNull(ws, row, projectNameCol),
-                    RoomFloor: GetStringOrNull(ws, row, roomFloorCol),
-                    HouseNo: GetStringOrNull(ws, row, houseNoCol),
-                    SubDistrict: GetStringOrNull(ws, row, subDistrictCol),
-                    District: GetStringOrNull(ws, row, districtCol),
-                    Province: GetStringOrNull(ws, row, provinceCol),
+                    ProjectName: null,
+                    RoomFloor: null,
+                    HouseNo: null,
+                    SubDistrict: null,
+                    District: null,
+                    Province: null,
                     Latitude: latitude,
                     PlotLocationType: null,
                     PlotLocationTypeOther: null,
