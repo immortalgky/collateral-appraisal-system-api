@@ -12,11 +12,12 @@ appraisal linkage) actually fires:
 Keep this script only for offline / no-database scenarios where synthetic rows are good enough.
 
 The file is the external AS400 → CAS interface ("Collateral Review Interface"): a **fixed-width**
-UTF-8 text file with Header (H) / Detail (D) / Trailer (T) records. Each Detail record is
-exactly **640 characters** (Unicode code-points, not bytes — matches CollatrevFileParser).
+UTF-8 text file with Header (H) / Detail (D) / Trailer (T) records. Per the vendor spec each
+Detail record is exactly **649 characters** and Header/Trailer are **640 characters** (Unicode
+code-points, not bytes — matches CollatrevFileParser).
 
     H + EffectiveDate(DDMMYYYY, 8) + filler                    → 640 chars
-    D + 34 fields padded to their widths (alpha left, numeric right) → 640 chars
+    D + 38 fields padded to their widths (alpha left, numeric right) → 649 chars
     T + DetailCount(9, right-aligned) + filler                 → 640 chars
 
 Usage:
@@ -31,7 +32,8 @@ import argparse
 import os
 import sys
 
-RECORD_LEN = 660
+DETAIL_LEN = 649          # Detail (D) record length
+HEADER_TRAILER_LEN = 640  # Header (H) / Trailer (T) record length
 
 # (name, width, align)  align: 'L' = left (alpha), 'R' = right (numeric)
 # RecordType is always 'D' for detail rows; we keep it as the first field for clarity.
@@ -42,27 +44,27 @@ DETAIL_FIELDS = [
     ("CollateralId",          19,  "R"),
     ("SurveyNo",              10,  "L"),
     ("CollateralCode",        3,   "L"),
-    ("CollateralCategory",    3,   "L"),
-    ("CollateralName",        30,  "L"),
-    ("CollateralAddress",     100, "L"),
+    ("CollateralCategory",    5,   "L"),
+    ("CollateralName",        40,  "L"),
+    ("CollateralAddress",     120, "L"),
     ("CifNo",                 19,  "R"),
     ("CifName",               20,  "L"),
     ("AoCode",                10,  "L"),
-    ("AoName",                40,  "L"),
+    ("AoName",                20,  "L"),
     ("TitleNo",               20,  "L"),
-    ("CurrentValue",          16,  "R"),   # dec15,2 — right-aligned
+    ("CurrentValue",          15,  "R"),   # dec15,2 — right-aligned
     ("ValuationDate",         8,   "L"),   # DDMMYYYY
     ("InternalExternal",      1,   "L"),
     ("BusinessSize",          1,   "L"),
-    ("BusinessSizeDesc",      40,  "L"),
-    ("MortgageAmount",        16,  "R"),
+    ("BusinessSizeDesc",      20,  "L"),
+    ("MortgageAmount",        15,  "R"),
     ("PastDueDay",            5,   "R"),
     ("ApplicationNo",         19,  "R"),
     ("FacilityCode",          3,   "L"),
     ("FacilitySequence",      19,  "R"),
     ("CpNumber",              16,  "L"),
     ("CarCode",               3,   "L"),
-    ("FacilityLimit",         16,  "R"),
+    ("FacilityLimit",         15,  "R"),
     ("FlagLessAge4Y",         1,   "L"),
     ("FlagGreaterAge4Y",      1,   "L"),
     ("CountAgeingDate",       10,  "L"),
@@ -71,16 +73,16 @@ DETAIL_FIELDS = [
     ("InternalValuerName",    40,  "L"),
     ("SllOver100M",           1,   "L"),
     ("SllDescription",        50,  "L"),
-    # Trailing extension fields (pos 641–660; record extends 640 → 660).
+    # Trailing extension fields (pos 630–649).
     ("Stage",                 1,   "L"),
     ("IBGRetail",             10,  "L"),
     ("Group",                 1,   "L"),
     ("EffectiveDateAppraisal", 8,  "L"),  # DDMMYYYY
 ]
 
-# Sanity: detail widths must sum to 640.
-assert sum(w for _, w, _ in DETAIL_FIELDS) == RECORD_LEN, \
-    f"DETAIL_FIELDS widths sum to {sum(w for _, w, _ in DETAIL_FIELDS)}, expected {RECORD_LEN}"
+# Sanity: detail widths must sum to 649.
+assert sum(w for _, w, _ in DETAIL_FIELDS) == DETAIL_LEN, \
+    f"DETAIL_FIELDS widths sum to {sum(w for _, w, _ in DETAIL_FIELDS)}, expected {DETAIL_LEN}"
 
 
 def pad(value, width, align):
@@ -92,17 +94,17 @@ def pad(value, width, align):
 
 def build_detail(row):
     out = "".join(pad(row.get(name, ""), width, align) for name, width, align in DETAIL_FIELDS)
-    assert len(out) == RECORD_LEN, f"Detail length {len(out)} != {RECORD_LEN}"
+    assert len(out) == DETAIL_LEN, f"Detail length {len(out)} != {DETAIL_LEN}"
     return out
 
 
 def build_header(effective_ddmmyyyy):
-    return ("H" + pad(effective_ddmmyyyy, 8, "L")).ljust(RECORD_LEN)
+    return ("H" + pad(effective_ddmmyyyy, 8, "L")).ljust(HEADER_TRAILER_LEN)
 
 
 def build_trailer(count):
     # pos 1 = 'T', pos 2–10 = 9-char detail count (right-aligned), rest filler.
-    return ("T" + pad(count, 9, "R")).ljust(RECORD_LEN)
+    return ("T" + pad(count, 9, "R")).ljust(HEADER_TRAILER_LEN)
 
 
 def sample_rows(survey1):
@@ -196,7 +198,8 @@ def main():
     with open(path, "w", encoding="utf-8", newline="\r\n") as f:
         f.write("\n".join(lines) + "\n")
 
-    print(f"Wrote {path} ({len(rows)} detail rows, fixed-width {RECORD_LEN} chars)")
+    print(f"Wrote {path} ({len(rows)} detail rows, fixed-width Detail {DETAIL_LEN} / "
+          f"Header-Trailer {HEADER_TRAILER_LEN} chars)")
 
 
 if __name__ == "__main__":
