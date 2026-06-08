@@ -3,13 +3,13 @@
 End-to-end guide to test the inbound reappraisal flow locally **without an SFTP server**:
 
 ```
-COLLATREV file (fixed-width 660 chars)  →  ingestion job  →  request.ReappraisalCandidates (staging)
+COLLATREV file (fixed-width: Detail 649 / Header-Trailer 640)  →  ingestion job  →  request.ReappraisalCandidates (staging)
    →  list / filter  →  open candidate + nearby group  →  initiate (creates Requests + group number)  →  delete
 ```
 
 | File in this folder | Purpose |
 |------|---------|
-| `generate_collatrev.py` | Generates a valid fixed-width 660-char COLLATREV file (H/D/T records, UTF-8). |
+| `generate_collatrev.py` | Generates a valid fixed-width COLLATREV file (Detail 649 / Header-Trailer 640, H/D/T records, UTF-8). |
 | `AS400_COLLATREV_20260501.txt` | Ready-made sample: 3 detail rows (described below). |
 
 ---
@@ -138,7 +138,7 @@ The row becomes `Status = Deleted` and drops out of the list (Step 6).
 Edit a copy of the sample, drop it in the inbox, trigger, and confirm one bad file doesn't block others:
 - Trailer count ≠ number of `D` rows, or non-numeric → file fails, error logged, **left in inbox** (not archived).
 - Remove the `T` line entirely → `FormatException` (completeness check).
-- Truncate a Detail line below 660 chars → `FormatException`.
+- Truncate a Detail line below 649 chars → `FormatException`.
 
 ## Step 11 — Frontend
 Log in as **Admin / IntAdmin / RequestMaker** → **Standalone → "Reappraisal (AS400)"** →
@@ -168,23 +168,22 @@ mv Bootstrapper/Api/reappraisal/processed/AS400_COLLATREV_20260501.txt Bootstrap
 - **All Latitude/Longitude NULL** — row 1's `SurveyNumber` didn't match any `appraisal.Appraisals.AppraisalNumber`
   (Step 1); enrichment is skipped, which is expected for unmatched rows.
 
-## Record format reference (fixed-width 660 chars)
-Each record is exactly **660 characters** (Unicode code-points, not bytes — the parser indexes by char,
-so Thai text counts as 1 per character). Alpha fields are space-padded left-aligned; numeric fields are
-space-padded right-aligned.
-- **Header (660 chars):** pos 1 = `H`, pos 2–9 = EffectiveDate (`DDMMYYYY`), pos 10–660 = filler.
-- **Trailer (660 chars):** pos 1 = `T`, pos 2–10 = detail row count (9 chars), pos 11–660 = filler.
-- **Detail (660 chars):** 1-based positions →
+## Record format reference (fixed-width: Detail 649 / Header-Trailer 640 chars)
+Positions are **Unicode code-points, not bytes** — the parser indexes by char, so Thai text counts as
+1 per character. Alpha fields are space-padded left-aligned; numeric fields are space-padded right-aligned.
+- **Header (640 chars):** pos 1 = `H`, pos 2–9 = EffectiveDate (`DDMMYYYY`), pos 10–640 = filler.
+- **Trailer (640 chars):** pos 1 = `T`, pos 2–10 = detail row count (9 chars), pos 11–640 = filler.
+- **Detail (649 chars):** 1-based positions →
   `1` RecordType `D` · `2` ReviewType · `3–10` ReviewDate(DDMMYYYY) · `11–29` CollateralId · `30–39` SurveyNo ·
-  `40–42` CollateralCode · `43–45` CollateralCategory · `46–75` CollateralName · `76–175` CollateralAddress ·
-  `176–194` CifNo · `195–214` CifName · `215–224` AoCode · `225–264` AoName · `265–284` TitleNo ·
-  `285–300` CurrentValue · `301–308` ValuationDate(DDMMYYYY) · `309` InternalExternal · `310` BusinessSize ·
-  `311–350` BusinessSizeDesc · `351–366` MortgageAmount · `367–371` PastDueDay · `372–390` ApplicationNo ·
-  `391–393` FacilityCode · `394–412` FacilitySequence · `413–428` CpNumber · `429–431` CarCode ·
-  `432–447` FacilityLimit · `448` FlagLessAge4Y · `449` FlagGreaterAge4Y · `450–459` CountAgeingDate ·
-  `460–509` CollateralDescription · `510–549` ExternalValuerName · `550–589` InternalValuerName ·
-  `590` SllOver100M · `591–640` SllDescription · `641` Stage · `642–651` IBGRetail · `652` Group ·
-  `653–660` EffectiveDateAppraisal(DDMMYYYY).
+  `40–42` CollateralCode · `43–47` CollateralCategory · `48–87` CollateralName · `88–207` CollateralAddress ·
+  `208–226` CifNo · `227–246` CifName · `247–256` AoCode · `257–276` AoName · `277–296` TitleNo ·
+  `297–311` CurrentValue · `312–319` ValuationDate(DDMMYYYY) · `320` InternalExternal · `321` BusinessSize ·
+  `322–341` BusinessSizeDesc · `342–356` MortgageAmount · `357–361` PastDueDay · `362–380` ApplicationNo ·
+  `381–383` FacilityCode · `384–402` FacilitySequence · `403–418` CpNumber · `419–421` CarCode ·
+  `422–436` FacilityLimit · `437` FlagLessAge4Y · `438` FlagGreaterAge4Y · `439–448` CountAgeingDate ·
+  `449–498` CollateralDescription · `499–538` ExternalValuerName · `539–578` InternalValuerName ·
+  `579` SllOver100M · `580–629` SllDescription · `630` Stage · `631–640` IBGRetail · `641` Group ·
+  `642–649` EffectiveDateAppraisal(DDMMYYYY).
 
 > These are the **vendor** field names. Our DB columns use the `*Number` convention (`SurveyNumber`,
 > `CifNumber`, `TitleNumber`, `ApplicationNumber`) — see the SQL above.

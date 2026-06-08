@@ -9,7 +9,7 @@ namespace Request.Infrastructure.Reappraisal;
 ///
 /// Algorithm per file:
 ///   1. List files from IReappraisalFileSource.
-///   2. Download + parse (UTF-8 fixed-width, 660-char Detail records; H/D/T).
+///   2. Download + parse (UTF-8 fixed-width, 649-char Detail records; H/D/T).
 ///   3. Upsert each detail row into request.ReappraisalCandidates (keyed on SourceFileDate +
 ///      CollateralId + SurveyNumber):
 ///      - Existing Consumed/Deleted row → skip (staff already acted; never resurrect).

@@ -42,14 +42,14 @@ public class ReappraisalCandidateDetail
     public string? SllOver100M { get; set; }
     public string? SllDescription { get; set; }
 
-    // ── Trailing extension fields (input file pos 641–660) ───────────────────
-    /// <summary>CIF stage indicator (pos 641).</summary>
+    // ── Trailing extension fields (input file pos 630–649) ───────────────────
+    /// <summary>CIF stage indicator (pos 630).</summary>
     public string? Stage { get; set; }
-    /// <summary>Banking segment — e.g. Retail / IBG (pos 642–651).</summary>
+    /// <summary>Banking segment — e.g. Retail / IBG (pos 631–640).</summary>
     public string? IBGRetail { get; set; }
-    /// <summary>Review group code 1/2/3 (pos 652).</summary>
+    /// <summary>Review group code 1/2/3 (pos 641).</summary>
     public string? Group { get; set; }
-    /// <summary>Effective appraisal date from AS400 extract (pos 653–660).</summary>
+    /// <summary>Effective appraisal date from AS400 extract (pos 642–649).</summary>
     public DateOnly? EffectiveDateAppraisal { get; set; }
 
     public string? FlagLessAge4Y { get; set; }
