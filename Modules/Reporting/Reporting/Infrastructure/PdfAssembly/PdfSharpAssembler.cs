@@ -28,6 +28,13 @@ internal sealed class PdfSharpAssembler(
     private const int MaxAttachments = 50;
     private const long MaxTotalAttachmentBytes = 100L * 1024 * 1024; // 100 MB
 
+    // Overall ceiling for a composite merge. The per-child attachment caps above are enforced
+    // per AssembleAsync (i.e. per child form), so an N-form composite could otherwise import
+    // up to N×100 MB before this runs. This backstop bounds the merged document so a composite
+    // can't exhaust memory on the shared app server (the N=2 IIS boxes). Beyond it, remaining
+    // child PDFs are skipped with a warning — the forms already merged still render.
+    private const long MaxMergedBytes = 200L * 1024 * 1024; // 200 MB
+
     public async Task<byte[]> AssembleAsync(
         IReadOnlyList<RenderSegment> segments,
         CancellationToken cancellationToken)
@@ -57,6 +64,43 @@ internal sealed class PdfSharpAssembler(
         using var ms = new MemoryStream();
         output.Save(ms);
         return ms.ToArray();
+    }
+
+    public Task<byte[]> MergeAsync(
+        IReadOnlyList<byte[]> pdfs,
+        CancellationToken cancellationToken)
+    {
+        // One input: hand it back as-is (no re-encode). Zero inputs: fall through to the
+        // blank-page guard below so the result is always a valid PDF.
+        if (pdfs.Count == 1)
+            return Task.FromResult(pdfs[0]);
+
+        using var output = new PdfDocument();
+        long mergedBytes = 0;
+        for (var i = 0; i < pdfs.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var pdf = pdfs[i];
+
+            // Keep at least the first child so the output is never empty; cap the rest.
+            if (mergedBytes + pdf.LongLength > MaxMergedBytes && output.PageCount > 0)
+            {
+                logger.LogWarning(
+                    "Merged-document cap reached ({Bytes} bytes) — skipping {Remaining} remaining child PDF(s)",
+                    mergedBytes, pdfs.Count - i);
+                break;
+            }
+
+            ImportPdfPages(output, pdf);
+            mergedBytes += pdf.LongLength;
+        }
+
+        if (output.PageCount == 0)
+            output.AddPage();
+
+        using var ms = new MemoryStream();
+        output.Save(ms);
+        return Task.FromResult(ms.ToArray());
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

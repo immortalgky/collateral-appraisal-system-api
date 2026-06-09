@@ -2,111 +2,257 @@ CREATE
 OR ALTER
 VIEW workflow.vw_TaskList
 AS
-SELECT pt.Id                                                                              AS Id,
-       a.Id                                                                               AS AppraisalId,
-       r.Id                                                                               AS RequestId,
-       pt.WorkflowInstanceId,
-       pt.ActivityId,
+-- =============================================================================
+-- vw_TaskList — one row per PendingTask with display enrichment.
+--
+-- Architecture: UNION ALL of one branch per task type (discriminated by
+-- CorrelationId), followed by shared display enrichment applied once on top.
+--
+-- CorrelationId is a discriminated-union key: it equals the PK of exactly ONE
+-- owning table per task type:
+--   Branch 1 QUOTATION        — appraisal.QuotationRequests.Id
+--   Branch 2 FEE-APPROVAL     — workflow.FeeAppointmentApprovals.Id
+--   Branch 3 DOCUMENT-FOLLOWUP — workflow.DocumentFollowups.Id
+--   Branch 4 NORMAL           — request.Requests.Id
+--
+-- GUIDs are globally unique across tables, so every PendingTask falls into
+-- exactly ONE branch. No NOT-EXISTS guards are needed.
+--
+-- PARITY NOTE: INNER JOINs are used in each branch (vs. the previous OUTER
+-- APPLYs), so an orphan PendingTask whose CorrelationId matches none of the
+-- four tables is dropped. This is the expected-empty case; the EXCEPT parity
+-- test confirms. If orphans legitimately exist, add a catch-all branch.
+-- =============================================================================
+WITH resolved AS (
+
+    -- -------------------------------------------------------------------------
+    -- Branch 1: QUOTATION task
+    --   CorrelationId = appraisal.QuotationRequests.Id
+    --   AppraisalId resolved via the first QuotationRequestAppraisals row.
+    -- -------------------------------------------------------------------------
+    SELECT pt.Id,
+           pt.CorrelationId,
+           pt.WorkflowInstanceId,
+           pt.ActivityId,
+           pt.TaskName,
+           pt.TaskDescription,
+           pt.TaskStatus,
+           pt.AssignedTo,
+           pt.AssignedType,
+           pt.AssigneeCompanyId,
+           pt.AssignedAt,
+           pt.Movement,
+           pt.DueAt,
+           pt.SlaStatus,
+           pt.WorkingBy,
+           pt.LockedAt,
+           -- Type-resolution columns
+           qra.AppraisalId                      AS RAppraisalId,
+           CAST(NULL AS uniqueidentifier)        AS RRequestIdOverride,
+           qr.Id                                AS QuotationRequestId,
+           qr.QuotationNumber,
+           qr.Status                            AS QuotationStatus,
+           qr.CutOffTime                        AS QuotationCutOffTime,
+           qr.RmUsername,
+           qr.Id                                AS TaskId
+    FROM   workflow.PendingTasks pt
+    JOIN   appraisal.QuotationRequests qr ON qr.Id = pt.CorrelationId
+    OUTER APPLY (
+        SELECT TOP 1 AppraisalId
+        FROM   appraisal.QuotationRequestAppraisals
+        WHERE  QuotationRequestId = qr.Id
+        ORDER BY AppraisalId
+    ) qra
+
+    UNION ALL
+
+    -- -------------------------------------------------------------------------
+    -- Branch 2: FEE-APPROVAL task
+    --   CorrelationId = workflow.FeeAppointmentApprovals.Id
+    --   AppraisalId resolved directly from the FeeAppointmentApprovals row.
+    -- -------------------------------------------------------------------------
+    SELECT pt.Id,
+           pt.CorrelationId,
+           pt.WorkflowInstanceId,
+           pt.ActivityId,
+           pt.TaskName,
+           pt.TaskDescription,
+           pt.TaskStatus,
+           pt.AssignedTo,
+           pt.AssignedType,
+           pt.AssigneeCompanyId,
+           pt.AssignedAt,
+           pt.Movement,
+           pt.DueAt,
+           pt.SlaStatus,
+           pt.WorkingBy,
+           pt.LockedAt,
+           -- Type-resolution columns
+           faa.AppraisalId                      AS RAppraisalId,
+           CAST(NULL AS uniqueidentifier)        AS RRequestIdOverride,
+           CAST(NULL AS uniqueidentifier)        AS QuotationRequestId,
+           CAST(NULL AS nvarchar(50))            AS QuotationNumber,
+           CAST(NULL AS nvarchar(50))            AS QuotationStatus,
+           CAST(NULL AS datetime2)               AS QuotationCutOffTime,
+           CAST(NULL AS nvarchar(50))            AS RmUsername,
+           faa.Id                               AS TaskId
+    FROM   workflow.PendingTasks pt
+    JOIN   workflow.FeeAppointmentApprovals faa ON faa.Id = pt.CorrelationId
+
+    UNION ALL
+
+    -- -------------------------------------------------------------------------
+    -- Branch 3: DOCUMENT-FOLLOWUP task
+    --   CorrelationId = workflow.DocumentFollowups.Id
+    --   AppraisalId and RequestId resolved directly from the DocumentFollowups row.
+    -- -------------------------------------------------------------------------
+    SELECT pt.Id,
+           pt.CorrelationId,
+           pt.WorkflowInstanceId,
+           pt.ActivityId,
+           pt.TaskName,
+           pt.TaskDescription,
+           pt.TaskStatus,
+           pt.AssignedTo,
+           pt.AssignedType,
+           pt.AssigneeCompanyId,
+           pt.AssignedAt,
+           pt.Movement,
+           pt.DueAt,
+           pt.SlaStatus,
+           pt.WorkingBy,
+           pt.LockedAt,
+           -- Type-resolution columns
+           df.AppraisalId                       AS RAppraisalId,
+           df.RequestId                         AS RRequestIdOverride,
+           CAST(NULL AS uniqueidentifier)        AS QuotationRequestId,
+           CAST(NULL AS nvarchar(50))            AS QuotationNumber,
+           CAST(NULL AS nvarchar(50))            AS QuotationStatus,
+           CAST(NULL AS datetime2)               AS QuotationCutOffTime,
+           CAST(NULL AS nvarchar(50))            AS RmUsername,
+           df.Id                                AS TaskId
+    FROM   workflow.PendingTasks pt
+    JOIN   workflow.DocumentFollowups df ON df.Id = pt.CorrelationId
+
+    UNION ALL
+
+    -- -------------------------------------------------------------------------
+    -- Branch 4: NORMAL appraisal-workflow task
+    --   CorrelationId = request.Requests.Id
+    --   AppraisalId resolved via Appraisals (first by Id for this RequestId).
+    --   RRequestIdOverride = CorrelationId (it IS the RequestId).
+    -- -------------------------------------------------------------------------
+    SELECT pt.Id,
+           pt.CorrelationId,
+           pt.WorkflowInstanceId,
+           pt.ActivityId,
+           pt.TaskName,
+           pt.TaskDescription,
+           pt.TaskStatus,
+           pt.AssignedTo,
+           pt.AssignedType,
+           pt.AssigneeCompanyId,
+           pt.AssignedAt,
+           pt.Movement,
+           pt.DueAt,
+           pt.SlaStatus,
+           pt.WorkingBy,
+           pt.LockedAt,
+           -- Type-resolution columns
+           (SELECT TOP 1 a3.Id
+            FROM   appraisal.Appraisals a3
+            WHERE  a3.RequestId = pt.CorrelationId
+            ORDER BY a3.Id)                     AS RAppraisalId,
+           pt.CorrelationId                     AS RRequestIdOverride,
+           CAST(NULL AS uniqueidentifier)        AS QuotationRequestId,
+           CAST(NULL AS nvarchar(50))            AS QuotationNumber,
+           CAST(NULL AS nvarchar(50))            AS QuotationStatus,
+           CAST(NULL AS datetime2)               AS QuotationCutOffTime,
+           CAST(NULL AS nvarchar(50))            AS RmUsername,
+           CAST(NULL AS uniqueidentifier)        AS TaskId
+    FROM   workflow.PendingTasks pt
+    JOIN   request.Requests r ON r.Id = pt.CorrelationId
+
+)
+-- =============================================================================
+-- Outer query: shared display enrichment applied once across all task types.
+-- Produces the same 38 output columns (same names, order, and semantics) as the
+-- previous OUTER-APPLY + COALESCE implementation.
+-- =============================================================================
+SELECT resolved.Id                                                                              AS Id,
+       a.Id                                                                                     AS AppraisalId,
+       r.Id                                                                                     AS RequestId,
+       resolved.WorkflowInstanceId,
+       resolved.ActivityId,
        a.AppraisalNumber,
        r.RequestNumber,
-       c.Name                                                                             AS CustomerName,
-       pt.TaskName                                                                        AS TaskType,
-       pt.TaskDescription,
+       c.Name                                                                                   AS CustomerName,
+       resolved.TaskName                                                                        AS TaskType,
+       resolved.TaskDescription,
        r.Purpose,
-       p.PropertyType                                                                     AS PropertyType,
-       a.Status                                                                           AS Status,
-       pt.TaskStatus                                                                      AS PendingTaskStatus,
+       p.PropertyType                                                                           AS PropertyType,
+       a.Status                                                                                 AS Status,
+       resolved.TaskStatus                                                                      AS PendingTaskStatus,
        ap.AppointmentDateTime,
-       pt.AssignedTo                                                                      AS AssigneeUserId,
-       pt.AssignedType                                                                    AS AssignedType,
-       pt.AssigneeCompanyId                                                               AS AssigneeCompanyId,
-       COALESCE(a.RequestedBy, r.Requestor)                                               AS RequestedBy,
-       COALESCE(CONCAT(u.FirstName, ' ', u.LastName), ISNULL(a.RequestedBy, r.Requestor)) AS RequestedByName,
-       COALESCE(a.RequestedAt, r.RequestedAt)                                             AS RequestReceivedDate,
-       pt.AssignedAt                                                                      AS AssignedDate,
-       pt.Movement,
-       AA.InternalAppraiserId                                                             AS InternalFollowupStaff,
+       resolved.AssignedTo                                                                      AS AssigneeUserId,
+       resolved.AssignedType                                                                    AS AssignedType,
+       resolved.AssigneeCompanyId                                                               AS AssigneeCompanyId,
+       COALESCE(a.RequestedBy, r.Requestor)                                                     AS RequestedBy,
+       COALESCE(CONCAT(u.FirstName, ' ', u.LastName), ISNULL(a.RequestedBy, r.Requestor))       AS RequestedByName,
+       COALESCE(a.RequestedAt, r.RequestedAt)                                                   AS RequestReceivedDate,
+       resolved.AssignedAt                                                                      AS AssignedDate,
+       resolved.Movement,
+       AA.InternalAppraiserId                                                                   AS InternalFollowupStaff,
        CASE
            WHEN AA.AssignmentType = 'Internal' THEN AA.InternalAppraiserId
            WHEN AA.AssignmentType = 'External' THEN comp.Name
-           END                                                                            AS Appraiser,
-       COALESCE(a.Priority, r.Priority)                                                   AS Priority,
-       pt.DueAt,
-       pt.SlaStatus,
-       DATEDIFF(HOUR, pt.AssignedAt, GETDATE())                                           AS ElapsedHours,
-       CASE WHEN pt.DueAt IS NOT NULL THEN DATEDIFF(HOUR, GETDATE(), pt.DueAt) END        AS RemainingHours,
-       pt.WorkingBy,
-       pt.LockedAt,
+           END                                                                                  AS Appraiser,
+       COALESCE(a.Priority, r.Priority)                                                         AS Priority,
+       resolved.DueAt,
+       resolved.SlaStatus,
+       -- ElapsedHours / RemainingHours are computed in C# (GetTasksQueryHandler) using
+       -- IBusinessTimeCalculator so they exclude weekends, holidays and lunch. They are NOT
+       -- derived here: a SQL DATEDIFF would count calendar hours (nights/weekends included).
+       resolved.WorkingBy,
+       resolved.LockedAt,
        -- TaskId: the domain entity id that FE should route to.
        -- Quotation tasks use the QuotationRequestId; document-followup tasks use DocumentFollowup.Id;
        -- fee-appointment approval tasks use FeeAppointmentApproval.Id;
        -- regular tasks have NULL (FE falls back to workflowInstanceId, preserving legacy behaviour).
-       COALESCE(qr.Id, df.Id, faa.Id)                                                    AS TaskId,
-       -- Quotation context (resolved via CorrelationId = QuotationRequestId for quotation-workflow tasks)
-       qr.Id                                                                              AS QuotationRequestId,
-       qr.QuotationNumber,
-       qr.Status                                                                          AS QuotationStatus,
-       qr.CutOffTime                                                                      AS QuotationCutOffTime,
-       qrm.FirstName + ' ' + qrm.LastName                                                AS QuotationRmName
-FROM workflow.PendingTasks pt
-         -- Followup tasks (ProvideAdditionalDocuments) carry the DocumentFollowup.Id as
-         -- CorrelationId, not the RequestId. Resolve the effective RequestId via the
-         -- DocumentFollowups row whose FollowupWorkflowInstanceId matches pt.WorkflowInstanceId.
-         -- For non-followup tasks, df.RequestId is NULL and COALESCE falls through to
-         -- pt.CorrelationId (which already equals the requestId).
-         OUTER APPLY (SELECT TOP 1 Id, RequestId, AppraisalId
-                      FROM workflow.DocumentFollowups
-                      WHERE FollowupWorkflowInstanceId = pt.WorkflowInstanceId) df
-         -- Fee-appointment approval tasks: resolve the FeeAppointmentApproval.Id and AppraisalId
-         -- by matching FollowupWorkflowInstanceId. No JSON reads on Variables.
-         OUTER APPLY (SELECT TOP 1 Id, AppraisalId
-                      FROM workflow.FeeAppointmentApprovals
-                      WHERE FollowupWorkflowInstanceId = pt.WorkflowInstanceId) faa
-         -- Quotation context: pt.CorrelationId = QuotationRequestId for quotation-workflow tasks
-         OUTER APPLY (SELECT TOP 1 qr2.Id, qr2.QuotationNumber, qr2.Status, qr2.CutOffTime, qr2.RmUsername
-                      FROM appraisal.QuotationRequests qr2
-                      WHERE qr2.Id = pt.CorrelationId) qr
-         LEFT JOIN auth.AspNetUsers qrm ON qrm.UserName = qr.RmUsername
-         -- Resolve the effective RequestId:
-         --   1. document-followup tasks carry df.RequestId
-         --   2. quotation-workflow tasks carry qr.RequestId (via QuotationRequestAppraisals)
-         --   3. regular appraisal-workflow tasks carry pt.CorrelationId = RequestId
-         OUTER APPLY (SELECT TOP 1 qra2.AppraisalId AS QuotationAppraisalId
-                      FROM appraisal.QuotationRequestAppraisals qra2
-                      WHERE qra2.QuotationRequestId = qr.Id) qra_first
-         OUTER APPLY (SELECT TOP 1 a2.Id, a2.RequestId
-                      FROM appraisal.Appraisals a2
-                      WHERE a2.Id = qra_first.QuotationAppraisalId) qra_appraisal
-         LEFT JOIN appraisal.Appraisals a ON a.Id = COALESCE(
-             qra_appraisal.Id,          -- quotation task: pick first appraisal from the quotation
-             faa.AppraisalId,           -- fee-appointment approval task: resolve directly from AppraisalId
-             df.AppraisalId,            -- document-followup task: use the stored AppraisalId
-             -- regular appraisal-workflow task: join via RequestId
-             (SELECT TOP 1 a3.Id FROM appraisal.Appraisals a3
-              WHERE a3.RequestId = COALESCE(df.RequestId, pt.CorrelationId))
-         )
-         LEFT JOIN request.Requests r ON r.Id = COALESCE(
-             qra_appraisal.RequestId,   -- quotation task: request from the linked appraisal
-             df.RequestId,              -- followup task
-             a.RequestId,               -- fee-approval/regular tasks resolved via Appraisal
-             pt.CorrelationId           -- regular appraisal-workflow task (fallback)
-         )
-         OUTER APPLY (SELECT TOP 1 Name
-                          FROM request.RequestCustomers
-                          WHERE RequestId = r.Id) C
-        OUTER APPLY (SELECT STRING_AGG(PropertyType, ',') AS PropertyType
-                      FROM request.RequestProperties
-                      WHERE RequestId = r.Id
-                      GROUP BY RequestId) P
-        OUTER APPLY (SELECT TOP 1 Id, AssignmentType, InternalAppraiserId, AssigneeCompanyId
-                      FROM appraisal.AppraisalAssignments
-                      WHERE AppraisalId = a.Id
-                        AND AssignmentStatus NOT IN ('Rejected', 'Cancelled')
-                      ORDER BY AssignedAt DESC, CreatedAt DESC, Id DESC) AA
-        OUTER APPLY (SELECT TOP 1 AppointmentDateTime
-                      FROM appraisal.Appointments
-                      WHERE AssignmentId = AA.Id
-                        AND Status != 'Cancelled') ap
-        LEFT JOIN auth.Companies comp
-ON comp.Id = TRY_CAST(AA.AssigneeCompanyId AS uniqueidentifier)
-    LEFT JOIN auth.AspNetUsers u ON u.UserName = ISNULL(a.RequestedBy, r.Requestor)
+       resolved.TaskId,
+       -- Quotation context columns (NULL for non-quotation tasks)
+       resolved.QuotationRequestId,
+       resolved.QuotationNumber,
+       resolved.QuotationStatus,
+       resolved.QuotationCutOffTime,
+       qrm.FirstName + ' ' + qrm.LastName                                                      AS QuotationRmName
+FROM   resolved
+    LEFT JOIN appraisal.Appraisals a   ON a.Id  = resolved.RAppraisalId
+    LEFT JOIN request.Requests     r   ON r.Id  = COALESCE(resolved.RRequestIdOverride, a.RequestId)
+    OUTER APPLY (
+        SELECT TOP 1 Name
+        FROM   request.RequestCustomers
+        WHERE  RequestId = r.Id
+    ) c
+    OUTER APPLY (
+        SELECT STRING_AGG(PropertyType, ',') AS PropertyType
+        FROM   request.RequestProperties
+        WHERE  RequestId = r.Id
+        GROUP BY RequestId
+    ) p
+    OUTER APPLY (
+        SELECT TOP 1 Id, AssignmentType, InternalAppraiserId, AssigneeCompanyId
+        FROM   appraisal.AppraisalAssignments
+        WHERE  AppraisalId = a.Id
+          AND  AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+        ORDER BY AssignedAt DESC, CreatedAt DESC, Id DESC
+    ) AA
+    OUTER APPLY (
+        SELECT TOP 1 AppointmentDateTime
+        FROM   appraisal.Appointments
+        WHERE  AssignmentId = AA.Id
+          AND  Status != 'Cancelled'
+    ) ap
+    LEFT JOIN auth.Companies   comp ON comp.Id   = TRY_CAST(AA.AssigneeCompanyId AS uniqueidentifier)
+    LEFT JOIN auth.AspNetUsers u    ON u.UserName = ISNULL(a.RequestedBy, r.Requestor)
+    LEFT JOIN auth.AspNetUsers qrm  ON qrm.UserName = resolved.RmUsername;

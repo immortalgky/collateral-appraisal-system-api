@@ -40,13 +40,6 @@
         <Folder Include="Scripts\StoredProcedures\Auth\"/>
         <Folder Include="Scripts\StoredProcedures\Notification\"/>
         <Folder Include="Scripts\StoredProcedures\Shared\"/>
-        <Folder Include="Scripts\Functions\Appraisal\"/>
-        <Folder Include="Scripts\Functions\Request\"/>
-        <Folder Include="Scripts\Functions\Document\"/>
-        <Folder Include="Scripts\Functions\Workflow\"/>
-        <Folder Include="Scripts\Functions\Auth\"/>
-        <Folder Include="Scripts\Functions\Notification\"/>
-        <Folder Include="Scripts\Functions\Shared\"/>
     </ItemGroup>
 
 
@@ -61,6 +54,7 @@
         <ProjectReference Include="..\Modules\Common\Common\Common.csproj"/>
         <ProjectReference Include="..\Modules\Parameter\Parameter\Parameter.csproj"/>
         <ProjectReference Include="..\Modules\Integration\Integration\Integration.csproj"/>
+        <ProjectReference Include="..\Modules\Reporting\Reporting.Data\Reporting.Data.csproj"/>
     </ItemGroup>
 
 </Project>

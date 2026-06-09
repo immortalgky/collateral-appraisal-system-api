@@ -21,7 +21,9 @@ public enum SkipReason : byte
     /// <summary>Step is in the Action phase but Validation phase had failures.</summary>
     ValidationPhaseFailed = 1,
     /// <summary>RunIfExpression threw or returned non-boolean — treated as error, step skipped.</summary>
-    ExpressionError = 2
+    ExpressionError = 2,
+    /// <summary>Action phase skipped because unacknowledged warnings are pending.</summary>
+    WarningsPending = 3
 }
 
 /// <summary>
@@ -68,6 +70,18 @@ public class ActivityProcessExecution
 
     public string? ErrorMessage { get; private set; }
 
+    /// <summary>Severity snapshot of the config row (Error/Warning) at execution time.</summary>
+    public StepSeverity Severity { get; private set; }
+
+    /// <summary>True when this was a Warning failure that the user acknowledged to proceed.</summary>
+    public bool Acknowledged { get; private set; }
+
+    /// <summary>User who acknowledged the warning (null unless Acknowledged).</summary>
+    public string? AcknowledgedBy { get; private set; }
+
+    /// <summary>The ackToken of the warning that was waived (null unless Acknowledged).</summary>
+    public string? AcknowledgedToken { get; private set; }
+
     public DateTime CreatedOn { get; private set; }
 
     private ActivityProcessExecution() { }
@@ -85,7 +99,11 @@ public class ActivityProcessExecution
         StepOutcome outcome,
         Entities.SkipReason? skipReason,
         int durationMs,
-        string? errorMessage)
+        string? errorMessage,
+        StepSeverity severity = StepSeverity.Error,
+        bool acknowledged = false,
+        string? acknowledgedBy = null,
+        string? acknowledgedToken = null)
     {
         return new ActivityProcessExecution
         {
@@ -103,7 +121,22 @@ public class ActivityProcessExecution
             SkipReason = skipReason,
             DurationMs = durationMs,
             ErrorMessage = errorMessage,
+            Severity = severity,
+            Acknowledged = acknowledged,
+            AcknowledgedBy = acknowledgedBy,
+            AcknowledgedToken = acknowledgedToken,
             CreatedOn = DateTime.Now
         };
+    }
+
+    /// <summary>
+    /// Marks a Warning-severity failure trace as acknowledged (user chose to continue).
+    /// Called after the pipeline confirms every pending warning token was acknowledged.
+    /// </summary>
+    public void MarkAcknowledged(string acknowledgedBy, string acknowledgedToken)
+    {
+        Acknowledged = true;
+        AcknowledgedBy = acknowledgedBy;
+        AcknowledgedToken = acknowledgedToken;
     }
 }

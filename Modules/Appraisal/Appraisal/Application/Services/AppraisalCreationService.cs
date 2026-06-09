@@ -1,5 +1,7 @@
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Projects;
+using Collateral.Contracts.BlockUnits;
+using MediatR;
 using Request.Contracts.Requests.Dtos;
 using Shared.Identity;
 using Shared.Time;
@@ -13,13 +15,13 @@ namespace Appraisal.Application.Services;
 /// </summary>
 public class AppraisalCreationService(
     IAppraisalRepository appraisalRepository,
-    IProjectRepository projectRepository,
     IAppraisalUnitOfWork unitOfWork,
     AppraisalDbContext dbContext,
     ICurrentUserService currentUserService,
     ILogger<AppraisalCreationService> logger,
     ISlaCalculatorClient slaCalculatorClient,
-    IDateTimeProvider dateTimeProvider) : IAppraisalCreationService
+    IDateTimeProvider dateTimeProvider,
+    ISender sender) : IAppraisalCreationService
 {
     public async Task<Guid> CreateAppraisalFromRequest(
         Guid requestId,
@@ -957,70 +959,106 @@ public class AppraisalCreationService(
     }
 
     /// <summary>
-    /// Seeds the new block Project with the unsold units from the prior appraisal's Project.
-    /// Called only for block reappraisals (prevAppraisalId.HasValue).
-    /// If the prior Project does not exist (first-time block or orphaned data), logs a warning
-    /// and leaves the new project as an empty header — parity with CI's null-prior handling.
+    /// Seeds the new block Project from the collateral master's unit inventory (ALL statuses —
+    /// sold and unsold), so the reconcile popup (Phase 6) can compare against the full master list.
+    ///
+    /// Source: collateral.ProjectUnits via <see cref="GetProjectMasterUnitsByPrevAppraisalQuery"/>
+    /// (Collateral.Contracts in-process MediatR call).  The master reflects BUM edits applied
+    /// between appraisals and is therefore more up-to-date than the prior appraisal's unit rows.
+    ///
+    /// Dependency direction: Appraisal already references Collateral.Contracts → no new edge.
+    ///
+    /// Fallback: if no master is found (first-ever appraisal or no prior completion), log a warning
+    /// and leave the new project empty — parity with CI's null-prior handling.
     /// </summary>
     private async Task SeedProjectUnitsFromPriorAsync(
         Project project,
         Guid prevAppraisalId,
         CancellationToken cancellationToken)
     {
-        var priorProject = await projectRepository.GetWithFullGraphAsync(prevAppraisalId, cancellationToken);
+        var masterResult = await sender.Send(
+            new GetProjectMasterUnitsByPrevAppraisalQuery(prevAppraisalId), cancellationToken);
 
-        if (priorProject is null)
+        if (masterResult is null)
         {
             logger.LogWarning(
-                "Block reappraisal seed: prior project for appraisal {PrevAppraisalId} not found. " +
+                "Block reappraisal seed: no collateral master found for prior appraisal {PrevAppraisalId}. " +
                 "New project {ProjectId} will start with an empty unit list.",
                 prevAppraisalId, project.Id);
             return;
         }
 
-        var unsoldUnits = priorProject.Units.Where(u => !u.IsSold).ToList();
-
-        if (unsoldUnits.Count == 0)
+        if (masterResult.Units.Count == 0)
         {
             logger.LogInformation(
-                "Block reappraisal seed: prior project for appraisal {PrevAppraisalId} has no unsold units. " +
+                "Block reappraisal seed: collateral master for prior appraisal {PrevAppraisalId} has no units. " +
                 "New project {ProjectId} will start with an empty unit list.",
                 prevAppraisalId, project.Id);
             return;
         }
 
-        // Recreate each unsold unit via the domain factory, preserving business-key fields.
-        // IsSold defaults to false in the factory — correct for remaining inventory.
-        var seededUnits = project.ProjectType == ProjectType.Condo
-            ? unsoldUnits.Select((u, idx) => ProjectUnit.CreateCondo(
-                projectId: project.Id,
-                uploadBatchId: Guid.Empty,  // ImportUnits sets the real batchId
-                sequenceNumber: idx + 1,
-                floor: u.Floor,
-                towerName: u.TowerName,
-                condoRegistrationNumber: u.CondoRegistrationNumber,
-                roomNumber: u.RoomNumber,
-                modelType: u.ModelType,
-                usableArea: u.UsableArea,
-                sellingPrice: u.SellingPrice)).ToList()
-            : unsoldUnits.Select((u, idx) => ProjectUnit.CreateLandAndBuilding(
-                projectId: project.Id,
-                uploadBatchId: Guid.Empty,  // ImportUnits sets the real batchId
-                sequenceNumber: idx + 1,
-                plotNumber: u.PlotNumber,
-                houseNumber: u.HouseNumber,
-                modelType: u.ModelType,
-                numberOfFloors: u.NumberOfFloors,
-                landArea: u.LandArea,
-                usableArea: u.UsableArea,
-                sellingPrice: u.SellingPrice)).ToList();
+        // Determine project type from the master result (authoritative source).
+        // The local project.ProjectType enum and the master's string value use the same names.
+        var isCondo = masterResult.ProjectType.Equals("Condo", StringComparison.OrdinalIgnoreCase);
 
-        project.ImportUnits("Seeded from prior appraisal", documentId: null, seededUnits);
+        var seededUnits = new List<ProjectUnit>(masterResult.Units.Count);
+
+        foreach (var (src, idx) in masterResult.Units.Select((u, i) => (u, i)))
+        {
+            ProjectUnit unit;
+
+            if (isCondo)
+            {
+                unit = ProjectUnit.CreateCondo(
+                    projectId: project.Id,
+                    uploadBatchId: Guid.Empty,       // ImportUnits sets the real batchId
+                    sequenceNumber: idx + 1,
+                    floor: src.Floor,
+                    towerName: src.TowerName,
+                    condoRegistrationNumber: src.CondoRegistrationNumber,
+                    roomNumber: src.RoomNumber,
+                    modelType: src.ModelType,
+                    usableArea: src.UsableArea,
+                    sellingPrice: src.SellingPrice);
+            }
+            else
+            {
+                unit = ProjectUnit.CreateLandAndBuilding(
+                    projectId: project.Id,
+                    uploadBatchId: Guid.Empty,       // ImportUnits sets the real batchId
+                    sequenceNumber: idx + 1,
+                    plotNumber: src.PlotNumber,
+                    houseNumber: src.HouseNumber,
+                    modelType: src.ModelType,
+                    numberOfFloors: src.NumberOfFloors,
+                    landArea: src.LandArea,
+                    usableArea: src.UsableArea,
+                    sellingPrice: src.SellingPrice);
+            }
+
+            // Preserve sale state from the master inventory.
+            if (src.IsSold)
+            {
+                // Translate the master's enum-name string ("Cash"/"Loan"/null) to the Appraisal enum.
+                if (Enum.TryParse<UnitPurchaseMethod>(src.PurchaseBy, ignoreCase: true, out var method)
+                    && Enum.IsDefined(method))
+                    unit.SetSaleInfo(isSold: true, method, src.LoanBankName);
+                else
+                    // Sold but purchase method unknown (BUM-marked without method, or corrupt data).
+                    // MarkSoldByReappraisal bypasses the PurchaseBy invariant intentionally.
+                    unit.MarkSoldByReappraisal();
+            }
+
+            seededUnits.Add(unit);
+        }
+
+        project.ImportUnits("Seeded from collateral master", documentId: null, seededUnits);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var soldCount = seededUnits.Count(u => u.IsSold);
         logger.LogInformation(
-            "Block reappraisal seed: seeded {Count} unsold unit(s) from prior project (appraisal {PrevAppraisalId}) " +
-            "into new project {ProjectId}.",
-            seededUnits.Count, prevAppraisalId, project.Id);
+            "Block reappraisal seed: seeded {Total} unit(s) ({Sold} sold, {Unsold} unsold) from collateral master " +
+            "(prior appraisal {PrevAppraisalId}) into new project {ProjectId}.",
+            seededUnits.Count, soldCount, seededUnits.Count - soldCount, prevAppraisalId, project.Id);
     }
 }

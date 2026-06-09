@@ -63,13 +63,13 @@ namespace Request.Infrastructure.Migrations
                         .HasColumnType("nvarchar(19)");
 
                     b.Property<string>("CollateralAddress")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<string>("CollateralCategory")
                         .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("nvarchar(3)");
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
 
                     b.Property<string>("CollateralCode")
                         .IsRequired()
@@ -86,8 +86,8 @@ namespace Request.Infrastructure.Migrations
                         .HasColumnType("nvarchar(19)");
 
                     b.Property<string>("CollateralName")
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
                     b.Property<string>("CountAgeingDate")
                         .HasMaxLength(10)

@@ -309,6 +309,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
         CancellationToken ct = default)
         => await dbContext.CollateralMasters
             .Include(m => m.ProjectDetail)
+            .ThenInclude(d => d!.Units)
             .Include(m => m.Engagements)
             .Where(m =>
                 !m.IsDeleted &&

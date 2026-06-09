@@ -131,8 +131,7 @@ public class SubmitQuotationCommandHandler(
             outbox.Publish(new QuotationSubmissionsClosedIntegrationEvent
             {
                 QuotationRequestId = quotationRequest.Id,
-                RequestId = quotationRequest.RequestId ?? Guid.Empty,
-                AdminUserIds = []
+                RequestId = quotationRequest.RequestId ?? Guid.Empty
             }, correlationId: quotationRequest.Id.ToString());
         }
 

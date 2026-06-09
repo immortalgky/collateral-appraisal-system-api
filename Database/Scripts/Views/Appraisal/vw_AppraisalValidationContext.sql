@@ -56,7 +56,74 @@ SELECT
     CASE
         WHEN va.Id IS NULL OR ISNULL(va.AppraisedValue, 0) = 0 THEN 1
         ELSE 0
-    END                                                                     AS HasNoAppraisedValue
+    END                                                                     AS HasNoAppraisedValue,
+
+    -- ── Assignment-stage readiness (ext-appraisal-assignment) ────────────
+    -- Active (non-cancelled) appointment scheduled for any of this appraisal's assignments.
+    -- Includes 'Pending' (awaiting reschedule approval) so a mid-reschedule appointment still counts.
+    CASE WHEN EXISTS (
+        SELECT 1
+        FROM appraisal.Appointments apt
+                 INNER JOIN appraisal.AppraisalAssignments aa ON apt.AssignmentId = aa.Id
+        WHERE aa.AppraisalId = a.Id
+          AND apt.Status IN ('Appointed', 'Pending')
+    ) THEN 1 ELSE 0 END                                                     AS HasAppointment,
+
+    -- Appointment scheduled in the future. Local time per the never-UTC rule (GETDATE()).
+    CASE WHEN EXISTS (
+        SELECT 1
+        FROM appraisal.Appointments apt
+                 INNER JOIN appraisal.AppraisalAssignments aa ON apt.AssignmentId = aa.Id
+        WHERE aa.AppraisalId = a.Id
+          AND apt.Status IN ('Appointed', 'Pending')
+          AND apt.AppointmentDateTime > GETDATE()
+    ) THEN 1 ELSE 0 END                                                     AS AppointmentInFuture,
+
+    -- Highest fee-after-VAT across the appraisal's assignments (0 when no fee set).
+    ISNULL((
+        SELECT MAX(af.TotalFeeAfterVAT)
+        FROM appraisal.AppraisalFees af
+                 INNER JOIN appraisal.AppraisalAssignments aa ON af.AssignmentId = aa.Id
+        WHERE aa.AppraisalId = a.Id
+    ), 0)                                                                    AS TotalFeeAfterVat,
+
+    -- An appraiser is assigned (external company appraiser, internal appraiser, or assignee).
+    CASE WHEN EXISTS (
+        SELECT 1
+        FROM appraisal.AppraisalAssignments aa
+        WHERE aa.AppraisalId = a.Id
+          AND (NULLIF(aa.AssigneeCompanyId, '') IS NOT NULL
+            OR NULLIF(aa.AssigneeUserId, '') IS NOT NULL)
+    ) THEN 1 ELSE 0 END                                                     AS HasAssignedAppraiser,
+
+    -- ── Execution-stage readiness ────────────────────────────────────────
+    -- Count of selected pricing methods (property-group-subject analyses).
+    (
+        SELECT COUNT(pam.Id)
+        FROM appraisal.PricingAnalysisMethods pam
+                 INNER JOIN appraisal.PricingAnalysisApproaches paa ON pam.ApproachId = paa.Id
+                 INNER JOIN appraisal.PricingAnalysis pa ON paa.PricingAnalysisId = pa.Id
+                 INNER JOIN appraisal.PropertyGroups pg ON pa.AnchorId = pg.Id
+        WHERE pg.AppraisalId = a.Id
+          AND pa.SubjectType = 0
+          AND pam.IsSelected = 1
+    )                                                                       AS SelectedPricingMethodCount,
+
+    -- Count of (non-deleted) market comparables linked to the appraisal.
+    (
+        SELECT COUNT(ac.Id)
+        FROM appraisal.AppraisalComparables ac
+                 INNER JOIN appraisal.MarketComparables mc ON ac.MarketComparableId = mc.Id
+        WHERE ac.AppraisalId = a.Id
+          AND mc.IsDeleted = 0
+    )                                                                       AS ComparableCount,
+
+    -- Count of gallery photos attached to the appraisal.
+    (
+        SELECT COUNT(*)
+        FROM appraisal.AppraisalGallery g
+        WHERE g.AppraisalId = a.Id
+    )                                                                       AS PhotoCount
 
 FROM appraisal.Appraisals a
          LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id

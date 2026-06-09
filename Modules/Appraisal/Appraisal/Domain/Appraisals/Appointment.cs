@@ -19,7 +19,7 @@ public class Appointment : Entity<Guid>
     public decimal? Longitude { get; private set; }
 
     // Status
-    public string Status { get; private set; } = null!; // Pending, Approved, Completed, Cancelled
+    public string Status { get; private set; } = null!; // Appointed, Pending, Cancelled
     public DateTime? ActionDate { get; private set; }
     public string? Reason { get; private set; }
 
@@ -69,7 +69,7 @@ public class Appointment : Entity<Guid>
             LocationDetail = locationDetail,
             ContactPerson = contactPerson,
             ContactPhone = contactPhone,
-            Status = "Pending",
+            Status = "Appointed",
             RescheduleCount = 0
         };
     }
@@ -92,8 +92,8 @@ public class Appointment : Entity<Guid>
         if (Status != "Pending")
             throw new InvalidOperationException($"Cannot approve appointment in status '{Status}'");
 
-        RecordHistory("StatusChanged", approvedBy, "Approved from Pending");
-        Status = "Approved";
+        RecordHistory("StatusChanged", approvedBy, "Appointed from Pending");
+        Status = "Appointed";
         ApprovedBy = approvedBy;
         ApprovedAt = DateTime.Now;
         ActionDate = DateTime.Now;
@@ -102,20 +102,10 @@ public class Appointment : Entity<Guid>
         ApprovalSubmittedAt = null;
     }
 
-    public void Complete(string changedBy)
-    {
-        if (Status != "Approved")
-            throw new InvalidOperationException($"Cannot complete appointment in status '{Status}'");
-
-        RecordHistory("StatusChanged", changedBy, "Completed");
-        Status = "Completed";
-        ActionDate = DateTime.Now;
-    }
-
     public void Cancel(string changedBy, string? reason = null)
     {
-        if (Status == "Completed")
-            throw new InvalidOperationException("Cannot cancel a completed appointment");
+        if (Status == "Cancelled")
+            throw new InvalidOperationException("Cannot cancel an already-cancelled appointment");
 
         RecordHistory("Cancelled", changedBy, reason);
         Status = "Cancelled";
@@ -125,7 +115,7 @@ public class Appointment : Entity<Guid>
 
     public void Reschedule(string changedBy, DateTime newDate, string? reason = null)
     {
-        if (Status == "Completed" || Status == "Cancelled")
+        if (Status == "Cancelled")
             throw new InvalidOperationException($"Cannot reschedule appointment in status '{Status}'");
 
         RecordHistory("Rescheduled", changedBy, reason);
@@ -137,11 +127,13 @@ public class Appointment : Entity<Guid>
     }
 
     /// <summary>
-    /// Flags this appointment as requiring bank approval (set after policy evaluation
-    /// in the inline reschedule/create handler when the policy returns true).
+    /// Flags this appointment as requiring bank approval and moves it to Pending status
+    /// (set after policy evaluation in the reschedule handler when the policy returns true).
+    /// Status and RequiresApproval move in lockstep.
     /// </summary>
     public void FlagRequiresApproval()
     {
+        Status = "Pending";
         RequiresApproval = true;
     }
 
@@ -165,30 +157,58 @@ public class Appointment : Entity<Guid>
     }
 
     /// <summary>
-    /// Reverts the appointment to the last approved date when a reschedule request is rejected.
+    /// Reverts the appointment to the last confirmed date when a reschedule request is rejected.
     /// Decrements RescheduleCount (undo the increment from Reschedule).
-    /// Does NOT re-approve automatically — appointment remains Pending until re-approved.
+    /// Sets Status back to Appointed — the previously-confirmed date is reinstated automatically.
     /// </summary>
     public void RejectReschedule(string changedBy, string? reason = null)
     {
-        // Find the date that was active just before the most recent reschedule.
-        // The most recent "Rescheduled" history entry captured the prior date.
+        // distinct from a user cancellation — this is an approver rejecting a pending reschedule
+        RecordHistory("RescheduleRejected", changedBy, reason);
+        RevertToLastConfirmedDate();
+
+        Reason = reason;
+        ActionDate = DateTime.Now;
+    }
+
+    /// <summary>
+    /// Discards a draft reschedule that is in Pending status but has NOT yet been submitted
+    /// for approval (ApprovalSubmittedAt is null). Reverts AppointmentDateTime to the last
+    /// confirmed date, decrements RescheduleCount, and returns Status to "Appointed".
+    /// </summary>
+    public void CancelReschedule(string changedBy, string? reason = null)
+    {
+        if (Status != "Pending")
+            throw new InvalidOperationException($"Cannot cancel reschedule in status '{Status}'");
+
+        RecordHistory("RescheduleCancelled", changedBy, reason);
+        RevertToLastConfirmedDate();
+
+        Reason = reason;
+        ActionDate = DateTime.Now;
+        ClearApprovalMarkers();
+    }
+
+    /// <summary>
+    /// Reverts to the date active just before the most recent reschedule: the latest "Rescheduled"
+    /// history entry captured that prior date. Decrements RescheduleCount (undo the increment from
+    /// Reschedule) and restores Status to "Appointed". Shared by RejectReschedule and CancelReschedule.
+    /// Callers must RecordHistory FIRST so the pre-revert snapshot is captured (the "Rescheduled"
+    /// filter excludes the just-added row, so ordering is safe).
+    /// </summary>
+    private void RevertToLastConfirmedDate()
+    {
         var lastRescheduledHistory = _history
             .Where(h => h.ChangeType == "Rescheduled")
             .OrderByDescending(h => h.ChangedAt)
             .FirstOrDefault();
 
-        RecordHistory("RescheduleRejected", changedBy, reason); // distinct from a user cancellation — this is an approver rejecting a pending reschedule
-
         if (lastRescheduledHistory is not null)
         {
             AppointmentDateTime = lastRescheduledHistory.PreviousAppointmentDateTime;
             if (RescheduleCount > 0) RescheduleCount--;
+            Status = "Appointed";
         }
-
-        Reason = reason;
-        ActionDate = DateTime.Now;
-        // Keep status as-is (Pending — must be re-approved for the reverted date)
     }
 
     private void RecordHistory(string changeType, string changedBy, string? reason)

@@ -4,6 +4,8 @@ using Shared.CQRS;
 using Shared.Data;
 using Shared.Identity;
 using Shared.Pagination;
+using Workflow.Contracts.Sla;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.Appraisals.GetAppraisals;
 
@@ -13,7 +15,9 @@ namespace Appraisal.Application.Features.Appraisals.GetAppraisals;
 /// </summary>
 public class GetAppraisalsQueryHandler(
     ISqlConnectionFactory connectionFactory,
-    ICurrentUserService currentUser
+    ICurrentUserService currentUser,
+    IBusinessTimeCalculator businessTime,
+    IDateTimeProvider clock
 ) : IQueryHandler<GetAppraisalsQuery, GetAppraisalsResult>
 {
     public async Task<GetAppraisalsResult> Handle(
@@ -34,6 +38,20 @@ public class GetAppraisalsQueryHandler(
             query.PaginationRequest,
             parameters);
 
+        // Business-time Elapsed/Remaining: exclude weekends, holidays and lunch via the shared
+        // calculator. Only the returned page is recomputed; the calculator caches config/holidays.
+        // Elapsed runs from CreatedAt; Remaining runs to SLADueDate.
+        var now = clock.ApplicationNow;
+        var items = new List<AppraisalDto>();
+        foreach (var a in result.Items)
+        {
+            var (elapsed, remaining) =
+                await businessTime.ComputeElapsedRemainingHoursAsync(now, a.CreatedAt, a.SLADueDate, cancellationToken);
+            items.Add(a with { ElapsedHours = elapsed, RemainingHours = remaining });
+        }
+
+        var pagedResult = new PaginatedResult<AppraisalDto>(items, result.Count, result.PageNumber, result.PageSize);
+
         // Execute facet counts in a single pass (not 5x UNION ALL)
         var facetsSql = $"""
             SELECT Status, SLAStatus, Priority, AppraisalType, AssignmentType
@@ -46,7 +64,7 @@ public class GetAppraisalsQueryHandler(
 
         var facets = BuildFacets(facetList);
 
-        return new GetAppraisalsResult(result, facets);
+        return new GetAppraisalsResult(pagedResult, facets);
     }
 
     private static AppraisalFacets BuildFacets(List<FacetRawRow> rows)

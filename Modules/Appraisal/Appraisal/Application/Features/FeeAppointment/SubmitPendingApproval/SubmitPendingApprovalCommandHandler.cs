@@ -1,5 +1,6 @@
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
+using Workflow.Contracts.FeeAppointmentApprovals;
 
 namespace Appraisal.Application.Features.FeeAppointment.SubmitPendingApproval;
 
@@ -7,7 +8,7 @@ namespace Appraisal.Application.Features.FeeAppointment.SubmitPendingApproval;
 /// Handles submitting draft pending items (appointment + fee items) for bank approval.
 ///
 /// Flow:
-/// 1. Load appraisal + verify the named assignment belongs to the requesting company (IDOR gate).
+/// 1. Load appraisal + verify the named assignment exists on the appraisal (data-validity check).
 /// 2. Gather all draft items: appointment with RequiresApproval=true and ApprovalSubmittedAt=null;
 ///    fee items with RequiresApproval=true, ApprovalStatus="Pending", and ApprovalSubmittedAt=null.
 /// 3. Stamp each draft item's ApprovalSubmittedAt = now.
@@ -28,24 +29,13 @@ public class SubmitPendingApprovalCommandHandler(
         var appraisal = await appraisalRepository.GetByIdWithAllDataAsync(command.AppraisalId, cancellationToken)
                         ?? throw new NotFoundException("Appraisal", command.AppraisalId);
 
-        // ─── IDOR gate: verify the requesting company owns the named assignment ───
+        // ─── Load and validate assignment ───────────────────────────────────────
         var assignment = appraisal.Assignments
             .FirstOrDefault(a => a.Id == command.AssignmentId);
 
         if (assignment is null)
             throw new InvalidOperationException(
                 $"Assignment {command.AssignmentId} not found on appraisal {command.AppraisalId}");
-
-        if (!string.Equals(assignment.AssigneeCompanyId, command.RequestedByCompanyId,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            logger.LogWarning(
-                "Company {RequestedByCompanyId} attempted to submit fee/appointment approval for assignment {AssignmentId} " +
-                "owned by company {AssigneeCompanyId}. Request rejected.",
-                command.RequestedByCompanyId, command.AssignmentId, assignment.AssigneeCompanyId);
-            throw new UnauthorizedAccessException(
-                "Your company does not own this assignment");
-        }
 
         var requiresApprovalLines = new List<FeeApprovalRequestedLineDto>();
 
@@ -125,7 +115,7 @@ public class SubmitPendingApprovalCommandHandler(
             new FeeAppointmentApprovalRequestedIntegrationEvent
             {
                 AppraisalId = command.AppraisalId,
-                RequestSource = "Ext",
+                RequestSource = command.RequestSource,
                 Lines = requiresApprovalLines
             },
             correlationId: command.AppraisalId.ToString());

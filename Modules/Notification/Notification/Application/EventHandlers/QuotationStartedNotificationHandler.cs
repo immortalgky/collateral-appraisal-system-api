@@ -1,3 +1,4 @@
+using Auth.Contracts.Users;
 using MassTransit;
 using Notification.Data;
 using Notification.Domain.Notifications.Models;
@@ -8,10 +9,12 @@ using Shared.Messaging.Filters;
 namespace Notification.Domain.Notifications.EventHandlers;
 
 /// <summary>
-/// Notifies each invited external company that a new quotation request has been sent to them.
+/// Notifies each ExtAdmin user of every invited external company that a new quotation
+/// request has been sent, delivered as a persisted per-user notification (bell).
 /// </summary>
 public class QuotationStartedNotificationHandler(
     INotificationService notificationService,
+    IUserLookupService userLookupService,
     ILogger<QuotationStartedNotificationHandler> logger,
     InboxGuard<NotificationDbContext> inboxGuard) : IConsumer<QuotationStartedIntegrationEvent>
 {
@@ -21,6 +24,7 @@ public class QuotationStartedNotificationHandler(
             return;
 
         var message = context.Message;
+        var ct = context.CancellationToken;
 
         logger.LogInformation(
             "Processing QuotationStarted notification for QuotationRequestId={QuotationRequestId}, InvitedCompanies={Count}",
@@ -28,28 +32,38 @@ public class QuotationStartedNotificationHandler(
 
         try
         {
-            // Notify each invited company via its company-scoped group
+            var metadata = new Dictionary<string, object>
+            {
+                { "quotationRequestId", message.QuotationRequestId },
+                { "appraisalId", message.AppraisalId },
+                { "dueDate", message.CutOffTime }
+            };
+
             foreach (var companyId in message.InvitedCompanyIds)
             {
-                var groupName = $"company-{companyId}";
-                await notificationService.SendNotificationToGroupAsync(
-                    groupName,
-                    "New Quotation Request",
-                    "You have been invited to submit a quotation. Please log in to review the details and submit your bid.",
-                    NotificationType.WorkflowTransition,
-                    metadata: new Dictionary<string, object>
-                    {
-                        { "quotationRequestId", message.QuotationRequestId },
-                        { "appraisalId", message.AppraisalId },
-                        { "dueDate", message.CutOffTime }
-                    });
+                var usernames = await userLookupService.GetUsernamesInRoleAsync("ExtAdmin", companyId, ct);
+
+                foreach (var username in usernames)
+                {
+                    await notificationService.SendNotificationToUserAsync(
+                        username,
+                        "New Quotation Request",
+                        "A quotation request has been sent to your company. Please review and submit your bid.",
+                        NotificationType.WorkflowTransition,
+                        metadata: metadata);
+                }
+
+                if (usernames.Length == 0)
+                    logger.LogWarning(
+                        "No ExtAdmin users found for CompanyId={CompanyId} on QuotationRequestId={QuotationRequestId}",
+                        companyId, message.QuotationRequestId);
             }
 
             logger.LogInformation(
-                "Sent QuotationStarted notifications to {Count} companies for QuotationRequestId={QuotationRequestId}",
+                "Sent QuotationStarted per-user notifications for {Count} invited companies, QuotationRequestId={QuotationRequestId}",
                 message.InvitedCompanyIds.Length, message.QuotationRequestId);
 
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
+            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
         }
         catch (Exception ex)
         {

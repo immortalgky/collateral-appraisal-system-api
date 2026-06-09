@@ -1,3 +1,5 @@
+using Reporting.Data;
+
 namespace Reporting.Application.Services;
 
 /// <summary>
@@ -8,7 +10,10 @@ public interface IReportRegistry
 {
     /// <summary>
     /// Looks up the registration for <paramref name="reportTypeKey"/>.
-    /// Returns null if the key is unknown.
+    /// Returns null if the key is unknown (no definition row and no provider, or a definition
+    /// row with no matching provider). A <b>disabled</b> report still returns a registration
+    /// (carrying <c>IsEnabled = false</c>) so callers can choose how to refuse it — the
+    /// synchronous service and the enqueue endpoint both reject disabled reports.
     /// </summary>
     ReportRegistration? TryGet(string reportTypeKey);
 }
@@ -17,4 +22,6 @@ public interface IReportRegistry
 public sealed record ReportRegistration(
     string ReportTypeKey,
     string TemplateId,
-    IReportDataProvider Provider);
+    IReportDataProvider Provider,
+    ReportGenerationMode GenerationMode,
+    bool IsEnabled);

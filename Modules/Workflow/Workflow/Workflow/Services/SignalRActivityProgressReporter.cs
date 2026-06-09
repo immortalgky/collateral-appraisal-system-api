@@ -1,12 +1,11 @@
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
-using Workflow.Workflow.Hubs;
+using Notification.Contracts.Realtime;
 using Workflow.Workflow.Pipeline;
 
 namespace Workflow.Workflow.Services;
 
 /// <summary>
-/// SignalR-backed implementation of <see cref="IActivityProgressReporter"/>.
+/// IRealtimeNotifier-backed implementation of <see cref="IActivityProgressReporter"/>.
 /// Pushes each pipeline lifecycle event to the completing user's SignalR group
 /// (<c>user-{completedBy}</c>) so connected FE clients can show step-by-step progress.
 ///
@@ -17,7 +16,7 @@ namespace Workflow.Workflow.Services;
 /// Client event name: <c>"ActivityStepProgress"</c>.
 /// </summary>
 public sealed class SignalRActivityProgressReporter(
-    IHubContext<WorkflowHub> hubContext,
+    IRealtimeNotifier realtimeNotifier,
     ILogger<SignalRActivityProgressReporter> logger) : IActivityProgressReporter
 {
     /// <summary>
@@ -53,10 +52,6 @@ public sealed class SignalRActivityProgressReporter(
             Phase = "StepStarted",
             Step = MapStep(step)
         }, ct);
-
-        // TEMP (testing only): artificial delay so the per-step progress message is
-        // observable in the UI. REMOVE before production.
-        await Task.Delay(2000, ct);
     }
 
     public async Task StepFinished(
@@ -97,9 +92,7 @@ public sealed class SignalRActivityProgressReporter(
     {
         try
         {
-            await hubContext.Clients
-                .Group($"user-{completedBy}")
-                .SendAsync(ClientEventName, payload, ct);
+            await realtimeNotifier.SendToGroupAsync($"user-{completedBy}", ClientEventName, payload, ct);
         }
         catch (Exception ex)
         {

@@ -23,5 +23,6 @@ global using Dapper;
 
 // Shared
 global using Shared.Data;
+global using Shared.Data.Extensions;
 global using Shared.CQRS;
 global using Shared.Exceptions;

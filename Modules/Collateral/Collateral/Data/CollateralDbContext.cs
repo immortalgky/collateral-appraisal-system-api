@@ -16,6 +16,7 @@ public class CollateralDbContext : DbContext
     public DbSet<CollateralBackfillReport> CollateralBackfillReports => Set<CollateralBackfillReport>();
     public DbSet<CollateralDocument> CollateralDocuments => Set<CollateralDocument>();
     public DbSet<BlockReappraisalDue> BlockReappraisalDue => Set<BlockReappraisalDue>();
+    public DbSet<ProjectUnit> ProjectUnits => Set<ProjectUnit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

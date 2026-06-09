@@ -1,131 +1,12 @@
-using Workflow.Workflow.Hubs;
-using Microsoft.AspNetCore.SignalR;
+using Notification.Contracts.Realtime;
 
 namespace Workflow.Workflow.Services;
 
-public class WorkflowNotificationService : IWorkflowNotificationService
+public class WorkflowNotificationService(
+    IRealtimeNotifier realtimeNotifier,
+    IDateTimeProvider dateTimeProvider) : IWorkflowNotificationService
 {
-    private readonly IHubContext<WorkflowHub> _hubContext;
-    private readonly IDateTimeProvider _dateTimeProvider;
-
-    public WorkflowNotificationService(IHubContext<WorkflowHub> hubContext, IDateTimeProvider dateTimeProvider)
-    {
-        _hubContext = hubContext;
-        _dateTimeProvider = dateTimeProvider;
-    }
-
-    public async Task NotifyWorkflowStarted(Guid workflowInstanceId, string instanceName, string startedBy)
-    {
-        var notification = new
-        {
-            Type = "WorkflowStarted",
-            WorkflowInstanceId = workflowInstanceId,
-            InstanceName = instanceName,
-            StartedBy = startedBy,
-            Timestamp = DateTime.Now
-        };
-
-        await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
-            .SendAsync("WorkflowUpdate", notification);
-    }
-
-    public async Task NotifyActivityCompleted(Guid workflowInstanceId, string activityId, string completedBy,
-        Dictionary<string, object> outputData)
-    {
-        var notification = new
-        {
-            Type = "ActivityCompleted",
-            WorkflowInstanceId = workflowInstanceId,
-            ActivityId = activityId,
-            CompletedBy = completedBy,
-            OutputData = outputData,
-            Timestamp = DateTime.Now
-        };
-
-        await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
-            .SendAsync("WorkflowUpdate", notification);
-    }
-
-    public async Task NotifyActivityAssigned(Guid workflowInstanceId, string activityId, string assignedTo,
-        string activityName)
-    {
-        var notification = new
-        {
-            Type = "ActivityAssigned",
-            WorkflowInstanceId = workflowInstanceId,
-            ActivityId = activityId,
-            AssignedTo = assignedTo,
-            ActivityName = activityName,
-            Timestamp = DateTime.Now
-        };
-
-        await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
-            .SendAsync("WorkflowUpdate", notification);
-
-        // Also notify the specific user
-        await _hubContext.Clients.Group($"user-{assignedTo}")
-            .SendAsync("TaskAssigned", notification);
-    }
-
-    public async Task NotifyWorkflowCompleted(Guid workflowInstanceId, string completedBy)
-    {
-        var notification = new
-        {
-            Type = "WorkflowCompleted",
-            WorkflowInstanceId = workflowInstanceId,
-            CompletedBy = completedBy,
-            Timestamp = DateTime.Now
-        };
-
-        await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
-            .SendAsync("WorkflowUpdate", notification);
-    }
-
-    public async Task NotifyWorkflowFailed(Guid workflowInstanceId, string errorMessage)
-    {
-        var notification = new
-        {
-            Type = "WorkflowFailed",
-            WorkflowInstanceId = workflowInstanceId,
-            ErrorMessage = errorMessage,
-            Timestamp = DateTime.Now
-        };
-
-        await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
-            .SendAsync("WorkflowUpdate", notification);
-    }
-
-    public async Task NotifyWorkflowCancelled(Guid workflowInstanceId, string cancelledBy, string reason)
-    {
-        var notification = new
-        {
-            Type = "WorkflowCancelled",
-            WorkflowInstanceId = workflowInstanceId,
-            CancelledBy = cancelledBy,
-            Reason = reason,
-            Timestamp = DateTime.Now
-        };
-
-        await _hubContext.Clients.Group($"workflow-{workflowInstanceId}")
-            .SendAsync("WorkflowUpdate", notification);
-    }
-
-    public async Task NotifyUserTaskAssigned(string userId, Guid workflowInstanceId, string taskName, string activityId)
-    {
-        var notification = new
-        {
-            Type = "UserTaskAssigned",
-            WorkflowInstanceId = workflowInstanceId,
-            TaskName = taskName,
-            ActivityId = activityId,
-            Timestamp = DateTime.Now
-        };
-
-        await _hubContext.Clients.Group($"user-{userId}")
-            .SendAsync("TaskAssigned", notification);
-    }
-
-    public async Task NotifyPoolTaskAssigned(string poolGroup, Guid taskId, string taskName)
+    public Task NotifyPoolTaskAssigned(string poolGroup, Guid taskId, string taskName)
     {
         var notification = new
         {
@@ -133,14 +14,13 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             TaskId = taskId,
             TaskName = taskName,
             PoolGroup = poolGroup,
-            Timestamp = _dateTimeProvider.ApplicationNow
+            Timestamp = dateTimeProvider.ApplicationNow
         };
 
-        await _hubContext.Clients.Group($"pool-{poolGroup}")
-            .SendAsync("PoolTaskUpdate", notification);
+        return realtimeNotifier.SendToGroupAsync($"pool-{poolGroup}", "PoolTaskUpdate", notification);
     }
 
-    public async Task NotifyPoolTaskStarted(string poolGroup, Guid taskId, string startedBy)
+    public Task NotifyPoolTaskStarted(string poolGroup, Guid taskId, string startedBy)
     {
         var notification = new
         {
@@ -148,14 +28,13 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             TaskId = taskId,
             StartedBy = startedBy,
             PoolGroup = poolGroup,
-            Timestamp = _dateTimeProvider.ApplicationNow
+            Timestamp = dateTimeProvider.ApplicationNow
         };
 
-        await _hubContext.Clients.Group($"pool-{poolGroup}")
-            .SendAsync("PoolTaskUpdate", notification);
+        return realtimeNotifier.SendToGroupAsync($"pool-{poolGroup}", "PoolTaskUpdate", notification);
     }
 
-    public async Task NotifyPoolTaskClaimed(string poolGroup, Guid taskId, string claimedBy)
+    public Task NotifyPoolTaskClaimed(string poolGroup, Guid taskId, string claimedBy)
     {
         var notification = new
         {
@@ -163,14 +42,13 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             TaskId = taskId,
             ClaimedBy = claimedBy,
             PoolGroup = poolGroup,
-            Timestamp = _dateTimeProvider.ApplicationNow
+            Timestamp = dateTimeProvider.ApplicationNow
         };
 
-        await _hubContext.Clients.Group($"pool-{poolGroup}")
-            .SendAsync("PoolTaskUpdate", notification);
+        return realtimeNotifier.SendToGroupAsync($"pool-{poolGroup}", "PoolTaskUpdate", notification);
     }
 
-    public async Task NotifyPoolTaskLocked(string poolGroup, Guid taskId, string lockedBy)
+    public Task NotifyPoolTaskLocked(string poolGroup, Guid taskId, string lockedBy)
     {
         var notification = new
         {
@@ -178,14 +56,13 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             TaskId = taskId,
             LockedBy = lockedBy,
             PoolGroup = poolGroup,
-            Timestamp = _dateTimeProvider.ApplicationNow
+            Timestamp = dateTimeProvider.ApplicationNow
         };
 
-        await _hubContext.Clients.Group($"pool-{poolGroup}")
-            .SendAsync("PoolTaskUpdate", notification);
+        return realtimeNotifier.SendToGroupAsync($"pool-{poolGroup}", "PoolTaskUpdate", notification);
     }
 
-    public async Task NotifyPoolTaskUnlocked(string poolGroup, Guid taskId, string releasedBy)
+    public Task NotifyPoolTaskUnlocked(string poolGroup, Guid taskId, string releasedBy)
     {
         var notification = new
         {
@@ -193,10 +70,9 @@ public class WorkflowNotificationService : IWorkflowNotificationService
             TaskId = taskId,
             ReleasedBy = releasedBy,
             PoolGroup = poolGroup,
-            Timestamp = _dateTimeProvider.ApplicationNow
+            Timestamp = dateTimeProvider.ApplicationNow
         };
 
-        await _hubContext.Clients.Group($"pool-{poolGroup}")
-            .SendAsync("PoolTaskUpdate", notification);
+        return realtimeNotifier.SendToGroupAsync($"pool-{poolGroup}", "PoolTaskUpdate", notification);
     }
 }

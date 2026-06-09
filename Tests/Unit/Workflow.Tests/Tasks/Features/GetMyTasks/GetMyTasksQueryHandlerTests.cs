@@ -5,6 +5,8 @@ using NSubstitute;
 using Shared.Data;
 using Shared.Identity;
 using Shared.Pagination;
+using Workflow.Contracts.Sla;
+using Shared.Time;
 using Workflow.Tasks.Features.GetMyTasks;
 using Workflow.Tasks.Features.GetTasks;
 using Xunit;
@@ -15,12 +17,16 @@ public class GetMyTasksQueryHandlerTests
 {
     private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IBusinessTimeCalculator _businessTime;
+    private readonly IDateTimeProvider _clock;
     private readonly IDbConnection _dbConnection;
 
     public GetMyTasksQueryHandlerTests()
     {
         _connectionFactory = Substitute.For<ISqlConnectionFactory>();
         _currentUserService = Substitute.For<ICurrentUserService>();
+        _businessTime = Substitute.For<IBusinessTimeCalculator>();
+        _clock = Substitute.For<IDateTimeProvider>();
         _dbConnection = Substitute.For<IDbConnection>();
 
         _connectionFactory.GetOpenConnection().Returns(_dbConnection);
@@ -30,7 +36,7 @@ public class GetMyTasksQueryHandlerTests
     public void Constructor_ShouldAcceptDependencies()
     {
         // Act
-        var handler = new GetMyTasksQueryHandler(_connectionFactory, _currentUserService);
+        var handler = new GetMyTasksQueryHandler(_connectionFactory, _currentUserService, _businessTime, _clock);
 
         // Assert
         handler.Should().NotBeNull();
@@ -41,7 +47,7 @@ public class GetMyTasksQueryHandlerTests
     {
         // Arrange
         _currentUserService.Username.Returns("john.doe");
-        var handler = new GetMyTasksQueryHandler(_connectionFactory, _currentUserService);
+        var handler = new GetMyTasksQueryHandler(_connectionFactory, _currentUserService, _businessTime, _clock);
         var query = new GetMyTasksQuery(new PaginationRequest(0, 10));
 
         // Act & Assert — the handler will call GetOpenConnection() and execute SQL via Dapper.

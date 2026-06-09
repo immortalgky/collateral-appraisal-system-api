@@ -105,6 +105,11 @@ public class GetApprovalHistoryQueryHandler(
             c.MinVotesRequired,
             ApprovalListProjection.EvaluateCondition(c, members, votes))).ToList();
 
+        var votingMode = ApprovalListProjection.GetVariableAs<string>(instance.Variables, $"{normalizedId}_votingMode");
+        var conditionsMet = conditionStatuses.All(c => c.Met);
+        var status = ApprovalListProjection.DeriveStatus(
+            votingMode, totalVotes, totalMembers, quorumMet, majorityMet, conditionsMet, votes);
+
         var tier = ApprovalListProjection.DeriveTier(committeeCode);
 
         // Look up meeting reference — same join as the active-list endpoint.
@@ -129,6 +134,7 @@ public class GetApprovalHistoryQueryHandler(
             majorityMet,
             memberStatuses,
             conditionStatuses,
-            meetingRef);
+            meetingRef,
+            status);
     }
 }

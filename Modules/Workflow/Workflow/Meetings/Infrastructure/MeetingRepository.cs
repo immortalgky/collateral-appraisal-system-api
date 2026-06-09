@@ -33,14 +33,15 @@ public class MeetingRepository(WorkflowDbContext dbContext) : IMeetingRepository
             .FirstOrDefaultAsync(m => m.Id == id, ct);
     }
 
-    public Task<Meeting?> GetEarlierUnendedMeetingAsync(int meetingNoYear, int meetingNoSeq, CancellationToken ct = default)
+    public Task<Meeting?> GetEarlierUnpassedMeetingAsync(int meetingNoYear, int meetingNoSeq, DateTime now, CancellationToken ct = default)
     {
         return dbContext.Meetings
             .AsNoTracking()
             .Where(m => m.MeetingNoYear == meetingNoYear
                      && m.MeetingNoSeq < meetingNoSeq
-                     && m.Status != MeetingStatus.Ended
-                     && m.Status != MeetingStatus.Cancelled)
+                     && m.Status != MeetingStatus.Cancelled
+                     && m.EndAt != null
+                     && m.EndAt > now)
             .OrderBy(m => m.MeetingNoSeq)
             .FirstOrDefaultAsync(ct);
     }

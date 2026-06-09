@@ -7,7 +7,7 @@ namespace Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis;
 
 public class SaveHypothesisAnalysisCommandValidator : AbstractValidator<SaveHypothesisAnalysisCommand>
 {
-    private const int MaxRemarkLength = 2000;
+    private const int MaxRemarkLength = 4000;
 
     public SaveHypothesisAnalysisCommandValidator()
     {

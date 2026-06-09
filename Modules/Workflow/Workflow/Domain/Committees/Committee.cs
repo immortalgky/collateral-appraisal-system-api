@@ -10,6 +10,15 @@ public class Committee : Aggregate<Guid>
     public int QuorumValue { get; private set; }
     public MajorityType MajorityType { get; private set; }
 
+    /// <summary>
+    /// Controls when the approval round resolves:
+    ///   <see cref="VotingMode.WaitForAll"/> — every member must vote before the approve rule is
+    ///   evaluated (consensus); quorum is ignored.
+    ///   <see cref="VotingMode.Quorum"/> — resolve as soon as quorum + majority are met; the
+    ///   still-open tasks of members who have not voted are closed out.
+    /// </summary>
+    public VotingMode VotingMode { get; private set; }
+
     private readonly List<CommitteeMember> _members = new();
     public IReadOnlyList<CommitteeMember> Members => _members.AsReadOnly();
 
@@ -27,7 +36,8 @@ public class Committee : Aggregate<Guid>
         string? description,
         QuorumType quorumType,
         int quorumValue,
-        MajorityType majorityType)
+        MajorityType majorityType,
+        VotingMode votingMode = VotingMode.WaitForAll)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(quorumValue, 0, nameof(quorumValue));
 
@@ -40,13 +50,14 @@ public class Committee : Aggregate<Guid>
             IsActive = true,
             QuorumType = quorumType,
             QuorumValue = quorumValue,
-            MajorityType = majorityType
+            MajorityType = majorityType,
+            VotingMode = votingMode
         };
         return committee;
     }
 
     public void Update(string name, string? description, QuorumType quorumType, int quorumValue,
-        MajorityType majorityType, bool isActive)
+        MajorityType majorityType, bool isActive, VotingMode votingMode = VotingMode.WaitForAll)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         Name = name;
@@ -55,6 +66,7 @@ public class Committee : Aggregate<Guid>
         QuorumValue = quorumValue;
         MajorityType = majorityType;
         IsActive = isActive;
+        VotingMode = votingMode;
     }
 
     public CommitteeMember AddMember(string userId, string memberName, CommitteeMemberPosition position,
@@ -142,16 +154,14 @@ public class Committee : Aggregate<Guid>
         return totalVotes >= GetRequiredQuorum();
     }
 
+    /// <summary>
+    /// Evaluates the approve rule against the FULL committee (<paramref name="totalMembers"/>),
+    /// not merely the votes cast. <paramref name="totalVotes"/> is retained for signature symmetry
+    /// but is no longer the denominator. Delegates to <see cref="MajorityRule"/> so the engine and
+    /// the domain share one implementation.
+    /// </summary>
     public bool HasMajority(int targetVoteCount, int totalVotes, int totalMembers)
-    {
-        return MajorityType switch
-        {
-            MajorityType.Simple => targetVoteCount > totalVotes / 2.0,
-            MajorityType.TwoThirds => targetVoteCount >= Math.Ceiling(totalVotes * 2.0 / 3.0),
-            MajorityType.Unanimous => targetVoteCount == totalMembers,
-            _ => false
-        };
-    }
+        => MajorityRule.IsMet(MajorityType, targetVoteCount, totalMembers);
 }
 
 public enum QuorumType
@@ -165,4 +175,13 @@ public enum MajorityType
     Simple,
     TwoThirds,
     Unanimous
+}
+
+public enum VotingMode
+{
+    /// <summary>Every member must vote before the approve rule is evaluated (consensus).</summary>
+    WaitForAll,
+
+    /// <summary>Resolve as soon as quorum + majority are met; unvoted members' tasks are closed.</summary>
+    Quorum
 }

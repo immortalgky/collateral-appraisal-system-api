@@ -31,6 +31,17 @@ public static class AppraisalFieldRegistry
         new("propsMissingLandOffice",     "PropertiesMissingLandOfficeCount", "number", "Properties Missing Land Office"),
         new("propsMissingTitle",          "PropertiesMissingTitleCount",  "number",  "Properties Missing Title"),
         new("hasNoAppraisedValue",        "HasNoAppraisedValue",          "boolean", "Has No Appraised Value"),
+
+        // Assignment-stage readiness (ext-appraisal-assignment)
+        new("hasAppointment",             "HasAppointment",               "boolean", "Has Appointment"),
+        new("appointmentInFuture",        "AppointmentInFuture",          "boolean", "Appointment In Future"),
+        new("totalFeeAfterVat",           "TotalFeeAfterVat",             "number",  "Total Fee After VAT"),
+        new("hasAssignedAppraiser",       "HasAssignedAppraiser",         "boolean", "Has Assigned Appraiser"),
+
+        // Execution-stage readiness
+        new("selectedPricingMethodCount", "SelectedPricingMethodCount",   "number",  "Selected Pricing Method Count"),
+        new("comparableCount",            "ComparableCount",              "number",  "Comparable Count"),
+        new("photoCount",                 "PhotoCount",                   "number",  "Photo Count"),
     };
 
     private static readonly Dictionary<string, FieldDef> _byKey =

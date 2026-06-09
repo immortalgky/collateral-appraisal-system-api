@@ -56,6 +56,21 @@ public class ActivityProcessExecutionConfiguration : IEntityTypeConfiguration<Ac
         builder.Property(x => x.ErrorMessage)
             .HasMaxLength(1000);
 
+        builder.Property(x => x.Severity)
+            .IsRequired()
+            .HasColumnType("tinyint")
+            .HasDefaultValue(StepSeverity.Error);
+
+        builder.Property(x => x.Acknowledged)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(x => x.AcknowledgedBy)
+            .HasMaxLength(100);
+
+        builder.Property(x => x.AcknowledgedToken)
+            .HasMaxLength(100);
+
         builder.Property(x => x.CreatedOn)
             .IsRequired();
 

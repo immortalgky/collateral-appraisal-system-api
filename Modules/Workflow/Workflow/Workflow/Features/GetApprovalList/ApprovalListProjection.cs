@@ -85,14 +85,39 @@ internal static class ApprovalListProjection
         };
     }
 
+    // Mirrors ApprovalActivity.CheckMajority — the config string is the round-tripped MajorityType
+    // name. Delegates to the shared domain rule (all-members denominator); unknown type → false.
     internal static bool CheckMajority(MajorityConfig config, int targetCount, int totalVotes, int totalMembers)
     {
-        return config.Type.ToLowerInvariant() switch
-        {
-            "simple" => targetCount > totalVotes / 2.0,
-            "twothirds" => targetCount >= Math.Ceiling(totalVotes * 2.0 / 3.0),
-            "unanimous" => targetCount == totalMembers,
-            _ => false
-        };
+        return Enum.TryParse<MajorityType>(config.Type, ignoreCase: true, out var majorityType)
+            && MajorityRule.IsMet(majorityType, targetCount, totalMembers);
+    }
+
+    /// <summary>
+    /// Authoritative read-side status for the approval round, mirroring the decision rule in
+    /// <c>ApprovalActivity.ResumeActivityAsync</c> so the UI never shows "Approved" before the round
+    /// would actually resolve. WaitForAll requires every member to have voted; Quorum resolves once
+    /// quorum is met. A single route_back means the round was sent back.
+    /// </summary>
+    internal static string DeriveStatus(
+        string? votingMode,
+        int totalVotes,
+        int totalMembers,
+        bool quorumMet,
+        bool majorityMet,
+        bool conditionsMet,
+        List<ApprovalVote> votes)
+    {
+        if (votes.Any(v => string.Equals(v.Vote, "route_back", StringComparison.OrdinalIgnoreCase)))
+            return "Returned";
+
+        var requireAllVotes = string.Equals(votingMode, "WaitForAll", StringComparison.OrdinalIgnoreCase);
+        var allVoted = totalVotes >= totalMembers;
+
+        var approved = requireAllVotes
+            ? allVoted && majorityMet && conditionsMet
+            : quorumMet && majorityMet && conditionsMet;
+
+        return approved ? "Approved" : "Pending";
     }
 }

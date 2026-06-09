@@ -36,14 +36,12 @@ public class ShortlistSentToRmNotificationHandler(
 
             await notificationService.SendNotificationToUserAsync(
                 message.RmUsername,
-                "Quotation Shortlist Ready for Review",
-                $"The admin has sent a shortlist of {message.ShortlistedCompanyQuotationIds.Length} quotation(s) for your selection. Please review and pick a tentative winner.",
+                "Shortlist Ready for Review",
+                "The admin has sent you a shortlist of quotations to review and select.",
                 NotificationType.WorkflowTransition,
                 metadata: new Dictionary<string, object>
                 {
-                    { "quotationRequestId", message.QuotationRequestId },
-                    { "requestId", message.RequestId },
-                    { "shortlistedCount", message.ShortlistedCompanyQuotationIds.Length }
+                    { "quotationRequestId", message.QuotationRequestId }
                 });
 
             logger.LogInformation(

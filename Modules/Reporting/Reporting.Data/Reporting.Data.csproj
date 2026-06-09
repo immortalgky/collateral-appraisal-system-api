@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <!--
+      EF-only data project for the Reporting module: the ReportingDbContext + its entities and
+      migrations. Kept separate from the Reporting module so the Database migration host can
+      reference it WITHOUT dragging in PuppeteerSharp/ClosedXML/PdfSharp (the heavy render engines).
+    -->
+    <ItemGroup>
+        <ProjectReference Include="../../../Shared/Shared/Shared.csproj"/>
+    </ItemGroup>
+
+</Project>

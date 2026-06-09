@@ -318,6 +318,10 @@ namespace Collateral.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("CustomerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<bool>("ExcludedFromReappraisal")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -776,16 +780,113 @@ namespace Collateral.Migrations
                     b.Property<int>("RemainingUnits")
                         .HasColumnType("int");
 
-                    b.Property<string>("StructureJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("TotalUnits")
                         .HasColumnType("int");
 
                     b.HasKey("CollateralMasterId");
 
                     b.ToTable("ProjectDetails", "collateral");
+                });
+
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.ProjectUnit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<Guid>("CollateralMasterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CondoRegistrationNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("Floor")
+                        .HasColumnType("int");
+
+                    b.Property<string>("HouseNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsSold")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<decimal?>("LandArea")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal?>("LastAppraisedValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("LoanBankName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ModelType")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("NumberOfFloors")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PlotNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PurchaseBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("RoomNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal?>("SellingPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TowerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("UsableArea")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollateralMasterId");
+
+                    b.HasIndex("CollateralMasterId", "SequenceNumber")
+                        .HasDatabaseName("IX_ProjectUnits_Master_Sequence");
+
+                    b.ToTable("ProjectUnits", "collateral");
                 });
 
             modelBuilder.Entity("Shared.Data.Outbox.InboxMessage", b =>
@@ -1115,6 +1216,16 @@ namespace Collateral.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.ProjectUnit", b =>
+                {
+                    b.HasOne("Collateral.CollateralMasters.Models.ProjectDetail", null)
+                        .WithMany("Units")
+                        .HasForeignKey("CollateralMasterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_ProjectUnits_CollateralMasters");
+                });
+
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralEngagement", b =>
                 {
                     b.Navigation("Buildings");
@@ -1137,6 +1248,11 @@ namespace Collateral.Migrations
                     b.Navigation("MachineDetail");
 
                     b.Navigation("ProjectDetail");
+                });
+
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.ProjectDetail", b =>
+                {
+                    b.Navigation("Units");
                 });
 #pragma warning restore 612, 618
         }

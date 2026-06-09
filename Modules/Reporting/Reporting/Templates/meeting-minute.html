@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <title>รายงานการประชุมคณะกรรมการกำหนดราคาประเมินหลักประกันและทรัพย์สิน</title>
+  <style>
+    @font-face { font-family:'Sarabun'; font-weight:400; src:url('Sarabun.ttf') format('truetype'); }
+    @font-face { font-family:'Sarabun'; font-weight:700; src:url('Sarabun-Bold.ttf') format('truetype'); }
+
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      font-family:'Sarabun','Noto Sans Thai','Thonburi','Leelawadee UI',sans-serif;
+      font-size:11pt;
+      line-height:1.7;
+      color:#000;
+      background:#fff;
+    }
+    .page {
+      width:210mm;
+      min-height:270mm;
+      padding:20mm 25mm 20mm 30mm;
+      margin:0 auto;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────── */
+    .doc-header { text-align:center; margin-bottom:14px; }
+    .bank-logo-center {
+      font-size:20pt;
+      font-weight:700;
+      letter-spacing:3px;
+      color:#1a237e;
+      display:inline-block;
+    }
+    .bank-logo-center .bar {
+      height:5px;
+      margin-top:3px;
+      background:linear-gradient(90deg,#e60012 0 20%,#f39800 20% 40%,#009944 40% 60%,#0068b7 60% 80%,#920783 80% 100%);
+    }
+    .doc-title {
+      font-size:14pt;
+      font-weight:700;
+      margin-top:10px;
+    }
+    .doc-subtitle {
+      font-size:12pt;
+      margin-top:2px;
+    }
+    .doc-date {
+      font-size:11pt;
+      margin-top:2px;
+    }
+
+    /* ── Section headings ────────────────────────────────────────── */
+    .section-bar {
+      background:#1a237e;
+      color:#fff;
+      font-weight:700;
+      padding:3px 10px;
+      margin:16px 0 8px;
+      font-size:10.5pt;
+    }
+
+    /* ── Member attendance table ─────────────────────────────────── */
+    table.member-table {
+      width:100%;
+      border-collapse:collapse;
+      font-size:10.5pt;
+      margin-bottom:10px;
+    }
+    table.member-table th {
+      background:#e8eaf6;
+      border:1px solid #9fa8da;
+      padding:4px 8px;
+      text-align:center;
+      font-weight:700;
+    }
+    table.member-table td {
+      border:1px solid #c5cae9;
+      padding:3px 8px;
+    }
+    table.member-table tr:nth-child(even) td { background:#f5f5ff; }
+
+    /* ── Presenter placeholder ───────────────────────────────────── */
+    .presenter-note {
+      border:1px dashed #bbb;
+      padding:10px;
+      color:#666;
+      font-style:italic;
+      font-size:9.5pt;
+      margin-bottom:10px;
+    }
+
+    /* ── Agenda groups ───────────────────────────────────────────── */
+    .agenda-group {
+      margin-bottom:14px;
+    }
+    .agenda-group .wara-title {
+      font-weight:700;
+      margin-bottom:4px;
+    }
+    .agenda-group .count-text {
+      font-style:italic;
+      font-size:10pt;
+      margin-left:1.5em;
+      color:#333;
+    }
+    .agenda-group .body-text {
+      margin-left:1.5em;
+      white-space:pre-wrap;
+    }
+    .agenda-items {
+      margin:4px 0 0 2em;
+      width:100%;
+    }
+    .agenda-items .item-row {
+      display:flex;
+      align-items:baseline;
+      gap:4px;
+      margin-bottom:3px;
+    }
+    .agenda-items .item-seq { min-width:24px; font-weight:600; }
+    .agenda-items .item-customer { flex:1; }
+    .agenda-items .item-value {
+      white-space:nowrap;
+      font-weight:600;
+      min-width:180px;
+      text-align:right;
+    }
+    .agenda-items .item-value-label { font-size:9pt; color:#444; margin-right:4px; }
+
+    /* ── Committee opinion / signature block ─────────────────────── */
+    .opinion-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
+      margin-top:10px;
+    }
+    .opinion-cell {
+      border:1px solid #9fa8da;
+      border-radius:4px;
+      padding:10px 12px;
+    }
+    .opinion-cell .oc-name { font-weight:700; margin-bottom:2px; }
+    .opinion-cell .oc-pos { font-size:9.5pt; color:#555; margin-bottom:8px; }
+    .opinion-cell .oc-vote-label { font-size:9.5pt; font-weight:600; color:#1a237e; margin-bottom:4px; }
+    .opinion-cell .oc-opinion { font-size:9.5pt; color:#333; min-height:32px; white-space:pre-wrap; }
+    .opinion-cell .sig-line {
+      border-bottom:1px solid #555;
+      margin:18px 10px 4px;
+    }
+    .opinion-cell .sig-label { font-size:8.5pt; text-align:center; color:#555; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ──────────────────────────────────────────────────── -->
+  <div class="doc-header">
+    <div class="bank-logo-center">
+      LH BANK
+      <div class="bar"></div>
+    </div>
+    <div class="doc-title">รายงานการประชุมคณะกรรมการกำหนดราคาประเมินหลักประกันและทรัพย์สิน</div>
+    <div class="doc-subtitle">ครั้งที่ {{ model.meeting_no }}</div>
+    <div class="doc-date">
+      ลงวันที่ {{ thai.date model.minute_date }}
+      — เวลา {{ if model.start_at }}{{ model.start_at | date.to_string "%H.%M" }}{{ else }}——{{ end }}
+        – {{ if model.end_at }}{{ model.end_at | date.to_string "%H.%M" }}{{ else }}——{{ end }} น.
+    </div>
+    <div class="doc-date">ณ ห้องประชุม {{ model.location }}</div>
+  </div>
+
+  <!-- ── Section 1: ผู้เข้าร่วมประชุม ──────────────────────────── -->
+  <div class="section-bar">รายชื่อคณะกรรมการที่เข้าร่วมประชุม</div>
+  <table class="member-table">
+    <thead>
+      <tr>
+        <th style="width:32px;">ลำดับ</th>
+        <th>ชื่อ-สกุล</th>
+        <th style="width:200px;">ตำแหน่ง</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ for m in model.members }}
+      <tr>
+        <td style="text-align:center;">{{ for.index + 1 }}</td>
+        <td>{{ m.member_name }}</td>
+        <td>{{ m.position_thai }}</td>
+      </tr>
+      {{ end }}
+      {{ if model.members.size == 0 }}
+      <tr><td colspan="3" style="text-align:center;color:#999;font-style:italic;">— ไม่มีข้อมูล —</td></tr>
+      {{ end }}
+    </tbody>
+  </table>
+
+  <!-- ── Section 2: เจ้าหน้าที่นำเสนอ (DEFERRED) ─────────────── -->
+  <div class="section-bar">เจ้าหน้าที่นำเสนอ</div>
+  <div class="presenter-note">
+    [ส่วนนี้อยู่ระหว่างการพัฒนา — การแมปเจ้าหน้าที่นำเสนอกับแต่ละวาระยังไม่มีข้อมูลในระบบ]
+  </div>
+
+  <!-- ── Section 3: ระเบียบวาระการประชุม ──────────────────────── -->
+  <div class="section-bar">ระเบียบวาระการประชุมและมติที่ประชุม</div>
+
+  {{ for ag in model.agendas }}
+  <div class="agenda-group">
+    <div class="wara-title">
+      วาระที่ {{ ag.number }} {{ ag.title }}
+      {{- if ag.count_text }}  <span class="count-text">({{ ag.count_text }})</span>{{ end -}}
+    </div>
+    {{- if ag.body_text }}
+    <div class="body-text">{{ ag.body_text }}</div>
+    {{- end -}}
+    {{- if ag.items.size > 0 }}
+    <div class="agenda-items">
+      {{ for item in ag.items }}
+      <div class="item-row">
+        <span class="item-seq">{{ for.index + 1 }}.</span>
+        <span class="item-customer">{{ item.customer_name }}</span>
+        {{- if item.value_text }}
+        <span class="item-value">
+          <span class="item-value-label">ราคาประเมิน</span>
+          {{ item.value_text }}
+          {{- if item.value_text != "ไม่รับรองราคา" }} บาท{{ end -}}
+        </span>
+        {{- end -}}
+      </div>
+      {{ end }}
+    </div>
+    {{- end }}
+  </div>
+  {{ end }}
+
+  {{ if model.agendas.size == 0 }}
+  <p style="color:#999;font-style:italic;margin:8px 0;">(ไม่มีวาระการประชุม)</p>
+  {{ end }}
+
+  <!-- ── Section 4: ความเห็นและลายมือชื่อคณะกรรมการ ─────────── -->
+  <div class="section-bar">ความเห็นและลายมือชื่อคณะกรรมการ</div>
+
+  {{ if model.committee_opinions.size > 0 }}
+  <div class="opinion-grid">
+    {{ for op in model.committee_opinions }}
+    <div class="opinion-cell">
+      <div class="oc-name">{{ op.member_name }}</div>
+      <div class="oc-pos">{{ op.position_thai }}</div>
+      {{- if op.vote_label }}
+      <div class="oc-vote-label">มติ: {{ op.vote_label }}</div>
+      {{- end -}}
+      {{- if op.opinion }}
+      <div class="oc-opinion">{{ op.opinion }}</div>
+      {{- end }}
+      <div class="sig-line"></div>
+      <div class="sig-label">({{ op.member_name }})</div>
+    </div>
+    {{ end }}
+  </div>
+  {{ else }}
+  <p style="color:#999;font-style:italic;margin:8px 0;">(ยังไม่มีการบันทึกมติคณะกรรมการ)</p>
+  {{ end }}
+
+</div>
+</body>
+</html>

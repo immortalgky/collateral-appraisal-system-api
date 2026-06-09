@@ -46,8 +46,8 @@ public class CollatrevWriterRoundTripTests
         var header = writer.BuildHeader(effective);
         var detail = writer.BuildDetail(row);
 
-        Assert.Equal(CollatrevFileWriter.RecordLength, header.Length);
-        Assert.Equal(CollatrevFileWriter.RecordLength, detail.Length);
+        Assert.Equal(CollatrevFileWriter.HeaderTrailerLength, header.Length);
+        Assert.Equal(CollatrevFileWriter.DetailRecordLength, detail.Length);
 
         var content = BuildFile(writer, effective, row);
         using var ms = new MemoryStream(Encoding.UTF8.GetBytes(content));

@@ -34,9 +34,10 @@ SELECT
     pt.AssignedAt                                                      AS AssignedAt,
     pt.DueAt,
     pt.SlaStatus,
-    DATEDIFF(HOUR, pt.AssignedAt, GETDATE())                           AS ElapsedHours,
-    CASE WHEN pt.DueAt IS NOT NULL THEN DATEDIFF(HOUR, GETDATE(), pt.DueAt) END
-                                                                       AS RemainingHours,
+    -- ElapsedHours / RemainingHours are computed in C# (GetMonitoredTasksQueryHandler) using
+    -- IBusinessTimeCalculator so they exclude weekends, holidays and lunch. They are NOT derived
+    -- here: a SQL DATEDIFF would count calendar hours (nights/weekends included).
+    -- AssignedAt (elapsed start) and DueAt (remaining end) are already exposed above.
     pt.WorkingBy,
     pt.LockedAt
 FROM workflow.PendingTasks pt

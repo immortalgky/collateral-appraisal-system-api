@@ -27,7 +27,10 @@ public record AppraisalForCollateralResult(
     // null for all other appraisal types (land, condo unit, leasehold, machine).
     ProjectForCollateral? Project,
     // Lineage link used by the project branch for reappraisal dedup.
-    Guid? PrevAppraisalId
+    Guid? PrevAppraisalId,
+    // Customer name from request.RequestCustomers (TOP 1 by RequestId).
+    // Populated only for block-project appraisals; null for all other types.
+    string? CustomerName
 );
 
 // ---------------------------------------------------------------------------
@@ -54,7 +57,7 @@ public record ProjectForCollateral(
     IReadOnlyList<ProjectTowerForCollateral> Towers
 );
 
-/// <summary>Per-unit snapshot for the StructureJson field of ProjectDetail.</summary>
+/// <summary>Per-unit snapshot transferred to the Collateral module for master row population.</summary>
 public record ProjectUnitForCollateral(
     int SequenceNumber,
     bool IsSold,
@@ -70,7 +73,15 @@ public record ProjectUnitForCollateral(
     string? PlotNumber,
     string? HouseNumber,
     int? NumberOfFloors,
-    decimal? LandArea
+    decimal? LandArea,
+    // Sale tracking — how the buyer financed the purchase.
+    // Stored as the enum NAME string ("Cash"/"Loan") or null when not sold / method unknown.
+    // Derived from Appraisal.Domain.Projects.UnitPurchaseMethod via .ToString().
+    string? PurchaseBy,
+    string? LoanBankName,
+    // Per-unit appraised value from ProjectUnitPrice.TotalAppraisalValueRounded.
+    // Null when no pricing calculation has been run for this unit.
+    decimal? AppraisedValue
 );
 
 /// <summary>Minimal model stats snapshot.</summary>

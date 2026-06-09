@@ -4,12 +4,12 @@ using System.Text;
 namespace Request.Infrastructure.Reappraisal;
 
 /// <summary>
-/// Parses the AS400 COLLATREV inbound interface — a **fixed-width** (660-char Detail) UTF-8 text file
+/// Parses the AS400 COLLATREV inbound interface — a **fixed-width** (649-char Detail) UTF-8 text file
 /// with Header (H) / Detail (D) / Trailer (T) records.
 ///
-///   Header:  pos 1 = 'H', pos 2–9 = EffectiveDate (DDMMYYYY), pos 10–640 = filler.
-///   Detail:  pos 1 = 'D', 640 chars total; field map documented in the constants below.
-///   Trailer: pos 1 = 'T', pos 2–10 = TotalDetailRecord (dec9), pos 11–640 = filler.
+///   Header:  pos 1 = 'H', pos 2–9 = EffectiveDate (DDMMYYYY), pos 10–640 = filler (640 chars total).
+///   Detail:  pos 1 = 'D', 649 chars total; field map documented in the constants below.
+///   Trailer: pos 1 = 'T', pos 2–10 = TotalDetailRecord (dec9), pos 11–640 = filler (640 chars total).
 ///
 /// IMPORTANT — char vs byte positions:
 ///   The spec uses string(N) **character** widths. Files are UTF-8 with Thai text in
@@ -19,7 +19,7 @@ namespace Request.Infrastructure.Reappraisal;
 /// </summary>
 public class CollatrevFileParser
 {
-    private const int DetailRecordLength = 660;
+    private const int DetailRecordLength = 649;
 
     // Detail record field offsets (0-based start in the decoded line + char length).
     // Maps to the 1-based positions in the vendor spec: pos N (1-based) = start N-1 (0-based).
@@ -29,39 +29,39 @@ public class CollatrevFileParser
     //   pos 11–29 → CollateralId (19 chars, numeric string)
     //   pos 30–39 → SurveyNumber (10 chars; = our AppraisalNumber)
     //   pos 40–42 → CollateralCode (3 chars)
-    //   pos 43–45 → CollateralCategory (3 chars)
-    //   pos 46–75 → CollateralName (30 chars)
-    //   pos 76–175 → CollateralAddress (100 chars)
-    //   pos 176–194 → CifNumber (19 chars)
-    //   pos 195–214 → CifName (20 chars)
-    //   pos 215–224 → AoCode (10 chars)
-    //   pos 225–264 → AoName (40 chars)
-    //   pos 265–284 → TitleNumber (20 chars)
-    //   pos 285–300 → CurrentValue (16 chars, dec15,2)
-    //   pos 301–308 → ValuationDate (8 chars, DDMMYYYY)
-    //   pos 309    → InternalExternal (1 char)
-    //   pos 310    → BusinessSize (1 char)
-    //   pos 311–350 → BusinessSizeDesc (40 chars)
-    //   pos 351–366 → MortgageAmount (16 chars, dec15,2)
-    //   pos 367–371 → PastDueDay (5 chars, dec5)
-    //   pos 372–390 → ApplicationNumber (19 chars)
-    //   pos 391–393 → FacilityCode (3 chars)
-    //   pos 394–412 → FacilitySequence (19 chars)
-    //   pos 413–428 → CpNumber (16 chars)
-    //   pos 429–431 → CarCode (3 chars)
-    //   pos 432–447 → FacilityLimit (16 chars, dec15,2)
-    //   pos 448    → FlagLessAge4Y (1 char)
-    //   pos 449    → FlagGreaterAge4Y (1 char)
-    //   pos 450–459 → CountAgeingDate (10 chars)
-    //   pos 460–509 → CollateralDescription (50 chars)
-    //   pos 510–549 → ExternalValuerName (40 chars)
-    //   pos 550–589 → InternalValuerName (40 chars)
-    //   pos 590    → SllOver100M (1 char)
-    //   pos 591–640 → SllDescription (50 chars)
-    //   pos 641     → Stage (1 char) — CIF stage indicator
-    //   pos 642–651 → IBGRetail (10 chars) — banking segment (RB / IBG / …)
-    //   pos 652     → Group (1 char) — review group code 1/2/3
-    //   pos 653–660 → EffectiveDateAppraisal (8 chars, DDMMYYYY)
+    //   pos 43–47 → CollateralCategory (5 chars)
+    //   pos 48–87 → CollateralName (40 chars)
+    //   pos 88–207 → CollateralAddress (120 chars)
+    //   pos 208–226 → CifNumber (19 chars)
+    //   pos 227–246 → CifName (20 chars)
+    //   pos 247–256 → AoCode (10 chars)
+    //   pos 257–276 → AoName (20 chars)
+    //   pos 277–296 → TitleNumber (20 chars)
+    //   pos 297–311 → CurrentValue (15 chars, dec15,2)
+    //   pos 312–319 → ValuationDate (8 chars, DDMMYYYY)
+    //   pos 320    → InternalExternal (1 char)
+    //   pos 321    → BusinessSize (1 char)
+    //   pos 322–341 → BusinessSizeDesc (20 chars)
+    //   pos 342–356 → MortgageAmount (15 chars, dec15,2)
+    //   pos 357–361 → PastDueDay (5 chars, dec5)
+    //   pos 362–380 → ApplicationNumber (19 chars)
+    //   pos 381–383 → FacilityCode (3 chars)
+    //   pos 384–402 → FacilitySequence (19 chars)
+    //   pos 403–418 → CpNumber (16 chars)
+    //   pos 419–421 → CarCode (3 chars)
+    //   pos 422–436 → FacilityLimit (15 chars, dec15,2)
+    //   pos 437    → FlagLessAge4Y (1 char)
+    //   pos 438    → FlagGreaterAge4Y (1 char)
+    //   pos 439–448 → CountAgeingDate (10 chars)
+    //   pos 449–498 → CollateralDescription (50 chars)
+    //   pos 499–538 → ExternalValuerName (40 chars)
+    //   pos 539–578 → InternalValuerName (40 chars)
+    //   pos 579    → SllOver100M (1 char)
+    //   pos 580–629 → SllDescription (50 chars)
+    //   pos 630     → Stage (1 char) — CIF stage indicator
+    //   pos 631–640 → IBGRetail (10 chars) — banking segment (RB / IBG / …)
+    //   pos 641     → Group (1 char) — review group code 1/2/3
+    //   pos 642–649 → EffectiveDateAppraisal (8 chars, DDMMYYYY)
 
     public ParsedReappraisalFile ParseStream(Stream stream)
     {
@@ -122,7 +122,7 @@ public class CollatrevFileParser
 
     private static ParsedDetailRecord ParseDetailLine(string line)
     {
-        // SHA-256 of the raw 640-char line for dedup (RowHash).
+        // SHA-256 of the raw Detail line for dedup (RowHash).
         var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(line)));
 
         return new ParsedDetailRecord(
@@ -132,39 +132,39 @@ public class CollatrevFileParser
             CollateralId: Slice(line, 10, 19).Trim(),
             SurveyNumber: Slice(line, 29, 10).Trim(),
             CollateralCode: Slice(line, 39, 3).Trim(),
-            CollateralCategory: Slice(line, 42, 3).Trim(),
-            CollateralName: TrimOrNull(Slice(line, 45, 30)),
-            CollateralAddress: TrimOrNull(Slice(line, 75, 100)),
-            CifNumber: Slice(line, 175, 19).Trim(),
-            CifName: TrimOrNull(Slice(line, 194, 20)),
-            AoCode: TrimOrNull(Slice(line, 214, 10)),
-            AoName: TrimOrNull(Slice(line, 224, 40)),
-            TitleNumber: TrimOrNull(Slice(line, 264, 20)),
-            CurrentValue: ParseDecimalOrNull(Slice(line, 284, 16)),
-            ValuationDate: ParseDdmmyyyyOrNull(Slice(line, 300, 8)),
-            InternalExternal: TrimOrNull(Slice(line, 308, 1)),
-            BusinessSize: TrimOrNull(Slice(line, 309, 1)),
-            BusinessSizeDesc: TrimOrNull(Slice(line, 310, 40)),
-            MortgageAmount: ParseDecimalOrNull(Slice(line, 350, 16)),
-            PastDueDay: ParseIntOrNull(Slice(line, 366, 5)),
-            ApplicationNumber: TrimOrNull(Slice(line, 371, 19)),
-            FacilityCode: TrimOrNull(Slice(line, 390, 3)),
-            FacilitySequence: TrimOrNull(Slice(line, 393, 19)),
-            CpNumber: TrimOrNull(Slice(line, 412, 16)),
-            CarCode: TrimOrNull(Slice(line, 428, 3)),
-            FacilityLimit: ParseDecimalOrNull(Slice(line, 431, 16)),
-            FlagLessAge4Y: TrimOrNull(Slice(line, 447, 1)),
-            FlagGreaterAge4Y: TrimOrNull(Slice(line, 448, 1)),
-            CountAgeingDate: TrimOrNull(Slice(line, 449, 10)),
-            CollateralDescription: TrimOrNull(Slice(line, 459, 50)),
-            ExternalValuerName: TrimOrNull(Slice(line, 509, 40)),
-            InternalValuerName: TrimOrNull(Slice(line, 549, 40)),
-            SllOver100M: TrimOrNull(Slice(line, 589, 1)),
-            SllDescription: TrimOrNull(Slice(line, 590, 50)),
-            Stage: TrimOrNull(Slice(line, 640, 1)),
-            IBGRetail: TrimOrNull(Slice(line, 641, 10)),
-            Group: TrimOrNull(Slice(line, 651, 1)),
-            EffectiveDateAppraisal: ParseDdmmyyyyOrNull(Slice(line, 652, 8))
+            CollateralCategory: Slice(line, 42, 5).Trim(),
+            CollateralName: TrimOrNull(Slice(line, 47, 40)),
+            CollateralAddress: TrimOrNull(Slice(line, 87, 120)),
+            CifNumber: Slice(line, 207, 19).Trim(),
+            CifName: TrimOrNull(Slice(line, 226, 20)),
+            AoCode: TrimOrNull(Slice(line, 246, 10)),
+            AoName: TrimOrNull(Slice(line, 256, 20)),
+            TitleNumber: TrimOrNull(Slice(line, 276, 20)),
+            CurrentValue: ParseDecimalOrNull(Slice(line, 296, 15)),
+            ValuationDate: ParseDdmmyyyyOrNull(Slice(line, 311, 8)),
+            InternalExternal: TrimOrNull(Slice(line, 319, 1)),
+            BusinessSize: TrimOrNull(Slice(line, 320, 1)),
+            BusinessSizeDesc: TrimOrNull(Slice(line, 321, 20)),
+            MortgageAmount: ParseDecimalOrNull(Slice(line, 341, 15)),
+            PastDueDay: ParseIntOrNull(Slice(line, 356, 5)),
+            ApplicationNumber: TrimOrNull(Slice(line, 361, 19)),
+            FacilityCode: TrimOrNull(Slice(line, 380, 3)),
+            FacilitySequence: TrimOrNull(Slice(line, 383, 19)),
+            CpNumber: TrimOrNull(Slice(line, 402, 16)),
+            CarCode: TrimOrNull(Slice(line, 418, 3)),
+            FacilityLimit: ParseDecimalOrNull(Slice(line, 421, 15)),
+            FlagLessAge4Y: TrimOrNull(Slice(line, 436, 1)),
+            FlagGreaterAge4Y: TrimOrNull(Slice(line, 437, 1)),
+            CountAgeingDate: TrimOrNull(Slice(line, 438, 10)),
+            CollateralDescription: TrimOrNull(Slice(line, 448, 50)),
+            ExternalValuerName: TrimOrNull(Slice(line, 498, 40)),
+            InternalValuerName: TrimOrNull(Slice(line, 538, 40)),
+            SllOver100M: TrimOrNull(Slice(line, 578, 1)),
+            SllDescription: TrimOrNull(Slice(line, 579, 50)),
+            Stage: TrimOrNull(Slice(line, 629, 1)),
+            IBGRetail: TrimOrNull(Slice(line, 630, 10)),
+            Group: TrimOrNull(Slice(line, 640, 1)),
+            EffectiveDateAppraisal: ParseDdmmyyyyOrNull(Slice(line, 641, 8))
         );
     }
 

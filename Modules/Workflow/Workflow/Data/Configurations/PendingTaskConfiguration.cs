@@ -72,5 +72,12 @@ public class PendingTaskConfiguration : IEntityTypeConfiguration<PendingTask>
         builder.HasIndex(p => new { p.CorrelationId, p.AssignedAt })
             .HasDatabaseName("IX_PendingTasks_CorrelationId_AssignedAt")
             .IsDescending(false, true);
+
+        // Covering index for pool/counts queries: seek by (AssignedType, AssignedTo, AssigneeCompanyId),
+        // with INCLUDE columns so the base seek for GetTaskCounts and GetPoolTasks never touches the
+        // clustered index or the heavy vw_TaskList view.
+        builder.HasIndex(p => new { p.AssignedType, p.AssignedTo, p.AssigneeCompanyId })
+            .HasDatabaseName("IX_PendingTasks_AssignedType_AssignedTo_Company")
+            .IncludeProperties(p => new { p.ActivityId, p.WorkflowInstanceId, p.CorrelationId, p.AssignedAt });
     }
 }

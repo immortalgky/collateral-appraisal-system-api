@@ -14,7 +14,11 @@ public class FeeAppointmentApproval : Aggregate<Guid>
 
     public Guid AppraisalId { get; private set; }
 
-    /// <summary>"Ext" or "Int" (only Ext used now; reserved for future internal approval).</summary>
+    /// <summary>
+    /// Who raised the request, derived from the acting user — "Ext" (external company) or "Int"
+    /// (bank-internal). Drives which AppointmentApprovalRule / FeeApprovalTier rows apply
+    /// (AppliesTo matches this or "Both"). Internal requests auto-apply unless Int/Both config is seeded.
+    /// </summary>
     public string RequestSource { get; private set; } = default!;
 
     public FeeAppointmentApprovalStatus Status { get; private set; }

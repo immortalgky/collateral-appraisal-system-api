@@ -177,6 +177,11 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<string>("RunIfExpression")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<byte>("Severity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint")
+                        .HasDefaultValue((byte)0);
+
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 
@@ -206,6 +211,10 @@ namespace Workflow.Infrastructure.Migrations
                     b.HasIndex("ActivityName")
                         .HasDatabaseName("IX_ActivityProcessConfigurations_ActivityName");
 
+                    b.HasIndex("ActivityName", "ProcessorName")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ActivityProcessConfigurations_Activity_Processor");
+
                     b.HasIndex("ActivityName", "IsActive", "SortOrder")
                         .HasDatabaseName("IX_ActivityProcessConfigurations_Activity_Active_Sort");
 
@@ -218,6 +227,19 @@ namespace Workflow.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<bool>("Acknowledged")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("AcknowledgedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("AcknowledgedToken")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<Guid?>("ConfigurationId")
                         .HasColumnType("uniqueidentifier");
@@ -246,6 +268,11 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.Property<string>("RunIfExpressionSnapshot")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte>("Severity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint")
+                        .HasDefaultValue((byte)0);
 
                     b.Property<byte?>("SkipReason")
                         .HasColumnType("tinyint");
@@ -579,6 +606,13 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.Property<string>("UpdatedWorkstation")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("VotingMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("WaitForAll");
 
                     b.HasKey("Id");
 
@@ -1866,6 +1900,11 @@ namespace Workflow.Infrastructure.Migrations
                     b.HasIndex("CorrelationId", "AssignedAt")
                         .IsDescending(false, true)
                         .HasDatabaseName("IX_PendingTasks_CorrelationId_AssignedAt");
+
+                    b.HasIndex("AssignedType", "AssignedTo", "AssigneeCompanyId")
+                        .HasDatabaseName("IX_PendingTasks_AssignedType_AssignedTo_Company");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("AssignedType", "AssignedTo", "AssigneeCompanyId"), new[] { "ActivityId", "WorkflowInstanceId", "CorrelationId", "AssignedAt" });
 
                     b.HasIndex("WorkflowInstanceId", "ActivityId", "AssigneeCompanyId")
                         .HasDatabaseName("IX_PendingTasks_WorkflowInstance_Activity_Company");

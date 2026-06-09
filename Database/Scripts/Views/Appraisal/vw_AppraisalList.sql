@@ -38,15 +38,11 @@ SELECT a.Id,
        ld.District,
        ld.SubDistrict,
        -- Latest appointment
-       apt.AppointmentDateTime,
-       -- SLA computed fields. CreatedAt / SLADueDate are stored in application-local time
-       -- (stamped via IDateTimeProvider.ApplicationNow), so compare against local GETDATE(),
-       -- not GETUTCDATE() — matching the convention in the other SLA/task list views.
-       DATEDIFF(HOUR, a.CreatedAt, GETDATE())                                              AS ElapsedHours,
-       CASE
-           WHEN a.SLADueDate IS NOT NULL
-               THEN DATEDIFF(HOUR, GETDATE(), a.SLADueDate)
-           END                                                                             AS RemainingHours
+       apt.AppointmentDateTime
+       -- ElapsedHours / RemainingHours are computed in C# (GetAppraisalsQueryHandler) using
+       -- IBusinessTimeCalculator so they exclude weekends, holidays and lunch. They are NOT
+       -- derived here: a SQL DATEDIFF would count calendar hours (nights/weekends included).
+       -- CreatedAt (elapsed start) and SLADueDate (remaining end) are already exposed above.
 FROM appraisal.Appraisals a
          LEFT JOIN request.Requests r ON r.Id = a.RequestId
          OUTER APPLY (SELECT TOP 1 Name

@@ -1,3 +1,4 @@
+using Auth.Contracts.Users;
 using MassTransit;
 using Notification.Data;
 using Notification.Domain.Notifications.Models;
@@ -8,10 +9,12 @@ using Shared.Messaging.Filters;
 namespace Notification.Domain.Notifications.EventHandlers;
 
 /// <summary>
-/// Notifies the winning external company and the RM that a quotation has been finalized.
+/// Notifies the RM that a quotation has been finalized, including the winning company name and fee.
+/// The winning company's group send has been replaced with per-user delivery via QuotationStarted flow.
 /// </summary>
 public class QuotationFinalizedNotificationHandler(
     INotificationService notificationService,
+    IUserLookupService userLookupService,
     ILogger<QuotationFinalizedNotificationHandler> logger,
     InboxGuard<NotificationDbContext> inboxGuard) : IConsumer<QuotationFinalizedIntegrationEvent>
 {
@@ -21,6 +24,7 @@ public class QuotationFinalizedNotificationHandler(
             return;
 
         var message = context.Message;
+        var ct = context.CancellationToken;
 
         logger.LogInformation(
             "Processing QuotationFinalized notification for QuotationRequestId={QuotationRequestId}, WinningCompanyId={WinningCompanyId}",
@@ -28,6 +32,16 @@ public class QuotationFinalizedNotificationHandler(
 
         try
         {
+            if (string.IsNullOrEmpty(message.RmUsername))
+            {
+                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
+                return;
+            }
+
+            // Resolve winning company name via an ExtAdmin user of that company
+            var companyName = await ResolveCompanyNameAsync(message.WinningCompanyId, ct);
+            var winnerDescription = companyName ?? message.WinningCompanyId.ToString();
+
             var metadata = new Dictionary<string, object>
             {
                 { "quotationRequestId", message.QuotationRequestId },
@@ -36,31 +50,18 @@ public class QuotationFinalizedNotificationHandler(
                 { "finalFeeAmount", message.FinalFeeAmount }
             };
 
-            // Notify winning company
-            var companyGroupName = $"company-{message.WinningCompanyId}";
-            await notificationService.SendNotificationToGroupAsync(
-                companyGroupName,
-                "Quotation Awarded",
-                $"Congratulations! Your quotation has been finalized with a fee of {message.FinalFeeAmount:N2} THB. An appraisal assignment will be created for you.",
+            await notificationService.SendNotificationToUserAsync(
+                message.RmUsername,
+                "Quotation Finalized",
+                $"Quotation finalized — winner: {winnerDescription}, fee {message.FinalFeeAmount:N2} THB.",
                 NotificationType.WorkflowTransition,
                 metadata: metadata);
 
-            // Notify RM if available
-            if (!string.IsNullOrEmpty(message.RmUsername))
-            {
-                await notificationService.SendNotificationToUserAsync(
-                    message.RmUsername,
-                    "Quotation Finalized",
-                    "The appraisal quotation has been finalized. An external appraisal assignment has been created.",
-                    NotificationType.WorkflowTransition,
-                    metadata: metadata);
-            }
-
             logger.LogInformation(
-                "Sent QuotationFinalized notifications for QuotationRequestId={QuotationRequestId}",
-                message.QuotationRequestId);
+                "Sent QuotationFinalized notification to RM {RmUsername} for QuotationRequestId={QuotationRequestId}",
+                message.RmUsername, message.QuotationRequestId);
 
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
+            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
         }
         catch (Exception ex)
         {
@@ -68,6 +69,25 @@ public class QuotationFinalizedNotificationHandler(
                 "Error processing QuotationFinalized notification for QuotationRequestId={QuotationRequestId}",
                 message.QuotationRequestId);
             throw;
+        }
+    }
+
+    private async Task<string?> ResolveCompanyNameAsync(Guid companyId, CancellationToken ct)
+    {
+        try
+        {
+            var usernames = await userLookupService.GetUsernamesInRoleAsync("ExtAdmin", companyId, ct);
+            if (usernames.Length == 0) return null;
+
+            var lookup = await userLookupService.GetByUsernamesAsync(usernames, ct);
+            return lookup.Values.FirstOrDefault(u => u.CompanyName != null)?.CompanyName;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Could not resolve company name for CompanyId={CompanyId} — using ID fallback",
+                companyId);
+            return null;
         }
     }
 }

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
-using Shared.Sla;
+using Workflow.Contracts.Sla;
 
 namespace Appraisal.Application.EventHandlers;
 

@@ -1,102 +1,151 @@
-using System.Text.Json;
+using Dapper;
 
 namespace Collateral.Application.Features.BlockReappraisal.GetBlockReappraisalDetail;
 
 /// <summary>
-/// Loads ProjectDetails.StructureJson for the given CollateralMaster and returns it
-/// deserialized alongside the due-list header fields from BlockReappraisalDue.
+/// Loads ProjectDetails + ProjectUnits for the given CollateralMaster and returns the
+/// due-list header fields from BlockReappraisalDue alongside the unit list.
+///
+/// Phase 1 removed StructureJson from ProjectDetails; this handler reads the first-class
+/// collateral.ProjectUnits rows instead and builds the same response shape so the frontend
+/// needs no change.
+///
 /// Returns null when no ProjectDetail row exists → endpoint returns 404.
 /// </summary>
 public class GetBlockReappraisalDetailQueryHandler(
     ISqlConnectionFactory connectionFactory)
     : IQueryHandler<GetBlockReappraisalDetailQuery, BlockReappraisalDetailResult?>
 {
-    private static readonly JsonSerializerOptions DefaultOptions = new();
-
     public async Task<BlockReappraisalDetailResult?> Handle(
         GetBlockReappraisalDetailQuery query,
         CancellationToken cancellationToken)
     {
-        // Single join: ProjectDetails (structure) + BlockReappraisalDue (header metadata)
-        const string sql = """
+        // Query 1: project header + due-list metadata
+        const string headerSql = """
             SELECT
                 pd.CollateralMasterId,
-                pd.StructureJson,
+                pd.ProjectName,
+                pd.ProjectType,
+                pd.Developer,
+                pd.Address,
+                pd.Province,
+                pd.Latitude,
+                pd.Longitude,
+                pd.TotalUnits,
+                pd.RemainingUnits,
+                pd.ProjectSellingPrice,
                 brd.OldAppraisalNumber,
-                brd.ProjectSellingPrice,
-                brd.TotalUnits,
-                brd.RemainingUnits,
                 brd.LastAppraisedDate,
                 brd.DueDate,
-                pd.ProjectName,
-                pd.ProjectType
+                brd.ProjectSellingPrice AS BrdProjectSellingPrice,
+                brd.TotalUnits        AS BrdTotalUnits,
+                brd.RemainingUnits    AS BrdRemainingUnits
             FROM collateral.ProjectDetails pd
             LEFT JOIN collateral.BlockReappraisalDue brd
                 ON brd.CollateralMasterId = pd.CollateralMasterId
             WHERE pd.CollateralMasterId = @CollateralMasterId
+                AND pd.IsDeleted = 0
             """;
 
-        var row = await connectionFactory.QueryFirstOrDefaultAsync<ProjectDetailRow>(
-            sql, new { query.CollateralMasterId });
+        // Query 2: per-unit rows
+        const string unitsSql = """
+            SELECT
+                pu.SequenceNumber,
+                pu.IsSold,
+                pu.ModelType,
+                pu.UsableArea,
+                pu.SellingPrice,
+                pu.Floor,
+                pu.TowerName,
+                pu.CondoRegistrationNumber,
+                pu.RoomNumber,
+                pu.PlotNumber,
+                pu.HouseNumber,
+                pu.NumberOfFloors,
+                pu.LandArea
+            FROM collateral.ProjectUnits pu
+            WHERE pu.CollateralMasterId = @CollateralMasterId
+            ORDER BY pu.SequenceNumber
+            """;
 
-        if (row is null)
+        using var connection = connectionFactory.GetOpenConnection();
+
+        var headerRow = await connection.QueryFirstOrDefaultAsync<ProjectDetailHeaderRow>(
+            headerSql, new { query.CollateralMasterId });
+
+        if (headerRow is null)
             return null;
 
-        // Deserialize the JSON snapshot using default options (PascalCase — matches the serializer
-        // that produced it in the Appraisal module).
-        BlockReappraisalStructureDto structure;
-        try
-        {
-            structure = JsonSerializer.Deserialize<BlockReappraisalStructureDto>(
-                row.StructureJson, DefaultOptions)
-                ?? EmptyStructure(row.ProjectType, row.ProjectName);
-        }
-        catch (JsonException)
-        {
-            // Malformed snapshot — surface empty structure so the rest of the response is still useful.
-            structure = EmptyStructure(row.ProjectType, row.ProjectName);
-        }
+        var unitRows = (await connection.QueryAsync<BlockReappraisalUnitDto>(
+            unitsSql, new { query.CollateralMasterId })).AsList();
 
-        // A structurally-valid but partial payload (e.g. "{}") deserializes with null collections
-        // (positional records have no defaults) — normalize to empty lists so callers never NRE.
-        structure = structure with
-        {
-            Units = structure.Units ?? [],
-            Models = structure.Models ?? [],
-            Towers = structure.Towers ?? []
-        };
+        var soldUnits = unitRows.Count(u => u.IsSold);
 
-        var soldUnits = structure.Units.Count(u => u.IsSold);
+        // Build Models and Towers from distinct non-null values in the unit list —
+        // mirrors what the old StructureJson snapshot stored separately.
+        var models = unitRows
+            .Where(u => u.ModelType is not null)
+            .Select(u => u.ModelType!)
+            .Distinct()
+            .Select(m => new BlockReappraisalModelDto(m))
+            .ToList();
+
+        var towers = unitRows
+            .Where(u => u.TowerName is not null)
+            .Select(u => u.TowerName!)
+            .Distinct()
+            .Select(t => new BlockReappraisalTowerDto(t))
+            .ToList();
+
+        var structure = new BlockReappraisalStructureDto(
+            ProjectType: headerRow.ProjectType,
+            ProjectName: headerRow.ProjectName,
+            Developer: headerRow.Developer,
+            Address: headerRow.Address,
+            Province: headerRow.Province,
+            Latitude: headerRow.Latitude,
+            Longitude: headerRow.Longitude,
+            TotalUnits: headerRow.BrdTotalUnits ?? headerRow.TotalUnits,
+            RemainingUnits: headerRow.BrdRemainingUnits ?? headerRow.RemainingUnits,
+            ProjectSellingPrice: headerRow.BrdProjectSellingPrice ?? headerRow.ProjectSellingPrice,
+            Units: unitRows,
+            Models: models,
+            Towers: towers);
 
         return new BlockReappraisalDetailResult(
-            CollateralMasterId: row.CollateralMasterId,
-            OldAppraisalNumber: row.OldAppraisalNumber,
-            ProjectName: row.ProjectName ?? structure.ProjectName,
-            ProjectType: row.ProjectType ?? structure.ProjectType ?? string.Empty,
-            ProjectSellingPrice: row.ProjectSellingPrice ?? structure.ProjectSellingPrice,
-            TotalUnits: row.TotalUnits ?? structure.TotalUnits,
-            RemainingUnits: row.RemainingUnits ?? structure.RemainingUnits,
-            LastAppraisedDate: row.LastAppraisedDate,
-            DueDate: row.DueDate,
+            CollateralMasterId: headerRow.CollateralMasterId,
+            OldAppraisalNumber: headerRow.OldAppraisalNumber,
+            ProjectName: headerRow.ProjectName,
+            ProjectType: headerRow.ProjectType ?? string.Empty,
+            ProjectSellingPrice: headerRow.BrdProjectSellingPrice ?? headerRow.ProjectSellingPrice,
+            TotalUnits: headerRow.BrdTotalUnits ?? headerRow.TotalUnits,
+            RemainingUnits: headerRow.BrdRemainingUnits ?? headerRow.RemainingUnits,
+            LastAppraisedDate: headerRow.LastAppraisedDate,
+            DueDate: headerRow.DueDate,
             SoldUnits: soldUnits,
             Structure: structure);
     }
 
-    private static BlockReappraisalStructureDto EmptyStructure(string? projectType, string? projectName) =>
-        new(projectType, projectName, null, null, null, null, null, 0, 0, null, [], [], []);
-
-    // Private Dapper projection — not exposed outside this handler
-    private class ProjectDetailRow
+    // Private Dapper projection for the header row
+    private class ProjectDetailHeaderRow
     {
         public Guid CollateralMasterId { get; init; }
-        public string StructureJson { get; init; } = "{}";
-        public string? OldAppraisalNumber { get; init; }
-        public decimal? ProjectSellingPrice { get; init; }
-        public int? TotalUnits { get; init; }
-        public int? RemainingUnits { get; init; }
-        public DateTime? LastAppraisedDate { get; init; }
-        public DateTime? DueDate { get; init; }
         public string? ProjectName { get; init; }
         public string? ProjectType { get; init; }
+        public string? Developer { get; init; }
+        public string? Address { get; init; }
+        public string? Province { get; init; }
+        public decimal? Latitude { get; init; }
+        public decimal? Longitude { get; init; }
+        public int TotalUnits { get; init; }
+        public int RemainingUnits { get; init; }
+        public decimal? ProjectSellingPrice { get; init; }
+        public string? OldAppraisalNumber { get; init; }
+        public DateTime? LastAppraisedDate { get; init; }
+        public DateTime? DueDate { get; init; }
+        // From BlockReappraisalDue — preferred when available (snapshot at due-date creation)
+        public decimal? BrdProjectSellingPrice { get; init; }
+        public int? BrdTotalUnits { get; init; }
+        public int? BrdRemainingUnits { get; init; }
     }
 }

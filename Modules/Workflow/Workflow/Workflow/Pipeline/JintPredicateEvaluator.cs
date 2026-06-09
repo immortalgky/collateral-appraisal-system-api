@@ -121,6 +121,7 @@ public sealed class JintPredicateEvaluator : IPredicateEvaluator
         {
             ["id"] = ctx.ActivityId ?? string.Empty,
             ["name"] = ctx.ActivityName ?? string.Empty,
+            ["movement"] = ctx.Movement ?? "F",
             ["input"] = FlattenDict(ctx.Input)
         };
         engine.SetValue("activity", activityContext);

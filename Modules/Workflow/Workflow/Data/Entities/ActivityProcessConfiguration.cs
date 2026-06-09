@@ -14,6 +14,18 @@ public enum StepKind : byte
 }
 
 /// <summary>
+/// Severity of a Validation step's failure. Error blocks completion; Warning lets the
+/// user choose to continue (acknowledge-to-continue). Ignored for Action steps.
+/// </summary>
+public enum StepSeverity : byte
+{
+    /// <summary>Failure blocks completion (default).</summary>
+    Error = 0,
+    /// <summary>Failure surfaces a warning the user may acknowledge to proceed.</summary>
+    Warning = 1
+}
+
+/// <summary>
 /// Configuration for process steps that run when an activity is completed.
 /// Each row = one step in the pipeline, ordered by SortOrder.
 /// </summary>
@@ -38,6 +50,12 @@ public class ActivityProcessConfiguration : Entity<Guid>
     /// Whether this step is a Validation (collect-all) or Action (stop-on-first).
     /// </summary>
     public StepKind Kind { get; private set; }
+
+    /// <summary>
+    /// Failure severity for Validation steps: Error blocks; Warning is acknowledge-to-continue.
+    /// Defaults to Error so existing rows keep blocking. Ignored for Action steps.
+    /// </summary>
+    public StepSeverity Severity { get; private set; }
 
     /// <summary>
     /// Execution order within the activity (sorted within Kind bucket).
@@ -84,7 +102,8 @@ public class ActivityProcessConfiguration : Entity<Guid>
         int sortOrder,
         string createdBy,
         string? parametersJson = null,
-        string? runIfExpression = null)
+        string? runIfExpression = null,
+        StepSeverity severity = StepSeverity.Error)
     {
         return new ActivityProcessConfiguration
         {
@@ -93,6 +112,7 @@ public class ActivityProcessConfiguration : Entity<Guid>
             StepName = stepName,
             ProcessorName = processorName,
             Kind = kind,
+            Severity = severity,
             SortOrder = sortOrder,
             ParametersJson = parametersJson,
             RunIfExpression = runIfExpression,
@@ -121,9 +141,11 @@ public class ActivityProcessConfiguration : Entity<Guid>
         string? parametersJson,
         string? runIfExpression,
         bool isActive,
-        string updatedBy)
+        string updatedBy,
+        StepSeverity severity = StepSeverity.Error)
     {
         Kind = kind;
+        Severity = severity;
         SortOrder = sortOrder;
         ParametersJson = parametersJson;
         RunIfExpression = runIfExpression;

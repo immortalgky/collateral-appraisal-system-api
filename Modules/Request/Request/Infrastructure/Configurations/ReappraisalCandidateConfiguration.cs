@@ -27,10 +27,10 @@ public class ReappraisalCandidateConfiguration : IEntityTypeConfiguration<Reappr
         builder.Property(p => p.CollateralId).IsRequired().HasMaxLength(19);
         builder.Property(p => p.SurveyNumber).IsRequired().HasMaxLength(10);
         builder.Property(p => p.CollateralCode).IsRequired().HasMaxLength(3);
-        builder.Property(p => p.CollateralCategory).IsRequired().HasMaxLength(3);
+        builder.Property(p => p.CollateralCategory).IsRequired().HasMaxLength(5);
 
-        builder.Property(p => p.CollateralName).HasMaxLength(30);
-        builder.Property(p => p.CollateralAddress).HasMaxLength(100);
+        builder.Property(p => p.CollateralName).HasMaxLength(40);
+        builder.Property(p => p.CollateralAddress).HasMaxLength(120);
         builder.Property(p => p.CifNumber).IsRequired().HasMaxLength(19);
         builder.Property(p => p.CifName).HasMaxLength(20);
         builder.Property(p => p.AoCode).HasMaxLength(10);
@@ -63,7 +63,7 @@ public class ReappraisalCandidateConfiguration : IEntityTypeConfiguration<Reappr
         builder.Property(p => p.SllOver100M).HasMaxLength(1);
         builder.Property(p => p.SllDescription).HasMaxLength(50);
 
-        // Trailing extension fields (pos 641–660; record extends 640 → 660).
+        // Trailing extension fields (pos 630–649).
         builder.Property(p => p.Stage).HasMaxLength(1);
         builder.Property(p => p.IBGRetail).HasMaxLength(10);
         builder.Property(p => p.Group).HasMaxLength(1);

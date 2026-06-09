@@ -9,5 +9,7 @@ public enum NotificationType
     DocumentFollowupRaised,
     DocumentFollowupResolved,
     DocumentFollowupCancelled,
-    DocumentLineItemDeclined
+    DocumentLineItemDeclined,
+    ReportReady,
+    ReportFailed
 }

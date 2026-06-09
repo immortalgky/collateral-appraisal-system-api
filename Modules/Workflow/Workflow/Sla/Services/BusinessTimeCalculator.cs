@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Workflow.Contracts.Sla;
 using Workflow.Data;
 
 namespace Workflow.Sla.Services;
 
-public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache cache) : Shared.Sla.IBusinessTimeCalculator
+public class BusinessTimeCalculator(WorkflowDbContext dbContext, IMemoryCache cache) : IBusinessTimeCalculator
 {
     public async Task<DateTime> AddBusinessHoursAsync(DateTime from, int hours, CancellationToken ct = default)
     {

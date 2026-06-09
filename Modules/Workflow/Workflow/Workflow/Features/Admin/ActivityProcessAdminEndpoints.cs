@@ -176,17 +176,20 @@ public class ActivityProcessAdminEndpoints : ICarterModule
                     var descriptor = catalog.GetDescriptor(req.ProcessorName)!; // validated above
                     var kind = descriptor.Kind;
 
+                    // Severity only applies to Validation steps; force Error for Actions.
+                    var severity = kind == StepKind.Validation ? req.Severity : StepSeverity.Error;
+
                     if (existingByProcessorName.TryGetValue(req.ProcessorName, out var row))
                     {
                         row.Update(kind, req.SortOrder, req.ParametersJson, req.RunIfExpression,
-                            req.IsActive, updatedBy);
+                            req.IsActive, updatedBy, severity);
                     }
                     else
                     {
                         // B3: StepName = human-readable label from descriptor; ProcessorName = stable key.
                         var newRow = ActivityProcessConfiguration.Create(
                             activityName, descriptor.DisplayName, req.ProcessorName, kind,
-                            req.SortOrder, updatedBy, req.ParametersJson, req.RunIfExpression);
+                            req.SortOrder, updatedBy, req.ParametersJson, req.RunIfExpression, severity);
                         db.ActivityProcessConfigurations.Add(newRow);
                     }
                 }
@@ -225,6 +228,7 @@ public class ActivityProcessAdminEndpoints : ICarterModule
                     r.ConfigurationVersion,
                     r.StepName,
                     r.Kind.ToString(),
+                    r.Severity.ToString(),
                     r.SortOrder,
                     r.RunIfExpressionSnapshot,
                     r.ParametersJsonSnapshot,
@@ -232,6 +236,9 @@ public class ActivityProcessAdminEndpoints : ICarterModule
                     r.SkipReason?.ToString(),
                     r.DurationMs,
                     r.ErrorMessage,
+                    r.Acknowledged,
+                    r.AcknowledgedBy,
+                    r.AcknowledgedToken,
                     r.CreatedOn)).ToList();
 
                 return Results.Ok(items);
@@ -250,6 +257,16 @@ public class ActivityProcessAdminEndpoints : ICarterModule
     {
         var errors = new List<ConfigEntryError>();
 
+        // A (activity, ProcessorName) pair must be unique — the upsert keys by ProcessorName and
+        // the DB enforces a unique index. Reject duplicate ProcessorNames in one payload up front.
+        var dupeProcessors = requests
+            .GroupBy(r => r.ProcessorName, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key);
+        foreach (var dupe in dupeProcessors)
+            errors.Add(new ConfigEntryError(-1, dupe,
+                $"Step '{dupe}' appears more than once; each step may be configured at most once per activity."));
+
         foreach (var (req, index) in requests.Select((r, i) => (r, i)))
         {
             // B3: Validate by ProcessorName (the canonical descriptor key).
@@ -259,6 +276,13 @@ public class ActivityProcessAdminEndpoints : ICarterModule
                 errors.Add(new ConfigEntryError(index, req.ProcessorName,
                     $"Step '{req.ProcessorName}' is not registered in the step catalog."));
                 continue;
+            }
+
+            // Warning severity is meaningful only for Validation steps (acknowledge-to-continue).
+            if (req.Severity == StepSeverity.Warning && descriptor.Kind != StepKind.Validation)
+            {
+                errors.Add(new ConfigEntryError(index, req.ProcessorName,
+                    "Warning severity only applies to Validation steps."));
             }
 
             // 2. ParametersJson must validate against the step's schema (if provided)
@@ -317,7 +341,7 @@ public class ActivityProcessAdminEndpoints : ICarterModule
 
     private static ProcessConfigResponse MapToResponse(ActivityProcessConfiguration c) =>
         new(c.Id, c.ActivityName, c.StepName, c.ProcessorName,
-            c.Kind.ToString(), c.SortOrder, c.RunIfExpression, c.ParametersJson,
+            c.Kind.ToString(), c.Severity.ToString(), c.SortOrder, c.RunIfExpression, c.ParametersJson,
             c.IsActive, c.Version, c.CreatedAt, c.UpdatedAt);
 }
 
@@ -333,7 +357,8 @@ public sealed record UpsertProcessConfigRequest(
     int SortOrder,
     string? ParametersJson,
     string? RunIfExpression,
-    bool IsActive);
+    bool IsActive,
+    StepSeverity Severity = StepSeverity.Error);
 
 public sealed record ProcessConfigResponse(
     Guid Id,
@@ -341,6 +366,7 @@ public sealed record ProcessConfigResponse(
     string StepName,
     string ProcessorName,
     string Kind,
+    string Severity,
     int SortOrder,
     string? RunIfExpression,
     string? ParametersJson,
@@ -363,6 +389,7 @@ public sealed record ActivityProcessExecutionResponse(
     int ConfigurationVersion,
     string StepName,
     string Kind,
+    string Severity,
     int SortOrder,
     string? RunIfExpressionSnapshot,
     string? ParametersJsonSnapshot,
@@ -370,6 +397,9 @@ public sealed record ActivityProcessExecutionResponse(
     string? SkipReason,
     int DurationMs,
     string? ErrorMessage,
+    bool Acknowledged,
+    string? AcknowledgedBy,
+    string? AcknowledgedToken,
     DateTime CreatedOn);
 
 public sealed record ConfigEntryError(int Index, string StepName, string Message);

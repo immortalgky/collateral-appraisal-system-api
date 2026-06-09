@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <title>สรุปรายงานการประเมินราคาทรัพย์สิน – เครื่องจักร</title>
+  <style>{{ include 'partials/summary-styles' }}</style>
+</head>
+<body>
+<div class="form">
+
+  <!-- HEADER -->
+  <div class="head">
+    <div class="logo">
+      <div class="lh">LH <span class="b">BANK</span></div>
+      <div class="bars"></div>
+    </div>
+    <div class="title">สรุปรายงานการประเมินราคาทรัพย์สิน</div>
+    <div class="meta">
+      <div class="row"><span class="lbl">รายงานเลขที่</span><span class="val">{{ model.appraisal_book_number }}</span></div>
+      <div class="row"><span class="lbl">วันที่สำรวจและประเมินราคา</span><span class="val">{{ thai.date model.appraisal_date }}</span></div>
+    </div>
+  </div>
+
+  <!-- INFO BLOCK -->
+  <div class="pad">
+    <div class="kv"><span class="k">ชื่อลูกค้า :</span><span class="v">{{ model.customer_name }}</span></div>
+    <div class="kv"><span class="k">ผู้แจ้ง :</span><span class="v">{{ model.ao_name }}</span></div>
+    <div class="cols2">
+      <div class="kv"><span class="k">วัตถุประสงค์ :</span><span class="v">{{ model.appraisal_purpose }}</span></div>
+      <div class="kv"><span class="k">ประเภททรัพย์สิน :</span><span class="v">{{ model.property_type }}</span></div>
+    </div>
+    <div class="kv"><span class="k">ที่ตั้งทรัพย์สิน :</span><span class="v">{{ model.collateral_address }}</span></div>
+    <div class="cols2">
+      <div class="kv"><span class="k">ผู้ประเมินราคา :</span><span class="v">{{ model.appraiser }}</span></div>
+      <div class="kv"><span class="k">วงเงินสินเชื่อ :</span><span class="v">{{ if model.loan_value; model.loan_value | math.format "N2"; else; "-"; end }} บาท</span></div>
+    </div>
+  </div>
+
+  <!-- COLLATERAL TABLE (machine: area/unit and price-per-unit columns are blank per FSD rule) -->
+  <table class="grid">
+    <thead>
+      <tr>
+        <th>รายการทรัพย์สิน</th>
+        <th style="width:110px;">พื้นที่ / จำนวน</th>
+        <th style="width:95px;">ราคาต่อหน่วย</th>
+        <th style="width:110px;">ราคาประเมิน</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ for g in model.groups }}
+      <tr>
+        <td>
+          <span class="chk">&#9745;</span>
+          <strong>{{ g.property_type }}</strong>
+          {{ if g.group_name }}<span style="color:#555;">({{ g.group_name }})</span>{{ end }}
+          {{ if g.collateral_details }}<div style="margin-top:2px;">{{ g.collateral_details }}</div>{{ end }}
+        </td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td class="num">{{ if g.appraisal_value; g.appraisal_value | math.format "N2"; end }}</td>
+      </tr>
+      {{ end }}
+      {{ if model.groups.size == 0 }}
+      <tr><td colspan="4" style="height:34px;">&nbsp;</td></tr>
+      {{ end }}
+      <!-- รวมมูลค่าเครื่องจักร subtotal row (FSD §2.1.3.3) -->
+      {{ if model.total_appraisal_value }}
+      <tr>
+        <td colspan="3" style="text-align:right; font-weight:700;">รวมมูลค่าเครื่องจักร</td>
+        <td class="num"><strong>{{ model.total_appraisal_value | math.format "N2" }}</strong></td>
+      </tr>
+      {{ end }}
+      <tr><td colspan="4"><strong>เงื่อนไข :</strong> {{ model.condition }}</td></tr>
+      <tr><td colspan="4"><strong>หมายเหตุ :</strong> {{ model.remark }}</td></tr>
+    </tbody>
+  </table>
+
+  <!-- TOTALS -->
+  <table class="totals">
+    <tr>
+      <td class="tl">รวมราคาประเมินทรัพย์สินเป็นเงินทั้งสิ้น</td>
+      <td class="tv">{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    <tr>
+      <td class="tt" colspan="2">( {{ thai.baht_text model.total_appraisal_value }} )</td>
+    </tr>
+    <tr>
+      <td class="tl">ทุนประกันภัยเครื่องจักร</td>
+      <td class="tv">{{ if model.building_coverage_amount; model.building_coverage_amount | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    <tr>
+      <td class="tl">ราคาบังคับขายเป็นเงินทั้งสิ้น</td>
+      <td class="tv">{{ if model.forced_sale_value; model.forced_sale_value | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+  </table>
+
+  <!-- ATTRIBUTES (machine-specific) -->
+  <div class="pad sep">
+    <div class="cols2">
+      <div class="kv"><span class="k">กรรมสิทธิ์เครื่องจักร :</span><span class="v">{{ model.land_owner }}</span></div>
+      {{ if model.machine_type }}
+      <div class="kv"><span class="k">ประเภทเครื่องจักร :</span><span class="v">{{ model.machine_type }}</span></div>
+      {{ end }}
+      <div class="kv"><span class="k">ภาระผูกพัน :</span><span class="v">{{ model.obligation }}</span></div>
+      {{ if model.market_demand_conditions }}
+      <div class="kv"><span class="k">สภาพความต้องการของตลาด :</span><span class="v">{{ model.market_demand_conditions }}</span></div>
+      {{ end }}
+      {{ if model.gps }}
+      <div class="kv"><span class="k">พิกัด :</span><span class="v">{{ model.gps }}</span></div>
+      {{ end }}
+    </div>
+    <div class="kv" style="margin-top:3px;">
+      <span class="k">วิธีการประเมิน :</span>
+      <span class="methods">
+        <span class="m"><span class="chk">{{ if model.is_wqs || model.is_sale_grid }}&#9745;{{ else }}&#9744;{{ end }}</span> Market Comparison Approach</span>
+        <span class="m"><span class="chk">{{ if model.is_cost }}&#9745;{{ else }}&#9744;{{ end }}</span> Cost Approach</span>
+        <span class="m"><span class="chk">{{ if model.is_income }}&#9745;{{ else }}&#9744;{{ end }}</span> Income Approach</span>
+        <span class="m"><span class="chk">{{ if model.is_hypothesis }}&#9745;{{ else }}&#9744;{{ end }}</span> Residual Approach</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- APPRAISER OPINION -->
+  <div class="section-bar">สรุปความเห็นผู้ประเมิน</div>
+  <div class="pad">
+    {{ if model.property_type }}<div class="kv"><span class="k">ประเภททรัพย์ :</span><span>{{ model.property_type }}</span></div>{{ end }}
+    <div class="comment-box">{{ model.appraiser_comment }}</div>
+  </div>
+
+  <!-- SIGN-OFF -->
+  <div class="signoff">
+    <div class="cell">
+      <div>ผู้ประเมิน</div>
+      <div class="nm">( {{ if model.appraisal_staff_name; model.appraisal_staff_name; else; ".............................."; end }} )</div>
+      <div class="pos">{{ model.appraisal_staff_position }}</div>
+    </div>
+    <div class="cell">
+      <div>ผู้ตรวจสอบ</div>
+      <div class="nm">( {{ if model.appraisal_checker_name; model.appraisal_checker_name; else; ".............................."; end }} )</div>
+      <div class="pos">{{ model.appraisal_checker_position }}</div>
+    </div>
+    <div class="cell">
+      <div>ผู้สอบทาน</div>
+      <div class="nm">( {{ if model.appraisal_verify_name; model.appraisal_verify_name; else; ".............................."; end }} )</div>
+      <div class="pos">{{ model.appraisal_verify_position }}</div>
+    </div>
+  </div>
+
+  <!-- COMMITTEE BLOCK (shared partial) -->
+  {{ include 'partials/approver-block' }}
+
+</div>
+</body>
+</html>

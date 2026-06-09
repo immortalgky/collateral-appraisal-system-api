@@ -96,6 +96,7 @@ public class ApprovalActivity : WorkflowActivityBase
                 [$"{NormalizeActivityId(context.ActivityId)}_members"] = resolvedMembers,
                 [$"{NormalizeActivityId(context.ActivityId)}_quorum"] = groupInfo.Quorum,
                 [$"{NormalizeActivityId(context.ActivityId)}_majority"] = groupInfo.Majority,
+                [$"{NormalizeActivityId(context.ActivityId)}_votingMode"] = groupInfo.VotingMode,
                 [$"{NormalizeActivityId(context.ActivityId)}_conditions"] = groupInfo.Conditions,
                 [$"{NormalizeActivityId(context.ActivityId)}_voteOptions"] = voteOptions,
                 [$"{NormalizeActivityId(context.ActivityId)}_committeeName"] = groupInfo.CommitteeName ?? "",
@@ -190,6 +191,10 @@ public class ApprovalActivity : WorkflowActivityBase
                 new MajorityConfig("Simple", "approve"));
             var conditions = GetVariable<List<ApprovalConditionInfo>>(context, $"{normalizedId}_conditions",
                 new List<ApprovalConditionInfo>());
+            // Default "Quorum" preserves the pre-existing early-decide behavior for any in-flight
+            // round started before this variable was written.
+            var votingMode = GetVariable<string>(context, $"{normalizedId}_votingMode", "Quorum");
+            var requireAllVotes = string.Equals(votingMode, "WaitForAll", StringComparison.OrdinalIgnoreCase);
             var voteOptions = GetVariable<List<string>>(context, $"{normalizedId}_voteOptions",
                 new List<string> { "approve", "reject", "route_back" });
             var activityName = GetVariable(context, "activityName", context.ActivityId);
@@ -242,6 +247,12 @@ public class ApprovalActivity : WorkflowActivityBase
                     GetVariable<string>(context, $"{normalizedId}_committeeName"),
                     GetVariable<string>(context, $"{normalizedId}_committeeCode"));
                 rbOutput["decision"] = "route_back";
+
+                // The round resolves immediately on a single route_back; close out the still-open
+                // tasks of members who never voted so they don't dangle.
+                await _publisher.Publish(new ApprovalRoundClosedEvent(
+                    context.WorkflowInstanceId, context.ActivityId, _dateTimeProvider.ApplicationNow,
+                    "RouteBack"), cancellationToken);
 
                 _logger.LogInformation(
                     "ApprovalActivity {ActivityId}: {Voter} voted route_back - immediate return",
@@ -308,23 +319,45 @@ public class ApprovalActivity : WorkflowActivityBase
             var requiredQuorum = GetRequiredQuorum(quorumConfig, totalMembers);
             var quorumMet = totalVotes >= requiredQuorum;
 
-            // Check majority
+            // Check majority (evaluated against ALL members, not just the votes cast)
             var majorityMet = CheckMajority(majorityConfig, approveCount, totalVotes, totalMembers);
 
-            // Concurrent quorum completion safety: if two voters both reach this point
-            // simultaneously and both trigger Success, the WorkflowEngine's FindActivityExecution
-            // only returns executions with Status == InProgress. The first voter's Success will
-            // mark the execution as Completed, so the second voter's request will find no
-            // in-progress execution and return Failed("No in-progress execution found").
-            if (conditionsMet && quorumMet && majorityMet)
+            // Has every member voted this round?
+            var allVoted = totalVotes >= totalMembers;
+
+            // Decide whether the round resolves (advances). Only the APPROVE outcome advances —
+            // when the approve condition is not met the round does nothing and stays Pending.
+            //   WaitForAll (consensus): wait until everyone has voted, then require the approve rule.
+            //   Quorum: resolve as soon as quorum + majority are met (may be before everyone votes).
+            var decided = requireAllVotes
+                ? allVoted && conditionsMet && majorityMet
+                : conditionsMet && quorumMet && majorityMet;
+
+            // Concurrent completion: approval resumes on the same instance are serialized by an
+            // exclusive application lock acquired in WorkflowService.ExecuteResumeWorkflowAsync
+            // ($"wf-approval:{instanceId}"), so two voters cannot evaluate decided==true at once — the
+            // second waits, then reloads fresh state and either sees the round already Completed
+            // (FindActivityExecution returns null → graceful Failed) or records its own vote. The
+            // CompletedTask PK reuse (from PendingTask.Id) and the idempotent Appraisal-side
+            // integration event remain as defense-in-depth.
+            if (decided)
             {
-                var decision = approveCount > rejectCount ? targetVote : "reject";
+                var decision = targetVote;
                 var successOutput = BuildOutputData(normalizedId, decision, approveCount, rejectCount,
                     routeBackCount, totalVotes, totalMembers,
                     GetVariable<string>(context, $"{normalizedId}_committeeName"),
                     GetVariable<string>(context, $"{normalizedId}_committeeCode"));
                 successOutput["decision"] = decision;
                 execution.StampMovement(voteMovement);
+
+                // Quorum mode can resolve before everyone has voted — close out the still-open
+                // tasks of members who never voted so they don't dangle. (No-op when all voted.)
+                if (!allVoted)
+                {
+                    await _publisher.Publish(new ApprovalRoundClosedEvent(
+                        context.WorkflowInstanceId, context.ActivityId,
+                        _dateTimeProvider.ApplicationNow, "Closed"), cancellationToken);
+                }
 
                 // Evaluate decision conditions if configured
                 var decisionConditions = GetProperty<Dictionary<string, string>>(context, "decisionConditions");
@@ -441,6 +474,18 @@ public class ApprovalActivity : WorkflowActivityBase
                 return ActivityResult.Success(successOutput);
             }
 
+            // WaitForAll: everyone has voted but the approve rule was not met. By design the round
+            // does nothing (stays Pending, application not completed) — but at this point every
+            // per-member task has been removed, so the round is wedged with no in-band action left.
+            // Log it so the stuck state is observable; recovery is an out-of-band workflow cancel.
+            if (requireAllVotes && allVoted)
+            {
+                _logger.LogWarning(
+                    "ApprovalActivity {ActivityId}: all {TotalMembers} members voted but approve rule not met " +
+                    "(approve={Approve}, reject={Reject}) — round stays Pending (do-nothing). Approval is now stalled.",
+                    context.ActivityId, totalMembers, approveCount, rejectCount);
+            }
+
             // Not yet decided — return Pending with current state
             var pendingOutput = BuildOutputData(normalizedId, null, approveCount, rejectCount,
                 routeBackCount, totalVotes, totalMembers,
@@ -525,15 +570,14 @@ public class ApprovalActivity : WorkflowActivityBase
         };
     }
 
+    // Majority is evaluated against the FULL committee (totalMembers), not the votes cast. The string
+    // MajorityConfig.Type is the round-tripped MajorityType name, so parse it back to the enum and
+    // delegate to the shared domain rule (single source of truth). totalVotes is retained for
+    // signature symmetry but is no longer the denominator; an unknown type yields false.
     private static bool CheckMajority(MajorityConfig config, int targetCount, int totalVotes, int totalMembers)
     {
-        return config.Type.ToLowerInvariant() switch
-        {
-            "simple" => targetCount > totalVotes / 2.0,
-            "twothirds" => targetCount >= Math.Ceiling(totalVotes * 2.0 / 3.0),
-            "unanimous" => targetCount == totalMembers,
-            _ => false
-        };
+        return Enum.TryParse<MajorityType>(config.Type, ignoreCase: true, out var majorityType)
+            && MajorityRule.IsMet(majorityType, targetCount, totalMembers);
     }
 
     private static Dictionary<string, object> BuildOutputData(
