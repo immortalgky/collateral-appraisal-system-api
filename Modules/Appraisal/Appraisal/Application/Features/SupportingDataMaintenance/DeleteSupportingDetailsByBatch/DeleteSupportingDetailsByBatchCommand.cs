@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.SupportingDataMaintenance.DeleteSupportingDetailsByBatch;
+
+public record DeleteSupportingDetailsByBatchCommand(Guid SupportingId, List<Guid> SupportingDetailIds) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;
