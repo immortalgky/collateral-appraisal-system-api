@@ -15,6 +15,7 @@ public class CreateCompanyEndpoint : ICarterModule
             .Produces<CreateCompanyResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithSummary("Create Company")
-            .WithDescription("Create a new company");
+            .WithDescription("Create a new company")
+            .RequireAuthorization("CanManageCompanies");
     }
 }

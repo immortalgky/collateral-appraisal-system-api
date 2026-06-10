@@ -19,6 +19,7 @@ public class UpdateCompanyEndpoint : ICarterModule
             .Produces<UpdateCompanyResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update Company")
-            .WithDescription("Update an existing company including bank account details.");
+            .WithDescription("Update an existing company including bank account details.")
+            .RequireAuthorization("CanManageCompanies");
     }
 }
