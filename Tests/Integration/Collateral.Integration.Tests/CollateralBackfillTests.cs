@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using Appraisal.Application.Features.Appraisals.GetCompletedAppraisalIdsForBackfill;
+using Appraisal.Contracts.Appraisals;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using Collateral.Application.Features.CollateralMasters.GetBackfillReport;
@@ -456,8 +456,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
             {
                 var mediator = batchScope.ServiceProvider.GetRequiredService<ISender>();
                 batch = await mediator.Send(
-                    new Appraisal.Application.Features.Appraisals.GetCompletedAppraisalIdsForBackfill
-                        .GetCompletedAppraisalIdsForBackfillQuery(page, pageSize),
+                    new GetCompletedAppraisalIdsForBackfillQuery(page, pageSize),
                     ct);
             }
 

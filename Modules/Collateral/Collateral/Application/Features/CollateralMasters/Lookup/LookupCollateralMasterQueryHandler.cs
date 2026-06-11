@@ -1,3 +1,4 @@
+using Collateral.Contracts;
 using Dapper;
 
 namespace Collateral.Application.Features.CollateralMasters.Lookup;

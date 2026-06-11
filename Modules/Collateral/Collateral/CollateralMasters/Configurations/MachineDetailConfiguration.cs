@@ -27,6 +27,9 @@ public class MachineDetailConfiguration : IEntityTypeConfiguration<MachineDetail
             s.Property(x => x.LastAppraisedDate).HasColumnName("LastAppraisedDate");
         });
 
+        // Useful-life years for the outbound Collateral Result interface (Life Year).
+        builder.Property(d => d.LifeYear).HasPrecision(5, 1).IsRequired(false);
+
         builder.Property(d => d.IsDeleted).IsRequired().HasDefaultValue(false);
 
         // Filtered unique index — tier 1: when registration no is present

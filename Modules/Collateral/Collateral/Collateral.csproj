@@ -11,8 +11,11 @@
       <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj"/>
       <ProjectReference Include="../Collateral.Contracts/Collateral.Contracts.csproj"/>
       <ProjectReference Include="..\..\Request\Request.Contracts\Request.Contracts.csproj"/>
-      <!-- In-process MediatR query for collateral upsert write path -->
-      <ProjectReference Include="..\..\Appraisal\Appraisal\Appraisal.csproj"/>
+      <!-- Outbound file sink port (impl registered by the Integration module) -->
+      <ProjectReference Include="..\..\Integration\Integration.Contracts\Integration.Contracts.csproj"/>
+      <!-- Contracts only: in-process MediatR query types (handlers live in the Appraisal module,
+           resolved at runtime via DI). No reference to the Appraisal implementation assembly. -->
+      <ProjectReference Include="..\..\Appraisal\Appraisal.Contracts\Appraisal.Contracts.csproj"/>
   </ItemGroup>
 
 </Project>

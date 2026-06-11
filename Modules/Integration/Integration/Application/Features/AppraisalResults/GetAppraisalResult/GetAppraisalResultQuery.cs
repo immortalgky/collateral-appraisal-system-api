@@ -14,16 +14,22 @@ public record GetAppraisalResultResponse(
     decimal? AppraisalFee,
     string? AppraisalSource,
     string? ValuerName,
+    string? ValuerCode,
     string? ValuationDate,
+    string? AppraisalDate,
     decimal? TotalAppraisalValue,
     decimal? ForceSalePrice,
     decimal? FireInsurance,
+    decimal? MarketValue,
     List<AppraisalResultGroup> Groups,
     List<AppraisalResultDocument> Documents);
 
 public record AppraisalResultGroup(
     decimal? AppraisalValue,
     string? AppraisalMethod,
+    decimal? LandValue,
+    decimal? BuildingValue,
+    decimal? UnitPrice,
     List<AppraisalResultCollateral> Collaterals);
 
 public record AppraisalResultCollateral(
@@ -56,6 +62,7 @@ public record AppraisalResultCollateral(
     string? Province,
     string? District,
     string? SubDistrict,
+    string? LandOffice,
     // Vehicle/Vessel/Machinery identity
     string? VehicleRegistrationNo,
     string? VehicleBrand,

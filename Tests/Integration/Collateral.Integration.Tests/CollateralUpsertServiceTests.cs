@@ -2,6 +2,7 @@ using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using Collateral.Application.Features.CollateralMasters.Lookup;
 using Collateral.CollateralMasters.Exceptions;
+using Collateral.Contracts;
 using Collateral.Contracts.Engagements;
 using Collateral.CollateralMasters.Models;
 using Collateral.CollateralMasters.Services;

@@ -52,6 +52,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Folder Include="outbound\" />
         <Folder Include="reappraisal\inbox\" />
         <Folder Include="reappraisal\processed\"/>
         <Folder Include="wwwroot\"/>

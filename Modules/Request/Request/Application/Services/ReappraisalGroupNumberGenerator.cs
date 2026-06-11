@@ -2,12 +2,12 @@ namespace Request.Application.Services;
 
 /// <summary>
 /// Generates sequential reappraisal group numbers in the format {YY}G{000001}
-/// (e.g. "26G000001"), using the same UPDLOCK/ROWLOCK/HOLDLOCK pattern as
-/// <see cref="AppraisalNumberGenerator"/> to prevent gaps or duplicate numbers.
+/// (e.g. "68G000001"), using the same UPDLOCK/ROWLOCK/HOLDLOCK pattern as
+/// AppraisalNumberGenerator to prevent gaps or duplicate numbers.
+/// Used by CreateBlockReappraisalCommandHandler (block reappraisal path).
 /// </summary>
 public class ReappraisalGroupNumberGenerator(RequestDbContext context) : IReappraisalGroupNumberGenerator
 {
-    // TODO(confirm): confirm prefix "G" and format "{YY}G{000001}" with business.
     private const string TypeName = "REAPPRAISAL_GROUP";
     private const string Prefix = "G";
 
@@ -24,22 +24,18 @@ public class ReappraisalGroupNumberGenerator(RequestDbContext context) : IReappr
 
     private async Task<int> GetNextRunningNumberAsync(int year, CancellationToken cancellationToken)
     {
-        // SQL with UPDLOCK, ROWLOCK, HOLDLOCK for row-level locking:
-        // - UPDLOCK: blocks other UPDATE/DELETE on same row
-        // - ROWLOCK: ensures row-level lock (no page/table escalation)
-        // - HOLDLOCK: holds lock until transaction commits/rollbacks
         const string sql = """
             DECLARE @NextNumber INT;
 
             UPDATE dbo.RunningNumbers WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
             SET @NextNumber = CurrentNumber = CurrentNumber + 1,
-                UpdatedOn = GETUTCDATE()
+                UpdatedOn = GETDATE()
             WHERE Type = {0} AND Year = {1};
 
             IF @@ROWCOUNT = 0
             BEGIN
                 INSERT INTO dbo.RunningNumbers (Type, Prefix, CurrentNumber, Year, CreatedOn)
-                VALUES ({0}, {2}, 1, {1}, GETUTCDATE());
+                VALUES ({0}, {2}, 1, {1}, GETDATE());
                 SET @NextNumber = 1;
             END
 

@@ -1,3 +1,4 @@
+using Appraisal.Contracts.Appraisals;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Projects;
 using Appraisal.Infrastructure;
@@ -68,9 +69,36 @@ public class GetAppraisalForCollateralQueryHandler(
                               ?? latestAssignment?.ExternalAppraiserId;
         var companyId = latestAssignment?.AssigneeCompanyId;
 
-        // Company name is denormalized on `ExternalAppraiserName` when set; otherwise null.
-        // Cross-module lookup against auth.Companies is a v1.x follow-up.
-        var companyName = latestAssignment?.ExternalAppraiserName;
+        // Resolve the external company name and the bank-side appraiser display name from the auth
+        // schema BY ID — the denormalized *AppraiserName columns on AppraisalAssignment hold the external
+        // person's name and are unreliable for this (see appraiser-information semantics). The Collateral
+        // Result interface needs ExternalValuerName (company) + InternalValuerName (bank staff).
+        // AssigneeCompanyId is nvarchar while auth.Companies.Id is uniqueidentifier → TRY_CAST
+        // (a non-Guid value safely becomes NULL and the join misses). Users are keyed by UserName
+        // (bank code), NOT by Id.
+        const string nameLookupSql = """
+            SELECT
+              (SELECT TOP 1 c.Name
+                 FROM auth.Companies c
+                 WHERE c.Id = TRY_CAST(@CompanyId AS uniqueidentifier) AND c.IsDeleted = 0)  AS CompanyName,
+              (SELECT TOP 1 c.HostCompanyCode
+                 FROM auth.Companies c
+                 WHERE c.Id = TRY_CAST(@CompanyId AS uniqueidentifier) AND c.IsDeleted = 0)  AS CompanyCode,
+              (SELECT TOP 1 LTRIM(RTRIM(CONCAT(u.FirstName, ' ', u.LastName)))
+                 FROM auth.AspNetUsers u
+                 WHERE u.UserName = @AppraiserUserId)                                         AS AppraiserName
+            """;
+        var resolvedNames = await connectionFactory.QueryFirstOrDefaultAsync<AppraiserNameLookup>(
+            nameLookupSql, new { CompanyId = companyId, AppraiserUserId = appraiserUserId });
+
+        // Company name from auth.Companies only (do NOT fall back to ExternalAppraiserName — that is a
+        // person's name, not the company). Appraiser name from auth.AspNetUsers, with the denormalized
+        // InternalAppraiserName as a harmless last-resort fallback when the id doesn't resolve.
+        var companyName = resolvedNames?.CompanyName;
+        var companyCode = resolvedNames?.CompanyCode;
+        var appraiserName = string.IsNullOrWhiteSpace(resolvedNames?.AppraiserName)
+            ? latestAssignment?.InternalAppraiserName
+            : resolvedNames.AppraiserName;
 
         // AppraisalDate represents the *visit* (appointment) date, not the system completion.
         // Source: latest non-Cancelled appointment for the assignment, regardless of status.
@@ -105,19 +133,25 @@ public class GetAppraisalForCollateralQueryHandler(
 
         var groupMembershipLookup = BuildGroupMembershipLookup(appraisal);
 
+        // Machinery useful-life (Life Year) from the selected MachineryCost method's cost items.
+        var machineLifeYearLookup = await BuildMachineLifeYearLookupAsync(
+            dbContext, appraisal, cancellationToken);
+
         var properties = appraisal.Properties
-            .Select(p => MapProperty(p, appraisedValueLookup, pricingLookup, groupMembershipLookup))
+            .Select(p => MapProperty(p, appraisedValueLookup, pricingLookup, groupMembershipLookup, machineLifeYearLookup))
             .ToList();
 
         // Appraisal-level total: ValuationAnalyses is 1:1 with Appraisal (unique index on AppraisalId)
         // and AppraisalFinalValuesChangedEventHandler maintains its AppraisedValue as the sum across
         // all PropertyGroups. Stamped onto each engagement so the engagement reflects the true
         // appraisal total (e.g. land + buildings combined for Land appraisals).
-        var appraisalTotal = await dbContext.ValuationAnalyses
+        var valuation = await dbContext.ValuationAnalyses
             .AsNoTracking()
             .Where(v => v.AppraisalId == appraisal.Id)
-            .Select(v => (decimal?)v.AppraisedValue)
+            .Select(v => new { v.AppraisedValue, v.ForcedSaleValue })
             .FirstOrDefaultAsync(cancellationToken);
+        decimal? appraisalTotal = valuation?.AppraisedValue;
+        decimal? forcedSaleValue = valuation?.ForcedSaleValue;
 
         // Stamp onto the engagement "the inspection fee the NEXT Progressive appraisal should charge",
         // so the fee chains uniformly: original → 1st inspection → 2nd inspection → …
@@ -190,12 +224,15 @@ public class GetAppraisalForCollateralQueryHandler(
             AppraiserUserId: appraiserUserId,
             CompanyId: companyId,
             CompanyName: companyName,
+            CompanyCode: companyCode,
             AppraisedValue: appraisalTotal,
             ConstructionInspectionFeeAmount: constructionInspectionFee,
             Properties: properties,
             Project: projectDto,
             PrevAppraisalId: appraisal.PrevAppraisalId,
-            CustomerName: customerName
+            CustomerName: customerName,
+            ForcedSaleValue: forcedSaleValue,
+            AppraiserName: appraiserName
         );
     }
 
@@ -250,7 +287,7 @@ public class GetAppraisalForCollateralQueryHandler(
             ? units.Sum(u => u.SellingPrice ?? 0m)
             : null;
 
-        string projectTypeStr = project.ProjectType.ToString(); // "Condo" | "LandAndBuilding"
+        string projectTypeStr = project.ProjectType.ToString(); // code: "U" (Condo) | "LB" (LandAndBuilding) | "L" (Land)
 
         string? address = project.Address is not null
             ? string.Join(", ", new[] { project.Address.Province, project.Address.District }
@@ -460,11 +497,41 @@ public class GetAppraisalForCollateralQueryHandler(
         return lookup;
     }
 
+    /// <summary>
+    /// Builds a lookup of AppraisalPropertyId → LifeSpanYears for machinery properties.
+    /// MachineCostItem is a regular DbSet keyed by AppraisalPropertyId; we take the first
+    /// non-null LifeSpanYears per property (one cost item per machine in the selected method).
+    /// </summary>
+    private static async Task<Dictionary<Guid, decimal?>> BuildMachineLifeYearLookupAsync(
+        AppraisalDbContext dbContext,
+        Domain.Appraisals.Appraisal appraisal,
+        CancellationToken ct)
+    {
+        var macPropertyIds = appraisal.Properties
+            .Where(p => p.MachineryDetail is not null)
+            .Select(p => p.Id)
+            .ToList();
+
+        if (macPropertyIds.Count == 0)
+            return new Dictionary<Guid, decimal?>();
+
+        var items = await dbContext.MachineCostItems
+            .AsNoTracking()
+            .Where(mci => macPropertyIds.Contains(mci.AppraisalPropertyId) && mci.LifeSpanYears != null)
+            .Select(mci => new { mci.AppraisalPropertyId, mci.LifeSpanYears })
+            .ToListAsync(ct);
+
+        return items
+            .GroupBy(x => x.AppraisalPropertyId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.LifeSpanYears).FirstOrDefault());
+    }
+
     private static AppraisalPropertyForCollateral MapProperty(
         AppraisalProperty p,
         Dictionary<Guid, decimal?> appraisedValueLookup,
         Dictionary<Guid, PricingInfoForCollateral> pricingLookup,
-        Dictionary<Guid, (Guid GroupId, int GroupNumber, int SequenceInGroup)> groupMembershipLookup)
+        Dictionary<Guid, (Guid GroupId, int GroupNumber, int SequenceInGroup)> groupMembershipLookup,
+        Dictionary<Guid, decimal?> machineLifeYearLookup)
     {
         appraisedValueLookup.TryGetValue(p.Id, out var appraisedValue);
         pricingLookup.TryGetValue(p.Id, out var pricingInfo);
@@ -541,7 +608,8 @@ public class GetAppraisalForCollateralQueryHandler(
                 Model: p.MachineryDetail.Model,
                 Manufacturer: p.MachineryDetail.Manufacturer,
                 Location: p.MachineryDetail.Location,
-                OwnerName: p.MachineryDetail.OwnerName
+                OwnerName: p.MachineryDetail.OwnerName,
+                LifeYear: machineLifeYearLookup.TryGetValue(p.Id, out var lifeYear) ? lifeYear : null
             )
             : null;
 
@@ -611,4 +679,7 @@ public class GetAppraisalForCollateralQueryHandler(
             Remark: ci.Remark
         );
     }
+
+    /// <summary>Row shape for the auth name lookup (external company + bank-side appraiser display name).</summary>
+    private sealed record AppraiserNameLookup(string? CompanyName, string? CompanyCode, string? AppraiserName);
 }

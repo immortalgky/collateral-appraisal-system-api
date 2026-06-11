@@ -188,6 +188,10 @@ namespace Collateral.Migrations
                     b.Property<Guid?>("AppraisalCompanyId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AppraisalCompanyCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
                     b.Property<string>("AppraisalCompanyName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -220,6 +224,10 @@ namespace Collateral.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<decimal?>("BuildingValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<Guid>("CollateralMasterId")
                         .HasColumnType("uniqueidentifier");
 
@@ -231,9 +239,21 @@ namespace Collateral.Migrations
                         .HasColumnType("datetime2")
                         .HasColumnName("CreatedAt");
 
+                    b.Property<decimal?>("ForcedSaleValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("InternalAppraiserName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<decimal?>("LandAreaInSqWa")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("LandValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
@@ -334,6 +354,10 @@ namespace Collateral.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("HostCollateralId")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -370,6 +394,10 @@ namespace Collateral.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CollateralType");
+
+                    b.HasIndex("HostCollateralId")
+                        .HasDatabaseName("IX_CollateralMasters_HostCollateralId")
+                        .HasFilter("[HostCollateralId] IS NOT NULL");
 
                     b.HasIndex("IsDeleted");
 
@@ -416,6 +444,41 @@ namespace Collateral.Migrations
                         .HasDatabaseName("IX_CollateralMasterAuditLogs_Master_ChangedAt");
 
                     b.ToTable("CollateralMasterAuditLogs", "collateral");
+                });
+
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralResultLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppraisalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AppraisalNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CollateralId")
+                        .IsRequired()
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppraisalId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CollateralResultLogs_Appraisal");
+
+                    b.ToTable("CollateralResultLogs", "collateral");
                 });
 
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CondoDetail", b =>
@@ -700,6 +763,10 @@ namespace Collateral.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<decimal?>("LifeYear")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("decimal(5,1)");
+
                     b.Property<string>("MachineRegistrationNo")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -732,6 +799,46 @@ namespace Collateral.Migrations
                         .HasFilter("[MachineRegistrationNo] IS NULL AND [IsDeleted] = 0");
 
                     b.ToTable("MachineDetails", "collateral");
+                });
+
+            modelBuilder.Entity("Collateral.CollateralMasters.Models.PendingCollateralResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppraisalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AppraisalNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("HostCollateralId")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
+                    b.Property<DateTime>("RejectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SentFileName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppraisalId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PendingCollateralResults_Appraisal");
+
+                    b.HasIndex("SentAt")
+                        .HasDatabaseName("IX_PendingCollateralResults_SentAt")
+                        .HasFilter("[SentAt] IS NULL");
+
+                    b.ToTable("PendingCollateralResults", "collateral");
                 });
 
             modelBuilder.Entity("Collateral.CollateralMasters.Models.ProjectDetail", b =>
@@ -889,6 +996,236 @@ namespace Collateral.Migrations
                     b.ToTable("ProjectUnits", "collateral");
                 });
 
+            modelBuilder.Entity("Collateral.CollateralMasters.Reappraisal.ReappraisalCandidate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AoCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("AoName")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ApplicationNumber")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
+                    b.Property<string>("BusinessSize")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("BusinessSizeDesc")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("CarCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("CifName")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("CifNumber")
+                        .IsRequired()
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
+                    b.Property<string>("CollateralAddress")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("CollateralCategory")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
+
+                    b.Property<string>("CollateralCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("CollateralDescription")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CollateralId")
+                        .IsRequired()
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
+                    b.Property<string>("CollateralName")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("CountAgeingDate")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CpNumber")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<decimal?>("CurrentValue")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<DateOnly>("EffectiveDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("EffectiveDateAppraisal")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ExternalValuerName")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("FacilityCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<decimal?>("FacilityLimit")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<string>("FacilitySequence")
+                        .HasMaxLength(19)
+                        .HasColumnType("nvarchar(19)");
+
+                    b.Property<string>("FlagGreaterAge4Y")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("FlagLessAge4Y")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("Group")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("IBGRetail")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("IngestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InternalExternal")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("InternalValuerName")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<decimal?>("Latitude")
+                        .HasPrecision(10, 7)
+                        .HasColumnType("decimal(10,7)");
+
+                    b.Property<decimal?>("Longitude")
+                        .HasPrecision(10, 7)
+                        .HasColumnType("decimal(10,7)");
+
+                    b.Property<decimal?>("MortgageAmount")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<int?>("PastDueDay")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("ReviewDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ReviewType")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("RowHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("SllDescription")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("SllOver100M")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<DateOnly>("SourceFileDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("SourceFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("Stage")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SurveyNumber")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("TitleNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateOnly?>("ValuationDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewDate")
+                        .HasDatabaseName("IX_ReappraisalCandidate_ReviewDate");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_ReappraisalCandidate_Status_Pending")
+                        .HasFilter("[Status] = 'Pending'");
+
+                    b.HasIndex("SourceFileDate", "CollateralId", "SurveyNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ReappraisalCandidate_FileDate_CollateralId_SurveyNumber");
+
+                    b.ToTable("ReappraisalCandidates", "collateral");
+                });
+
+            modelBuilder.Entity("Shared.Data.Lease.BackgroundServiceLease", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("AcquiredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InstanceId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("LeasedUntil")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BackgroundServiceLease", "collateral");
+                });
+
             modelBuilder.Entity("Shared.Data.Outbox.InboxMessage", b =>
                 {
                     b.Property<Guid>("MessageId")
@@ -918,6 +1255,64 @@ namespace Collateral.Migrations
                         .HasDatabaseName("IX_InboxMessage_StaleProcessing");
 
                     b.ToTable("InboxMessage", "collateral");
+                });
+
+            modelBuilder.Entity("Shared.Data.Outbox.IntegrationEventOutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Headers")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "OccurredAt")
+                        .HasDatabaseName("IX_IntegrationEventOutbox_Polling");
+
+                    b.HasIndex("Status", "ProcessedAt")
+                        .HasDatabaseName("IX_IntegrationEventOutbox_Cleanup");
+
+                    b.HasIndex("Status", "RetryCount")
+                        .HasDatabaseName("IX_IntegrationEventOutbox_DeadLetter");
+
+                    b.HasIndex("CorrelationId", "Status", "OccurredAt")
+                        .HasDatabaseName("IX_IntegrationEventOutbox_Correlation");
+
+                    b.ToTable("IntegrationEventOutbox", "collateral");
                 });
 
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralDocument", b =>

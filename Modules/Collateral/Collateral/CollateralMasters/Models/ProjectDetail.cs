@@ -16,7 +16,7 @@ public class ProjectDetail
     public Guid CollateralMasterId { get; private set; }
 
     // Project-level fields (last-known)
-    public string ProjectType { get; private set; } = null!; // "Condo" | "LandAndBuilding"
+    public string ProjectType { get; private set; } = null!; // code: "U" (Condo) | "LB" (LandAndBuilding) | "L" (Land)
     public string? ProjectName { get; private set; }
     public string? Developer { get; private set; }
     public string? Address { get; private set; }

@@ -1,3 +1,4 @@
+using Appraisal.Contracts.Appraisals;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using Shared.CQRS;

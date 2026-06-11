@@ -9,6 +9,8 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+        <!-- Explicit: SftpFileSink uses Renci.SshNet directly (don't rely on the transitive ref via Shared). -->
+        <PackageReference Include="SSH.NET" />
     </ItemGroup>
 
     <ItemGroup>
@@ -19,6 +21,7 @@
         <ProjectReference Include="../../Workflow/Workflow.Contracts/Workflow.Contracts.csproj"/>
         <ProjectReference Include="../../Document/Document/Document.csproj"/>
         <ProjectReference Include="../../Appraisal/Appraisal/Appraisal.csproj"/>
+        <ProjectReference Include="../../Collateral/Collateral.Contracts/Collateral.Contracts.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

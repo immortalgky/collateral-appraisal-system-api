@@ -1,10 +1,11 @@
 namespace Request.Application.Services;
 
+/// <summary>
+/// Generates sequential reappraisal group numbers (e.g. "68G000001").
+/// Used by CreateBlockReappraisalCommandHandler for the block reappraisal path.
+/// The AS400 COLLATREV path uses the Collateral module's equivalent.
+/// </summary>
 public interface IReappraisalGroupNumberGenerator
 {
-    /// <summary>
-    /// Generates the next reappraisal group number within the caller's transaction.
-    /// Uses UPDLOCK/ROWLOCK/HOLDLOCK on dbo.RunningNumbers to prevent gaps or duplicates.
-    /// </summary>
     Task<string> GenerateAsync(CancellationToken cancellationToken = default);
 }

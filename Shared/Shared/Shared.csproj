@@ -23,7 +23,6 @@
         <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions"/>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
         <PackageReference Include="Newtonsoft.Json"/>
-        <PackageReference Include="SSH.NET"/>
         <PackageReference Include="Scrutor"/>
         <PackageReference Include="Serilog"/>
 
