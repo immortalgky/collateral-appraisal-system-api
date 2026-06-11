@@ -43,6 +43,10 @@ public class GetUsersQueryHandler(
             q = q.Where(u => dbContext.TeamMembers
                 .Any(tm => tm.UserId == u.Id && tm.TeamId == query.TeamId.Value));
 
+        // Company filter: restrict to users belonging to the given company (Company-scoped users)
+        if (query.CompanyId.HasValue)
+            q = q.Where(u => u.CompanyId == query.CompanyId.Value);
+
         // Active status filter
         if (query.IsActive.HasValue)
             q = q.Where(u => u.IsActive == query.IsActive.Value);
