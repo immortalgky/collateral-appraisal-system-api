@@ -26,7 +26,7 @@ public class LdapAuthenticationService(
                 return new LdapAuthResult(false, ErrorMessage: "User not found in directory.");
 
             // Step 2: Bind with user credentials to validate password
-            ValidateUserCredentials(userDn, password);
+            ValidateUserCredentials(username, userDn, password);
 
             // Step 3: Read user attributes with service account
             var userInfo = await ReadUserAttributesAsync(username, userDn);
@@ -51,10 +51,38 @@ public class LdapAuthenticationService(
         }
     }
 
+    public async Task<LdapUserInfo?> GetUserInfoAsync(string username)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+            return null;
+
+        try
+        {
+            var userDn = await FindUserDnAsync(username);
+            if (userDn is null)
+            {
+                logger.LogInformation("LDAP lookup found no user: {Username}", username);
+                return null;
+            }
+
+            return await ReadUserAttributesAsync(username, userDn);
+        }
+        catch (LdapException ex)
+        {
+            logger.LogError(ex, "LDAP error during user lookup for: {Username}", username);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error during LDAP user lookup for: {Username}", username);
+            return null;
+        }
+    }
+
     private Task<string?> FindUserDnAsync(string username)
     {
         using var connection = CreateConnection();
-        connection.Bind(new NetworkCredential(_config.BindDn, _config.BindPassword));
+        BindAsServiceIdentity(connection);
 
         var escapedUsername = EscapeLdapSearchFilter(username);
         var filter = string.Format(_config.SearchFilter, escapedUsername);
@@ -77,16 +105,32 @@ public class LdapAuthenticationService(
         return Task.FromResult<string?>(dn);
     }
 
-    private void ValidateUserCredentials(string userDn, string password)
+    private void ValidateUserCredentials(string username, string userDn, string password)
     {
         using var connection = CreateConnection();
-        connection.Bind(new NetworkCredential(userDn, password));
+
+        // Integrated mode uses Negotiate, which authenticates by sAMAccountName + domain — not a DN.
+        // Service-account mode uses a simple bind (AuthType.Basic), which binds by the user's DN.
+        if (_config.UseIntegratedAuth)
+        {
+            connection.Bind(new NetworkCredential(username, password, _config.Domain));
+        }
+        else
+        {
+            // Simple bind sends the password in the clear; without LDAPS the user's AD password
+            // would cross the wire unencrypted. Refuse rather than leak it.
+            if (!_config.UseSsl)
+                throw new InvalidOperationException(
+                    "LDAP service-account mode (UseIntegratedAuth=false) requires UseSsl=true; refusing to send the user password over an unencrypted connection.");
+
+            connection.Bind(new NetworkCredential(userDn, password));
+        }
     }
 
     private Task<LdapUserInfo> ReadUserAttributesAsync(string username, string userDn)
     {
         using var connection = CreateConnection();
-        connection.Bind(new NetworkCredential(_config.BindDn, _config.BindPassword));
+        BindAsServiceIdentity(connection);
 
         var attrs = _config.Attributes;
         var searchRequest = new SearchRequest(
@@ -97,6 +141,12 @@ public class LdapAuthenticationService(
             attrs.LastName, attrs.Department, attrs.Position);
 
         var response = (SearchResponse)connection.SendRequest(searchRequest);
+        if (response.Entries.Count == 0)
+        {
+            logger.LogWarning("LDAP attribute lookup returned no entries for DN: {UserDn}", userDn);
+            throw new InvalidOperationException($"No LDAP entry found for DN '{userDn}'.");
+        }
+
         var entry = response.Entries[0];
 
         var userInfo = new LdapUserInfo(
@@ -121,10 +171,24 @@ public class LdapAuthenticationService(
 
         connection.SessionOptions.ProtocolVersion = 3;
 
+        // Integrated  -> Negotiate (Kerberos/NTLM) using the process/app-pool identity; seals traffic on plain LDAP.
+        // Service acct -> Basic (simple bind), the only mode that accepts a distinguished name as the bind identity.
+        connection.AuthType = _config.UseIntegratedAuth ? AuthType.Negotiate : AuthType.Basic;
+
         if (_config.UseSsl)
             connection.SessionOptions.SecureSocketLayer = true;
 
         return connection;
+    }
+
+    private void BindAsServiceIdentity(LdapConnection connection)
+    {
+        // Integrated: bind as the app's own Windows identity (no credentials supplied).
+        // Service account: bind with the configured BindDn/BindPassword (simple bind).
+        if (_config.UseIntegratedAuth)
+            connection.Bind();
+        else
+            connection.Bind(new NetworkCredential(_config.BindDn, _config.BindPassword));
     }
 
     private static string? GetAttribute(SearchResultEntry entry, string attributeName)

@@ -1,3 +1,3 @@
 namespace Auth.Application.Features.Groups.UpdateGroup;
 
-public record UpdateGroupRequest(string Name, string Description);
+public record UpdateGroupRequest(string Name, string Description, string Scope);

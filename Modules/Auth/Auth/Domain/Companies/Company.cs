@@ -13,6 +13,7 @@ public class Company : Entity<Guid>
     public string? Province { get; private set; }
     public string? PostalCode { get; private set; }
     public string? ContactPerson { get; private set; }
+    public string? HostCompanyCode { get; private set; }
     public string? BankAccountNo { get; private set; }
     public string? BankAccountName { get; private set; }
     public List<string> LoanTypes { get; private set; } = [];
@@ -34,6 +35,7 @@ public class Company : Entity<Guid>
         string? province = null,
         string? postalCode = null,
         string? contactPerson = null,
+        string? hostCompanyCode = null,
         List<string>? loanTypes = null)
     {
         return new Company
@@ -48,6 +50,7 @@ public class Company : Entity<Guid>
             Province = province,
             PostalCode = postalCode,
             ContactPerson = contactPerson,
+            HostCompanyCode = hostCompanyCode,
             LoanTypes = loanTypes ?? [],
             IsActive = true,
             IsDeleted = false
@@ -65,6 +68,7 @@ public class Company : Entity<Guid>
         string? postalCode,
         string? contactPerson,
         bool isActive,
+        string? hostCompanyCode = null,
         List<string>? loanTypes = null)
     {
         Name = name;
@@ -76,6 +80,7 @@ public class Company : Entity<Guid>
         Province = province;
         PostalCode = postalCode;
         ContactPerson = contactPerson;
+        HostCompanyCode = hostCompanyCode;
         LoanTypes = loanTypes ?? [];
         IsActive = isActive;
     }

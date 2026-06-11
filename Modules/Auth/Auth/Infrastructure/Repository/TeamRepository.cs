@@ -20,7 +20,7 @@ public class TeamRepository(AuthDbContext dbContext) : ITeamRepository
 
     public async Task<PaginatedResult<Team>> GetPaginatedAsync(
         string? search,
-        string? type,
+        string? scope,
         PaginationRequest paginationRequest,
         CancellationToken cancellationToken = default)
     {
@@ -31,8 +31,8 @@ public class TeamRepository(AuthDbContext dbContext) : ITeamRepository
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(t => t.Name.Contains(search));
 
-        if (!string.IsNullOrWhiteSpace(type))
-            query = query.Where(t => t.Type == type);
+        if (!string.IsNullOrWhiteSpace(scope))
+            query = query.Where(t => t.Scope == scope);
 
         return await query
             .OrderBy(t => t.Name)

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
+using Auth.Application.Services;
 using Auth.Infrastructure.Repository;
 using Auth.Domain.Identity;
 using OpenIddict.Abstractions;
@@ -11,7 +12,8 @@ public class RegistrationService(
     UserManager<ApplicationUser> userManager,
     IOpenIddictApplicationManager applicationManager,
     IPermissionRepository permissionRepository,
-    RoleManager<ApplicationRole> roleManager
+    RoleManager<ApplicationRole> roleManager,
+    IPasswordHistoryRecorder passwordHistoryRecorder
 ) : IRegistrationService
 {
     public async Task<ApplicationUser> RegisterUser(
@@ -36,6 +38,13 @@ public class RegistrationService(
             Position = registerUserDto.Position,
             Department = registerUserDto.Department,
             CompanyId = registerUserDto.CompanyId,
+            AuthSource = registerUserDto.AuthSource,
+            // Make the account lockable per-row so failed-attempt lockout actually engages — including
+            // the LDAP login path, where UserManager.AccessFailedAsync only locks when this flag is set.
+            LockoutEnabled = true,
+            // Local accounts are created with an admin-set password — force the user to choose
+            // their own on first login. LDAP accounts authenticate against AD (no local password).
+            MustChangePassword = !AuthSources.IsLdap(registerUserDto.AuthSource),
             Permissions =
             [
                 .. registerUserDto.Permissions.Select(userPermission => new UserPermission
@@ -46,8 +55,17 @@ public class RegistrationService(
             ]
         };
 
-        var result = await userManager.CreateAsync(user, registerUserDto.Password);
+        // LDAP users authenticate against AD and never use a local password hash. Create them
+        // WITHOUT a password so DbPasswordValidator (which runs on every CreateAsync-with-password)
+        // doesn't evaluate a synthetic secret — a random throwaway can randomly fail the policy
+        // (e.g. no non-alphanumeric char), making LDAP user creation intermittently throw.
+        var result = AuthSources.IsLdap(registerUserDto.AuthSource)
+            ? await userManager.CreateAsync(user)
+            : await userManager.CreateAsync(user, registerUserDto.Password);
         HandleIdentityResult(result);
+
+        // Stamp PasswordChangedAt + seed password history (no-op for LDAP accounts).
+        await passwordHistoryRecorder.RecordAsync(user, cancellationToken);
 
         var roleResult = await userManager.AddToRolesAsync(user, roleNames);
         HandleIdentityResult(roleResult);

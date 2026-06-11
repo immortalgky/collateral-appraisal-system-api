@@ -5,6 +5,9 @@ public record GetUsersQuery(
     string? Scope,
     string? Role,
     bool? IsActive,
+    Guid? GroupId,
+    Guid? TeamId,
+    Guid? CompanyId,
     int PageNumber = 1,
     int PageSize = 20)
     : IQuery<GetUsersResult>;

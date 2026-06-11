@@ -12,9 +12,11 @@ public class UpdateUserEndpoint : ICarterModule
                         id,
                         request.FirstName,
                         request.LastName,
+                        request.Email,
                         request.Position,
                         request.Department,
-                        request.CompanyId);
+                        request.CompanyId,
+                        request.AuthSource);
                     await sender.Send(command, cancellationToken);
                     return Results.NoContent();
                 })

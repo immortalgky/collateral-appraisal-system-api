@@ -1,5 +1,6 @@
 using Auth.Domain.Auditing;
 using Auth.Domain.Companies;
+using Auth.Domain.Configuration;
 using Auth.Domain.Groups;
 using Auth.Domain.Menu;
 using Auth.Domain.Preferences;
@@ -25,6 +26,8 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
     public DbSet<ActivityMenuOverride> ActivityMenuOverrides => Set<ActivityMenuOverride>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
     public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
+    public DbSet<PasswordPolicy> PasswordPolicy => Set<PasswordPolicy>();
+    public DbSet<PasswordHistory> PasswordHistory => Set<PasswordHistory>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

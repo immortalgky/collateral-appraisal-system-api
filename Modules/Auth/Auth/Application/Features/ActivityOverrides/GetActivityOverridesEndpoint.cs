@@ -7,8 +7,9 @@ namespace Auth.Application.Features.ActivityOverrides;
 /// Admin endpoint: returns the full list of appraisal-scope menu items joined
 /// with any existing override row for the given activity. Items without an
 /// override row come back with <see cref="ActivityOverrideRowDto.HasOverride"/>
-/// = false and defaults IsVisible=true / CanEdit=false — making the UI a simple
-/// "mark the deviations" experience.
+/// = false and the "inherit role" no-op defaults IsVisible=true / CanEdit=true
+/// — making the UI a simple "mark the restrictions" experience. Overrides only
+/// restrict (hide / read-only); they never grant beyond the user's role.
 /// </summary>
 public class GetActivityOverridesEndpoint : ICarterModule
 {
@@ -38,7 +39,7 @@ public class GetActivityOverridesEndpoint : ICarterModule
                             var label = item.Translations.FirstOrDefault(t => t.LanguageCode == "en")?.Label ?? item.ItemKey;
                             if (overrides.TryGetValue(item.Id, out var ov))
                                 return new ActivityOverrideRowDto(item.Id, item.ItemKey, label, ov.IsVisible, ov.CanEdit, HasOverride: true);
-                            return new ActivityOverrideRowDto(item.Id, item.ItemKey, label, IsVisible: true, CanEdit: false, HasOverride: false);
+                            return new ActivityOverrideRowDto(item.Id, item.ItemKey, label, IsVisible: true, CanEdit: true, HasOverride: false);
                         })
                         .ToList();
 

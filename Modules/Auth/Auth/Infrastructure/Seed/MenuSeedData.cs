@@ -126,8 +126,6 @@ public static class MenuSeedData
         new("main.user-management", "User Management", "users", IconStyle.Solid, "text-violet-500", "/users", "USER_MANAGE", null,
             new List<MenuSeedNode>
             {
-                new("main.user-management.user-list", "User List", "list", IconStyle.Solid, "text-violet-500", "/users", "USER_MANAGE", null),
-                new("main.user-management.role-assignment", "Role Assignment", "user-shield", IconStyle.Solid, "text-violet-500", "/users/roles", "USER_MANAGE", null),
                 new("main.user-management.permissions", "Permissions", "shield-halved", IconStyle.Solid, "text-violet-500", "/admin/permissions", "PERMISSION_MANAGE", null),
                 new("main.user-management.roles", "Roles", "user-shield", IconStyle.Solid, "text-violet-500", "/admin/roles", "ROLE_MANAGE", null),
                 new("main.user-management.groups", "Groups", "users-rectangle", IconStyle.Solid, "text-violet-500", "/admin/groups", "GROUP_MANAGE", null),
@@ -135,6 +133,7 @@ public static class MenuSeedData
                 new("main.user-management.menus", "Menus", "bars", IconStyle.Solid, "text-violet-500", "/admin/menus", "MENU_MANAGE", "MENU_MANAGE"),
                 new("main.user-management.teams", "Teams", "people-group", IconStyle.Solid, "text-violet-500", "/admin/teams", "TEAM_MANAGE", null),
                 new("main.user-management.companies", "Companies", "building", IconStyle.Solid, "text-violet-500", "/admin/companies", "COMPANY_MANAGE", null),
+                new("main.user-management.password-policy", "Password Policy", "lock", IconStyle.Solid, "text-violet-500", "/admin/password-policy", "PASSWORD_POLICY_MANAGE", "PASSWORD_POLICY_MANAGE"),
             }),
         new("main.collateral-master", "Collateral Master", "buildings", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters", "COLLATERAL_ADMIN", null,
             new List<MenuSeedNode>

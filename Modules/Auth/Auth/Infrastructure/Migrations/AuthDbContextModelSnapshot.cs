@@ -140,6 +140,10 @@ namespace Auth.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("HostCompanyCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -194,6 +198,57 @@ namespace Auth.Infrastructure.Migrations
                         .HasFilter("IsDeleted = 0");
 
                     b.ToTable("Companies", "auth");
+                });
+
+            modelBuilder.Entity("Auth.Domain.Configuration.PasswordPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("Blocklist")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("");
+
+                    b.Property<int>("ExpiryDays")
+                        .HasColumnType("int");
+
+                    b.Property<int>("HistoryCount")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("LockoutEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LockoutMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxFailedAccessAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("RequireDigit")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireLowercase")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireNonAlphanumeric")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireUppercase")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("RequiredLength")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RequiredUniqueChars")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PasswordPolicy", "auth");
                 });
 
             modelBuilder.Entity("Auth.Domain.Groups.Group", b =>
@@ -334,7 +389,10 @@ namespace Auth.Infrastructure.Migrations
 
                     b.Property<string>("AuthSource")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Local");
 
                     b.Property<string>("AvatarUrl")
                         .HasMaxLength(500)
@@ -395,6 +453,9 @@ namespace Auth.Infrastructure.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<DateTime?>("PasswordChangedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
 
@@ -421,14 +482,46 @@ namespace Auth.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("NormalizedEmail")
-                        .HasDatabaseName("EmailIndex");
+                        .IsUnique()
+                        .HasDatabaseName("EmailIndex")
+                        .HasFilter("[NormalizedEmail] IS NOT NULL");
 
                     b.HasIndex("NormalizedUserName")
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
+                    b.HasIndex("UserName")
+                        .HasDatabaseName("IX_AspNetUsers_UserName");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("UserName"), new[] { "FirstName", "LastName" });
+
                     b.ToTable("AspNetUsers", "auth");
+                });
+
+            modelBuilder.Entity("Auth.Domain.Identity.PasswordHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("IX_PasswordHistory_UserId_CreatedAt");
+
+                    b.ToTable("PasswordHistory", "auth");
                 });
 
             modelBuilder.Entity("Auth.Domain.Identity.Permission", b =>
@@ -717,22 +810,21 @@ namespace Auth.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(true);
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("Type")
+                    b.Property<string>("Scope")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
-                        .HasDefaultValue("Internal");
+                        .HasDefaultValue("Bank");
 
                     b.HasKey("Id");
 
@@ -1119,6 +1211,15 @@ namespace Auth.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Group");
+                });
+
+            modelBuilder.Entity("Auth.Domain.Identity.PasswordHistory", b =>
+                {
+                    b.HasOne("Auth.Domain.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Auth.Domain.Identity.RolePermission", b =>

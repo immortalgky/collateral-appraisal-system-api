@@ -1,3 +1,5 @@
+using Auth.Application.Configurations;
+
 namespace Auth.Application.Features.Users.CreateUser;
 
 public record CreateUserCommand(
@@ -9,5 +11,8 @@ public record CreateUserCommand(
     string? Position,
     string? Department,
     Guid? CompanyId,
-    List<Guid> Roles
-) : ICommand<CreateUserResult>;
+    List<Guid> Roles,
+    string AuthSource = AuthSources.Local,
+    List<Guid>? GroupIds = null,
+    List<Guid>? TeamIds = null
+) : ICommand<CreateUserResult>, ITransactionalCommand<IAuthUnitOfWork>;

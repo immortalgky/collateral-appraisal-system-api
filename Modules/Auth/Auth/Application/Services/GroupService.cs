@@ -1,7 +1,9 @@
+using Microsoft.EntityFrameworkCore;
 using Auth.Domain.Auditing;
 using Auth.Domain.Groups;
 using Auth.Infrastructure;
 using Auth.Infrastructure.Repository;
+using Shared.Exceptions;
 using Shared.Pagination;
 
 namespace Auth.Application.Services;
@@ -30,12 +32,12 @@ public class GroupService(
         return await groupRepository.GetByIdWithDetailsAsync(id, cancellationToken);
     }
 
-    public async Task UpdateGroup(Guid id, string name, string description, CancellationToken cancellationToken = default)
+    public async Task UpdateGroup(Guid id, string name, string description, string scope, CancellationToken cancellationToken = default)
     {
         var group = await groupRepository.GetByIdAsync(id, cancellationToken)
-            ?? throw new KeyNotFoundException($"Group {id} not found.");
+            ?? throw new NotFoundException("Group", id);
 
-        group.Update(name, description);
+        group.Update(name, description, scope);
         auditWriter.Record(AuditAction.Updated, AuditEntityType.Group, id, name);
         await groupRepository.SaveChangesAsync(cancellationToken);
     }
@@ -43,7 +45,7 @@ public class GroupService(
     public async Task UpdateGroupUsers(Guid id, List<Guid> userIds, CancellationToken cancellationToken = default)
     {
         var group = await groupRepository.GetByIdWithDetailsAsync(id, cancellationToken)
-            ?? throw new KeyNotFoundException($"Group {id} not found.");
+            ?? throw new NotFoundException("Group", id);
 
         var beforeIds = group.Users.Select(u => u.UserId).ToList();
 
@@ -60,7 +62,7 @@ public class GroupService(
     public async Task UpdateGroupMonitoring(Guid id, List<Guid> monitoredGroupIds, CancellationToken cancellationToken = default)
     {
         var group = await groupRepository.GetByIdAsync(id, cancellationToken)
-            ?? throw new KeyNotFoundException($"Group {id} not found.");
+            ?? throw new NotFoundException("Group", id);
 
         var beforeIds = await dbContext.GroupMonitoring
             .Where(gm => gm.MonitorGroupId == id)
@@ -80,7 +82,7 @@ public class GroupService(
     public async Task DeleteGroup(Guid id, Guid? deletedBy, CancellationToken cancellationToken = default)
     {
         var group = await groupRepository.GetByIdAsync(id, cancellationToken)
-            ?? throw new KeyNotFoundException($"Group {id} not found.");
+            ?? throw new NotFoundException("Group", id);
 
         group.Delete(deletedBy);
         auditWriter.Record(AuditAction.Deleted, AuditEntityType.Group, id, group.Name);

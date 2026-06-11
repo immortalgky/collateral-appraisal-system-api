@@ -98,7 +98,7 @@ internal static class UserAccessMatrixSqlBuilder
                     SELECT 1
                     FROM auth.TeamMembers tu
                     JOIN auth.Teams t ON t.Id = tu.TeamId
-                    WHERE tu.UserId = u.Id AND t.Id = @TeamId AND t.IsActive = 1
+                    WHERE tu.UserId = u.Id AND t.Id = @TeamId
                 )
                 """);
             p.Add("TeamId", teamId.Value);
@@ -139,7 +139,7 @@ internal static class UserAccessMatrixSqlBuilder
                 (SELECT STRING_AGG(t.Name, ', ') WITHIN GROUP (ORDER BY t.Name)
                  FROM auth.TeamMembers tu
                  JOIN auth.Teams t ON t.Id = tu.TeamId
-                 WHERE tu.UserId = u.Id AND t.IsActive = 1),
+                 WHERE tu.UserId = u.Id),
                 '') AS Teams
         """;
 

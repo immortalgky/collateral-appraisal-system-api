@@ -7,7 +7,7 @@ public class UpdateGroupCommandHandler(IGroupService groupService)
 {
     public async Task<Unit> Handle(UpdateGroupCommand command, CancellationToken cancellationToken)
     {
-        await groupService.UpdateGroup(command.Id, command.Name, command.Description, cancellationToken);
+        await groupService.UpdateGroup(command.Id, command.Name, command.Description, command.Scope, cancellationToken);
         return Unit.Value;
     }
 }

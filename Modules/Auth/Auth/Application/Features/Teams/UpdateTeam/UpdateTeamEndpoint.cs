@@ -8,7 +8,7 @@ public class UpdateTeamEndpoint : ICarterModule
                 "/auth/teams/{id:guid}",
                 async (Guid id, UpdateTeamRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
-                    var command = new UpdateTeamCommand(id, request.Name, request.Type, request.IsActive);
+                    var command = new UpdateTeamCommand(id, request.Name, request.Scope, request.Description);
                     await sender.Send(command, cancellationToken);
                     return Results.NoContent();
                 })
@@ -17,7 +17,7 @@ public class UpdateTeamEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update a team")
-            .WithDescription("Update the name, type, and active status of a team.")
+            .WithDescription("Update the name, scope, description, and active status of a team.")
             .WithTags("Team")
             .RequireAuthorization("CanManageTeams");
     }

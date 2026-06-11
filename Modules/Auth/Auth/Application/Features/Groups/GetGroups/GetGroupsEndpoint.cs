@@ -23,6 +23,7 @@ public class GetGroupsEndpoint : ICarterModule
             .Produces<GetGroupsResponse>()
             .WithSummary("Get groups")
             .WithDescription("Get a paginated list of groups, optionally filtered by scope (Bank/Company).")
-            .WithTags("Group");
+            .WithTags("Group")
+            .RequireAuthorization("CanManageGroups");
     }
 }

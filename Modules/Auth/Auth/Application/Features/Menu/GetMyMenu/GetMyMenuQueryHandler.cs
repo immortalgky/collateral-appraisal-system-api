@@ -27,12 +27,12 @@ public class GetMyMenuQueryHandler(
 
         var allItems = await menuTreeCache.GetAllAsync(cancellationToken);
 
-        // Activity overrides only affect the appraisal scope. When the caller passes an
-        // activityId (e.g. user opened a task for "provide-additional-documents"), the
-        // override rows become the authoritative source of visibility/editability for
-        // appraisal-scope items — bypassing the role permission check. This lets roles
-        // like RequestMaker (which don't hold appraisal section view perms) still see
-        // the task-relevant menu items for the duration of the activity.
+        // Activity overrides only affect the appraisal scope, and they can only REDUCE
+        // rights — never grant them. Role permissions are the ceiling: when the caller
+        // passes an activityId (e.g. user opened a task for "provide-additional-documents"),
+        // an override row may hide an appraisal-scope item or force it read-only, but it
+        // can never reveal or make editable something the user's role doesn't already
+        // permit. A missing override row leaves the item at its plain role-based state.
         Dictionary<Guid, ActivityMenuOverride> appraisalOverrides = new();
         if (!string.IsNullOrWhiteSpace(query.ActivityId))
         {
@@ -67,27 +67,25 @@ public class GetMyMenuQueryHandler(
             var result = new List<MenuTreeNodeDto>();
             foreach (var item in siblings)
             {
-                bool isVisible;
-                bool canEdit;
+                // Base: role permissions are the ceiling.
+                // A node is visible if the user holds the exact ViewPermissionCode OR holds
+                // any permission whose key starts with ViewPermissionPrefix (prefix-match).
+                bool isVisible = (!string.IsNullOrEmpty(item.ViewPermissionCode)
+                                    && permissions.Contains(item.ViewPermissionCode!))
+                                 || (!string.IsNullOrEmpty(item.ViewPermissionPrefix)
+                                    && permissions.Any(p => p.StartsWith(item.ViewPermissionPrefix!, StringComparison.Ordinal)));
+                bool canEdit = !string.IsNullOrEmpty(item.EditPermissionCode)
+                               && permissions.Contains(item.EditPermissionCode!);
 
+                // Activity override can only SUBTRACT: hide an item or force it read-only.
+                // It never sets a flag true — IsVisible/CanEdit=false are the only effects.
                 if (overrides is not null && overrides.TryGetValue(item.Id, out var ov))
                 {
-                    // Override path: activity config wins.
-                    isVisible = ov.IsVisible;
-                    canEdit = ov.CanEdit;
+                    if (!ov.IsVisible) isVisible = false;
+                    if (!ov.CanEdit) canEdit = false;
                 }
-                else
-                {
-                    // Default path: role permissions.
-                    // A node is visible if the user holds the exact ViewPermissionCode OR holds
-                    // any permission whose key starts with ViewPermissionPrefix (prefix-match).
-                    isVisible = (!string.IsNullOrEmpty(item.ViewPermissionCode)
-                                    && permissions.Contains(item.ViewPermissionCode!))
-                                || (!string.IsNullOrEmpty(item.ViewPermissionPrefix)
-                                    && permissions.Any(p => p.StartsWith(item.ViewPermissionPrefix!, StringComparison.Ordinal)));
-                    canEdit = !string.IsNullOrEmpty(item.EditPermissionCode)
-                              && permissions.Contains(item.EditPermissionCode!);
-                }
+
+                canEdit = canEdit && isVisible; // can't edit what you can't see
 
                 if (!isVisible)
                     continue;

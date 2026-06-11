@@ -19,6 +19,7 @@ public class CreateCompanyCommandHandler(ICompanyRepository companyRepository)
             command.Province,
             command.PostalCode,
             command.ContactPerson,
+            command.HostCompanyCode,
             command.LoanTypes);
 
         await companyRepository.AddAsync(company, cancellationToken);

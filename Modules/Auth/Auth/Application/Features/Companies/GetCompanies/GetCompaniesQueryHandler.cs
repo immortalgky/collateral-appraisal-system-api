@@ -32,6 +32,13 @@ public class GetCompaniesQueryHandler(
         var rows = await connection.QueryAsync<CompanyOverviewRow>(sql, new { ids });
         var overviewMap = rows.ToDictionary(r => r.CompanyId);
 
+        // Count users belonging to each company on this page.
+        const string userCountSql =
+            "SELECT CompanyId, COUNT(*) AS UserCount FROM auth.AspNetUsers " +
+            "WHERE CompanyId IN @ids GROUP BY CompanyId";
+        var userCounts = (await connection.QueryAsync<CompanyUserCountRow>(userCountSql, new { ids }))
+            .ToDictionary(r => r.CompanyId, r => r.UserCount);
+
         var dtos = companies.Select(c =>
         {
             overviewMap.TryGetValue(c.Id, out var ov);
@@ -39,13 +46,17 @@ public class GetCompaniesQueryHandler(
                 c.Id, c.Name, c.TaxId, c.Phone, c.Email,
                 c.Street, c.City, c.Province, c.PostalCode,
                 c.ContactPerson, c.IsActive, c.LoanTypes,
+                HostCompanyCode:  c.HostCompanyCode,
                 BankAccountNo:    c.BankAccountNo,
                 BankAccountName:  c.BankAccountName,
                 AverageRating:    ov?.AverageRating    ?? 0m,
                 EvaluationCount:  ov?.EvaluationCount  ?? 0,
-                ActiveAssignments: ov?.ActiveAssignments ?? 0);
+                ActiveAssignments: ov?.ActiveAssignments ?? 0,
+                UserCount:        userCounts.GetValueOrDefault(c.Id));
         }).ToList();
 
         return new GetCompaniesResult(dtos);
     }
+
+    private sealed record CompanyUserCountRow(Guid CompanyId, int UserCount);
 }

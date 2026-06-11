@@ -20,6 +20,7 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(c => c.Province).HasMaxLength(100);
         builder.Property(c => c.PostalCode).HasMaxLength(20);
         builder.Property(c => c.ContactPerson).HasMaxLength(200);
+        builder.Property(c => c.HostCompanyCode).HasMaxLength(10);
         builder.Property(c => c.BankAccountNo).HasMaxLength(20);
         builder.Property(c => c.BankAccountName).HasMaxLength(200);
 

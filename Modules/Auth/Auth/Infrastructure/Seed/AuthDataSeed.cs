@@ -32,6 +32,7 @@ public class AuthDataSeed(
 
     public async Task SeedAllAsync()
     {
+        await SeedPasswordPolicyAsync();
         await SeedPermissionsAsync();
         await SeedMenuItemsAsync();
         await SeedActivityMenuOverridesAsync();
@@ -96,7 +97,10 @@ public class AuthDataSeed(
                 "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION", "TASK_PROVIDE_ADDITIONAL_DOCS",
                 "QUOTATION_VIEW", "TASK_QUOTATION_PICK_WINNER",
                 "STANDALONE_USE", "REAPPRAISAL_VIEW",
-                "BLOCK_REAPPRAISAL_VIEW", "BLOCK_REAPPRAISAL_CREATE"
+                "BLOCK_REAPPRAISAL_VIEW", "BLOCK_REAPPRAISAL_CREATE",
+                // Appraisal section perms are the ceiling for the initiation / provide-docs tabs.
+                // Activity overrides then restrict (hide / read-only) the rest per task.
+                ..appraisalSectionViews, ..appraisalSectionEdits
             ]);
         await SeedRoleWithPermissionsAsync(RequestCheckerRoleName,
             "Request Checker — reviews and approves incoming appraisal requests.",
@@ -225,6 +229,12 @@ public class AuthDataSeed(
 
     private async Task SeedUsersAsync()
     {
+        // Seeded accounts share a well-known password. In real environments (SIT/UAT/Prod) force them
+        // to set their own on first login so that default can't persist; keep local Development
+        // frictionless. Unset env => treat as non-Development (fail closed), matching AuthModule.
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        var forcePasswordChange = !string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
+
         // Create a default admin user only if configured
         var adminConfig = configuration.GetSection("SeedData:AdminUser");
         var adminUsername = adminConfig["Username"];
@@ -243,7 +253,12 @@ public class AuthDataSeed(
                     Position = "System Administrator",
                     Department = "IT",
                     AvatarUrl =
-                        "https://ui-avatars.com/api/?name=System+Administrator&background=4f46e5&color=fff&size=128"
+                        "https://ui-avatars.com/api/?name=System+Administrator&background=4f46e5&color=fff&size=128",
+                    // Retire the well-known seed password on first login in real environments. Stronger
+                    // than stamping PasswordChangedAt: it works even with the default policy
+                    // (ExpiryDays = 0 = never), and after the change RecordAsync stamps PasswordChangedAt
+                    // (with ApplicationNow) so expiry tracking begins normally.
+                    MustChangePassword = forcePasswordChange
                 };
                 var result = await userManager.CreateAsync(admin, adminPassword);
 
@@ -312,7 +327,9 @@ public class AuthDataSeed(
                     Position = position,
                     Department = department,
                     AvatarUrl =
-                        $"https://ui-avatars.com/api/?name={firstName}+{lastName}&background={avatarColor}&color=fff&size=128"
+                        $"https://ui-avatars.com/api/?name={firstName}+{lastName}&background={avatarColor}&color=fff&size=128",
+                    // Same as the admin: force off the shared seed password on first login outside dev.
+                    MustChangePassword = forcePasswordChange
                 };
                 await userManager.CreateAsync(user, "P@ssw0rd!");
             }
@@ -438,6 +455,17 @@ public class AuthDataSeed(
         await companyRepository.SaveChangesAsync();
     }
 
+    // Insert the single password-policy row with the previously-hardcoded defaults if it doesn't
+    // exist yet. Idempotent: never overwrites admin edits made through the maintenance screen.
+    private async Task SeedPasswordPolicyAsync()
+    {
+        var exists = await dbContext.PasswordPolicy.AnyAsync();
+        if (exists) return;
+
+        dbContext.PasswordPolicy.Add(Domain.Configuration.PasswordPolicy.CreateDefault());
+        await dbContext.SaveChangesAsync();
+    }
+
     private async Task SeedPermissionsAsync()
     {
         var seedPermissions = new List<(string Code, string DisplayName, string Description, string Module)>
@@ -483,6 +511,8 @@ public class AuthDataSeed(
             ("USER_CHANGE_PASSWORD", "Change Any User Password", "Allow changing password for any local user", "Auth"),
             ("USER_RESET_PASSWORD", "Reset User Password",
                 "Allow resetting password for any local user without current password", "Auth"),
+            ("PASSWORD_POLICY_MANAGE", "Manage Password Policy",
+                "Configure password rules, expiry, history, lockout, and blocklist", "Auth"),
             ("MEETING_MANAGE", "Manage Meetings", "Create, schedule, update, cancel, and end approval meetings",
                 "Workflow"),
             ("MEETING_ADMIN", "Meeting Admin", "Create, schedule, cut-off, cancel, and end approval meetings",

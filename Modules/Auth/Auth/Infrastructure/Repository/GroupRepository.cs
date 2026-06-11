@@ -26,7 +26,9 @@ public class GroupRepository(AuthDbContext dbContext) : IGroupRepository
         PaginationRequest paginationRequest,
         CancellationToken cancellationToken = default)
     {
-        var query = dbContext.Groups.AsQueryable();
+        var query = dbContext.Groups
+            .Include(g => g.Users)
+            .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(g => g.Name.Contains(search) || g.Description.Contains(search));

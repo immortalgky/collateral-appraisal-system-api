@@ -8,7 +8,7 @@ public class UpdateGroupEndpoint : ICarterModule
                 "/auth/groups/{id:guid}",
                 async (Guid id, UpdateGroupRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
-                    var command = new UpdateGroupCommand(id, request.Name, request.Description);
+                    var command = new UpdateGroupCommand(id, request.Name, request.Description, request.Scope);
                     await sender.Send(command, cancellationToken);
                     return Results.NoContent();
                 })
@@ -17,7 +17,7 @@ public class UpdateGroupEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update a group")
-            .WithDescription("Update the name and description of a group.")
+            .WithDescription("Update the name, description, and scope (Bank/Company) of a group.")
             .WithTags("Group")
             .RequireAuthorization("CanManageGroups");
     }

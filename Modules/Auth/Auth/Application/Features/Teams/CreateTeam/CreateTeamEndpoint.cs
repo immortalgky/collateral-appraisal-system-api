@@ -8,7 +8,7 @@ public class CreateTeamEndpoint : ICarterModule
                 "/auth/teams",
                 async (CreateTeamRequest request, ISender sender, CancellationToken cancellationToken) =>
                 {
-                    var command = new CreateTeamCommand(request.Name, request.Type, request.IsActive);
+                    var command = new CreateTeamCommand(request.Name, request.Scope, request.Description);
                     var result = await sender.Send(command, cancellationToken);
                     var response = result.Adapt<CreateTeamResponse>();
                     return Results.Created($"/auth/teams/{response.Id}", response);
@@ -17,7 +17,7 @@ public class CreateTeamEndpoint : ICarterModule
             .Produces<CreateTeamResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithSummary("Create a new team")
-            .WithDescription("Create a new Internal or External team.")
+            .WithDescription("Create a new Bank or Company team.")
             .WithTags("Team")
             .RequireAuthorization("CanManageTeams");
     }

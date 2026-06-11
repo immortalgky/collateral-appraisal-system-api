@@ -10,5 +10,6 @@ public record CreateCompanyCommand(
     string? Province,
     string? PostalCode,
     string? ContactPerson,
+    string? HostCompanyCode = null,
     List<string>? LoanTypes = null
 ) : ICommand<CreateCompanyResult>;

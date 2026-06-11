@@ -1,5 +1,7 @@
 using Auth.Application.Configurations;
 using Auth.Domain.Companies;
+using Auth.Infrastructure.Configuration;
+using Auth.Infrastructure.Identity;
 using Auth.Infrastructure.Repository;
 using Auth.Infrastructure.Seed;
 using Auth.Application.Services;
@@ -9,6 +11,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using OpenIddict.Validation.AspNetCore;
 using Shared.Identity;
 using Shared.Security;
@@ -50,23 +53,43 @@ public static class AuthModule
         });
 
         // ASP.NET Identity
-        var lockoutConfig = configuration.GetSection("Identity:Lockout");
         services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
             {
-                options.Password.RequireDigit = true;
-                options.Password.RequireLowercase = true;
-                options.Password.RequireNonAlphanumeric = true;
-                options.Password.RequireUppercase = true;
-                options.Password.RequiredLength = 8;
+                // Complexity rules are enforced by DbPasswordValidator from the DB-maintained policy
+                // (so admin edits apply without a restart). Relax the built-in checks so they don't
+                // double-enforce a stale, hardcoded rule set.
+                options.Password.RequireDigit = false;
+                options.Password.RequireLowercase = false;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequiredLength = 1;
+                options.Password.RequiredUniqueChars = 0;
 
-                options.Lockout.MaxFailedAccessAttempts = lockoutConfig.GetValue("MaxFailedAccessAttempts", 5);
-                options.Lockout.DefaultLockoutTimeSpan = lockoutConfig.GetValue("PermanentLockout", true)
-                    ? TimeSpan.FromDays(365 * 200)
-                    : TimeSpan.FromMinutes(lockoutConfig.GetValue("DefaultLockoutTimeSpanInMinutes", 5));
-                options.Lockout.AllowedForNewUsers = lockoutConfig.GetValue("LockoutEnabled", true);
+                // Lockout is fully DB-maintained: these are only first-boot fallbacks (used until the
+                // policy row exists). UseAuthModule's ApplyLockoutPolicy overrides all of them from the
+                // DB policy at startup (Identity reads lockout options as a snapshot).
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromDays(365 * 200);
+                options.Lockout.AllowedForNewUsers = true;
+
+                // Reject duplicate emails. Without this the default UserValidator skips the email
+                // uniqueness check, so create/update would silently allow two accounts to share an
+                // email (there is no unique index on NormalizedEmail either).
+                options.User.RequireUniqueEmail = true;
             })
             .AddEntityFrameworkStores<AuthDbContext>()
+            .AddPasswordValidator<DbPasswordValidator>()
             .AddDefaultTokenProviders();
+
+        // DB-maintained password policy: cached reader + history recorder. Lockout settings are
+        // applied imperatively after migration/seeding in UseAuthModule (NOT via IConfigureOptions —
+        // reading the DB during options-configuration at container startup deadlocks).
+        services.AddScoped<IPasswordPolicyProvider, PasswordPolicyProvider>();
+        services.AddScoped<IPasswordHistoryRecorder, PasswordHistoryRecorder>();
+
+        // Unit of Work for the Auth module — enables ITransactionalCommand<IAuthUnitOfWork> so
+        // multi-step writes (e.g. user creation + group/team links) are atomic.
+        services.AddScoped<IAuthUnitOfWork, AuthUnitOfWork>();
 
         var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
@@ -146,8 +169,13 @@ public static class AuthModule
             });
 
         // Authentication scheme
-        var isDevelopment = environment == "Development";
-        if (isDevelopment)
+        // Dev-auth bypass is allowed in all non-production environments
+        // (Development, SIT, UAT). An unset/empty env var is treated as Production
+        // so a misconfigured server fails closed.
+        var allowDevBypass =
+            !string.IsNullOrEmpty(environment) &&
+            !environment.Equals("Production", StringComparison.OrdinalIgnoreCase);
+        if (allowDevBypass)
         {
             services.AddAuthentication(options =>
                 {
@@ -179,7 +207,7 @@ public static class AuthModule
         }
 
         // Authorization policies
-        services.AddAuthorizationBuilder().AddPolicies(isDevelopment);
+        services.AddAuthorizationBuilder().AddPolicies(allowDevBypass);
 
         // Data seeding
         services.AddScoped<IDataSeeder<AuthDbContext>, AuthDataSeed>();
@@ -217,10 +245,32 @@ public static class AuthModule
     {
         app.UseMigration<AuthDbContext>();
 
+        // Apply the DB-maintained lockout settings to the IdentityOptions snapshot once, after the
+        // policy row has been migrated + seeded. Done here (not via IConfigureOptions) because reading
+        // the DB during options-configuration at container startup deadlocks. Lockout therefore takes
+        // effect on the next restart — the admin screen states this.
+        ApplyLockoutPolicy(app.ApplicationServices);
+
         return app;
     }
 
-    private static AuthorizationBuilder AddPolicies(this AuthorizationBuilder authorizationBuilder, bool isDevelopment)
+    private static void ApplyLockoutPolicy(IServiceProvider serviceProvider)
+    {
+        using var scope = serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var policy = dbContext.PasswordPolicy.AsNoTracking().FirstOrDefault();
+        if (policy is null) return;
+
+        var lockout = scope.ServiceProvider
+            .GetRequiredService<IOptions<IdentityOptions>>().Value.Lockout;
+        lockout.AllowedForNewUsers = policy.LockoutEnabled;
+        lockout.MaxFailedAccessAttempts = policy.MaxFailedAccessAttempts;
+        lockout.DefaultLockoutTimeSpan = policy.LockoutMinutes <= 0
+            ? TimeSpan.FromDays(365 * 200)
+            : TimeSpan.FromMinutes(policy.LockoutMinutes);
+    }
+
+    private static AuthorizationBuilder AddPolicies(this AuthorizationBuilder authorizationBuilder, bool allowDevBypass)
     {
         authorizationBuilder
             .AddClientPermissionPolicy("CanReadAuth", ["auth:read"])
@@ -244,6 +294,7 @@ public static class AuthModule
             .AddUserPermissionPolicy("CanManageCompanies", "COMPANY_MANAGE")
             .AddUserPermissionPolicy("CanChangeUserPassword", "USER_CHANGE_PASSWORD")
             .AddUserPermissionPolicy("CanResetUserPassword", "USER_RESET_PASSWORD")
+            .AddUserPermissionPolicy("CanManagePasswordPolicy", "PASSWORD_POLICY_MANAGE")
             .AddUserPermissionPolicy("CanReleaseTaskLocks", "TASK_LOCK_MANAGE")
             // Meeting policies — TODO: replace with real role claims once role infrastructure is complete
             .AddUserPermissionPolicy("MeetingAdmin", "MEETING_ADMIN")
@@ -278,9 +329,10 @@ public static class AuthModule
             // Top-breaches: visible to anyone with any OLA monitoring permission
             .AddMonitoringTopBreachesPolicy();
 
-        // In Development, don't pin policies to OpenIddict scheme so the
-        // PolicyScheme can route to either DevBypass or OpenIddict.
-        if (isDevelopment)
+        // When the dev-auth bypass is enabled (any non-production environment),
+        // don't pin policies to the OpenIddict scheme so the PolicyScheme can
+        // route to either DevBypass or OpenIddict.
+        if (allowDevBypass)
         {
             authorizationBuilder
                 .SetDefaultPolicy(

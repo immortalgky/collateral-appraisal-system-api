@@ -31,10 +31,11 @@ public class Group : Entity<Guid>
         };
     }
 
-    public void Update(string name, string description)
+    public void Update(string name, string description, string scope)
     {
         Name = name;
         Description = description;
+        Scope = scope;
     }
 
     public void Delete(Guid? deletedBy)

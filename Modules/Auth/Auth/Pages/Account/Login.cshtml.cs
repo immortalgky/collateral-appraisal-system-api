@@ -1,6 +1,6 @@
-using System.Security.Cryptography;
 using Auth.Application.Configurations;
 using Auth.Application.Services;
+using Auth.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using Shared.Time;
@@ -14,7 +14,9 @@ public class Login(
     ILdapAuthenticationService ldapService,
     IOptions<LdapConfiguration> ldapOptions,
     ILogger<Login> logger,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    IPasswordPolicyProvider passwordPolicyProvider,
+    AuthDbContext dbContext)
     : PageModel
 {
     private readonly LdapConfiguration _ldapConfig = ldapOptions.Value;
@@ -45,61 +47,72 @@ public class Login(
             return Page();
         }
 
-        // LDAP authentication path
-        if (_ldapConfig.Enabled)
+        // The account must already exist locally — we never auto-provision from LDAP at login.
+        // Resolve the user before issuing any session so unknown/inactive accounts never get a cookie.
+        var user = await userManager.FindByNameAsync(Username);
+        if (user is null)
         {
-            var ldapResult = await ldapService.AuthenticateAsync(Username, Password);
-
-            if (ldapResult.Succeeded && ldapResult.UserInfo is not null)
-            {
-                var user = await FindOrCreateLdapUserAsync(ldapResult.UserInfo);
-                if (user is null)
-                {
-                    Error = "Failed to provision user account.";
-                    return Page();
-                }
-
-                if (!user.IsActive)
-                {
-                    Error = "This account is deactivated. Contact your administrator.";
-                    return Page();
-                }
-
-                await StampLastLoginAsync(user);
-                await signInManager.SignInAsync(user, RememberMe);
-                logger.LogInformation("User {Username} logged in via LDAP", Username);
-                return Redirect(GetSafeRedirectUrl(user));
-            }
-
-            if (!_ldapConfig.FallbackToLocalAuth)
-            {
-                logger.LogWarning("LDAP auth failed for {Username}: {Error}", Username, ldapResult.ErrorMessage);
-                Error = "Invalid login attempt.";
-                return Page();
-            }
-
-            // Fall through to local auth
-            logger.LogInformation("LDAP auth failed for {Username}, falling back to local auth", Username);
+            logger.LogWarning("Login attempt for non-existent user: {Username}", Username);
+            Error = "Invalid login attempt.";
+            return Page();
         }
 
-        // Local authentication path
-        // Resolve the user before issuing any session so we can reject inactive
-        // accounts without ever establishing a cookie.
-        var localUser = await userManager.FindByNameAsync(Username);
-        if (localUser is not null && !localUser.IsActive)
+        if (!user.IsActive)
         {
             Error = "This account is deactivated. Contact your administrator.";
             return Page();
         }
 
+        // Authentication source is per-user: LDAP users authenticate against AD with their AD password;
+        // everyone else uses their local password.
+        return AuthSources.IsLdap(user.AuthSource)
+            ? await LoginWithLdapAsync(user)
+            : await LoginWithLocalPasswordAsync(user);
+    }
+
+    private async Task<IActionResult> LoginWithLdapAsync(ApplicationUser user)
+    {
+        if (!_ldapConfig.Enabled)
+        {
+            logger.LogWarning("LDAP user {Username} attempted login but LDAP is disabled", Username);
+            Error = "Invalid login attempt.";
+            return Page();
+        }
+
+        // Apply the same DB-policy lockout as local accounts — the bind below does not go through
+        // SignInManager, so without this LDAP accounts would have no app-level brute-force throttle.
+        if (await userManager.IsLockedOutAsync(user))
+        {
+            Error = "Account locked out.";
+            return Page();
+        }
+
+        var ldapResult = await ldapService.AuthenticateAsync(Username, Password);
+        if (!ldapResult.Succeeded || ldapResult.UserInfo is null)
+        {
+            await userManager.AccessFailedAsync(user);
+            logger.LogWarning("LDAP auth failed for {Username}: {Error}", Username, ldapResult.ErrorMessage);
+            Error = "Invalid login attempt.";
+            return Page();
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
+        await SyncLdapAttributesAsync(user, ldapResult.UserInfo);
+        await StampLastLoginAsync(user);
+        await signInManager.SignInAsync(user, RememberMe);
+        logger.LogInformation("User {Username} logged in via LDAP", Username);
+        return Redirect(GetSafeRedirectUrl(user));
+    }
+
+    private async Task<IActionResult> LoginWithLocalPasswordAsync(ApplicationUser user)
+    {
         var result = await signInManager.PasswordSignInAsync(Username, Password, RememberMe, lockoutOnFailure: true);
         if (result.Succeeded)
         {
-            if (localUser is not null)
-                await StampLastLoginAsync(localUser);
-
+            await EnforcePasswordExpiryAsync(user);
+            await StampLastLoginAsync(user);
             logger.LogInformation("User {Username} logged in successfully", Username);
-            return Redirect(GetSafeRedirectUrl(localUser));
+            return Redirect(GetSafeRedirectUrl(user));
         }
 
         if (result.IsLockedOut)
@@ -112,12 +125,41 @@ public class Login(
         return Page();
     }
 
+    // If the local password has exceeded the configured max age, flag it so the SPA routes the user
+    // to the change-password screen (reuses the MustChangePassword mechanism). The flag is set
+    // in-memory only; StampLastLoginAsync persists it alongside LastLoginAt. Legacy accounts with no
+    // PasswordChangedAt are skipped so enabling expiry doesn't lock everyone out at once.
+    private async Task EnforcePasswordExpiryAsync(ApplicationUser user)
+    {
+        if (AuthSources.IsLdap(user.AuthSource) || user.MustChangePassword || user.PasswordChangedAt is null)
+            return;
+
+        var policy = await passwordPolicyProvider.GetAsync();
+        if (policy.ExpiryDays <= 0) return;
+
+        if (user.PasswordChangedAt.Value.AddDays(policy.ExpiryDays) < dateTimeProvider.ApplicationNow)
+        {
+            user.MustChangePassword = true;
+            logger.LogInformation("Password expired for {Username}; requiring change on login", user.UserName);
+        }
+    }
+
     private async Task StampLastLoginAsync(ApplicationUser user)
     {
-        user.LastLoginAt = dateTimeProvider.ApplicationNow;
+        var now = dateTimeProvider.ApplicationNow;
+        user.LastLoginAt = now;
         try
         {
-            await userManager.UpdateAsync(user);
+            // Write the bookkeeping columns directly rather than via UserManager.UpdateAsync: those
+            // are our own fields, and UpdateAsync runs the Identity UserValidator (which, with
+            // RequireUniqueEmail enabled, returns a FAILED result for any pre-existing duplicate-email
+            // account — silently dropping LastLoginAt / the expiry flag). ExecuteUpdateAsync sets only
+            // these columns and skips that validation.
+            await dbContext.Users
+                .Where(u => u.Id == user.Id)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(u => u.LastLoginAt, now)
+                    .SetProperty(u => u.MustChangePassword, user.MustChangePassword));
         }
         catch (Exception ex)
         {
@@ -126,41 +168,10 @@ public class Login(
         }
     }
 
-    private async Task<ApplicationUser?> FindOrCreateLdapUserAsync(LdapUserInfo info)
+    // Refresh an existing LDAP user's profile fields from AD on login. Never creates a user —
+    // accounts must be provisioned ahead of time via the admin user-creation screen.
+    private async Task SyncLdapAttributesAsync(ApplicationUser user, LdapUserInfo info)
     {
-        var user = await userManager.FindByNameAsync(info.Username);
-
-        if (user is null)
-        {
-            // Auto-provision new LDAP user
-            user = new ApplicationUser
-            {
-                UserName = info.Username,
-                Email = info.Email ?? $"{info.Username}@ldap.local",
-                FirstName = info.FirstName ?? string.Empty,
-                LastName = info.LastName ?? string.Empty,
-                Department = info.Department,
-                Position = info.Position,
-                AuthSource = "LDAP",
-                EmailConfirmed = true
-            };
-
-            // Generate a random password — LDAP users never use local passwords
-            var randomPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
-            var createResult = await userManager.CreateAsync(user, randomPassword);
-
-            if (!createResult.Succeeded)
-            {
-                var errors = string.Join(", ", createResult.Errors.Select(e => e.Description));
-                logger.LogError("Failed to create LDAP user {Username}: {Errors}", info.Username, errors);
-                return null;
-            }
-
-            logger.LogInformation("Auto-provisioned LDAP user: {Username}", info.Username);
-            return user;
-        }
-
-        // Sync AD attributes on every login
         var changed = false;
 
         if (info.Email is not null && user.Email != info.Email) { user.Email = info.Email; changed = true; }
@@ -168,15 +179,19 @@ public class Login(
         if (info.LastName is not null && user.LastName != info.LastName) { user.LastName = info.LastName; changed = true; }
         if (info.Department is not null && user.Department != info.Department) { user.Department = info.Department; changed = true; }
         if (info.Position is not null && user.Position != info.Position) { user.Position = info.Position; changed = true; }
-        if (user.AuthSource != "LDAP") { user.AuthSource = "LDAP"; changed = true; }
 
         if (changed)
         {
-            await userManager.UpdateAsync(user);
-            logger.LogInformation("Synced AD attributes for user: {Username}", info.Username);
+            // AD email is authoritative, so keep this on UpdateAsync (it validates uniqueness). But a
+            // duplicate email is a FAILED result, not an exception — inspect it and log instead of
+            // silently dropping the sync. Login still proceeds; the next login retries the sync.
+            var result = await userManager.UpdateAsync(user);
+            if (result.Succeeded)
+                logger.LogInformation("Synced AD attributes for user: {Username}", user.UserName);
+            else
+                logger.LogWarning("Failed to sync AD attributes for {Username}: {Errors}",
+                    user.UserName, string.Join("; ", result.Errors.Select(e => e.Description)));
         }
-
-        return user;
     }
 
     private string GetSafeRedirectUrl(ApplicationUser? user = null)

@@ -38,7 +38,7 @@ public class GetUserByIdQueryHandler(
             from tm in dbContext.TeamMembers
             join t in dbContext.Teams on tm.TeamId equals t.Id
             where tm.UserId == query.Id
-            select new UserTeamDto(t.Id, t.Name, t.Type)
+            select new UserTeamDto(t.Id, t.Name, t.Scope)
         ).ToListAsync(cancellationToken);
 
         var permissions = user.Permissions
