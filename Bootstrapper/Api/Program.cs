@@ -372,6 +372,8 @@ RecurringJob.AddOrUpdate<OutboxCleanupJob<DocumentDbContext>>(
     "outbox-cleanup-document", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
 RecurringJob.AddOrUpdate<OutboxCleanupJob<WorkflowDbContext>>(
     "outbox-cleanup-workflow", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
+RecurringJob.AddOrUpdate<OutboxCleanupJob<CollateralDbContext>>(
+    "outbox-cleanup-collateral", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
 
 // Logs cleanup: purge dbo.Logs rows older than 30 days, daily at 03:00 local
 RecurringJob.AddOrUpdate<LogsCleanupJob>(

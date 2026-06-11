@@ -72,6 +72,8 @@ public class SftpInboundFileSource(
             client.Connect();
             try
             {
+                EnsureRemoteDirectory(client, processedDirectory);
+
                 var destination = $"{processedDirectory.TrimEnd('/')}/{file.FileName}";
                 client.RenameFile(file.FullPath, destination);
                 logger.LogInformation("[InboundFileSource:Sftp] Archived {File} → {Dest}",
@@ -93,6 +95,22 @@ public class SftpInboundFileSource(
             new PasswordAuthenticationMethod(_opts.Username, _opts.Password));
 
         return new SftpClient(connectionInfo);
+    }
+
+    /// <summary>Creates the remote directory path (recursively) if it does not already exist.</summary>
+    private static void EnsureRemoteDirectory(SftpClient client, string directory)
+    {
+        var dir = directory.TrimEnd('/');
+        if (string.IsNullOrEmpty(dir) || client.Exists(dir))
+            return;
+
+        var path = dir.StartsWith('/') ? string.Empty : ".";
+        foreach (var segment in dir.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            path = $"{path}/{segment}";
+            if (!client.Exists(path))
+                client.CreateDirectory(path);
+        }
     }
 
     private static bool MatchesPattern(string fileName, string pattern)

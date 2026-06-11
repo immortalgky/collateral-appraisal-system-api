@@ -35,10 +35,22 @@ public class ReappraisalIngestor(
             .Where(c => c.SourceFileDate == fileDate)
             .ToDictionaryAsync(c => (c.CollateralId, c.SurveyNumber), cancellationToken);
 
+        // Collapse duplicate (CollateralId, SurveyNumber) rows within a single file before upsert.
+        // The unique index forbids two candidates with the same key, and a COLLATREV file occasionally
+        // repeats a row; without this, two inserts for the same key abort the whole file's SaveChanges.
+        // Keep the last occurrence (latest wins).
+        var details = parsed.Details
+            .GroupBy(d => (d.CollateralId, d.SurveyNumber))
+            .Select(g => g.Last())
+            .ToList();
+        if (details.Count != parsed.Details.Count)
+            logger.LogWarning("[ReappraisalIngestor] Collapsed {Dup} duplicate (CollateralId,SurveyNumber) row(s) in {File}",
+                parsed.Details.Count - details.Count, fileName);
+
         // Collect SurveyNumbers that need lat/lon enrichment (new or updated rows).
         var needsEnrichment = new List<string>();
 
-        foreach (var detail in parsed.Details)
+        foreach (var detail in details)
         {
             var key = (detail.CollateralId, detail.SurveyNumber);
 
@@ -169,7 +181,7 @@ public class ReappraisalIngestor(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation("[ReappraisalIngestor] Ingested {Count} records from {File}",
-            parsed.Details.Count, fileName);
+            details.Count, fileName);
     }
 
     /// <summary>
@@ -206,12 +218,21 @@ public class ReappraisalIngestor(
             WHERE a.AppraisalNumber IN @SurveyNumbers
             """;
 
+        // Batch the IN list to stay under SQL Server's 2100-parameter cap on large monthly/backfill files.
+        var distinct = surveyNumbers.Distinct().ToList();
+        var result = new Dictionary<string, (decimal Latitude, decimal Longitude)>();
         var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<CoordinateRow>(sql, new { SurveyNumbers = surveyNumbers });
 
-        return rows
-            .GroupBy(r => r.SurveyNumber)
-            .ToDictionary(g => g.Key, g => (g.First().Latitude, g.First().Longitude));
+        const int batchSize = 1000;
+        for (var i = 0; i < distinct.Count; i += batchSize)
+        {
+            var batch = distinct.GetRange(i, Math.Min(batchSize, distinct.Count - i));
+            var rows = await connection.QueryAsync<CoordinateRow>(sql, new { SurveyNumbers = batch });
+            foreach (var g in rows.GroupBy(r => r.SurveyNumber))
+                result[g.Key] = (g.First().Latitude, g.First().Longitude);
+        }
+
+        return result;
     }
 
     private sealed record CoordinateRow(string SurveyNumber, decimal Latitude, decimal Longitude);

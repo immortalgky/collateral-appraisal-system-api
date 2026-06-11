@@ -38,6 +38,9 @@ public class As400ReappraisalJob(
         var directory = cfg.Directory ?? "./reappraisal/inbox";
         var filePattern = cfg.FilePattern ?? "AS400_COLLATREV_*.txt";
         var processedDirectory = cfg.ProcessedDirectory ?? "./reappraisal/processed";
+        // Files that can never succeed (bad filename / invalid format) are moved here so they leave the
+        // inbox and are not re-listed and re-failed on every run.
+        var failedDirectory = $"{processedDirectory.TrimEnd('/')}/failed";
 
         var files = await fileSource.ListFilesAsync(directory, filePattern, cancellationToken);
 
@@ -51,11 +54,18 @@ public class As400ReappraisalJob(
         {
             try
             {
-                await IngestFileAsync(file, processedDirectory, cancellationToken);
+                await IngestFileAsync(file, processedDirectory, failedDirectory, cancellationToken);
+            }
+            catch (FormatException ex)
+            {
+                // Bad data the file will never parse — quarantine so it is not reprocessed forever.
+                logger.LogError(ex, "[REAPPRAISAL-AS400] {File} has invalid format; quarantining", file.FileName);
+                await QuarantineAsync(file, failedDirectory, cancellationToken);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "[REAPPRAISAL-AS400] Failed to ingest {File}", file.FileName);
+                // Likely transient (DB/network) — leave the file in place so the next run retries it.
+                logger.LogError(ex, "[REAPPRAISAL-AS400] Failed to ingest {File}; leaving for retry", file.FileName);
             }
         }
 
@@ -65,6 +75,7 @@ public class As400ReappraisalJob(
     private async Task IngestFileAsync(
         InboundFileInfo file,
         string processedDirectory,
+        string failedDirectory,
         CancellationToken cancellationToken)
     {
         logger.LogInformation("[REAPPRAISAL-AS400] Processing {File}", file.FileName);
@@ -72,7 +83,8 @@ public class As400ReappraisalJob(
         var fileDate = CollatrevFileParser.ParseFilenameDate(file.FileName);
         if (fileDate is null)
         {
-            logger.LogWarning("[REAPPRAISAL-AS400] Cannot parse date from filename '{File}', skipping", file.FileName);
+            logger.LogWarning("[REAPPRAISAL-AS400] Cannot parse date from filename '{File}'; quarantining", file.FileName);
+            await QuarantineAsync(file, failedDirectory, cancellationToken);
             return;
         }
 
@@ -84,5 +96,22 @@ public class As400ReappraisalJob(
         await fileSource.ArchiveAsync(file, processedDirectory, cancellationToken);
 
         logger.LogInformation("[REAPPRAISAL-AS400] Archived {File}", file.FileName);
+    }
+
+    /// <summary>
+    /// Moves a permanently-unprocessable file out of the inbox into the failed directory.
+    /// Swallows move errors (logs them) so one un-movable file cannot break the run.
+    /// </summary>
+    private async Task QuarantineAsync(InboundFileInfo file, string failedDirectory, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await fileSource.ArchiveAsync(file, failedDirectory, cancellationToken);
+            logger.LogWarning("[REAPPRAISAL-AS400] Quarantined {File} → {Dir}", file.FileName, failedDirectory);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[REAPPRAISAL-AS400] Could not quarantine {File}; it may be reprocessed", file.FileName);
+        }
     }
 }

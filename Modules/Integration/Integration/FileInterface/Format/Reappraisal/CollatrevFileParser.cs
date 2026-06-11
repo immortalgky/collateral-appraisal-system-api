@@ -154,7 +154,17 @@ public class CollatrevFileParser
             !int.TryParse(v[4..8], out var yyyy))
             throw new FormatException($"Invalid {fieldName}: '{v}'");
 
-        return new DateOnly(yyyy, mm, dd);
+        // A syntactically-valid but out-of-range date (e.g. dd=32, mm=13) must surface as a
+        // FormatException so the per-file handler treats it as bad data — not an unexpected
+        // ArgumentOutOfRangeException leaking through.
+        try
+        {
+            return new DateOnly(yyyy, mm, dd);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new FormatException($"Invalid {fieldName}: '{v}'");
+        }
     }
 
     private static DateOnly? ParseDdmmyyyyOrNull(string s)

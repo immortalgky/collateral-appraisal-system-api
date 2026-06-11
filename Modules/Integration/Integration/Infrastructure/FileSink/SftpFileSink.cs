@@ -30,6 +30,8 @@ public class SftpFileSink(
                 var bytes = Utf8NoBom.GetBytes(content);
                 using var ms = new MemoryStream(bytes);
 
+                EnsureRemoteDirectory(client, directory);
+
                 var remotePath = $"{directory.TrimEnd('/')}/{Path.GetFileName(fileName)}";
                 client.UploadFile(ms, remotePath, canOverride: true);
 
@@ -52,5 +54,21 @@ public class SftpFileSink(
             new PasswordAuthenticationMethod(_opts.Username, _opts.Password));
 
         return new SftpClient(connectionInfo);
+    }
+
+    /// <summary>Creates the remote directory path (recursively) if it does not already exist.</summary>
+    private static void EnsureRemoteDirectory(SftpClient client, string directory)
+    {
+        var dir = directory.TrimEnd('/');
+        if (string.IsNullOrEmpty(dir) || client.Exists(dir))
+            return;
+
+        var path = dir.StartsWith('/') ? string.Empty : ".";
+        foreach (var segment in dir.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            path = $"{path}/{segment}";
+            if (!client.Exists(path))
+                client.CreateDirectory(path);
+        }
     }
 }
