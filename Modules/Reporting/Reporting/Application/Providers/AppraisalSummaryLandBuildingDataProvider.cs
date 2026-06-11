@@ -47,7 +47,26 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             throw new NotFoundException("Appraisal", entityId);
 
         using var connection = connectionFactory.CreateNewConnection();
+        var model = await BuildAsync(connection, appraisalId, cancellationToken);
 
+        logger.LogDebug(
+            "AppraisalSummaryLandBuilding model assembled for appraisal {AppraisalId}: " +
+            "{GroupCount} groups, {ApproverCount} approvers, showMeeting={ShowMeeting}",
+            appraisalId, model.Groups.Count, model.Approvers.Count, model.ShowMeeting);
+
+        return model;
+    }
+
+    /// <summary>
+    /// Builds an <see cref="AppraisalSummaryModel"/> from an open connection — the standard
+    /// (land/building/condo/machine) summary header. Called by <see cref="GetModelAsync"/>
+    /// (standalone form) and by <c>AppraisalBookDataProvider</c> (unified internal book, "standard" body).
+    /// </summary>
+    internal static async Task<AppraisalSummaryModel> BuildAsync(
+        System.Data.IDbConnection connection,
+        Guid appraisalId,
+        CancellationToken cancellationToken)
+    {
         // ── Batch 1: 15 result sets, single round-trip ───────────────────────────
         const string batchSql = """
             -- RS01: Q1 — Appraisal header
@@ -309,7 +328,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // RS01
             header = await multi.ReadFirstOrDefaultAsync<HeaderRow>();
             if (header is null)
-                throw new NotFoundException("Appraisal", entityId);
+                throw new NotFoundException("Appraisal", appraisalId.ToString());
 
             // RS02
             customerNames = (await multi.ReadAsync<string>()).ToList();
@@ -544,12 +563,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             .GroupBy(p => p.Code!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(grp => grp.Key, grp => grp.First().Description, StringComparer.OrdinalIgnoreCase);
 
+        // PropertyType stores domain family codes, so map family → CollateralType code before lookup.
         string? TranslateCollateralType(string? code) =>
-            !string.IsNullOrWhiteSpace(code)
-            && collateralTypeMap.TryGetValue(code, out var d)
-            && !string.IsNullOrWhiteSpace(d)
-                ? d
-                : code;
+            CollateralFamilyTranslator.ToThai(code, collateralTypeMap);
 
         // ── Build per-group summary rows ──────────────────────────────────────────
         var summaryGroups = groupRows.Select(g =>
@@ -721,11 +737,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             Approvers = approvers,
             ApproverSummaryComment = decision?.CommitteeOpinion
         };
-
-        logger.LogDebug(
-            "AppraisalSummaryLandBuilding model assembled for appraisal {AppraisalId}: " +
-            "{GroupCount} groups, {ApproverCount} approvers, showMeeting={ShowMeeting}",
-            appraisalId, summaryGroups.Count, approvers.Count, showMeeting);
 
         return model;
     }

@@ -55,7 +55,8 @@ internal sealed class ReportRegistry(
                 def.TemplateId,
                 provider,
                 def.GenerationMode,
-                def.IsEnabled);
+                def.IsEnabled,
+                def.Category);
         }
 
         // Case 2: provider exists but no DB definition (resilience / new provider not yet seeded)
@@ -67,7 +68,8 @@ internal sealed class ReportRegistry(
                 reportTypeKey,
                 fallbackProvider,
                 ReportGenerationMode.Sync,
-                IsEnabled: true);
+                IsEnabled: true,
+                Category: string.Empty);
         }
 
         // Case 3: completely unknown key

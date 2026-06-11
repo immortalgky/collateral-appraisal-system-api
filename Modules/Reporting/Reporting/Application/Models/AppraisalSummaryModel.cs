@@ -282,8 +282,69 @@ public sealed class AppraisalSummaryModel
     /// <summary>Field 51 — Committee summary comment (CommitteeOpinion).</summary>
     public string? ApproverSummaryComment { get; init; }
 
-    // ── Composite section props (§2.1.6 Internal-Construction / §2.1.7 Internal-Block) ──
-    // Set only by InternalConstructionReportProvider / InternalBlockReportProvider.
+    // ── Unified appraisal-book discriminators (set by AppraisalBookDataProvider) ──────
+    // For the standalone summary forms these stay default (IsExternal=false, BodyType=null)
+    // and are simply ignored.
+
+    /// <summary>True when the appraisal was done by an external company (drives external cover/letter).</summary>
+    public bool IsExternal { get; set; }
+
+    /// <summary>Internal body variant: "standard" | "construction" | "block". Null for external.</summary>
+    public string? BodyType { get; set; }
+
+    // ── External cover / company-letter fields (set only on the external book branch) ──
+    // Populated by ExternalBookBuilder; null for every internal/standalone form.
+
+    /// <summary>External company name (auth.Companies.Name).</summary>
+    public string? CompanyName { get; set; }
+    /// <summary>External company composed address.</summary>
+    public string? CompanyAddress { get; set; }
+    /// <summary>External company telephone.</summary>
+    public string? CompanyTel { get; set; }
+    /// <summary>Literal bank name shown as the "เสนอ" recipient on the external cover/letter.</summary>
+    public string? BankName { get; set; }
+    /// <summary>Report/verification date used on the company letter.</summary>
+    public DateTime? VerifyDate { get; set; }
+    /// <summary>Letter subject line (fixed wording).</summary>
+    public string? Subject { get; set; }
+    /// <summary>Property-type summary string (e.g. "บ้านเดี่ยว จำนวน 1 หลัง เนื้อที่ …").</summary>
+    public string? PropertyTypeSummary { get; set; }
+    /// <summary>Composed collateral location (ThaiAddressFormatter) for the external cover/letter.</summary>
+    public string? CollateralLocation { get; set; }
+    /// <summary>Comma-joined land title deed numbers.</summary>
+    public string? TitleDeedNumbers { get; set; }
+    /// <summary>Total count of land title deeds.</summary>
+    public int? TotalTitleDeeds { get; set; }
+    /// <summary>Land area formatted "{rai} - {ngan} - {wa} ไร่ หรือ {totalSqWa} ตารางวา".</summary>
+    public string? LandAreaText { get; set; }
+    /// <summary>Building details text ("{type} {floors} ชั้น แบบ {model}").</summary>
+    public string? BuildingDetailsText { get; set; }
+    /// <summary>Condo owner name.</summary>
+    public string? CondoOwner { get; set; }
+    /// <summary>Comma-joined machinery registration numbers.</summary>
+    public string? MachineRegistrationNumbers { get; set; }
+    /// <summary>Comma-joined Thai pricing-method labels.</summary>
+    public string? PriceMethod { get; set; }
+    /// <summary>
+    /// Collateral value for the external company letter (ValuationAnalyses.AppraisedValue).
+    /// Distinct from <see cref="TotalAppraisalValue"/> (the internal summary's group-sum total);
+    /// the external branch populates this one. Fire-insurance value reuses
+    /// <see cref="BuildingCoverageAmount"/> (same ValuationAnalyses.InsuranceValue source).
+    /// </summary>
+    public decimal? CollateralValue { get; set; }
+    /// <summary>Surveyor / field appraiser name (ผู้สำรวจ) on the company letter.</summary>
+    public string? SurveyorName { get; set; }
+    /// <summary>Checker name (ผู้ตรวจสอบรายงาน) on the company-letter signature block.</summary>
+    public string? CheckerName { get; set; }
+    /// <summary>Verifier name (ผู้ประเมินหลักชั้นวุฒิ) on the company-letter signature block.</summary>
+    public string? VerifyName { get; set; }
+    /// <summary>Verifier license number.</summary>
+    public string? VerifyLicenseNo { get; set; }
+    /// <summary>Director / authorized signatory name.</summary>
+    public string? DirectorName { get; set; }
+
+    // ── Composite section props (rendered by the unified appraisal-book template) ──
+    // Set only by AppraisalBookDataProvider (loaded once for every variant).
     // Standalone summary providers leave all of these null/empty (zero behaviour change).
 
     /// <summary>Land details section (§2.1.2.4). Null when not included in this report.</summary>
@@ -303,6 +364,15 @@ public sealed class AppraisalSummaryModel
 
     /// <summary>Sale grid / direct comparison section (§2.1.2.10). Null when not included.</summary>
     public SaleGridSection? SaleGridSection { get; set; }
+
+    /// <summary>Condo details section (§2.1.2.3). Null when not included in this report.</summary>
+    public CondoSection? CondoSection { get; set; }
+
+    /// <summary>Machine details section (§2.1.2.7). Null when not included in this report.</summary>
+    public MachineSection? MachineSection { get; set; }
+
+    /// <summary>Cost approach – machinery section (§2.1.2.11). Null when not included.</summary>
+    public CostMachineSection? CostMachineSection { get; set; }
 
     /// <summary>Appendix image section (§2.1.2.12+). Null when no image entries exist.</summary>
     public AppendixSection? AppendixSection { get; set; }

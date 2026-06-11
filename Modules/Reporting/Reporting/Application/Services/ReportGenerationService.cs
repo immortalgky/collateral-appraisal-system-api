@@ -6,6 +6,7 @@ namespace Reporting.Application.Services;
 /// </summary>
 public sealed class ReportGenerationService(
     IReportRegistry registry,
+    IReportEntityResolver entityResolver,
     ITemplateStore templateStore,
     ITemplateRenderer renderer,
     IPdfAssembler assembler,
@@ -25,9 +26,15 @@ public sealed class ReportGenerationService(
         if (!registration.IsEnabled)
             throw new NotFoundException(nameof(reportTypeKey), reportTypeKey);
 
+        // Callers pass a human-friendly number (AppraisalNumber, or MeetingNo for Meeting reports);
+        // resolve it to the entity Guid the providers expect. Values already in Guid form — a direct
+        // id, or the recursive composite child calls below — pass through unchanged.
+        var resolvedEntityId = await entityResolver.ResolveAsync(
+            entityId, registration.Category, cancellationToken);
+
         logger.LogInformation(
             "Generating report {ReportTypeKey} for entity {EntityId}",
-            reportTypeKey, entityId);
+            reportTypeKey, resolvedEntityId);
 
         // [0] Composite reports (e.g. unified "appraisal-summary") resolve to a set of child
         // report keys whose PDFs are rendered through this same pipeline and concatenated.
@@ -38,13 +45,13 @@ public sealed class ReportGenerationService(
         // parent's mode (Async) governs the Hangfire enqueue; children never re-enqueue.
         if (registration.Provider is ICompositeReportProvider composite)
         {
-            var childKeys = await composite.GetChildReportKeysAsync(entityId, cancellationToken);
+            var childKeys = await composite.GetChildReportKeysAsync(resolvedEntityId, cancellationToken);
             if (childKeys.Count == 0)
                 throw new NotFoundException(nameof(reportTypeKey), reportTypeKey);
 
             var childPdfs = new List<byte[]>(childKeys.Count);
             foreach (var childKey in childKeys)
-                childPdfs.Add(await GenerateAsync(childKey, entityId, cancellationToken));
+                childPdfs.Add(await GenerateAsync(childKey, resolvedEntityId, cancellationToken));
 
             var merged = await assembler.MergeAsync(childPdfs, cancellationToken);
 
@@ -56,7 +63,7 @@ public sealed class ReportGenerationService(
         }
 
         // [1] Resolve data
-        var model = await registration.Provider.GetModelAsync(entityId, cancellationToken);
+        var model = await registration.Provider.GetModelAsync(resolvedEntityId, cancellationToken);
 
         // [2] Load template
         var templateHtml = await templateStore.GetTemplateAsync(

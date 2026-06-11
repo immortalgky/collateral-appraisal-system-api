@@ -24,4 +24,5 @@ public sealed record ReportRegistration(
     string TemplateId,
     IReportDataProvider Provider,
     ReportGenerationMode GenerationMode,
-    bool IsEnabled);
+    bool IsEnabled,
+    string Category);
