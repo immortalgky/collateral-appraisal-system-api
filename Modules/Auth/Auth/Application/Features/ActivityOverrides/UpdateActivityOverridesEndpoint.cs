@@ -7,12 +7,13 @@ namespace Auth.Application.Features.ActivityOverrides;
 /// <summary>
 /// Admin endpoint: bulk-replace the override rows for a single activity.
 ///
-/// Semantics: the request body is the intended full set of overrides for the
-/// activity. Existing rows are updated in place; missing rows are deleted. Rows
-/// that exactly match default behavior (IsVisible=true, CanEdit=false) are
-/// omitted from storage — the caller can send them without harm and they'll be
-/// absent after save. This keeps the table small and makes "revert to role
-/// default" a simple UI action (untick both boxes).
+/// Semantics: overrides only RESTRICT (hide / read-only) — never grant. The
+/// request body is the intended full set of restrictions for the activity.
+/// Existing rows are updated in place; missing rows are deleted. A row that
+/// imposes no restriction (IsVisible=true AND CanEdit=true) is the "inherit
+/// role" no-op and is omitted from storage — the caller can send it without
+/// harm and it'll be absent after save. This keeps the table small and makes
+/// "revert to role default" a simple UI action (clear both restrictions).
 /// </summary>
 public class UpdateActivityOverridesEndpoint : ICarterModule
 {
@@ -47,8 +48,8 @@ public class UpdateActivityOverridesEndpoint : ICarterModule
                     var existingByMenuId = existing.ToDictionary(o => o.MenuItemId);
 
                     var desired = request.Rows
-                        // Skip rows that match defaults — no need to persist.
-                        .Where(r => !(r.IsVisible && !r.CanEdit))
+                        // Skip no-op rows (visible + editable = inherit role) — only persist restrictions.
+                        .Where(r => !(r.IsVisible && r.CanEdit))
                         .GroupBy(r => r.MenuItemId)
                         .Select(g => g.Last()) // last write wins if client dupes
                         .ToList();

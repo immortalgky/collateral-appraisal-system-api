@@ -20,14 +20,7 @@ public class UpdateUserTeamsCommandHandler(
 
         var requestedTeamIds = (command.TeamIds ?? []).Distinct().ToList();
 
-        var existingTeamIds = await dbContext.Teams
-            .Where(t => requestedTeamIds.Contains(t.Id))
-            .Select(t => t.Id)
-            .ToListAsync(cancellationToken);
-
-        var missing = requestedTeamIds.Except(existingTeamIds).ToList();
-        if (missing.Count > 0)
-            throw new NotFoundException("Team", missing[0]);
+        await UserAssignmentValidator.ValidateTeamsExistAsync(dbContext, requestedTeamIds, cancellationToken);
 
         var currentLinks = await dbContext.TeamMembers
             .Where(m => m.UserId == command.UserId)

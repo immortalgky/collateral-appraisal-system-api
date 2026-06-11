@@ -20,14 +20,7 @@ public class UpdateUserGroupsCommandHandler(
 
         var requestedGroupIds = (command.GroupIds ?? []).Distinct().ToList();
 
-        var existingGroupIds = await dbContext.Groups
-            .Where(g => requestedGroupIds.Contains(g.Id))
-            .Select(g => g.Id)
-            .ToListAsync(cancellationToken);
-
-        var missing = requestedGroupIds.Except(existingGroupIds).ToList();
-        if (missing.Count > 0)
-            throw new NotFoundException("Group", missing[0]);
+        await UserAssignmentValidator.ValidateGroupsExistAsync(dbContext, requestedGroupIds, cancellationToken);
 
         var currentLinks = await dbContext.GroupUsers
             .Where(gu => gu.UserId == command.UserId)

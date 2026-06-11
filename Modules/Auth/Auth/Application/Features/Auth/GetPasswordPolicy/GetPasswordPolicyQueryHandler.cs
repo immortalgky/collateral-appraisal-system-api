@@ -1,21 +1,19 @@
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Options;
+using Auth.Infrastructure.Configuration;
 
 namespace Auth.Application.Features.Auth.GetPasswordPolicy;
 
-public class GetPasswordPolicyQueryHandler(IOptions<IdentityOptions> identityOptions)
+public class GetPasswordPolicyQueryHandler(IPasswordPolicyProvider policyProvider)
     : IQueryHandler<GetPasswordPolicyQuery, GetPasswordPolicyResult>
 {
-    public Task<GetPasswordPolicyResult> Handle(GetPasswordPolicyQuery query, CancellationToken cancellationToken)
+    public async Task<GetPasswordPolicyResult> Handle(GetPasswordPolicyQuery query, CancellationToken cancellationToken)
     {
-        var pw = identityOptions.Value.Password;
-        var result = new GetPasswordPolicyResult(
-            pw.RequiredLength,
-            pw.RequireDigit,
-            pw.RequireLowercase,
-            pw.RequireUppercase,
-            pw.RequireNonAlphanumeric,
-            pw.RequiredUniqueChars);
-        return Task.FromResult(result);
+        var p = await policyProvider.GetAsync(cancellationToken);
+        return new GetPasswordPolicyResult(
+            p.RequiredLength,
+            p.RequireDigit,
+            p.RequireLowercase,
+            p.RequireUppercase,
+            p.RequireNonAlphanumeric,
+            p.RequiredUniqueChars);
     }
 }

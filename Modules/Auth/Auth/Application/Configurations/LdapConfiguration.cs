@@ -8,11 +8,18 @@ public class LdapConfiguration
     public string Server { get; set; } = string.Empty;
     public int Port { get; set; } = 636;
     public bool UseSsl { get; set; } = true;
+
+    // When true, the app binds to AD as its own process/app-pool Windows identity (Kerberos/Negotiate)
+    // instead of an explicit service account — so no BindDn/BindPassword is stored in configuration.
+    public bool UseIntegratedAuth { get; set; }
+
+    // NetBIOS domain (e.g. "LHB") used to qualify the user during the Negotiate password-validation bind.
+    public string Domain { get; set; } = string.Empty;
+
     public string BaseDn { get; set; } = string.Empty;
     public string BindDn { get; set; } = string.Empty;
     public string BindPassword { get; set; } = string.Empty;
     public string SearchFilter { get; set; } = "(sAMAccountName={0})";
-    public bool FallbackToLocalAuth { get; set; } = true;
     public int ConnectionTimeoutSeconds { get; set; } = 5;
     public LdapAttributeMapping Attributes { get; set; } = new();
 }

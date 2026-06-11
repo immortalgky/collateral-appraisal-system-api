@@ -8,13 +8,13 @@ public class GetTeamsEndpoint : ICarterModule
                 "/auth/teams",
                 async (
                     string? search,
-                    string? type,
+                    string? scope,
                     int pageNumber = 1,
                     int pageSize = 20,
                     ISender sender = default!,
                     CancellationToken cancellationToken = default) =>
                 {
-                    var query = new GetTeamsQuery(search, type, pageNumber, pageSize);
+                    var query = new GetTeamsQuery(search, scope, pageNumber, pageSize);
                     var result = await sender.Send(query, cancellationToken);
                     var response = result.Adapt<GetTeamsResponse>();
                     return Results.Ok(response);
@@ -22,7 +22,7 @@ public class GetTeamsEndpoint : ICarterModule
             .WithName("GetTeams")
             .Produces<GetTeamsResponse>()
             .WithSummary("Get teams")
-            .WithDescription("Get a paginated list of teams, optionally filtered by type (Internal/External).")
+            .WithDescription("Get a paginated list of teams, optionally filtered by scope (Bank/Company).")
             .WithTags("Team");
     }
 }

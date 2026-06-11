@@ -11,5 +11,6 @@ public record RegisterUserDto(
     string? Department,
     Guid? CompanyId,
     List<RegisterUserPermissionDto> Permissions,
-    List<Guid> Roles
+    List<Guid> Roles,
+    string AuthSource = AuthSources.Local
 );

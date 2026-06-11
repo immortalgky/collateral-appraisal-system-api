@@ -2,9 +2,11 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
+using Auth.Infrastructure.Configuration;
 using Auth.Infrastructure.Repository;
 using OpenIddict.EntityFrameworkCore.Models;
 using OpenIddict.Server.AspNetCore;
+using Shared.Time;
 
 namespace Auth.Application.Services;
 
@@ -13,7 +15,10 @@ public class TokenService(
     UserManager<ApplicationUser> userManager,
     IOpenIddictApplicationManager applicationManager,
     IOpenIddictScopeManager scopeManager,
-    IRoleRepository roleRepository
+    IRoleRepository roleRepository,
+    IPasswordPolicyProvider passwordPolicyProvider,
+    IDateTimeProvider dateTimeProvider,
+    ILogger<TokenService> logger
 ) : ITokenService
 {
     private static readonly Dictionary<string, string> ClaimScopeMapping = new()
@@ -55,13 +60,30 @@ public class TokenService(
             );
 
         var userIdGuid = Guid.Parse(userId); // Can throws exception
-        var user =
-            await openIddictDbContext
-                .Users.Include(user => user.Permissions)
-                .ThenInclude(userPermission => userPermission.Permission)
-                .FirstOrDefaultAsync(user => user.Id == userIdGuid)
+        var user = await LoadUserWithPermissionsAsync(userIdGuid)
             ?? throw new InvalidOperationException("Cannot find user associated with the token.");
 
+        return await BuildAccessTokenPrincipal(request, userId, username, user);
+    }
+
+    private Task<ApplicationUser?> LoadUserWithPermissionsAsync(Guid userId) =>
+        openIddictDbContext
+            .Users.Include(u => u.Permissions)
+            .ThenInclude(up => up.Permission)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+    // Builds the access-token principal from an already-loaded user. Kept separate from the DB
+    // load so the refresh flow can validate + build from a single user fetch.
+    // scopesFallback: when provided (refresh flow), used instead of request.GetScopes() if the
+    // request carries no scopes — refresh requests typically omit scope, which would otherwise
+    // produce an empty scope set and strip permission destinations from the new token.
+    private async Task<ClaimsPrincipal> BuildAccessTokenPrincipal(
+        OpenIddictRequest request,
+        string userId,
+        string username,
+        ApplicationUser user,
+        IEnumerable<string>? scopesFallback = null)
+    {
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 
         // Add basic claims
@@ -82,12 +104,19 @@ public class TokenService(
         identity.SetClaims("permissions", await GetUserPermissions(user));
         identity.SetClaims("roles", [.. await userManager.GetRolesAsync(user)]);
 
+        // Resolve effective scopes: use the request's scopes when present (auth-code flow), or fall
+        // back to the caller-supplied scopesFallback (refresh flow — refresh requests typically omit
+        // the scope parameter, which would otherwise produce an empty set and strip permission
+        // destinations from the newly-issued access token).
+        var requestScopes = request.GetScopes();
+        var effectiveScopes = requestScopes.Any() ? requestScopes : (scopesFallback ?? []);
+
         // Set scopes first, then destinations (order matters for GetDestinations)
-        identity.SetScopes(request.GetScopes());
+        identity.SetScopes(effectiveScopes);
         identity.SetDestinations(GetDestinations);
 
         var claimsPrincipal = new ClaimsPrincipal(identity);
-        claimsPrincipal.SetScopes(request.GetScopes());
+        claimsPrincipal.SetScopes(effectiveScopes);
 
         return claimsPrincipal;
     }
@@ -155,13 +184,63 @@ public class TokenService(
         return [OpenIddictConstants.Destinations.AccessToken];
     }
 
-    public async Task<ClaimsPrincipal> CreateRefreshFlowAccessTokenPrincipal(
+    /// <summary>
+    /// Re-validates the account on every refresh-token exchange so account state (deactivation,
+    /// forced password change, password expiry) takes effect within one access-token lifetime
+    /// instead of lingering for the full refresh-token lifetime, and — when the refresh may
+    /// proceed — builds the new access-token principal from the SAME user load (no second query).
+    /// </summary>
+    public async Task<RefreshTokenResult> CreateRefreshFlowPrincipalAsync(
         OpenIddictRequest request,
-        ClaimsPrincipal principal
-    )
+        ClaimsPrincipal principal)
     {
-        // Reuse the auth code flow logic — it already reloads user, permissions, and roles from DB
-        return await CreateAuthCodeFlowAccessTokenPrincipal(request, principal);
+        var userId = principal.FindFirstValue(OpenIddictConstants.Claims.Subject);
+        if (!Guid.TryParse(userId, out var id))
+            return new RefreshTokenResult(null, "The refresh token is no longer valid.");
+
+        var user = await LoadUserWithPermissionsAsync(id);
+        if (user is null || !user.IsActive)
+            return new RefreshTokenResult(null, "This account is no longer active. Please sign in again.");
+
+        if (user.MustChangePassword)
+            return new RefreshTokenResult(null, "A password change is required. Please sign in again to continue.");
+
+        // Local-password accounts only — LDAP passwords are governed by AD, and legacy accounts with
+        // no recorded change date are not force-expired (consistent with the login page).
+        if (AuthSources.IsLocal(user.AuthSource) && user.PasswordChangedAt is { } changedAt)
+        {
+            var policy = await passwordPolicyProvider.GetAsync();
+            if (policy.ExpiryDays > 0
+                && changedAt.AddDays(policy.ExpiryDays) < dateTimeProvider.ApplicationNow)
+            {
+                // Persist the flag so the next interactive login routes the user to change password.
+                // Write the single column directly (not via UserManager.UpdateAsync, which runs the
+                // email-uniqueness validator and would fail for a pre-existing duplicate-email account).
+                // Best-effort: a transient/concurrency failure here must NOT fault the grant — the
+                // rejection below is the load-bearing behavior (mirrors Login.StampLastLoginAsync).
+                user.MustChangePassword = true;
+                try
+                {
+                    await openIddictDbContext.Users
+                        .Where(u => u.Id == user.Id)
+                        .ExecuteUpdateAsync(s => s.SetProperty(u => u.MustChangePassword, true));
+                }
+                catch (Exception ex)
+                {
+                    // Flag not flipped this round; the refresh is still rejected and the next
+                    // interactive login re-evaluates expiry and flips it.
+                    logger.LogWarning(ex, "Failed to persist MustChangePassword on expiry for {UserId} — refresh still rejected", user.Id);
+                }
+                return new RefreshTokenResult(null, "Your password has expired. Please sign in again to set a new one.");
+            }
+        }
+
+        var username = principal.FindFirstValue(OpenIddictConstants.Claims.Name) ?? user.UserName ?? string.Empty;
+        // Pass the existing principal's scopes as fallback so that refresh requests omitting the
+        // optional scope parameter carry forward the original grant's scopes rather than losing them.
+        var built = await BuildAccessTokenPrincipal(request, id.ToString(), username, user,
+            scopesFallback: principal.GetScopes());
+        return new RefreshTokenResult(built, null);
     }
 
     internal async Task<ImmutableArray<string>> GetUserPermissions(ApplicationUser user)

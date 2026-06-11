@@ -9,8 +9,8 @@ public class CreateTeamCommandHandler(ITeamService teamService)
     {
         var team = await teamService.CreateTeam(
             command.Name,
-            command.Type,
-            command.IsActive,
+            command.Scope,
+            command.Description,
             cancellationToken);
 
         return new CreateTeamResult(team.Id);

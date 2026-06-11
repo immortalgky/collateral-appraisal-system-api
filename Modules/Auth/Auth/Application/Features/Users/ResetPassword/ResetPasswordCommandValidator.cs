@@ -6,7 +6,8 @@ public class ResetPasswordCommandValidator : AbstractValidator<ResetPasswordComm
 {
     public ResetPasswordCommandValidator()
     {
-        RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8);
+        // Length/complexity are enforced by DbPasswordValidator from the DB-maintained policy.
+        RuleFor(x => x.NewPassword).NotEmpty();
         RuleFor(x => x.ConfirmPassword).NotEmpty()
             .Equal(x => x.NewPassword).WithMessage("Confirm password must match new password.");
     }

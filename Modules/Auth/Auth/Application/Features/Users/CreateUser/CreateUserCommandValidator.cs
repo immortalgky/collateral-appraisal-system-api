@@ -1,16 +1,31 @@
+using Auth.Application.Configurations;
 using FluentValidation;
+using Microsoft.Extensions.Options;
 
 namespace Auth.Application.Features.Users.CreateUser;
 
 public class CreateUserCommandValidator : AbstractValidator<CreateUserCommand>
 {
-    public CreateUserCommandValidator()
+    public CreateUserCommandValidator(IOptions<LdapConfiguration> ldapOptions)
     {
+        var ldapEnabled = ldapOptions.Value.Enabled;
+
         RuleFor(x => x.Username)
             .NotEmpty().WithMessage("Username is required.")
             .MaximumLength(256);
+        RuleFor(x => x.AuthSource)
+            .Must(s => s is AuthSources.Local or AuthSources.Ldap)
+            .WithMessage("AuthSource must be 'Local' or 'LDAP'.");
+        // Block creating an LDAP-authenticated user while LDAP is off — it could never log in
+        // (no local password, and the LDAP path is gated on Ldap:Enabled).
+        RuleFor(x => x.AuthSource)
+            .Must(_ => ldapEnabled)
+            .When(x => AuthSources.IsLdap(x.AuthSource))
+            .WithMessage("Cannot create an LDAP user while LDAP authentication is disabled.");
+        // LDAP users authenticate against AD, so a local password is not required for them.
         RuleFor(x => x.Password)
-            .NotEmpty().WithMessage("Password is required.");
+            .NotEmpty().WithMessage("Password is required.")
+            .When(x => !AuthSources.IsLdap(x.AuthSource));
         RuleFor(x => x.Email)
             .NotEmpty().EmailAddress().WithMessage("A valid email is required.")
             .MaximumLength(256);

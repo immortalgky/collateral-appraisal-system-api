@@ -5,6 +5,6 @@ public record TeamMemberDto(Guid UserId, string UserName, string FirstName, stri
 public record GetTeamByIdResult(
     Guid Id,
     string Name,
-    string Type,
-    bool IsActive,
+    string Scope,
+    string? Description,
     List<TeamMemberDto> Members);

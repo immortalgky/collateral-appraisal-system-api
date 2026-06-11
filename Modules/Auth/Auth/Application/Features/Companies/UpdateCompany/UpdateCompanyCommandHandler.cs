@@ -24,6 +24,7 @@ public class UpdateCompanyCommandHandler(ICompanyRepository companyRepository)
             command.PostalCode,
             command.ContactPerson,
             command.IsActive,
+            command.HostCompanyCode,
             command.LoanTypes);
 
         // Full-record PUT: bank account is always (re)applied. Callers send the current

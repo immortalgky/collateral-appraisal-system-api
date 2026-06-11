@@ -82,8 +82,22 @@ public class OpenIddictController(ITokenService tokenService) : Controller
     private async Task<IActionResult> HandleRefreshTokenGrant(OpenIddictRequest request, ClaimsPrincipal? principal)
     {
         if (principal == null) return BadRequest(new { error = "Invalid refresh token" });
-        var claimsPrincipal = await tokenService.CreateRefreshFlowAccessTokenPrincipal(request, principal);
-        return SignIn(claimsPrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+
+        // Re-validate account state on every refresh so deactivation / forced password change /
+        // password expiry take effect within one access-token lifetime instead of the whole
+        // refresh-token lifetime. Rejecting forces the SPA back through interactive login. The
+        // account is loaded once: the same call validates and builds the new principal.
+        var refresh = await tokenService.CreateRefreshFlowPrincipalAsync(request, principal);
+        if (refresh.Rejection is not null)
+            return Forbid(
+                authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                properties: new AuthenticationProperties(new Dictionary<string, string?>
+                {
+                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidGrant,
+                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = refresh.Rejection
+                }));
+
+        return SignIn(refresh.Principal!, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     [AllowAnonymous]

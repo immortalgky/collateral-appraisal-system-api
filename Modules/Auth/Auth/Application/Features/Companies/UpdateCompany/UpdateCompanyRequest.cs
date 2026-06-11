@@ -11,6 +11,7 @@ public record UpdateCompanyRequest(
     string? PostalCode,
     string? ContactPerson,
     bool IsActive,
+    string? HostCompanyCode = null,
     List<string>? LoanTypes = null,
     string? BankAccountNo = null,
     string? BankAccountName = null

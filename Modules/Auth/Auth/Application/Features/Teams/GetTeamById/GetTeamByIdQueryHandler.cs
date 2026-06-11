@@ -18,7 +18,7 @@ public class GetTeamByIdQueryHandler(ITeamService teamService, AuthDbContext dbC
             .ToListAsync(cancellationToken);
 
         return new GetTeamByIdResult(
-            team.Id, team.Name, team.Type, team.IsActive,
+            team.Id, team.Name, team.Scope, team.Description,
             members);
     }
 }

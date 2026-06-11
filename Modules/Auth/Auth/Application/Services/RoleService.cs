@@ -160,6 +160,12 @@ public class RoleService(
         var role = await GetRoleById(id, cancellationToken)
             ?? throw new NotFoundException("Role", id);
 
+        // Guard: refuse to delete a role that is still assigned to users.
+        var userCount = await dbContext.UserRoles.CountAsync(ur => ur.RoleId == id, cancellationToken);
+        if (userCount > 0)
+            throw new ConflictException(
+                $"Cannot delete role '{role.Name}' because it is assigned to {userCount} user(s). Unassign them first.");
+
         // Delete first — only audit on confirmed success
         var deleteResult = await roleManager.DeleteAsync(role);
         if (!deleteResult.Succeeded)

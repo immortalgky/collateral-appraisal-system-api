@@ -4,6 +4,9 @@ public record UpdateUserCommand(
     Guid Id,
     string FirstName,
     string LastName,
+    string Email,
     string? Position,
     string? Department,
-    Guid? CompanyId) : ICommand;
+    Guid? CompanyId,
+    // null = leave AuthSource unchanged (see UpdateUserRequest).
+    string? AuthSource = null) : ICommand;

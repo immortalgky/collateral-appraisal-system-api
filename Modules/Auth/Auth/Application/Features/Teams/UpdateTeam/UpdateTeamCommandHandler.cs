@@ -7,7 +7,7 @@ public class UpdateTeamCommandHandler(ITeamService teamService)
 {
     public async Task<Unit> Handle(UpdateTeamCommand command, CancellationToken cancellationToken)
     {
-        await teamService.UpdateTeam(command.Id, command.Name, command.Type, command.IsActive, cancellationToken);
+        await teamService.UpdateTeam(command.Id, command.Name, command.Scope, command.Description, cancellationToken);
         return Unit.Value;
     }
 }

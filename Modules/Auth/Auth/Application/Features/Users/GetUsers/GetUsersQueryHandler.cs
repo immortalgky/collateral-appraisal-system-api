@@ -33,6 +33,16 @@ public class GetUsersQueryHandler(
                 .Any(ur => ur.UserId == u.Id &&
                            dbContext.Roles.Any(r => r.Id == ur.RoleId && r.Name == query.Role)));
 
+        // Group filter: restrict to members of the given group
+        if (query.GroupId.HasValue)
+            q = q.Where(u => dbContext.GroupUsers
+                .Any(gu => gu.UserId == u.Id && gu.GroupId == query.GroupId.Value));
+
+        // Team filter: restrict to members of the given team
+        if (query.TeamId.HasValue)
+            q = q.Where(u => dbContext.TeamMembers
+                .Any(tm => tm.UserId == u.Id && tm.TeamId == query.TeamId.Value));
+
         // Active status filter
         if (query.IsActive.HasValue)
             q = q.Where(u => u.IsActive == query.IsActive.Value);

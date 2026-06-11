@@ -17,8 +17,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
         builder.HasKey(t => t.Id);
 
         builder.Property(t => t.Name).IsRequired().HasMaxLength(200);
-        builder.Property(t => t.Type).IsRequired().HasMaxLength(50).HasDefaultValue("Internal");
-        builder.Property(t => t.IsActive).IsRequired().HasDefaultValue(true);
+        builder.Property(t => t.Scope).IsRequired().HasMaxLength(50).HasDefaultValue("Bank");
+        builder.Property(t => t.Description).HasMaxLength(500);
 
         // Ignore all Entity<Guid> audit columns — they do not exist in the real table
         builder.Ignore("CreatedAt");
