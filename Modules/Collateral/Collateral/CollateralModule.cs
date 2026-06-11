@@ -1,3 +1,9 @@
+using Collateral.CollateralMasters.CollateralResult;
+using Collateral.CollateralMasters.Reappraisal;
+using Collateral.CollateralMasters.Reappraisal.Services;
+using Collateral.CollateralMasters.RegulatoryExport;
+using Collateral.Contracts.FileInterface;
+using Collateral.Contracts.Reappraisal;
 using Shared.Data.Interceptors;
 
 namespace Collateral;
@@ -27,6 +33,16 @@ public static class CollateralModule
 
         // Scoped: Hangfire instantiates per execution via DI scope
         services.AddScoped<BlockReappraisalJob>();
+
+        // Reappraisal group number generator (stays in Collateral — pure data).
+        services.AddScoped<IReappraisalGroupNumberGenerator, ReappraisalGroupNumberGenerator>();
+
+        // Collateral data impls exposed via Collateral.Contracts interfaces.
+        // Query implementations: IInboundFileSource is registered by IntegrationModule (config-switched).
+        services.AddScoped<IRegulatoryExportQuery, RegulatoryExportQuery>();
+        services.AddScoped<ICollateralResultQuery, CollateralResultQuery>();
+        services.AddScoped<ICollateralResultLedger, CollateralResultLedger>();
+        services.AddScoped<IReappraisalIngestor, ReappraisalIngestor>();
 
         return services;
     }

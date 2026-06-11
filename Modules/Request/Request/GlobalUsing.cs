@@ -50,14 +50,7 @@ global using Request.Domain.Requests;
 global using Request.Domain.Requests.Events;
 global using Request.Domain.Requests.Exceptions;
 
-// Reappraisal domain
-global using Request.Domain.Reappraisal;
-
-// Reappraisal application features
-global using Request.Application.Features.Reappraisal.GetCandidates;
-global using Request.Application.Features.Reappraisal.GetCandidateById;
-global using Request.Application.Features.Reappraisal.InitiateReappraisal;
-global using Request.Application.Features.Reappraisal.DeleteCandidate;
+// Reappraisal application features (InitiateReappraisal moved to Collateral module in Part 2)
 global using Request.Application.Features.Reappraisal.CreateBlockReappraisal;
 
 // RequestTitles Aggregate (includes TitleDocument as child entity)
@@ -75,6 +68,7 @@ global using Request.Domain.RequestComments.Exceptions;
 // Event Handlers
 global using Request.Application.EventHandlers.Request;
 global using Request.Application.EventHandlers.RequestComment;
+global using Request.Application.EventHandlers.Reappraisal;
 
 // Services
 global using Request.Application.Services;

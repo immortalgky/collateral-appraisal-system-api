@@ -31,6 +31,14 @@ public class CollateralEngagementConfiguration : IEntityTypeConfiguration<Collat
         builder.Property(e => e.LandAreaInSqWa).HasPrecision(18, 4);
         builder.Property(e => e.AppraisalValue).HasPrecision(18, 2);
 
+        // Outbound Collateral Result interface enrichment fields.
+        builder.Property(e => e.ForcedSaleValue).HasPrecision(18, 2);
+        builder.Property(e => e.InternalAppraiserName).HasMaxLength(200);
+        builder.Property(e => e.LandValue).HasPrecision(18, 2);
+        builder.Property(e => e.BuildingValue).HasPrecision(18, 2);
+        // HostCompanyCode from auth.Companies — max length matches CompanyConfiguration.HostCompanyCode (10).
+        builder.Property(e => e.AppraisalCompanyCode).HasMaxLength(10);
+
         // PR-4: Idempotency — one engagement per appraisal (unique by AppraisalId).
         // Replaces the old (AppraisalId, PropertyId) composite unique index.
         builder.HasIndex(e => e.AppraisalId)

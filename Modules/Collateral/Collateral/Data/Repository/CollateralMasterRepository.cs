@@ -1,4 +1,5 @@
 using Collateral.CollateralMasters.Models;
+using Collateral.Contracts;
 
 namespace Collateral.Data.Repository;
 

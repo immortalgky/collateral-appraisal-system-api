@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Appraisal.Application.Features.Appraisals.GetAppraisalForCollateral;
+using Appraisal.Contracts.Appraisals;
 using Dapper;
 using Shared.Identity;
 

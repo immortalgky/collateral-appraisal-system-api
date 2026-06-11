@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Appraisal.Application.Features.Appraisals.GetCompletedAppraisalIdsForBackfill;
+using Appraisal.Contracts.Appraisals;
 using Collateral.CollateralMasters.Exceptions;
 using Collateral.CollateralMasters.Models;
 using Collateral.Data;

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Appraisal.Contracts.Photos;
+using Collateral.Contracts;
 using Collateral.Application.Features.CollateralMasters.Lookup;
 using Collateral.Application.Features.CollateralMasters.Shared;
 using Dapper;

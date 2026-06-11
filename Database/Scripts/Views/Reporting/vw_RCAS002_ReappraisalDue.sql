@@ -1,10 +1,11 @@
 -- RCAS002 — รายงานการครบกำหนดทบทวนหลักประกันตามประเภท
 -- Collateral review-due by type, from the AS400-sourced reappraisal candidates.
 --
--- Reads the BASE table request.ReappraisalCandidates (not request.vw_ReappraisalCandidates) on
--- purpose: repeatable view scripts deploy in folder-alphabetical order, and "Reporting" sorts
--- before "Request", so the Request view may not exist yet on a fresh deploy. The base table exists
--- after EF migrations, and appraisal.vw_AppraisalList (folder "Appraisal") sorts before this view.
+-- Reads the BASE table collateral.ReappraisalCandidates (not collateral.vw_ReappraisalCandidates) on
+-- purpose: repeatable view scripts deploy in folder-alphabetical order, so a sibling view may not
+-- exist yet on a fresh deploy. The base table exists after EF migrations, and
+-- appraisal.vw_AppraisalList (folder "Appraisal") sorts before this view.
+-- NOTE: the reappraisal vertical moved request -> collateral schema; this view follows it.
 -- AppraisalDate / NextValuationDate are derived here the same way the Request view derives them.
 CREATE
 OR ALTER VIEW reporting.vw_RCAS002_ReappraisalDue
@@ -30,7 +31,7 @@ SELECT c.Id,
        DATEDIFF(DAY,
                 CAST(GETDATE() AS DATE),
                 DATEADD(YEAR, 5, CAST(la.AppointmentDateTime AS DATE))) AS RemainingDays
-FROM request.ReappraisalCandidates c
+FROM collateral.ReappraisalCandidates c
          OUTER APPLY (
     SELECT TOP 1 al.AppointmentDateTime
     FROM appraisal.Appraisals a

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAS ↔ AS400 Fixed-Width Interfaces — Flow</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --mut:#94a3b8; --acc:#38bdf8; --good:#34d399; --warn:#fbbf24; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.6 -apple-system,Segoe UI,Roboto,sans-serif; }
+  header { padding:28px 32px; border-bottom:1px solid #334155; }
+  h1 { margin:0 0 4px; font-size:22px; }
+  header p { margin:0; color:var(--mut); }
+  main { max-width:1100px; margin:0 auto; padding:24px 32px 64px; }
+  section { background:var(--card); border:1px solid #334155; border-radius:12px; padding:20px 24px; margin:22px 0; }
+  h2 { margin:0 0 12px; font-size:18px; color:var(--acc); }
+  .mermaid { background:#0b1220; border-radius:10px; padding:16px; overflow:auto; }
+  ol,ul { margin:8px 0 0 18px; } li { margin:4px 0; }
+  code { background:#0b1220; padding:1px 6px; border-radius:5px; color:#bae6fd; font-size:13px; }
+  .tag { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; margin-left:6px; }
+  .exists { background:rgba(52,211,153,.15); color:var(--good); border:1px solid var(--good); }
+  .new { background:rgba(56,189,248,.15); color:var(--acc); border:1px solid var(--acc); }
+  .risk { background:rgba(251,191,36,.15); color:var(--warn); border:1px solid var(--warn); }
+  table { width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; }
+  th,td { text-align:left; padding:6px 8px; border-bottom:1px solid #334155; vertical-align:top; }
+  th { color:var(--mut); font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CAS ↔ AS400 fixed-width interfaces</h1>
+  <p>Shared engine · reappraisal move to Collateral · Regulatory (308) export · Collateral Result (202)</p>
+</header>
+<main>
+
+  <section>
+    <h2>1 · Architecture</h2>
+    <p>Generic transport lives in <b>Integration</b>, shared via <code>Integration.Contracts</code> so producing
+       modules depend on the contract only. All three file <i>features</i> live in <b>Collateral</b> (data owner).</p>
+    <div class="mermaid">
+flowchart LR
+  subgraph AS400["AS400 / Host (SFTP)"]
+    IN[("COLLATREV inbound · 649")]
+    OUTR[("Regulatory · 308")]
+    OUTC[("Collateral Result · 202")]
+  end
+  subgraph INTEG["Integration — Contracts = shared seam"]
+    ISRC["IInboundFileSource"]
+    ISINK["IOutboundFileSink"]
+    FW["FixedWidthRecordBuilder / Reader"]
+  end
+  subgraph COLL["Collateral module"]
+    JOBIN["As400ReappraisalJob"]
+    CAND[("collateral.ReappraisalCandidates")]
+    INIT["Initiate endpoint"]
+    REG["RegulatoryExportJob (new)"]
+    RES["CollateralResultExportJob (exists)"]
+    DATA[("CollateralMaster / Engagement")]
+  end
+  subgraph REQ["Request module"]
+    RCON["Reappraisal consumer · InboxGuard"]
+    REQS[("request.Requests")]
+  end
+  IN --> ISRC --> JOBIN --> CAND
+  INIT -->|mark Consumed + outbox event · one tx| CAND
+  INIT -. ReappraisalInitiatedIntegrationEvent .-> RCON --> REQS
+  DATA --> REG --> ISINK --> OUTR
+  DATA --> RES --> ISINK --> OUTC
+  JOBIN -. uses .-> FW
+  REG -. uses .-> FW
+  RES -. uses .-> FW
+    </div>
+  </section>
+
+  <section>
+    <h2>2 · Initiate flow — cross-module via outbox (drift-free)</h2>
+    <p>Moving candidates to Collateral splits the old single transaction. A sync service call would risk
+       "one leg fails" drift, so we use the <b>outbox</b>: Collateral commits candidate state + event atomically;
+       Request creates the Requests via an <code>InboxGuard</code> consumer.</p>
+    <div class="mermaid">
+sequenceDiagram
+  actor U as Admin UI
+  participant C as Collateral Initiate
+  participant OB as Collateral Outbox
+  participant R as Request Consumer
+  U->>C: POST /reappraisal/initiate candidateIds
+  C->>C: generate groupNumber, mark candidates Consumed
+  C->>OB: write ReappraisalInitiatedEvent in SAME transaction
+  C-->>U: 200 groupNumber - queued
+  OB-->>R: deliver event ~1s, at-least-once
+  R->>R: InboxGuard claim, create N Requests + Submit groupNumber
+  R->>R: mark processed, idempotent on redelivery
+    </div>
+  </section>
+
+  <section>
+    <h2>3 · Export jobs (outbound)</h2>
+    <div class="mermaid">
+flowchart TB
+  subgraph reg["Regulatory - monthly full snapshot"]
+    V1[("vw_RegulatoryExport<br/>one row per active master")] --> W1["RegulatoryFileWriter · 308"] --> S1["IOutboundFileSink.WriteAsync"]
+  end
+  subgraph res["Collateral Result - incremental sent-ledger"]
+    Q2["CollateralResultQuery<br/>unsent completed appraisals"] --> W2["CollateralResultFileWriter · 202"] --> S2["IOutboundFileSink.WriteAsync"]
+    S2 --> L2[("CollateralResultLogs<br/>at-least-once ledger")]
+  end
+    </div>
+  </section>
+
+  <section>
+    <h2>4 · Phases</h2>
+    <table>
+      <tr><th>Phase</th><th>What</th><th>State</th></tr>
+      <tr><td>A</td><td>Extract one <code>FixedWidthRecordBuilder/Reader</code> into Integration.Contracts; refactor the two duplicated writers</td><td><span class="tag new">new</span></td></tr>
+      <tr><td>B</td><td>Move reappraisal vertical Request→Collateral; inbound transport → Integration; initiate via outbox event</td><td><span class="tag risk">touches working feature</span></td></tr>
+      <tr><td>C</td><td>Regulatory 308 export in Collateral (mirror CollateralResult; full monthly snapshot from Master/Engagement)</td><td><span class="tag new">new</span></td></tr>
+      <tr><td>D</td><td>AS400 Collateral Result 202 — built &amp; registered; only the rejected-<code>R</code> case remains</td><td><span class="tag exists">mostly done</span></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>5 · Regulatory 308 — data sources (highlights)</h2>
+    <table>
+      <tr><th>Field</th><th>Source</th><th></th></tr>
+      <tr><td>prev / newest appraisal #</td><td>earliest / latest <code>CollateralEngagement.AppraisalNumber</code></td><td>✅</td></tr>
+      <tr><td>HOST Collateral ID</td><td><code>CollateralMaster.HostCollateralId</code> (exists; blank for now)</td><td>✅</td></tr>
+      <tr><td>value: completed / origination</td><td>latest / earliest <code>Engagement.AppraisalValue</code></td><td>✅</td></tr>
+      <tr><td>appraiser type 1/2</td><td><code>Engagement.AppraisalCompanyId</code> null? → internal</td><td>✅</td></tr>
+      <tr><td>construction review date</td><td>latest <code>AppraisalType = Progressive</code> engagement date</td><td>⚠️</td></tr>
+      <tr><td>DOPA 6-digit</td><td>address name → <code>parameter.TitleSubDistricts.Code</code></td><td>⚠️</td></tr>
+      <tr><td>market price / L&amp;B floors &amp; age / BuildingType desc</td><td>partial — blank + TODO</td><td>❌</td></tr>
+    </table>
+  </section>
+
+</main>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startup:true, theme:'dark', securityLevel:'loose' });</script>
+</body>
+</html>

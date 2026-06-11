@@ -1,5 +1,6 @@
 using System.Text.Json;
-using Appraisal.Application.Features.Appraisals.GetAppraisalForCollateral;
+using Appraisal.Contracts.Appraisals;
+using Collateral.Contracts;
 using Collateral.CollateralMasters.Exceptions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -772,7 +773,8 @@ public class CollateralMasterUpsertService(
             IncomingRegistrationNo: m.RegistrationNumber,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
-            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow
+            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
+            LifeYear: m.LifeYear
         );
 
         master.UpsertFromMachineAppraisal(upsertData);
@@ -1114,12 +1116,12 @@ public class CollateralMasterUpsertService(
         ProjectForCollateral proj)
     {
         var units = new List<CollateralMasters.Models.ProjectUnit>(proj.Units.Count);
-        bool isCondo = string.Equals(proj.ProjectType, "Condo", StringComparison.OrdinalIgnoreCase);
+        bool isCondo = string.Equals(proj.ProjectType, "U", StringComparison.OrdinalIgnoreCase);
 
         foreach (var dto in proj.Units)
         {
-            CollateralMasters.Models.ProjectUnit unit = isCondo
-                ? CollateralMasters.Models.ProjectUnit.CreateCondo(
+            ProjectUnit unit = isCondo
+                ? ProjectUnit.CreateCondo(
                     collateralMasterId: collateralMasterId,
                     sequenceNumber: dto.SequenceNumber,
                     floor: dto.Floor,
@@ -1129,7 +1131,7 @@ public class CollateralMasterUpsertService(
                     modelType: dto.ModelType,
                     usableArea: dto.UsableArea,
                     sellingPrice: dto.SellingPrice)
-                : CollateralMasters.Models.ProjectUnit.CreateLandAndBuilding(
+                : ProjectUnit.CreateLandAndBuilding(
                     collateralMasterId: collateralMasterId,
                     sequenceNumber: dto.SequenceNumber,
                     plotNumber: dto.PlotNumber,
@@ -1178,6 +1180,21 @@ public class CollateralMasterUpsertService(
             ? parsedCompanyId
             : (Guid?)null;
 
+        // Freeze the cost-approach Land/Building split from the just-upserted primary master, so the
+        // outbound Collateral Result interface never recomputes from later-overwritten master state.
+        decimal? landValue = null;
+        decimal? buildingValue = null;
+        var ld = primaryMaster.LandDetail;
+        if (ld is not null && ld.UnitPrice is not null
+            && primaryMaster.CollateralType is CollateralTypes.Land or CollateralTypes.LandWithBuilding)
+        {
+            if (landAreaInSqWa is not null)
+                landValue = ld.UnitPrice.Value * landAreaInSqWa.Value;
+            // BuildingValue intentionally stays null for bare Land — only L&B carries a building cost.
+            if (primaryMaster.CollateralType == CollateralTypes.LandWithBuilding)
+                buildingValue = ld.BuildingCost;
+        }
+
         primaryMaster.AppendEngagement(
             appraisalId: appraisal.AppraisalId,
             appraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
@@ -1193,7 +1210,12 @@ public class CollateralMasterUpsertService(
             createdAt: dateTimeProvider.ApplicationNow,
             appraisedCollateralType: appraisedCollateralType,
             landAreaInSqWa: landAreaInSqWa,
-            appraisalValue: appraisalValue);
+            appraisalValue: appraisalValue,
+            forcedSaleValue: appraisal.ForcedSaleValue,
+            internalAppraiserName: appraisal.AppraiserName,
+            landValue: landValue,
+            buildingValue: buildingValue,
+            appraisalCompanyCode: appraisal.CompanyCode);
     }
 
     private static bool IsUniqueConstraintViolation(DbUpdateException ex)

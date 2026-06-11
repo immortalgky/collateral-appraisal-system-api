@@ -110,6 +110,14 @@ public class CollateralMasterConfiguration : IEntityTypeConfiguration<Collateral
             .HasMaxLength(100)
             .IsRequired(false);
 
+        // Host (AS400) collateral identifier (CCDCID) — populated by a future inbound interface.
+        builder.Property(m => m.HostCollateralId)
+            .HasMaxLength(19)
+            .IsRequired(false);
+        builder.HasIndex(m => m.HostCollateralId)
+            .HasDatabaseName("IX_CollateralMasters_HostCollateralId")
+            .HasFilter("[HostCollateralId] IS NOT NULL");
+
         // Ignore EF backing field for domain events
         builder.Ignore(m => m.DomainEvents);
     }

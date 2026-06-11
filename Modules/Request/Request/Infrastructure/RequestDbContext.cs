@@ -1,4 +1,3 @@
-using Request.Domain.Reappraisal;
 using Shared.Data.Outbox;
 
 namespace Request.Infrastructure;
@@ -8,7 +7,6 @@ public class RequestDbContext(DbContextOptions<RequestDbContext> options) : DbCo
     public DbSet<Domain.Requests.Request> Requests => Set<Domain.Requests.Request>();
     public DbSet<RequestTitle> RequestTitles => Set<RequestTitle>();
     public DbSet<RequestComment> RequestComments => Set<RequestComment>();
-    public DbSet<ReappraisalCandidate> ReappraisalCandidates => Set<ReappraisalCandidate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

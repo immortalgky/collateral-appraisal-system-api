@@ -16,6 +16,12 @@ public class MachineDetail
     // Appraisal summary (owned)
     public AppraisalSummary AppraisalSummary { get; private set; } = null!;
 
+    /// <summary>
+    /// Useful-life years from the latest appraisal's machinery cost item (MachineCostItem.LifeSpanYears).
+    /// Used by the outbound Collateral Result interface (Life Year). NULL when not captured.
+    /// </summary>
+    public decimal? LifeYear { get; private set; }
+
     // Synced from CollateralMaster for filtered unique index support
     public bool IsDeleted { get; private set; }
 
@@ -52,6 +58,8 @@ public class MachineDetail
     {
         MachineRegistrationNo = machineRegistrationNo;
     }
+
+    internal void SetLifeYear(decimal? lifeYear) => LifeYear = lifeYear;
 
     internal void SetIsDeleted(bool isDeleted) => IsDeleted = isDeleted;
 

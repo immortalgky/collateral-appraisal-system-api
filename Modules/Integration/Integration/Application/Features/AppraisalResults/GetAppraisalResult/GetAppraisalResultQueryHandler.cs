@@ -74,11 +74,19 @@ internal static class GetAppraisalResultSql
                                                aa.AssigneeUserId,
                                                aa.AssigneeCompanyId,
                                                c.Name AS CompanyName,
+                                               c.HostCompanyCode AS CompanyCode,
                                                u.FirstName AS UserFirstName,
-                                               u.LastName  AS UserLastName
+                                               u.LastName  AS UserLastName,
+                                               appt.AppointmentDateTime
                                            FROM appraisal.AppraisalAssignments aa
                                            LEFT JOIN auth.Companies   c ON c.Id = TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier)
                                            LEFT JOIN auth.AspNetUsers u ON u.UserName = aa.AssigneeUserId
+                                           OUTER APPLY (
+                                               SELECT TOP 1 ap.AppointmentDateTime
+                                               FROM appraisal.Appointments ap
+                                               WHERE ap.AssignmentId = aa.Id AND ap.Status <> 'Cancelled'
+                                               ORDER BY ap.AppointmentDateTime DESC
+                                           ) appt
                                            WHERE aa.AppraisalId = @AppraisalId
                                              AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
                                            ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC
@@ -91,7 +99,7 @@ internal static class GetAppraisalResultSql
                               """;
 
     public const string ValuationTotals = """
-                                          SELECT va.AppraisedValue, va.ForcedSaleValue, va.InsuranceValue, va.ValuationDate
+                                          SELECT va.AppraisedValue, va.ForcedSaleValue, va.InsuranceValue, va.MarketValue, va.ValuationDate
                                           FROM appraisal.ValuationAnalyses va
                                           WHERE va.AppraisalId = @AppraisalId
                                           """;
@@ -101,9 +109,12 @@ internal static class GetAppraisalResultSql
                                                    pg.Id AS GroupId, pg.GroupName,
                                                    gv.AppraisedValue AS GroupAppraisedValue,
                                                    paa.ApproachType AS AppraisalMethod,
+                                                   pfv.LandValue AS GroupLandValue,
+                                                   pfv.BuildingCost AS GroupBuildingValue,
+                                                   pfv.FinalValueAdjusted AS GroupUnitPrice,
                                                    ap.Id AS PropertyId, ap.PropertyType,
                                                    -- Land/LB fields (from LandAppraisalDetails + first LandTitle)
-                                                   lad.Province, lad.District, lad.SubDistrict,
+                                                   lad.Province, lad.District, lad.SubDistrict, lad.LandOffice,
                                                    lt.TitleNumber AS TitleNo, lt.LandParcelNumber AS LandNo,
                                                    lt.Rawang, lt.SurveyNumber AS SurveyNo,
                                                    lt.BookNumber AS BookNo, lt.PageNumber AS PageNo,
@@ -116,6 +127,7 @@ internal static class GetAppraisalResultSql
                                                    cad.BuildingNumber AS BuildingNo, cad.BuildingAge AS CondoBuildingAge,
                                                    cad.NumberOfFloors AS CondoTotalFloor, cad.UsableArea AS AreaUtilize,
                                                    cad.Province AS CadProvince, cad.District AS CadDistrict, cad.SubDistrict AS CadSubDistrict,
+                                                   cad.LandOffice AS CadLandOffice,
                                                    -- Lease fields
                                                    leasd.ContractNo, leasd.LesseeName, leasd.LessorName,
                                                    -- Vehicle identity fields
@@ -134,13 +146,21 @@ internal static class GetAppraisalResultSql
                                                FROM appraisal.PropertyGroups pg
                                                LEFT JOIN appraisal.ValuationAnalyses va2 ON va2.AppraisalId = pg.AppraisalId
                                                LEFT JOIN appraisal.GroupValuations gv ON gv.PropertyGroupId = pg.Id AND gv.ValuationAnalysisId = va2.Id
-                                               LEFT JOIN appraisal.PricingAnalysis pa ON pa.PropertyGroupId = pg.Id
+                                               LEFT JOIN appraisal.PricingAnalysis pa ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
                                                OUTER APPLY (
                                                    SELECT TOP 1 ApproachType
                                                    FROM appraisal.PricingAnalysisApproaches
                                                    WHERE PricingAnalysisId = pa.Id AND IsSelected = 1
                                                    ORDER BY Id
                                                ) paa
+                                               OUTER APPLY (
+                                                   SELECT TOP 1 fv.LandValue, fv.BuildingCost, fv.FinalValueAdjusted
+                                                   FROM appraisal.PricingAnalysisApproaches pap
+                                                   JOIN appraisal.PricingAnalysisMethods pm ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
+                                                   JOIN appraisal.PricingFinalValues fv ON fv.PricingMethodId = pm.Id
+                                                   WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
+                                                   ORDER BY pm.Id
+                                               ) pfv
                                                JOIN appraisal.PropertyGroupItems pgi ON pgi.PropertyGroupId = pg.Id
                                                JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
                                                LEFT JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap.Id
@@ -178,13 +198,16 @@ internal sealed record AssignmentRow(
     string? AssigneeUserId,
     string? AssigneeCompanyId,
     string? CompanyName,
+    string? CompanyCode,
     string? UserFirstName,
-    string? UserLastName);
+    string? UserLastName,
+    DateTime? AppointmentDateTime);
 
 internal sealed record ValuationRow(
     decimal? AppraisedValue,
     decimal? ForcedSaleValue,
     decimal? InsuranceValue,
+    decimal? MarketValue,
     DateTime? ValuationDate);
 
 internal sealed record CollateralRow(
@@ -192,11 +215,15 @@ internal sealed record CollateralRow(
     string? GroupName,
     decimal? GroupAppraisedValue,
     string? AppraisalMethod,
+    decimal? GroupLandValue,
+    decimal? GroupBuildingValue,
+    decimal? GroupUnitPrice,
     Guid PropertyId,
     string? PropertyType,
     string? Province,
     string? District,
     string? SubDistrict,
+    string? LandOffice,
     string? TitleNo,
     string? LandNo,
     string? Rawang,
@@ -219,6 +246,7 @@ internal sealed record CollateralRow(
     string? CadProvince,
     string? CadDistrict,
     string? CadSubDistrict,
+    string? CadLandOffice,
     string? ContractNo,
     string? LesseeName,
     string? LessorName,
@@ -299,6 +327,7 @@ internal static class AppraisalResultBuilder
                     r.Province ?? r.CadProvince,
                     r.District ?? r.CadDistrict,
                     r.SubDistrict ?? r.CadSubDistrict,
+                    r.LandOffice ?? r.CadLandOffice,
                     r.VehicleRegistrationNo,
                     r.VehicleBrand,
                     r.VehicleModel,
@@ -314,6 +343,9 @@ internal static class AppraisalResultBuilder
                 return new AppraisalResultGroup(
                     first.GroupAppraisedValue,
                     first.AppraisalMethod,
+                    first.GroupLandValue,
+                    first.GroupBuildingValue,
+                    first.GroupUnitPrice,
                     collaterals);
             })
             .ToList();
@@ -328,6 +360,7 @@ internal static class AppraisalResultBuilder
             .ToList();
 
         string? valuerName = null;
+        string? valuerCode = null;
         string? appraisalSource = null;
         if (assignment is not null)
         {
@@ -336,6 +369,8 @@ internal static class AppraisalResultBuilder
                 if (!string.IsNullOrWhiteSpace(assignment.CompanyName))
                 {
                     valuerName = assignment.CompanyName;
+                    // External valuer code = company host code; internal (I) code is ignored for now.
+                    valuerCode = assignment.CompanyCode;
                     appraisalSource = "E";
                 }
             }
@@ -353,10 +388,13 @@ internal static class AppraisalResultBuilder
             AppraisalFee: fee,
             AppraisalSource: appraisalSource,
             ValuerName: valuerName,
+            ValuerCode: valuerCode,
             ValuationDate: (valuation?.ValuationDate ?? appraisal.CompletedAt)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            AppraisalDate: assignment?.AppointmentDateTime?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             TotalAppraisalValue: valuation?.AppraisedValue,
             ForceSalePrice: valuation?.ForcedSaleValue,
             FireInsurance: valuation?.InsuranceValue,
+            MarketValue: valuation?.MarketValue,
             Groups: groups,
             Documents: documents);
     }

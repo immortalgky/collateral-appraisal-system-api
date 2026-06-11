@@ -1,4 +1,5 @@
 using Collateral.CollateralMasters.Events;
+using Collateral.Contracts;
 
 namespace Collateral.CollateralMasters.Models;
 
@@ -80,7 +81,9 @@ public sealed record MachineUpsertData(
     string? IncomingRegistrationNo,
     Guid AppraisalId,
     string AppraisalNumber,
-    DateTime AppraisalDate
+    DateTime AppraisalDate,
+    // Useful-life years from the appraisal's machinery cost item (outbound Collateral Result).
+    decimal? LifeYear
 );
 
 /// <summary>
@@ -157,6 +160,13 @@ public class CollateralMaster : Aggregate<Guid>
     public bool ExcludedFromReappraisal { get; private set; }
     public DateTime? ExcludedFromReappraisalAt { get; private set; }
     public string? ExcludedFromReappraisalBy { get; private set; }
+
+    /// <summary>
+    /// Host (AS400) collateral identifier (CCDCID). Populated by a future inbound host-mapping
+    /// interface; NULL until then. Used as the key for the outbound Collateral Result interface —
+    /// only masters with a non-null HostCollateralId are exported.
+    /// </summary>
+    public string? HostCollateralId { get; private set; }
 
     private CollateralMaster() { }
 
@@ -334,6 +344,15 @@ public class CollateralMaster : Aggregate<Guid>
         ExcludedFromReappraisal = false;
         ExcludedFromReappraisalAt = null;
         ExcludedFromReappraisalBy = null;
+    }
+
+    /// <summary>
+    /// Sets the host (AS400) collateral identifier. Called by the future inbound host-mapping
+    /// interface. Idempotent overwrite; blank is normalised to null.
+    /// </summary>
+    public void SetHostCollateralId(string? hostCollateralId)
+    {
+        HostCollateralId = string.IsNullOrWhiteSpace(hostCollateralId) ? null : hostCollateralId.Trim();
     }
 
     /// <summary>
@@ -544,6 +563,8 @@ public class CollateralMaster : Aggregate<Guid>
             MachineDetail.PromoteToRegistration(data.IncomingRegistrationNo);
         }
 
+        MachineDetail.SetLifeYear(data.LifeYear);
+
         MachineDetail.UpdateAppraisalSummary(data.AppraisalId, data.AppraisalNumber, data.AppraisalDate);
     }
 
@@ -613,7 +634,12 @@ public class CollateralMaster : Aggregate<Guid>
         DateTime createdAt,
         string? appraisedCollateralType = null,
         decimal? landAreaInSqWa = null,
-        decimal? appraisalValue = null)
+        decimal? appraisalValue = null,
+        decimal? forcedSaleValue = null,
+        string? internalAppraiserName = null,
+        decimal? landValue = null,
+        decimal? buildingValue = null,
+        string? appraisalCompanyCode = null)
     {
         if (!IsMaster)
             throw new InvalidOperationException(
@@ -625,7 +651,9 @@ public class CollateralMaster : Aggregate<Guid>
             appraisalType, appraisalDate,
             appraiserUserId, appraisalCompanyId, appraisalCompanyName,
             constructionInspectionFeeAmount, snapshot, createdAt,
-            appraisedCollateralType, landAreaInSqWa, appraisalValue);
+            appraisedCollateralType, landAreaInSqWa, appraisalValue,
+            forcedSaleValue, internalAppraiserName, landValue, buildingValue,
+            appraisalCompanyCode);
 
         _engagements.Add(engagement);
         AddDomainEvent(new CollateralEngagementAddedEvent(Id, engagement.Id, appraisalId));

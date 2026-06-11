@@ -1,4 +1,5 @@
 using Collateral.CollateralMasters.Models;
+using Collateral.CollateralMasters.Reappraisal;
 using Shared.Data.Outbox;
 
 namespace Collateral.Data;
@@ -14,9 +15,12 @@ public class CollateralDbContext : DbContext
     public DbSet<CollateralEngagementBuilding> CollateralEngagementBuildings => Set<CollateralEngagementBuilding>();
     public DbSet<CollateralMasterAuditLog> CollateralMasterAuditLogs => Set<CollateralMasterAuditLog>();
     public DbSet<CollateralBackfillReport> CollateralBackfillReports => Set<CollateralBackfillReport>();
+    public DbSet<CollateralResultLog> CollateralResultLogs => Set<CollateralResultLog>();
+    public DbSet<PendingCollateralResult> PendingCollateralResults => Set<PendingCollateralResult>();
     public DbSet<CollateralDocument> CollateralDocuments => Set<CollateralDocument>();
     public DbSet<BlockReappraisalDue> BlockReappraisalDue => Set<BlockReappraisalDue>();
     public DbSet<ProjectUnit> ProjectUnits => Set<ProjectUnit>();
+    public DbSet<ReappraisalCandidate> ReappraisalCandidates => Set<ReappraisalCandidate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,7 +30,7 @@ public class CollateralDbContext : DbContext
 
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
-        modelBuilder.AddIntegrationEventInbox();
+        modelBuilder.AddIntegrationEventOutbox();
 
         base.OnModelCreating(modelBuilder);
     }

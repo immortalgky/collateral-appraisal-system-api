@@ -8,8 +8,8 @@ using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Request.Infrastructure;
-using Request.Infrastructure.Reappraisal;
 using Collateral.CollateralMasters.Services;
+using Collateral.Data;
 using Reporting.Application.Services;
 using Scalar.AspNetCore;
 using Dapper;
@@ -82,6 +82,7 @@ builder.Services.AddHostedService<IntegrationEventDeliveryService<RequestDbConte
 builder.Services.AddHostedService<IntegrationEventDeliveryService<AppraisalDbContext>>();
 builder.Services.AddHostedService<IntegrationEventDeliveryService<DocumentDbContext>>();
 builder.Services.AddHostedService<IntegrationEventDeliveryService<WorkflowDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<CollateralDbContext>>();
 builder.Services.AddHostedService<IntegrationEventDeliveryService<Reporting.Data.ReportingDbContext>>();
 
 builder.Services.AddMassTransit(config =>
@@ -379,7 +380,7 @@ RecurringJob.AddOrUpdate<LogsCleanupJob>(
 // Reappraisal (AS400): ingest AS400 COLLATREV files monthly, 1st of month at 01:00 local.
 // TODO(confirm): if the file arrives on a fixed day other than the 1st, adjust the cron.
 // In dev, trigger manually via Hangfire dashboard (/hangfire → "Trigger now").
-RecurringJob.AddOrUpdate<As400ReappraisalJob>(
+RecurringJob.AddOrUpdate<Integration.FileInterface.Jobs.Reappraisal.As400ReappraisalJob>(
     "reappraisal-as400", j => j.ExecuteAsync(CancellationToken.None),
     Cron.Monthly(1, 1), jobOptions); // 1st of each month at 01:00 local
 
@@ -389,6 +390,21 @@ RecurringJob.AddOrUpdate<As400ReappraisalJob>(
 RecurringJob.AddOrUpdate<BlockReappraisalJob>(
     "reappraisal-block", j => j.ExecuteAsync(CancellationToken.None),
     Cron.Daily(1), jobOptions); // 01:00 local
+
+// Outbound Collateral Result (AS400): ship completed-appraisal prices to the host once daily at midnight.
+// Driven by the collateral.CollateralResultLogs sent-ledger so a collateral completing AFTER a run is
+// caught by the next run (next midnight). Dormant (no file) until HostCollateralId is populated by the
+// future inbound host-mapping interface. In dev, trigger manually via /hangfire → "Trigger now".
+RecurringJob.AddOrUpdate<Integration.FileInterface.Jobs.CollateralResult.CollateralResultExportJob>(
+    "collateral-result-export", j => j.ExecuteAsync(CancellationToken.None),
+    Cron.Daily(0), jobOptions); // 00:00 local
+
+// Outbound CAS-AS400-Regulatory (Basel/RDT): full monthly snapshot of all active collateral masters.
+// No sent-ledger — every run is a complete re-extract. Runs 1st of each month at 02:00 local.
+// In dev, trigger manually via /hangfire → "Trigger now".
+RecurringJob.AddOrUpdate<Integration.FileInterface.Jobs.RegulatoryExport.RegulatoryExportJob>(
+    "regulatory-export", j => j.ExecuteAsync(CancellationToken.None),
+    Cron.Monthly(1, 2), jobOptions); // 1st of each month at 02:00 local
 
 // Report artifact cleanup: delete expired job rows and their on-disk PDF files daily at 03:00 local.
 // Retention period is controlled by Reporting:ArtifactRetentionDays (default 7 days).

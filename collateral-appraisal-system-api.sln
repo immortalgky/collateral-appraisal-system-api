@@ -115,6 +115,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reporting.Contracts", "Modu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reporting.Data", "Modules\Reporting\Reporting.Data\Reporting.Data.csproj", "{9183A514-6A66-4619-826B-1CF067FF3B0F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collateral.Tests", "Tests\Unit\Collateral.Tests\Collateral.Tests.csproj", "{CF0E55E2-DA36-4E96-9430-91E677F96731}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -521,6 +523,18 @@ Global
 		{9183A514-6A66-4619-826B-1CF067FF3B0F}.Release|x64.Build.0 = Release|Any CPU
 		{9183A514-6A66-4619-826B-1CF067FF3B0F}.Release|x86.ActiveCfg = Release|Any CPU
 		{9183A514-6A66-4619-826B-1CF067FF3B0F}.Release|x86.Build.0 = Release|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Debug|x64.Build.0 = Debug|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Debug|x86.Build.0 = Debug|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Release|x64.ActiveCfg = Release|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Release|x64.Build.0 = Release|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Release|x86.ActiveCfg = Release|Any CPU
+		{CF0E55E2-DA36-4E96-9430-91E677F96731}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -572,5 +586,6 @@ Global
 		{F1A2B3C4-D5E6-7F80-9A0B-1C2D3E4F5062} = {F1A2B3C4-D5E6-7F80-9A0B-1C2D3E4F5061}
 		{391D0567-7F71-4D48-8472-2DB71DE4DE15} = {F1A2B3C4-D5E6-7F80-9A0B-1C2D3E4F5061}
 		{9183A514-6A66-4619-826B-1CF067FF3B0F} = {F1A2B3C4-D5E6-7F80-9A0B-1C2D3E4F5061}
+		{CF0E55E2-DA36-4E96-9430-91E677F96731} = {9D556B49-86D1-93A7-9596-FFAAB74EC556}
 	EndGlobalSection
 EndGlobal

@@ -17,6 +17,12 @@ public class CollateralEngagement
     public string? AppraiserUserId { get; private set; }
     public Guid? AppraisalCompanyId { get; private set; }
     public string? AppraisalCompanyName { get; private set; }
+    /// <summary>
+    /// HostCompanyCode from auth.Companies at engagement time (historically frozen).
+    /// Used by the outbound Collateral Result interface (External Valuer Code, CCDAPC, 4-char).
+    /// NULL for engagements that pre-date this column, or when the assignment is internal.
+    /// </summary>
+    public string? AppraisalCompanyCode { get; private set; }
     // Construction Inspection Fee captured from this engagement's AppraisalFee.
     // Reused as the appraisal fee when a future Construction Inspection appraisal is created
     // for the same collateral (CI bypasses the normal tier/quotation pipeline).
@@ -46,6 +52,32 @@ public class CollateralEngagement
     /// </summary>
     public decimal? AppraisalValue { get; private set; }
 
+    /// <summary>
+    /// Appraisal-level forced-sale value at engagement time (ValuationAnalyses.ForcedSaleValue).
+    /// Used by the outbound Collateral Result interface (Force Sale Value). NULL when not present.
+    /// </summary>
+    public decimal? ForcedSaleValue { get; private set; }
+
+    /// <summary>
+    /// Bank-side internal valuer display name at engagement time
+    /// (AppraisalAssignment.InternalAppraiserName). Used by the outbound Collateral Result interface
+    /// (Internal Valuer Name). NULL when not captured.
+    /// </summary>
+    public string? InternalAppraiserName { get; private set; }
+
+    /// <summary>
+    /// Cost-approach land value at engagement time (UnitPrice × land area), frozen here so the
+    /// outbound Collateral Result interface doesn't recompute from later-overwritten master state.
+    /// NULL for non-Land/L&B or non-cost-approach.
+    /// </summary>
+    public decimal? LandValue { get; private set; }
+
+    /// <summary>
+    /// Cost-approach building value at engagement time (PricingFinalValue.BuildingCost), frozen.
+    /// NULL for non-L&B or non-cost-approach.
+    /// </summary>
+    public decimal? BuildingValue { get; private set; }
+
     // Buildings child collection — one row per Building property at engagement time.
     private readonly List<CollateralEngagementBuilding> _buildings = [];
     public IReadOnlyList<CollateralEngagementBuilding> Buildings => _buildings.AsReadOnly();
@@ -68,7 +100,12 @@ public class CollateralEngagement
         DateTime createdAt,
         string? appraisedCollateralType = null,
         decimal? landAreaInSqWa = null,
-        decimal? appraisalValue = null)
+        decimal? appraisalValue = null,
+        decimal? forcedSaleValue = null,
+        string? internalAppraiserName = null,
+        decimal? landValue = null,
+        decimal? buildingValue = null,
+        string? appraisalCompanyCode = null)
     {
         Id = Guid.CreateVersion7();
         CollateralMasterId = collateralMasterId;
@@ -87,6 +124,11 @@ public class CollateralEngagement
         AppraisedCollateralType = appraisedCollateralType;
         LandAreaInSqWa = landAreaInSqWa;
         AppraisalValue = appraisalValue;
+        ForcedSaleValue = forcedSaleValue;
+        InternalAppraiserName = internalAppraiserName;
+        LandValue = landValue;
+        BuildingValue = buildingValue;
+        AppraisalCompanyCode = appraisalCompanyCode;
     }
 
     /// <summary>

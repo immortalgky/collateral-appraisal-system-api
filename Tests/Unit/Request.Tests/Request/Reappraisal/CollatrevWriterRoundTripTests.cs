@@ -1,5 +1,5 @@
 using System.Text;
-using Request.Infrastructure.Reappraisal;
+using Integration.FileInterface.Format.Reappraisal;
 
 namespace Request.Tests.Request.Reappraisal;
 
@@ -34,9 +34,9 @@ public class CollatrevWriterRoundTripTests
             ["CollateralName"] = "Sample Land Plot",
             ["CifName"] = "Somchai Jaidee",
             ["TitleNo"] = "NS3K-1827",
-            ["CurrentValue"] = "4500000.00",
+            ["CurrentValue"] = "450000000",     // implied-decimal: 4500000.00 × 100
             ["ValuationDate"] = "28112019",
-            ["MortgageAmount"] = "3600000.00",
+            ["MortgageAmount"] = "360000000",   // implied-decimal: 3600000.00 × 100
             ["IBGRetail"] = "Retail",
             ["Stage"] = "1",
             ["Group"] = "1",
