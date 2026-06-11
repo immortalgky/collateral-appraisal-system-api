@@ -1,4 +1,5 @@
 using Integration.Contracts.FileSource;
+using Microsoft.Extensions.Hosting;
 
 namespace Integration.Infrastructure.FileSource;
 
@@ -7,11 +8,16 @@ namespace Integration.Infrastructure.FileSource;
 /// Intended for development and integration testing (FileTransfer:Inbound:FileSource = Local).
 /// Directory and file pattern are passed by the caller (resolved from FileInterfaceConfigs).
 /// </summary>
-public class LocalInboundFileSource : IInboundFileSource
+public class LocalInboundFileSource(IHostEnvironment environment) : IInboundFileSource
 {
+    // Resolve a relative directory against the app content root, NOT the process CWD — on IIS the
+    // worker-process CWD is System32\inetsrv, which would silently look in / write to the wrong place.
+    private string Resolve(string directory) =>
+        Path.GetFullPath(Path.IsPathRooted(directory) ? directory : Path.Combine(environment.ContentRootPath, directory));
+
     public Task<IReadOnlyList<InboundFileInfo>> ListFilesAsync(string directory, string filePattern, CancellationToken cancellationToken = default)
     {
-        var dir = Path.GetFullPath(directory);
+        var dir = Resolve(directory);
         if (!Directory.Exists(dir))
         {
             // Return empty list when the inbox does not exist yet — job is a no-op.
@@ -35,7 +41,7 @@ public class LocalInboundFileSource : IInboundFileSource
 
     public Task ArchiveAsync(InboundFileInfo file, string processedDirectory, CancellationToken cancellationToken = default)
     {
-        var processedDir = Path.GetFullPath(processedDirectory);
+        var processedDir = Resolve(processedDirectory);
         Directory.CreateDirectory(processedDir);
 
         var destination = Path.Combine(processedDir, file.FileName);
