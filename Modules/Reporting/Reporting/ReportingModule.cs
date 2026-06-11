@@ -44,6 +44,10 @@ public static class ReportingModule
         // Exposed cross-module through Reporting.Contracts.ITabularExporter.
         services.AddTransient<Reporting.Contracts.ITabularExporter, Infrastructure.Export.TabularExporter>();
 
+        // Inline PDF generation port — consumed by Notification module's ReportAttachmentResolver
+        // to auto-attach generated report PDFs to outbound emails.
+        services.AddTransient<Reporting.Contracts.IReportPdfGenerator, Infrastructure.ReportPdfGeneratorService>();
+
         // Operational reports (FSD Ch.9): one generic runner executes every report definition
         // as a paginated preview or an Excel/CSV/PDF export.
         services.AddScoped<Application.OperationalReports.Shared.IOperationalReportRunner,

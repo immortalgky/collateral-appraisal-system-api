@@ -10,7 +10,9 @@ public class MeetingInvitationEmailConfiguration : IEntityTypeConfiguration<Meet
         builder.ToTable("MeetingInvitationEmails");
         builder.HasKey(e => e.Id);
         builder.Property(e => e.From).HasMaxLength(500).IsRequired();
-        builder.Property(e => e.To).HasMaxLength(500).IsRequired();
+        builder.Property(e => e.To).HasMaxLength(500);
+        builder.Property(e => e.Cc).HasMaxLength(500);
+        builder.Property(e => e.Bcc).HasMaxLength(500);
         builder.Property(e => e.Subject).HasMaxLength(500).IsRequired();
         builder.Property(e => e.Content).HasMaxLength(4000);
         builder.Property(e => e.Attachments).HasMaxLength(2000);

@@ -8,8 +8,11 @@ public class MeetingRepository(WorkflowDbContext dbContext) : IMeetingRepository
 {
     public Task<Meeting?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
+        // Two collection Includes (Members + Documents) — AsSplitQuery avoids the cartesian product.
         return dbContext.Meetings
             .Include(m => m.Members)
+            .Include(m => m.Documents)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(m => m.Id == id, ct);
     }
 

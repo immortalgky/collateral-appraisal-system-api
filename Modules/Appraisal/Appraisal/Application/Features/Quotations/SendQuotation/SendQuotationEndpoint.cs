@@ -2,7 +2,7 @@ namespace Appraisal.Application.Features.Quotations.SendQuotation;
 
 public record SendQuotationRequest(
     string From,
-    string To,
+    string? To,
     string? Cc,
     string? Bcc,
     string Subject,

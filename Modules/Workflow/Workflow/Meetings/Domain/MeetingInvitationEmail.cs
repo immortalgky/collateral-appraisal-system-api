@@ -7,7 +7,9 @@ public class MeetingInvitationEmail
     public Guid Id { get; private set; }
     public Guid MeetingId { get; private set; }
     public string From { get; private set; } = string.Empty;
-    public string To { get; private set; } = string.Empty;
+    public string? To { get; private set; }
+    public string? Cc { get; private set; }
+    public string? Bcc { get; private set; }
     public string Subject { get; private set; } = string.Empty;
     public string? Content { get; private set; }
     public string? Attachments { get; private set; } // JSON array of strings
@@ -15,8 +17,8 @@ public class MeetingInvitationEmail
     private MeetingInvitationEmail() { }
 
     public static MeetingInvitationEmail Create(
-        Guid meetingId, string from, string to,
-        string subject, string? content, string[]? attachments)
+        Guid meetingId, string from, string? to,
+        string? cc, string? bcc, string subject, string? content, string[]? attachments)
     {
         return new MeetingInvitationEmail
         {
@@ -24,6 +26,8 @@ public class MeetingInvitationEmail
             MeetingId = meetingId,
             From = from,
             To = to,
+            Cc = cc,
+            Bcc = bcc,
             Subject = subject,
             Content = content,
             Attachments = attachments?.Length > 0

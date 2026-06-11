@@ -1136,6 +1136,61 @@ namespace Workflow.Infrastructure.Migrations
                     b.ToTable("MeetingConfigurations", "workflow");
                 });
 
+            modelBuilder.Entity("Workflow.Meetings.Domain.MeetingDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<Guid>("MeetingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MeetingId", "DocumentId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_MeetingDocuments_Meeting_Document");
+
+                    b.ToTable("MeetingDocuments", "workflow");
+                });
+
             modelBuilder.Entity("Workflow.Meetings.Domain.MeetingInvitationEmail", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1145,6 +1200,14 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<string>("Attachments")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Bcc")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Cc")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Content")
                         .HasMaxLength(4000)
@@ -1164,7 +1227,6 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("To")
-                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
@@ -1800,6 +1862,11 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CorrelationId")
+                        .HasDatabaseName("IX_CompletedTasks_CorrelationId");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("CorrelationId"), new[] { "AssignedType", "AssignedTo", "AssigneeCompanyId" });
 
                     b.ToTable("CompletedTasks", "workflow");
                 });
@@ -2823,6 +2890,15 @@ namespace Workflow.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Workflow.Meetings.Domain.MeetingDocument", b =>
+                {
+                    b.HasOne("Workflow.Meetings.Domain.Meeting", null)
+                        .WithMany("Documents")
+                        .HasForeignKey("MeetingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Workflow.Meetings.Domain.MeetingItem", b =>
                 {
                     b.HasOne("Workflow.Meetings.Domain.Meeting", null)
@@ -3043,6 +3119,8 @@ namespace Workflow.Infrastructure.Migrations
 
             modelBuilder.Entity("Workflow.Meetings.Domain.Meeting", b =>
                 {
+                    b.Navigation("Documents");
+
                     b.Navigation("Items");
 
                     b.Navigation("Members");

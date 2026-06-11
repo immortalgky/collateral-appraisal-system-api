@@ -51,6 +51,9 @@ public class Meeting : Aggregate<Guid>
     private readonly List<MeetingMember> _members = new();
     public IReadOnlyList<MeetingMember> Members => _members.AsReadOnly();
 
+    private readonly List<MeetingDocument> _documents = new();
+    public IReadOnlyList<MeetingDocument> Documents => _documents.AsReadOnly();
+
     private Meeting() { }
 
     // -------------------------------------------------------------------------
@@ -180,6 +183,38 @@ public class Meeting : Aggregate<Guid>
 
         _items.Remove(item);
         return item;
+    }
+
+    // -------------------------------------------------------------------------
+    // Documents
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Links a document to this meeting. Duplicate document ids are rejected.
+    /// </summary>
+    public MeetingDocument AddDocument(MeetingDocumentData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        if (_documents.Any(d => d.DocumentId == data.DocumentId))
+            throw new InvalidOperationException(
+                $"Document {data.DocumentId} is already linked to this meeting");
+
+        var doc = MeetingDocument.Create(Id, data);
+        _documents.Add(doc);
+        return doc;
+    }
+
+    /// <summary>
+    /// Removes the link to the given document from this meeting.
+    /// </summary>
+    public MeetingDocument RemoveDocument(Guid documentId)
+    {
+        var doc = _documents.FirstOrDefault(d => d.DocumentId == documentId)
+            ?? throw new NotFoundException($"Document {documentId} is not linked to meeting {Id}");
+
+        _documents.Remove(doc);
+        return doc;
     }
 
     // -------------------------------------------------------------------------
