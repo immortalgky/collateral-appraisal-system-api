@@ -17,6 +17,8 @@
         <ProjectReference Include="..\..\Auth\Auth.Contracts\Auth.Contracts.csproj" />
         <ProjectReference Include="..\..\Request\Request.Contracts\Request.Contracts.csproj" />
         <ProjectReference Include="..\..\Parameter\Parameter.Contracts\Parameter.Contracts.csproj" />
+        <ProjectReference Include="..\..\Reporting\Reporting.Contracts\Reporting.Contracts.csproj" />
+        <ProjectReference Include="..\..\Document\Document.Contracts\Document.Contracts.csproj" />
     </ItemGroup>
 
     <ItemGroup>

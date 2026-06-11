@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using Notification.Contracts.Email;
 using Notification.Contracts.Realtime;
 using Notification.Data;
 using Notification.Data.Repository;
 using Notification.Data.Seed;
 using Notification.Domain.Notifications.Hubs;
 using Notification.Domain.Notifications.Services;
+using Notification.Infrastructure.Email;
+using Notification.Infrastructure.Email.Attachments;
+using Notification.Infrastructure.Email.Templates;
 using Shared.Data.Extensions;
 using Shared.Data.Seed;
 using StackExchange.Redis;
@@ -52,6 +56,20 @@ public static class NotificationModule
 
         // Register data seeder
         services.AddScoped<IDataSeeder<NotificationDbContext>, NotificationDataSeed>();
+
+        // ── Email infrastructure ──────────────────────────────────────────────────
+        services.Configure<MailConfiguration>(configuration.GetSection(MailConfiguration.SectionName));
+        services.AddTransient<IEmailSender, SmtpEmailSender>();
+        services.AddTransient<IEmailTemplateRenderer, EmailTemplateRenderer>();
+
+        // Attachment resolvers (dispatched by type discriminator via EmailAttachmentAssembler).
+        // Add more resolver types here as new attachment sources are introduced.
+        services.AddTransient<IEmailAttachmentResolver, DocumentAttachmentResolver>();
+        services.AddTransient<IEmailAttachmentResolver, ReportAttachmentResolver>();
+        services.AddTransient<EmailAttachmentAssembler>();
+
+        // Send-log writer: best-effort persistence of every email attempt outcome.
+        services.AddScoped<IEmailSendLogWriter, EmailSendLogWriter>();
 
         return services;
     }

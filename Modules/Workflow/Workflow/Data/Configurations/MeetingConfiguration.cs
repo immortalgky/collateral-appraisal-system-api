@@ -45,6 +45,13 @@ public class MeetingConfiguration : IEntityTypeConfiguration<Meeting>
 
         builder.Navigation(m => m.Members).UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        builder.HasMany(m => m.Documents)
+            .WithOne()
+            .HasForeignKey(d => d.MeetingId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(m => m.Documents).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         builder.HasIndex(m => m.Status);
         builder.HasIndex(m => m.MeetingNo).IsUnique().HasFilter("[MeetingNo] IS NOT NULL");
         builder.HasIndex(m => new { m.MeetingNoYear, m.MeetingNoSeq });

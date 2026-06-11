@@ -68,7 +68,7 @@ public class SendQuotationCommandHandler(
         var emailLog = QuotationEmail.Create(
             quotation.Id,
             command.From,
-            command.To,
+            command.To ?? string.Empty,
             command.Cc,
             command.Bcc,
             command.Subject,
@@ -87,6 +87,18 @@ public class SendQuotationCommandHandler(
         var appraisalIds = quotation.Appraisals
             .Select(a => a.AppraisalId)
             .ToArray();
+
+        // Emit email event so the Notification module delivers the quotation email via SMTP.
+        // No schema change — recipients come from admin-entered fields on this command.
+        outbox.Publish(new QuotationSentEmailIntegrationEvent
+        {
+            QuotationRequestId = quotation.Id,
+            To = command.To,
+            Cc = command.Cc,
+            Bcc = command.Bcc,
+            Subject = command.Subject,
+            Content = command.Content
+        }, correlationId: quotation.Id.ToString());
 
         // C8: Emit QuotationStartedIntegrationEvent here (moved from StartQuotationFromTask)
         outbox.Publish(new QuotationStartedIntegrationEvent

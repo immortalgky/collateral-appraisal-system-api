@@ -12,6 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="MailKit"/>
         <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis"/>
     </ItemGroup>
 
@@ -20,6 +21,15 @@
         <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj"/>
         <ProjectReference Include="..\Notification.Contracts\Notification.Contracts.csproj"/>
         <ProjectReference Include="..\..\Auth\Auth.Contracts\Auth.Contracts.csproj"/>
+        <ProjectReference Include="..\..\Document\Document.Contracts\Document.Contracts.csproj"/>
+        <ProjectReference Include="..\..\Reporting\Reporting.Contracts\Reporting.Contracts.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <!-- LH Bank logo for branded emails: embedded in the assembly and attached
+           inline (CID) by SmtpEmailSender so it renders without external fetches
+           and survives image-blocking. Identical on every app server (no shared storage). -->
+      <EmbeddedResource Include="Infrastructure\Email\Templates\Assets\logo-lhbank-email.png" />
     </ItemGroup>
 
 </Project>

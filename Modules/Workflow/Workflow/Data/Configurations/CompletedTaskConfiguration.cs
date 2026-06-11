@@ -57,5 +57,14 @@ public class CompletedTaskConfiguration : IEntityTypeConfiguration<CompletedTask
 
         builder.Property(p => p.AssigneeCompanyId)
             .IsRequired(false);
+
+        // Covering index for CorrelationId lookups against this append-only archival table.
+        // Serves the non-admin access-control EXISTS in GetQuotationsQueryHandler
+        // (EXISTS ... FROM workflow.CompletedTasks ct WHERE ct.CorrelationId = q.Id AND <user/company gate>)
+        // and routeback dedup reads. Without it those queries clustered-index-scan a table that
+        // grows without bound. INCLUDE carries the gate columns so the seek is fully covered.
+        builder.HasIndex(p => p.CorrelationId)
+            .HasDatabaseName("IX_CompletedTasks_CorrelationId")
+            .IncludeProperties(p => new { p.AssignedType, p.AssignedTo, p.AssigneeCompanyId });
     }
 }

@@ -19,6 +19,7 @@
     <PackageVersion Include="Hangfire.SqlServer" Version="1.8.22" />
     <PackageVersion Include="Jint" Version="4.1.0" />
     <PackageVersion Include="Mapster" Version="7.4.0" />
+    <PackageVersion Include="MailKit" Version="4.17.0" />
     <PackageVersion Include="MassTransit" Version="8.4.1" />
     <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.4.1" />
     <PackageVersion Include="MassTransit.RabbitMQ" Version="8.4.1" />

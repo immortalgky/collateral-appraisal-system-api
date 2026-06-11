@@ -18,7 +18,7 @@ public class DocumentService(
     IOptions<FileStorageConfiguration> fileStorageOptions,
     ILogger<DocumentService> logger,
     IDateTimeProvider dateTimeProvider)
-    : IDocumentService
+    : IDocumentService, IDocumentCreatorService
 {
     private readonly FileStorageConfiguration _fileStorageConfiguration = fileStorageOptions.Value;
 
@@ -122,6 +122,78 @@ public class DocumentService(
             document.UploadedByName,
             document.UploadedAt
         );
+    }
+
+    /// <summary>
+    /// Creates a Document from raw bytes (e.g. a server-generated PDF) without an IFormFile.
+    /// Uses the same storage path and checksum logic as <see cref="UploadAsync"/>.
+    /// A synthetic upload session id is generated internally.
+    /// </summary>
+    public async Task<Guid> UploadFromBytesAsync(
+        byte[] bytes,
+        string fileName,
+        string mimeType,
+        string documentType,
+        string documentCategory,
+        string uploadedBy,
+        string? uploadedByName,
+        CancellationToken cancellationToken = default)
+    {
+        var docId = Guid.CreateVersion7();
+        var extension = Path.GetExtension(fileName);
+        var uniqueFileName = $"{docId}{extension}";
+
+        var directoryPath = Path.Combine(
+            GetStorageBasePath(),
+            _fileStorageConfiguration.RootPath.TrimStart('/'),
+            _fileStorageConfiguration.DocumentsPath);
+
+        await using var stream = new MemoryStream(bytes);
+        var storagePath = await SaveFileAsync(stream, directoryPath, uniqueFileName, cancellationToken);
+
+        stream.Seek(0, SeekOrigin.Begin);
+        var checksum = await CalculateChecksumAsync(stream, cancellationToken);
+
+        var storageUrl =
+            $"/{_fileStorageConfiguration.RootPath.TrimStart('/')}/{_fileStorageConfiguration.DocumentsPath}/{uniqueFileName}";
+
+        // Create a real UploadSession row first — Document.UploadSessionId is a NON-nullable FK
+        // to UploadSessions with DeleteBehavior.Restrict, so the session must exist before the
+        // Document row is inserted. Mirror the same expiry logic as CreateUploadSessionCommandHandler.
+        var expiresAt = dateTimeProvider.ApplicationNow
+            .AddHours(_fileStorageConfiguration.Cleanup.TempSessionExpirationHours);
+        var session = UploadSession.Create(expiresAt, userAgent: null, ipAddress: null);
+        await _uploadSessionRepository.AddAsync(session, cancellationToken);
+
+        var document = Domain.Documents.Models.Document.Create(
+            docId,
+            session.Id,
+            documentType,
+            documentCategory,
+            fileName,
+            string.IsNullOrEmpty(extension) ? ".bin" : extension,
+            bytes.LongLength,
+            mimeType,
+            storagePath,
+            storageUrl,
+            uploadedBy,
+            uploadedByName ?? uploadedBy,
+            dateTimeProvider.ApplicationNow,
+            description: null,
+            tags: null,
+            customMetadata: null,
+            checksum,
+            "SHA256"
+        );
+
+        await _documentRepository.AddAsync(document, cancellationToken);
+        await uow.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Created document {DocumentId} from bytes ({FileName}, {Bytes} bytes)",
+            document.Id, fileName, bytes.LongLength);
+
+        return document.Id;
     }
 
     private async Task<string> SaveFileAsync(Stream fileStream, string directoryPath, string uniqueFileName,

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Notification.Domain.Email;
 using Notification.Domain.Notifications.Models;
 using Shared.Data.Outbox;
 
@@ -11,6 +12,7 @@ public class NotificationDbContext : DbContext
     }
 
     public DbSet<UserNotification> UserNotifications { get; set; } = default!;
+    public DbSet<EmailSendLog> EmailSendLogs { get; set; } = default!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

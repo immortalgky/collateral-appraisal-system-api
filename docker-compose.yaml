@@ -34,6 +34,14 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     restart: unless-stopped
 
+  smtp4dev:
+    image: rnwood/smtp4dev:latest
+    container_name: smtp4dev
+    ports:
+      - "5080:80"   # Web UI: http://localhost:5080 (5000 is taken by macOS Control Center/AirPlay)
+      - "2525:25"   # SMTP (mapped to dev Mail:Port=2525)
+    restart: unless-stopped
+
   # Observability stack
   prometheus:
     image: prom/prometheus:latest

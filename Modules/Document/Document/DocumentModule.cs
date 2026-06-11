@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Document.Contracts;
+using Document.Infrastructure;
 using Document.Services;
 using Document.Domain.Documents;
 using Document.Domain.Documents.Models;
@@ -35,7 +37,14 @@ public static class DocumentModule
         services.AddScoped<IRepository<UploadSession, Guid>, UploadSessionRepository>();
 
         services.AddScoped<IDocumentService, DocumentService>();
+        services.AddScoped<IDocumentCreatorService>(sp => (IDocumentCreatorService)sp.GetRequiredService<IDocumentService>());
         services.AddSingleton<IImageResizeService, ImageResizeService>();
+
+        // Email attachment content port — consumed by Notification module's DocumentAttachmentResolver.
+        services.AddTransient<IDocumentContentProvider, DocumentContentProvider>();
+
+        // Bytes-based document creation port — consumed by Workflow module to persist generated PDFs.
+        services.AddTransient<IDocumentCreator, DocumentCreatorAdapter>();
 
         services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
         services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventInterceptor>();
