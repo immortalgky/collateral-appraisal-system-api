@@ -32,12 +32,12 @@ public class GroupService(
         return await groupRepository.GetByIdWithDetailsAsync(id, cancellationToken);
     }
 
-    public async Task UpdateGroup(Guid id, string name, string description, CancellationToken cancellationToken = default)
+    public async Task UpdateGroup(Guid id, string name, string description, string scope, CancellationToken cancellationToken = default)
     {
         var group = await groupRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException("Group", id);
 
-        group.Update(name, description);
+        group.Update(name, description, scope);
         auditWriter.Record(AuditAction.Updated, AuditEntityType.Group, id, name);
         await groupRepository.SaveChangesAsync(cancellationToken);
     }
