@@ -1,7 +1,8 @@
 {
   "ConnectionStrings": {
     "Database": "#{DATABASE_CONNECTION_STRING}#",
-    "Redis": "#{REDIS_CONNECTION_STRING}#"
+    "Redis": "#{REDIS_CONNECTION_STRING}#",
+    "Hangfire": "#{HANGFIRE_CONNECTION_STRING}#"
   },
   "RabbitMQ": {
     "Host": "#{RABBITMQ_HOST}#",
@@ -90,22 +91,12 @@
     "TimeFormat": "HH:mm:ss",
     "DateTimeFormat": "yyyy-MM-dd HH:mm:ss"
   },
-  "WorkflowTelemetry": {
+  "Observability": {
     "Enabled": true,
-    "EnableTracing": true,
-    "EnableMetrics": true,
-    "EnableConsoleExporter": false,
-    "EnableOtlpExporter": true,
-    "OtlpEndpoint": "#{OTLP_ENDPOINT}#",
-    "ServiceName": "CollateralAppraisal.WorkflowService",
+    "ServiceName": "CollateralAppraisalSystem",
     "ServiceVersion": "#{SERVICE_VERSION}#",
-    "ResourceAttributes": {
-      "deployment.environment": "production",
-      "service.namespace": "CollateralAppraisal",
-      "workflow.module.version": "#{WORKFLOW_MODULE_VERSION}#",
-      "service.instance.id": "#{HOSTNAME}#",
-      "cloud.provider": "#{CLOUD_PROVIDER}#",
-      "cloud.region": "#{CLOUD_REGION}#"
+    "Tracing": {
+      "OtlpEndpoint": "#{OTLP_ENDPOINT}#"
     }
   },
   "WorkflowResilience": {
@@ -128,21 +119,111 @@
     "AllowCachingResponses": false,
     "CacheDuration": "00:00:30"
   },
-  "Reappraisal": {
-    "FileSource": "Sftp",
-    "Local": {
-      "Path": "./reappraisal/inbox",
-      "ProcessedPath": "./reappraisal/processed",
-      "FilePattern": "AS400_COLLATREV_*.txt"
+  "Cors": {
+    "AllowedOrigins": [ "#{FRONTEND_ORIGIN}#" ]
+  },
+  "Ldap": {
+    "Enabled": true,
+    "Server": "LHB.NET",
+    "Port": 389,
+    "UseSsl": false,
+    "UseIntegratedAuth": true,
+    "Domain": "LHB",
+    "BaseDn": "DC=LHB,DC=NET",
+    "BindDn": "",
+    "BindPassword": "",
+    "SearchFilter": "(sAMAccountName={0})",
+    "ConnectionTimeoutSeconds": 5,
+    "Attributes": {
+      "Username": "sAMAccountName",
+      "Email": "mail",
+      "FirstName": "givenName",
+      "LastName": "sn",
+      "Department": "department",
+      "Position": "title"
+    }
+  },
+  "FileStorage": {
+    "Mode": "Nas",
+    "NasBasePath": "#{FILESTORAGE_NAS_PATH}#",
+    "RootPath": "uploads",
+    "TempPath": "temp",
+    "DocumentsPath": "documents",
+    "ArchivePath": "archive",
+    "DeletedPath": "deleted",
+    "MaxFileSizeBytes": 52428800,
+    "MaxFilesPerSession": 20,
+    "MaxTotalSessionSizeBytes": 209715200,
+    "AllowedExtensions": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".xls",
+      ".xlsx",
+      ".tif",
+      ".tiff"
+    ],
+    "ImageVariants": {
+      "GenerateThumbnails": true,
+      "Sizes": {
+        "Small": { "Width": 150, "Height": 150 },
+        "Medium": { "Width": 300, "Height": 300 },
+        "Large": { "Width": 800, "Height": 600 }
+      }
     },
-    "Sftp": {
-      "Host": "#{REAPPRAISAL_SFTP_HOST}#",
-      "Port": 22,
-      "Username": "#{REAPPRAISAL_SFTP_USERNAME}#",
-      "Password": "#{REAPPRAISAL_SFTP_PASSWORD}#",
-      "RemoteDirectory": "/incoming/collatrev",
-      "FilePattern": "AS400_COLLATREV_*.txt",
-      "ProcessedDirectory": "/processed/collatrev"
+    "Cleanup": {
+      "TempSessionExpirationHours": 24,
+      "DeletedRetentionDays": 30,
+      "OrphanedCheckDays": 7
+    },
+    "Archive": {
+      "ArchiveAfterDays": 365,
+      "AutoArchiveEnabled": true
+    }
+  },
+  "Reporting": {
+    "ChromiumExecutablePath": "#{CHROMIUM_PATH}#",
+    "MaxConcurrentPages": 4,
+    "ReportsSubfolder": "reports",
+    "ArtifactRetentionDays": 7
+  },
+  "SeedData": {
+    "AdminUser": {
+      "Username": "#{ADMIN_USERNAME}#",
+      "Password": "#{ADMIN_PASSWORD}#"
+    }
+  },
+  "Mail": {
+    "Host": "#{MAIL_HOST}#",
+    "Port": 587,
+    "UseStartTls": true,
+    "Username": "#{MAIL_USERNAME}#",
+    "Password": "#{MAIL_PASSWORD}#",
+    "FromAddress": "#{MAIL_FROM_ADDRESS}#",
+    "FromDisplayName": "Collateral Appraisal System",
+    "Enabled": true
+  },
+  "FileTransfer": {
+    "Inbound": {
+      "FileSource": "Sftp",
+      "Sftp": {
+        "Host": "#{AS400_SFTP_HOST}#",
+        "Port": 22,
+        "Username": "#{AS400_SFTP_USERNAME}#",
+        "Password": "#{AS400_SFTP_PASSWORD}#"
+      }
+    },
+    "Outbound": {
+      "FileSource": "Sftp",
+      "Sftp": {
+        "Host": "#{AS400_SFTP_HOST}#",
+        "Port": 22,
+        "Username": "#{AS400_SFTP_USERNAME}#",
+        "Password": "#{AS400_SFTP_PASSWORD}#"
+      }
     }
   }
 }

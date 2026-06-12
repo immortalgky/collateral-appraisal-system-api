@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collateral Appraisal System API — Windows Server / IIS Hosting Prerequisites</title>
+<style>
+  :root {
+    --ink: #1f2933;
+    --muted: #6b7280;
+    --line: #e2e8f0;
+    --band: #f8fafc;
+    --brand: #1e3a5f;
+    --brand-soft: #eef3f9;
+    --mand: #b91c1c;
+    --mand-bg: #fef2f2;
+    --opt: #b45309;
+    --opt-bg: #fffbeb;
+    --rec: #1d4ed8;
+    --rec-bg: #eff6ff;
+    --ok: #047857;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    line-height: 1.5;
+    margin: 0;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 40px 32px 80px; }
+  header.doc {
+    border-bottom: 3px solid var(--brand);
+    padding-bottom: 18px;
+    margin-bottom: 8px;
+  }
+  header.doc h1 { margin: 0 0 4px; font-size: 26px; color: var(--brand); }
+  header.doc .sub { color: var(--muted); font-size: 14px; }
+  .meta { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  .meta b { color: var(--ink); }
+
+  h2 {
+    font-size: 19px;
+    color: var(--brand);
+    margin: 40px 0 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  h2 .tag { font-size: 12px; color: var(--muted); font-weight: 400; }
+  h3 { font-size: 15px; margin: 24px 0 8px; }
+  p { margin: 8px 0; }
+  code {
+    background: var(--brand-soft);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    color: #0f3057;
+  }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 4px; }
+  .pill {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 2px 10px;
+    white-space: nowrap;
+    line-height: 1.7;
+  }
+  .pill.m { color: var(--mand); background: var(--mand-bg); border: 1px solid #f3c9c9; }
+  .pill.o { color: var(--opt); background: var(--opt-bg); border: 1px solid #f5e3b3; }
+  .pill.r { color: var(--rec); background: var(--rec-bg); border: 1px solid #c7d9f7; }
+
+  .topo {
+    background: var(--band);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin: 16px 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    color: #334155;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 8px;
+    font-size: 13.5px;
+  }
+  thead th {
+    background: var(--brand);
+    color: #fff;
+    text-align: left;
+    padding: 9px 11px;
+    font-weight: 600;
+    font-size: 12.5px;
+  }
+  tbody td { padding: 9px 11px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:nth-child(even) { background: var(--band); }
+  td.id { font-weight: 700; color: var(--brand); white-space: nowrap; width: 46px; }
+  td.comp { width: 27%; }
+  td.center { text-align: center; white-space: nowrap; }
+
+  .note {
+    border-left: 4px solid var(--brand);
+    background: var(--brand-soft);
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    margin: 16px 0;
+    font-size: 13.5px;
+  }
+  .note b { color: var(--brand); }
+  .note ul { margin: 8px 0 0; padding-left: 20px; }
+  .note li { margin: 4px 0; }
+
+  ul.check { list-style: none; padding-left: 0; margin: 8px 0; }
+  ul.check li { padding: 4px 0 4px 28px; position: relative; font-size: 13.5px; border-bottom: 1px dashed var(--line); }
+  ul.check li::before {
+    content: "\2610";
+    position: absolute; left: 4px; top: 3px;
+    font-size: 16px; color: var(--brand);
+  }
+  .verify { color: var(--ok); font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+
+  footer.doc { margin-top: 50px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+
+  @media print {
+    .wrap { padding: 0 12px; max-width: none; }
+    h2 { page-break-after: avoid; }
+    table, .note, .topo { page-break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <h1>Windows Server / IIS Hosting Prerequisites</h1>
+</header>
+
+<h2>Target topology</h2>
+<p>
+  Production runs as <b>two Windows / IIS application servers</b> behind a bank-owned
+  <b>F5 load balancer</b>. Each app server hosts the application <b>plus its own RabbitMQ</b>
+  broker (co-located, not shared). The nodes share one <b>SQL Server</b>, one <b>Redis</b>
+  server, an SMTP relay and a NAS file share. Because there are two app nodes (N=2), every
+  shared component (Redis backplane, NAS storage) must be common to both nodes.
+</p>
+<div class="topo">                         ┌──────────────────────┐
+   clients  ───────────▶  │  F5 load balancer    │  (owned by the bank)
+                         └─────────┬────────────┘
+                  ┌────────────────┴────────────────┐
+                  ▼                                  ▼
+   ┌─────────────────────────┐      ┌─────────────────────────┐
+   │  IIS App Server 1       │      │  IIS App Server 2       │  ◀── Section A
+   │   + RabbitMQ (local)    │      │   + RabbitMQ (local)    │      installs here
+   └────────────┬────────────┘      └────────────┬────────────┘
+                └───────────────┬─────────────────┘
+     ┌─────────┬─────────┬───────┴───┬─────────┬─────────┐
+     ▼         ▼         ▼           ▼         ▼         ▼
+  SQL Server  Redis  SMTP relay  NAS / SMB   SFTP     AD / LDAP
+  (B1)        (B2)   (B3)        share (B4)  (B5)     (B6)         ◀── Section B</div>
+
+<h2>Section A &mdash; On EACH IIS application server <span class="tag">(install on every node)</span></h2>
+<table>
+  <thead>
+    <tr><th>#</th><th>Component</th><th>Why it is needed</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="id">A1</td>
+      <td class="comp"><b>Windows Server 2019 / 2022</b> with the <b>IIS (Web Server) role</b> and default features (Static Content, Default Document, HTTP Errors, Request Filtering)</td>
+      <td>Base hosting platform for the application.</td>
+    </tr>
+    <tr>
+      <td class="id">A2</td>
+      <td class="comp"><b>.NET 9 Hosting Bundle</b> (bundles the .NET Runtime + ASP.NET Core Runtime + ASP.NET Core Module v2 for IIS)</td>
+      <td>Runs the app <b>in-process</b> inside IIS (w3wp). Install the Hosting Bundle, not the plain runtime &mdash; it registers the ANCM v2 IIS module. Reset IIS after install.</td>
+    </tr>
+    <tr>
+      <td class="id">A3</td>
+      <td class="comp"><b>IIS URL Rewrite Module</b> (and <b>ARR</b> if IIS itself does any proxying)</td>
+      <td>Commonly needed for HTTPS redirect / forwarded-header rules. Not required for plain in-process hosting but expected in most bank IIS setups.</td>
+    </tr>
+    <tr>
+      <td class="id">A4</td>
+      <td class="comp"><b>A Chromium-based browser</b> &mdash; <b>Google Chrome</b>, <b>Microsoft Edge</b>, or <b>any other Chromium-based browser</b> (Brave, Vivaldi, a standalone Chromium build, etc.)</td>
+      <td>The Reporting module renders PDFs with <b>headless Chromium (PuppeteerSharp)</b>, which can drive <b>any Chromium-based browser</b> over the DevTools protocol &mdash; Chrome, Edge, or equivalent. <b>Microsoft Edge is the easiest choice</b> since it ships with Windows Server 2022 (no separate install). Point <code>Reporting:ChromiumExecutablePath</code> at the browser executable (e.g. <code>msedge.exe</code> or <code>chrome.exe</code>). Pre-installing any of these avoids the app auto-downloading ~150&nbsp;MB of Chromium on first run.</td>
+    </tr>
+    <tr>
+      <td class="id">A5</td>
+      <td class="comp"><b>Erlang/OTP</b> and <b>RabbitMQ</b> (both required, installed locally on each app server, not shared)</td>
+      <td>Message broker for the MassTransit event bus (integration events, sagas, retries, dead-letter). <b>Both are mandatory</b> &mdash; RabbitMQ on Windows runs on the Erlang runtime, so install <b>Erlang/OTP first, then RabbitMQ</b>. Each node runs its own broker on <code>5672</code> (management UI <code>15672</code>).</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Section B &mdash; Backing infrastructure <span class="tag">(separate servers / bank-provided)</span></h2>
+<table>
+  <thead>
+    <tr><th>#</th><th>Component</th><th>Version / Port</th><th>Used for</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="id">B1</td>
+      <td class="comp"><b>SQL Server</b></td>
+      <td>2019+ &middot; <code>1433</code></td>
+      <td>Primary application database, Hangfire job store, Serilog log sink, OpenIddict store, and shared <b>Data Protection</b> keyring (required so antiforgery/token keys are common across both nodes).</td>
+    </tr>
+    <tr>
+      <td class="id">B2</td>
+      <td class="comp"><b>Redis</b></td>
+      <td>8+ &middot; <code>6379</code></td>
+      <td>Distributed cache and the <b>SignalR backplane</b>. With two nodes the backplane is required so realtime messages reach clients regardless of which node they are connected to.</td>
+    </tr>
+    <tr>
+      <td class="id">B3</td>
+      <td class="comp"><b>SMTP relay</b> (bank mail gateway)</td>
+      <td>port <code>587</code> STARTTLS</td>
+      <td>Outbound email (quotation notifications, meeting invitations) via MailKit. Allow outbound from both app servers to the relay.</td>
+    </tr>
+    <tr>
+      <td class="id">B4</td>
+      <td class="comp"><b>NAS / SMB file share</b> (UNC path)</td>
+      <td>SMB</td>
+      <td>Shared storage for document uploads, generated report PDFs, temp and archive folders. With two nodes a <b>shared</b> UNC path is required so both serve the same files. App-pool identity needs read/write.</td>
+    </tr>
+    <tr>
+      <td class="id">B5</td>
+      <td class="comp"><b>SFTP server</b> (AS400 reappraisal file drop)</td>
+      <td>port <code>22</code></td>
+      <td>Source/processed directories for the monthly AS400 collateral-review files. Required for the reappraisal ingestion job, which reads the AS400 collateral-review files over SFTP in production.</td>
+    </tr>
+    <tr>
+      <td class="id">B6</td>
+      <td class="comp"><b>Active Directory / LDAP</b> directory server</td>
+      <td>LDAPS <code>636</code></td>
+      <td>Users sign in with their AD / bank domain accounts (<code>Ldap:Enabled = true</code>). Each app server needs outbound access to the directory server over LDAPS; the bind service account credentials go in app configuration.</td>
+    </tr>
+  </tbody>
+</table>
+<p style="font-size:13px;color:var(--muted)">
+  Note: these backing services are dependencies the app connects to &mdash; they are normally
+  installed on their own servers or provided as managed/bank infrastructure, not on the IIS app servers.
+</p>
+
+</div>
+</body>
+</html>
