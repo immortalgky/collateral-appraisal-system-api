@@ -26,7 +26,7 @@
   </div>
 
   <!-- Key–value table: rows rendered only when value is non-null -->
-  <table class="kv-table">
+  <table class="kv-table" role="presentation">
     {{ if model.customer_name }}
     <tr>
       <td class="kv-label">ลูกค้า</td>
@@ -185,7 +185,7 @@
 
   <!-- Signature block: 3 columns -->
   <div style="margin-top:4px; font-size:10pt;">ขอแสดงความนับถือ</div>
-  <table class="sig-table">
+  <table class="sig-table" role="presentation">
     <tr>
       <td>
         <div class="sig-line"></div>
