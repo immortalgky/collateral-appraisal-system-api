@@ -23,7 +23,6 @@
         <PackageReference Include="Serilog.Sinks.MSSqlServer"/>
         <PackageReference Include="AspNetCore.HealthChecks.SqlServer"/>
         <PackageReference Include="AspNetCore.HealthChecks.Redis"/>
-        <PackageReference Include="AspNetCore.HealthChecks.RabbitMQ"/>
     </ItemGroup>
 
     <ItemGroup>

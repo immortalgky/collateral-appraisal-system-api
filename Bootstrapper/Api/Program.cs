@@ -26,6 +26,9 @@ using Shared.Messaging.Filters;
 using Shared.Messaging.Services;
 using Workflow.Data;
 using Shared.Observability;
+using Auth.Infrastructure.HealthChecks;
+using Notification.Infrastructure.Email.HealthChecks;
+using Integration.Infrastructure.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -202,9 +205,15 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetConnectionString("Redis")!,
         "redis",
         tags: ["cache", "ready"])
-    .AddRabbitMQ(
-        name: "rabbitmq",
-        tags: ["messaging", "ready"]);
+    // RabbitMQ messaging readiness is covered by MassTransit's own "masstransit-bus" health check
+    // (auto-registered by AddMassTransit, tagged "ready"), which probes the real bus connection.
+    // The AspNetCore.HealthChecks.RabbitMQ check is not used: its v9 overload resolves a
+    // RabbitMQ.Client.IConnection from DI, which MassTransit does not register.
+    // External integrations (LDAP / SMTP / SFTP). Tagged "external", NOT "ready": an outage here
+    // surfaces in /health and /health/external but must not pull a node out of LB rotation.
+    .AddAuthHealthChecks()
+    .AddNotificationHealthChecks()
+    .AddIntegrationHealthChecks();
 
 var corsConfig = builder.Configuration
     .GetSection(CorsConfiguration.SectionName)
@@ -313,6 +322,31 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var response = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(x => new
+            {
+                name = x.Key,
+                status = x.Value.Status.ToString(),
+                exception = x.Value.Exception?.Message,
+                duration = x.Value.Duration.ToString(),
+                data = x.Value.Data
+            }),
+            totalDuration = report.TotalDuration.ToString()
+        };
+        await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response));
+    }
+}).AllowAnonymous();
+
+// External-dependency probes (LDAP / SMTP / SFTP) only. Lets ops poll the integration links
+// without the DB/cache/bus noise — and keeps them out of /health/ready (LB rotation).
+app.MapHealthChecks("/health/external", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("external"),
     ResponseWriter = async (context, report) =>
     {
         context.Response.ContentType = "application/json";
