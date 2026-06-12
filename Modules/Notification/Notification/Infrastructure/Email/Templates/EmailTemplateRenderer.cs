@@ -21,10 +21,17 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
     // Private helpers
     // ---------------------------------------------------------------------------
 
+    // Newlines are converted to <br/> AFTER encoding (so our tags survive). white-space:pre-wrap
+    // is kept for clients that honour it (preserves runs of spaces), but Outlook's Word engine
+    // ignores it — the <br/> is what actually keeps the admin's line breaks there.
     private static string BuildBody(string? adminContent) =>
         string.IsNullOrWhiteSpace(adminContent)
             ? string.Empty
-            : "<p style=\"margin:0;white-space:pre-wrap;\">" + HtmlEncode(adminContent) + "</p>";
+            : "<p style=\"margin:0;white-space:pre-wrap;\">"
+              + HtmlEncode(adminContent)
+                  .Replace("\r\n", "\n").Replace("\r", "\n")
+                  .Replace("\n", "<br/>")
+              + "</p>";
 
     private string Wrap(string subject, string bodyHtml)
     {
@@ -58,8 +65,11 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
             "        <tr><td style=\"background:#f6f6f4;padding:22px 28px;\">\n" +
             "          <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr>\n" +
             // Logo: embedded LH Bank PNG (transparent) attached inline by SmtpEmailSender,
-            // keyed by EmailBranding.LogoContentId. The alt text is the text fallback.
-            "            <td valign=\"middle\"><img src=\"cid:" + EmailBranding.LogoContentId + "\" alt=\"LH Bank\" width=\"148\" height=\"38\" style=\"display:block;border:0;\"/></td>\n" +
+            // keyed by EmailBranding.LogoContentId. The font styling on the <img> is the
+            // "styled alt" fallback: ignored when the image renders, but when a client blocks
+            // the image (e.g. Outlook external-sender protection) the alt text shows as a
+            // branded "LH Bank" wordmark instead of tiny default-styled placeholder text.
+            "            <td valign=\"middle\"><img src=\"cid:" + EmailBranding.LogoContentId + "\" alt=\"LH Bank\" width=\"148\" height=\"38\" style=\"display:block;border:0;font-family:'Sarabun',Tahoma,'Segoe UI',sans-serif;font-size:22px;font-weight:700;color:#0080be;line-height:38px;\"/></td>\n" +
             "            <td valign=\"middle\" align=\"right\" class=\"sarabun\" style=\"color:#6d6e71;font-size:13px;font-weight:600;\">Collateral Appraisal System</td>\n" +
             "          </tr></table>\n" +
             "        </td></tr>\n" +

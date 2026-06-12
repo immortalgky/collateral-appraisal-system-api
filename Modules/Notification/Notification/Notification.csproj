@@ -12,6 +12,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Notification.Tests"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="MailKit"/>
         <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis"/>
     </ItemGroup>
@@ -29,7 +33,7 @@
       <!-- LH Bank logo for branded emails: embedded in the assembly and attached
            inline (CID) by SmtpEmailSender so it renders without external fetches
            and survives image-blocking. Identical on every app server (no shared storage). -->
-      <EmbeddedResource Include="Infrastructure\Email\Templates\Assets\logo-lhbank-email.png" />
+      <EmbeddedResource Include="Infrastructure/Email/Templates/Assets/logo-lhbank-email.png" />
     </ItemGroup>
 
 </Project>
