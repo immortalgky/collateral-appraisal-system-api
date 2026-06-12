@@ -5,5 +5,8 @@ public enum AuditAction
     Created,
     Updated,
     Deleted,
-    AssignmentChanged
+    AssignmentChanged,
+    LoggedIn,
+    LoginFailed,
+    LoggedOut
 }

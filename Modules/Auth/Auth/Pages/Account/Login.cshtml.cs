@@ -1,5 +1,6 @@
 using Auth.Application.Configurations;
 using Auth.Application.Services;
+using Auth.Domain.Auditing;
 using Auth.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
@@ -16,6 +17,7 @@ public class Login(
     ILogger<Login> logger,
     IDateTimeProvider dateTimeProvider,
     IPasswordPolicyProvider passwordPolicyProvider,
+    IAuthAuditWriter auditWriter,
     AuthDbContext dbContext)
     : PageModel
 {
@@ -53,12 +55,14 @@ public class Login(
         if (user is null)
         {
             logger.LogWarning("Login attempt for non-existent user: {Username}", Username);
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, null, Username, new { reason = "UserNotFound" });
             Error = "Invalid login attempt.";
             return Page();
         }
 
         if (!user.IsActive)
         {
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "Inactive" });
             Error = "This account is deactivated. Contact your administrator.";
             return Page();
         }
@@ -75,6 +79,7 @@ public class Login(
         if (!_ldapConfig.Enabled)
         {
             logger.LogWarning("LDAP user {Username} attempted login but LDAP is disabled", Username);
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "LdapDisabled" });
             Error = "Invalid login attempt.";
             return Page();
         }
@@ -83,6 +88,7 @@ public class Login(
         // SignInManager, so without this LDAP accounts would have no app-level brute-force throttle.
         if (await userManager.IsLockedOutAsync(user))
         {
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "LockedOut" });
             Error = "Account locked out.";
             return Page();
         }
@@ -92,6 +98,7 @@ public class Login(
         {
             await userManager.AccessFailedAsync(user);
             logger.LogWarning("LDAP auth failed for {Username}: {Error}", Username, ldapResult.ErrorMessage);
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "InvalidCredentials" });
             Error = "Invalid login attempt.";
             return Page();
         }
@@ -101,6 +108,7 @@ public class Login(
         await StampLastLoginAsync(user);
         await signInManager.SignInAsync(user, RememberMe);
         logger.LogInformation("User {Username} logged in via LDAP", Username);
+        await auditWriter.RecordAuthEventAsync(AuditAction.LoggedIn, user.Id, Username, new { source = "Ldap" });
         return Redirect(GetSafeRedirectUrl(user));
     }
 
@@ -112,15 +120,18 @@ public class Login(
             await EnforcePasswordExpiryAsync(user);
             await StampLastLoginAsync(user);
             logger.LogInformation("User {Username} logged in successfully", Username);
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoggedIn, user.Id, Username, new { source = "Local" });
             return Redirect(GetSafeRedirectUrl(user));
         }
 
         if (result.IsLockedOut)
         {
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "LockedOut" });
             Error = "Account locked out.";
             return Page();
         }
 
+        await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "InvalidCredentials" });
         Error = "Invalid login attempt.";
         return Page();
     }

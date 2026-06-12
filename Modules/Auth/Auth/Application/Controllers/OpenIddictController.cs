@@ -5,10 +5,11 @@ using Microsoft.AspNetCore.Authorization;
 using OpenIddict.Server.AspNetCore;
 using Auth.Application.Helpers;
 using Auth.Application.Services;
+using Auth.Domain.Auditing;
 
 namespace Auth.Application.Controllers;
 
-public class OpenIddictController(ITokenService tokenService) : Controller
+public class OpenIddictController(ITokenService tokenService, IAuthAuditWriter auditWriter) : Controller
 {
     [Authorize(AuthenticationSchemes = "Identity.Application")]
     [AllowAnonymous]
@@ -105,6 +106,14 @@ public class OpenIddictController(ITokenService tokenService) : Controller
     [HttpPost("~/connect/logout")]
     public async Task<IActionResult> Logout()
     {
+        // /connect/logout is anonymous and may be hit without an active session, so only
+        // audit when we actually have an authenticated user to attribute the logout to.
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            Guid? userId = Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoggedOut, userId, User.Identity?.Name);
+        }
+
         await HttpContext.SignOutAsync("Identity.Application");
         RefreshTokenCookieHelper.ClearRefreshTokenCookie(HttpContext);
 
