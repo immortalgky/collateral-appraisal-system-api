@@ -1,0 +1,30 @@
+<!--
+  Partial: internal appraisal book cover page (bank-prepared; no company letter).
+  Included by appraisal-book.html when NOT model.is_external. Shares the parent Scriban scope;
+  expects: model.* (AppraisalSummaryModel summary fields populated by the internal builders).
+-->
+<div class="cover">
+  <div class="cover-logo-box">LOGO</div>
+
+  <div class="cover-title">รายงานการประเมินมูลค่าทรัพย์สิน</div>
+
+  <div class="cover-sub">
+    {{ model.customer_name }}
+    {{ if model.appraisal_book_number }}({{ model.appraisal_book_number }}){{ end }}
+  </div>
+
+  {{ if model.property_type }}
+  <div class="cover-property-type">ประเภททรัพย์สิน : {{ model.property_type }}</div>
+  {{ end }}
+
+  {{ if model.collateral_address }}
+  <div class="cover-location">ที่ตั้งทรัพย์สิน : {{ model.collateral_address }}</div>
+  {{ end }}
+
+  {{ if model.appraisal_date }}
+  <div class="cover-section-label">วันที่ประเมินมูลค่า {{ thai.date model.appraisal_date }}</div>
+  {{ end }}
+
+  <div class="cover-by-label">ประเมินโดย</div>
+  <div class="cover-bank">{{ model.appraiser }}</div>
+</div>

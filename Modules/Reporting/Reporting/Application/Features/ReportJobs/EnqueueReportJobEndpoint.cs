@@ -7,11 +7,14 @@ using Shared.Time;
 namespace Reporting.Application.Features.ReportJobs;
 
 /// <summary>
-/// POST /reports/{reportTypeKey}/{entityId}/jobs
+/// POST /reports/{reportTypeKey}/jobs/{*entityId}
 ///
 /// Validates the report key, creates a ReportJob row in Pending state, enqueues a Hangfire
 /// background job, and returns 202 Accepted with the jobId and a Location header pointing to
 /// the status endpoint.
+///
+/// <paramref name="entityId"/> is the trailing catch-all segment (mirrors the sync GET route) so a
+/// MeetingNo's embedded slash survives — keeping sync and async able to accept the same identifiers.
 ///
 /// Returns:
 ///   202 Accepted  { jobId }
@@ -22,7 +25,7 @@ public sealed class EnqueueReportJobEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/reports/{reportTypeKey}/{entityId}/jobs", HandleAsync)
+        app.MapPost("/reports/{reportTypeKey}/jobs/{*entityId}", HandleAsync)
             .RequireAuthorization()
             .WithTags("Reports")
             .WithName("EnqueueReportJob")
@@ -37,6 +40,7 @@ public sealed class EnqueueReportJobEndpoint : ICarterModule
         string reportTypeKey,
         string entityId,
         IReportRegistry registry,
+        IReportEntityResolver entityResolver,
         ReportingDbContext dbContext,
         IBackgroundJobClient backgroundJobClient,
         ICurrentUserService currentUserService,
@@ -62,9 +66,23 @@ public sealed class EnqueueReportJobEndpoint : ICarterModule
             return Results.BadRequest(new { error = $"Report type '{reportTypeKey}' is currently disabled." });
         }
 
+        // Resolve the caller's number (AppraisalNumber / MeetingNo) to the entity Guid now, so a
+        // bad number fails synchronously with 404 instead of an enqueued job that fails later, and
+        // the persisted job row carries a stable id (decoupled from later number edits).
+        string resolvedEntityId;
+        try
+        {
+            resolvedEntityId = await entityResolver.ResolveAsync(
+                entityId, registration.Category, cancellationToken);
+        }
+        catch (NotFoundException ex)
+        {
+            return Results.NotFound(new { error = ex.Message });
+        }
+
         var now = dateTimeProvider.ApplicationNow;
 
-        var job = ReportJob.Create(reportTypeKey, entityId, userCode, now);
+        var job = ReportJob.Create(reportTypeKey, resolvedEntityId, userCode, now);
         dbContext.ReportJobs.Add(job);
         await dbContext.SaveChangesAsync(cancellationToken);
 

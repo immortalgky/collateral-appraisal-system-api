@@ -1,0 +1,99 @@
+@font-face { font-family:'Sarabun'; font-weight:400; src:url('Sarabun.ttf') format('truetype'); }
+@font-face { font-family:'Sarabun'; font-weight:700; src:url('Sarabun-Bold.ttf') format('truetype'); }
+
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:'Sarabun','Noto Sans Thai','Thonburi','Leelawadee UI',sans-serif;
+  font-size:10pt; line-height:1.5; color:#000; background:#fff;
+}
+
+/* ═══ COVER PAGE ═══════════════════════════════════════════════════════════ */
+.cover {
+  width:100%; min-height:100vh;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:60px 80px;
+  page-break-after:always;
+}
+.cover-logo-box {
+  position:absolute; top:40px; right:60px;
+  width:90px; height:60px;
+  border:1.5px solid #333;
+  display:flex; align-items:center; justify-content:center;
+  font-size:8pt; color:#666; letter-spacing:1px;
+}
+.cover-title {
+  font-size:22pt; font-weight:700;
+  text-align:center; margin-bottom:32px;
+  line-height:1.35;
+}
+.cover-sub {
+  font-size:12pt; text-align:center; margin-bottom:6px;
+}
+.cover-sub-bold { font-size:12pt; font-weight:700; text-align:center; margin-bottom:4px; }
+.cover-property-type { font-size:10.5pt; text-align:center; margin-bottom:4px; color:#333; }
+.cover-location { font-size:10.5pt; text-align:center; margin-bottom:32px; color:#333; }
+.cover-section-label { font-size:10pt; text-align:center; margin-bottom:4px; color:#555; }
+.cover-bank { font-size:12pt; font-weight:700; text-align:center; margin-bottom:28px; }
+.cover-by-label { font-size:10pt; text-align:center; margin-bottom:4px; color:#555; }
+.cover-company { font-size:12pt; font-weight:700; text-align:center; margin-bottom:4px; }
+.cover-addr { font-size:9.5pt; text-align:center; color:#444; margin-bottom:2px; }
+.cover-tel  { font-size:9.5pt; text-align:center; color:#444; }
+
+/* ═══ COMPANY LETTER ═══════════════════════════════════════════════════════ */
+.letter {
+  width:100%; padding:40px 60px;
+  page-break-before:auto;
+}
+.letter-header-row {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  margin-bottom:8px;
+}
+.letter-report-no { font-size:10pt; }
+.letter-logo-box {
+  width:90px; height:60px;
+  border:1.5px solid #333;
+  display:flex; align-items:center; justify-content:center;
+  font-size:8pt; color:#666; letter-spacing:1px;
+}
+.letter-date { text-align:center; margin-bottom:12px; font-size:10.5pt; }
+.letter-re   { margin-bottom:4px; font-size:10.5pt; }
+.letter-to   { margin-bottom:16px; font-size:10.5pt; }
+.letter-intro { margin-bottom:16px; font-size:10.5pt; line-height:1.6; }
+
+/* Key–value table inside the letter */
+table.kv-table {
+  width:100%; border-collapse:collapse;
+  margin-bottom:18px; font-size:10pt;
+}
+table.kv-table td {
+  border:1px solid #555;
+  padding:5px 8px;
+  vertical-align:top;
+}
+table.kv-table td.kv-label {
+  width:38%; font-weight:600; background:#fafafa;
+}
+table.kv-table td.kv-value {
+  width:62%;
+}
+
+.letter-closing { margin-bottom:18px; font-size:10.5pt; line-height:1.6; }
+.letter-surveyor { margin-bottom:28px; font-size:10pt; }
+
+/* 3-column signature block */
+table.sig-table {
+  width:100%; border-collapse:collapse;
+  margin-top:32px; font-size:10pt;
+}
+table.sig-table td {
+  text-align:center; vertical-align:top;
+  padding:0 12px;
+  width:33.33%;
+}
+.sig-line {
+  border-bottom:1px solid #555;
+  margin-bottom:6px;
+  height:38px;
+}
+.sig-name { font-weight:600; margin-bottom:2px; }
+.sig-role { font-size:9pt; color:#444; }

@@ -34,6 +34,7 @@ public static class ReportingModule
 
         // Pipeline services
         services.AddTransient<ReportGenerationService>();
+        services.AddTransient<Application.Services.IReportEntityResolver, Infrastructure.ReportEntityResolver>();
         services.AddTransient<ITemplateStore, FileTemplateStore>();
         services.AddTransient<ITemplateRenderer, ScribanTemplateRenderer>();
         services.AddTransient<IPdfRenderer, PuppeteerPdfRenderer>();
@@ -86,9 +87,9 @@ public static class ReportingModule
         services.AddTransient<IReportDataProvider, AppraisalSummaryMachineDataProvider>();
         services.AddTransient<IReportDataProvider, AppraisalSummaryConstructionDataProvider>();
         services.AddTransient<IReportDataProvider, AppraisalSummaryBlockDataProvider>();
-        services.AddTransient<IReportDataProvider, ExternalReportDataProvider>();
-        services.AddTransient<IReportDataProvider, InternalConstructionReportProvider>();
-        services.AddTransient<IReportDataProvider, InternalBlockReportProvider>();
+        // Unified appraisal book — auto-detects internal/external + body type (replaces the former
+        // external-appraisal-report / internal-report-construction / internal-report-block).
+        services.AddTransient<IReportDataProvider, AppraisalBookDataProvider>();
         services.AddTransient<IReportDataProvider, MeetingInvitationDataProvider>();
         services.AddTransient<IReportDataProvider, MeetingMinuteDataProvider>();
 

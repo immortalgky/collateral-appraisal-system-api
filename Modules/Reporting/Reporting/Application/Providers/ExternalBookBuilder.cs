@@ -1,41 +1,27 @@
+using System.Data;
 using Reporting.Application.Formatting;
 using Reporting.Application.Models;
-using Reporting.Application.Providers.Sections;
-using Reporting.Application.Services;
 
 namespace Reporting.Application.Providers;
 
 /// <summary>
-/// Assembles an <see cref="ExternalReportModel"/> for FSD §2.1.2
-/// "รายงานประเมินมูลค่าทรัพย์สิน" (External Appraisal Report — เล่มรายงานประเมินบริษัท).
+/// Builds the EXTERNAL-company cover-page + company-letter fields of the unified appraisal book
+/// (FSD §2.1.2 — เล่มรายงานประเมินบริษัท) onto an <see cref="AppraisalSummaryModel"/>.
 ///
-/// Scope: Cover Page (§2.1.2.1) + Company Letter (§2.1.2.2) + appendix SLOT.
+/// Only the cover/letter fields are set here; the shared detail sections
+/// (Land/Building/Condo/Construction/Machine/Comparison/WQS/SaleGrid/CostMachine/Appendix) are
+/// loaded ONCE by <see cref="AppraisalBookDataProvider"/> regardless of internal/external, so this
+/// builder deliberately does NOT call the section loaders.
 ///
-/// Phase C — QueryMultiple batch:
-///   Batch 1 (13 result sets, single round-trip, all off @AppraisalId):
-///     RS01  Q1  appraisal.Appraisals — header
-///     RS02  Q2  request.RequestCustomers — customer names (RequestId via subquery)
-///     RS03  Q3  appraisal.AppraisalAssignments — latest non-cancelled External assignment
-///     RS04  Q5  appraisal.Appointments — appraisal date
-///     RS05  Q6  appraisal.AppraisalProperties — property type counts
-///     RS06  Q13 parameter.Parameters 'CollateralType' TH — code→Thai map
-///     RS07  Q7  appraisal.LandAppraisalDetails — land rows
-///     RS08  titles appraisal.LandTitles — all titles (already set-based)
-///     RS09  Q8  appraisal.CondoAppraisalDetails — condo rows
-///     RS10  Q9  appraisal.BuildingAppraisalDetails — building (TOP 1)
-///     RS11  Q10 appraisal.MachineryAppraisalDetails — machinery registrations
-///     RS12  Q11 appraisal.ValuationAnalyses — appraisal/forced/insurance values
-///     RS13  Q12 appraisal.PricingAnalysisMethods — distinct method types
-///
-///   Batch 2 (C#-conditional):
-///     Q4  auth.Companies — only when Q3 yields a valid AssigneeCompanyId Guid.
+/// Data is fetched in a single QueryMultiple batch (13 result sets, all off @AppraisalId) plus a
+/// conditional company lookup — identical to the former ExternalReportDataProvider.
 /// </summary>
-public sealed class ExternalReportDataProvider(
-    ISqlConnectionFactory connectionFactory,
-    ILogger<ExternalReportDataProvider> logger)
-    : IReportDataProvider
+internal static class ExternalBookBuilder
 {
-    public string ReportTypeKey => "external-appraisal-report";
+    private const string BankName = "ธนาคารแลนด์ แอนด์ เฮ้าส์ จำกัด (มหาชน)";
+    private const string LetterSubject = "แจ้งผลการประเมินมูลค่าทรัพย์สิน";
+    private const string ExternalAppraisalPurpose =
+        "เพื่อใช้ในการพิจารณาขอสินเชื่อของ ธนาคารแลนด์ แอนด์ เฮ้าส์ จำกัด (มหาชน)";
 
     // ── Method type → Thai label map ─────────────────────────────────────────────
     private static readonly IReadOnlyDictionary<string, string> MethodTypeLabels =
@@ -52,16 +38,16 @@ public sealed class ExternalReportDataProvider(
             ["Hypothesis"]        = "วิธีสมมติฐาน",
         };
 
-    public async Task<object> GetModelAsync(string entityId, CancellationToken cancellationToken)
+    /// <summary>
+    /// Builds the external cover/letter portion of <see cref="AppraisalSummaryModel"/> from an open
+    /// connection. <c>IsExternal</c> is set to true; section props are left null.
+    /// </summary>
+    internal static async Task<AppraisalSummaryModel> BuildAsync(
+        IDbConnection connection,
+        Guid appraisalId,
+        CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(entityId, out var appraisalId))
-            throw new NotFoundException("Appraisal", entityId);
-
-        using var connection = connectionFactory.CreateNewConnection();
-
-        // ── Batch 1: 13 result sets, single round-trip ───────────────────────────
-        // All queries are keyed off @AppraisalId. Q2 (customers) resolves RequestId
-        // via a scalar subquery to stay in the same batch.
+        // ── Batch 1: 13 result sets, single round-trip (all keyed off @AppraisalId) ──
         const string batchSql = """
             -- RS01: Q1 — Appraisal header
             SELECT
@@ -224,45 +210,21 @@ public sealed class ExternalReportDataProvider(
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, batchParams))
         {
-            // RS01
             header = await multi.ReadFirstOrDefaultAsync<HeaderRow>();
             if (header is null)
-                throw new NotFoundException("Appraisal", entityId);
+                throw new NotFoundException("Appraisal", appraisalId.ToString());
 
-            // RS02
             customerNames = (await multi.ReadAsync<string>()).ToList();
-
-            // RS03
             assignment = await multi.ReadFirstOrDefaultAsync<AssignmentRow>();
-
-            // RS04
             appraisalDate = await multi.ReadFirstOrDefaultAsync<DateTime?>();
-
-            // RS05
             propCounts = (await multi.ReadAsync<PropertyCountRow>()).ToList();
-
-            // RS06
             collateralTypeParams = (await multi.ReadAsync<ParamRow>()).ToList();
-
-            // RS07
             landRows = (await multi.ReadAsync<LandRow>()).ToList();
-
-            // RS08
             titleRows = (await multi.ReadAsync<TitleRow>()).ToList();
-
-            // RS09
             condoRows = (await multi.ReadAsync<CondoRow>()).ToList();
-
-            // RS10
             building = await multi.ReadFirstOrDefaultAsync<BuildingRow>();
-
-            // RS11
             machineRegs = (await multi.ReadAsync<string>()).ToList();
-
-            // RS12
             valuation = await multi.ReadFirstOrDefaultAsync<ValuationRow>();
-
-            // RS13
             methodTypes = (await multi.ReadAsync<string>())
                 .Where(m => !string.IsNullOrWhiteSpace(m))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -272,10 +234,7 @@ public sealed class ExternalReportDataProvider(
             ? string.Join(" และ ", customerNames)
             : null;
 
-        // ── Batch 2: Q4 — Company details (conditional on valid AssigneeCompanyId) ─
-        // Only issued when the assignment has a parseable Guid company id.
-        // Folding into Batch 1 would require always scanning auth.Companies even
-        // when the assignment is internal or has no company — wasteful.
+        // ── Company details (conditional on a valid AssigneeCompanyId Guid) ──────────
         string? companyName = null;
         string? companyAddress = null;
         string? companyTel = null;
@@ -311,8 +270,7 @@ public sealed class ExternalReportDataProvider(
             }
         }
 
-        // ── Compose derived fields ───────────────────────────────────────────────
-
+        // ── Compose derived fields ───────────────────────────────────────────────────
         var collateralTypeMap = collateralTypeParams
             .Where(p => !string.IsNullOrWhiteSpace(p.Code))
             .GroupBy(p => p.Code!, StringComparer.OrdinalIgnoreCase)
@@ -370,25 +328,14 @@ public sealed class ExternalReportDataProvider(
         string? titleDeedNumbers = titleNumbers.Count > 0 ? string.Join(", ", titleNumbers) : null;
         int? totalTitleDeeds = titleRows.Count > 0 ? titleRows.Count : null;
 
-        string? landAreaText = null;
-        if (titleRows.Count > 0)
-        {
-            decimal totalRai = titleRows.Sum(t => t.AreaRai ?? 0m);
-            decimal totalNgan = titleRows.Sum(t => t.AreaNgan ?? 0m);
-            decimal totalSqWa = titleRows.Sum(t => t.AreaSquareWa ?? 0m);
-
-            // Normalise: carry forward (100 sq wa = 1 ngan, 4 ngan = 1 rai)
-            var intSqWa = (int)Math.Round(totalSqWa % 100);
-            totalNgan += Math.Floor(totalSqWa / 100);
-            var intNgan = (int)(totalNgan % 4);
-            totalRai += Math.Floor(totalNgan / 4);
-            var intRai = (int)totalRai;
-
-            decimal grandTotalSqWa = totalRai * 400 + totalNgan * 100 + totalSqWa;
-            grandTotalSqWa = Math.Round(grandTotalSqWa, 2);
-
-            landAreaText = $"{intRai} - {intNgan} - {(int)Math.Round(totalSqWa % 100)} ไร่ หรือ {grandTotalSqWa:0.##} ตารางวา";
-        }
+        // Show the area line whenever any title exists (preserves the original output, including
+        // a "0 - 0 - 0" line for titles with no captured area); hide it only when there are no titles.
+        string? landAreaText = titleRows.Count > 0
+            ? ThaiLandAreaFormatter.FormatTotal(
+                titleRows.Sum(t => t.AreaRai ?? 0m),
+                titleRows.Sum(t => t.AreaNgan ?? 0m),
+                titleRows.Sum(t => t.AreaSquareWa ?? 0m))
+            : null;
 
         // Owners
         string? landOwner = firstLand?.OwnerName;
@@ -424,19 +371,17 @@ public sealed class ExternalReportDataProvider(
         var summarySections = new List<string>();
         foreach (var pc in propCounts.OrderBy(p => p.PropertyType))
         {
-            var typeThai = collateralTypeMap.TryGetValue(pc.PropertyType ?? "", out var d)
-                && !string.IsNullOrWhiteSpace(d)
-                ? d
-                : pc.PropertyType ?? "";
+            // PropertyType stores domain family codes — translate via representative CollateralType code.
+            var typeThai = CollateralFamilyTranslator.ToThai(pc.PropertyType, collateralTypeMap) ?? "";
 
             string? section;
-            if (IsCondoType(pc.PropertyType))
+            if (CollateralFamilyTranslator.IsCondoFamily(pc.PropertyType))
             {
                 section = condoUsableAreaTotal > 0
                     ? $"{typeThai} จำนวน {pc.PropertyCount} ยูนิต เนื้อที่ {condoUsableAreaTotal:0.##} ตารางเมตร"
                     : $"{typeThai} จำนวน {pc.PropertyCount} ยูนิต";
             }
-            else if (IsMachineryType(pc.PropertyType))
+            else if (CollateralFamilyTranslator.IsEquipmentFamily(pc.PropertyType))
             {
                 section = $"{typeThai} จำนวน {pc.PropertyCount} เครื่อง";
             }
@@ -464,25 +409,14 @@ public sealed class ExternalReportDataProvider(
         // Verify date: CompletedAt (external verify) or appraisalDate fallback
         DateTime? verifyDate = header.CompletedAt ?? appraisalDate;
 
-        // ── Detail sections (§2.1.2.3–2.1.2.7) — each null when absent ──────────
-        var landSection = await LandSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        var buildingSection = await BuildingSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        var condoSection = await CondoSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        var constructionSection = await ConstructionSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        var machineSection = await MachineSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-
-        // ── Price-analysis sections (§2.1.2.8–2.1.2.11) ──────────────────────────
-        var comparisonSection = await ComparisonSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        var wqsSection = await WqsSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        var saleGridSection = await SaleGridSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        var costMachineSection = await CostMachineSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-
-        // ── Appendix (§2.1.2.12+) ────────────────────────────────────────────────
-        var (appendixSection, appendixPdfIds) = await AppendixSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-
-        // ── Assemble model ───────────────────────────────────────────────────────
-        var model = new ExternalReportModel
+        // ── Assemble model (cover/letter fields only; sections loaded by the provider) ──
+        return new AppraisalSummaryModel
         {
+            IsExternal = true,
+            BankName = BankName,
+            Subject = LetterSubject,
+            AppraisalPurpose = ExternalAppraisalPurpose,
+
             CompanyName = companyName,
             CompanyAddress = companyAddress,
             CompanyTel = companyTel,
@@ -501,48 +435,18 @@ public sealed class ExternalReportDataProvider(
             CondoOwner = condoOwner,
             MachineRegistrationNumbers = machineRegNumbers,
             Obligation = string.IsNullOrWhiteSpace(obligation) ? null : obligation,
-            CityPlanningAct = null, // Deferred: no clean column in current schema
             PriceMethod = priceMethod,
             AppraisalDate = appraisalDate,
             CollateralValue = valuation?.AppraisedValue,
             ForcedSaleValue = valuation?.ForcedSaleValue,
-            FireInsuranceValue = valuation?.InsuranceValue,
+            BuildingCoverageAmount = valuation?.InsuranceValue,
             SurveyorName = assignment?.ExternalAppraiserName,
             CheckerName = null,      // Deferred: no source column in current schema
             VerifyName = null,       // Deferred: no source column in current schema
             VerifyLicenseNo = null,  // Deferred: no source column in current schema
             DirectorName = null,     // Deferred: no source column in current schema
-            LandSection = landSection,
-            BuildingSection = buildingSection,
-            CondoSection = condoSection,
-            ConstructionSection = constructionSection,
-            MachineSection = machineSection,
-            ComparisonSection = comparisonSection,
-            WqsSection = wqsSection,
-            SaleGridSection = saleGridSection,
-            CostMachineSection = costMachineSection,
-            AppendixSection = appendixSection,
-            AttachmentsBySlot = new Dictionary<string, IReadOnlyList<Guid>>
-            {
-                ["appendix"] = appendixPdfIds,
-            },
         };
-
-        logger.LogDebug(
-            "ExternalReport model assembled for appraisal {AppraisalId}: " +
-            "company={CompanyName}, propTypes={TypeCount}, methodCount={MethodCount}",
-            appraisalId, companyName, propCounts.Count, methodLabels.Count);
-
-        return model;
     }
-
-    // ── Static helpers ────────────────────────────────────────────────────────────
-
-    private static bool IsCondoType(string? code) =>
-        code is "08" or "28";
-
-    private static bool IsMachineryType(string? code) =>
-        code is "11" or "10" or "12";
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
 

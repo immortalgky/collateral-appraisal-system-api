@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <title>เล่มรายงานการประเมิน</title>
+  <style>
+    {{ include 'partials/book-cover-styles' }}
+
+    /* Shared form/table classes used by the summary bodies and detail-section partials. */
+    {{ include 'partials/summary-styles' }}
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER: external (cover + company letter) vs internal (cover + summary body) ══ -->
+{{ if model.is_external }}
+  {{ include 'partials/book-cover-external' }}
+  {{ include 'partials/book-letter-external' }}
+{{ else }}
+  {{ include 'partials/book-cover-internal' }}
+  {{ if model.body_type == "construction" }}{{ include 'partials/summary-construction-body' }}{{ end }}
+  {{ if model.body_type == "block" }}{{ include 'partials/summary-block-body' }}{{ end }}
+  {{ if model.body_type == "standard" }}{{ include 'partials/summary-standard-body' }}{{ end }}
+{{ end }}
+
+<!-- ══ Shared detail sections (each on a new page when its data is present) ══ -->
+{{ if model.condo_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-condo' }}</div>{{ end }}
+{{ if model.land_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-land' }}</div>{{ end }}
+{{ if model.building_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-building' }}</div>{{ end }}
+{{ if model.construction_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-construction' }}</div>{{ end }}
+{{ if model.machine_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-machine' }}</div>{{ end }}
+
+<!-- ══ Price-analysis sections ══ -->
+{{ if model.comparison_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-comparison' }}</div>{{ end }}
+{{ if model.wqs_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-wqs' }}</div>{{ end }}
+{{ if model.sale_grid_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-salegrid' }}</div>{{ end }}
+{{ if model.cost_machine_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-costmachine' }}</div>{{ end }}
+
+{{ if model.appendix_section }}{{ include 'partials/ext-section-appendix' }}{{ end }}
+<!-- SLOT: appendix -->
+
+</body>
+</html>

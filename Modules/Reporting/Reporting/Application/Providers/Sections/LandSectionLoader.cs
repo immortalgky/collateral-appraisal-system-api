@@ -1,5 +1,6 @@
 using System.Data;
 using System.Text.Json;
+using Reporting.Application.Formatting;
 using Reporting.Application.Models.Sections;
 
 namespace Reporting.Application.Providers.Sections;
@@ -174,17 +175,15 @@ internal static class LandSectionLoader
         if (rows.Count == 0)
             return null;
 
-        decimal totalRai  = rows.Sum(r => r.AreaRai  ?? 0m);
-        decimal totalNgan = rows.Sum(r => r.AreaNgan  ?? 0m);
+        decimal totalRai  = rows.Sum(r => r.AreaRai ?? 0m);
+        decimal totalNgan = rows.Sum(r => r.AreaNgan ?? 0m);
         decimal totalSqWa = rows.Sum(r => r.AreaSquareWa ?? 0m);
 
-        // Convert to total square-wa: 1 rai = 400 sqwa, 1 ngan = 100 sqwa
-        decimal totalSqWaAbsolute = totalRai * 400m + totalNgan * 100m + totalSqWa;
-
+        // Land section's own policy: suppress the line when every component is zero.
         if (totalRai == 0m && totalNgan == 0m && totalSqWa == 0m)
             return null;
 
-        return $"{totalRai:0.##} - {totalNgan:0.##} - {totalSqWa:0.##} ไร่ หรือ {totalSqWaAbsolute:0.##} ตารางวา";
+        return ThaiLandAreaFormatter.FormatTotal(totalRai, totalNgan, totalSqWa);
     }
 
     /// <summary>
