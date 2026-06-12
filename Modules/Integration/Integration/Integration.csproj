@@ -8,6 +8,11 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- Provides the IHealthCheck / IHealthChecksBuilder types used by SftpHealthCheck. -->
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
         <!-- Explicit: SftpFileSink uses Renci.SshNet directly (don't rely on the transitive ref via Shared). -->
         <PackageReference Include="SSH.NET" />

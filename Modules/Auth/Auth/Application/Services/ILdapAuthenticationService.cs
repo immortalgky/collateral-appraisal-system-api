@@ -10,6 +10,13 @@ public interface ILdapAuthenticationService
     /// Used to pre-fill the user-creation screen.
     /// </summary>
     Task<LdapUserInfo?> GetUserInfoAsync(string username);
+
+    /// <summary>
+    /// Opens a connection and binds as the service/integrated identity — a real round-trip to the
+    /// directory, with no user/password validation or search. Throws when the server is unreachable
+    /// or the bind is rejected. Used by the LDAP health check to probe connectivity.
+    /// </summary>
+    Task CheckConnectionAsync(CancellationToken cancellationToken = default);
 }
 
 public record LdapAuthResult(bool Succeeded, LdapUserInfo? UserInfo = null, string? ErrorMessage = null);
