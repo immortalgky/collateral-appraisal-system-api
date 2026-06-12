@@ -29,119 +29,119 @@
   <table class="kv-table">
     {{ if model.customer_name }}
     <tr>
-      <td class="kv-label">ลูกค้า</td>
+      <th class="kv-label" scope="row">ลูกค้า</th>
       <td class="kv-value">{{ model.customer_name }}</td>
     </tr>
     {{ end }}
 
     {{ if model.property_type_summary }}
     <tr>
-      <td class="kv-label">ประเภททรัพย์สิน</td>
+      <th class="kv-label" scope="row">ประเภททรัพย์สิน</th>
       <td class="kv-value">{{ model.property_type_summary }}</td>
     </tr>
     {{ end }}
 
     {{ if model.collateral_location }}
     <tr>
-      <td class="kv-label">ที่ตั้งทรัพย์สิน</td>
+      <th class="kv-label" scope="row">ที่ตั้งทรัพย์สิน</th>
       <td class="kv-value">{{ model.collateral_location }}</td>
     </tr>
     {{ end }}
 
     {{ if model.gps }}
     <tr>
-      <td class="kv-label">ค่าพิกัด GPS</td>
+      <th class="kv-label" scope="row">ค่าพิกัด GPS</th>
       <td class="kv-value">{{ model.gps }}</td>
     </tr>
     {{ end }}
 
     {{ if model.title_deed_numbers }}
     <tr>
-      <td class="kv-label">เอกสารสิทธิ์ที่ดิน</td>
+      <th class="kv-label" scope="row">เอกสารสิทธิ์ที่ดิน</th>
       <td class="kv-value">{{ model.title_deed_numbers }} จำนวน {{ model.total_title_deeds }} ฉบับ</td>
     </tr>
     {{ end }}
 
     {{ if model.land_area_text }}
     <tr>
-      <td class="kv-label">เนื้อที่ดิน</td>
+      <th class="kv-label" scope="row">เนื้อที่ดิน</th>
       <td class="kv-value">{{ model.land_area_text }}</td>
     </tr>
     {{ end }}
 
     {{ if model.land_owner }}
     <tr>
-      <td class="kv-label">ผู้ถือกรรมสิทธิ์ที่ดิน</td>
+      <th class="kv-label" scope="row">ผู้ถือกรรมสิทธิ์ที่ดิน</th>
       <td class="kv-value">{{ model.land_owner }}</td>
     </tr>
     {{ end }}
 
     {{ if model.building_details_text }}
     <tr>
-      <td class="kv-label">อาคารสิ่งปลูกสร้าง</td>
+      <th class="kv-label" scope="row">อาคารสิ่งปลูกสร้าง</th>
       <td class="kv-value">{{ model.building_details_text }}</td>
     </tr>
     {{ end }}
 
     {{ if model.building_owner }}
     <tr>
-      <td class="kv-label">ผู้ถือกรรมสิทธิ์สิ่งปลูกสร้าง</td>
+      <th class="kv-label" scope="row">ผู้ถือกรรมสิทธิ์สิ่งปลูกสร้าง</th>
       <td class="kv-value">{{ model.building_owner }}</td>
     </tr>
     {{ end }}
 
     {{ if model.condo_owner }}
     <tr>
-      <td class="kv-label">ผู้ถือกรรมสิทธิ์ห้องชุด</td>
+      <th class="kv-label" scope="row">ผู้ถือกรรมสิทธิ์ห้องชุด</th>
       <td class="kv-value">{{ model.condo_owner }}</td>
     </tr>
     {{ end }}
 
     {{ if model.machine_registration_numbers }}
     <tr>
-      <td class="kv-label">เลขทะเบียนเครื่องจักร</td>
+      <th class="kv-label" scope="row">เลขทะเบียนเครื่องจักร</th>
       <td class="kv-value">{{ model.machine_registration_numbers }}</td>
     </tr>
     {{ end }}
 
     {{ if model.obligation }}
     <tr>
-      <td class="kv-label">ภาระผูกพัน</td>
+      <th class="kv-label" scope="row">ภาระผูกพัน</th>
       <td class="kv-value">{{ model.obligation }}</td>
     </tr>
     {{ end }}
 
     {{ if model.city_plan }}
     <tr>
-      <td class="kv-label">พรบ.ผังเมือง</td>
+      <th class="kv-label" scope="row">พรบ.ผังเมือง</th>
       <td class="kv-value">{{ model.city_plan }}</td>
     </tr>
     {{ end }}
 
     {{ if model.appraisal_purpose }}
     <tr>
-      <td class="kv-label">วัตถุประสงค์การประเมิน</td>
+      <th class="kv-label" scope="row">วัตถุประสงค์การประเมิน</th>
       <td class="kv-value">{{ model.appraisal_purpose }}</td>
     </tr>
     {{ end }}
 
     {{ if model.price_method }}
     <tr>
-      <td class="kv-label">วิธีการประเมินมูลค่า</td>
+      <th class="kv-label" scope="row">วิธีการประเมินมูลค่า</th>
       <td class="kv-value">{{ model.price_method }}</td>
     </tr>
     {{ end }}
 
     {{ if model.appraisal_date }}
     <tr>
-      <td class="kv-label">วันที่ประเมินมูลค่า</td>
+      <th class="kv-label" scope="row">วันที่ประเมินมูลค่า</th>
       <td class="kv-value">{{ thai.date model.appraisal_date }}</td>
     </tr>
     {{ end }}
 
     {{ if model.collateral_value }}
     <tr>
-      <td class="kv-label">มูลค่าทรัพย์สิน</td>
+      <th class="kv-label" scope="row">มูลค่าทรัพย์สิน</th>
       <td class="kv-value">
         {{ model.collateral_value | math.format "N2" }} บาท
         ({{ thai.baht_text model.collateral_value }})
@@ -151,7 +151,7 @@
 
     {{ if model.forced_sale_value }}
     <tr>
-      <td class="kv-label">มูลค่าบังคับขาย 70%</td>
+      <th class="kv-label" scope="row">มูลค่าบังคับขาย 70%</th>
       <td class="kv-value">
         {{ model.forced_sale_value | math.format "N2" }} บาท
         ({{ thai.baht_text model.forced_sale_value }})
@@ -161,7 +161,7 @@
 
     {{ if model.building_coverage_amount }}
     <tr>
-      <td class="kv-label">มูลค่าประกันอัคคีภัย</td>
+      <th class="kv-label" scope="row">มูลค่าประกันอัคคีภัย</th>
       <td class="kv-value">
         {{ model.building_coverage_amount | math.format "N2" }} บาท
         ({{ thai.baht_text model.building_coverage_amount }})
@@ -185,27 +185,25 @@
 
   <!-- Signature block: 3 columns -->
   <div style="margin-top:4px; font-size:10pt;">ขอแสดงความนับถือ</div>
-  <table class="sig-table">
-    <tr>
-      <td>
-        <div class="sig-line"></div>
-        <div class="sig-name">{{ model.checker_name }}</div>
-        <div class="sig-role">ผู้ตรวจสอบรายงาน</div>
-      </td>
-      <td>
-        <div class="sig-line"></div>
-        <div class="sig-name">{{ model.verify_name }}</div>
-        <div class="sig-role">
-          ผู้ประเมินหลักชั้นวุฒิ
-          {{ if model.verify_license_no }}เลขที่ {{ model.verify_license_no }}{{ end }}
-        </div>
-      </td>
-      <td>
-        <div class="sig-line"></div>
-        <div class="sig-name">{{ model.director_name }}</div>
-        <div class="sig-role">กรรมการผู้มีอำนาจลงนาม</div>
-      </td>
-    </tr>
-  </table>
+  <div class="sig-table">
+    <div class="sig-cell">
+      <div class="sig-line"></div>
+      <div class="sig-name">{{ model.checker_name }}</div>
+      <div class="sig-role">ผู้ตรวจสอบรายงาน</div>
+    </div>
+    <div class="sig-cell">
+      <div class="sig-line"></div>
+      <div class="sig-name">{{ model.verify_name }}</div>
+      <div class="sig-role">
+        ผู้ประเมินหลักชั้นวุฒิ
+        {{ if model.verify_license_no }}เลขที่ {{ model.verify_license_no }}{{ end }}
+      </div>
+    </div>
+    <div class="sig-cell">
+      <div class="sig-line"></div>
+      <div class="sig-name">{{ model.director_name }}</div>
+      <div class="sig-role">กรรมการผู้มีอำนาจลงนาม</div>
+    </div>
+  </div>
 
 </div>

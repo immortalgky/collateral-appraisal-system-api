@@ -1,0 +1,29 @@
+<!--
+  Partial: shared report header + common info-block opening of the three summary bodies
+  (standard / construction / block). The includer MUST:
+    1. set {{ summary_title }} before the include (the report title differs per body), and
+    2. close the still-open div.pad after appending its body-specific info rows.
+  Shares the parent Scriban scope; expects: model.* (AppraisalSummaryModel snake_case fields).
+-->
+<!-- ════ HEADER ════ -->
+<div class="head">
+  <div class="logo">
+    <div class="lh">LH <span class="b">BANK</span></div>
+    <div class="bars"></div>
+  </div>
+  <div class="title">{{ summary_title }}</div>
+  <div class="meta">
+    <div class="row"><span class="lbl">รายงานเลขที่</span><span class="val">{{ model.appraisal_book_number }}</span></div>
+    <div class="row"><span class="lbl">วันที่สำรวจและประเมินราคา</span><span class="val">{{ thai.date model.appraisal_date }}</span></div>
+  </div>
+</div>
+
+<!-- ════ INFO BLOCK (common opening — includer adds its rows and closes .pad) ════ -->
+<div class="pad">
+  <div class="kv"><span class="k">ชื่อลูกค้า :</span><span class="v">{{ model.customer_name }}</span></div>
+  <div class="kv"><span class="k">ผู้แจ้ง :</span><span class="v">{{ model.ao_name }}</span></div>
+  <div class="cols2">
+    <div class="kv"><span class="k">วัตถุประสงค์ :</span><span class="v">{{ model.appraisal_purpose }}</span></div>
+    <div class="kv"><span class="k">ประเภททรัพย์สิน :</span><span class="v">{{ model.property_type }}</span></div>
+  </div>
+  <div class="kv"><span class="k">ที่ตั้งทรัพย์สิน :</span><span class="v">{{ model.collateral_address }}</span></div>

@@ -65,13 +65,15 @@ table.kv-table {
   width:100%; border-collapse:collapse;
   margin-bottom:18px; font-size:10pt;
 }
-table.kv-table td {
+table.kv-table td,
+table.kv-table th {
   border:1px solid #555;
   padding:5px 8px;
   vertical-align:top;
 }
-table.kv-table td.kv-label {
+table.kv-table th.kv-label {
   width:38%; font-weight:600; background:#fafafa;
+  text-align:left; /* row headers; override the browser's th centering */
 }
 table.kv-table td.kv-value {
   width:62%;
@@ -80,15 +82,16 @@ table.kv-table td.kv-value {
 .letter-closing { margin-bottom:18px; font-size:10.5pt; line-height:1.6; }
 .letter-surveyor { margin-bottom:28px; font-size:10pt; }
 
-/* 3-column signature block */
-table.sig-table {
-  width:100%; border-collapse:collapse;
+/* 3-column signature block (CSS table layout so the columns split evenly, as the former table element did) */
+.sig-table {
+  display:table; table-layout:fixed;
+  width:100%;
   margin-top:32px; font-size:10pt;
 }
-table.sig-table td {
+.sig-table .sig-cell {
+  display:table-cell;
   text-align:center; vertical-align:top;
   padding:0 12px;
-  width:33.33%;
 }
 .sig-line {
   border-bottom:1px solid #555;

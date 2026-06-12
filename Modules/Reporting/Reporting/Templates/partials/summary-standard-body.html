@@ -5,28 +5,9 @@
 -->
 <div class="form">
 
-  <!-- ════ HEADER ════ -->
-  <div class="head">
-    <div class="logo">
-      <div class="lh">LH <span class="b">BANK</span></div>
-      <div class="bars"></div>
-    </div>
-    <div class="title">สรุปรายงานการประเมินราคาทรัพย์สิน</div>
-    <div class="meta">
-      <div class="row"><span class="lbl">รายงานเลขที่</span><span class="val">{{ model.appraisal_book_number }}</span></div>
-      <div class="row"><span class="lbl">วันที่สำรวจและประเมินราคา</span><span class="val">{{ thai.date model.appraisal_date }}</span></div>
-    </div>
-  </div>
-
-  <!-- ════ INFO BLOCK (fields 1–12) ════ -->
-  <div class="pad">
-    <div class="kv"><span class="k">ชื่อลูกค้า :</span><span class="v">{{ model.customer_name }}</span></div>
-    <div class="kv"><span class="k">ผู้แจ้ง :</span><span class="v">{{ model.ao_name }}</span></div>
-    <div class="cols2">
-      <div class="kv"><span class="k">วัตถุประสงค์ :</span><span class="v">{{ model.appraisal_purpose }}</span></div>
-      <div class="kv"><span class="k">ประเภททรัพย์สิน :</span><span class="v">{{ model.property_type }}</span></div>
-    </div>
-    <div class="kv"><span class="k">ที่ตั้งทรัพย์สิน :</span><span class="v">{{ model.collateral_address }}</span></div>
+  <!-- ════ HEADER + INFO BLOCK opening (fields 1–12) — shared partial (opens .pad) ════ -->
+  {{ summary_title = "สรุปรายงานการประเมินราคาทรัพย์สิน" }}
+  {{ include 'partials/summary-head' }}
     <div class="cols3">
       <div class="kv"><span class="k">เขตการปกครอง :</span><span class="v">{{ model.administrative_district }}</span></div>
       <div class="kv"><span class="k">สำนักงานที่ดิน :</span><span class="v">{{ model.land_office }}</span></div>
@@ -70,21 +51,21 @@
     </tbody>
   </table>
 
-  <!-- ════ TOTALS (fields 20–23) ════ -->
+  <!-- ════ TOTALS (fields 20–23) — label/value layout table, not tabular data ════ -->
   <table class="totals">
     <tr>
-      <td class="tl">รวมราคาประเมินทรัพย์สินเป็นเงินทั้งสิ้น</td>
+      <th class="tl" scope="row">รวมราคาประเมินทรัพย์สินเป็นเงินทั้งสิ้น</th>
       <td class="tv">{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; else; "-"; end }}</td>
     </tr>
     <tr>
       <td class="tt" colspan="2">( {{ thai.baht_text model.total_appraisal_value }} )</td>
     </tr>
     <tr>
-      <td class="tl">ทุนประกันภัยสิ่งปลูกสร้าง</td>
+      <th class="tl" scope="row">ทุนประกันภัยสิ่งปลูกสร้าง</th>
       <td class="tv">{{ if model.building_coverage_amount; model.building_coverage_amount | math.format "N2"; else; "-"; end }}</td>
     </tr>
     <tr>
-      <td class="tl">ราคาบังคับขายเป็นเงินทั้งสิ้น</td>
+      <th class="tl" scope="row">ราคาบังคับขายเป็นเงินทั้งสิ้น</th>
       <td class="tv">{{ if model.forced_sale_value; model.forced_sale_value | math.format "N2"; else; "-"; end }}</td>
     </tr>
   </table>
@@ -122,26 +103,7 @@
     <div class="comment-box">{{ model.appraiser_comment }}</div>
   </div>
 
-  <!-- ════ SIGN-OFF (fields 36–41) ════ -->
-  <div class="signoff">
-    <div class="cell">
-      <div>ผู้ประเมิน</div>
-      <div class="nm">( {{ if model.appraisal_staff_name; model.appraisal_staff_name; else; ".............................."; end }} )</div>
-      <div class="pos">{{ model.appraisal_staff_position }}</div>
-    </div>
-    <div class="cell">
-      <div>ผู้ตรวจสอบ</div>
-      <div class="nm">( {{ if model.appraisal_checker_name; model.appraisal_checker_name; else; ".............................."; end }} )</div>
-      <div class="pos">{{ model.appraisal_checker_position }}</div>
-    </div>
-    <div class="cell">
-      <div>ผู้สอบทาน</div>
-      <div class="nm">( {{ if model.appraisal_verify_name; model.appraisal_verify_name; else; ".............................."; end }} )</div>
-      <div class="pos">{{ model.appraisal_verify_position }}</div>
-    </div>
-  </div>
-
-  <!-- ════ COMMITTEE BLOCK (fields 42–51) — shared partial ════ -->
-  {{ include 'partials/approver-block' }}
+  <!-- ════ SIGN-OFF (fields 36–41) + COMMITTEE BLOCK (fields 42–51) — shared partial ════ -->
+  {{ include 'partials/summary-signoff' }}
 
 </div><!-- .form -->
