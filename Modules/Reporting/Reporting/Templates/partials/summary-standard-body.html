@@ -52,20 +52,20 @@
   </table>
 
   <!-- ════ TOTALS (fields 20–23) — label/value layout table, not tabular data ════ -->
-  <table class="totals" role="presentation">
+  <table class="totals">
     <tr>
-      <td class="tl">รวมราคาประเมินทรัพย์สินเป็นเงินทั้งสิ้น</td>
+      <th class="tl" scope="row">รวมราคาประเมินทรัพย์สินเป็นเงินทั้งสิ้น</th>
       <td class="tv">{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; else; "-"; end }}</td>
     </tr>
     <tr>
       <td class="tt" colspan="2">( {{ thai.baht_text model.total_appraisal_value }} )</td>
     </tr>
     <tr>
-      <td class="tl">ทุนประกันภัยสิ่งปลูกสร้าง</td>
+      <th class="tl" scope="row">ทุนประกันภัยสิ่งปลูกสร้าง</th>
       <td class="tv">{{ if model.building_coverage_amount; model.building_coverage_amount | math.format "N2"; else; "-"; end }}</td>
     </tr>
     <tr>
-      <td class="tl">ราคาบังคับขายเป็นเงินทั้งสิ้น</td>
+      <th class="tl" scope="row">ราคาบังคับขายเป็นเงินทั้งสิ้น</th>
       <td class="tv">{{ if model.forced_sale_value; model.forced_sale_value | math.format "N2"; else; "-"; end }}</td>
     </tr>
   </table>
