@@ -38,4 +38,18 @@ public interface IAuthAuditWriter
         IEnumerable<string> before,
         IEnumerable<string> after,
         string setName);
+
+    /// <summary>
+    /// Records a self-action authentication event (login / failed login / logout) and
+    /// flushes it immediately. Unlike Record/RecordAssignmentChange, the actor is passed
+    /// explicitly (the principal is not yet established at login time) and this method
+    /// calls SaveChanges itself, since auth events have no surrounding transaction to
+    /// piggyback on. The audited entity is always the user (EntityType.User).
+    /// </summary>
+    Task RecordAuthEventAsync(
+        AuditAction action,
+        Guid? userId,
+        string? username,
+        object? details = null,
+        CancellationToken cancellationToken = default);
 }

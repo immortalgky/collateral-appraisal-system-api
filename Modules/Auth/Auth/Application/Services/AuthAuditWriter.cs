@@ -75,6 +75,29 @@ public class AuthAuditWriter(
         dbContext.AuthAuditLogs.Add(log);
     }
 
+    public async Task RecordAuthEventAsync(
+        AuditAction action,
+        Guid? userId,
+        string? username,
+        object? details = null,
+        CancellationToken cancellationToken = default)
+    {
+        var log = AuthAuditLog.Create(
+            occurredAt: dateTimeProvider.ApplicationNow,
+            actorUserId: userId,
+            actorName: username ?? "anonymous",
+            action: action,
+            entityType: AuditEntityType.User,
+            entityId: userId,
+            entityName: username,
+            changesJson: details is null ? null : JsonSerializer.Serialize(details, JsonOptions),
+            workstation: null,
+            ipAddress: httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString());
+
+        dbContext.AuthAuditLogs.Add(log);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public void RecordAssignmentChange(
         AuditEntityType entityType,
         Guid entityId,
