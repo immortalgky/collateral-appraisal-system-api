@@ -5,28 +5,9 @@
 -->
 <div class="form">
 
-  <!-- ════ HEADER ════ -->
-  <div class="head">
-    <div class="logo">
-      <div class="lh">LH <span class="b">BANK</span></div>
-      <div class="bars"></div>
-    </div>
-    <div class="title">สรุปรายงานการตรวจงานก่อสร้าง</div>
-    <div class="meta">
-      <div class="row"><span class="lbl">รายงานเลขที่</span><span class="val">{{ model.appraisal_book_number }}</span></div>
-      <div class="row"><span class="lbl">วันที่สำรวจและประเมินราคา</span><span class="val">{{ thai.date model.appraisal_date }}</span></div>
-    </div>
-  </div>
-
-  <!-- ════ INFO BLOCK ════ -->
-  <div class="pad">
-    <div class="kv"><span class="k">ชื่อลูกค้า :</span><span class="v">{{ model.customer_name }}</span></div>
-    <div class="kv"><span class="k">ผู้แจ้ง :</span><span class="v">{{ model.ao_name }}</span></div>
-    <div class="cols2">
-      <div class="kv"><span class="k">วัตถุประสงค์ :</span><span class="v">{{ model.appraisal_purpose }}</span></div>
-      <div class="kv"><span class="k">ประเภททรัพย์สิน :</span><span class="v">{{ model.property_type }}</span></div>
-    </div>
-    <div class="kv"><span class="k">ที่ตั้งทรัพย์สิน :</span><span class="v">{{ model.collateral_address }}</span></div>
+  <!-- ════ HEADER + INFO BLOCK opening — shared partial (opens .pad) ════ -->
+  {{ summary_title = "สรุปรายงานการตรวจงานก่อสร้าง" }}
+  {{ include 'partials/summary-head' }}
     <div class="kv"><span class="k">ผู้ประเมินราคา :</span><span class="v">{{ model.appraiser }}</span></div>
   </div>
 
@@ -143,26 +124,7 @@
     </tbody>
   </table>
 
-  <!-- ════ SIGN-OFF (3 cols: ผู้ประเมิน / ผู้ตรวจสอบ / ผู้สอบทาน) ════ -->
-  <div class="signoff">
-    <div class="cell">
-      <div>ผู้ประเมิน</div>
-      <div class="nm">( {{ if model.appraisal_staff_name; model.appraisal_staff_name; else; ".............................."; end }} )</div>
-      <div class="pos">{{ model.appraisal_staff_position }}</div>
-    </div>
-    <div class="cell">
-      <div>ผู้ตรวจสอบ</div>
-      <div class="nm">( {{ if model.appraisal_checker_name; model.appraisal_checker_name; else; ".............................."; end }} )</div>
-      <div class="pos">{{ model.appraisal_checker_position }}</div>
-    </div>
-    <div class="cell">
-      <div>ผู้สอบทาน</div>
-      <div class="nm">( {{ if model.appraisal_verify_name; model.appraisal_verify_name; else; ".............................."; end }} )</div>
-      <div class="pos">{{ model.appraisal_verify_position }}</div>
-    </div>
-  </div>
-
-  <!-- ════ COMMITTEE BLOCK (shared partial) ════ -->
-  {{ include 'partials/approver-block' }}
+  <!-- ════ SIGN-OFF + COMMITTEE BLOCK — shared partial ════ -->
+  {{ include 'partials/summary-signoff' }}
 
 </div>
