@@ -1,0 +1,31 @@
+<!--
+  Partial: external appraisal book cover page (§2.1.2.1 หน้าปกรายงานประเมินมูลค่าทรัพย์สิน).
+  Included by appraisal-book.html when model.is_external. Shares the parent Scriban scope;
+  expects: model.* (AppraisalSummaryModel snake_case fields, external branch populated).
+-->
+<div class="cover">
+  <div class="cover-logo-box">LOGO</div>
+
+  <div class="cover-title">รายงานประเมินมูลค่าทรัพย์สิน</div>
+
+  <div class="cover-sub">
+    {{ model.customer_name }}
+    {{ if model.appraisal_book_number }}({{ model.appraisal_book_number }}){{ end }}
+  </div>
+
+  {{ if model.property_type_summary }}
+  <div class="cover-property-type">ประเภททรัพย์สิน : {{ model.property_type_summary }}</div>
+  {{ end }}
+
+  {{ if model.collateral_location }}
+  <div class="cover-location">ที่ตั้งทรัพย์สิน : {{ model.collateral_location }}</div>
+  {{ end }}
+
+  <div class="cover-section-label">เสนอ</div>
+  <div class="cover-bank">{{ model.bank_name }}</div>
+
+  <div class="cover-by-label">จัดทำโดย</div>
+  <div class="cover-company">{{ model.company_name }}</div>
+  {{ if model.company_address }}<div class="cover-addr">{{ model.company_address }}</div>{{ end }}
+  {{ if model.company_tel }}<div class="cover-tel">โทรศัพท์: {{ model.company_tel }}</div>{{ end }}
+</div>

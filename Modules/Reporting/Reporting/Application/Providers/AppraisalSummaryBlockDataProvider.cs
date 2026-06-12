@@ -62,7 +62,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
     /// <summary>
     /// Builds an <see cref="AppraisalSummaryModel"/> from an open connection.
     /// Called by <see cref="GetModelAsync"/> (standalone summary) and by
-    /// <c>InternalBlockReportProvider</c> (composite internal report).
+    /// <c>AppraisalBookDataProvider</c> (unified appraisal book, "block" body).
     /// </summary>
     internal static async Task<AppraisalSummaryModel> BuildAsync(
         System.Data.IDbConnection connection,

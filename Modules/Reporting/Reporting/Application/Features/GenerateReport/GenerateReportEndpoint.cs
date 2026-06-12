@@ -7,6 +7,11 @@ namespace Reporting.Application.Features.GenerateReport;
 ///
 /// Generates a report PDF on-demand and streams it to the caller.
 ///
+/// <paramref name="entityId"/> is a human-friendly number — an AppraisalNumber for appraisal/appointment
+/// reports, or a MeetingNo (format "{seq}/{year}", e.g. "12/2567") for Meeting reports; the service
+/// resolves it to the entity id (a raw Guid is also accepted). The route uses a catch-all segment so a
+/// MeetingNo's embedded slash is captured intact.
+///
 /// Query parameters:
 ///   download=true  → Content-Disposition: attachment (triggers browser Save-As)
 ///   download=false (default) → Content-Disposition: inline (renders in browser)
@@ -17,7 +22,7 @@ public sealed class GenerateReportEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/reports/{reportTypeKey}/{entityId}", HandleAsync)
+        app.MapGet("/reports/{reportTypeKey}/{*entityId}", HandleAsync)
             .RequireAuthorization()
             .WithTags("Reports")
             .WithName("GenerateReport")

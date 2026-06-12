@@ -603,11 +603,10 @@ internal sealed record CommonAppraisalData(
     List<AppraisalSummaryCommonLoader.GroupRow> GroupRows,
     Dictionary<string, string?> CollateralTypeMap)
 {
-    /// <summary>Translate a CollateralType code to Thai description; fall back to raw code.</summary>
+    /// <summary>
+    /// Translate a domain PropertyType family code to its Thai description; fall back to raw code.
+    /// (PropertyType stores domain codes, so map family → CollateralType code before lookup.)
+    /// </summary>
     public string? TranslateCollateralType(string? code) =>
-        !string.IsNullOrWhiteSpace(code)
-        && CollateralTypeMap.TryGetValue(code, out var d)
-        && !string.IsNullOrWhiteSpace(d)
-            ? d
-            : code;
+        CollateralFamilyTranslator.ToThai(code, CollateralTypeMap);
 }

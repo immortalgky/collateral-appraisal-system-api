@@ -26,10 +26,6 @@ public sealed class AppraisalSummaryDataProvider(
 {
     public string ReportTypeKey => "appraisal-summary";
 
-    // Mirrors AppraisalTypes.Progressive in the Appraisal domain. Kept as a local literal because
-    // Reporting reads via Dapper and must not take a compile dependency on the Appraisal assembly.
-    private const string ProgressiveAppraisalType = "Progressive";
-
     // A composite provider never renders its own template; the pipeline reads the child keys
     // from ICompositeReportProvider instead. Guard so a misconfiguration surfaces loudly.
     public Task<object> GetModelAsync(string entityId, CancellationToken cancellationToken) =>
@@ -74,14 +70,16 @@ public sealed class AppraisalSummaryDataProvider(
         if (row is null)
             throw new NotFoundException("Appraisal", entityId);
 
-        // Exclusive overrides
-        if (row.ProjectExists)
-            return Selected(appraisalId, "appraisal-summary-block");
+        // Exclusive overrides — shared dispatch rule (see AppraisalBodyTypeClassifier).
+        switch (AppraisalBodyTypeClassifier.Classify(row.ProjectExists, row.AppraisalType))
+        {
+            case AppraisalBodyType.Block:
+                return Selected(appraisalId, "appraisal-summary-block");
+            case AppraisalBodyType.Construction:
+                return Selected(appraisalId, "appraisal-summary-construction");
+        }
 
-        if (string.Equals(row.AppraisalType, ProgressiveAppraisalType, StringComparison.OrdinalIgnoreCase))
-            return Selected(appraisalId, "appraisal-summary-construction");
-
-        // Additive fan-out (fixed order: land-building, condo, machine)
+        // Additive fan-out (Standard): fixed order land-building, condo, machine
         var keys = new List<string>(3);
         if (row.HasLandBuilding) keys.Add("appraisal-summary-land-building");
         if (row.HasCondo) keys.Add("appraisal-summary-condo");

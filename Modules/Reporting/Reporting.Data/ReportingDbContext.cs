@@ -107,28 +107,16 @@ public class ReportingDbContext(DbContextOptions<ReportingDbContext> options) : 
             category: "AppraisalSummary",
             generationMode: ReportGenerationMode.Async),
 
+        // Unified appraisal book — one report (template appraisal-book.html) auto-detects
+        // internal vs external (AppraisalAssignments.AssignmentType) and the body type
+        // (standard / construction / block), replacing the former external-appraisal-report,
+        // internal-report-construction and internal-report-block definitions.
         ReportDefinition.Create(
-            reportTypeKey: "external-appraisal-report",
-            templateId: "external-appraisal-report",
-            displayNameTh: "รายงานการประเมินราคา (บริษัทภายนอก)",
-            displayNameEn: "External Appraisal Report",
-            category: "ExternalReport",
-            generationMode: ReportGenerationMode.Async),
-
-        ReportDefinition.Create(
-            reportTypeKey: "internal-report-construction",
-            templateId: "internal-report-construction",
-            displayNameTh: "รายงานตรวจงานก่อสร้าง (ภายใน)",
-            displayNameEn: "Internal Construction Inspection Report",
-            category: "InternalReport",
-            generationMode: ReportGenerationMode.Async),
-
-        ReportDefinition.Create(
-            reportTypeKey: "internal-report-block",
-            templateId: "internal-report-block",
-            displayNameTh: "รายงานโครงการ (ภายใน)",
-            displayNameEn: "Internal Block Project Report",
-            category: "InternalReport",
+            reportTypeKey: "appraisal-book",
+            templateId: "appraisal-book",
+            displayNameTh: "เล่มรายงานการประเมิน",
+            displayNameEn: "Appraisal Book",
+            category: "AppraisalBook",
             generationMode: ReportGenerationMode.Async),
 
         ReportDefinition.Create(
