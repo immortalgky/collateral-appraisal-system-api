@@ -205,9 +205,10 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetConnectionString("Redis")!,
         "redis",
         tags: ["cache", "ready"])
-    .AddRabbitMQ(
-        name: "rabbitmq",
-        tags: ["messaging", "ready"])
+    // RabbitMQ messaging readiness is covered by MassTransit's own "masstransit-bus" health check
+    // (auto-registered by AddMassTransit, tagged "ready"), which probes the real bus connection.
+    // The AspNetCore.HealthChecks.RabbitMQ check is not used: its v9 overload resolves a
+    // RabbitMQ.Client.IConnection from DI, which MassTransit does not register.
     // External integrations (LDAP / SMTP / SFTP). Tagged "external", NOT "ready": an outage here
     // surfaces in /health and /health/external but must not pull a node out of LB rotation.
     .AddAuthHealthChecks()
