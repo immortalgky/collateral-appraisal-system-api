@@ -17,20 +17,20 @@ public class LinkAppraisalComparableCommandHandler(
             .AnyAsync(a => a.Id == command.AppraisalId, cancellationToken);
 
         if (!appraisalExists)
-            throw new InvalidOperationException($"Appraisal with ID {command.AppraisalId} not found.");
+            throw new NotFoundException("Appraisal", command.AppraisalId);
 
         var comparableExists = await dbContext.MarketComparables
             .AnyAsync(mc => mc.Id == command.MarketComparableId, cancellationToken);
 
         if (!comparableExists)
-            throw new InvalidOperationException($"Market comparable with ID {command.MarketComparableId} not found.");
+            throw new NotFoundException("MarketComparable", command.MarketComparableId);
 
         var isDuplicate = await dbContext.AppraisalComparables
             .AnyAsync(ac => ac.AppraisalId == command.AppraisalId
                          && ac.MarketComparableId == command.MarketComparableId, cancellationToken);
 
         if (isDuplicate)
-            throw new InvalidOperationException("This market comparable is already linked to the appraisal.");
+            throw new BadRequestException("This market comparable is already linked to the appraisal.");
 
         var entity = AppraisalComparable.Create(
             command.AppraisalId,

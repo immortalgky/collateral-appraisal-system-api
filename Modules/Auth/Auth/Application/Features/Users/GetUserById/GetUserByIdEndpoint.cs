@@ -17,7 +17,6 @@ public class GetUserByIdEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get user by ID (admin)")
             .WithDescription("Get full user detail including roles.")
-            .WithTags("User")
-            .RequireAuthorization("CanManageUsers");
+            .WithTags("User");
     }
 }

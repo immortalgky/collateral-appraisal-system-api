@@ -166,7 +166,7 @@ builder.Services
 // Shared Data Protection keyring (persisted via AuthDbContext) — required when running behind a
 // load balancer so antiforgery cookies and OpenIddict reference tokens issued on one node can be
 // read by the others. MUST come after AddAuthModule so AuthDbContext is registered.
-builder.Services.AddSharedDataProtection<AuthDbContext>();
+builder.Services.AddSharedDataProtection<AuthDbContext>(builder.Configuration);
 
 // Reverse-proxy / load-balancer headers (IIS ARR, Nginx, etc.).
 // Allows OpenIddict discovery + HTTPS redirection to reflect the public scheme/host.

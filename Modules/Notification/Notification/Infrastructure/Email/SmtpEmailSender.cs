@@ -149,6 +149,26 @@ internal sealed class SmtpEmailSender(
         }
     }
 
+    public async Task CheckConnectionAsync(CancellationToken ct = default)
+    {
+        var config = options.Value;
+        if (!config.Enabled)
+            return; // Intentionally off — the health check reports this as disabled, not unhealthy.
+
+        // Mirror the connect/auth semantics of SendAsync, but NOOP instead of sending. The explicit
+        // Timeout caps a hung connection so the health endpoint can't stall.
+        var secureOption = config.UseStartTls ? SecureSocketOptions.StartTls : SecureSocketOptions.None;
+
+        using var client = new SmtpClient { Timeout = 10_000 };
+        await client.ConnectAsync(config.Host, config.Port, secureOption, ct);
+
+        if (!string.IsNullOrEmpty(config.Username))
+            await client.AuthenticateAsync(config.Username, config.Password, ct);
+
+        await client.NoOpAsync(ct);
+        await client.DisconnectAsync(quit: true, ct);
+    }
+
     /// <summary>
     /// Best-effort log write — swallows any exception so a persistence failure
     /// can never mask the real email send result or throw to the caller.

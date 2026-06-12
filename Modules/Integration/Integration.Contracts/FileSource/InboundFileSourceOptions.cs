@@ -1,6 +1,19 @@
 namespace Integration.Contracts.FileSource;
 
 /// <summary>
+/// Single source of truth for the file-transfer transport selector, so the DI wiring
+/// (<c>IntegrationModule</c>) and the SFTP health checks can't drift on how "Sftp" is matched.
+/// </summary>
+public static class FileTransferTransport
+{
+    public const string Sftp = "Sftp";
+
+    /// <summary>True when the configured <c>FileSource</c> selects the SFTP transport (else Local).</summary>
+    public static bool IsSftp(string? fileSource) =>
+        string.Equals(fileSource, Sftp, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>
 /// Configuration for the inbound file source transport, bound from <c>FileTransfer:Inbound</c>.
 /// Non-secret naming/path/pattern now come from <c>integration.FileInterfaceConfigs</c>.
 /// </summary>

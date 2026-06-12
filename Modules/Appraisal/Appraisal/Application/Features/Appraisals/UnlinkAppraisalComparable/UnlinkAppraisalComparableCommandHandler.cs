@@ -17,8 +17,7 @@ public class UnlinkAppraisalComparableCommandHandler(
                                     && ac.AppraisalId == command.AppraisalId, cancellationToken);
 
         if (entity is null)
-            throw new InvalidOperationException(
-                $"Appraisal comparable with ID {command.AppraisalComparableId} not found for appraisal {command.AppraisalId}.");
+            throw new NotFoundException("AppraisalComparable", command.AppraisalComparableId);
 
         dbContext.AppraisalComparables.Remove(entity);
 

@@ -21,7 +21,7 @@ public sealed record Method11Detail
     [JsonPropertyName("energyCostIndexIncrease")]
     public decimal[] EnergyCostIndexIncrease { get; init; } = [];
 
-    [JsonPropertyName("totalEnegyCost")]
+    [JsonPropertyName("totalEnergyCost")]
     public decimal[] TotalEnergyCost { get; init; } = [];
 
     [JsonPropertyName("startIn")]

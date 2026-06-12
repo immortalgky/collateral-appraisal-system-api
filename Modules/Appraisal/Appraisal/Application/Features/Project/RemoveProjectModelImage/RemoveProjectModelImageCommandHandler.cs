@@ -19,7 +19,7 @@ public class RemoveProjectModelImageCommandHandler(
             cancellationToken);
 
         if (model is null)
-            throw new InvalidOperationException($"Project model with ID {command.ModelId} not found");
+            throw new NotFoundException("ProjectModel", command.ModelId);
 
         // Get GalleryPhotoId before removing the image
         var image = model.Images.FirstOrDefault(i => i.Id == command.ImageId);

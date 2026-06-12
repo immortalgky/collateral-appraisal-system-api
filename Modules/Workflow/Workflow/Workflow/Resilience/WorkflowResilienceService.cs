@@ -228,7 +228,7 @@ public class WorkflowResilienceService : IWorkflowResilienceService
         {
             case CircuitBreakerState.Open:
                 var circuitBreaker = _circuitBreakers[operationName];
-                var waitTime = circuitBreaker.OpenUntil - _dateTimeProvider.ApplicationNow;
+                var waitTime = circuitBreaker.OpenUntil - DateTime.UtcNow;
                 return Task.FromResult(OperationValidationResult.Blocked(
                     "Circuit breaker is open", 
                     circuitBreakerState, 
@@ -595,7 +595,7 @@ internal class CircuitBreakerInstance
     {
         lock (_lock)
         {
-            var now = DateTime.Now;
+            var now = DateTime.UtcNow;
             _successHistory.Enqueue(now);
             CleanupHistory(_successHistory, now);
             
@@ -616,10 +616,10 @@ internal class CircuitBreakerInstance
     {
         lock (_lock)
         {
-            var now = DateTime.Now;
+            var now = DateTime.UtcNow;
             _failureHistory.Enqueue(now);
             CleanupHistory(_failureHistory, now);
-            
+
             ConsecutiveFailures++;
 
             if (State == CircuitBreakerState.Closed && ShouldOpen())
@@ -640,7 +640,7 @@ internal class CircuitBreakerInstance
         lock (_lock)
         {
             State = CircuitBreakerState.Open;
-            OpenUntil = DateTime.Now.Add(duration);
+            OpenUntil = DateTime.UtcNow.Add(duration);
         }
     }
 
@@ -655,7 +655,7 @@ internal class CircuitBreakerInstance
 
     private bool ShouldOpen()
     {
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
         var totalRequests = _failureHistory.Count + _successHistory.Count;
         
         return totalRequests >= _policy.MinimumThroughput &&

@@ -47,8 +47,8 @@ public static class IntegrationModule
         // Slimmed options under FileTransfer:Outbound (non-secret; paths come from DB config).
         services.Configure<OutboundFileSinkOptions>(
             configuration.GetSection(OutboundFileSinkOptions.SectionName));
-        var sinkType = configuration.GetValue<string>($"{OutboundFileSinkOptions.SectionName}:FileSource") ?? "Local";
-        if (string.Equals(sinkType, "Sftp", StringComparison.OrdinalIgnoreCase))
+        var sinkType = configuration.GetValue<string>($"{OutboundFileSinkOptions.SectionName}:FileSource");
+        if (FileTransferTransport.IsSftp(sinkType))
             services.AddScoped<IOutboundFileSink, SftpFileSink>();
         else
             services.AddScoped<IOutboundFileSink, LocalFileSink>();
@@ -59,8 +59,8 @@ public static class IntegrationModule
             configuration.GetSection(InboundFileSourceOptions.SectionName));
         var inboundSourceType = configuration
             .GetSection(InboundFileSourceOptions.SectionName)
-            .GetValue<string>("FileSource") ?? "Local";
-        if (string.Equals(inboundSourceType, "Sftp", StringComparison.OrdinalIgnoreCase))
+            .GetValue<string>("FileSource");
+        if (FileTransferTransport.IsSftp(inboundSourceType))
             services.AddScoped<IInboundFileSource, SftpInboundFileSource>();
         else
             services.AddScoped<IInboundFileSource, LocalInboundFileSource>();

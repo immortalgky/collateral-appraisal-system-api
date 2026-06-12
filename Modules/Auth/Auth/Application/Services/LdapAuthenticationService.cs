@@ -79,6 +79,19 @@ public class LdapAuthenticationService(
         }
     }
 
+    public Task CheckConnectionAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Real round-trip with no user/password validation or search: open a connection and bind
+        // as the service/integrated identity. Proves the directory is reachable and accepts our
+        // bind; throws (LdapException, etc.) when unreachable or rejected so the health check fails.
+        using var connection = CreateConnection();
+        BindAsServiceIdentity(connection);
+
+        return Task.CompletedTask;
+    }
+
     private Task<string?> FindUserDnAsync(string username)
     {
         using var connection = CreateConnection();

@@ -43,14 +43,14 @@ public class MonitoringScopeService(ICurrentUserService currentUserService)
     // because the view stores it raw while auth.NormalizedUserName is uppercase.
     // Pool/group rows (AssignedType='2', AssignedTo = group name) never match, so they are
     // intentionally excluded from team-restricted activities.
-    // Multi-team membership resolves to the UNION of all the monitor's active teams' members
+    // Multi-team membership resolves to the UNION of all the monitor's teams' members
     // (confirmed intended behavior) — a monitor in two teams sees both teams' staff.
     private const string TeamMemberPredicate = """
         AssignedType = '1' AND UPPER(AssignedTo) IN (
             SELECT tmateU.NormalizedUserName
             FROM auth.TeamMembers myTm
             INNER JOIN auth.AspNetUsers me ON me.Id = myTm.UserId AND me.NormalizedUserName = @MeNorm
-            INNER JOIN auth.Teams t ON t.Id = myTm.TeamId AND t.IsActive = 1
+            INNER JOIN auth.Teams t ON t.Id = myTm.TeamId
             INNER JOIN auth.TeamMembers tmate ON tmate.TeamId = t.Id
             INNER JOIN auth.AspNetUsers tmateU ON tmateU.Id = tmate.UserId
         )

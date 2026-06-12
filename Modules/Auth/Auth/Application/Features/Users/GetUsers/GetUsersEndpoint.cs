@@ -28,7 +28,6 @@ public class GetUsersEndpoint : ICarterModule
             .Produces<GetUsersResponse>()
             .WithSummary("Get users (admin)")
             .WithDescription("Get a paginated list of users. Optionally filter by scope (Bank/Company), role, group, team, company, and active status.")
-            .WithTags("User")
-            .RequireAuthorization("CanManageUsers");
+            .WithTags("User");
     }
 }

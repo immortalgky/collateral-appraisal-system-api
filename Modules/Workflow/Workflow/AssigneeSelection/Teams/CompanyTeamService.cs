@@ -30,11 +30,11 @@ public class CompanyTeamService : ITeamService
         // 1. Check auth.TeamMembers first (internal teams)
         var teamResult = await connection.QueryFirstOrDefaultAsync<TeamRow>(
             """
-            SELECT t.Id, t.Name, t.Type, t.IsActive
+            SELECT t.Id, t.Name, t.Scope
             FROM auth.Teams t
             INNER JOIN auth.TeamMembers tm ON tm.TeamId = t.Id
             INNER JOIN auth.AspNetUsers u ON u.Id = tm.UserId
-            WHERE u.UserName = @UserName AND t.IsActive = 1
+            WHERE u.UserName = @UserName
             """,
             new { UserName = userName });
 
@@ -43,8 +43,8 @@ public class CompanyTeamService : ITeamService
             return new TeamInfo(
                 teamResult.Id.ToString(),
                 teamResult.Name,
-                teamResult.Type == "Internal" ? TeamType.Internal : TeamType.External,
-                teamResult.IsActive);
+                teamResult.Scope == "Bank" ? TeamType.Internal : TeamType.External,
+                true);
         }
 
         // 2. Fall back to CompanyId (external teams)
@@ -169,9 +169,9 @@ public class CompanyTeamService : ITeamService
         // 1. Check auth.Teams first (internal teams)
         var teamResult = await connection.QueryFirstOrDefaultAsync<TeamRow>(
             """
-            SELECT Id, Name, Type, IsActive
+            SELECT Id, Name, Scope
             FROM auth.Teams
-            WHERE Id = @Id AND IsActive = 1
+            WHERE Id = @Id
             """,
             new { Id = teamGuid });
 
@@ -180,8 +180,8 @@ public class CompanyTeamService : ITeamService
             return new TeamInfo(
                 teamResult.Id.ToString(),
                 teamResult.Name,
-                teamResult.Type == "Internal" ? TeamType.Internal : TeamType.External,
-                teamResult.IsActive);
+                teamResult.Scope == "Bank" ? TeamType.Internal : TeamType.External,
+                true);
         }
 
         // 2. Fall back to auth.Companies
@@ -208,8 +208,7 @@ public class CompanyTeamService : ITeamService
     {
         public Guid Id { get; init; }
         public string Name { get; init; } = string.Empty;
-        public string Type { get; init; } = string.Empty;
-        public bool IsActive { get; init; }
+        public string Scope { get; init; } = string.Empty;
     }
 
     private sealed class CompanyRow

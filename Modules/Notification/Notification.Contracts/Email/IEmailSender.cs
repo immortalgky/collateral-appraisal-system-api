@@ -7,6 +7,14 @@ namespace Notification.Contracts.Email;
 public interface IEmailSender
 {
     Task SendAsync(EmailMessage message, CancellationToken ct = default);
+
+    /// <summary>
+    /// Opens an SMTP connection (authenticating if a username is configured), issues a NOOP, then
+    /// disconnects — a real round-trip to the gateway with no message sent. Throws when the host is
+    /// unreachable, TLS negotiation fails, or auth is rejected. No-ops when <c>Mail:Enabled</c> is
+    /// false. Used by the SMTP health check to probe connectivity.
+    /// </summary>
+    Task CheckConnectionAsync(CancellationToken ct = default);
 }
 
 /// <summary>

@@ -9,6 +9,11 @@ namespace Workflow.Workflow.Actions;
 /// </summary>
 public class PublishEventAction : WorkflowActionBase
 {
+    private static readonly System.Text.RegularExpressions.Regex _semVerPattern =
+        new(@"^\d+\.\d+(\.\d+)?$",
+            System.Text.RegularExpressions.RegexOptions.Compiled,
+            TimeSpan.FromSeconds(1));
+
     private readonly IEventPublisher _eventPublisher;
     private readonly IDateTimeProvider _dateTimeProvider;
 
@@ -170,7 +175,7 @@ public class PublishEventAction : WorkflowActionBase
         // Validate event version format
         if (!string.IsNullOrEmpty(eventVersion))
         {
-            if (!System.Text.RegularExpressions.Regex.IsMatch(eventVersion, @"^\d+\.\d+(\.\d+)?$"))
+            if (!_semVerPattern.IsMatch(eventVersion))
             {
                 warnings.Add($"Event version '{eventVersion}' should follow semantic versioning format (e.g., '1.0', '1.2.3')");
             }

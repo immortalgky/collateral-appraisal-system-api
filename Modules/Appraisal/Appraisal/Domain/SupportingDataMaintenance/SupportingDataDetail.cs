@@ -61,7 +61,7 @@ public class SupportingDataDetail : Entity<Guid>
     public void RemoveImage(Guid imageId)
     {
         var image = _images.FirstOrDefault(i => i.Id == imageId)
-            ?? throw new InvalidOperationException($"Image {imageId} not found on this detail.");
+            ?? throw new NotFoundException("SupportingDataDetailImage", imageId);
         _images.Remove(image);
     }
 

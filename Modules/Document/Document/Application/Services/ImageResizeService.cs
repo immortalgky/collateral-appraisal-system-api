@@ -45,6 +45,9 @@ internal class ImageResizeService(IOptions<FileStorageConfiguration> options) : 
             return File.ReadAllBytes(filePath);
 
         using var resized = original.Resize(new SKImageInfo(targetWidth, targetHeight), SKFilterQuality.Medium);
+        if (resized is null)
+            return File.ReadAllBytes(filePath); // resize failed; return original bytes
+
         using var image = SKImage.FromBitmap(resized);
 
         var format = DetectFormat(filePath);

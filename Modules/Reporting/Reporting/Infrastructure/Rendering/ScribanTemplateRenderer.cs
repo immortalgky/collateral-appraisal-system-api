@@ -182,18 +182,28 @@ internal sealed class ScribanTemplateRenderer(
     /// trailing <c>&lt;/body&gt;&lt;/html&gt;</c> after the last SLOT marker) are skipped
     /// so they don't produce an empty trailing page.
     /// </summary>
+    // Static compiled Regex instances with a 1-second match timeout (ReDoS hardening — S6444).
+    private static readonly System.Text.RegularExpressions.Regex _mediaTagRegex =
+        new(@"<(img|svg|canvas)\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled,
+            TimeSpan.FromSeconds(1));
+
+    private static readonly System.Text.RegularExpressions.Regex _htmlTagRegex =
+        new(@"<[^>]*>",
+            System.Text.RegularExpressions.RegexOptions.Compiled,
+            TimeSpan.FromSeconds(1));
+
     private static bool HasRenderableContent(string html)
     {
         if (string.IsNullOrWhiteSpace(html))
             return false;
 
         // Media tags carry visible content with no text (e.g. an image-only appendix page).
-        if (System.Text.RegularExpressions.Regex.IsMatch(
-                html, "<(img|svg|canvas)\\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        if (_mediaTagRegex.IsMatch(html))
             return true;
 
         // Strip tags; if nothing but whitespace remains, there's no visible text.
-        var withoutTags = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]*>", string.Empty);
+        var withoutTags = _htmlTagRegex.Replace(html, string.Empty);
         return !string.IsNullOrWhiteSpace(withoutTags);
     }
 }

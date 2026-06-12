@@ -25,6 +25,7 @@ using Workflow.DocumentFollowups.Application;
 using Workflow.DocumentFollowups.Infrastructure;
 using Workflow.FeeAppointmentApprovals.Application.Policy;
 using Workflow.FeeAppointmentApprovals.Infrastructure;
+using Workflow.Meetings.Application;
 using Workflow.Meetings.Configuration;
 using Appraisal.Contracts.Services;
 using Workflow.Tasks.Services;
@@ -154,6 +155,7 @@ public static class WorkflowModule
         services.AddScoped<IMeetingRepository, MeetingRepository>();
         services.AddScoped<IMeetingNoGenerator, MeetingNoGenerator>();
         services.AddScoped<IMeetingConfigurationRepository, MeetingConfigurationRepository>();
+        services.AddScoped<IMeetingDocumentGenerator, MeetingDocumentGenerator>();
 
         // Approval infrastructure
         services.AddScoped<IApprovalMemberResolver, ApprovalMemberResolver>();

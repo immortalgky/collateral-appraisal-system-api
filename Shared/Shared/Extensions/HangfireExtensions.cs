@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Hangfire;
 using Hangfire.Dashboard;
 using Hangfire.SqlServer;
@@ -41,37 +42,47 @@ public static class HangfireExtensions
 
     public static WebApplication UseHangfire(this WebApplication app)
     {
-        // Use endpoint-routing variant + .AllowAnonymous() so the dashboard isn't blocked by the
-        // global RequireAuthenticatedUser fallback policy (same opt-out pattern as /openapi, /scalar).
-        // Access control is enforced by HangfireAuthorizationFilter (localhost-only in dev).
-        app.MapHangfireDashboard("/hangfire", new DashboardOptions
+        // The dashboard is a server-rendered page opened by a top-level browser navigation, which cannot
+        // carry a JWT Bearer header — so the SPA's bearer auth can't gate it. Instead:
+        //   - Dev: .AllowAnonymous() opts out of the global RequireAuthenticatedUser fallback policy (same
+        //     pattern as /openapi, /scalar); the HangfireAuthorizationFilter allows localhost.
+        //   - Non-dev: .RequireAuthorization("HangfireDashboard") makes the authorization middleware
+        //     authenticate the Identity.Application cookie (set by the interactive /Account/Login) and
+        //     require the Admin role; an unauthenticated browser is redirected to the login page.
+        var isDevelopment = app.Environment.IsDevelopment();
+        var dashboard = app.MapHangfireDashboard("/hangfire", new DashboardOptions
         {
-            Authorization = new[] { new HangfireAuthorizationFilter() },
+            Authorization = new[] { new HangfireAuthorizationFilter(isDevelopment) },
             DashboardTitle = "Hangfire Dashboard"
-        }).AllowAnonymous();
+        });
+
+        if (isDevelopment)
+            dashboard.AllowAnonymous();
+        else
+            dashboard.RequireAuthorization("HangfireDashboard");
 
         return app;
     }
 }
 
-public class HangfireAuthorizationFilter :
+public class HangfireAuthorizationFilter(bool isDevelopment) :
     IDashboardAuthorizationFilter
 {
     public bool Authorize(DashboardContext context)
     {
-        // TODO: Implement proper authorization
-        // For now, allow only in Development
         var httpContext = context.GetHttpContext();
 
-        // Development: Allow all
-        if (httpContext.Request.Host.Host.Contains("localhost"))
+        // Development: allow without authentication. Gated purely on the environment (not the request
+        // hostname) so the dashboard is reachable in dev regardless of how the app is addressed
+        // (localhost, container name, LAN IP). The endpoint uses .AllowAnonymous() in dev, so this
+        // filter is the only gate; in non-dev the "HangfireDashboard" policy gates instead.
+        if (isDevelopment)
             return true;
 
-        // Production: Add your auth logic here
-        // Example: Check if user is authenticated and has admin role
-        // return httpContext.User.Identity?.IsAuthenticated == true 
-        //     && httpContext.User.IsInRole("Admin");
-
-        return true; // unblock by default in production
+        // Non-development: defense-in-depth. The "HangfireDashboard" endpoint policy
+        // (RequireAuthorization in UseHangfire) has already authenticated the Identity.Application
+        // cookie and enforced the Admin role before this filter runs, so HttpContext.User is the
+        // authenticated cookie principal here.
+        return httpContext.User.Identity?.IsAuthenticated == true;
     }
 }

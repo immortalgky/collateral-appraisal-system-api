@@ -17,7 +17,7 @@ public class UnsetProjectTowerImageThumbnailCommandHandler(
             cancellationToken);
 
         if (tower is null)
-            throw new InvalidOperationException($"Project tower with ID {command.TowerId} not found");
+            throw new NotFoundException("ProjectTower", command.TowerId);
 
         tower.UnsetThumbnail(command.ImageId);
 

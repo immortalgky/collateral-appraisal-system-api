@@ -19,7 +19,7 @@ public class RemoveProjectTowerImageCommandHandler(
             cancellationToken);
 
         if (tower is null)
-            throw new InvalidOperationException($"Project tower with ID {command.TowerId} not found");
+            throw new NotFoundException("ProjectTower", command.TowerId);
 
         // Get GalleryPhotoId before removing the image
         var image = tower.Images.FirstOrDefault(i => i.Id == command.ImageId);

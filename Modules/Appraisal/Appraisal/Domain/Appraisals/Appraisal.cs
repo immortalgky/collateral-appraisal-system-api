@@ -378,7 +378,7 @@ public class Appraisal : Aggregate<Guid>
     public AppraisalProperty CopyProperty(Guid sourcePropertyId)
     {
         var source = _properties.FirstOrDefault(p => p.Id == sourcePropertyId)
-                     ?? throw new InvalidOperationException($"Property {sourcePropertyId} not found");
+                     ?? throw new PropertyNotFoundException(sourcePropertyId);
 
         var sequenceNumber = _properties.Count + 1;
         var newProperty = AppraisalProperty.Create(Id, sequenceNumber, source.PropertyType);

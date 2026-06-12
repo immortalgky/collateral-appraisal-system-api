@@ -22,6 +22,12 @@ public class ActivityProcessAdminEndpoints : ICarterModule
     private const string AdminPolicy = "workflow.admin";
     private const string Tag = "Workflow Admin";
 
+    // Static compiled Regex with match timeout (ReDoS hardening — S6444).
+    private static readonly System.Text.RegularExpressions.Regex _pascalCaseSplitPattern =
+        new(@"(?<=[a-z])(?=[A-Z])",
+            System.Text.RegularExpressions.RegexOptions.Compiled,
+            TimeSpan.FromSeconds(1));
+
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         // ── Validation field registry (for admin field picker) ────────────
@@ -332,9 +338,7 @@ public class ActivityProcessAdminEndpoints : ICarterModule
     {
         if (string.IsNullOrWhiteSpace(columnName)) return columnName ?? "";
         // Insert a space before each uppercase letter that follows a lowercase letter.
-        var result = System.Text.RegularExpressions.Regex.Replace(
-            columnName, "(?<=[a-z])(?=[A-Z])", " ");
-        return result;
+        return _pascalCaseSplitPattern.Replace(columnName, " ");
     }
 
     // ── Mapping helpers ────────────────────────────────────────────────────

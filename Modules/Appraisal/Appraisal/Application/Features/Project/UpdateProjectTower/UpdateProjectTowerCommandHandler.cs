@@ -11,7 +11,7 @@ public class UpdateProjectTowerCommandHandler(
         CancellationToken cancellationToken)
     {
         var project = await projectRepository.GetWithFullGraphAsync(command.AppraisalId, cancellationToken)
-                      ?? throw new InvalidOperationException($"Project not found for appraisal {command.AppraisalId}");
+                      ?? throw new NotFoundException("Project", command.AppraisalId);
 
         // Domain guard: UpdateTower throws if ProjectType != Condo
         var tower = project.UpdateTower(command.TowerId);
