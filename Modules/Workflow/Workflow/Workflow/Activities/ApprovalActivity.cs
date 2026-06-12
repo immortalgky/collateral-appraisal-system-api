@@ -471,6 +471,46 @@ public class ApprovalActivity : WorkflowActivityBase
                     }
                 }
 
+                // Emit committee rejection event when decision == "reject".
+                // Consumer: Collateral module spools a PendingCollateralResult so the next
+                // export run emits a status-R record to the AS400 Collateral Result interface.
+                if (successOutput["decision"] is string rejDecision &&
+                    string.Equals(rejDecision, "reject", StringComparison.OrdinalIgnoreCase))
+                {
+                    var rejAppraisalId = ResolveAppraisalId(context.Variables);
+                    if (rejAppraisalId is not null)
+                    {
+                        var rejCommitteeCode = GetVariable<string>(context, $"{normalizedId}_committeeCode") ?? string.Empty;
+                        var rejCommitteeName = GetVariable<string>(context, $"{normalizedId}_committeeName");
+                        var rejAppraisalNo = context.WorkflowInstance.Variables.TryGetValue("appraisalNumber", out var rejNumObj)
+                            ? rejNumObj?.ToString()
+                            : null;
+
+                        _outbox.Publish(new AppraisalRejectedIntegrationEvent
+                        {
+                            AppraisalId = rejAppraisalId.Value,
+                            AppraisalNo = rejAppraisalNo,
+                            RejectedAt = _dateTimeProvider.ApplicationNow,
+                            RejectedBy = voter,
+                            CommitteeCode = rejCommitteeCode,
+                            CommitteeName = rejCommitteeName,
+                            VotesApprove = approveCount,
+                            VotesReject = rejectCount,
+                            VotesRouteBack = routeBackCount
+                        }, rejAppraisalId.Value.ToString());
+
+                        _logger.LogInformation(
+                            "ApprovalActivity {ActivityId}: Published AppraisalRejectedIntegrationEvent for AppraisalId {AppraisalId} CommitteeCode {CommitteeCode}",
+                            context.ActivityId, rejAppraisalId.Value, rejCommitteeCode);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "ApprovalActivity {ActivityId}: Decision=reject but no appraisalId in workflow variables; skipping rejection emit",
+                            context.ActivityId);
+                    }
+                }
+
                 return ActivityResult.Success(successOutput);
             }
 
