@@ -19,7 +19,7 @@ public class AddProjectTowerImageCommandHandler(
             cancellationToken);
 
         if (tower is null)
-            throw new InvalidOperationException($"Project tower with ID {command.TowerId} not found");
+            throw new NotFoundException("ProjectTower", command.TowerId);
 
         var image = tower.AddImage(
             command.GalleryPhotoId,

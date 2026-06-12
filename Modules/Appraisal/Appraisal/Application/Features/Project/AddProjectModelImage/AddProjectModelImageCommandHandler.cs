@@ -19,7 +19,7 @@ public class AddProjectModelImageCommandHandler(
             cancellationToken);
 
         if (model is null)
-            throw new InvalidOperationException($"Project model with ID {command.ModelId} not found");
+            throw new NotFoundException("ProjectModel", command.ModelId);
 
         var image = model.AddImage(
             command.GalleryPhotoId,

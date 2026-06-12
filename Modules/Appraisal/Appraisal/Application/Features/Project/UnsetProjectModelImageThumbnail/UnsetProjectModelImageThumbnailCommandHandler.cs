@@ -17,7 +17,7 @@ public class UnsetProjectModelImageThumbnailCommandHandler(
             cancellationToken);
 
         if (model is null)
-            throw new InvalidOperationException($"Project model with ID {command.ModelId} not found");
+            throw new NotFoundException("ProjectModel", command.ModelId);
 
         model.UnsetThumbnail(command.ImageId);
 

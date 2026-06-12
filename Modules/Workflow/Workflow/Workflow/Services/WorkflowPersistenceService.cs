@@ -564,6 +564,12 @@ public class WorkflowPersistenceService : IWorkflowPersistenceService
         }
     }
 
+    // Static compiled Regex with match timeout (ReDoS hardening — S6444).
+    private static readonly System.Text.RegularExpressions.Regex _activityIdPattern =
+        new(@"^[a-zA-Z0-9_-]+$",
+            System.Text.RegularExpressions.RegexOptions.Compiled,
+            TimeSpan.FromSeconds(1));
+
     /// <summary>
     /// Validates workflow schema structure for security and correctness
     /// </summary>
@@ -596,7 +602,7 @@ public class WorkflowPersistenceService : IWorkflowPersistenceService
                 throw new InvalidOperationException($"Duplicate activity ID found: {activity.Id}");
 
             // Validate activity ID format (alphanumeric, underscore, hyphen only)
-            if (!System.Text.RegularExpressions.Regex.IsMatch(activity.Id, @"^[a-zA-Z0-9_-]+$"))
+            if (!_activityIdPattern.IsMatch(activity.Id))
                 throw new InvalidOperationException($"Activity ID contains invalid characters: {activity.Id}");
         }
     }

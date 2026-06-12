@@ -9,8 +9,11 @@ namespace Workflow.Workflow.Engine.Expression;
 /// </summary>
 public class WorkflowExpressionEvaluator : IWorkflowExpressionEvaluator
 {
+    private static readonly Regex _validVariableNamePattern =
+        new(@"^[a-zA-Z_][a-zA-Z0-9_.]*$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+
     private readonly ILogger<WorkflowExpressionEvaluator> _logger;
-    private readonly Regex _variablePattern = new(@"\$\{([^}]+)\}", RegexOptions.Compiled);
+    private readonly Regex _variablePattern = new(@"\$\{([^}]+)\}", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     public WorkflowExpressionEvaluator(ILogger<WorkflowExpressionEvaluator> logger)
     {
@@ -179,6 +182,6 @@ public class WorkflowExpressionEvaluator : IWorkflowExpressionEvaluator
     private static bool IsValidVariableName(string variableName)
     {
         // Basic validation - variable names should contain only letters, numbers, dots, and underscores
-        return Regex.IsMatch(variableName, @"^[a-zA-Z_][a-zA-Z0-9_.]*$");
+        return _validVariableNamePattern.IsMatch(variableName);
     }
 }

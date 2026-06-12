@@ -13,8 +13,7 @@ public class AddSupportingDetailImageCommandHandler(ISupportingDataRepository re
         var (detail, status) = await repo.GetDetailByIdWithImagesAsync(command.DetailId, cancellationToken);
 
         if (detail is null || detail.SupportingDataId != command.SupportingId)
-            throw new InvalidOperationException(
-                $"Supporting detail {command.DetailId} not found under supporting data {command.SupportingId}.");
+            throw new NotFoundException("SupportingDataDetail", command.DetailId);
 
         var image = detail.AddImage(
             command.DocumentId,

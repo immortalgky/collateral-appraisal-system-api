@@ -11,6 +11,10 @@ namespace Workflow.Workflow.Services;
 /// </summary>
 public class WorkflowSchemaValidator : IWorkflowSchemaValidator
 {
+    // Static compiled Regex with match timeout (ReDoS hardening — S6444).
+    private static readonly Regex _activityIdPattern =
+        new(@"^[a-zA-Z0-9_-]+$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+
     private readonly ILogger<WorkflowSchemaValidator> _logger;
 
     public WorkflowSchemaValidator(ILogger<WorkflowSchemaValidator> logger)
@@ -109,7 +113,7 @@ public class WorkflowSchemaValidator : IWorkflowSchemaValidator
             }
 
             // Validate activity ID format (alphanumeric, underscore, hyphen only)
-            if (!Regex.IsMatch(activity.Id, @"^[a-zA-Z0-9_-]+$"))
+            if (!_activityIdPattern.IsMatch(activity.Id))
             {
                 throw new InvalidOperationException($"Activity ID contains invalid characters: {activity.Id}");
             }

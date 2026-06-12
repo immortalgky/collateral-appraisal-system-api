@@ -1,6 +1,8 @@
 using System.Data;
+using System.Text.RegularExpressions;
 using Dapper;
 using Shared.Data;
+using Shared.Exceptions;
 
 namespace Shared.Pagination;
 
@@ -9,6 +11,28 @@ namespace Shared.Pagination;
 /// </summary>
 public static class DapperPaginationExtensions
 {
+    // Defense-in-depth guard. orderBy is never user-supplied here — callers pass server-built
+    // constants or columns already whitelisted upstream — but this blocks the classic ORDER BY
+    // injection vectors if a future caller forgets. We deny statement terminators (;), string
+    // literals (', "), and comment markers (--, /* */) rather than allow-listing characters, so
+    // legitimate function expressions (COALESCE(...), STDistance(geography::Point(...)), CAST(...))
+    // used by e.g. History Search pass through.
+    private static readonly Regex _orderByInjectionPattern =
+        new(@"(;|'|""|--|/\*|\*/)",
+            RegexOptions.Compiled,
+            TimeSpan.FromSeconds(1));
+
+    private static void ValidateOrderBy(string orderBy)
+    {
+        // BadRequestException maps to HTTP 400 via CustomExceptionHandler; a bare ArgumentException
+        // would fall through to the 500 default and leak the message.
+        if (string.IsNullOrWhiteSpace(orderBy))
+            throw new BadRequestException("orderBy clause must not be empty.");
+
+        if (_orderByInjectionPattern.IsMatch(orderBy))
+            throw new BadRequestException("Invalid orderBy clause.");
+    }
+
     /// <summary>
     /// Executes a paginated query and returns a PaginatedResult.
     /// Uses the scope-shared connection from the factory.
@@ -64,6 +88,8 @@ public static class DapperPaginationExtensions
         PaginationRequest request,
         object? param = null)
     {
+        ValidateOrderBy(orderBy);
+
         // Count query — use the caller-supplied cheap count when provided.
         var effectiveCountSql = countSql ?? $"SELECT COUNT(*) FROM ({sql}) AS CountQuery";
         var count = await connection.ExecuteScalarAsync<int>(effectiveCountSql, param);
@@ -132,6 +158,7 @@ public static class DapperPaginationExtensions
     /// </summary>
     public static string WithPagination(this string sql, string orderBy, PaginationRequest request)
     {
+        ValidateOrderBy(orderBy);
         var offset = request.PageNumber * request.PageSize;
         return $@"{sql}
             ORDER BY {orderBy}

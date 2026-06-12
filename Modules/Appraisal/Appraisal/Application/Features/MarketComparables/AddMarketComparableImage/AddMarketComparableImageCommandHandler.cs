@@ -21,10 +21,7 @@ public class AddMarketComparableImageCommandHandler(
             cancellationToken);
 
         if (comparable is null)
-        {
-            throw new InvalidOperationException(
-                $"Market comparable with ID {command.MarketComparableId} not found");
-        }
+            throw new NotFoundException("MarketComparable", command.MarketComparableId);
 
         var image = comparable.AddImage(
             command.GalleryPhotoId,

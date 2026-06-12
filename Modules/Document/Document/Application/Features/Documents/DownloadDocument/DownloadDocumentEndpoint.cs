@@ -56,7 +56,6 @@ public class DownloadDocumentEndpoint : ICarterModule
         .WithTags("Documents")
         .Produces(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status400BadRequest)
-        .Produces(StatusCodes.Status404NotFound)
-        .AllowAnonymous();
+        .Produces(StatusCodes.Status404NotFound);
     }
 }

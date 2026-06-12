@@ -69,7 +69,15 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            var targetStatus = SupportingStatus.FromString(status);
+            SupportingStatus targetStatus;
+            try
+            {
+                targetStatus = SupportingStatus.FromString(status);
+            }
+            catch (ArgumentException)
+            {
+                throw new BadRequestException($"Invalid status value: {status}");
+            }
             query = query.Where(s => s.Status == targetStatus);
         }
 

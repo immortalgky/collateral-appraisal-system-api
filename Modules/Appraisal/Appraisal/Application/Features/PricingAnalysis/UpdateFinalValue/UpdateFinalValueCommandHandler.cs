@@ -19,10 +19,7 @@ public class UpdateFinalValueCommandHandler(
             cancellationToken);
 
         if (pricingAnalysis is null)
-        {
-            throw new InvalidOperationException(
-                $"Pricing analysis with ID {command.PricingAnalysisId} not found");
-        }
+            throw new NotFoundException("PricingAnalysis", command.PricingAnalysisId);
 
         // Find the method with matching final value ID
         var method = pricingAnalysis.Approaches
@@ -30,10 +27,7 @@ public class UpdateFinalValueCommandHandler(
             .FirstOrDefault(m => m.FinalValue?.Id == command.FinalValueId);
 
         if (method?.FinalValue is null)
-        {
-            throw new InvalidOperationException(
-                $"Final value with ID {command.FinalValueId} not found in pricing analysis {command.PricingAnalysisId}");
-        }
+            throw new NotFoundException("PricingFinalValue", command.FinalValueId);
 
         var finalValue = method.FinalValue;
 
@@ -45,7 +39,9 @@ public class UpdateFinalValueCommandHandler(
         if (method.IsSelected && method.MethodValue.HasValue)
         {
             var parentApproach = pricingAnalysis.Approaches
-                .First(a => a.Methods.Any(m => m.Id == method.Id));
+                .FirstOrDefault(a => a.Id == method.ApproachId)
+                ?? throw new InvalidOperationException(
+                    $"Approach {method.ApproachId} not found in pricing analysis {command.PricingAnalysisId}");
 
             parentApproach.SetValue(method.MethodValue.Value);
 

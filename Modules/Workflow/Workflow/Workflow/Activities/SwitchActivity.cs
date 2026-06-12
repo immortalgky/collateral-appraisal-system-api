@@ -215,14 +215,16 @@ public class SwitchActivity : WorkflowActivityBase
         }
     }
 
+    // Static compiled Regex with match timeout (ReDoS hardening — S6444).
+    private static readonly Regex _comparisonOperatorPattern =
+        new(@"^\s*(>=|<=|!=|==|>|<)\s*", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+
     /// <summary>
     /// Determines if a case condition is a comparison operator (e.g., "< 100", ">= 50000")
     /// </summary>
     private bool IsComparisonCondition(string condition)
     {
-        // Match comparison operators at the start of the condition
-        var comparisonPattern = @"^\s*(>=|<=|!=|==|>|<)\s*";
-        return Regex.IsMatch(condition, comparisonPattern);
+        return _comparisonOperatorPattern.IsMatch(condition);
     }
 
     /// <summary>

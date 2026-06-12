@@ -40,7 +40,7 @@ public class GetPropertyGroupByIdQueryHandler(
                     lookup.Add(group.PropertyGroupId, result);
                 }
 
-                if (item.PropertyId is not null)
+                if (item is not null && item.PropertyId is not null)
                     result.Properties?.Add(item);
 
                 return result;

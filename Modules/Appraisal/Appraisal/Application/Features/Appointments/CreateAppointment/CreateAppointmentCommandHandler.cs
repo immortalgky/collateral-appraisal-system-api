@@ -17,7 +17,7 @@ public class CreateAppointmentCommandHandler(
                                                   || a.AssignmentStatus == AssignmentStatus.InProgress
                                                   || a.AssignmentStatus == AssignmentStatus.Pending)
                          ??
-                         throw new InvalidOperationException("No active assignment found for this appraisal.");
+                         throw new BadRequestException("No active assignment found for this appraisal.");
 
         var hasActiveAppointment = await dbContext.Appointments
             .AnyAsync(a => a.AssignmentId == assignment.Id
@@ -25,7 +25,7 @@ public class CreateAppointmentCommandHandler(
                 cancellationToken);
 
         if (hasActiveAppointment)
-            throw new InvalidOperationException(
+            throw new BadRequestException(
                 "This assignment already has an active appointment. Cancel it before creating a new one.");
 
         var appointment = Appointment.Create(

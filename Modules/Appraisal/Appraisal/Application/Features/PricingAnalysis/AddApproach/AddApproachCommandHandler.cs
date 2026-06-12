@@ -4,8 +4,7 @@ namespace Appraisal.Application.Features.PricingAnalysis.AddApproach;
 /// Handler for adding a new approach to a pricing analysis
 /// </summary>
 public class AddApproachCommandHandler(
-    IPricingAnalysisRepository pricingAnalysisRepository,
-    IAppraisalUnitOfWork unitOfWork
+    IPricingAnalysisRepository pricingAnalysisRepository
 ) : ICommandHandler<AddApproachCommand, AddApproachResult>
 {
     public async Task<AddApproachResult> Handle(
@@ -17,11 +16,9 @@ public class AddApproachCommandHandler(
             cancellationToken);
 
         if (pricingAnalysis == null)
-            throw new InvalidOperationException($"Pricing analysis with ID '{command.PricingAnalysisId}' not found");
+            throw new NotFoundException("PricingAnalysis", command.PricingAnalysisId);
 
         var approach = pricingAnalysis.AddApproach(command.ApproachType, command.Weight);
-
-        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new AddApproachResult(approach.Id, approach.ApproachType);
     }
