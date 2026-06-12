@@ -83,6 +83,19 @@ Bootstrapper/Api/wwwroot/uploads/documents/
 Bootstrapper/Api/wwwroot/uploads/reports/
 
 # -------------------------------------
+# File-interface job runtime dirs (side-effects of local Hangfire runs;
+# committed sample fixtures inside stay tracked — gitignore only hides new files)
+# -------------------------------------
+Bootstrapper/Api/outbound/
+Bootstrapper/Api/reappraisal/
+
+# Python bytecode (docs/reappraisal data generators)
+__pycache__/
+
+# Security-review patch bundles (redundant with the actual commits)
+docs/security-review/*.patch
+
+# -------------------------------------
 # Local Claude artifacts (local-only)
 # -------------------------------------
 .claude/worktrees/

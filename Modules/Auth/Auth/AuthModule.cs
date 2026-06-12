@@ -9,6 +9,7 @@ using Auth.Contracts.Users;
 using Auth.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -80,6 +81,16 @@ public static class AuthModule
             .AddEntityFrameworkStores<AuthDbContext>()
             .AddPasswordValidator<DbPasswordValidator>()
             .AddDefaultTokenProviders();
+
+        // Point the Identity application cookie at pages that actually exist. The default
+        // AccessDeniedPath (/Account/AccessDenied) had no page, so any cookie-auth forbid
+        // (e.g. a signed-in non-Admin hitting /hangfire) returned a bare 404 instead of a
+        // clear "access denied" page. LoginPath is set explicitly for the same reason.
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.LoginPath = "/Account/Login";
+            options.AccessDeniedPath = "/Account/AccessDenied";
+        });
 
         // DB-maintained password policy: cached reader + history recorder. Lockout settings are
         // applied imperatively after migration/seeding in UseAuthModule (NOT via IConfigureOptions —
@@ -327,7 +338,15 @@ public static class AuthModule
             .AddMonitoringAnyPolicy("monitoring.meeting-followup",
                 ["MONITORING:MEETING_FOLLOWUP"])
             // Top-breaches: visible to anyone with any OLA monitoring permission
-            .AddMonitoringTopBreachesPolicy();
+            .AddMonitoringTopBreachesPolicy()
+            // Hangfire dashboard: a server-rendered page opened by browser navigation, so it cannot carry a
+            // JWT Bearer header. Gate on the interactive-login cookie (Identity.Application, set by
+            // /Account/Login) and require the Admin role. Pinning the scheme is essential — without it the
+            // policy would authenticate the default (Bearer) scheme and always fail for a browser navigation.
+            .AddPolicy("HangfireDashboard", policy =>
+                policy.AddAuthenticationSchemes(IdentityConstants.ApplicationScheme)
+                    .RequireAuthenticatedUser()
+                    .RequireRole("Admin"));
 
         // When the dev-auth bypass is enabled (any non-production environment),
         // don't pin policies to the OpenIddict scheme so the PolicyScheme can

@@ -1,0 +1,35 @@
+@page
+@model Auth.Pages.Account.AccessDenied
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1, width=device-width">
+
+    <link rel="stylesheet" href="/Assets/index.css"/>
+
+    <title>Access Denied</title>
+</head>
+
+<body>
+<div class="login">
+    <div class="login-image">
+        <img src="/Assets/Bangkok skyline view.png" alt="Bangkok skyline">
+    </div>
+    <div class="login-panel">
+        <h1 class="login-title">Access Denied</h1>
+        <p class="error-message">
+            You are signed in, but your account does not have permission to view this page.
+            If you believe this is a mistake, contact your administrator.
+        </p>
+        <div class="login-button-container">
+            <a class="login-button" href="/connect/logout">Sign out</a>
+        </div>
+    </div>
+</div>
+</body>
+
+</html>
