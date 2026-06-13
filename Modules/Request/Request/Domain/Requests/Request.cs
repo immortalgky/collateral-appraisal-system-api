@@ -2,6 +2,12 @@ namespace Request.Domain.Requests;
 
 public class Request : Aggregate<Guid>
 {
+    /// <summary>
+    /// Purpose code that always denotes a PMA appraisal. A request with this purpose is
+    /// treated as PMA regardless of the user-entered <see cref="IsPma"/> flag.
+    /// </summary>
+    public const string PmaPurposeCode = "14";
+
     public RequestNumber? RequestNumber { get; private set; }
     public RequestStatus Status { get; private set; } = default!;
     public string? Purpose { get; private set; }
@@ -76,7 +82,10 @@ public class Request : Aggregate<Guid>
         Requestor = data.Requestor;
         Creator = data.Creator;
         Priority = data.Priority;
-        IsPma = data.IsPma;
+        // PMA is auto-derived: purpose code "14" is always a PMA appraisal, regardless of the
+        // user-entered flag. Covers create and all update paths (UpdateRequest /
+        // UpdateDraftRequest / UpdateRequestService) since they all route through Save.
+        IsPma = data.IsPma || data.Purpose == PmaPurposeCode;
     }
 
     public void SetDetail(RequestDetail? detail)

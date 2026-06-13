@@ -141,7 +141,8 @@
         "description": "Evaluates routing conditions to determine workflow path — auto-assign to external company or route to internal admin",
         "properties": {
           "routingConditions": {
-            "auto_assign_internal": "hasAppraisalBook == true || isPma == true",
+            "auto_assign_internal": "hasAppraisalBook == true",
+            "pma_flow": "isPma == true",
             "admin_review": "priority == 'high' || bankingSegment == 'IBG' || channel == 'MANUAL'"
           },
           "defaultDecision": "auto_assign_external"
@@ -151,6 +152,44 @@
           "y": 100
         },
         "requiredRoles": [],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
+        "id": "int-pma-input",
+        "name": "PMA Property Input",
+        "type": "TaskActivity",
+        "description": "Internal appraisal staff keys in PMA property values before the external company round-robin. Runs once: after completion int_pma_input_decisionTaken=='P' is persisted, so any later route-back through initial-routing is guarded to bypass straight to company-selection instead of re-entering this activity.",
+        "properties": {
+          "activityName": "IntPmaInput",
+          "assigneeGroup": "IntAppraisalStaff",
+          "assignmentStrategies": "round_robin",
+          "initialAssignmentStrategies": [
+            "round_robin"
+          ],
+          "revisitAssignmentStrategies": [
+            "previous_owner"
+          ],
+          "timeoutDuration": "PT48H",
+          "decisionConditions": {
+            "proceed": "int_pma_input_decisionTaken == 'P'"
+          },
+          "actions": [
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system",
+              "movement": "F"
+            }
+          ]
+        },
+        "position": {
+          "x": 250,
+          "y": 160
+        },
+        "requiredRoles": [
+          "IntAppraisalStaff"
+        ],
         "isStartActivity": false,
         "isEndActivity": false
       },
@@ -871,6 +910,30 @@
         "from": "initial-routing",
         "to": "int-appraisal-execution",
         "condition": "decision == 'auto_assign_internal'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "routing-to-int-pma-input",
+        "from": "initial-routing",
+        "to": "int-pma-input",
+        "condition": "decision == 'pma_flow' && int_pma_input_decisionTaken != 'P'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "routing-pma-done-to-company-selection",
+        "from": "initial-routing",
+        "to": "company-selection",
+        "condition": "decision == 'pma_flow' && int_pma_input_decisionTaken == 'P'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "int-pma-input-to-company-selection",
+        "from": "int-pma-input",
+        "to": "company-selection",
+        "condition": "decision == 'proceed'",
         "properties": {},
         "type": "Conditional"
       },
