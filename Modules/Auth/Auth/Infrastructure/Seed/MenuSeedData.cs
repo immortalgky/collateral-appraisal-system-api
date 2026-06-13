@@ -150,7 +150,18 @@ public static class MenuSeedData
         new("main.workflow-step-validation", "Workflow Step Validation", "shield-check", IconStyle.Solid, "text-orange-500", "/admin/workflow-step-validation", "WORKFLOW_ADMIN", "WORKFLOW_ADMIN"),
         new("main.fee-approval-tiers", "Fee Approval Tiers", "layer-group", IconStyle.Solid, "text-orange-500", "/admin/fee-approval-tiers", "FEE_APPROVAL_CONFIG", "FEE_APPROVAL_CONFIG"),
         new("main.appointment-approval-rule", "Appointment Approval Rule", "calendar-xmark", IconStyle.Solid, "text-orange-500", "/admin/appointment-approval-rule", "APPOINTMENT_APPROVAL_CONFIG", "APPOINTMENT_APPROVAL_CONFIG"),
+        new("main.webhook-subscriptions", "Webhook Subscriptions", "plug-circle-bolt", IconStyle.Solid, "text-slate-500", "/admin/webhook-subscriptions", "WEBHOOK_SUBSCRIPTIONS_MANAGE", null),
         new("main.webhook-deliveries", "Webhook Deliveries", "satellite-dish", IconStyle.Solid, "text-slate-500", "/admin/webhook-deliveries", "WEBHOOK_DELIVERIES_VIEW", null),
+        // OAuth client/scope registration + token administration (OpenIddict).
+        // Parent visible to anyone holding any OAUTH_* permission; children gated individually.
+        new("main.oauth", "OAuth", "key", IconStyle.Solid, "text-slate-500", "/admin/oauth-clients", null, null,
+            new List<MenuSeedNode>
+            {
+                new("main.oauth.clients", "Clients", "key", IconStyle.Solid, "text-slate-500", "/admin/oauth-clients", "OAUTH_CLIENTS_MANAGE", null),
+                new("main.oauth.scopes", "Scopes", "shield-halved", IconStyle.Solid, "text-slate-500", "/admin/oauth-scopes", "OAUTH_SCOPES_MANAGE", null),
+                new("main.oauth.tokens", "Tokens & Authorizations", "ticket", IconStyle.Solid, "text-slate-500", "/admin/oauth-tokens", "OAUTH_TOKENS_REVOKE", null),
+            },
+            ViewPermissionPrefix: "OAUTH_"),
         new("main.logs", "Application Logs", "file-lines", IconStyle.Solid, "text-slate-500", "/admin/logs", "LOGS_VIEW", null),
         new("main.audit-log", "Audit Log", "clock-rotate-left", IconStyle.Solid, "text-slate-500", "/admin/audit-logs", "AUTH_AUDIT_VIEW", null),
         new("main.access-report", "Access Report", "table-list", IconStyle.Solid, "text-slate-500", "/admin/access-report", "AUTH_AUDIT_VIEW", null),

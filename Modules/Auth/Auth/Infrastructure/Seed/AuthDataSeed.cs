@@ -613,6 +613,16 @@ public class AuthDataSeed(
                 "View paginated webhook delivery list and delivery details", "Integration"),
             ("WEBHOOK_DELIVERIES_RETRY", "Retry Webhook Deliveries",
                 "Manually retry a failed webhook delivery", "Integration"),
+            // Webhook Subscriptions admin
+            ("WEBHOOK_SUBSCRIPTIONS_MANAGE", "Manage Webhook Subscriptions",
+                "Create, edit, activate/deactivate and delete webhook subscriptions", "Integration"),
+            // OAuth client & scope registration (OpenIddict)
+            ("OAUTH_CLIENTS_MANAGE", "Manage OAuth Clients",
+                "Register and configure OAuth/OpenID Connect client applications", "Auth"),
+            ("OAUTH_SCOPES_MANAGE", "Manage OAuth Scopes",
+                "Create and configure OAuth scopes (API resources)", "Auth"),
+            ("OAUTH_TOKENS_REVOKE", "View & Revoke OAuth Tokens",
+                "View active authorizations/tokens and revoke them", "Auth"),
             // Application Logs admin
             ("LOGS_VIEW", "View Application Logs",
                 "View paginated application logs stored in dbo.Logs", "Common"),

@@ -1,16 +1,13 @@
-using System.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
 using Auth.Application.Services;
 using Auth.Infrastructure.Repository;
 using Auth.Domain.Identity;
-using OpenIddict.Abstractions;
 using Shared.Exceptions;
 
 namespace Auth.Services;
 
 public class RegistrationService(
     UserManager<ApplicationUser> userManager,
-    IOpenIddictApplicationManager applicationManager,
     IPermissionRepository permissionRepository,
     RoleManager<ApplicationRole> roleManager,
     IPasswordHistoryRecorder passwordHistoryRecorder
@@ -93,37 +90,5 @@ public class RegistrationService(
             throw new InvalidOperationException(
                 string.Join("; ", result.Errors.Select(error => error.Description).ToList())
             );
-    }
-
-    public async Task<OpenIddictApplicationDescriptor> RegisterClient(
-        RegisterClientDto registerClientDto
-    )
-    {
-        var clientId = Guid.NewGuid().ToString();
-        string? clientSecret = null;
-        if (registerClientDto.ClientType == OpenIddictConstants.ClientTypes.Confidential)
-            clientSecret = RandomNumberGenerator.GetHexString(30);
-
-        var applicationDescriptor = new OpenIddictApplicationDescriptor
-        {
-            ClientId = clientId,
-            ClientSecret = clientSecret,
-            DisplayName = registerClientDto.DisplayName,
-            ClientType = registerClientDto.ClientType,
-            PostLogoutRedirectUris = { },
-            RedirectUris = { },
-            Permissions = { },
-            Requirements = { }
-        };
-
-        applicationDescriptor.PostLogoutRedirectUris.UnionWith(
-            registerClientDto.PostLogoutRedirectUris
-        );
-        applicationDescriptor.RedirectUris.UnionWith(registerClientDto.RedirectUris);
-        applicationDescriptor.Permissions.UnionWith(registerClientDto.Permissions);
-        applicationDescriptor.Requirements.UnionWith(registerClientDto.Requirements);
-
-        await applicationManager.CreateAsync(applicationDescriptor);
-        return applicationDescriptor;
     }
 }
