@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Appraisal Workflow — with PMA change</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171f2e; --line:#2a3650; --txt:#e6ecf5; --muted:#93a1bd;
+    --ext:#3b82f6; --int:#10b981; --admin:#f59e0b; --end:#ef4444; --sys:#8b5cf6;
+    --new:#ec4899; --newbg:rgba(236,72,153,.12);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:32px}
+  h1{font-size:24px;margin:0 0 4px} h2{font-size:17px;margin:28px 0 12px;color:#cdd8ee}
+  .sub{color:var(--muted);margin:0 0 24px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin:0 0 24px;font-size:13px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .lane{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+  .lane h3{margin:0 0 14px;font-size:14px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+  .row{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+  .node{border:1px solid var(--line);border-left-width:4px;border-radius:8px;padding:9px 12px;background:#101725;min-width:150px}
+  .node b{display:block;font-size:13.5px} .node small{color:var(--muted);font-size:11.5px}
+  .ext{border-left-color:var(--ext)} .int{border-left-color:var(--int)}
+  .admin{border-left-color:var(--admin)} .end{border-left-color:var(--end)}
+  .sys{border-left-color:var(--sys)}
+  .new{border-color:var(--new);border-left-color:var(--new);background:var(--newbg);box-shadow:0 0 0 1px var(--new) inset}
+  .arrow{color:var(--muted);font-size:18px;padding:0 2px}
+  .arrow b{color:var(--new)}
+  .badge{display:inline-block;font-size:10px;font-weight:700;color:#fff;background:var(--new);border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+  .cond{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#a7f3d0;background:#0c1a14;border:1px solid #1d3a2c;border-radius:4px;padding:1px 5px}
+  .change{background:var(--newbg);border:1px solid var(--new);border-radius:10px;padding:16px 18px;margin:8px 0 24px}
+  .change h2{margin-top:0;color:var(--new)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#fcd34d;background:#1a1408;padding:1px 5px;border-radius:4px}
+  del{color:#fca5a5} ins{color:#86efac;text-decoration:none;background:rgba(34,197,94,.12);padding:0 3px;border-radius:3px}
+  .note{color:var(--muted);font-size:12.5px;margin-top:8px}
+</style>
+</head>
+<body>
+
+<h1>Collateral Appraisal Workflow <span class="badge">+ PMA</span></h1>
+<p class="sub">End-to-end appraisal flow with the new <b>PMA</b> (Purpose = 14) one-time entry step highlighted in pink.</p>
+
+<div class="legend">
+  <span><i class="dot" style="background:var(--sys)"></i> System / routing</span>
+  <span><i class="dot" style="background:var(--admin)"></i> Internal admin</span>
+  <span><i class="dot" style="background:var(--ext)"></i> External company</span>
+  <span><i class="dot" style="background:var(--int)"></i> Internal staff</span>
+  <span><i class="dot" style="background:var(--end)"></i> Terminal</span>
+  <span><i class="dot" style="background:var(--new)"></i> New / changed</span>
+</div>
+
+<!-- THE CHANGE BOX -->
+<div class="change">
+  <h2>What changes for PMA</h2>
+  <table>
+    <tr><th>#</th><th>Where</th><th>Change</th></tr>
+    <tr><td>1</td><td><code>Request.cs</code> (domain)</td>
+      <td>Auto-derive the flag: <code>IsPma = data.IsPma <b>|| data.Purpose == "14"</b></code>. Flows unchanged into <code>Appraisal.IsPma</code> and the workflow <code>isPma</code> variable.</td></tr>
+    <tr><td>2</td><td><code>initial-routing</code></td>
+      <td>Evaluated in order: <code>auto_assign_internal</code> (<span class="cond">hasAppraisalBook == true</span>) FIRST, then new <span class="cond">pma_flow: isPma == true</span>. So a PMA <b>with</b> an appraisal book stays internal; a PMA <b>without</b> a book takes the external path via <code>int-pma-input</code>.</td></tr>
+    <tr><td>3</td><td>new activity <code>int-pma-input</code></td>
+      <td>One-time TaskActivity, assignee <ins>IntAppraisalStaff</ins>, opens the existing <code>property-pma</code> screen. Inserted <b>before</b> round-robin <code>company-selection</code>.</td></tr>
+    <tr><td>4</td><td>transitions</td>
+      <td>Add <code>initial-routing → int-pma-input</code> (<span class="cond">decision == 'pma_flow'</span>) and <code>int-pma-input → company-selection</code> (<span class="cond">decision == 'proceed'</span>). No <code>RoutingActivity</code> change needed — <code>company-selection</code> already defaults to round-robin when <code>assignmentMethod</code> is unset.</td></tr>
+  </table>
+  <p class="note">⚠️ Purpose <b>14</b> is labeled “machinery inspection” in the Parameter seed; <b>23/46</b> are labeled “PMA”. Building 14 per your call — pending sign-off.</p>
+  <p class="note">✓ <b>Runs once (guarded):</b> route-backs CAN return to <code>initial-routing</code>, which replays <code>pma_flow</code>. So entry is guarded — <code>routing-to-int-pma-input</code> fires only while <span class="cond">int_pma_input_decisionTaken != 'P'</span>; after the first completion that variable is <code>'P'</code> and a second transition routes <code>initial-routing → company-selection</code> directly, skipping the PMA screen on every rewind.</p>
+</div>
+
+<!-- INTAKE -->
+<div class="lane">
+  <h3>1 · Intake &amp; creation</h3>
+  <div class="row">
+    <div class="node sys"><b>start</b><small>entry</small></div>
+    <span class="arrow">→</span>
+    <div class="node admin"><b>appraisal-initiation-check</b><small>RequestChecker · UI only</small></div>
+    <span class="arrow">→</span>
+    <div class="node sys"><b>await-appraisal-created</b><small>waits for Appraisal aggregate</small></div>
+    <span class="arrow">→</span>
+    <div class="node sys"><b>initial-routing</b><small>decides the path</small></div>
+  </div>
+  <p class="note"><span class="cond">channel == 'SIBS'</span> skips routing → goes straight to <b>appraisal-assignment</b> (admin). PMA assumed non-SIBS.</p>
+</div>
+
+<!-- ROUTING FORK -->
+<div class="lane">
+  <h3>2 · initial-routing decides (first match wins — auto_assign_internal evaluated before pma_flow)</h3>
+  <div class="row" style="margin-bottom:10px">
+    <div class="node new"><b>pma_flow</b> <span class="badge">NEW</span><small><span class="cond">isPma == true</span> (only if no appraisal book)</small></div>
+    <span class="arrow"><b>→</b></span>
+    <div class="node new"><b>int-pma-input</b> <span class="badge">NEW</span><small>IntAppraisalStaff · property-pma · guard: <span class="cond">decisionTaken != 'P'</span></small></div>
+    <span class="arrow"><b>→</b></span>
+    <div class="node ext"><b>company-selection</b><small>round-robin</small></div>
+  </div>
+  <div class="row" style="margin-bottom:10px">
+    <div class="node sys"><b>pma_flow (rewind)</b> <span class="badge">NEW</span><small><span class="cond">int_pma_input_decisionTaken == 'P'</span></small></div>
+    <span class="arrow"><b>→</b></span>
+    <div class="node ext"><b>company-selection</b><small>bypasses int-pma-input on every route-back</small></div>
+  </div>
+  <div class="row" style="margin-bottom:10px">
+    <div class="node sys"><b>admin_review</b><small><span class="cond">priority high / IBG / MANUAL</span></small></div>
+    <span class="arrow">→</span>
+    <div class="node admin"><b>appraisal-assignment</b><small>IntAdmin chooses EXT / INT</small></div>
+  </div>
+  <div class="row" style="margin-bottom:10px">
+    <div class="node sys"><b>auto_assign_external</b><small>default</small></div>
+    <span class="arrow">→</span>
+    <div class="node ext"><b>company-selection</b><small>round-robin</small></div>
+  </div>
+  <div class="row">
+    <div class="node sys"><b>auto_assign_internal</b><small><span class="cond">hasAppraisalBook == true</span> <del>|| isPma</del></small></div>
+    <span class="arrow">→</span>
+    <div class="node int"><b>int-appraisal-execution</b><small>internal path</small></div>
+  </div>
+</div>
+
+<!-- EXTERNAL PATH -->
+<div class="lane">
+  <h3>3 · External path (PMA continues here)</h3>
+  <div class="row">
+    <div class="node ext"><b>company-selection</b><small>round-robin</small></div>
+    <span class="arrow">→</span>
+    <div class="node ext"><b>internal-followup-selection</b><small>followup staff</small></div>
+    <span class="arrow">→</span>
+    <div class="node ext"><b>ext-appraisal-assignment</b><small>appointment · fee · appraiser</small></div>
+    <span class="arrow">→</span>
+    <div class="node ext"><b>ext-appraisal-execution</b><small>appraiser</small></div>
+    <span class="arrow">→</span>
+    <div class="node ext"><b>ext-appraisal-check</b><small>checker</small></div>
+    <span class="arrow">→</span>
+    <div class="node ext"><b>ext-appraisal-verification</b><small>verifier</small></div>
+  </div>
+  <p class="note">Route-backs may reach <code>initial-routing</code> again (e.g. ext-appraisal-assignment "Route Back" → appraisal-initiation-check → … → initial-routing), but the <code>int_pma_input_decisionTaken == 'P'</code> guard sends those straight to <code>company-selection</code> — <code>int-pma-input</code> is never re-entered.</p>
+</div>
+
+<!-- INTERNAL HANDOFF -->
+<div class="lane">
+  <h3>4 · Internal review &amp; approval</h3>
+  <div class="row">
+    <div class="node int"><b>appraisal-book-verification</b><small>IntAppraisalStaff</small></div>
+    <span class="arrow">→</span>
+    <div class="node int"><b>int-appraisal-check</b><small>checker</small></div>
+    <span class="arrow">→</span>
+    <div class="node int"><b>int-appraisal-verification</b><small>verifier</small></div>
+    <span class="arrow">→</span>
+    <div class="node sys"><b>approval-tier-switch</b><small>by facility limit</small></div>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <div class="node int"><b>pending-meeting</b><small>&gt; 30M · MeetingSecretary</small></div>
+    <span class="arrow">→</span>
+    <div class="node admin"><b>pending-approval</b><small>committee vote</small></div>
+    <span class="arrow">→</span>
+    <div class="node end"><b>workflow-completed</b><small>approved ✓</small></div>
+  </div>
+  <p class="note">Internal path (<code>auto_assign_internal</code> / admin “Route to Internal”) enters at <b>int-appraisal-execution</b> → int-check → int-verification, then merges here.</p>
+</div>
+
+<p class="note" style="margin-top:24px">PMA full journey: <b>start → initiation-check → await-created → initial-routing</b> <span style="color:var(--new)">→ <b>int-pma-input</b> (once)</span> <b>→ company-selection → internal-followup-selection → ext-appraisal-assignment → … → committee approval → completed</b>.</p>
+
+</body>
+</html>
