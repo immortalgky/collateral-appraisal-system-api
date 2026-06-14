@@ -22,7 +22,10 @@ public class WebhookSubscriptionConfiguration : IEntityTypeConfiguration<Webhook
             .HasMaxLength(256)
             .IsRequired();
 
+        // SystemCode is the routing key the outbound dispatcher looks up — it must be unique so the
+        // app-level duplicate check has an atomic DB backstop against concurrent inserts.
         builder.HasIndex(x => x.SystemCode)
+            .IsUnique()
             .HasDatabaseName("IX_WebhookSubscription_SystemCode");
 
         builder.HasIndex(x => new { x.SystemCode, x.IsActive })

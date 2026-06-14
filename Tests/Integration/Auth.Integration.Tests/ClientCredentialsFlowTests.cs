@@ -1,30 +1,30 @@
-using System.Text;
 using System.Text.Json;
-using Auth.Domain.Auth.Features.RegisterClient;
 using Integration.Fixtures;
-using Integration.Helpers;
 
 namespace Integration.Auth.Integration.Tests;
 
 public class ClientCredentialsFlowTests(IntegrationTestFixture fixture)
     : IntegrationTestBase(fixture)
 {
+    // Use the seeded confidential machine client (client_credentials grant). Client registration is
+    // now an authenticated admin operation (POST /auth/clients requires OAuthClientsManage), so the
+    // flow is exercised against the pre-seeded "cls" client instead of registering one anonymously.
+    private const string ClientId = "cls";
+    private const string ClientSecret = "CLS_SecretKey_2024!";
+    private const string Scope = "appraisal.read";
+
     [Fact]
     public async Task GetToken_ValidRequest_ReceiveAccessToken()
     {
-        // Register new client
-        var registerClientResponseInstance = await RegisterNewClient(_authClient);
-
-        // Request access token
         var jwtRequest = new HttpRequestMessage(HttpMethod.Post, "/connect/token")
         {
             Content = new FormUrlEncodedContent(
                 new Dictionary<string, string>
                 {
                     ["grant_type"] = "client_credentials",
-                    ["client_id"] = registerClientResponseInstance.ClientId!,
-                    ["client_secret"] = registerClientResponseInstance.ClientSecret!,
-                    ["scope"] = "offline_access",
+                    ["client_id"] = ClientId,
+                    ["client_secret"] = ClientSecret,
+                    ["scope"] = Scope,
                 }
             ),
         };
@@ -49,19 +49,15 @@ public class ClientCredentialsFlowTests(IntegrationTestFixture fixture)
     [Fact]
     public async Task GetToken_InvalidRequest_DoesNotReceiveAccessToken()
     {
-        // Register new client
-        var registerClientResponseInstance = await RegisterNewClient(_authClient);
-
-        // Request access token
         var jwtRequest = new HttpRequestMessage(HttpMethod.Post, "/connect/token")
         {
             Content = new FormUrlEncodedContent(
                 new Dictionary<string, string>
                 {
                     ["grant_type"] = "client_credentials",
-                    ["client_id"] = registerClientResponseInstance.ClientId!,
-                    ["client_secret"] = registerClientResponseInstance.ClientSecret! + "1",
-                    ["scope"] = "offline_access",
+                    ["client_id"] = ClientId,
+                    ["client_secret"] = ClientSecret + "1",
+                    ["scope"] = Scope,
                 }
             ),
         };
@@ -71,39 +67,5 @@ public class ClientCredentialsFlowTests(IntegrationTestFixture fixture)
             TestContext.Current.CancellationToken
         );
         Assert.False(jwtResponse.IsSuccessStatusCode);
-    }
-
-    private static async Task<RegisterClientResponse> RegisterNewClient(HttpClient authClient)
-    {
-        var registerClientJson = await JsonHelper.JsonFileToJson(
-            "Auth.Integration.Tests",
-            "GetToken_RegisterClient.json"
-        );
-        var registerClientContent = new StringContent(
-            registerClientJson,
-            Encoding.UTF8,
-            "application/json"
-        );
-        var registerClientResponse = await authClient.PostAsync(
-            "/auth/clients",
-            registerClientContent,
-            TestContext.Current.CancellationToken
-        );
-
-        var statusCodeException = Record.Exception(registerClientResponse.EnsureSuccessStatusCode);
-        Assert.Null(statusCodeException);
-
-        var registerClientResponseBody = await registerClientResponse.Content.ReadAsStringAsync(
-            TestContext.Current.CancellationToken
-        );
-        var registerClientResponseInstance = JsonSerializer.Deserialize<RegisterClientResponse>(
-            registerClientResponseBody,
-            JsonHelper.Options
-        );
-        Assert.NotNull(registerClientResponseInstance);
-        Assert.NotNull(registerClientResponseInstance.ClientId);
-        Assert.NotNull(registerClientResponseInstance.ClientSecret);
-
-        return registerClientResponseInstance;
     }
 }
