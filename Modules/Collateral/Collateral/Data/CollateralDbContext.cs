@@ -1,6 +1,7 @@
 using Collateral.CollateralMasters.Models;
 using Collateral.CollateralMasters.Reappraisal;
 using Shared.Data.Outbox;
+using Shared.Scheduling;
 
 namespace Collateral.Data;
 
@@ -31,6 +32,9 @@ public class CollateralDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
         modelBuilder.AddIntegrationEventOutbox();
+
+        // Per-module recurring-job schedule table (collateral.JobSchedules)
+        modelBuilder.AddJobSchedules();
 
         base.OnModelCreating(modelBuilder);
     }

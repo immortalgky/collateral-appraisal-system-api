@@ -5,8 +5,6 @@ using Workflow.Workflow.Schema;
 using Workflow.Workflow.Models;
 using Workflow.AssigneeSelection.Pipeline;
 using Workflow.AssigneeSelection.Services;
-using Workflow.Services.Configuration;
-using Workflow.Services.Configuration.Models;
 using Workflow.Workflow.Engine.Expression;
 using Workflow.Workflow.Actions.Core;
 using Workflow.Sla.Services;
@@ -17,7 +15,6 @@ namespace Workflow.Workflow.Activities;
 public class TaskActivity : WorkflowActivityBase
 {
     private readonly IAssignmentPipeline _assignmentPipeline;
-    private readonly ITaskConfigurationService _configurationService;
     private readonly ICustomAssignmentServiceFactory _customAssignmentServiceFactory;
     private readonly IWorkflowActionExecutor _actionExecutor;
     private readonly IWorkflowAuditService _auditService;
@@ -29,7 +26,6 @@ public class TaskActivity : WorkflowActivityBase
 
     public TaskActivity(
         IAssignmentPipeline assignmentPipeline,
-        ITaskConfigurationService configurationService,
         ICustomAssignmentServiceFactory customAssignmentServiceFactory,
         IWorkflowActionExecutor actionExecutor,
         IWorkflowAuditService auditService,
@@ -39,7 +35,6 @@ public class TaskActivity : WorkflowActivityBase
         ILogger<TaskActivity> logger)
     {
         _assignmentPipeline = assignmentPipeline;
-        _configurationService = configurationService;
         _customAssignmentServiceFactory = customAssignmentServiceFactory;
         _actionExecutor = actionExecutor;
         _auditService = auditService;
@@ -59,7 +54,6 @@ public class TaskActivity : WorkflowActivityBase
     {
         try
         {
-            var workflowDefinitionId = context.WorkflowInstance.WorkflowDefinitionId.ToString();
             var activityName = GetProperty(context, "activityName", context.ActivityId);
             var assigneeGroup = GetProperty<string>(context, "assigneeGroup")
                                 ?? GetProperty<string>(context,
@@ -79,24 +73,9 @@ public class TaskActivity : WorkflowActivityBase
                 if (customResult != null) return customResult;
             }
 
-            // Pre-pipeline Step 2: Load external config (feed strategies into context if available)
-            var externalConfig = await _configurationService.GetConfigurationAsync(
-                context.ActivityId, workflowDefinitionId, cancellationToken);
-
-            // Pipeline: delegates to AssignmentPipeline for team filtering, strategies, validation
+            // Pipeline: delegates to AssignmentPipeline for the DB override (group/strategies/assignee),
+            // team filtering, strategies, validation, and the admin-pool fallback on failure.
             var assignmentResult = await _assignmentPipeline.AssignAsync(context, cancellationToken);
-
-            // Post-pipeline fallback: admin pool if pipeline fails and escalation configured
-            if (!assignmentResult.IsSuccess && externalConfig?.EscalateToAdminPool == true)
-            {
-                _logger.LogWarning(
-                    "Pipeline assignment failed for activity {ActivityId}. Attempting admin pool fallback",
-                    context.ActivityId);
-
-                var fallbackResult = TryAdminPoolFallback(externalConfig);
-                if (fallbackResult != null)
-                    assignmentResult = fallbackResult;
-            }
 
             if (!assignmentResult.IsSuccess)
             {
@@ -466,36 +445,6 @@ public class TaskActivity : WorkflowActivityBase
             context.ActivityId);
 
         return ActivityResult.Pending(outputData);
-    }
-
-    // ── Post-pipeline: Admin pool fallback ──
-
-    private AssignmentResult? TryAdminPoolFallback(TaskAssignmentConfigurationDto config)
-    {
-        try
-        {
-            var adminPoolId = !string.IsNullOrEmpty(config.AdminPoolId) ? config.AdminPoolId : "ADMIN_POOL";
-
-            _logger.LogInformation("Admin pool fallback - assigning to: {AdminPoolId}", adminPoolId);
-
-            return new AssignmentResult
-            {
-                IsSuccess = true,
-                AssigneeId = adminPoolId,
-                Strategy = "AdminPoolFallback",
-                Metadata = new Dictionary<string, object>
-                {
-                    ["AdminPoolId"] = adminPoolId,
-                    ["IsFallbackAssignment"] = true,
-                    ["FallbackReason"] = "Pipeline assignment strategies failed"
-                }
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Admin pool fallback failed");
-            return null;
-        }
     }
 
     // ── Decision evaluation ──

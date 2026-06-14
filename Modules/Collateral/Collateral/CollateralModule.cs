@@ -5,6 +5,8 @@ using Collateral.CollateralMasters.RegulatoryExport;
 using Collateral.Contracts.FileInterface;
 using Collateral.Contracts.Reappraisal;
 using Shared.Data.Interceptors;
+using Shared.Scheduling;
+using Collateral.Scheduling;
 
 namespace Collateral;
 
@@ -50,6 +52,7 @@ public static class CollateralModule
     public static IApplicationBuilder UseCollateralModule(this IApplicationBuilder app)
     {
         app.UseMigration<CollateralDbContext>();
+        app.UseModuleRecurringJobs<CollateralDbContext>(CollateralRecurringJobs.All);
 
         return app;
     }

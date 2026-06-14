@@ -8,9 +8,7 @@ using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Request.Infrastructure;
-using Collateral.CollateralMasters.Services;
 using Collateral.Data;
-using Reporting.Application.Services;
 using Scalar.AspNetCore;
 using Dapper;
 using Shared.Configurations;
@@ -19,7 +17,6 @@ using Shared.Data.Dapper;
 using Shared.Data.Outbox;
 using Shared.Logging;
 using Shared.Security;
-using Shared.Time;
 using Integration.Application.EventHandlers.Outbound;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
@@ -392,61 +389,8 @@ app
 
 app.UseHangfire();
 
-// All recurring jobs run in the application's configured timezone (appsettings: TimeZone:DefaultTimeZone),
-// not UTC. Cron hour values below are therefore local hours.
-var appTimeZone = app.Services.GetRequiredService<IDateTimeProvider>().ApplicationTimeZone;
-var jobOptions = new RecurringJobOptions { TimeZone = appTimeZone };
-
-// Outbox cleanup: purge processed/dead-letter messages older than 7 days, daily at 02:00 local
-RecurringJob.AddOrUpdate<OutboxCleanupJob<RequestDbContext>>(
-    "outbox-cleanup-request", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
-RecurringJob.AddOrUpdate<OutboxCleanupJob<AppraisalDbContext>>(
-    "outbox-cleanup-appraisal", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
-RecurringJob.AddOrUpdate<OutboxCleanupJob<DocumentDbContext>>(
-    "outbox-cleanup-document", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
-RecurringJob.AddOrUpdate<OutboxCleanupJob<WorkflowDbContext>>(
-    "outbox-cleanup-workflow", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
-RecurringJob.AddOrUpdate<OutboxCleanupJob<CollateralDbContext>>(
-    "outbox-cleanup-collateral", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(2), jobOptions);
-
-// Logs cleanup: purge dbo.Logs rows older than 30 days, daily at 03:00 local
-RecurringJob.AddOrUpdate<LogsCleanupJob>(
-    "logs-cleanup", j => j.ExecuteAsync(CancellationToken.None), Cron.Daily(3), jobOptions);
-
-// Reappraisal (AS400): ingest AS400 COLLATREV files monthly, 1st of month at 01:00 local.
-// TODO(confirm): if the file arrives on a fixed day other than the 1st, adjust the cron.
-// In dev, trigger manually via Hangfire dashboard (/hangfire → "Trigger now").
-RecurringJob.AddOrUpdate<Integration.FileInterface.Jobs.Reappraisal.As400ReappraisalJob>(
-    "reappraisal-as400", j => j.ExecuteAsync(CancellationToken.None),
-    Cron.Monthly(1, 1), jobOptions); // 1st of each month at 01:00 local
-
-// Reappraisal (block): daily at 01:00 local.
-// Scans collateral.ProjectDetails for block projects past their reappraisal interval and
-// materialises collateral.BlockReappraisalDue for Phase C (due-list screen).
-RecurringJob.AddOrUpdate<BlockReappraisalJob>(
-    "reappraisal-block", j => j.ExecuteAsync(CancellationToken.None),
-    Cron.Daily(1), jobOptions); // 01:00 local
-
-// Outbound Collateral Result (AS400): ship completed-appraisal prices to the host once daily at midnight.
-// Driven by the collateral.CollateralResultLogs sent-ledger so a collateral completing AFTER a run is
-// caught by the next run (next midnight). Dormant (no file) until HostCollateralId is populated by the
-// future inbound host-mapping interface. In dev, trigger manually via /hangfire → "Trigger now".
-RecurringJob.AddOrUpdate<Integration.FileInterface.Jobs.CollateralResult.CollateralResultExportJob>(
-    "collateral-result-export", j => j.ExecuteAsync(CancellationToken.None),
-    Cron.Daily(0), jobOptions); // 00:00 local
-
-// Outbound CAS-AS400-Regulatory (Basel/RDT): full monthly snapshot of all active collateral masters.
-// No sent-ledger — every run is a complete re-extract. Runs 1st of each month at 02:00 local.
-// In dev, trigger manually via /hangfire → "Trigger now".
-RecurringJob.AddOrUpdate<Integration.FileInterface.Jobs.RegulatoryExport.RegulatoryExportJob>(
-    "regulatory-export", j => j.ExecuteAsync(CancellationToken.None),
-    Cron.Monthly(1, 2), jobOptions); // 1st of each month at 02:00 local
-
-// Report artifact cleanup: delete expired job rows and their on-disk PDF files daily at 03:00 local.
-// Retention period is controlled by Reporting:ArtifactRetentionDays (default 7 days).
-RecurringJob.AddOrUpdate<ReportArtifactCleanupJob>(
-    "report-artifact-cleanup", j => j.ExecuteAsync(CancellationToken.None),
-    Cron.Daily(3), jobOptions); // 03:00 local
+// Recurring jobs are registered per-module inside each UseXModule() (see UseModuleRecurringJobs<T>),
+// each reading its own {schema}.JobSchedules table. Nothing to register centrally here.
 
 await app.RunAsync();
 

@@ -25,38 +25,74 @@ public class TaskConfigurationService : ITaskConfigurationService
     public async Task<TaskAssignmentConfigurationDto?> GetConfigurationAsync(
         string activityId,
         string? workflowDefinitionId = null,
+        string? bankingSegment = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var query = _context.TaskAssignmentConfigurations
-                .Where(c => c.ActivityId == activityId && c.IsActive);
+            // Empty/whitespace segment (the workflow variable is defaulted to "") is treated as "no segment".
+            var segment = string.IsNullOrWhiteSpace(bankingSegment) ? null : bankingSegment;
+            var workflow = string.IsNullOrEmpty(workflowDefinitionId) ? null : workflowDefinitionId;
 
-            // First, try to find configuration specific to the workflow definition
-            if (!string.IsNullOrEmpty(workflowDefinitionId))
-            {
-                var specificConfig = await query
-                    .Where(c => c.WorkflowDefinitionId == workflowDefinitionId)
-                    .FirstOrDefaultAsync(cancellationToken);
+            // Pull the small candidate set whose scopes are compatible with this activity, then rank in memory.
+            var candidates = await _context.TaskAssignmentConfigurations
+                .Where(c => c.ActivityId == activityId && c.IsActive)
+                .Where(c => c.WorkflowDefinitionId == null || c.WorkflowDefinitionId == workflow)
+                .Where(c => c.BankingSegment == null || c.BankingSegment == segment)
+                .ToListAsync(cancellationToken);
 
-                if (specificConfig != null)
-                {
-                    return MapToDto(specificConfig);
-                }
-            }
+            if (candidates.Count == 0)
+                return null;
 
-            // Fall back to general configuration for the activity
-            var generalConfig = await query
-                .Where(c => c.WorkflowDefinitionId == null)
-                .FirstOrDefaultAsync(cancellationToken);
+            // Most-specific wins. WorkflowDefinitionId specificity ranks above BankingSegment specificity.
+            //   tier 4: wf match (+2) & segment match (+1)
+            //   tier 3: wf match (+2)
+            //   tier 2: segment match (+1)
+            //   tier 1: wildcard (0)
+            var best = candidates
+                .OrderByDescending(c =>
+                    (c.WorkflowDefinitionId != null ? 2 : 0) +
+                    (c.BankingSegment != null ? 1 : 0))
+                .First();
 
-            return generalConfig != null ? MapToDto(generalConfig) : null;
+            return MapToDto(best);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving task assignment configuration for activity {ActivityId}", activityId);
             return null;
         }
+    }
+
+    public async Task<TaskAssignmentConfigurationDto?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await _context.TaskAssignmentConfigurations
+            .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+
+        return entity != null ? MapToDto(entity) : null;
+    }
+
+    public async Task<List<TaskAssignmentConfigurationDto>> ListConfigurationsAsync(
+        string? activityId = null,
+        string? bankingSegment = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.TaskAssignmentConfigurations.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(activityId))
+            query = query.Where(c => c.ActivityId == activityId);
+
+        if (!string.IsNullOrWhiteSpace(bankingSegment))
+            query = query.Where(c => c.BankingSegment == bankingSegment);
+
+        var entities = await query
+            .OrderBy(c => c.ActivityId)
+            .ThenBy(c => c.BankingSegment)
+            .ToListAsync(cancellationToken);
+
+        return entities.Select(MapToDto).ToList();
     }
 
     public async Task<TaskAssignmentConfigurationDto> CreateConfigurationAsync(
@@ -73,9 +109,11 @@ public class TaskConfigurationService : ITaskConfigurationService
                 request.WorkflowDefinitionId,
                 request.SpecificAssignee,
                 request.AssigneeGroup,
+                request.BankingSegment,
                 request.AdminPoolId,
                 request.EscalateToAdminPool,
-                request.AdditionalConfiguration != null ? JsonSerializer.Serialize(request.AdditionalConfiguration) : null);
+                request.AdditionalConfiguration != null ? JsonSerializer.Serialize(request.AdditionalConfiguration) : null,
+                request.IsActive);
 
             _context.TaskAssignmentConfigurations.Add(entity);
             await _context.SaveChangesAsync(cancellationToken);
@@ -113,9 +151,11 @@ public class TaskConfigurationService : ITaskConfigurationService
                 request.UpdatedBy,
                 request.SpecificAssignee,
                 request.AssigneeGroup,
+                request.BankingSegment,
                 request.AdminPoolId,
                 request.EscalateToAdminPool,
-                request.AdditionalConfiguration != null ? JsonSerializer.Serialize(request.AdditionalConfiguration) : null);
+                request.AdditionalConfiguration != null ? JsonSerializer.Serialize(request.AdditionalConfiguration) : null,
+                request.IsActive);
 
             await _context.SaveChangesAsync(cancellationToken);
 
@@ -186,6 +226,7 @@ public class TaskConfigurationService : ITaskConfigurationService
             EscalateToAdminPool = entity.EscalateToAdminPool,
             SpecificAssignee = entity.SpecificAssignee,
             AssigneeGroup = entity.AssigneeGroup,
+            BankingSegment = entity.BankingSegment,
             // NOTE: SupervisorId and ReplacementUserId removed - now handled by UserManagement mock data
             AdditionalConfiguration = DeserializeAdditionalConfiguration(entity.AdditionalConfiguration),
             IsActive = entity.IsActive,

@@ -2,6 +2,7 @@ using Workflow.AssigneeSelection.Core;
 using Workflow.AssigneeSelection.Engine;
 using Workflow.AssigneeSelection.Pipeline;
 using Workflow.AssigneeSelection.Teams;
+using Workflow.Services.Configuration.Models;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Models;
 using FluentAssertions;
@@ -85,6 +86,17 @@ public class AssignmentPipelineTests
     private static TeamMemberInfo Member(string userId, string teamId, params string[] activityGroups)
         => new(userId, $"User {userId}", teamId, activityGroups.ToList());
 
+    // Mirrors AssignmentContextBuilder's group resolution so pipeline tests reflect production:
+    // RuntimeOverride.RuntimeAssigneeGroup > ExternalConfig.AssigneeGroup > JSON properties "assigneeGroup".
+    private static string? ResolveGroupForTest(AssignmentPipelineContext ctx)
+    {
+        var rt = ctx.RuntimeOverride?.RuntimeAssigneeGroup;
+        if (!string.IsNullOrEmpty(rt)) return rt;
+        var db = ctx.ExternalConfig?.AssigneeGroup;
+        if (!string.IsNullOrEmpty(db)) return db;
+        return ctx.ActivityContext.Properties.TryGetValue("assigneeGroup", out var g) ? g?.ToString() : null;
+    }
+
     private void SetupDefaultContextBuilder(AssignmentPipelineContext? overrideCtx = null)
     {
         _contextBuilder.BuildAsync(Arg.Any<AssignmentPipelineContext>(), Arg.Any<CancellationToken>())
@@ -96,8 +108,12 @@ public class AssignmentPipelineTests
                     ctx.Rules = overrideCtx.Rules;
                     ctx.TeamId = overrideCtx.TeamId;
                     ctx.RuntimeOverride = overrideCtx.RuntimeOverride;
+                    ctx.ExternalConfig = overrideCtx.ExternalConfig;
                     ctx.PriorAssignees = overrideCtx.PriorAssignees;
                 }
+
+                // Mirror AssignmentContextBuilder: resolve the group once (RuntimeOverride > DB > JSON).
+                ctx.ResolvedAssigneeGroup = ResolveGroupForTest(ctx);
                 return Task.CompletedTask;
             });
     }
@@ -251,6 +267,121 @@ public class AssignmentPipelineTests
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // 2b. DB CONFIG OVERRIDE (TaskAssignmentConfiguration) — precedence RuntimeOverride > DB > JSON
+    // ═══════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task AssignAsync_DbConfigPrimaryStrategies_OverrideJsonAndPassToEngine()
+    {
+        // JSON says round_robin; DB config says pool — DB wins on initial visit.
+        var context = CreateActivityContext(properties: new Dictionary<string, object>
+        {
+            ["assignmentStrategy"] = "round_robin",
+            ["assigneeGroup"] = "JsonGroup"
+        });
+
+        SetupDefaultContextBuilder(new AssignmentPipelineContext
+        {
+            ActivityContext = context,
+            ExternalConfig = new TaskAssignmentConfigurationDto
+            {
+                ActivityId = context.ActivityId,
+                PrimaryStrategies = ["pool"]
+            }
+        });
+        SetupEngineSuccess("user-pool", "pool");
+        SetupFinalizerPassthrough();
+
+        await _pipeline.AssignAsync(context);
+
+        await _engine.Received(1).ExecuteAsync(
+            Arg.Is<AssignmentContext>(c =>
+                c.AssignmentStrategies.Count == 1 && c.AssignmentStrategies[0] == "pool"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AssignAsync_DbConfigAssigneeGroup_OverridesJsonGroupPassedToEngine()
+    {
+        var context = CreateActivityContext(properties: new Dictionary<string, object>
+        {
+            ["assigneeGroup"] = "JsonGroup"
+        });
+
+        SetupDefaultContextBuilder(new AssignmentPipelineContext
+        {
+            ActivityContext = context,
+            ExternalConfig = new TaskAssignmentConfigurationDto
+            {
+                ActivityId = context.ActivityId,
+                AssigneeGroup = "DbGroup"
+            }
+        });
+        SetupEngineSuccess("user-x");
+        SetupFinalizerPassthrough();
+
+        await _pipeline.AssignAsync(context);
+
+        await _engine.Received(1).ExecuteAsync(
+            Arg.Is<AssignmentContext>(c => c.UserGroups.Contains("DbGroup") && !c.UserGroups.Contains("JsonGroup")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AssignAsync_DbConfigSpecificAssignee_NoStrategies_UsesManualWithUserCode()
+    {
+        var context = CreateActivityContext();
+
+        SetupDefaultContextBuilder(new AssignmentPipelineContext
+        {
+            ActivityContext = context,
+            ExternalConfig = new TaskAssignmentConfigurationDto
+            {
+                ActivityId = context.ActivityId,
+                SpecificAssignee = "user.specific"
+                // no PrimaryStrategies → SpecificAssignee implies Manual
+            }
+        });
+        SetupEngineSuccess("user.specific", "manual");
+        SetupFinalizerPassthrough();
+
+        await _pipeline.AssignAsync(context);
+
+        await _engine.Received(1).ExecuteAsync(
+            Arg.Is<AssignmentContext>(c =>
+                c.AssignmentStrategies.Contains("Manual") && c.UserCode == "user.specific"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AssignAsync_RuntimeOverrideStrategies_BeatDbConfigStrategies()
+    {
+        var runtimeOverride = RuntimeOverride.ForStrategies(["workload_based"], "runtime wins", "admin");
+        var context = CreateActivityContext(runtimeOverride: runtimeOverride);
+
+        SetupDefaultContextBuilder(new AssignmentPipelineContext
+        {
+            ActivityContext = context,
+            RuntimeOverride = runtimeOverride,
+            ExternalConfig = new TaskAssignmentConfigurationDto
+            {
+                ActivityId = context.ActivityId,
+                PrimaryStrategies = ["pool"]
+            }
+        });
+        SetupEngineSuccess("user-wl", "workload_based");
+        SetupFinalizerPassthrough();
+
+        await _pipeline.AssignAsync(context);
+
+        // RuntimeOverride strategies take precedence over the DB config.
+        await _engine.Received(1).ExecuteAsync(
+            Arg.Is<AssignmentContext>(c =>
+                c.AssignmentStrategies.Contains("workload_based") && !c.AssignmentStrategies.Contains("pool")),
+            Arg.Any<CancellationToken>());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // 3. STRATEGY RESOLUTION FROM PROPERTIES
     // ═══════════════════════════════════════════════════════════════
 
@@ -334,7 +465,8 @@ public class AssignmentPipelineTests
             {
                 ["assigneeGroup"] = "TestRole"
             }),
-            Rules = new ActivityAssignmentRules(TeamConstrained: false, ExcludeAssigneesFrom: [])
+            Rules = new ActivityAssignmentRules(TeamConstrained: false, ExcludeAssigneesFrom: []),
+            ResolvedAssigneeGroup = "TestRole"
         };
 
         var result = await teamFilter.FilterAsync(ctx, new List<TeamMemberInfo>());
@@ -362,7 +494,8 @@ public class AssignmentPipelineTests
                 ["assigneeGroup"] = "TestRole"
             }),
             Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []),
-            TeamId = "team-A"
+            TeamId = "team-A",
+            ResolvedAssigneeGroup = "TestRole"
         };
 
         var result = await teamFilter.FilterAsync(ctx, new List<TeamMemberInfo>());
@@ -391,7 +524,8 @@ public class AssignmentPipelineTests
                 ["assigneeGroup"] = "TestRole"
             }),
             Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []),
-            TeamId = null // Not set yet
+            TeamId = null, // Not set yet
+            ResolvedAssigneeGroup = "TestRole"
         };
 
         var result = await teamFilter.FilterAsync(ctx, new List<TeamMemberInfo>());
@@ -784,6 +918,7 @@ public class AssignmentPipelineTests
                 var ctx = ci.ArgAt<AssignmentPipelineContext>(0);
                 ctx.Rules = new ActivityAssignmentRules(true, ["staff-activity"]);
                 ctx.TeamId = "team-A";
+                ctx.ResolvedAssigneeGroup = "CheckerRole";
                 ctx.PriorAssignees = new Dictionary<string, string>
                 {
                     ["staff-activity"] = "u1" // Exclude u1

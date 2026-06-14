@@ -1,4 +1,5 @@
 using Shared.Data.Outbox;
+using Shared.Scheduling;
 using Workflow.Domain;
 using Workflow.Domain.Committees;
 using Workflow.Meetings.Domain;
@@ -77,6 +78,9 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
 
         // Integration event outbox for reliable messaging
         modelBuilder.AddIntegrationEventOutbox();
+
+        // Per-module recurring-job schedule table (workflow.JobSchedules)
+        modelBuilder.AddJobSchedules();
 
         base.OnModelCreating(modelBuilder);
     }

@@ -1,4 +1,5 @@
 using Shared.Data.Outbox;
+using Shared.Scheduling;
 
 namespace Request.Infrastructure;
 
@@ -25,6 +26,9 @@ public class RequestDbContext(DbContextOptions<RequestDbContext> options) : DbCo
 
         // Integration event outbox for reliable messaging
         modelBuilder.AddIntegrationEventOutbox();
+
+        // Per-module recurring-job schedule table (request.JobSchedules)
+        modelBuilder.AddJobSchedules();
 
         // Call the base method to ensure any additional configurations are applied
         base.OnModelCreating(modelBuilder);

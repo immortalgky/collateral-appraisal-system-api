@@ -40,6 +40,9 @@ public class TaskAssignmentConfigurationConfiguration : IEntityTypeConfiguration
         builder.Property(x => x.AssigneeGroup)
             .HasMaxLength(100);
 
+        builder.Property(x => x.BankingSegment)
+            .HasMaxLength(20);
+
         // NOTE: SupervisorId and ReplacementUserId properties removed - now handled by UserManagement mock data
 
         builder.Property(x => x.AdditionalConfiguration)
@@ -63,14 +66,15 @@ public class TaskAssignmentConfigurationConfiguration : IEntityTypeConfiguration
             .IsRequired()
             .HasMaxLength(100);
 
-        // Indexes for performance
+        // Hot-path lookup index (every assignment resolves by ActivityId).
         builder.HasIndex(x => x.ActivityId)
             .HasDatabaseName("IX_TaskAssignmentConfigurations_ActivityId");
 
-        builder.HasIndex(x => new { x.ActivityId, x.WorkflowDefinitionId })
-            .HasDatabaseName("IX_TaskAssignmentConfigurations_ActivityId_WorkflowDefinitionId");
-
-        builder.HasIndex(x => x.IsActive)
-            .HasDatabaseName("IX_TaskAssignmentConfigurations_IsActive");
+        // One active row per (activity, workflow, segment) scope — prevents ambiguous overrides.
+        // Filtered to active rows so soft-deactivated duplicates are allowed.
+        builder.HasIndex(x => new { x.ActivityId, x.WorkflowDefinitionId, x.BankingSegment })
+            .IsUnique()
+            .HasFilter("[IsActive] = 1")
+            .HasDatabaseName("UX_TaskAssignmentConfigurations_Activity_Workflow_Segment_Active");
     }
 }
