@@ -59,7 +59,6 @@ public class ResubmitRequestEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Integration - Appraisal Requests")
             .WithSummary("Resubmit an existing request")
-            .WithDescription("Resubmits an existing request in the system.")
-            .AllowAnonymous();
+            .WithDescription("Resubmits an existing request in the system.");
     }
 }

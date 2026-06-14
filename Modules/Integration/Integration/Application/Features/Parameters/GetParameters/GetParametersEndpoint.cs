@@ -26,6 +26,5 @@ public class GetParametersEndpoint : ICarterModule
             .WithName("Integration_GetParameters")
             .WithTags("Integration - Parameters")
             .Produces<List<ParameterGroupResult>>();
-        //.RequireAuthorization("Integration");
     }
 }
