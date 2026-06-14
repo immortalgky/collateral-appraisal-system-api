@@ -47,6 +47,12 @@ public class TaskAssignmentConfiguration : Entity<Guid>
     /// </summary>
     public string? AssigneeGroup { get; private set; }
 
+    /// <summary>
+    /// Banking segment this configuration applies to (e.g. Retail, IBG).
+    /// Null = applies to any segment (wildcard).
+    /// </summary>
+    public string? BankingSegment { get; private set; }
+
     // NOTE: SupervisorId and ReplacementUserId removed - now handled by UserManagement mock data
 
     /// <summary>
@@ -92,9 +98,11 @@ public class TaskAssignmentConfiguration : Entity<Guid>
         string? workflowDefinitionId = null,
         string? specificAssignee = null,
         string? assigneeGroup = null,
+        string? bankingSegment = null,
         string? adminPoolId = null,
         bool escalateToAdminPool = true,
-        string? additionalConfiguration = null)
+        string? additionalConfiguration = null,
+        bool isActive = true)
     {
         return new TaskAssignmentConfiguration
         {
@@ -106,8 +114,9 @@ public class TaskAssignmentConfiguration : Entity<Guid>
             EscalateToAdminPool = escalateToAdminPool,
             SpecificAssignee = specificAssignee,
             AssigneeGroup = assigneeGroup,
+            BankingSegment = bankingSegment,
             AdditionalConfiguration = additionalConfiguration,
-            IsActive = true,
+            IsActive = isActive,
             CreatedAt = DateTime.Now,
             UpdatedAt = DateTime.Now,
             CreatedBy = createdBy,
@@ -121,36 +130,26 @@ public class TaskAssignmentConfiguration : Entity<Guid>
         string updatedBy,
         string? specificAssignee = null,
         string? assigneeGroup = null,
+        string? bankingSegment = null,
         string? adminPoolId = null,
         bool? escalateToAdminPool = null,
-        string? additionalConfiguration = null)
+        string? additionalConfiguration = null,
+        bool isActive = true)
     {
         PrimaryStrategies = primaryStrategies;
         RouteBackStrategies = routeBackStrategies;
         SpecificAssignee = specificAssignee;
         AssigneeGroup = assigneeGroup;
-        
+        BankingSegment = bankingSegment;
+        IsActive = isActive;
+
         if (adminPoolId != null)
             AdminPoolId = adminPoolId;
-        
+
         if (escalateToAdminPool.HasValue)
             EscalateToAdminPool = escalateToAdminPool.Value;
-            
+
         AdditionalConfiguration = additionalConfiguration;
-        UpdatedAt = DateTime.Now;
-        UpdatedBy = updatedBy;
-    }
-
-    public void Activate(string updatedBy)
-    {
-        IsActive = true;
-        UpdatedAt = DateTime.Now;
-        UpdatedBy = updatedBy;
-    }
-
-    public void Deactivate(string updatedBy)
-    {
-        IsActive = false;
         UpdatedAt = DateTime.Now;
         UpdatedBy = updatedBy;
     }

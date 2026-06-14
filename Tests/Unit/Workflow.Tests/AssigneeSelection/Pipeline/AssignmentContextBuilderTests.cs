@@ -4,6 +4,8 @@ using NSubstitute;
 using Shared.Time;
 using Workflow.AssigneeSelection.Pipeline;
 using Workflow.AssigneeSelection.Teams;
+using Workflow.Services.Configuration;
+using Workflow.Services.Configuration.Models;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Models;
 using Xunit;
@@ -13,12 +15,47 @@ namespace Workflow.Tests.AssigneeSelection.Pipeline;
 public class AssignmentContextBuilderTests
 {
     private readonly ITeamService _teamService = Substitute.For<ITeamService>();
+    private readonly ITaskConfigurationService _configurationService = Substitute.For<ITaskConfigurationService>();
     private readonly ILogger<AssignmentContextBuilder> _logger = Substitute.For<ILogger<AssignmentContextBuilder>>();
     private readonly AssignmentContextBuilder _sut;
 
     public AssignmentContextBuilderTests()
     {
-        _sut = new AssignmentContextBuilder(_teamService, _logger);
+        _sut = new AssignmentContextBuilder(_teamService, _configurationService, _logger);
+    }
+
+    [Fact]
+    public async Task BuildAsync_ResolvesExternalConfig_UsingActivityAndBankingSegment()
+    {
+        // Arrange — a DB override exists for this activity/segment.
+        var dto = new TaskAssignmentConfigurationDto { ActivityId = "int-appraisal-checker", AssigneeGroup = "OverrideGroup" };
+        _configurationService
+            .GetConfigurationAsync("int-appraisal-checker", Arg.Any<string?>(), "Retail", Arg.Any<CancellationToken>())
+            .Returns(dto);
+
+        var context = CreatePipelineContext(
+            variables: new Dictionary<string, object> { ["bankingSegment"] = "Retail" });
+
+        // Act
+        await _sut.BuildAsync(context);
+
+        // Assert — the override is loaded onto the pipeline context for downstream stages.
+        context.ExternalConfig.Should().BeSameAs(dto);
+        await _configurationService.Received(1)
+            .GetConfigurationAsync("int-appraisal-checker", Arg.Any<string?>(), "Retail", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BuildAsync_NoDbOverride_LeavesExternalConfigNull()
+    {
+        // Arrange — service returns null (default NSubstitute behavior = no active row).
+        var context = CreatePipelineContext();
+
+        // Act
+        await _sut.BuildAsync(context);
+
+        // Assert — JSON definition stays the baseline.
+        context.ExternalConfig.Should().BeNull();
     }
 
     [Fact]

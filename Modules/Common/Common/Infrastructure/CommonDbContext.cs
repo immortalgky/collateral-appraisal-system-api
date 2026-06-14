@@ -6,6 +6,7 @@ using Common.Domain.ReadModels;
 using Common.Domain.SavedSearches;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data.Outbox;
+using Shared.Scheduling;
 
 namespace Common.Infrastructure;
 
@@ -18,6 +19,7 @@ public class CommonDbContext(DbContextOptions<CommonDbContext> options) : DbCont
     public DbSet<DashboardNote> DashboardNotes => Set<DashboardNote>();
     public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
     public DbSet<SystemConfiguration> SystemConfigurations => Set<SystemConfiguration>();
+    public DbSet<JobSchedule> JobSchedules => Set<JobSchedule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,6 +28,7 @@ public class CommonDbContext(DbContextOptions<CommonDbContext> options) : DbCont
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
         modelBuilder.AddIntegrationEventInbox();
+        modelBuilder.AddJobSchedules();
 
         base.OnModelCreating(modelBuilder);
     }

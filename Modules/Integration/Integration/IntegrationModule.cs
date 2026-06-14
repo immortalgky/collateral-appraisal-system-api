@@ -26,6 +26,8 @@ using Microsoft.Extensions.Http.Resilience;
 using Request.Application.Services;
 using Shared.Data;
 using Shared.Data.Extensions;
+using Shared.Scheduling;
+using Integration.Scheduling;
 
 public static class IntegrationModule
 {
@@ -112,6 +114,7 @@ public static class IntegrationModule
     public static IApplicationBuilder UseIntegrationModule(this IApplicationBuilder app)
     {
         app.UseMigration<IntegrationDbContext>();
+        app.UseModuleRecurringJobs<IntegrationDbContext>(IntegrationRecurringJobs.All);
         return app;
     }
 }

@@ -11,6 +11,8 @@ using Reporting.Infrastructure.BrowserPool;
 using Reporting.Infrastructure.PdfAssembly;
 using Reporting.Infrastructure.Rendering;
 using Reporting.Infrastructure.Templates;
+using Reporting.Scheduling;
+using Shared.Scheduling;
 
 namespace Reporting;
 
@@ -126,6 +128,7 @@ public static class ReportingModule
     public static IApplicationBuilder UseReportingModule(this IApplicationBuilder app)
     {
         app.UseMigration<ReportingDbContext>();
+        app.UseModuleRecurringJobs<ReportingDbContext>(ReportingRecurringJobs.All);
         return app;
     }
 }

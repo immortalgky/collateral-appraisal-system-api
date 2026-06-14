@@ -9,6 +9,8 @@ using Request.Infrastructure;
 using Request.Infrastructure.Repositories;
 using Request.Infrastructure.Seed;
 using Shared.Data.Interceptors;
+using Shared.Scheduling;
+using Request.Scheduling;
 
 namespace Request;
 
@@ -66,6 +68,7 @@ public static class RequestModule
     public static IApplicationBuilder UseRequestModule(this IApplicationBuilder app)
     {
         app.UseMigration<RequestDbContext>();
+        app.UseModuleRecurringJobs<RequestDbContext>(RequestRecurringJobs.All);
 
         return app;
     }

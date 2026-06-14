@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Workflow.AssigneeSelection.Teams;
 
 namespace Workflow.AssigneeSelection.Pipeline;
@@ -23,13 +22,9 @@ public class TeamFilter : IAssignmentFilter
     {
         var activityId = context.ActivityContext.ActivityId;
 
-        // Read the group name from the schema's assigneeGroup property
-        // Values from JSON deserialization may be JsonElement, so handle both types
-        var groupName = "";
-        if (context.ActivityContext.Properties?.TryGetValue("assigneeGroup", out var group) == true && group is not null)
-        {
-            groupName = group is JsonElement je ? je.GetString() ?? "" : group.ToString() ?? "";
-        }
+        // Group precedence (RuntimeOverride > DB config > JSON definition) is resolved once in
+        // AssignmentContextBuilder; read the single shared value so Stage 2 and Stage 3 cannot disagree.
+        var groupName = context.ResolvedAssigneeGroup ?? "";
 
         if (string.IsNullOrEmpty(groupName))
         {

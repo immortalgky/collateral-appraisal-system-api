@@ -1,4 +1,5 @@
 using Workflow.AssigneeSelection.Teams;
+using Workflow.Services.Configuration.Models;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Models;
 
@@ -20,6 +21,21 @@ public class AssignmentPipelineContext
     public ActivityAssignmentRules Rules { get; set; } = ActivityAssignmentRules.Default;
     public string? TeamId { get; set; }
     public RuntimeOverride? RuntimeOverride { get; set; }
+
+    /// <summary>
+    /// DB-backed assignment override (resolved in <see cref="AssignmentContextBuilder"/>) for this
+    /// activity/workflow/banking-segment scope. Null = no active row → JSON definition is the baseline.
+    /// </summary>
+    public TaskAssignmentConfigurationDto? ExternalConfig { get; set; }
+
+    /// <summary>
+    /// The assignee group after applying precedence (RuntimeOverride &gt; DB config &gt; JSON definition),
+    /// resolved once in <see cref="AssignmentContextBuilder"/>. Both the Stage 2 candidate-pool filter
+    /// (<c>TeamFilter</c>) and the Stage 3 engine read this single value so they cannot disagree.
+    /// Null/empty = no group configured.
+    /// </summary>
+    public string? ResolvedAssigneeGroup { get; set; }
+
     public Dictionary<string, string> PriorAssignees { get; set; } = new();
 
     // Stage 2 outputs

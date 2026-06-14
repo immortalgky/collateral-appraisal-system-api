@@ -6,6 +6,7 @@ using Appraisal.Domain.ComparativeAnalysis;
 using Appraisal.Domain.Evaluations;
 using Appraisal.Domain.Invoices;
 using Shared.Data.Outbox;
+using Shared.Scheduling;
 
 namespace Appraisal.Infrastructure;
 
@@ -229,6 +230,9 @@ public class AppraisalDbContext : DbContext
 
         // Integration event outbox for reliable messaging
         modelBuilder.AddIntegrationEventOutbox();
+
+        // Per-module recurring-job schedule table (appraisal.JobSchedules)
+        modelBuilder.AddJobSchedules();
 
         base.OnModelCreating(modelBuilder);
     }

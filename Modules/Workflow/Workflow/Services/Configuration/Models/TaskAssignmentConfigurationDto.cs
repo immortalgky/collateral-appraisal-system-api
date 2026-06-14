@@ -14,6 +14,7 @@ public class TaskAssignmentConfigurationDto
     public bool EscalateToAdminPool { get; set; } = true;
     public string? SpecificAssignee { get; set; }
     public string? AssigneeGroup { get; set; }
+    public string? BankingSegment { get; set; }
     public Dictionary<string, object>? AdditionalConfiguration { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -37,6 +38,11 @@ public class CreateTaskAssignmentConfigurationRequest
 
     public string? AssigneeGroup { get; set; }
 
+    public string? BankingSegment { get; set; }
+
+    /// <summary>Whether the override is active. Defaults to true on create.</summary>
+    public bool IsActive { get; set; } = true;
+
     // NOTE: SupervisorId and ReplacementUserId removed - now handled by UserManagement mock data
     public Dictionary<string, object>? AdditionalConfiguration { get; set; }
     public string CreatedBy { get; set; } = default!;
@@ -54,6 +60,11 @@ public class UpdateTaskAssignmentConfigurationRequest
     public string? SpecificAssignee { get; set; }
 
     public string? AssigneeGroup { get; set; }
+
+    public string? BankingSegment { get; set; }
+
+    /// <summary>Whether the override is active. Lets the admin enable/disable without deleting.</summary>
+    public bool IsActive { get; set; } = true;
 
     // NOTE: SupervisorId and ReplacementUserId removed - now handled by UserManagement mock data
     public Dictionary<string, object>? AdditionalConfiguration { get; set; }

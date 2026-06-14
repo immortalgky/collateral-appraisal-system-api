@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Shared.Data.Outbox;
+using Shared.Scheduling;
 
 namespace Reporting.Data;
 
@@ -76,6 +77,9 @@ public class ReportingDbContext(DbContextOptions<ReportingDbContext> options) : 
         // ReportJobs status update, so the DispatchDomainEventInterceptor drains them atomically
         // and IntegrationEventDeliveryService<ReportingDbContext> delivers them exactly-once.
         modelBuilder.AddIntegrationEventOutbox();
+
+        // Per-module recurring-job schedule table (reporting.JobSchedules)
+        modelBuilder.AddJobSchedules();
 
         base.OnModelCreating(modelBuilder);
     }

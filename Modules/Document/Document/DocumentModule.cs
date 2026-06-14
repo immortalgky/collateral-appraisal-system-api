@@ -9,6 +9,8 @@ using Document.Domain.Documents.Models;
 using Document.Domain.UploadSessions;
 using Document.Domain.UploadSessions.Model;
 using Shared.Data;
+using Shared.Scheduling;
+using Document.Scheduling;
 
 namespace Document;
 
@@ -56,6 +58,7 @@ public static class DocumentModule
     public static IApplicationBuilder UseDocumentModule(this IApplicationBuilder app)
     {
         app.UseMigration<DocumentDbContext>();
+        app.UseModuleRecurringJobs<DocumentDbContext>(DocumentRecurringJobs.All);
         return app;
     }
 }

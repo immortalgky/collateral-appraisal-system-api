@@ -1,6 +1,7 @@
-using System.Text.Json;
 using Workflow.AssigneeSelection.Core;
 using Workflow.AssigneeSelection.Engine;
+using Workflow.Services.Configuration.Models;
+using Workflow.Workflow;
 using Workflow.Workflow.Activities.Core;
 
 namespace Workflow.AssigneeSelection.Pipeline;
@@ -39,12 +40,35 @@ public class AssignmentPipeline : IAssignmentPipeline
     {
         var pipelineCtx = new AssignmentPipelineContext { ActivityContext = context };
 
-        // Stage 1: Build context
+        // Stage 1: Build context (also resolves the DB override onto pipelineCtx.ExternalConfig)
         await _contextBuilder.BuildAsync(pipelineCtx, cancellationToken);
 
         _logger.LogInformation(
             "Pipeline Stage 1 complete for {ActivityId}. TeamId={TeamId}, Rules={Rules}, PriorAssignees={Count}",
             context.ActivityId, pipelineCtx.TeamId, pipelineCtx.Rules, pipelineCtx.PriorAssignees.Count);
+
+        var result = await RunStagesAsync(pipelineCtx, cancellationToken);
+
+        // Admin-pool fallback: when assignment fails and the DB override opts in. The config was already
+        // resolved in Stage 1, so no extra DB round-trip is needed (this replaces TaskActivity's own load).
+        if (!result.IsSuccess && pipelineCtx.ExternalConfig?.EscalateToAdminPool == true)
+        {
+            var fallback = TryAdminPoolFallback(pipelineCtx.ExternalConfig);
+            if (fallback != null)
+            {
+                _logger.LogWarning(
+                    "Pipeline assignment failed for {ActivityId}; admin-pool fallback applied", context.ActivityId);
+                return fallback;
+            }
+        }
+
+        return result;
+    }
+
+    private async Task<AssignmentResult> RunStagesAsync(
+        AssignmentPipelineContext pipelineCtx, CancellationToken cancellationToken)
+    {
+        var context = pipelineCtx.ActivityContext;
 
         for (var attempt = 0; attempt < MaxRetries; attempt++)
         {
@@ -122,6 +146,35 @@ public class AssignmentPipeline : IAssignmentPipeline
         return finalResult;
     }
 
+    // Admin-pool fallback assignee when all strategies fail and the DB override has EscalateToAdminPool.
+    private AssignmentResult? TryAdminPoolFallback(TaskAssignmentConfigurationDto config)
+    {
+        try
+        {
+            var adminPoolId = !string.IsNullOrEmpty(config.AdminPoolId) ? config.AdminPoolId : "ADMIN_POOL";
+
+            _logger.LogInformation("Admin pool fallback - assigning to: {AdminPoolId}", adminPoolId);
+
+            return new AssignmentResult
+            {
+                IsSuccess = true,
+                AssigneeId = adminPoolId,
+                Strategy = "AdminPoolFallback",
+                Metadata = new Dictionary<string, object>
+                {
+                    ["AdminPoolId"] = adminPoolId,
+                    ["IsFallbackAssignment"] = true,
+                    ["FallbackReason"] = "Pipeline assignment strategies failed"
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Admin pool fallback failed");
+            return null;
+        }
+    }
+
     public async Task<AssignmentPipelineContext> GetEligibleAssigneesAsync(
         ActivityContext context, CancellationToken cancellationToken = default)
     {
@@ -174,14 +227,22 @@ public class AssignmentPipeline : IAssignmentPipeline
         var isRevisit = await _engine.IsRouteBackScenarioAsync(
             activityCtx.WorkflowInstance.Id, activityCtx.ActivityId, cancellationToken);
 
+        // Strategy precedence: RuntimeOverride > DB config (Primary/RouteBack) > JSON definition.
+        // An empty DB strategy list falls through; a DB SpecificAssignee with no strategies implies Manual.
+        var dbStrategies = isRevisit
+            ? pipelineCtx.ExternalConfig?.RouteBackStrategies
+            : pipelineCtx.ExternalConfig?.PrimaryStrategies;
+
         var strategies = pipelineCtx.RuntimeOverride?.RuntimeAssignmentStrategies
+            ?? (dbStrategies is { Count: > 0 } ? dbStrategies
+                : !string.IsNullOrEmpty(pipelineCtx.ExternalConfig?.SpecificAssignee) ? ["Manual"] : null)
             ?? GetStrategiesForScenario(activityCtx, isRevisit);
 
         _logger.LogInformation(
             "Strategy selection for {ActivityId}: IsRevisit={IsRevisit}, Strategies=[{Strategies}]",
             activityCtx.ActivityId, isRevisit, string.Join(",", strategies));
 
-        var userGroups = GetUserGroupsFromProperties(activityCtx);
+        var userGroups = ResolveUserGroups(pipelineCtx);
 
         var assignmentContext = new AssignmentContext
         {
@@ -189,7 +250,9 @@ public class AssignmentPipeline : IAssignmentPipeline
             ActivityName = activityCtx.ActivityId,
             AssignmentStrategies = strategies,
             UserGroups = userGroups,
-            UserCode = pipelineCtx.RuntimeOverride?.RuntimeAssignee ?? GetPropertyString(activityCtx.Properties, "assignee") ?? "",
+            UserCode = pipelineCtx.RuntimeOverride?.RuntimeAssignee
+                       ?? JsonPropertyReader.NullIfEmpty(pipelineCtx.ExternalConfig?.SpecificAssignee)
+                       ?? GetPropertyString(activityCtx.Properties, "assignee") ?? "",
             DueDate = _dateTimeProvider.ApplicationNow.AddDays(7),
             Properties = activityCtx.Properties,
             StartedBy = activityCtx.WorkflowInstance.StartedBy,
@@ -232,31 +295,15 @@ public class AssignmentPipeline : IAssignmentPipeline
         return ["round_robin", "workload_based"];
     }
 
-    private static List<string> GetUserGroupsFromProperties(ActivityContext ctx)
-    {
-        return GetPropertyStringList(ctx.Properties, "assigneeGroup");
-    }
+    // Reads the group resolved once in AssignmentContextBuilder (RuntimeOverride > DB config > JSON),
+    // the same value TeamFilter used to seed the candidate pool — so Stage 2 and Stage 3 cannot disagree.
+    private static List<string> ResolveUserGroups(AssignmentPipelineContext ctx)
+        => string.IsNullOrEmpty(ctx.ResolvedAssigneeGroup) ? [] : [ctx.ResolvedAssigneeGroup];
 
+    // Shared JsonElement-aware readers (see Workflow.JsonPropertyReader).
     private static string? GetPropertyString(Dictionary<string, object> props, string key)
-    {
-        if (!props.TryGetValue(key, out var val)) return null;
-        if (val is string s) return s;
-        if (val is JsonElement { ValueKind: JsonValueKind.String } je) return je.GetString();
-        return val?.ToString();
-    }
+        => JsonPropertyReader.GetString(props, key);
 
     private static List<string> GetPropertyStringList(Dictionary<string, object> props, string key)
-    {
-        if (!props.TryGetValue(key, out var val)) return [];
-        if (val is List<string> list) return list;
-        if (val is JsonElement je)
-        {
-            if (je.ValueKind == JsonValueKind.Array)
-                return je.EnumerateArray().Select(e => e.GetString()!).Where(s => !string.IsNullOrEmpty(s)).ToList();
-            if (je.ValueKind == JsonValueKind.String)
-                return [je.GetString()!];
-        }
-        if (val is string s && !string.IsNullOrEmpty(s)) return [s];
-        return [];
-    }
+        => JsonPropertyReader.GetStringList(props, key);
 }

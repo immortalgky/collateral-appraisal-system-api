@@ -1,6 +1,7 @@
 using Common.Application.Features.Monitoring.Shared;
 using Common.Infrastructure;
 using Common.Infrastructure.Configuration;
+using Common.Infrastructure.Scheduling;
 using Common.Infrastructure.Seed;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Shared.Configuration;
 using Shared.Data.Extensions;
 using Shared.Data.Seed;
+using Shared.Scheduling;
 
 namespace Common;
 
@@ -42,6 +44,7 @@ public static class CommonModule
     public static IApplicationBuilder UseCommonModule(this IApplicationBuilder app)
     {
         app.UseMigration<CommonDbContext>();
+        app.UseModuleRecurringJobs<CommonDbContext>(CommonRecurringJobs.All);
 
         return app;
     }

@@ -185,12 +185,12 @@ namespace Collateral.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("AppraisalCompanyId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("AppraisalCompanyCode")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
+
+                    b.Property<Guid?>("AppraisalCompanyId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("AppraisalCompanyName")
                         .HasMaxLength(200)
@@ -1313,6 +1313,45 @@ namespace Collateral.Migrations
                         .HasDatabaseName("IX_IntegrationEventOutbox_Correlation");
 
                     b.ToTable("IntegrationEventOutbox", "collateral");
+                });
+
+            modelBuilder.Entity("Shared.Scheduling.JobSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CronExpression")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("JobId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_JobSchedules_JobId");
+
+                    b.ToTable("JobSchedules", "collateral");
                 });
 
             modelBuilder.Entity("Collateral.CollateralMasters.Models.CollateralDocument", b =>

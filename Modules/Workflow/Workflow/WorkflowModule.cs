@@ -31,6 +31,8 @@ using Appraisal.Contracts.Services;
 using Workflow.Tasks.Services;
 using WfIUserGroupService = global::Workflow.Services.Groups.IUserGroupService;
 using WfITeamService = global::Workflow.AssigneeSelection.Teams.ITeamService;
+using Shared.Scheduling;
+using Workflow.Scheduling;
 
 namespace Workflow;
 
@@ -232,6 +234,7 @@ public static class WorkflowModule
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Sla.Infrastructure.Seed.AppraisalSlaPolicySeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, FeeAppointmentApprovalWorkflowDefinitionSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, FeeApprovalDefaultConfigSeeder>();
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, Services.Configuration.TaskAssignmentConfigSeeder>();
 
         // Workflow DbContext with its own migration assembly and history table
         services.AddDbContext<WorkflowDbContext>((sp, options) =>
@@ -252,6 +255,7 @@ public static class WorkflowModule
     public static IApplicationBuilder UseWorkflowModule(this IApplicationBuilder app)
     {
         app.UseMigration<WorkflowDbContext>();
+        app.UseModuleRecurringJobs<WorkflowDbContext>(WorkflowRecurringJobs.All);
 
         return app;
     }

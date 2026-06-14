@@ -8,6 +8,8 @@ using Appraisal.Infrastructure.Seed;
 // DocumentRequirement entities moved to Parameter module
 using Shared.Data.Seed;
 using Appraisal.Contracts.Services;
+using Appraisal.Scheduling;
+using Shared.Scheduling;
 
 namespace Appraisal;
 
@@ -103,6 +105,7 @@ public static class AppraisalModule
     public static IApplicationBuilder UseAppraisalModule(this IApplicationBuilder app)
     {
         app.UseMigration<AppraisalDbContext>();
+        app.UseModuleRecurringJobs<AppraisalDbContext>(AppraisalRecurringJobs.All);
         return app;
     }
 }

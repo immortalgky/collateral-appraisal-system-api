@@ -8,15 +8,34 @@ namespace Workflow.Services.Configuration;
 public interface ITaskConfigurationService
 {
     /// <summary>
-    /// Gets the task assignment configuration for a specific activity
+    /// Gets the most specific active task assignment configuration for an activity.
+    /// Resolution is most-specific-wins across the optional workflow + banking-segment scopes.
     /// </summary>
     /// <param name="activityId">The activity identifier</param>
     /// <param name="workflowDefinitionId">Optional workflow definition identifier for more specific lookup</param>
+    /// <param name="bankingSegment">Optional banking segment (e.g. Retail, IBG); empty/whitespace is treated as no segment</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Task assignment configuration or null if not found</returns>
+    /// <returns>Task assignment configuration or null if none found</returns>
     Task<TaskAssignmentConfigurationDto?> GetConfigurationAsync(
-        string activityId, 
+        string activityId,
         string? workflowDefinitionId = null,
+        string? bankingSegment = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a single configuration by its identifier, or null if not found.
+    /// </summary>
+    Task<TaskAssignmentConfigurationDto?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists configurations, optionally filtered by activity and/or banking segment.
+    /// Used by the admin surface (returns active and inactive rows).
+    /// </summary>
+    Task<List<TaskAssignmentConfigurationDto>> ListConfigurationsAsync(
+        string? activityId = null,
+        string? bankingSegment = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -4,6 +4,7 @@ using Integration.Domain.WebhookSubscriptions;
 using Integration.Infrastructure.FileInterface;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data.Extensions;
+using Shared.Scheduling;
 using System.Reflection;
 
 namespace Integration.Infrastructure;
@@ -20,6 +21,10 @@ public class IntegrationDbContext(DbContextOptions<IntegrationDbContext> options
         modelBuilder.HasDefaultSchema("integration");
         modelBuilder.ApplyGlobalConventions();
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+
+        // Per-module recurring-job schedule table (integration.JobSchedules)
+        modelBuilder.AddJobSchedules();
+
         base.OnModelCreating(modelBuilder);
     }
 }

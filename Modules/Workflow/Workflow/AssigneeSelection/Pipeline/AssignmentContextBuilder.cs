@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Workflow.AssigneeSelection.Teams;
+using Workflow.Services.Configuration;
+using Workflow.Workflow;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Models;
 
@@ -8,11 +10,16 @@ namespace Workflow.AssigneeSelection.Pipeline;
 public class AssignmentContextBuilder : IAssignmentContextBuilder
 {
     private readonly ITeamService _teamService;
+    private readonly ITaskConfigurationService _configurationService;
     private readonly ILogger<AssignmentContextBuilder> _logger;
 
-    public AssignmentContextBuilder(ITeamService teamService, ILogger<AssignmentContextBuilder> logger)
+    public AssignmentContextBuilder(
+        ITeamService teamService,
+        ITaskConfigurationService configurationService,
+        ILogger<AssignmentContextBuilder> logger)
     {
         _teamService = teamService;
+        _configurationService = configurationService;
         _logger = logger;
     }
 
@@ -84,6 +91,22 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
 
         // 3. Extract RuntimeOverride for this activity
         context.RuntimeOverride = activityCtx.RuntimeOverrides;
+
+        // 3b. Resolve the DB-backed assignment override (scoped by activity + workflow + banking segment).
+        //     The service returns null on miss/error, in which case the JSON definition stays the baseline.
+        var bankingSegment = GetJsonString(activityCtx.Variables, "bankingSegment");
+        context.ExternalConfig = await _configurationService.GetConfigurationAsync(
+            activityCtx.ActivityId,
+            activityCtx.WorkflowInstance.WorkflowDefinitionId.ToString(),
+            bankingSegment,
+            cancellationToken);
+
+        // 3c. Resolve the assignee group ONCE with precedence RuntimeOverride > DB config > JSON definition.
+        //     Stage 2 (TeamFilter) and Stage 3 (engine) both read this so they cannot drift apart.
+        context.ResolvedAssigneeGroup =
+            JsonPropertyReader.NullIfEmpty(context.RuntimeOverride?.RuntimeAssigneeGroup)
+            ?? JsonPropertyReader.NullIfEmpty(context.ExternalConfig?.AssigneeGroup)
+            ?? GetJsonString(activityCtx.Properties, "assigneeGroup");
 
         // 4. Build PriorAssignees map from completed activity executions.
         //    When FanOutKey is set on the ActivityContext, also include per-item stage history

@@ -134,6 +134,45 @@ namespace Workflow.Infrastructure.Migrations
                     b.ToTable("IntegrationEventOutbox", "workflow");
                 });
 
+            modelBuilder.Entity("Shared.Scheduling.JobSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CronExpression")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("JobId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_JobSchedules_JobId");
+
+                    b.ToTable("JobSchedules", "workflow");
+                });
+
             modelBuilder.Entity("Workflow.Data.Entities.ActivityProcessConfiguration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -321,6 +360,10 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("BankingSegment")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -374,11 +417,10 @@ namespace Workflow.Infrastructure.Migrations
                     b.HasIndex("ActivityId")
                         .HasDatabaseName("IX_TaskAssignmentConfigurations_ActivityId");
 
-                    b.HasIndex("IsActive")
-                        .HasDatabaseName("IX_TaskAssignmentConfigurations_IsActive");
-
-                    b.HasIndex("ActivityId", "WorkflowDefinitionId")
-                        .HasDatabaseName("IX_TaskAssignmentConfigurations_ActivityId_WorkflowDefinitionId");
+                    b.HasIndex("ActivityId", "WorkflowDefinitionId", "BankingSegment")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TaskAssignmentConfigurations_Activity_Workflow_Segment_Active")
+                        .HasFilter("[IsActive] = 1");
 
                     b.ToTable("TaskAssignmentConfigurations", "workflow");
                 });

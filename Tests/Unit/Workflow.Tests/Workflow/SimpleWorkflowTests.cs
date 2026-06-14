@@ -28,7 +28,6 @@ public class SimpleWorkflowTests
     {
         // Arrange
         var assignmentPipeline = Substitute.For<IAssignmentPipeline>();
-        var configurationService = Substitute.For<ITaskConfigurationService>();
         var customAssignmentServiceFactory = Substitute.For<ICustomAssignmentServiceFactory>();
         var actionExecutor = Substitute.For<IWorkflowActionExecutor>();
         var auditService = Substitute.For<IWorkflowAuditService>();
@@ -42,7 +41,6 @@ public class SimpleWorkflowTests
         dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
         var taskActivity = new TaskActivity(
             assignmentPipeline,
-            configurationService,
             customAssignmentServiceFactory,
             actionExecutor,
             auditService,
