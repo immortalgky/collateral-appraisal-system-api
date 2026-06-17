@@ -25,7 +25,7 @@ public static class PricingGroupValidator
     public static readonly string[] LeaseTypeCodes = ["LS", "LSL", "LSU", "LSB"];
 
     /// <summary>Building property type code.</summary>
-    public static readonly string[] BuildingTypeCode = ["B", "LSB", "LS"];
+    public static readonly string[] BuildingTypeCode = ["B", "LB", "LSB", "LS"];
 
     public static ValidateGroupForPricingResult Evaluate(
         IReadOnlyList<PricingValidationProperty> properties,
@@ -54,7 +54,7 @@ public static class PricingGroupValidator
                 applicable: properties.Any(p => BuildingTypeCode.Contains(p.TypeCode)),
                 missing: properties
                     .Where(p => BuildingTypeCode.Contains(p.TypeCode) && !p.HasBuildingDetail)
-                    .Select(p => $"Property #{p.SequenceNumber} (B): building detail is missing.")
+                    .Select(p => $"Property #{p.SequenceNumber} ({p.TypeCode}): building detail is missing.")
                     .ToList()),
 
             // Rule 4: each lease property has rental-schedule data.

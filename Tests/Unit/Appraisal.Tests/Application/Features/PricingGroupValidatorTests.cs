@@ -38,7 +38,7 @@ public class PricingGroupValidatorTests
             [ValidProperty(1, "L")], surveyCount: 0);
 
         Assert.False(result.Valid);
-        Assert.Equal(PricingValidationStatus.Failed, Step(result, "MakerSurvey").Status);
+        Assert.Equal(PricingValidationStatus.Failed, Step(result, "MaketSurvey").Status);
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class PricingGroupValidatorTests
         var result = PricingGroupValidator.Evaluate(
             [ValidProperty(1, "L")], surveyCount: 1);
 
-        Assert.Equal(PricingValidationStatus.Passed, Step(result, "MakerSurvey").Status);
+        Assert.Equal(PricingValidationStatus.Passed, Step(result, "MaketSurvey").Status);
     }
 
     // ── Rule 3: building detail ───────────────────────────────────────────────
