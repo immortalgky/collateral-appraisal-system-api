@@ -3,6 +3,7 @@ using Auth.Domain.Companies;
 using Auth.Domain.Menu;
 using Auth.Infrastructure.Repository;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Auth.Infrastructure.Seed;
 
@@ -13,7 +14,8 @@ public class AuthDataSeed(
     IOpenIddictApplicationManager manager,
     ICompanyRepository companyRepository,
     IPermissionRepository permissionRepository,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    ILogger<AuthDataSeed> logger)
     : IDataSeeder<AuthDbContext>
 {
     private const string AdminRoleName = "Admin";
@@ -183,6 +185,7 @@ public class AuthDataSeed(
         await SeedUsersAsync();
         await SeedClientsAsync();
         await SeedCompaniesAsync();
+        await SeedExternalAppraisalCompaniesAsync();
     }
 
     private async Task SeedRoleWithPermissionsAsync(
@@ -428,7 +431,7 @@ public class AuthDataSeed(
 
     private async Task SeedCompaniesAsync()
     {
-        var seedCompanies = new List<(string Name, string? TaxId, string? Province, List<string> LoanTypes)>
+        var seedCompanies = new List<(string Name, string? TaxId, string? AddressLine1, List<string> LoanTypes)>
         {
             ("Thai Appraisal Co., Ltd.", "0105550001234", "Bangkok", ["Retail", "IBG"]),
             ("Siam Valuation Group", "0105550005678", "Bangkok", ["Retail"]),
@@ -438,21 +441,99 @@ public class AuthDataSeed(
             ("Southern Property Consultants", "0905580001234", "Songkhla", ["IBG"])
         };
 
-        foreach (var (name, taxId, province, loanTypes) in seedCompanies)
+        foreach (var (name, taxId, addressLine1, loanTypes) in seedCompanies)
         {
             var existing = await companyRepository.GetByNameAsync(name);
             if (existing is null)
             {
                 var company = Company.Create(
                     name,
-                    taxId,
-                    province: province,
+                    taxId: taxId,
+                    addressLine1: addressLine1,
                     loanTypes: loanTypes);
                 await companyRepository.AddAsync(company);
             }
         }
 
         await companyRepository.SaveChangesAsync();
+    }
+
+    // Seeds the real external-appraisal companies from the bank's parameter listing
+    // (embedded JSON, generated from the ExtAppraisalCompany sheet). Idempotent by Name
+    // (matches the unique index), so the test companies above and re-runs are unaffected.
+    private async Task SeedExternalAppraisalCompaniesAsync()
+    {
+        const string resourceName = "Auth.Infrastructure.Seed.Data.external-appraisal-companies.json";
+
+        var assembly = typeof(AuthDataSeed).Assembly;
+        await using var stream = assembly.GetManifestResourceStream(resourceName);
+        if (stream is null) return;
+
+        var seedCompanies = await System.Text.Json.JsonSerializer.DeserializeAsync<List<ExternalCompanySeed>>(
+            stream,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        if (seedCompanies is null || seedCompanies.Count == 0) return;
+
+        // Load existing names once instead of one GetByNameAsync per company — this method runs on
+        // every startup, so the per-row round-trips (~95) would otherwise be paid each restart.
+        // Case-insensitive to match the auth.Companies Name unique index (DB collation), so two seed
+        // rows differing only in case don't both insert and trip a unique-constraint violation.
+        var existingNames = (await companyRepository.GetAllAsync())
+            .Select(c => c.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var added = false;
+        foreach (var c in seedCompanies)
+        {
+            if (string.IsNullOrWhiteSpace(c.Name) || !existingNames.Add(c.Name)) continue;
+
+            Company company;
+            try
+            {
+                company = Company.Create(
+                    c.Name,
+                    nameLocal: c.NameLocal,
+                    phone: c.Phone,
+                    email: c.Email,
+                    addressLine1: c.AddressLine1,
+                    addressLine2: c.AddressLine2,
+                    effectiveDate: c.EffectiveDate,
+                    expireDate: c.ExpireDate,
+                    hostCompanyCode: c.HostCompanyCode,
+                    loanTypes: c.LoanTypes ?? [],
+                    legacyCompanyCode: c.LegacyCompanyCode,
+                    isActive: c.IsActive);
+            }
+            catch (Shared.Exceptions.DomainException ex)
+            {
+                // One malformed row (e.g. EffectiveDate > ExpireDate) must not abort the whole seed /
+                // app startup — skip it and continue.
+                logger.LogWarning("Skipping external company seed '{Name}': {Reason}", c.Name, ex.Message);
+                continue;
+            }
+
+            await companyRepository.AddAsync(company);
+            added = true;
+        }
+
+        if (added)
+            await companyRepository.SaveChangesAsync();
+    }
+
+    private sealed record ExternalCompanySeed
+    {
+        public string Name { get; init; } = default!;
+        public string? NameLocal { get; init; }
+        public List<string>? LoanTypes { get; init; }
+        public DateTime? EffectiveDate { get; init; }
+        public DateTime? ExpireDate { get; init; }
+        public string? AddressLine1 { get; init; }
+        public string? AddressLine2 { get; init; }
+        public string? Email { get; init; }
+        public string? Phone { get; init; }
+        public string? HostCompanyCode { get; init; }
+        public string? LegacyCompanyCode { get; init; }
+        public bool IsActive { get; init; } = true;
     }
 
     // Insert the single password-policy row with the previously-hardcoded defaults if it doesn't

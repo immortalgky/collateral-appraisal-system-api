@@ -247,10 +247,8 @@ internal static class ExternalBookBuilder
                 SELECT
                     c.Name,
                     c.Phone,
-                    c.Street,
-                    c.City,
-                    c.Province,
-                    c.PostalCode
+                    c.AddressLine1,
+                    c.AddressLine2
                 FROM auth.Companies c
                 WHERE c.Id = @CompanyId
                 """;
@@ -263,7 +261,7 @@ internal static class ExternalBookBuilder
             {
                 companyName = company.Name;
                 companyTel = company.Phone;
-                var addrParts = new List<string?> { company.Street, company.City, company.Province, company.PostalCode }
+                var addrParts = new List<string?> { company.AddressLine1, company.AddressLine2 }
                     .Where(p => !string.IsNullOrWhiteSpace(p))
                     .ToList();
                 companyAddress = addrParts.Count > 0 ? string.Join(" ", addrParts) : null;
@@ -467,10 +465,8 @@ internal static class ExternalBookBuilder
     {
         public string? Name { get; init; }
         public string? Phone { get; init; }
-        public string? Street { get; init; }
-        public string? City { get; init; }
-        public string? Province { get; init; }
-        public string? PostalCode { get; init; }
+        public string? AddressLine1 { get; init; }
+        public string? AddressLine2 { get; init; }
     }
 
     private sealed class PropertyCountRow

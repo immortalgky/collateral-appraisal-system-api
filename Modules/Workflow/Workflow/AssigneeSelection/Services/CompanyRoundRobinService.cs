@@ -1,4 +1,6 @@
 using Auth.Domain.Companies;
+using Shared.Time;
+using Workflow.Services.Configuration;
 
 namespace Workflow.AssigneeSelection.Services;
 
@@ -10,127 +12,24 @@ public class CompanyRoundRobinService : ICompanyRoundRobinService
     private readonly ICompanyRepository _companyRepository;
     private readonly IAssignmentRepository _assignmentRepository;
     private readonly IGroupHashService _groupHashService;
+    private readonly ICompanyRoundRobinConfigService _configService;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<CompanyRoundRobinService> _logger;
 
     public CompanyRoundRobinService(
         ICompanyRepository companyRepository,
         IAssignmentRepository assignmentRepository,
         IGroupHashService groupHashService,
+        ICompanyRoundRobinConfigService configService,
+        IDateTimeProvider dateTimeProvider,
         ILogger<CompanyRoundRobinService> logger)
     {
         _companyRepository = companyRepository;
         _assignmentRepository = assignmentRepository;
         _groupHashService = groupHashService;
+        _configService = configService;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
-    }
-
-    public async Task<CompanySelectionResult> SelectCompanyAsync(CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var companies = await _companyRepository.GetAllAsync(activeOnly: true, cancellationToken);
-
-            if (companies.Count == 0)
-            {
-                _logger.LogWarning("No active companies found for round-robin routing");
-                return CompanySelectionResult.Failure("No active companies available for assignment");
-            }
-
-            var companyIds = companies.Select(c => c.Id.ToString()).ToList();
-            var groupsHash = _groupHashService.GenerateGroupsHash([GroupKey]);
-            var groupsList = _groupHashService.GenerateGroupsList([GroupKey]);
-
-            await _assignmentRepository.SyncUsersForGroupCombinationAsync(
-                ActivityName,
-                groupsHash,
-                groupsList,
-                companyIds,
-                cancellationToken);
-
-            var selectedId = await _assignmentRepository.SelectNextUserWithRoundResetAsync(
-                ActivityName,
-                groupsHash,
-                cancellationToken);
-
-            if (selectedId == null)
-            {
-                _logger.LogWarning("Round-robin returned no company selection");
-                return CompanySelectionResult.Failure("Round-robin selection returned no result");
-            }
-
-            var selectedCompany = companies.FirstOrDefault(c => c.Id.ToString() == selectedId);
-            if (selectedCompany == null)
-            {
-                _logger.LogWarning("Selected company ID {CompanyId} not found in active companies", selectedId);
-                return CompanySelectionResult.Failure($"Selected company {selectedId} not found");
-            }
-
-            _logger.LogInformation(
-                "Company round-robin selected {CompanyName} ({CompanyId}) from {TotalCompanies} active companies",
-                selectedCompany.Name, selectedCompany.Id, companies.Count);
-
-            return CompanySelectionResult.Success(selectedCompany.Id, selectedCompany.Name);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to select company via round-robin");
-            return CompanySelectionResult.Failure($"Company selection failed: {ex.Message}");
-        }
-    }
-
-    public async Task<CompanySelectionResult> SelectCompanyAsync(string loanType, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var companies = await _companyRepository.GetByLoanTypeAsync(loanType, activeOnly: true, cancellationToken);
-
-            if (companies.Count == 0)
-            {
-                _logger.LogWarning("No active companies found for loan type {LoanType}", loanType);
-                return CompanySelectionResult.Failure($"No active companies available for loan type '{loanType}'");
-            }
-
-            var groupKey = $"LoanType_{loanType}";
-            var companyIds = companies.Select(c => c.Id.ToString()).ToList();
-            var groupsHash = _groupHashService.GenerateGroupsHash([groupKey]);
-            var groupsList = _groupHashService.GenerateGroupsList([groupKey]);
-
-            await _assignmentRepository.SyncUsersForGroupCombinationAsync(
-                ActivityName,
-                groupsHash,
-                groupsList,
-                companyIds,
-                cancellationToken);
-
-            var selectedId = await _assignmentRepository.SelectNextUserWithRoundResetAsync(
-                ActivityName,
-                groupsHash,
-                cancellationToken);
-
-            if (selectedId == null)
-            {
-                _logger.LogWarning("Round-robin returned no company selection for loan type {LoanType}", loanType);
-                return CompanySelectionResult.Failure("Round-robin selection returned no result");
-            }
-
-            var selectedCompany = companies.FirstOrDefault(c => c.Id.ToString() == selectedId);
-            if (selectedCompany == null)
-            {
-                _logger.LogWarning("Selected company ID {CompanyId} not found for loan type {LoanType}", selectedId, loanType);
-                return CompanySelectionResult.Failure($"Selected company {selectedId} not found");
-            }
-
-            _logger.LogInformation(
-                "Company round-robin selected {CompanyName} ({CompanyId}) from {TotalCompanies} companies for loan type {LoanType}",
-                selectedCompany.Name, selectedCompany.Id, companies.Count, loanType);
-
-            return CompanySelectionResult.Success(selectedCompany.Id, selectedCompany.Name);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to select company via round-robin for loan type {LoanType}", loanType);
-            return CompanySelectionResult.Failure($"Company selection failed: {ex.Message}");
-        }
     }
 
     public async Task<CompanySelectionResult> SelectCompanyAsync(
@@ -144,8 +43,30 @@ public class CompanyRoundRobinService : ICompanyRoundRobinService
                 ? await _companyRepository.GetAllAsync(activeOnly: true, cancellationToken)
                 : await _companyRepository.GetByLoanTypeAsync(loanType, activeOnly: true, cancellationToken);
 
-            if (excludedCompanyId.HasValue)
-                companies = companies.Where(c => c.Id != excludedCompanyId.Value).ToList();
+            // Drop the excluded company and any whose MOU approval window is not current (single pass).
+            // Use the shared application clock so this matches the activity's assignability check.
+            var now = _dateTimeProvider.ApplicationNow;
+            companies = companies
+                .Where(c => c.IsAssignable(now)
+                            && (!excludedCompanyId.HasValue || c.Id != excludedCompanyId.Value))
+                .ToList();
+
+            // Restrict to the admin-configured pool (and pick up per-company weights) when an active
+            // pool exists for this scope. With no config, fall back to all active companies (weight 1).
+            IReadOnlyDictionary<string, int>? weights = null;
+            var poolConfig = await _configService.ResolveAsync(loanType, cancellationToken);
+            if (poolConfig is not null && poolConfig.Entries.Count > 0)
+            {
+                // Entries are persisted unique-per-company with weight >= 1 (enforced on write); group
+                // defensively so a row written outside that path (manual SQL, migration) can't throw a
+                // duplicate-key exception here and silently block all routing.
+                var weightById = poolConfig.Entries
+                    .GroupBy(e => e.CompanyId)
+                    .ToDictionary(g => g.Key, g => g.First().Weight);
+
+                companies = companies.Where(c => weightById.ContainsKey(c.Id)).ToList();
+                weights = companies.ToDictionary(c => c.Id.ToString(), c => weightById[c.Id]);
+            }
 
             if (companies.Count == 0)
             {
@@ -164,7 +85,7 @@ public class CompanyRoundRobinService : ICompanyRoundRobinService
             var groupsList = _groupHashService.GenerateGroupsList([groupKey]);
 
             await _assignmentRepository.SyncUsersForGroupCombinationAsync(
-                ActivityName, groupsHash, groupsList, companyIds, cancellationToken);
+                ActivityName, groupsHash, groupsList, companyIds, cancellationToken, weights);
 
             var selectedId = await _assignmentRepository.SelectNextUserWithRoundResetAsync(
                 ActivityName, groupsHash, cancellationToken);
@@ -184,8 +105,8 @@ public class CompanyRoundRobinService : ICompanyRoundRobinService
             }
 
             _logger.LogInformation(
-                "Company round-robin selected {CompanyName} ({CompanyId}) from {TotalCompanies} eligible companies (loanType={LoanType}, excluded={ExcludedId})",
-                selectedCompany.Name, selectedCompany.Id, companies.Count, loanType ?? "any", excludedCompanyId);
+                "Company round-robin selected {CompanyName} ({CompanyId}) from {TotalCompanies} eligible companies (loanType={LoanType}, excluded={ExcludedId}, weighted={Weighted})",
+                selectedCompany.Name, selectedCompany.Id, companies.Count, loanType ?? "any", excludedCompanyId, weights != null);
 
             return CompanySelectionResult.Success(selectedCompany.Id, selectedCompany.Name);
         }

@@ -73,6 +73,9 @@ public class WorkflowService : IWorkflowService
             {
                 result = await ExecuteStartWorkflowAsync(workflowDefinitionId, instanceName, startedBy,
                     initialVariables, correlationId, assignmentOverrides, cancellationToken);
+                // Publish landing events into the outbox scope BEFORE SaveChanges so the
+                // DispatchDomainEventInterceptor drains them into this same transaction.
+                await PublishLandingEventsAsync(result, cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);
             }
@@ -86,9 +89,6 @@ public class WorkflowService : IWorkflowService
                 throw;
             }
         });
-
-        // Publish integration events AFTER transaction committed successfully
-        await PublishPostCommitEventsAsync(result!, cancellationToken);
 
         return result!;
     }
@@ -144,8 +144,9 @@ public class WorkflowService : IWorkflowService
         {
             var instance = await ExecuteResumeWorkflowAsync(workflowInstanceId, activityId, completedBy,
                 input, nextAssignmentOverrides, cancellationToken);
-            // Integration events deferred to post-commit in the non-transaction path
-            await PublishPostCommitEventsAsync(instance, cancellationToken);
+            // Publish landing events into the outbox scope; the outer TransactionalBehavior's
+            // SaveChanges drains them into its transaction.
+            await PublishLandingEventsAsync(instance, cancellationToken);
             return instance;
         }
 
@@ -159,6 +160,9 @@ public class WorkflowService : IWorkflowService
             {
                 result = await ExecuteResumeWorkflowAsync(workflowInstanceId, activityId, completedBy,
                     input, nextAssignmentOverrides, cancellationToken);
+                // Publish landing events into the outbox scope BEFORE SaveChanges so the
+                // DispatchDomainEventInterceptor drains them into this same transaction.
+                await PublishLandingEventsAsync(result, cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);
             }
@@ -172,9 +176,6 @@ public class WorkflowService : IWorkflowService
                 throw;
             }
         });
-
-        // Publish integration events AFTER transaction committed successfully
-        await PublishPostCommitEventsAsync(result!, cancellationToken);
 
         return result!;
     }
@@ -322,13 +323,19 @@ public class WorkflowService : IWorkflowService
     }
 
     /// <summary>
-    /// Publishes post-commit integration events for activity landings that don't have
-    /// a natural owning activity to emit from. Currently only the internal path
-    /// (int-appraisal-execution) — the external path emits CompanyAssignedIntegrationEvent
-    /// and InternalFollowupAssignedIntegrationEvent directly from CompanySelectionActivity
-    /// and InternalFollowupSelectionActivity, which are bypassed on routeback.
+    /// Publishes integration events for activity landings that don't have a natural owning
+    /// activity to emit from. Currently only the internal path (int-appraisal-execution) — the
+    /// external path emits CompanyAssignedIntegrationEvent and InternalFollowupAssignedIntegrationEvent
+    /// directly from CompanySelectionActivity and InternalFollowupSelectionActivity, which are
+    /// bypassed on routeback.
+    ///
+    /// MUST be called WITHIN the workflow transaction, BEFORE SaveChanges: <see cref="IIntegrationEventOutbox.Publish"/>
+    /// only appends to the scoped OutboxScope, and DispatchDomainEventInterceptor drains that scope
+    /// into the DbContext during SaveChanges. The previous post-commit placement left the message in
+    /// the scope with no subsequent save, so the InternalAssignedIntegrationEvent was silently dropped
+    /// and never reached workflow.IntegrationEventOutbox.
     /// </summary>
-    private async Task PublishPostCommitEventsAsync(WorkflowInstance instance, CancellationToken cancellationToken)
+    private async Task PublishLandingEventsAsync(WorkflowInstance instance, CancellationToken cancellationToken)
     {
         var appraisalId = WorkflowVariables.TryGetAppraisalId(instance.Variables);
         if (appraisalId is null)

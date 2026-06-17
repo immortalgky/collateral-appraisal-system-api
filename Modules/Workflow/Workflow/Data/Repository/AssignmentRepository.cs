@@ -106,49 +106,55 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
 
 
     public async Task SyncUsersForGroupCombinationAsync(string activityName, string groupsHash, string groupsList,
-        List<string> eligibleUsers, CancellationToken cancellationToken = default)
+        List<string> eligibleUsers, CancellationToken cancellationToken = default,
+        IReadOnlyDictionary<string, int>? weights = null)
     {
         if (dbContext.Database.CurrentTransaction is null)
             throw new InvalidOperationException("Ambient transaction required for SyncUsersForGroupCombinationAsync");
 
-        try
+        int WeightFor(string userId) =>
+            weights is not null && weights.TryGetValue(userId, out var w) && w > 0 ? w : 1;
+
+        // Mark all existing users for this combination as inactive
+        var existingUsers = await dbContext.RoundRobinQueue
+            .Where(x => x.ActivityName == activityName && x.GroupsHash == groupsHash)
+            .ToListAsync(cancellationToken);
+
+        var existingByUser = existingUsers.ToDictionary(x => x.UserId);
+
+        foreach (var existingUser in existingUsers) existingUser.IsActive = false;
+
+        // Add or reactivate current eligible users
+        foreach (var userId in eligibleUsers)
         {
-            // Mark all existing users for this combination as inactive
-            var existingUsers = await dbContext.RoundRobinQueue
-                .Where(x => x.ActivityName == activityName && x.GroupsHash == groupsHash)
-                .ToListAsync(cancellationToken);
-
-            foreach (var existingUser in existingUsers) existingUser.IsActive = false;
-
-            // Add or reactivate current eligible users
-            foreach (var userId in eligibleUsers)
+            if (existingByUser.TryGetValue(userId, out var existingCounter))
             {
-                var existingCounter = existingUsers.FirstOrDefault(x => x.UserId == userId);
-
-                // TODO: Implement logic to handle case where user is on leave or inactive
-                if (existingCounter != null)
-                    // Reactivate an existing user
-                    existingCounter.IsActive = true;
-                else
-                    // Add new user
-                    dbContext.RoundRobinQueue.Add(new RoundRobinQueue
-                    {
-                        ActivityName = activityName,
-                        GroupsHash = groupsHash,
-                        GroupsList = groupsList,
-                        UserId = userId,
-                        AssignmentCount = 0,
-                        LastAssignedAt = DateTime.Now,
-                        IsActive = true
-                    });
+                // Reactivate an existing user and refresh its weight in case config changed. The
+                // in-round AssignmentCount is preserved (a transiently-excluded company that returns
+                // keeps its place in the rotation); we only clamp if the weight was lowered below the
+                // current count, so the row isn't treated as already "done" (count >= weight) and
+                // starved until the round resets.
+                existingCounter.IsActive = true;
+                existingCounter.Weight = WeightFor(userId);
+                if (existingCounter.AssignmentCount > existingCounter.Weight)
+                    existingCounter.AssignmentCount = existingCounter.Weight;
             }
+            else
+                // Add new user
+                dbContext.RoundRobinQueue.Add(new RoundRobinQueue
+                {
+                    ActivityName = activityName,
+                    GroupsHash = groupsHash,
+                    GroupsList = groupsList,
+                    UserId = userId,
+                    AssignmentCount = 0,
+                    Weight = WeightFor(userId),
+                    LastAssignedAt = DateTime.Now,
+                    IsActive = true
+                });
+        }
 
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch
-        {
-            throw;
-        }
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<string?> SelectNextUserWithRoundResetAsync(string activityName, string groupsHash,
@@ -157,22 +163,26 @@ public class AssignmentRepository(WorkflowDbContext dbContext, ISqlConnectionFac
         // Lock all rows for this activity and group combination
         var counters = await dbContext.RoundRobinQueue
             .Where(x => x.ActivityName == activityName && x.GroupsHash == groupsHash && x.IsActive)
-            .OrderBy(x => x.AssignmentCount)
-            .ThenBy(x => x.UserId)
             .ToListAsync(cancellationToken);
 
-        if (!counters.Any()) return null;
+        if (counters.Count == 0) return null;
 
-        // Select user with minimum count
-        var selectedUser = counters.First();
+        // Weighted round-robin: pick the user that is furthest below its fair share, measured as
+        // assignments-per-unit-weight. With all weights = 1 this reduces to "lowest count first",
+        // i.e. the original unweighted behavior. Weight is always >= 1 (WeightFor floors it on every
+        // write and the column defaults to 1), so no divide-by-zero guard is needed.
+        var selectedUser = counters
+            .OrderBy(x => (double)x.AssignmentCount / x.Weight)
+            .ThenBy(x => x.UserId)
+            .First();
         selectedUser.AssignmentCount++;
         selectedUser.LastAssignedAt = DateTime.Now;
 
-        // Check if the round is complete (no active users have count = 0)
-        var usersWithZero = counters.Count(x => x.AssignmentCount == 0);
+        // A round is complete once every active user has met its weight quota for this round.
+        // (With weight 1 this is "no user has count 0", identical to the original logic.)
+        var roundComplete = counters.All(x => x.AssignmentCount >= x.Weight);
 
-        if (usersWithZero == 0) // No users left with zero counts
-            // Reset all counters for this combination
+        if (roundComplete)
             foreach (var counter in counters)
                 counter.AssignmentCount = 0;
 

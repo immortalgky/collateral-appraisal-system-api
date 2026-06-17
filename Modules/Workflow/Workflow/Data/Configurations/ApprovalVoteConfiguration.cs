@@ -11,6 +11,8 @@ public class ApprovalVoteConfiguration : IEntityTypeConfiguration<ApprovalVote>
         builder.HasKey(v => v.Id);
 
         builder.Property(v => v.AppraisalId).IsRequired();
+        // Nullable: legacy-imported votes have no workflow instance (served from AppraisalReviews).
+        builder.Property(v => v.WorkflowInstanceId).IsRequired(false);
         builder.Property(v => v.ActivityId).HasMaxLength(100).IsRequired();
         builder.Property(v => v.Member).HasMaxLength(255).IsRequired();
         builder.Property(v => v.MemberRole).HasMaxLength(50);

@@ -35,6 +35,7 @@
         <EmbeddedResource Include="Workflow\Config\document-followup-workflow.json" />
         <EmbeddedResource Include="Workflow\Config\quotation-workflow.json" />
         <EmbeddedResource Include="Workflow\Config\fee-appointment-approval-workflow.json" />
+        <EmbeddedResource Include="AssigneeSelection\Seed\company-roundrobin-mou-pool.json" />
     </ItemGroup>
 
     <ItemGroup>

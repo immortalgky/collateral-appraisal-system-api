@@ -1,3 +1,4 @@
+using Auth.Domain.Companies;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -16,18 +17,23 @@ namespace Workflow.Tests.Workflow;
 public class CompanySelectionActivityTests
 {
     private readonly ICompanyRoundRobinService _roundRobinService;
+    private readonly ICompanyRepository _companyRepository;
     private readonly IIntegrationEventOutbox _outbox;
     private readonly CompanySelectionActivity _sut;
 
     public CompanySelectionActivityTests()
     {
         _roundRobinService = Substitute.For<ICompanyRoundRobinService>();
+        _companyRepository = Substitute.For<ICompanyRepository>();
+        // Default: any resolved company is assignable (active, open-ended window).
+        _companyRepository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Company.Create("Stub Co"));
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
         dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
         _outbox = Substitute.For<IIntegrationEventOutbox>();
         var logger = Substitute.For<ILogger<CompanySelectionActivity>>();
-        _sut = new CompanySelectionActivity(_roundRobinService, dateTimeProvider, _outbox, logger);
+        _sut = new CompanySelectionActivity(_roundRobinService, _companyRepository, dateTimeProvider, _outbox, logger);
     }
 
     private static ActivityContext CreateContext(Dictionary<string, object>? variables = null)
@@ -58,7 +64,7 @@ public class CompanySelectionActivityTests
         var companyId = Guid.NewGuid().ToString();
         var context = CreateContext(new Dictionary<string, object>
         {
-            ["selectionMethod"] = "manual",
+            ["assignmentMethod"] = "manual",
             ["selectedCompanyId"] = companyId,
             ["selectedCompanyName"] = "Acme Corp"
         });
@@ -80,7 +86,7 @@ public class CompanySelectionActivityTests
         // Arrange
         var context = CreateContext(new Dictionary<string, object>
         {
-            ["selectionMethod"] = "manual"
+            ["assignmentMethod"] = "manual"
         });
 
         // Act
@@ -96,12 +102,12 @@ public class CompanySelectionActivityTests
     {
         // Arrange
         var companyId = Guid.NewGuid();
-        _roundRobinService.SelectCompanyAsync(Arg.Any<CancellationToken>())
+        _roundRobinService.SelectCompanyAsync(Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(CompanySelectionResult.Success(companyId, "RR Corp"));
 
         var context = CreateContext(new Dictionary<string, object>
         {
-            ["selectionMethod"] = "roundrobin"
+            ["assignmentMethod"] = "roundrobin"
         });
 
         // Act
@@ -116,16 +122,18 @@ public class CompanySelectionActivityTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_RoundRobinWithLoanType_CallsFilteredOverload()
+    public async Task ExecuteAsync_RoundRobinWithBankingSegment_ScopesPoolToSegment()
     {
-        // Arrange
+        // The round-robin pool scope comes from the bankingSegment variable (set at workflow
+        // start), not the legacy never-assigned loanType variable. An IBG appraisal must select
+        // from the IBG pool.
         var companyId = Guid.NewGuid();
-        _roundRobinService.SelectCompanyAsync("HomeEquity", Arg.Any<CancellationToken>())
+        _roundRobinService.SelectCompanyAsync(Arg.Any<Guid?>(), "IBG", Arg.Any<CancellationToken>())
             .Returns(CompanySelectionResult.Success(companyId, "Loan Corp"));
 
         var context = CreateContext(new Dictionary<string, object>
         {
-            ["loanType"] = "HomeEquity"
+            ["bankingSegment"] = "IBG"
         });
 
         // Act
@@ -135,16 +143,16 @@ public class CompanySelectionActivityTests
         result.Status.Should().Be(ActivityResultStatus.Completed);
         result.OutputData["assignedCompanyId"].Should().Be(companyId.ToString());
 
-        // Verify the loan-type overload was called, not the parameterless one
-        await _roundRobinService.Received(1).SelectCompanyAsync("HomeEquity", Arg.Any<CancellationToken>());
-        await _roundRobinService.DidNotReceive().SelectCompanyAsync(Arg.Any<CancellationToken>());
+        // Verify the banking segment was passed through to the selection service as the scope.
+        await _roundRobinService.Received(1)
+            .SelectCompanyAsync(Arg.Any<Guid?>(), "IBG", Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_RoundRobinNoMatch_ReturnsNoMatchDecision()
     {
         // Arrange
-        _roundRobinService.SelectCompanyAsync(Arg.Any<CancellationToken>())
+        _roundRobinService.SelectCompanyAsync(Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(CompanySelectionResult.Failure("No active companies"));
 
         var context = CreateContext();
@@ -161,9 +169,9 @@ public class CompanySelectionActivityTests
     [Fact]
     public async Task ExecuteAsync_DefaultSelectionMethodIsRoundRobin()
     {
-        // Arrange — no selectionMethod in variables
+        // Arrange — no assignmentMethod in variables
         var companyId = Guid.NewGuid();
-        _roundRobinService.SelectCompanyAsync(Arg.Any<CancellationToken>())
+        _roundRobinService.SelectCompanyAsync(Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(CompanySelectionResult.Success(companyId, "Default Corp"));
 
         var context = CreateContext();
@@ -174,7 +182,8 @@ public class CompanySelectionActivityTests
         // Assert — should use roundrobin path (not manual)
         result.Status.Should().Be(ActivityResultStatus.Completed);
         result.OutputData["assignmentMethod"].Should().Be("RoundRobin");
-        await _roundRobinService.Received(1).SelectCompanyAsync(Arg.Any<CancellationToken>());
+        await _roundRobinService.Received(1)
+            .SelectCompanyAsync(Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -182,7 +191,7 @@ public class CompanySelectionActivityTests
     {
         var appraisalId = Guid.NewGuid();
         var companyId = Guid.NewGuid();
-        _roundRobinService.SelectCompanyAsync(Arg.Any<CancellationToken>())
+        _roundRobinService.SelectCompanyAsync(Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(CompanySelectionResult.Success(companyId, "RR Corp"));
 
         var context = CreateContext(new Dictionary<string, object>
@@ -204,14 +213,14 @@ public class CompanySelectionActivityTests
     [Fact]
     public async Task ExecuteAsync_ReplayBranch_DoesNotPublish()
     {
-        // Replay: same loanType as previously assigned company — the activity
+        // Replay: same segment as previously assigned company — the activity
         // reuses the prior selection and must NOT republish (would double-count).
         var context = CreateContext(new Dictionary<string, object>
         {
-            ["loanType"] = "HomeEquity",
+            ["bankingSegment"] = "IBG",
             ["assignedCompanyId"] = Guid.NewGuid().ToString(),
             ["assignedCompanyName"] = "Prior Corp",
-            ["assignedCompanyLoanType"] = "HomeEquity"
+            ["assignedCompanyLoanType"] = "IBG"
         });
 
         var result = await _sut.ExecuteAsync(context);
@@ -223,7 +232,7 @@ public class CompanySelectionActivityTests
     [Fact]
     public async Task ExecuteAsync_NoMatch_DoesNotPublish()
     {
-        _roundRobinService.SelectCompanyAsync(Arg.Any<CancellationToken>())
+        _roundRobinService.SelectCompanyAsync(Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(CompanySelectionResult.Failure("No active companies"));
 
         var context = CreateContext();
@@ -239,12 +248,52 @@ public class CompanySelectionActivityTests
     {
         var context = CreateContext(new Dictionary<string, object>
         {
-            ["selectionMethod"] = "manual"
+            ["assignmentMethod"] = "manual"
             // no selectedCompanyId
         });
 
         await _sut.ExecuteAsync(context);
 
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ManualSelectionExpiredCompany_EscalatesAndDoesNotPublish()
+    {
+        // Company resolved but outside its MOU window (expired yesterday) → not assignable.
+        _companyRepository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Company.Create("Expired Co", expireDate: new DateTime(2026, 4, 18, 0, 0, 0)));
+
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = "manual",
+            ["selectedCompanyId"] = Guid.NewGuid().ToString(),
+            ["selectedCompanyName"] = "Expired Co"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.Status.Should().Be(ActivityResultStatus.Completed);
+        result.OutputData["decision"].Should().Be("no_match");
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ForcedExpiredCompany_EscalatesAndDoesNotPublish()
+    {
+        _companyRepository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Company.Create("Forced Co", expireDate: new DateTime(2026, 4, 18, 0, 0, 0)));
+
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["forceCompanyId"] = Guid.NewGuid().ToString(),
+            ["forceCompanyName"] = "Forced Co"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.Status.Should().Be(ActivityResultStatus.Completed);
+        result.OutputData["decision"].Should().Be("no_match");
         _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
     }
 }

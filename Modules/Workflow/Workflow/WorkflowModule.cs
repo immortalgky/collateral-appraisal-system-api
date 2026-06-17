@@ -131,6 +131,7 @@ public static class WorkflowModule
         services.AddScoped<IWorkflowAuditService, WorkflowAuditService>();
         services.AddScoped<IWorkflowResilienceService, WorkflowResilienceService>();
         services.AddScoped<ITaskConfigurationService, TaskConfigurationService>();
+        services.AddScoped<ICompanyRoundRobinConfigService, CompanyRoundRobinConfigService>();
 
         // Workflow expression evaluator and action executor
         services.AddScoped<IExpressionEvaluator, ExpressionEvaluator>();
@@ -235,6 +236,7 @@ public static class WorkflowModule
         services.AddScoped<IDataSeeder<WorkflowDbContext>, FeeAppointmentApprovalWorkflowDefinitionSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, FeeApprovalDefaultConfigSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Services.Configuration.TaskAssignmentConfigSeeder>();
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, AssigneeSelection.Seed.CompanyRoundRobinConfigSeeder>();
 
         // Workflow DbContext with its own migration assembly and history table
         services.AddDbContext<WorkflowDbContext>((sp, options) =>

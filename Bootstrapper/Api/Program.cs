@@ -18,6 +18,8 @@ using Shared.Data.Outbox;
 using Shared.Logging;
 using Shared.Security;
 using Integration.Application.EventHandlers.Outbound;
+using Appraisal.Application.EventHandlers;
+using Common.Application.EventHandlers;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
 using Shared.Messaging.Services;
@@ -123,11 +125,70 @@ builder.Services.AddMassTransit(config =>
         // Single partitioned endpoint for webhook ordering per appraisal.
         // WebhookDispatchConsumer is marked [ExcludeFromConfigureEndpoints] so ConfigureEndpoints
         // above does not create separate per-message queues for these two event types.
+        // SingleActiveConsumer funnels the queue to ONE node so the partitioner's per-appraisal
+        // ordering actually holds across the 2-node cluster (a partitioner alone is in-process only).
         configurator.ReceiveEndpoint("webhook-dispatch", e =>
         {
+            e.SingleActiveConsumer = true;
             var partitioner = e.CreatePartitioner(16);
             e.ConfigureConsumer<WebhookDispatchConsumer>(context);
             e.UsePartitioner<AppraisalCreatedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+            e.UsePartitioner<AppraisalStatusChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+        });
+
+        // ---------------------------------------------------------------------
+        // Ordering-critical endpoints. SingleActiveConsumer funnels each queue to ONE
+        // node; the partitioner then serializes per AppraisalId on that node (parallel
+        // across appraisals). SAC alone is NOT enough — the active node still processes
+        // ConcurrentMessageLimit messages in parallel. Each consumer is marked
+        // [ExcludeFromConfigureEndpoints] so ConfigureEndpoints does not also auto-create
+        // a default (unordered) queue for it.
+        // ---------------------------------------------------------------------
+
+        // #1 Appraisal status sync — out-of-order WorkflowTransitioned events must not
+        // overwrite the authoritative Appraisals.Status with a stale value.
+        configurator.ReceiveEndpoint("appraisal-status-sync", e =>
+        {
+            e.SingleActiveConsumer = true;
+            var partitioner = e.CreatePartitioner(16);
+            e.ConfigureConsumer<WorkflowTransitionedIntegrationEventHandler>(context);
+            e.UsePartitioner<WorkflowTransitionedIntegrationEvent>(
+                partitioner, m => m.Message.AppraisalId ?? m.Message.WorkflowInstanceId);
+        });
+
+        // #2 External cycle tracking — close-before-open must not silently no-op and
+        // corrupt cycle counts / SLA business-minutes.
+        configurator.ReceiveEndpoint("appraisal-ext-cycle", e =>
+        {
+            e.SingleActiveConsumer = true;
+            var partitioner = e.CreatePartitioner(16);
+            e.ConfigureConsumer<ExternalCycleTrackingHandler>(context);
+            e.UsePartitioner<WorkflowTransitionedIntegrationEvent>(
+                partitioner, m => m.Message.AppraisalId ?? m.Message.WorkflowInstanceId);
+        });
+
+        // #3 Assignment sync — the three assignment events mutate the SAME AppraisalAssignment
+        // row. Co-locating them on one partitioned endpoint serializes all three per appraisal,
+        // eliminating the cross-type field-clobber race.
+        configurator.ReceiveEndpoint("appraisal-assignment-sync", e =>
+        {
+            e.SingleActiveConsumer = true;
+            var partitioner = e.CreatePartitioner(16);
+            e.ConfigureConsumer<CompanyAssignedIntegrationEventHandler>(context);
+            e.ConfigureConsumer<InternalAssignedIntegrationEventHandler>(context);
+            e.ConfigureConsumer<InternalFollowupAssignedIntegrationEventHandler>(context);
+            e.UsePartitioner<CompanyAssignedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+            e.UsePartitioner<InternalAssignedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+            e.UsePartitioner<InternalFollowupAssignedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+        });
+
+        // #4 Dashboard status counter — the decrement-old/increment-new bucket move is not
+        // commutative; serialize per appraisal so out-of-order transitions don't drift counts.
+        configurator.ReceiveEndpoint("appraisal-status-dashboard", e =>
+        {
+            e.SingleActiveConsumer = true;
+            var partitioner = e.CreatePartitioner(16);
+            e.ConfigureConsumer<AppraisalStatusChangedDashboardHandler>(context);
             e.UsePartitioner<AppraisalStatusChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
 

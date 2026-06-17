@@ -1,6 +1,9 @@
+using Dapper;
 using Microsoft.EntityFrameworkCore;
+using Shared.Data;
 using Shared.Identity;
 using Workflow.Data.Repository;
+using Workflow.Domain;
 using Workflow.Workflow.Activities.Approval;
 using Workflow.Workflow.Features.GetApprovalList;
 using Workflow.Workflow.Repositories;
@@ -41,6 +44,7 @@ public class GetApprovalHistoryQueryHandler(
     IApprovalVoteRepository voteRepository,
     IWorkflowInstanceRepository workflowInstanceRepository,
     WorkflowDbContext dbContext,
+    ISqlConnectionFactory connectionFactory,
     ICurrentUserService currentUser
 ) : IQueryHandler<GetApprovalHistoryQuery, GetApprovalListResponse?>
 {
@@ -51,10 +55,15 @@ public class GetApprovalHistoryQueryHandler(
 
         if (votes.Count == 0) return null;
 
+        // Legacy-imported rounds have no WorkflowInstance — their committee config never lived in
+        // instance variables. Serve those from the persisted appraisal-side outcome instead.
+        if (votes[0].WorkflowInstanceId is null)
+            return await BuildFromPersistedOutcomeAsync(query, votes, ct);
+
         // All votes in the latest round share the same WorkflowInstanceId.
         // The member roster / committee config all live in the instance variables; without
         // it we could only return a vote list we cannot map to members, so treat it as 404.
-        var workflowInstanceId = votes[0].WorkflowInstanceId;
+        var workflowInstanceId = votes[0].WorkflowInstanceId!.Value;
         var instance = await workflowInstanceRepository.GetByIdAsync(workflowInstanceId, ct);
         if (instance is null) return null;
 
@@ -136,5 +145,87 @@ public class GetApprovalHistoryQueryHandler(
             conditionStatuses,
             meetingRef,
             status);
+    }
+
+    // Migrated / legacy path: no WorkflowInstance. Roster is rebuilt from the imported vote
+    // rows themselves; committee identity + meeting come from the persisted outcome view.
+    private async Task<GetApprovalListResponse?> BuildFromPersistedOutcomeAsync(
+        GetApprovalHistoryQuery query, List<ApprovalVote> votes, CancellationToken ct)
+    {
+        var currentUsername = currentUser.Username;
+        var memberStatuses = votes
+            .OrderBy(v => v.VotedAt)
+            .Select(v => new ApprovalMemberStatus(
+                v.Member,
+                v.MemberRole,
+                "Voted",
+                v.Vote,
+                v.Comments,
+                v.VotedAt,
+                !string.IsNullOrEmpty(currentUsername)
+                    && string.Equals(currentUsername, v.Member, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        var connection = connectionFactory.GetOpenConnection();
+        var outcome = await connection.QuerySingleOrDefaultAsync<ApprovalOutcomeRow>(
+            new CommandDefinition(OutcomeSql, new { query.AppraisalId }, cancellationToken: ct));
+
+        var totalVotes = votes.Count;
+
+        // Authoritative outcome: Appraisals.ApprovedByCommittee is set (to the committee code) ONLY
+        // when the committee approved — it already encodes whatever majority/quorum/role rule applied
+        // at decision time, so we trust it rather than re-deriving from raw vote counts (which would
+        // mislabel a non-simple-majority approval as "Returned"). The vote rows drive the display
+        // roster only. `outcome` is null only for orphaned votes with no Appraisals row → not approved.
+        var approved = !string.IsNullOrEmpty(outcome?.ApprovedByCommittee);
+
+        // Committee code: prefer the review's committee; fall back to ApprovedByCommittee, which IS the
+        // committee code (covers an approved appraisal whose AppraisalReviews row is absent).
+        var committeeCode = !string.IsNullOrEmpty(outcome?.CommitteeCode)
+            ? outcome!.CommitteeCode
+            : outcome?.ApprovedByCommittee;
+
+        MeetingReference? meetingRef = null;
+        if (outcome?.MeetingId is { } meetingId && meetingId != Guid.Empty)
+            meetingRef = new MeetingReference(
+                meetingId, outcome.MeetingTitle ?? string.Empty, outcome.MeetingStartAt, outcome.MeetingEndedAt);
+
+        return new GetApprovalListResponse(
+            query.ActivityId,
+            outcome?.CommitteeName,
+            committeeCode,
+            ApprovalListProjection.DeriveTier(committeeCode),
+            totalVotes,                 // historical: every roster member is a recorded voter
+            totalVotes,
+            true,                       // a closed historical round had the quorum to decide
+            approved,                   // majority reflects the recorded outcome
+            memberStatuses,
+            new List<ApprovalConditionStatus>(),
+            meetingRef,
+            approved ? "Approved" : "Returned");
+    }
+
+    private const string OutcomeSql = """
+        SELECT TOP 1
+            o.CommitteeCode,
+            o.CommitteeName,
+            o.ApprovedByCommittee,
+            o.MeetingId,
+            o.MeetingTitle,
+            o.MeetingStartAt,
+            o.MeetingEndedAt
+        FROM appraisal.vw_AppraisalApprovalOutcome o
+        WHERE o.AppraisalId = @AppraisalId
+        """;
+
+    private sealed class ApprovalOutcomeRow
+    {
+        public string? CommitteeCode { get; set; }
+        public string? CommitteeName { get; set; }
+        public string? ApprovedByCommittee { get; set; }
+        public Guid? MeetingId { get; set; }
+        public string? MeetingTitle { get; set; }
+        public DateTime? MeetingStartAt { get; set; }
+        public DateTime? MeetingEndedAt { get; set; }
     }
 }

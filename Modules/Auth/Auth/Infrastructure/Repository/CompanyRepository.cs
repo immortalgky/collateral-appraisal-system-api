@@ -16,7 +16,8 @@ public class CompanyRepository(AuthDbContext dbContext) : ICompanyRepository
 
     public async Task<List<Company>> GetAllAsync(bool activeOnly = false, CancellationToken cancellationToken = default)
     {
-        var query = dbContext.Companies.AsQueryable();
+        // Read-only callers (selection, listing, seed lookups), so skip change tracking.
+        var query = dbContext.Companies.AsNoTracking();
         if (activeOnly)
             query = query.Where(c => c.IsActive);
         return await query.OrderBy(c => c.Name).ToListAsync(cancellationToken);
@@ -24,10 +25,13 @@ public class CompanyRepository(AuthDbContext dbContext) : ICompanyRepository
 
     public async Task<List<Company>> SearchAsync(string? searchTerm, bool activeOnly = false, CancellationToken cancellationToken = default)
     {
-        var query = dbContext.Companies.AsQueryable();
+        var query = dbContext.Companies.AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
-            query = query.Where(c => c.Name.Contains(searchTerm) || (c.TaxId != null && c.TaxId.Contains(searchTerm)));
+            query = query.Where(c =>
+                c.Name.Contains(searchTerm)
+                || (c.NameLocal != null && c.NameLocal.Contains(searchTerm))
+                || (c.TaxId != null && c.TaxId.Contains(searchTerm)));
 
         if (activeOnly)
             query = query.Where(c => c.IsActive);
@@ -37,7 +41,7 @@ public class CompanyRepository(AuthDbContext dbContext) : ICompanyRepository
 
     public async Task<List<Company>> GetByLoanTypeAsync(string loanType, bool activeOnly = true, CancellationToken cancellationToken = default)
     {
-        var query = dbContext.Companies.Where(c => !c.IsDeleted);
+        var query = dbContext.Companies.AsNoTracking().Where(c => !c.IsDeleted);
 
         if (activeOnly)
             query = query.Where(c => c.IsActive);

@@ -43,8 +43,8 @@ public class GetCompaniesQueryHandler(
         {
             overviewMap.TryGetValue(c.Id, out var ov);
             return new CompanyDto(
-                c.Id, c.Name, c.TaxId, c.Phone, c.Email,
-                c.Street, c.City, c.Province, c.PostalCode,
+                c.Id, c.Name, c.NameLocal, c.TaxId, c.Phone, c.Email,
+                c.AddressLine1, c.AddressLine2, c.EffectiveDate, c.ExpireDate,
                 c.ContactPerson, c.IsActive, c.LoanTypes,
                 HostCompanyCode:  c.HostCompanyCode,
                 BankAccountNo:    c.BankAccountNo,

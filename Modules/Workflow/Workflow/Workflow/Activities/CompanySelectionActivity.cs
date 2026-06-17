@@ -1,3 +1,4 @@
+using Auth.Domain.Companies;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Workflow.AssigneeSelection.Services;
@@ -14,17 +15,20 @@ namespace Workflow.Workflow.Activities;
 public class CompanySelectionActivity : WorkflowActivityBase
 {
     private readonly ICompanyRoundRobinService _companyRoundRobinService;
+    private readonly ICompanyRepository _companyRepository;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IIntegrationEventOutbox _outbox;
     private readonly ILogger<CompanySelectionActivity> _logger;
 
     public CompanySelectionActivity(
         ICompanyRoundRobinService companyRoundRobinService,
+        ICompanyRepository companyRepository,
         IDateTimeProvider dateTimeProvider,
         IIntegrationEventOutbox outbox,
         ILogger<CompanySelectionActivity> logger)
     {
         _companyRoundRobinService = companyRoundRobinService;
+        _companyRepository = companyRepository;
         _dateTimeProvider = dateTimeProvider;
         _outbox = outbox;
         _logger = logger;
@@ -39,7 +43,12 @@ public class CompanySelectionActivity : WorkflowActivityBase
         CancellationToken cancellationToken = default)
     {
         var selectionMethod = GetVariable<string>(context, "assignmentMethod", "round_robin");
-        var loanType = GetVariable<string>(context, "loanType", "");
+        // Round-robin pool scope comes from the banking segment ("Retail"/"IBG"), set at workflow
+        // start by RequestSubmittedIntegrationEventConsumer. The legacy "loanType" variable is
+        // declared in appraisal-workflow.json but never assigned, so reading it always yielded ""
+        // and the Retail/IBG pools were never matched. Local name kept as loanType so the replay
+        // guard, assignedCompanyLoanType output, and SelectCompanyAsync(...) calls are unchanged.
+        var loanType = GetVariable<string>(context, "bankingSegment", "");
         var excludedCompanyId = GetVariable<string>(context, "excludedCompanyId", "");
 
         var outputData = new Dictionary<string, object>
@@ -56,6 +65,9 @@ public class CompanySelectionActivity : WorkflowActivityBase
 
         if (!string.IsNullOrEmpty(forceCompanyId) && Guid.TryParse(forceCompanyId, out _))
         {
+            if (!await IsAssignableAsync(forceCompanyId, cancellationToken))
+                return EscalateNotAssignable(context, outputData, forceCompanyId, "Forced");
+
             outputData["assignedCompanyId"] = forceCompanyId;
             outputData["assignedCompanyName"] = forceCompanyName;
             outputData["assignmentMethod"] = "Forced";
@@ -96,6 +108,11 @@ public class CompanySelectionActivity : WorkflowActivityBase
                     context.ActivityId, selectionMethod, companyId);
                 return ActivityResult.Failed("Selected company is excluded from this appraisal assignment.");
             }
+
+            // Block a manually/quotation-selected company that is outside its MOU approval window (e.g.
+            // an MOU that lapsed between sending the quotation and finalising it). Escalate to admin.
+            if (!await IsAssignableAsync(companyId, cancellationToken))
+                return EscalateNotAssignable(context, outputData, companyId, selectionMethod);
 
             var normalizedMethod = isQuotation ? "Quotation" : "Manual";
 
@@ -163,12 +180,48 @@ public class CompanySelectionActivity : WorkflowActivityBase
         }
 
         // No matching companies — escalate to admin
-        outputData["decision"] = "no_match";
-        outputData["selectionError"] = result.ErrorMessage ?? "No eligible companies";
+        SetNoMatch(outputData, result.ErrorMessage ?? "No eligible companies");
 
         _logger.LogWarning(
             "CompanySelectionActivity {ActivityId}: no match, escalating to admin. Error: {Error}",
             context.ActivityId, result.ErrorMessage);
+
+        return ActivityResult.Success(outputData);
+    }
+
+    // Mark the selection as needing admin review. Clears any company id so the no_match state can't
+    // carry a stale assignment forward (workflow output merges into Variables; on replay/routeback a
+    // previously-selected company id would otherwise linger under a no_match decision).
+    private static void SetNoMatch(Dictionary<string, object> outputData, string error)
+    {
+        outputData["decision"] = "no_match";
+        outputData["selectionError"] = error;
+        outputData["assignedCompanyId"] = "";
+        outputData["assignedCompanyName"] = "";
+    }
+
+    // True only if the company exists and is within its MOU approval window — the same rule the
+    // round-robin path applies, so manual/quotation/forced selections can't route to an expired company.
+    private async Task<bool> IsAssignableAsync(string companyIdRaw, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(companyIdRaw, out var id)) return false;
+        var company = await _companyRepository.GetByIdAsync(id, cancellationToken);
+        return company is not null && company.IsAssignable(_dateTimeProvider.ApplicationNow);
+    }
+
+    // Selected company can't take the assignment (outside its MOU window) — escalate to admin review
+    // via the activity's no_match transition rather than publishing an assignment.
+    private ActivityResult EscalateNotAssignable(
+        ActivityContext context,
+        Dictionary<string, object> outputData,
+        string companyId,
+        string method)
+    {
+        SetNoMatch(outputData, "Selected company is not currently assignable (outside its MOU approval window).");
+
+        _logger.LogWarning(
+            "CompanySelectionActivity {ActivityId}: {Method} company {CompanyId} is outside its MOU window; escalating to admin",
+            context.ActivityId, method, companyId);
 
         return ActivityResult.Success(outputData);
     }
