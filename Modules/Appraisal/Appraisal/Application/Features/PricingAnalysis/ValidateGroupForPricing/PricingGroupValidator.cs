@@ -45,8 +45,8 @@ public static class PricingGroupValidator
         {
             // Rule 2: at least one maker survey (market comparable).
             surveyCount > 0
-                ? Passed("MakerSurvey", "Maker survey")
-                : Failed("MakerSurvey", "Maker survey",
+                ? Passed("MarketSurvey", "Market survey")
+                : Failed("MarketSurvey", "Market survey",
                     ["At least one survey (market comparable) is required for this appraisal."]),
 
             // Rule 3: each Building (B) property has a building-detail record.
