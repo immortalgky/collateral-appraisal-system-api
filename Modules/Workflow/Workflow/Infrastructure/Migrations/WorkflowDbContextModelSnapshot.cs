@@ -338,6 +338,57 @@ namespace Workflow.Infrastructure.Migrations
                     b.ToTable("ActivityProcessExecutions", "workflow");
                 });
 
+            modelBuilder.Entity("Workflow.Data.Entities.CompanyRoundRobinConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Entries")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("LoanType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoanType")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CompanyRoundRobinConfigurations_LoanType_Active")
+                        .HasFilter("[IsActive] = 1");
+
+                    b.ToTable("CompanyRoundRobinConfigurations", "workflow");
+                });
+
             modelBuilder.Entity("Workflow.Data.Entities.TaskAssignmentConfiguration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -576,7 +627,7 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<DateTime>("VotedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("WorkflowInstanceId")
+                    b.Property<Guid?>("WorkflowInstanceId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
@@ -2052,6 +2103,11 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.Property<DateTime>("LastAssignedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("Weight")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
 
                     b.HasKey("ActivityName", "GroupsHash", "UserId");
 

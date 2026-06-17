@@ -48,16 +48,19 @@ public class AssignAppraisalCommandHandler(
             ["internalFollowupMethod"] = command.InternalFollowupAssignmentMethod ?? string.Empty
         };
 
-        // INT path: pin the admin-selected internal appraiser onto int-appraisal-execution,
-        // otherwise the activity's default round-robin strategy will pick a different user.
+        // INT path: pin the admin-selected internal appraiser (the int-appraisal-execution
+        // EXECUTOR, carried in AssigneeUserId) onto int-appraisal-execution; otherwise the
+        // activity's default round-robin strategy picks a different user. Note: InternalAppraiserId
+        // is the separate followup/checker field and feeds internalFollowupStaffId above — it is
+        // NOT the executor.
         IReadOnlyDictionary<string, WorkflowAssigneeOverride>? overrides = null;
         if (string.Equals(command.DecisionTaken, "INT", StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrEmpty(command.InternalAppraiserId))
+            && !string.IsNullOrEmpty(command.AssigneeUserId))
         {
             overrides = new Dictionary<string, WorkflowAssigneeOverride>
             {
                 ["int-appraisal-execution"] = new WorkflowAssigneeOverride(
-                    Assignee: command.InternalAppraiserId,
+                    Assignee: command.AssigneeUserId,
                     Reason: "Admin-selected internal appraiser",
                     OverrideBy: command.AssignedBy)
             };

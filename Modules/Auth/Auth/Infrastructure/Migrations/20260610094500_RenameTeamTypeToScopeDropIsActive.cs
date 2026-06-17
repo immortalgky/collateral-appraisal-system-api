@@ -7,12 +7,39 @@ namespace Auth.Infrastructure.Migrations
     /// <inheritdoc />
     public partial class RenameTeamTypeToScopeDropIsActive : Migration
     {
-        // auth.Teams is DbUp-created and mapped with ExcludeFromMigrations(), so EF does
-        // not scaffold column ops for it. Authored explicitly as guarded raw SQL.
+        // auth.Teams / auth.TeamMembers are mapped with ExcludeFromMigrations(), so EF does
+        // not scaffold ops for them. This migration owns their creation (final schema) and
+        // migrates any pre-existing old-schema (Type/IsActive) tables. Authored as guarded raw SQL.
 
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // EF now owns creation of these tables. Create them in their FINAL shape if
+            // missing (fresh DB), since the coordinator runs EF migrations before the DbUp
+            // seed script. On existing DBs the tables already exist, so this no-ops and the
+            // transform blocks below migrate the old Type/IsActive schema to Scope/Description.
+            migrationBuilder.Sql(@"
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES
+           WHERE TABLE_SCHEMA = 'auth' AND TABLE_NAME = 'Teams')
+    CREATE TABLE auth.Teams (
+        Id UNIQUEIDENTIFIER NOT NULL DEFAULT NEWSEQUENTIALID(),
+        Name NVARCHAR(200) NOT NULL,
+        Scope NVARCHAR(50) NOT NULL CONSTRAINT DF_Teams_Scope DEFAULT 'Bank',
+        Description NVARCHAR(500) NULL,
+        CONSTRAINT PK_Teams PRIMARY KEY (Id)
+    );");
+
+            migrationBuilder.Sql(@"
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES
+           WHERE TABLE_SCHEMA = 'auth' AND TABLE_NAME = 'TeamMembers')
+    CREATE TABLE auth.TeamMembers (
+        TeamId UNIQUEIDENTIFIER NOT NULL,
+        UserId UNIQUEIDENTIFIER NOT NULL,
+        CONSTRAINT PK_TeamMembers PRIMARY KEY (TeamId, UserId),
+        CONSTRAINT FK_TeamMembers_Teams FOREIGN KEY (TeamId) REFERENCES auth.Teams(Id),
+        CONSTRAINT FK_TeamMembers_Users FOREIGN KEY (UserId) REFERENCES auth.AspNetUsers(Id)
+    );");
+
             // Rename Type -> Scope (dropping its auto-named default constraint first)
             migrationBuilder.Sql(@"
 IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS

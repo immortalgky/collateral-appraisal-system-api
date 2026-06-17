@@ -19,7 +19,13 @@ namespace Common.Application.EventHandlers;
 /// TODO: user to provide derivation rules for
 /// Pending → InProgress → UnderReview → Completed → Cancelled transitions
 /// (e.g., should Cancelled always decrement its previous status bucket?).
+///
+/// Wired to the partitioned, SingleActiveConsumer "appraisal-status-dashboard" endpoint in
+/// Program.cs: the decrement-old/increment-new bucket move is not commutative, so per-AppraisalId
+/// ordering across the cluster prevents counter drift. [ExcludeFromConfigureEndpoints] keeps
+/// ConfigureEndpoints from also creating a default unordered queue.
 /// </summary>
+[ExcludeFromConfigureEndpoints]
 public class AppraisalStatusChangedDashboardHandler(
     ISqlConnectionFactory connectionFactory,
     ILogger<AppraisalStatusChangedDashboardHandler> logger,

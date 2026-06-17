@@ -11,4 +11,7 @@ public record EligibleCompanyDto(
     string? TaxId,
     decimal AverageRating,
     int     EvaluationCount,
-    int     ActiveAssignments);
+    int     ActiveAssignments,
+    // Advisory: false when the company is outside its MOU approval window. The picker is intentionally
+    // unfiltered (shared with user-account association), so the FE can use this to badge/disable rows.
+    bool    IsAssignable = true);

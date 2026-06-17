@@ -29,7 +29,8 @@ public interface IAssignmentRepository
     Task<int> GetActiveTaskCountForUserAsync(string userId, CancellationToken cancellationToken = default);
 
     Task SyncUsersForGroupCombinationAsync(string activityName, string groupsHash, string groupsList,
-        List<string> eligibleUsers, CancellationToken cancellationToken = default);
+        List<string> eligibleUsers, CancellationToken cancellationToken = default,
+        IReadOnlyDictionary<string, int>? weights = null);
 
     Task<string?> SelectNextUserWithRoundResetAsync(string activityName, string groupsHash,
         CancellationToken cancellationToken = default);

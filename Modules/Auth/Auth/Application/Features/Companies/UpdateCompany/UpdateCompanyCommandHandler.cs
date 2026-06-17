@@ -15,13 +15,14 @@ public class UpdateCompanyCommandHandler(ICompanyRepository companyRepository)
 
         company.Update(
             command.Name,
+            command.NameLocal,
             command.TaxId,
             command.Phone,
             command.Email,
-            command.Street,
-            command.City,
-            command.Province,
-            command.PostalCode,
+            command.AddressLine1,
+            command.AddressLine2,
+            command.EffectiveDate,
+            command.ExpireDate,
             command.ContactPerson,
             command.IsActive,
             command.HostCompanyCode,

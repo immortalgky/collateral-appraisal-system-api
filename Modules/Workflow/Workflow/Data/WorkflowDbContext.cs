@@ -27,6 +27,9 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
     // Task assignment configuration
     public DbSet<TaskAssignmentConfiguration> TaskAssignmentConfigurations => Set<TaskAssignmentConfiguration>();
 
+    // External-company round-robin pool + weights
+    public DbSet<CompanyRoundRobinConfiguration> CompanyRoundRobinConfigurations => Set<CompanyRoundRobinConfiguration>();
+
     // Activity process configuration (submission pipeline)
     public DbSet<ActivityProcessConfiguration> ActivityProcessConfigurations => Set<ActivityProcessConfiguration>();
 

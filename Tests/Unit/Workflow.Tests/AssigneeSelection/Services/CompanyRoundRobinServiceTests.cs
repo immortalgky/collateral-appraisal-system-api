@@ -5,7 +5,10 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Workflow.AssigneeSelection.Services;
 using Workflow.Data.Repository;
+using Workflow.Services.Configuration;
+using Workflow.Services.Configuration.Models;
 using Workflow.Services.Hashing;
+using Shared.Time;
 using Xunit;
 
 namespace Workflow.Tests.AssigneeSelection.Services;
@@ -15,6 +18,7 @@ public class CompanyRoundRobinServiceTests
     private readonly ICompanyRepository _companyRepository;
     private readonly IAssignmentRepository _assignmentRepository;
     private readonly IGroupHashService _groupHashService;
+    private readonly ICompanyRoundRobinConfigService _configService;
     private readonly CompanyRoundRobinService _sut;
 
     public CompanyRoundRobinServiceTests()
@@ -22,15 +26,24 @@ public class CompanyRoundRobinServiceTests
         _companyRepository = Substitute.For<ICompanyRepository>();
         _assignmentRepository = Substitute.For<IAssignmentRepository>();
         _groupHashService = Substitute.For<IGroupHashService>();
+        _configService = Substitute.For<ICompanyRoundRobinConfigService>();
+        var dateTimeProvider = Substitute.For<IDateTimeProvider>();
+        dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
         var logger = Substitute.For<ILogger<CompanyRoundRobinService>>();
 
         _groupHashService.GenerateGroupsHash(Arg.Any<List<string>>()).Returns("hash-123");
         _groupHashService.GenerateGroupsList(Arg.Any<List<string>>()).Returns("list-123");
 
+        // No pool configured by default — round-robin falls back to all active companies.
+        _configService.ResolveAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns((CompanyRoundRobinConfigurationDto?)null);
+
         _sut = new CompanyRoundRobinService(
             _companyRepository,
             _assignmentRepository,
             _groupHashService,
+            _configService,
+            dateTimeProvider,
             logger);
     }
 
@@ -60,7 +73,7 @@ public class CompanyRoundRobinServiceTests
             .Returns(companyId.ToString());
 
         // Act
-        var result = await _sut.SelectCompanyAsync();
+        var result = await _sut.SelectCompanyAsync(null, null, CancellationToken.None);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -76,7 +89,7 @@ public class CompanyRoundRobinServiceTests
             .Returns(new List<Company>());
 
         // Act
-        var result = await _sut.SelectCompanyAsync();
+        var result = await _sut.SelectCompanyAsync(null, null, CancellationToken.None);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
@@ -95,7 +108,7 @@ public class CompanyRoundRobinServiceTests
             .Returns((string?)null);
 
         // Act
-        var result = await _sut.SelectCompanyAsync();
+        var result = await _sut.SelectCompanyAsync(null, null, CancellationToken.None);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
@@ -114,7 +127,7 @@ public class CompanyRoundRobinServiceTests
             .Returns(Guid.NewGuid().ToString()); // unknown ID
 
         // Act
-        var result = await _sut.SelectCompanyAsync();
+        var result = await _sut.SelectCompanyAsync(null, null, CancellationToken.None);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
@@ -129,7 +142,7 @@ public class CompanyRoundRobinServiceTests
             .ThrowsAsync(new InvalidOperationException("DB down"));
 
         // Act
-        var result = await _sut.SelectCompanyAsync();
+        var result = await _sut.SelectCompanyAsync(null, null, CancellationToken.None);
 
         // Assert
         result.IsSuccess.Should().BeFalse();
@@ -152,7 +165,7 @@ public class CompanyRoundRobinServiceTests
             .Returns(companyId.ToString());
 
         // Act
-        var result = await _sut.SelectCompanyAsync("Mortgage");
+        var result = await _sut.SelectCompanyAsync(null, "Mortgage", CancellationToken.None);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -179,7 +192,7 @@ public class CompanyRoundRobinServiceTests
             .Returns(companyId.ToString());
 
         // Act
-        await _sut.SelectCompanyAsync("Auto");
+        await _sut.SelectCompanyAsync(null, "Auto", CancellationToken.None);
 
         // Assert — group key should be "LoanType_Auto"
         _groupHashService.Received(1).GenerateGroupsHash(
@@ -194,7 +207,7 @@ public class CompanyRoundRobinServiceTests
             .Returns(new List<Company>());
 
         // Act
-        var result = await _sut.SelectCompanyAsync("Rare");
+        var result = await _sut.SelectCompanyAsync(null, "Rare", CancellationToken.None);
 
         // Assert
         result.IsSuccess.Should().BeFalse();

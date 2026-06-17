@@ -3,7 +3,13 @@ namespace Workflow.Domain;
 public class ApprovalVote : Entity<Guid>
 {
     public Guid AppraisalId { get; private set; }
-    public Guid WorkflowInstanceId { get; private set; }
+
+    /// <summary>
+    /// The workflow instance that produced this vote. NULL for votes imported from legacy
+    /// completed appraisals, which have no <c>workflow.WorkflowInstances</c> row — the
+    /// approval-history endpoint serves those from <c>appraisal.AppraisalReviews</c> instead.
+    /// </summary>
+    public Guid? WorkflowInstanceId { get; private set; }
     public string ActivityId { get; private set; } = default!;
     public Guid ActivityExecutionId { get; private set; }
     public string Member { get; private set; } = default!;

@@ -29,8 +29,8 @@ public class GetCompanyByIdQueryHandler(
             sql, new { id = company.Id });
 
         var dto = new CompanyDto(
-            company.Id, company.Name, company.TaxId, company.Phone, company.Email,
-            company.Street, company.City, company.Province, company.PostalCode,
+            company.Id, company.Name, company.NameLocal, company.TaxId, company.Phone, company.Email,
+            company.AddressLine1, company.AddressLine2, company.EffectiveDate, company.ExpireDate,
             company.ContactPerson, company.IsActive, company.LoanTypes,
             HostCompanyCode:  company.HostCompanyCode,
             BankAccountNo:    company.BankAccountNo,

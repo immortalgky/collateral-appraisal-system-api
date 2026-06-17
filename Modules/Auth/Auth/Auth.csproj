@@ -16,6 +16,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <EmbeddedResource Include="Infrastructure\Seed\Data\external-appraisal-companies.json"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
     </ItemGroup>
 

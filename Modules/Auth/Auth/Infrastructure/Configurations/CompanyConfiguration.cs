@@ -12,15 +12,17 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.HasKey(c => c.Id);
 
         builder.Property(c => c.Name).IsRequired().HasMaxLength(200);
+        builder.Property(c => c.NameLocal).HasMaxLength(200);
         builder.Property(c => c.TaxId).HasMaxLength(50);
-        builder.Property(c => c.Phone).HasMaxLength(50);
+        builder.Property(c => c.Phone).HasMaxLength(200);
         builder.Property(c => c.Email).HasMaxLength(200);
-        builder.Property(c => c.Street).HasMaxLength(500);
-        builder.Property(c => c.City).HasMaxLength(100);
-        builder.Property(c => c.Province).HasMaxLength(100);
-        builder.Property(c => c.PostalCode).HasMaxLength(20);
+        builder.Property(c => c.AddressLine1).HasMaxLength(500);
+        builder.Property(c => c.AddressLine2).HasMaxLength(500);
         builder.Property(c => c.ContactPerson).HasMaxLength(200);
         builder.Property(c => c.HostCompanyCode).HasMaxLength(10);
+        // Legacy "Company Code" from the bank's parameter sheet — persisted for reference only
+        // (not maintained or returned by the API).
+        builder.Property(c => c.LegacyCompanyCode).HasMaxLength(20);
         builder.Property(c => c.BankAccountNo).HasMaxLength(20);
         builder.Property(c => c.BankAccountName).HasMaxLength(200);
 

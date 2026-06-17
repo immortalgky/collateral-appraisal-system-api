@@ -28,6 +28,10 @@ public class RoundRobinQueueConfiguration : IEntityTypeConfiguration<RoundRobinQ
             .HasDefaultValue(0)
             .IsRequired();
 
+        builder.Property(x => x.Weight)
+            .HasDefaultValue(1)
+            .IsRequired();
+
         builder.Property(x => x.LastAssignedAt)
             .IsRequired();
 

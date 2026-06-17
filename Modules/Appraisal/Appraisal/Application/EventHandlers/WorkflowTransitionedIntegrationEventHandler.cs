@@ -20,7 +20,12 @@ namespace Appraisal.Application.EventHandlers;
 ///
 /// Terminal transitions (DestinationActivityId == null) are intentional no-ops here;
 /// MarkApprovedByCommittee / Cancel own those transitions via their dedicated events.
+///
+/// Wired to the partitioned, SingleActiveConsumer "appraisal-status-sync" endpoint in Program.cs
+/// (per-AppraisalId ordering across the cluster), so [ExcludeFromConfigureEndpoints] keeps
+/// ConfigureEndpoints from also creating a default unordered queue.
 /// </summary>
+[ExcludeFromConfigureEndpoints]
 public class WorkflowTransitionedIntegrationEventHandler(
     ILogger<WorkflowTransitionedIntegrationEventHandler> logger,
     IAppraisalRepository appraisalRepository,
@@ -282,6 +287,10 @@ public class WorkflowTransitionedIntegrationEventHandler(
         {
             case "ext-appraisal-execution":
             case "int-appraisal-execution":
+                // INT: InternalAssignedIntegrationEventHandler now owns the Assigned→InProgress
+                // transition (assign and start coincide on int-appraisal-execution), so this case is a
+                // no-op for internal once that has run. It remains authoritative for the EXT path,
+                // where Assigned is stamped much earlier (at company-selection) with no race.
                 if (assignment.AssignmentStatus == AssignmentStatus.Assigned)
                 {
                     assignment.StartWork();

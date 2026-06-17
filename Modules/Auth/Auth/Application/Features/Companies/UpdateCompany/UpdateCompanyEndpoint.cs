@@ -7,8 +7,8 @@ public class UpdateCompanyEndpoint : ICarterModule
         app.MapPut("/companies/{id:guid}", async (Guid id, UpdateCompanyRequest request, ISender sender) =>
             {
                 var command = new UpdateCompanyCommand(
-                    id, request.Name, request.TaxId, request.Phone, request.Email,
-                    request.Street, request.City, request.Province, request.PostalCode,
+                    id, request.Name, request.NameLocal, request.TaxId, request.Phone, request.Email,
+                    request.AddressLine1, request.AddressLine2, request.EffectiveDate, request.ExpireDate,
                     request.ContactPerson, request.IsActive, request.HostCompanyCode,
                     request.LoanTypes, request.BankAccountNo, request.BankAccountName);
                 var result = await sender.Send(command);

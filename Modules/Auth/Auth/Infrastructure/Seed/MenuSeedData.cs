@@ -149,6 +149,7 @@ public static class MenuSeedData
             }),
         new("main.workflow-step-validation", "Workflow Step Validation", "shield-check", IconStyle.Solid, "text-orange-500", "/admin/workflow-step-validation", "WORKFLOW_ADMIN", "WORKFLOW_ADMIN"),
         new("main.workflow-assignment-config", "Task Assignment Overrides", "users-gear", IconStyle.Solid, "text-orange-500", "/admin/workflow-assignment-config", "WORKFLOW_ADMIN", "WORKFLOW_ADMIN"),
+        new("main.workflow-roundrobin-config", "Company Round-Robin Pools", "shuffle", IconStyle.Solid, "text-orange-500", "/admin/workflow-roundrobin-config", "WORKFLOW_ADMIN", "WORKFLOW_ADMIN"),
         new("main.fee-approval-tiers", "Fee Approval Tiers", "layer-group", IconStyle.Solid, "text-orange-500", "/admin/fee-approval-tiers", "FEE_APPROVAL_CONFIG", "FEE_APPROVAL_CONFIG"),
         new("main.appointment-approval-rule", "Appointment Approval Rule", "calendar-xmark", IconStyle.Solid, "text-orange-500", "/admin/appointment-approval-rule", "APPOINTMENT_APPROVAL_CONFIG", "APPOINTMENT_APPROVAL_CONFIG"),
         new("main.webhook-subscriptions", "Webhook Subscriptions", "plug-circle-bolt", IconStyle.Solid, "text-slate-500", "/admin/webhook-subscriptions", "WEBHOOK_SUBSCRIPTIONS_MANAGE", null),

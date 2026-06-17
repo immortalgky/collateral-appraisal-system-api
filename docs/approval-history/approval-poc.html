@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Approval Information — POC</title>
+<style>
+  :root { --ring:#e5e7eb; --muted:#6b7280; --faint:#9ca3af; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:#f3f4f6; color:#111827; margin:0; padding:24px 16px 64px; }
+  .wrap { max-width:780px; margin:0 auto; }
+  .note { font-size:13px; color:var(--muted); background:#fff; border:1px solid var(--ring); border-radius:10px; padding:12px 14px; margin-bottom:8px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin:34px 0 12px; }
+
+  .card { background:#fff; border:1px solid var(--ring); border-radius:14px; padding:20px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  .hdr { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+  .ttl { font-size:16px; font-weight:600; }
+  .sub { font-size:13px; color:var(--muted); margin-top:3px; }
+
+  .badge { font-size:12px; font-weight:600; padding:4px 11px; border-radius:999px; white-space:nowrap; }
+  .b-approved { background:#dcfce7; color:#166534; }
+  .b-returned { background:#fef3c7; color:#92400e; }
+  .b-pending  { background:#dbeafe; color:#1e40af; }
+
+  .stats { display:flex; flex-wrap:wrap; gap:28px; margin:18px 0; padding:14px 0; border-top:1px solid #f3f4f6; border-bottom:1px solid #f3f4f6; }
+  .stat .n { font-size:21px; font-weight:700; line-height:1.1; }
+  .stat .l { font-size:12px; color:var(--muted); margin-top:2px; }
+  .chk { font-size:12px; line-height:1.6; }
+  .ok { color:#16a34a; } .no { color:var(--faint); }
+
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; text-transform:uppercase; color:var(--faint); padding:8px; border-bottom:1px solid var(--ring); }
+  td { padding:11px 8px; border-bottom:1px solid #f3f4f6; vertical-align:middle; }
+  tr:last-child td { border-bottom:0; }
+
+  .pill { font-size:11px; font-weight:600; padding:3px 9px; border-radius:6px; white-space:nowrap; }
+  .v-approve   { background:#dcfce7; color:#166534; }
+  .v-reject    { background:#fee2e2; color:#991b1b; }
+  .v-routeback { background:#fef3c7; color:#92400e; }
+  .v-pending   { background:#f3f4f6; color:var(--muted); }
+
+  .me { background:#eff6ff; }
+  .av { width:30px; height:30px; border-radius:999px; background:#e0e7ff; color:#4338ca; font-size:12px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; margin-right:9px; flex:none; }
+  .av-off { background:#f3f4f6; color:var(--faint); }
+  .row { display:flex; align-items:center; }
+
+  /* Variant B list */
+  .item { display:flex; gap:0; align-items:center; padding:12px 0; border-bottom:1px solid #f3f4f6; }
+  .item:last-child { border-bottom:0; }
+  .grow { flex:1; min-width:0; }
+  .name { font-size:14px; }
+  .muted { color:var(--muted); font-size:12px; }
+
+  .meeting { margin-top:14px; padding-top:14px; border-top:1px solid #f3f4f6; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .meeting a { color:#2563eb; text-decoration:none; font-weight:500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="note">
+    <b>Approval Information — POC.</b> Same data shown two ways. Pick a variant (or mix).
+    Everything here is keyed off <code>appraisalId</code> only. The greyed
+    <b>“Not voted”</b> row (Wira S.) appears for <b>live</b> approvals only — for
+    completed/migrated appraisals it simply won’t be present.
+  </div>
+
+  <!-- ===================== VARIANT A ===================== -->
+  <h2>Variant A — summary stats + roster table</h2>
+  <div class="card">
+    <div class="hdr">
+      <div>
+        <div class="ttl">Sub-Committee Approval</div>
+        <div class="sub">Tier 1 &middot; Approved 12 Mar 2026</div>
+      </div>
+      <span class="badge b-approved">Approved</span>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="n">4 / 5</div><div class="l">Votes received</div></div>
+      <div class="stat"><div class="n">3</div><div class="l">Approve</div></div>
+      <div class="stat"><div class="n">0</div><div class="l">Reject</div></div>
+      <div class="stat"><div class="n">1</div><div class="l">Route-back</div></div>
+      <div class="stat">
+        <div class="chk ok">&#10003; Quorum met</div>
+        <div class="chk ok">&#10003; Majority met</div>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr><th>Member</th><th>Role</th><th>Vote</th><th>Comment</th><th>Voted at</th></tr></thead>
+      <tbody>
+        <tr><td><span class="row"><span class="av">SC</span>Somchai C.</span></td><td>Chairman</td><td><span class="pill v-approve">Approve</span></td><td>&mdash;</td><td>12 Mar 09:14</td></tr>
+        <tr class="me"><td><span class="row"><span class="av">NP</span>You (Naree P.)</span></td><td>Member</td><td><span class="pill v-approve">Approve</span></td><td>Value reasonable</td><td>12 Mar 09:20</td></tr>
+        <tr><td><span class="row"><span class="av">AT</span>Anan T.</span></td><td>Member</td><td><span class="pill v-routeback">Route-back</span></td><td>Need recent comps</td><td>12 Mar 09:31</td></tr>
+        <tr><td><span class="row"><span class="av">PK</span>Pim K.</span></td><td>Member</td><td><span class="pill v-approve">Approve</span></td><td>&mdash;</td><td>12 Mar 09:40</td></tr>
+        <tr><td><span class="row"><span class="av av-off">WS</span>Wira S.</span></td><td>Member</td><td><span class="pill v-pending">Not voted</span></td><td>&mdash;</td><td>&mdash;</td></tr>
+      </tbody>
+    </table>
+
+    <div class="meeting">
+      &#128197; Acknowledged at <a href="#">Committee Meeting #2026-014</a> &middot; 12 Mar 2026
+    </div>
+  </div>
+
+  <!-- ===================== VARIANT B ===================== -->
+  <h2>Variant B — compact member list</h2>
+  <div class="card">
+    <div class="hdr">
+      <div>
+        <div class="ttl">Sub-Committee Approval <span class="muted">&middot; Tier 1</span></div>
+        <div class="sub">4 of 5 voted &middot; 3 approve, 1 route-back &middot; approved 12 Mar 2026</div>
+      </div>
+      <span class="badge b-approved">Approved</span>
+    </div>
+
+    <div style="margin-top:10px">
+      <div class="item"><span class="av">SC</span><div class="grow"><div class="name">Somchai C. <span class="muted">&middot; Chairman</span></div><div class="muted">12 Mar 09:14</div></div><span class="pill v-approve">Approve</span></div>
+      <div class="item me" style="border-radius:8px; padding-left:6px; padding-right:6px;"><span class="av">NP</span><div class="grow"><div class="name">You (Naree P.) <span class="muted">&middot; Member</span></div><div class="muted">&ldquo;Value reasonable&rdquo; &middot; 12 Mar 09:20</div></div><span class="pill v-approve">Approve</span></div>
+      <div class="item"><span class="av">AT</span><div class="grow"><div class="name">Anan T. <span class="muted">&middot; Member</span></div><div class="muted">&ldquo;Need recent comps&rdquo; &middot; 12 Mar 09:31</div></div><span class="pill v-routeback">Route-back</span></div>
+      <div class="item"><span class="av">PK</span><div class="grow"><div class="name">Pim K. <span class="muted">&middot; Member</span></div><div class="muted">12 Mar 09:40</div></div><span class="pill v-approve">Approve</span></div>
+      <div class="item"><span class="av av-off">WS</span><div class="grow"><div class="name">Wira S. <span class="muted">&middot; Member</span></div><div class="muted">awaiting vote</div></div><span class="pill v-pending">Not voted</span></div>
+    </div>
+
+    <div class="meeting">
+      &#128197; <a href="#">Committee Meeting #2026-014</a> &middot; 12 Mar 2026
+    </div>
+  </div>
+
+  <!-- ===================== Returned-state example (Variant A styling) ===================== -->
+  <h2>State example — Returned / routed back</h2>
+  <div class="card">
+    <div class="hdr">
+      <div>
+        <div class="ttl">Committee Approval</div>
+        <div class="sub">Tier 2 &middot; Routed back 28 Feb 2026</div>
+      </div>
+      <span class="badge b-returned">Returned</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n">3 / 3</div><div class="l">Votes received</div></div>
+      <div class="stat"><div class="n">1</div><div class="l">Approve</div></div>
+      <div class="stat"><div class="n">2</div><div class="l">Route-back</div></div>
+      <div class="stat"><div class="chk no">&#10007; Majority not met</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Member</th><th>Role</th><th>Vote</th><th>Comment</th><th>Voted at</th></tr></thead>
+      <tbody>
+        <tr><td><span class="row"><span class="av">CW</span>Chai W.</span></td><td>Chairman</td><td><span class="pill v-routeback">Route-back</span></td><td>Revisit land value</td><td>28 Feb 14:02</td></tr>
+        <tr><td><span class="row"><span class="av">MK</span>Mali K.</span></td><td>Member</td><td><span class="pill v-approve">Approve</span></td><td>&mdash;</td><td>28 Feb 14:10</td></tr>
+        <tr><td><span class="row"><span class="av">RT</span>Rung T.</span></td><td>Member</td><td><span class="pill v-routeback">Route-back</span></td><td>Comps too old</td><td>28 Feb 14:18</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>
