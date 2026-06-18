@@ -11,10 +11,10 @@ public class AssetSummaryGroup : Entity<Guid>
     public Guid AppraisalId { get; private set; }
     public int GroupSet { get; private set; }
     public string? AssetGroupDetail { get; private set; }
-    public decimal SumEstimatedPrice { get; private set; }
-    public decimal RoundEstimatedPrice { get; private set; }
-    public decimal SumCurrentPrice { get; private set; }
-    public decimal RoundCurrentPrice { get; private set; }
+    public decimal? SumEstimatedPrice { get; private set; }
+    public decimal? RoundEstimatedPrice { get; private set; }
+    public decimal? SumCurrentPrice { get; private set; }
+    public decimal? RoundCurrentPrice { get; private set; }
 
     // Private constructor for EF Core
     private AssetSummaryGroup() { }

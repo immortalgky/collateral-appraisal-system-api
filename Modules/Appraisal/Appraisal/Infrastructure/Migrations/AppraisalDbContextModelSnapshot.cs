@@ -1348,12 +1348,11 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal?>("Area")
-                        .HasPrecision(19, 4)
-                        .HasColumnType("decimal(19,4)");
+                        .HasPrecision(15, 2)
+                        .HasColumnType("decimal(15,2)");
 
                     b.Property<string>("AssetDetail")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -1373,10 +1372,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasPrecision(19, 4)
                         .HasColumnType("decimal(19,4)");
 
-                    b.Property<int?>("GroupSet")
+                    b.Property<int>("GroupSet")
                         .HasColumnType("int");
 
-                    b.Property<bool>("IsPricesCurrent")
+                    b.Property<bool?>("IsPricesCurrent")
                         .HasColumnType("bit");
 
                     b.Property<decimal?>("PricePerUnit")
@@ -1384,7 +1383,9 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("decimal(19,4)");
 
                     b.Property<string>("PropertyType")
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -1429,19 +1430,19 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<int>("GroupSet")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("RoundCurrentPrice")
+                    b.Property<decimal?>("RoundCurrentPrice")
                         .HasPrecision(19, 4)
                         .HasColumnType("decimal(19,4)");
 
-                    b.Property<decimal>("RoundEstimatedPrice")
+                    b.Property<decimal?>("RoundEstimatedPrice")
                         .HasPrecision(19, 4)
                         .HasColumnType("decimal(19,4)");
 
-                    b.Property<decimal>("SumCurrentPrice")
+                    b.Property<decimal?>("SumCurrentPrice")
                         .HasPrecision(19, 4)
                         .HasColumnType("decimal(19,4)");
 
-                    b.Property<decimal>("SumEstimatedPrice")
+                    b.Property<decimal?>("SumEstimatedPrice")
                         .HasPrecision(19, 4)
                         .HasColumnType("decimal(19,4)");
 

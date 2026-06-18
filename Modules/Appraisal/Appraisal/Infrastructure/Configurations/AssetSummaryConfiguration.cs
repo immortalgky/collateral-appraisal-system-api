@@ -12,12 +12,13 @@ public class
         builder.Property(x => x.AppraisalId).IsRequired();
         builder.HasIndex(x => x.AppraisalId);
 
-        builder.Property(x => x.AssetDetail).HasMaxLength(4000);
-        builder.Property(x => x.Area).HasPrecision(19, 4);
+        builder.Property(x => x.PropertyType).HasMaxLength(30);
+        builder.Property(x => x.AssetDetail);
+        builder.Property(x => x.Area).HasPrecision(15, 2);
         builder.Property(x => x.PricePerUnit).HasPrecision(19, 4);
         builder.Property(x => x.EstimatedPrice).HasPrecision(19, 4);
         builder.Property(x => x.CurrentPrice).HasPrecision(19, 4);
-        builder.Property(x => x.GroupSet);
+        builder.Property(x => x.GroupSet).IsRequired();
         builder.Property(x => x.IsPricesCurrent);
     }
 }

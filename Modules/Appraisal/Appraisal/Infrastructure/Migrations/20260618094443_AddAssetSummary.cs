@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Appraisal.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class AddAssetSummaryReadModels : Migration
+    public partial class AddAssetSummary : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -18,14 +18,14 @@ namespace Appraisal.Infrastructure.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     AppraisalId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PropertyType = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    AssetDetail = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    Area = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
+                    PropertyType = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    AssetDetail = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Area = table.Column<decimal>(type: "decimal(15,2)", precision: 15, scale: 2, nullable: true),
                     PricePerUnit = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
                     EstimatedPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
                     CurrentPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
-                    GroupSet = table.Column<int>(type: "int", nullable: true),
-                    IsPricesCurrent = table.Column<bool>(type: "bit", nullable: false),
+                    GroupSet = table.Column<int>(type: "int", nullable: false),
+                    IsPricesCurrent = table.Column<bool>(type: "bit", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     CreatedWorkstation = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -47,10 +47,10 @@ namespace Appraisal.Infrastructure.Migrations
                     AppraisalId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     GroupSet = table.Column<int>(type: "int", nullable: false),
                     AssetGroupDetail = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    SumEstimatedPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: false),
-                    RoundEstimatedPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: false),
-                    SumCurrentPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: false),
-                    RoundCurrentPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: false),
+                    SumEstimatedPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
+                    RoundEstimatedPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
+                    SumCurrentPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
+                    RoundCurrentPrice = table.Column<decimal>(type: "decimal(19,4)", precision: 19, scale: 4, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     CreatedWorkstation = table.Column<string>(type: "nvarchar(max)", nullable: true),

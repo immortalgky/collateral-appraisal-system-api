@@ -7,22 +7,22 @@ public record GetAssetSummaryResponse(
 
 public record AssetSummaryItemResponse(
     Guid Id,
-    string? PropertyType,
+    string PropertyType,
     string? AssetDetail,
     decimal? Area,
     decimal? PricePerUnit,
     decimal? EstimatedPrice,
     decimal? CurrentPrice,
-    int? GroupSet,
-    bool IsPricesCurrent
+    int GroupSet,
+    bool? IsPricesCurrent
 );
 
 public record AssetSummaryGroupResponse(
     Guid Id,
     int GroupSet,
     string? AssetGroupDetail,
-    decimal SumEstimatedPrice,
-    decimal RoundEstimatedPrice,
-    decimal SumCurrentPrice,
-    decimal RoundCurrentPrice
+    decimal? SumEstimatedPrice,
+    decimal? RoundEstimatedPrice,
+    decimal? SumCurrentPrice,
+    decimal? RoundCurrentPrice
 );
