@@ -1,0 +1,1 @@
+public record DeleteParameterResult(bool IsSuccess);

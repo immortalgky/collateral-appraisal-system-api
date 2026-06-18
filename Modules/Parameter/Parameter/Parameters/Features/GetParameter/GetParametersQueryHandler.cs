@@ -6,7 +6,16 @@ internal class GetParametersQueryHandler(IParameterRepository parameterRepositor
     {
         var parameter = await parameterRepository.GetParameter(query.Parameter, true, cancellationToken);
 
-        var result = parameter.Adapt<List<ParameterDto>>();
+        var result = parameter.Select(p => new ParameterDto(
+            ParId: p.Id,
+            Group: p.Group,
+            Country: p.Country,
+            Language: p.Language,
+            Code: p.Code,
+            Description: p.Description,
+            IsActive: p.IsActive,
+            SeqNo: p.SeqNo
+        )).ToList();
 
         return new GetParametersResult(result);
     }
