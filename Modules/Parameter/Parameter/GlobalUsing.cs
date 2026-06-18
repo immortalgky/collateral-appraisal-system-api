@@ -27,3 +27,5 @@ global using Parameter.Addresses.Features;
 global using Parameter.DocumentRequirements.Models;
 global using Microsoft.Extensions.Logging;
 global using Microsoft.EntityFrameworkCore.Metadata.Builders;
+global using Parameter.Parameters.Services;
+global using Parameter.Contracts.Parameters;

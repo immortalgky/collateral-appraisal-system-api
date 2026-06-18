@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.SupportingDataMaintenance.DeleteSupportingDetailsByBatch;
+
+public record DeleteSupportingDetailsByBatchRequest(List<Guid> SupportingDetailIds);

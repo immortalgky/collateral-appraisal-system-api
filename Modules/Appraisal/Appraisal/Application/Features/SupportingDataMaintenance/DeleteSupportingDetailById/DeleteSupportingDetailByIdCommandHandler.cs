@@ -1,4 +1,3 @@
-
 namespace Appraisal.Application.Features.SupportingDataMaintenance.DeleteSupportingDetailById;
 
 public class DeleteSupportingDetailByIdCommandHandler(ISupportingDataRepository repo, ICurrentUserService currentUserService)

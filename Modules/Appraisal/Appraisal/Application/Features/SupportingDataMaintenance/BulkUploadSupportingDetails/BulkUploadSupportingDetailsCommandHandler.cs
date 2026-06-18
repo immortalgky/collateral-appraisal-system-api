@@ -1,8 +1,13 @@
+using DocumentFormat.OpenXml.Spreadsheet;
+using Parameter.Contracts.Parameters;
+using Parameter.Contracts.Parameters.Dtos;
+
 namespace Appraisal.Application.Features.SupportingDataMaintenance.BulkUploadSupportingDetails;
 
 internal class BulkUploadSupportingDetailsCommandHandler(
     ISupportingDataRepository repo,
-    ICurrentUserService currentUserService
+    ICurrentUserService currentUserService,
+    IParameterLookupService parameterLookupService
 ) : ICommandHandler<BulkUploadSupportingDetailsCommand, BulkUploadSupportingDetailsResult>
 {
     public async Task<BulkUploadSupportingDetailsResult> Handle(
@@ -24,8 +29,45 @@ internal class BulkUploadSupportingDetailsCommandHandler(
                 $"Supporting data with ID {cmd.SupportingId} not found.");
 
         // 3. Parse Excel (throws BulkUploadParseException if any row fails) ─
-        // All-or-nothing: if even one row is invalid, we never reach step 4.
+        // All-or-nothing: if even one row is invalid, we never reach step
         var rows = SupportingDetailExcelParser.Parse(cmd.FileStream);
+
+        // 3.1 Validate parameter fields
+        var errors = new List<RowParseError>();
+        var validCollateralTypes = await parameterLookupService.GetValidCodesAsync(new ParameterDto(
+            ParId: null,
+            Group: "PropertyType",
+            Country: null,
+            Language: null,
+            Code: null,
+            Description: null,
+            IsActive: true,
+            SeqNo: null
+        ), ct);
+        var validBuildingTypes = await parameterLookupService.GetValidCodesAsync(new ParameterDto(
+            ParId: null,
+            Group: "BuildingType",
+            Country: null,
+            Language: null,
+            Code: null,
+            Description: null,
+            IsActive: true,
+            SeqNo: null
+        ), ct);
+
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var excelRowNumber = i + 2;
+            if (!validCollateralTypes.Contains(rows[i].CollateralType))
+                errors.Add(new RowParseError(excelRowNumber, "Collateral Type", $"'{rows[i].CollateralType}' is not a valid parameter code."));
+            if (!validBuildingTypes.Contains(rows[i].BuildingType))
+                errors.Add(new RowParseError(excelRowNumber, "Building Type", $"'{rows[i].CollateralType}' is not a valid parameter code."));
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new BulkUploadParseException(errors.Cast<object>().ToList());
+        }
 
         // 4. Insert every valid row into the aggregate ───────────────────
         // AddDetail only touches in-memory collections — no DB calls here.
