@@ -9,7 +9,8 @@ namespace Appraisal.Domain.Appraisals;
 public record ProjectModelPricingSummary(
     Guid PricingAnalysisId,
     string Status,
-    decimal? FinalAppraisedValue
+    decimal? FinalAppraisedValue,
+    decimal? FinalValueAdjusted
 );
 
 /// <summary>

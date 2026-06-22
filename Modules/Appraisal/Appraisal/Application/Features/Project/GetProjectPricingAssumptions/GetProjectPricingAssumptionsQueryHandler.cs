@@ -1,3 +1,5 @@
+using PricingAnalysisEntity = Appraisal.Domain.Appraisals.PricingAnalysis;
+
 namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
 
 /// <summary>
@@ -82,8 +84,12 @@ public class GetProjectPricingAssumptionsQueryHandler(
                         ma.FireInsuranceCondition,
                         PricingAnalysisId: paSum?.PricingAnalysisId,
                         PricingAnalysisStatus: paSum?.Status,
-                        FinalAppraisedValue: paSum?.FinalAppraisedValue);
+                        FinalValueAdjusted: paSum?.FinalValueAdjusted,
+                        AppraisalPrice: paSum?.FinalAppraisedValue,
+                        StandardPriceUnit: ma.StandardPriceUnit
+                        );
                 })
+                .OrderBy(ma => ma.ModelType)
                 .ToList()
             : DeriveFromModels(project.Models, isCondo, paSummaries);
 
@@ -117,19 +123,22 @@ public class GetProjectPricingAssumptionsQueryHandler(
         {
             paSummaries.TryGetValue(m.Id, out var pa);
             return new ProjectModelAssumptionDto(
-                m.Id,
-                m.ModelName,
-                m.ModelDescription,
-                m.UsableAreaMin,
-                m.UsableAreaMax,
-                // StandardLandArea is LB-only; null for Condo
-                isCondo ? null : m.StandardLandArea,
-                // CoverageAmount: both Condo and LB derive from FireInsuranceCondition via CoverageByCondition
-                LookupCoverageAmount(m.FireInsuranceCondition),
-                m.FireInsuranceCondition,
-                PricingAnalysisId: pa?.PricingAnalysisId,
-                PricingAnalysisStatus: pa?.Status,
-                FinalAppraisedValue: pa?.FinalAppraisedValue);
+            m.Id,
+            m.ModelName,
+            m.ModelDescription,
+            m.UsableAreaMin,
+            m.UsableAreaMax,
+            // StandardLandArea is LB-only; null for Condo
+            isCondo ? null : m.StandardLandArea,
+            // CoverageAmount: both Condo and LB derive from FireInsuranceCondition via CoverageByCondition
+            LookupCoverageAmount(m.FireInsuranceCondition),
+            m.FireInsuranceCondition,
+            PricingAnalysisId: pa?.PricingAnalysisId,
+            PricingAnalysisStatus: pa?.Status,
+            FinalValueAdjusted: pa?.FinalValueAdjusted,
+            AppraisalPrice: pa?.FinalAppraisedValue,
+            StandardPriceUnit: null
+            );
         })
         .ToList();
 
