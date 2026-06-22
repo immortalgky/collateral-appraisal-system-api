@@ -205,6 +205,12 @@ public class AppraisalDbContext : DbContext
     public DbSet<Domain.SupportingDataMaintenance.SupportingDataDetail> SupportingDataDetails => Set<Domain.SupportingDataMaintenance.SupportingDataDetail>();
     public DbSet<Domain.SupportingDataMaintenance.SupportingDataDetailImage> SupportingDataDetailImages => Set<Domain.SupportingDataMaintenance.SupportingDataDetailImage>();
 
+    // =====================================================
+    // Legacy Migration — Asset Summary (read-only)
+    // =====================================================
+    public DbSet<Domain.Appraisals.AssetSummary> AssetSummaries => Set<Domain.Appraisals.AssetSummary>();
+    public DbSet<Domain.Appraisals.AssetSummaryGroup> AssetSummaryGroups => Set<Domain.Appraisals.AssetSummaryGroup>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Set default schema
