@@ -33,6 +33,7 @@ public class GetAssignmentsQueryHandler(AppraisalDbContext dbContext)
             a.InternalAppraiserId,
             a.InternalFollowupAssignmentMethod,
             a.AssignmentMethod,
+            a.Comment,
             a.ReassignmentNumber,
             a.ProgressPercent,
             a.AssignedAt,

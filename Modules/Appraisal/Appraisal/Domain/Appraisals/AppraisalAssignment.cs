@@ -23,6 +23,9 @@ public class AppraisalAssignment : Entity<Guid>
     public string? InternalAppraiserId { get; private set; }
     public string? InternalAppraiserName { get; private set; }
 
+    // Comment
+    public string? Comment { get; private set; }
+
     // Assignment Method
     public string AssignmentMethod { get; private set; } = null!; // Manual, AutoRule, Quotation
     public string? InternalFollowupAssignmentMethod { get; private set; } // Manual, RoundRobin
@@ -129,6 +132,7 @@ public class AppraisalAssignment : Entity<Guid>
         string assignmentMethod,
         string? internalAppraiserId,
         string? internalFollowupMethod,
+        string? comment,
         Guid? autoRuleId,
         Guid? previousAssignmentId,
         int reassignmentNumber,
@@ -142,6 +146,7 @@ public class AppraisalAssignment : Entity<Guid>
         AssignmentMethod = assignmentMethod;
         InternalAppraiserId = internalAppraiserId;
         InternalFollowupAssignmentMethod = internalFollowupMethod;
+        Comment = comment;
         AutoRuleId = autoRuleId;
         PreviousAssignmentId = previousAssignmentId;
         ReassignmentNumber = reassignmentNumber;
@@ -161,6 +166,7 @@ public class AppraisalAssignment : Entity<Guid>
         string assignmentMethod = "Manual",
         string? internalAppraiserId = null,
         string? internalFollowupMethod = null,
+        string? comment = null,
         Guid? autoRuleId = null,
         Guid? previousAssignmentId = null,
         int reassignmentNumber = 1,
@@ -176,10 +182,38 @@ public class AppraisalAssignment : Entity<Guid>
             assignmentMethod,
             internalAppraiserId,
             internalFollowupMethod,
+            comment,
             autoRuleId,
             previousAssignmentId,
             reassignmentNumber,
             assignedBy);
+    }
+
+    /// <summary>
+    /// Factory method to save draft the assignment
+    /// </summary>
+    public void SaveDraft(
+        string assignmentType,
+        string assignmentMethod,
+        string? assigneeUserId,
+        string? assigneeCompanyId,
+        string? assigneeCompanyName,
+        string? internalAppraiserId,
+        string? internalFollowupMethod,
+        string? comment,
+        string savedBy)
+    {
+        ValidateStatus("save draft", AssignmentStatus.Pending);
+        AssignmentType = AssignmentType.FromString(assignmentType);
+        AssignmentMethod = assignmentMethod;
+        AssigneeUserId = assigneeUserId;
+        AssigneeCompanyId = assigneeCompanyId;
+        if (!string.IsNullOrWhiteSpace(assigneeCompanyName))
+            ExternalAppraiserName = assigneeCompanyName;
+        InternalAppraiserId = internalAppraiserId;
+        InternalFollowupAssignmentMethod = internalFollowupMethod;
+        Comment = comment;
+        AssignedBy = savedBy;
     }
 
     /// <summary>
@@ -192,6 +226,7 @@ public class AppraisalAssignment : Entity<Guid>
         string assignmentMethod = "Manual",
         string? internalAppraiserId = null,
         string? internalFollowupMethod = null,
+        string? comment = null,
         Guid? autoRuleId = null,
         Guid? previousAssignmentId = null,
         int reassignmentNumber = 1,
@@ -204,6 +239,7 @@ public class AppraisalAssignment : Entity<Guid>
         AssignmentMethod = assignmentMethod;
         InternalAppraiserId = internalAppraiserId;
         InternalFollowupAssignmentMethod = internalFollowupMethod;
+        Comment = comment;
         AutoRuleId = autoRuleId;
         PreviousAssignmentId = previousAssignmentId;
         ReassignmentNumber = reassignmentNumber;
