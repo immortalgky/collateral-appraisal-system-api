@@ -12,6 +12,7 @@ public record AssignmentDto(
     string? InternalAppraiserId,
     string? InternalFollowupAssignmentMethod,
     string AssignmentMethod,
+    string? Comment,
     int ReassignmentNumber,
     int ProgressPercent,
     DateTime? AssignedAt,

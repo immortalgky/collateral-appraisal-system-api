@@ -9,7 +9,9 @@ public record AssignAppraisalRequest(
     string? AssignmentMethod = null,
     string? InternalAppraiserId = null,
     string? InternalFollowupAssignmentMethod = null,
+    string? Comment = null,
     string? AssignedBy = null,
+    bool SubmitToWorkflow = true,
     /// <summary>
     /// Workflow routing decision: "EXT" for external company, "INT" for internal staff.
     /// Defaults to "EXT" when omitted.

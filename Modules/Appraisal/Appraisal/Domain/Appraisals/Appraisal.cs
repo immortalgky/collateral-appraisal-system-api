@@ -627,6 +627,7 @@ public class Appraisal : Aggregate<Guid>
         string assignmentMethod = "Manual",
         string? internalAppraiserId = null,
         string? internalFollowupAssignmentMethod = null,
+        string? comment = null,
         Guid? autoRuleId = null,
         string assignedBy = "")
     {
@@ -643,6 +644,7 @@ public class Appraisal : Aggregate<Guid>
             assignmentMethod,
             internalAppraiserId,
             internalFollowupAssignmentMethod,
+            comment,
             autoRuleId,
             previousAssignment?.Id,
             reassignmentNumber,
@@ -660,11 +662,12 @@ public class Appraisal : Aggregate<Guid>
     {
         var assignment = AppraisalAssignment.Create(
             Id,
-            "Internal",
+            "External",
             null,
             null,
-            "Manual",
+            "Quotation",
             null,
+            "Roundrobin",
             null,
             null,
             null,

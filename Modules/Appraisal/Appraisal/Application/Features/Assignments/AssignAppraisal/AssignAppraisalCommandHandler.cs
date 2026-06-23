@@ -5,6 +5,7 @@ namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 /// <summary>
 /// Thin relay handler: validates the pending assignment, then forwards the admin's
 /// input into the workflow's "appraisal-assignment" task via <see cref="IWorkflowRelayService"/>.
+/// Handles both "Save draft" and "Assign" from a single endpoint via
 ///
 /// The workflow engine routes on <c>decisionTaken</c>:
 ///   EXT → CompanySelectionActivity → CompanyAssignedIntegrationEvent →
@@ -38,6 +39,26 @@ public class AssignAppraisalCommandHandler(
         // activity in appraisal-workflow.json — TaskActivity filters anything not declared there.
         // CompanySelectionActivity reads: assignedCompanyId / selectedCompanyId, assignedCompanyName /
         // selectedCompanyName, assignmentMethod. The RoutingActivity reads: decisionTaken.
+
+        // Always persist the latest selections onto the row.
+        pendingAssignment.SaveDraft(
+            command.AssignmentType,
+            command.AssignmentMethod,
+            command.AssigneeUserId,
+            command.AssigneeCompanyId,
+            command.AssigneeCompanyName,
+            command.InternalAppraiserId,
+            command.InternalFollowupAssignmentMethod,
+            command.Comment,
+            command.AssignedBy);
+
+        await appraisalRepository.SaveChangesAsync(cancellationToken);
+
+        // Save-only path — return without touching the workflow.
+        if (!command.SubmitToWorkflow)
+            return new AssignAppraisalResult(pendingAssignment.Id);
+
+        // Assign path — relay to the workflow task.
         var input = new Dictionary<string, object>
         {
             ["selectedCompanyId"] = command.AssigneeCompanyId ?? string.Empty,

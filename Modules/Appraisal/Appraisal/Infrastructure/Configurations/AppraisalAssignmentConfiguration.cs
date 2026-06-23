@@ -66,6 +66,9 @@ public class AppraisalAssignmentConfiguration : IEntityTypeConfiguration<Apprais
         builder.Property(a => a.AutoRuleId);
         builder.Property(a => a.QuotationRequestId);
 
+        //Comment
+        builder.Property(a => a.Comment).HasMaxLength(4000);
+
         // Reassignment Chain
         builder.Property(a => a.PreviousAssignmentId);
         builder.Property(a => a.ReassignmentNumber)
