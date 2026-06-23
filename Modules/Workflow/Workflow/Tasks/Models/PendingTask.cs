@@ -19,6 +19,10 @@ public class PendingTask : Aggregate<Guid>
     public string? SlaStatus { get; private set; }
     public DateTime? SlaBreachedAt { get; private set; }
     public string Movement { get; private set; } = "F";
+    // Decision section
+    public string? DecisionType { get; private set; }
+    public string? AssignNextToType { get; private set; }
+    public string? CommentDecision { get; private set; }
 
     /// <summary>
     /// For fan-out tasks (e.g. ext-collect-submissions): the company that owns this task slot.
@@ -67,6 +71,12 @@ public class PendingTask : Aggregate<Guid>
         task.DueAt = dueAt;
         task.SlaStatus = dueAt.HasValue ? "OnTime" : null;
         return task;
+    }
+    public void Update(string? decisionType, string? assignNextToType, string? commentDecision )
+    {
+        DecisionType = decisionType;
+        AssignNextToType = assignNextToType;
+        CommentDecision = commentDecision;
     }
 
     public void Reassign(string newAssignedTo, string newAssignedType, string? raiseEventFor = null)

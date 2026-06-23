@@ -24,4 +24,7 @@ public record TaskDetailResult
     public bool IsOwner { get; init; }
     public string? WorkingBy { get; init; }
     public DateTime? LockedAt { get; init; }
+    public string? DecisionType { get; init; }
+    public string? AssignNextToType { get; init; }
+    public string? CommentDecision { get; init; }
 }
