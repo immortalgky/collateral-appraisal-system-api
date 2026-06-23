@@ -10,13 +10,16 @@ namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 public record AssignAppraisalCommand(
     Guid AppraisalId,
     Guid WorkflowInstanceId,
+    string AssignmentType,
     string? AssigneeUserId = null,
     string? AssigneeCompanyId = null,
     string? AssigneeCompanyName = null,
     string AssignmentMethod = "Manual",
     string? InternalAppraiserId = null,
     string? InternalFollowupAssignmentMethod = null,
+    string? Comment = null,
     string AssignedBy = default,
+    bool SubmitToWorkflow = true,
     /// <summary>
     /// Workflow routing decision: "EXT" routes to company-selection (external company),
     /// "INT" routes to int-appraisal-execution (internal assignment).
