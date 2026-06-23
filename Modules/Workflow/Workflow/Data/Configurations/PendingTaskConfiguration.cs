@@ -63,6 +63,10 @@ public class PendingTaskConfiguration : IEntityTypeConfiguration<PendingTask>
         builder.Property(p => p.CommitteeCode)
             .HasMaxLength(50)
             .IsRequired(false);
+        
+        builder.Property(p => p.DecisionType).HasMaxLength(20);
+        builder.Property(p => p.AssignNextToType).HasMaxLength(20);
+        builder.Property(p => p.CommentDecision).HasMaxLength(4000);
 
         builder.HasIndex(p => new { p.WorkflowInstanceId, p.ActivityId, p.AssigneeCompanyId })
             .HasDatabaseName("IX_PendingTasks_WorkflowInstance_Activity_Company");
