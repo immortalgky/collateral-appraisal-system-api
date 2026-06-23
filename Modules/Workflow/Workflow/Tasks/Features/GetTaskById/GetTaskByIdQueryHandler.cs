@@ -27,6 +27,9 @@ public class GetTaskByIdQueryHandler(
             pt.ActivityId,
             pt.WorkingBy,
             pt.LockedAt,
+            pt.DecisionType,
+            pt.AssignNextToType,
+            pt.CommentDecision,
             -- Quotation context: pt.CorrelationId = QuotationRequestId for quotation-workflow tasks
             qr.Id                              AS QuotationRequestId,
             -- Resolve the effective RequestId:
@@ -123,7 +126,10 @@ public class GetTaskByIdQueryHandler(
             TaskDescription = dto.TaskDescription,
             IsOwner = isOwner,
             WorkingBy = dto.WorkingBy,
-            LockedAt = dto.LockedAt
+            LockedAt = dto.LockedAt,
+            DecisionType = dto.DecisionType,
+            AssignNextToType = dto.AssignNextToType,
+            CommentDecision = dto.CommentDecision
         };
     }
 
@@ -140,6 +146,9 @@ public class GetTaskByIdQueryHandler(
         string ActivityId,
         string? WorkingBy,
         DateTime? LockedAt,
+        string? DecisionType,
+        string? AssignNextToType,
+        string? CommentDecision,
         Guid? QuotationRequestId,
         Guid RequestId,
         Guid? AppraisalId);
