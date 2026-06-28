@@ -35,6 +35,7 @@ public class RegistrationService(
             Position = registerUserDto.Position,
             Department = registerUserDto.Department,
             CompanyId = registerUserDto.CompanyId,
+            AoCode = registerUserDto.AoCode,
             AuthSource = registerUserDto.AuthSource,
             // Make the account lockable per-row so failed-attempt lockout actually engages — including
             // the LDAP login path, where UserManager.AccessFailedAsync only locks when this flag is set.

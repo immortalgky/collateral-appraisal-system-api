@@ -77,11 +77,11 @@ public class SaveComparativeAnalysisCommandHandler(
         else if (command.IncludeLandArea == false)
             method.FinalValue.ExcludeLandArea();
 
-        // Building cost toggle (separate from AppraisalPrice now).
-        if (command.HasBuildingCost == true && command.BuildingCost.HasValue)
-            method.FinalValue.SetBuildingCost(command.BuildingCost.Value);
-        else if (command.HasBuildingCost == false)
-            method.FinalValue.ClearBuildingCost();
+        // Building value toggle (separate from AppraisalPrice now).
+        if (command.HasBuildingValue == true && command.BuildingValue.HasValue)
+            method.FinalValue.SetBuildingValue(command.BuildingValue.Value);
+        else if (command.HasBuildingValue == false)
+            method.FinalValue.ClearBuildingValue();
 
         // Propagate: if method is selected and has a value, push it up
         if (method.IsSelected && method.MethodValue.HasValue)

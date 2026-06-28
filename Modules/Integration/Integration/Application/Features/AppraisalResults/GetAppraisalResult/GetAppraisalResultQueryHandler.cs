@@ -107,10 +107,10 @@ internal static class GetAppraisalResultSql
     public const string GroupsAndCollaterals = """
                                                SELECT
                                                    pg.Id AS GroupId, pg.GroupName,
-                                                   gv.AppraisedValue AS GroupAppraisedValue,
+                                                   CAST(NULL AS decimal(18,2)) AS GroupAppraisedValue,
                                                    paa.ApproachType AS AppraisalMethod,
                                                    pfv.LandValue AS GroupLandValue,
-                                                   pfv.BuildingCost AS GroupBuildingValue,
+                                                   pfv.BuildingValue AS GroupBuildingValue,
                                                    pfv.FinalValueAdjusted AS GroupUnitPrice,
                                                    ap.Id AS PropertyId, ap.PropertyType,
                                                    -- Land/LB fields (from LandAppraisalDetails + first LandTitle)
@@ -144,8 +144,6 @@ internal static class GetAppraisalResultSql
                                                    mad.Model               AS MachineModel,
                                                    mad.SerialNo            AS MachineSerialNo
                                                FROM appraisal.PropertyGroups pg
-                                               LEFT JOIN appraisal.ValuationAnalyses va2 ON va2.AppraisalId = pg.AppraisalId
-                                               LEFT JOIN appraisal.GroupValuations gv ON gv.PropertyGroupId = pg.Id AND gv.ValuationAnalysisId = va2.Id
                                                LEFT JOIN appraisal.PricingAnalysis pa ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
                                                OUTER APPLY (
                                                    SELECT TOP 1 ApproachType
@@ -154,7 +152,7 @@ internal static class GetAppraisalResultSql
                                                    ORDER BY Id
                                                ) paa
                                                OUTER APPLY (
-                                                   SELECT TOP 1 fv.LandValue, fv.BuildingCost, fv.FinalValueAdjusted
+                                                   SELECT TOP 1 fv.LandValue, fv.BuildingValue, fv.FinalValueAdjusted
                                                    FROM appraisal.PricingAnalysisApproaches pap
                                                    JOIN appraisal.PricingAnalysisMethods pm ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
                                                    JOIN appraisal.PricingFinalValues fv ON fv.PricingMethodId = pm.Id

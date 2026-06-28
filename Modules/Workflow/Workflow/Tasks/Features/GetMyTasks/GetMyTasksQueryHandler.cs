@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using Shared.Data;
 using Shared.Identity;
@@ -20,49 +21,39 @@ public class GetMyTasksQueryHandler(
         GetMyTasksQuery query,
         CancellationToken cancellationToken)
     {
-        var parameters = new DynamicParameters();
-        parameters.Add("AssigneeUserId", currentUserService.Username);
+        var username = currentUserService.Username;
+        if (string.IsNullOrEmpty(username))
+            return new GetMyTasksResult(new PaginatedResult<TaskDto>([], 0, 0, 10));
 
-        // Base predicates reference only raw PendingTasks columns.
-        var basePredicates = new List<string> { "AssignedType = '1'", "AssigneeUserId = @AssigneeUserId" };
+        // My tasks: direct assignments to this user (AssignedType='1'), no company gate.
+        var parameters = TaskListProcParams.Build(
+            assignedType: "1",
+            assignees: new[] { username },
+            companyGate: 0,
+            callerCompanyId: null,
+            filter: query.Filter,
+            pagination: query.PaginationRequest);
 
-        var filter = query.Filter;
-        var filterConditions = TaskListFilterBuilder.BuildConditions(filter, parameters);
+        var connection = connectionFactory.GetOpenConnection();
+        using var grid = await connection.QueryMultipleAsync(new CommandDefinition(
+            "workflow.sp_GetTaskList", parameters,
+            commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
 
-        // Data query reads the enriched view (it returns enriched columns).
-        var dataConditions = basePredicates.Concat(filterConditions.Select(c => c.Sql));
-        var sql = "SELECT * FROM workflow.vw_TaskList WHERE " + string.Join(" AND ", dataConditions);
+        var rows = (await grid.ReadAsync<TaskDto>()).ToList();
+        var total = await grid.ReadFirstAsync<int>();
 
-        // COUNT over the view can't short-circuit; when every filter is on a base
-        // PendingTasks column, count straight off the base table (pure index seek).
-        string? countSql = null;
-        if (!filterConditions.Any(c => c.IsEnriched))
-        {
-            var countConditions = basePredicates.Concat(filterConditions.Select(c => c.Sql));
-            countSql = TaskListFilterBuilder.BaseCountSource + " WHERE " + string.Join(" AND ", countConditions);
-        }
-
-        var orderBy = TaskListFilterBuilder.ResolveOrderBy(filter);
-
-        var result = await connectionFactory.QueryPaginatedAsync<TaskDto>(
-            sql,
-            countSql,
-            orderBy,
-            query.PaginationRequest,
-            parameters);
-
-        // Elapsed/Remaining are computed in C# (business hours, excl. weekends/holidays/lunch)
-        // since vw_TaskList no longer derives them. Only the returned page is recomputed.
+        // Elapsed/Remaining are computed in C# (business hours, excl. weekends/holidays/lunch).
         var now = clock.ApplicationNow;
-        var items = new List<TaskDto>();
-        foreach (var t in result.Items)
+        var items = new List<TaskDto>(rows.Count);
+        foreach (var t in rows)
         {
             var (elapsed, remaining) =
-                await businessTime.ComputeElapsedRemainingHoursAsync(now, t.AssignedDate, t.DueAt, cancellationToken);
+                await businessTime.ComputeElapsedRemainingHoursAsync(now, t.SlaStartAt ?? t.AssignedDate, t.DueAt, clockStart: t.SlaStartAt, ct: cancellationToken);
             items.Add(t with { ElapsedHours = elapsed, RemainingHours = remaining });
         }
 
-        var paged = new PaginatedResult<TaskDto>(items, result.Count, result.PageNumber, result.PageSize);
+        var paged = new PaginatedResult<TaskDto>(
+            items, total, query.PaginationRequest.PageNumber, query.PaginationRequest.PageSize);
         return new GetMyTasksResult(paged);
     }
 }

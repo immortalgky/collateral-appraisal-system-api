@@ -10,8 +10,9 @@ public class LandDetailConfiguration : IEntityTypeConfiguration<LandDetail>
 
         builder.HasKey(d => d.CollateralMasterId);
 
-        // Dedup key columns
+        // LandOfficeCode — descriptive column, retained but NOT part of the dedup key.
         builder.Property(d => d.LandOfficeCode).IsRequired().HasMaxLength(20);
+        // Dedup key columns
         builder.Property(d => d.Province).IsRequired().HasMaxLength(100);
         builder.Property(d => d.District).IsRequired().HasMaxLength(100);
         builder.Property(d => d.SubDistrict).IsRequired().HasMaxLength(100);
@@ -19,6 +20,7 @@ public class LandDetailConfiguration : IEntityTypeConfiguration<LandDetail>
         builder.Property(d => d.TitleNumber).IsRequired().HasMaxLength(50);
         builder.Property(d => d.SurveyNumber).HasMaxLength(50);
         builder.Property(d => d.LandParcelNumber).HasMaxLength(50);
+        builder.Property(d => d.Rawang).HasMaxLength(100);
 
         // Address (owned — flat columns)
         builder.OwnsOne(d => d.Address, a =>
@@ -48,7 +50,7 @@ public class LandDetailConfiguration : IEntityTypeConfiguration<LandDetail>
 
         // Three-value model (Phase C)
         builder.Property(d => d.UnitPrice).HasPrecision(18, 2);
-        builder.Property(d => d.BuildingCost).HasPrecision(18, 2);
+        builder.Property(d => d.BuildingValue).HasPrecision(18, 2);
         builder.Property(d => d.AppraisalValue).HasPrecision(18, 2);
 
         // AppraisalSummary (owned — flat columns)
@@ -64,8 +66,8 @@ public class LandDetailConfiguration : IEntityTypeConfiguration<LandDetail>
         // Filtered unique index for dedup — uses IsDeleted on THIS table (denormalized from master)
         builder.HasIndex(d => new
             {
-                d.LandOfficeCode, d.Province, d.District, d.SubDistrict,
-                d.TitleType, d.TitleNumber, d.SurveyNumber, d.LandParcelNumber
+                d.Province, d.District, d.SubDistrict,
+                d.TitleType, d.TitleNumber, d.SurveyNumber, d.LandParcelNumber, d.Rawang
             })
             .IsUnique()
             .HasFilter("[IsDeleted] = 0")

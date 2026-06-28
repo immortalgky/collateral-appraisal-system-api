@@ -17,10 +17,6 @@ public class GetAppraisalForCollateralQueryHandler(
     IProjectRepository projectRepository
 ) : IQueryHandler<GetAppraisalForCollateralQuery, AppraisalForCollateralResult?>
 {
-    // Condo collateral title type is always DEED — the underlying land title (BuiltOnTitleNumber)
-    // is, by domain rule, a chanote/deed.
-    private const string CondoDefaultTitleType = "DEED";
-
     public async Task<AppraisalForCollateralResult?> Handle(
         GetAppraisalForCollateralQuery query,
         CancellationToken cancellationToken)
@@ -126,7 +122,7 @@ public class GetAppraisalForCollateralQueryHandler(
         var appraisedValueLookup = await BuildAppraisedValueLookupAsync(
             dbContext, appraisal, cancellationToken);
 
-        // Resolve per-group pricing values (UnitPrice / BuildingCost / AppraisalValue)
+        // Resolve per-group pricing values (UnitPrice / BuildingValue / AppraisalValue)
         // from the selected cost-approach method's PricingFinalValue.
         var pricingLookup = await BuildPricingLookupAsync(
             dbContext, appraisal, cancellationToken);
@@ -372,12 +368,12 @@ public class GetAppraisalForCollateralQueryHandler(
     ///
     /// Field mapping (per user spec):
     ///   UnitPrice     ← method.FinalValue.FinalValueAdjusted   (the adjusted per-unit rate)
-    ///   BuildingCost  ← method.FinalValue.BuildingCost (non-null when HasBuildingCost)
+    ///   BuildingValue ← method.FinalValue.BuildingValue (non-null when HasBuildingValue)
     ///   AppraisalValue← method.FinalValue.AppraisalPrice
     ///                   ?? method.FinalValue.FinalValueAdjusted
     ///                   ?? method.FinalValue.FinalValueRounded
     ///
-    /// For non-cost approaches we still capture AppraisalValue (but UnitPrice + BuildingCost = null).
+    /// For non-cost approaches we still capture AppraisalValue (but UnitPrice + BuildingValue = null).
     /// Every property in the same group gets the same PricingInfoForCollateral instance.
     /// </summary>
     private static async Task<Dictionary<Guid, PricingInfoForCollateral>> BuildPricingLookupAsync(
@@ -414,8 +410,8 @@ public class GetAppraisalForCollateralQueryHandler(
                         m.IsSelected,
                         FinalValue = m.FinalValue == null ? null : new
                         {
-                            m.FinalValue.HasBuildingCost,
-                            m.FinalValue.BuildingCost,
+                            m.FinalValue.HasBuildingValue,
+                            m.FinalValue.BuildingValue,
                             m.FinalValue.AppraisalPrice,
                             m.FinalValue.FinalValueAdjusted,
                             m.FinalValue.FinalValueRounded
@@ -445,10 +441,10 @@ public class GetAppraisalForCollateralQueryHandler(
             if (selectedMethod is null) continue;
 
             bool isCostApproach = selectedApproach.ApproachType == "Cost"
-                && selectedMethod.FinalValue?.HasBuildingCost == true;
+                && selectedMethod.FinalValue?.HasBuildingValue == true;
 
             decimal? unitPrice    = isCostApproach ? selectedMethod.FinalValue?.FinalValueAdjusted : null;
-            decimal? buildingCost = isCostApproach ? selectedMethod.FinalValue?.BuildingCost : null;
+            decimal? buildingCost = isCostApproach ? selectedMethod.FinalValue?.BuildingValue : null;
 
             // AppraisalValue is always the user-confirmed final total regardless of approach type.
             var fv = selectedMethod.FinalValue;
@@ -459,7 +455,7 @@ public class GetAppraisalForCollateralQueryHandler(
             groupPricing[pa.AnchorId.Value] = new PricingInfoForCollateral(
                 IsCostApproach: isCostApproach,
                 UnitPrice: unitPrice,
-                BuildingCost: buildingCost,
+                BuildingValue: buildingCost,
                 AppraisalValue: appraisalValue
             );
         }
@@ -549,7 +545,9 @@ public class GetAppraisalForCollateralQueryHandler(
                 SubDistrict: p.LandDetail.Address?.SubDistrict,
                 LandOffice: p.LandDetail.Address?.LandOffice,
                 Titles: p.LandDetail.Titles
-                    .Select(t => new LandTitleForCollateral(t.Id, t.TitleNumber, t.TitleType))
+                    .Select(t => new LandTitleForCollateral(
+                        t.Id, t.TitleNumber, t.TitleType,
+                        t.SurveyNumber, t.LandParcelNumber, t.Rawang))
                     .ToList(),
                 // Phase C: last-known populate fields from LandAppraisalDetail
                 OwnerName: p.LandDetail.OwnerName,
@@ -573,9 +571,9 @@ public class GetAppraisalForCollateralQueryHandler(
                 FloorNumber: p.CondoDetail.FloorNumber,
                 RoomNumber: p.CondoDetail.RoomNumber,
                 Province: p.CondoDetail.Address?.Province,
+                District: p.CondoDetail.Address?.District,
+                SubDistrict: p.CondoDetail.Address?.SubDistrict,
                 LandOffice: p.CondoDetail.Address?.LandOffice,
-                TitleNumber: p.CondoDetail.BuiltOnTitleNumber,
-                TitleType: CondoDefaultTitleType,
                 // Phase C: last-known populate fields from CondoAppraisalDetail
                 OwnerName: p.CondoDetail.OwnerName,
                 CondoName: p.CondoDetail.CondoName,
@@ -617,7 +615,9 @@ public class GetAppraisalForCollateralQueryHandler(
             ? new BuildingIdentityForCollateral(
                 BuiltOnTitleNumber: p.BuildingDetail.BuiltOnTitleNumber,
                 BuildingTypeCode: p.BuildingDetail.BuildingType,
-                BuildingArea: p.BuildingDetail.TotalBuildingArea
+                BuildingArea: p.BuildingDetail.TotalBuildingArea,
+                BuildingAge: p.BuildingDetail.BuildingAge,
+                NumberOfFloors: p.BuildingDetail.NumberOfFloors
             )
             : null;
 

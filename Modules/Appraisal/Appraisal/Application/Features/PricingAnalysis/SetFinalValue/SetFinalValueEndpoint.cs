@@ -30,8 +30,8 @@ public class SetFinalValueEndpoint : ICarterModule
                         request.IncludeLandArea,
                         request.LandArea,
                         request.LandValue,
-                        request.HasBuildingCost,
-                        request.BuildingCost,
+                        request.HasBuildingValue,
+                        request.BuildingValue,
                         request.AppraisalPrice
                     );
 

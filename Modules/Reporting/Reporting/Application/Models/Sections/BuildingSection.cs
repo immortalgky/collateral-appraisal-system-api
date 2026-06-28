@@ -14,6 +14,14 @@ namespace Reporting.Application.Models.Sections;
 /// </summary>
 public sealed class BuildingSection
 {
+    // ── Grouping (appraisal-book group-major layout; not displayed by the partial) ──
+
+    /// <summary>กลุ่มที่ — PropertyGroups.GroupNumber for this property (0 = ungrouped).</summary>
+    public int GroupNumber { get; init; }
+
+    /// <summary>Group label — PropertyGroups.GroupName (null when ungrouped).</summary>
+    public string? GroupName { get; init; }
+
     // ── Block 1: รายละเอียดสิ่งปลูกสร้าง ────────────────────────────────────────
 
     /// <summary>เลขที่บ้าน — Source: BuildingAppraisalDetails.HouseNumber (nvarchar 50).</summary>
@@ -102,13 +110,19 @@ public sealed class BuildingSection
 
     /// <summary>
     /// โครงสร้างหลัก — Source: BuildingAppraisalDetails.StructureType (JSON array, nvarchar 500)
-    /// + StructureTypeOther; joined to a comma-separated display string by the loader.
+    /// + StructureTypeOther; resolved to Thai (parameter group 'GeneralStructure') by the loader.
     /// </summary>
     public string? MainStructure { get; init; }
 
     /// <summary>
-    /// วัสดุหลังคา — Source: BuildingAppraisalDetails.RoofType (JSON array, nvarchar 500)
-    /// + RoofTypeOther; joined by loader. RoofFrameType is the frame; RoofType is the covering material.
+    /// โครงหลังคา (FSD #17 Roof) — Source: BuildingAppraisalDetails.RoofFrameType (JSON array)
+    /// + RoofFrameTypeOther; resolved to Thai (parameter group 'RoofFrame') by the loader.
+    /// </summary>
+    public string? RoofFrame { get; init; }
+
+    /// <summary>
+    /// วัสดุหลังคา (FSD #18 Roof surface) — Source: BuildingAppraisalDetails.RoofType (JSON array)
+    /// + RoofTypeOther; resolved to Thai (parameter group 'Roof') by the loader.
     /// </summary>
     public string? RoofMaterial { get; init; }
 
@@ -153,6 +167,12 @@ public sealed class BuildingSection
     /// + ConstructionTypeOther fallback (เก็บรายละเอียดการตกแต่งภายใน).
     /// </summary>
     public string? Decoration { get; init; }
+
+    /// <summary>
+    /// รายละเอียดพื้น (FSD #22–26) — per-floor-range surface rows.
+    /// Source: appraisal.BuildingAppraisalSurfaces (owned by BuildingAppraisalDetail).
+    /// </summary>
+    public IReadOnlyList<BuildingFloorRow> Floors { get; init; } = [];
 
     // ── Block 3: Cost / depreciation table ──────────────────────────────────────
 
@@ -210,4 +230,26 @@ public sealed class BuildingCostRow
 
     /// <summary>มูลค่าหลังหักค่าเสื่อม — Source: BuildingDepreciationDetails.PriceAfterDepreciation (decimal 18,2).</summary>
     public decimal? ValueAfterDepreciation { get; init; }
+}
+
+/// <summary>
+/// One per-floor-range row (FSD #22–26) in the building surfaces table.
+/// Source: appraisal.BuildingAppraisalSurfaces.
+/// </summary>
+public sealed class BuildingFloorRow
+{
+    /// <summary>ชั้นที่ (จาก) — Source: BuildingAppraisalSurfaces.FromFloorNumber.</summary>
+    public int FromFloor { get; init; }
+
+    /// <summary>ถึงชั้นที่ — Source: BuildingAppraisalSurfaces.ToFloorNumber.</summary>
+    public int ToFloor { get; init; }
+
+    /// <summary>ประเภทพื้น — FloorType resolved to Thai (parameter group 'FloorType').</summary>
+    public string? FloorType { get; init; }
+
+    /// <summary>โครงสร้างพื้น — FloorStructureType resolved to Thai (group 'FloorStructure').</summary>
+    public string? FloorStructure { get; init; }
+
+    /// <summary>วัสดุปูพื้น — FloorSurfaceType resolved to Thai (group 'FloorSurface').</summary>
+    public string? FloorSurface { get; init; }
 }

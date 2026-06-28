@@ -10,6 +10,7 @@ public sealed record Rcas009Filter(
     string? PayType,
     string? AppraisalCompany,
     string? FeeStatus,
+    string? AppraisalNumber,
     string? SortBy,
     string? SortDir);
 
@@ -27,6 +28,15 @@ internal static class Rcas009Report
         Title = "รายงานสรุปค่าประเมิน",
         OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, "AppraisalNumber"),
         Build = Build,
+        DescribeFilter = f =>
+        [
+            new("Created From", f.CreatedFrom?.ToString("yyyy-MM-dd")),
+            new("Created To", f.CreatedTo?.ToString("yyyy-MM-dd")),
+            new("Pay Type", f.PayType, "FeePaymentMethod"),
+            new("Appraisal Company", f.AppraisalCompany),
+            new("Fee Status", f.FeeStatus),
+            new("Appraisal No.", f.AppraisalNumber),
+        ],
         Columns =
         [
             new("Appraisal No.", r => r.AppraisalNumber),
@@ -57,9 +67,12 @@ internal static class Rcas009Report
         var p = new DynamicParameters();
 
         ReportFilterSql.DateRange(c, p, f.CreatedFrom, f.CreatedTo, "AppraisalCreateDate", "Created");
-        ReportFilterSql.MultiValue(c, p, f.PayType, "PayType", "PayTypes");
+        // Filter on the raw FeePaymentType code (PayTypeCode); the PayType column now emits the
+        // resolved description for display, so binding the code against it would never match.
+        ReportFilterSql.MultiValue(c, p, f.PayType, "PayTypeCode", "PayTypes");
         ReportFilterSql.Contains(c, p, f.AppraisalCompany, "AppraisalCompany", "AppraisalCompany");
         ReportFilterSql.MultiValue(c, p, f.FeeStatus, "FeeStatus", "FeeStatuses");
+        ReportFilterSql.Contains(c, p, f.AppraisalNumber, "AppraisalNumber", "AppraisalNumber");
 
         return ("SELECT * FROM reporting.vw_RCAS009_FeeSummary" + ReportFilterSql.Where(c), p);
     }

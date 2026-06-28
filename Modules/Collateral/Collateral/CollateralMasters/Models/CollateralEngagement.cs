@@ -73,7 +73,7 @@ public class CollateralEngagement
     public decimal? LandValue { get; private set; }
 
     /// <summary>
-    /// Cost-approach building value at engagement time (PricingFinalValue.BuildingCost), frozen.
+    /// Cost-approach building value at engagement time (PricingFinalValue.BuildingValue), frozen.
     /// NULL for non-L&B or non-cost-approach.
     /// </summary>
     public decimal? BuildingValue { get; private set; }
@@ -140,10 +140,12 @@ public class CollateralEngagement
         string buildingTypeCode,
         decimal? buildingArea,
         decimal? buildingValue,
-        int sequence)
+        int sequence,
+        int? buildingAge,
+        decimal? numberOfFloors)
     {
         var building = CollateralEngagementBuilding.Create(
-            Id, buildingTypeCode, buildingArea, buildingValue, sequence);
+            Id, buildingTypeCode, buildingArea, buildingValue, sequence, buildingAge, numberOfFloors);
         _buildings.Add(building);
     }
 }

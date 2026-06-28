@@ -19,7 +19,12 @@ namespace Reporting.Application.Providers.Sections;
 /// </summary>
 internal static class BuildingSectionLoader
 {
-    public static async Task<BuildingSection?> LoadAsync(
+    /// <summary>
+    /// Loads ONE <see cref="BuildingSection"/> per building-bearing property (B / LB / lease)
+    /// for the appraisal, each tagged with its property group and carrying its own cost rows
+    /// and floor surfaces. Returns an empty list when the appraisal has no building properties.
+    /// </summary>
+    public static async Task<List<BuildingSection>> LoadAllAsync(
         IDbConnection connection,
         Guid appraisalId,
         CancellationToken ct = default)
@@ -50,17 +55,14 @@ internal static class BuildingSectionLoader
         //   Year, DepreciationYearPct, TotalDepreciationPct, PriceDepreciation,
         //   PriceAfterDepreciation. Ordered by Id (insertion order).
         const string batchSql = """
-            -- RS01: Step 1 — Resolve first building AppraisalProperty
-            SELECT TOP 1
-                ap.Id AS PropertyId
-            FROM appraisal.AppraisalProperties ap
-            WHERE ap.AppraisalId = @AppraisalId
-              AND ap.PropertyType = 'Building'
-            ORDER BY ap.SequenceNumber, ap.Id;
-
-            -- RS02: Step 2 — Building header + parameter translations
+            -- RS01: Building header per building-bearing property, with its property group.
+            -- PropertyType is stored as a code ('B','LB','LSB','LS' all carry building
+            -- detail), so we key off the existence of a BuildingAppraisalDetails row
+            -- rather than matching a type string. GroupNumber 0 = ungrouped fallback.
             SELECT
                 bad.Id                        AS BuildingDetailId,
+                COALESCE(pg.GroupNumber, 0)   AS GroupNumber,
+                pg.GroupName,
                 bad.HouseNumber,
                 bad.BuildingType,
                 bad.BuildingTypeOther,
@@ -99,6 +101,9 @@ internal static class BuildingSectionLoader
                 bad.ConstructionTypeOther,
                 bad.Remark
             FROM appraisal.BuildingAppraisalDetails bad
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+            LEFT JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
+            LEFT JOIN appraisal.PropertyGroups     pg  ON pg.Id = pgi.PropertyGroupId
             LEFT JOIN parameter.Parameters ptBT
                 ON ptBT.[Group]    = 'BuildingType'
                AND ptBT.[Language] = 'TH'
@@ -109,16 +114,12 @@ internal static class BuildingSectionLoader
                AND ptBC.[Language] = 'TH'
                AND ptBC.[Code]     = bad.BuildingConditionType
                AND ptBC.IsActive   = 1
-            WHERE bad.AppraisalPropertyId = (
-                SELECT TOP 1 ap2.Id
-                FROM appraisal.AppraisalProperties ap2
-                WHERE ap2.AppraisalId  = @AppraisalId
-                  AND ap2.PropertyType = 'Building'
-                ORDER BY ap2.SequenceNumber, ap2.Id);
+            WHERE ap.AppraisalId = @AppraisalId
+            ORDER BY COALESCE(pg.GroupNumber, 0), pgi.SequenceInGroup, ap.SequenceNumber, ap.Id;
 
-            -- RS03: Step 3 — Depreciation/cost rows
-            -- Derives BuildingAppraisalDetailId via double-hop subquery through @AppraisalId.
+            -- RS02: Depreciation/cost rows for ALL buildings, keyed by parent for grouping.
             SELECT
+                bdd.BuildingAppraisalDetailId,
                 bdd.AreaDescription,
                 bdd.Area,
                 bdd.PricePerSqMBeforeDepreciation,
@@ -129,129 +130,180 @@ internal static class BuildingSectionLoader
                 bdd.PriceDepreciation          AS DepreciationAmount,
                 bdd.PriceAfterDepreciation
             FROM appraisal.BuildingDepreciationDetails bdd
-            WHERE bdd.BuildingAppraisalDetailId = (
-                SELECT TOP 1 bad2.Id
-                FROM appraisal.BuildingAppraisalDetails bad2
-                JOIN appraisal.AppraisalProperties ap3
-                    ON ap3.Id = bad2.AppraisalPropertyId
-                WHERE ap3.AppraisalId  = @AppraisalId
-                  AND ap3.PropertyType = 'Building'
-                ORDER BY ap3.SequenceNumber, ap3.Id)
-            ORDER BY bdd.Id;
+            JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+            ORDER BY bdd.BuildingAppraisalDetailId, bdd.Id;
+
+            -- RS03: Thai descriptions for every coded structure/material field.
+            -- Consumed as a group→(code→description) lookup; ResolveCodes falls back to the
+            -- raw code for any value not present in the map.
+            SELECT [group] AS [Group], [code] AS Code, [description] AS Description
+            FROM parameter.Parameters
+            WHERE [language] = 'TH' AND [isactive] = 1
+              AND [group] IN (
+                  'BuildingMaterial', 'BuildingStyle', 'Utilization', 'GeneralStructure',
+                  'RoofFrame', 'Roof', 'Ceiling', 'Interior', 'Exterior',
+                  'Decoration', 'ConstructionType', 'FloorType', 'FloorStructure', 'FloorSurface');
+
+            -- RS04: Per-floor-range surface rows (FSD #22–26) for ALL buildings, keyed by parent.
+            SELECT
+                bas.BuildingAppraisalDetailId,
+                bas.FromFloorNumber,
+                bas.ToFloorNumber,
+                bas.FloorType,
+                bas.FloorStructureType,
+                bas.FloorStructureTypeOther,
+                bas.FloorSurfaceType,
+                bas.FloorSurfaceTypeOther
+            FROM appraisal.BuildingAppraisalSurfaces bas
+            JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bas.BuildingAppraisalDetailId
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+            ORDER BY bas.BuildingAppraisalDetailId, bas.FromFloorNumber, bas.Id;
             """;
 
-        Guid? propertyId;
-        BuildingHeaderRow? hdr;
+        List<BuildingHeaderRow> headerRows;
         List<DepreciationRow> rawRows;
+        List<ParamRow> paramRows;
+        List<SurfaceRow> surfaceRows;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, appraisalParams))
         {
-            // RS01: Step 1 — property id (used only for the null-guard below)
-            propertyId = await multi.ReadFirstOrDefaultAsync<Guid?>();
+            // RS01 — building headers (one per building property)
+            headerRows = (await multi.ReadAsync<BuildingHeaderRow>()).ToList();
 
-            // RS02: Step 2 — building header
-            hdr = await multi.ReadFirstOrDefaultAsync<BuildingHeaderRow>();
-
-            // RS03: Step 3 — depreciation rows (always read to drain the result set)
+            // RS02 — depreciation rows (always read to drain the result set)
             rawRows = (await multi.ReadAsync<DepreciationRow>()).ToList();
+
+            // RS03 — parameter code→Thai maps
+            paramRows = (await multi.ReadAsync<ParamRow>()).ToList();
+
+            // RS04 — floor surface rows
+            surfaceRows = (await multi.ReadAsync<SurfaceRow>()).ToList();
         }
 
-        if (propertyId is null)
-            return null;
+        if (headerRows.Count == 0)
+            return [];
 
-        if (hdr is null)
-            return null;
+        // ── Parameter code→Thai lookup, grouped by parameter group ────────────────
+        var paramMaps = paramRows
+            .Where(r => !string.IsNullOrWhiteSpace(r.Group) && !string.IsNullOrWhiteSpace(r.Code))
+            .GroupBy(r => r.Group!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyDictionary<string, string?>)g
+                    .GroupBy(x => x.Code!, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(x => x.Key, x => x.First().Description, StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase);
 
-        // Map to public model rows (1-based sequence assigned here)
-        var costRows = rawRows
-            .Select((r, i) => new BuildingCostRow
-            {
-                Sequence = i + 1,
-                AreaItemName = r.AreaDescription,
-                Area = r.Area == 0 ? null : r.Area,
-                PricePerSqm = r.PricePerSqMBeforeDepreciation == 0 ? null : r.PricePerSqMBeforeDepreciation,
-                Price = r.PriceBeforeDepreciation == 0 ? null : r.PriceBeforeDepreciation,
-                AgeYears = r.AgeYears == 0 ? null : r.AgeYears,
-                DepreciationPctPerYear = r.DepreciationYearPct == 0 ? null : r.DepreciationYearPct,
-                TotalDepreciationPct = r.TotalDepreciationPct == 0 ? null : r.TotalDepreciationPct,
-                DepreciationAmount = r.DepreciationAmount == 0 ? null : r.DepreciationAmount,
-                ValueAfterDepreciation = r.PriceAfterDepreciation == 0 ? null : r.PriceAfterDepreciation,
-            })
-            .ToList();
-
-        // Totals (computed in C# to avoid a second SQL round-trip)
-        decimal? totalArea = rawRows.Count > 0 ? rawRows.Sum(r => r.Area) : null;
-        decimal? totalPrice = rawRows.Count > 0 ? rawRows.Sum(r => r.PriceBeforeDepreciation) : null;
-        decimal? totalValueAfterDepr = rawRows.Count > 0 ? rawRows.Sum(r => r.PriceAfterDepreciation) : null;
-
-        // ── Flatten JSON-array columns stored as nvarchar ─────────────────────────
-        // StructureType, RoofType, CeilingType, InteriorWallType, ExteriorWallType are
-        // serialised as JSON arrays by EF Core (see BuildingAppraisalDetailConfiguration).
-        // Dapper reads them back as raw JSON strings; join with comma for display.
-        string? FlattenJson(string? raw, string? other)
+        // Resolves a (group, raw code or JSON array) to comma-joined Thai descriptions,
+        // appending the free-text "Other" value when present. Falls back to the raw code.
+        string? ResolveCodes(string group, string? raw, string? other = null)
         {
-            var items = ParseJsonArray(raw);
+            var map = paramMaps.GetValueOrDefault(group);
+            var items = ParseJsonArray(raw)
+                .Select(c => map != null && map.TryGetValue(c, out var d) && !string.IsNullOrWhiteSpace(d) ? d! : c)
+                .ToList();
             if (!string.IsNullOrWhiteSpace(other))
                 items.Add(other.Trim());
             return items.Count > 0 ? string.Join(", ", items) : null;
         }
 
-        string? wall = BuildWallText(
-            FlattenJson(hdr.ExteriorWallType, hdr.ExteriorWallTypeOther),
-            FlattenJson(hdr.InteriorWallType, hdr.InteriorWallTypeOther));
+        // Cost rows and floor surfaces grouped by their parent building.
+        var depByBuilding = rawRows
+            .GroupBy(r => r.BuildingAppraisalDetailId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var surfacesByBuilding = surfaceRows
+            .GroupBy(s => s.BuildingAppraisalDetailId)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
-        string? utilization = string.IsNullOrWhiteSpace(hdr.UtilizationType)
-            ? hdr.UtilizationTypeOther
-            : !string.IsNullOrWhiteSpace(hdr.UtilizationTypeOther)
-                ? $"{hdr.UtilizationType}, {hdr.UtilizationTypeOther}"
-                : hdr.UtilizationType;
-
-        string? decoration = string.IsNullOrWhiteSpace(hdr.ConstructionType)
-            ? hdr.ConstructionTypeOther
-            : !string.IsNullOrWhiteSpace(hdr.ConstructionTypeOther)
-                ? $"{hdr.ConstructionType}, {hdr.ConstructionTypeOther}"
-                : hdr.ConstructionType;
-
-        string? painting = string.IsNullOrWhiteSpace(hdr.DecorationType)
-            ? hdr.DecorationTypeOther
-            : !string.IsNullOrWhiteSpace(hdr.DecorationTypeOther)
-                ? $"{hdr.DecorationType}, {hdr.DecorationTypeOther}"
-                : hdr.DecorationType;
-
-        return new BuildingSection
+        // ── Build one BuildingSection per building property ───────────────────────
+        var sections = new List<BuildingSection>(headerRows.Count);
+        foreach (var hdr in headerRows)
         {
-            HouseNumber = hdr.HouseNumber,
-            BuildingTypeText = hdr.BuildingTypeText,
-            NumberOfFloors = hdr.NumberOfFloors,
-            ModelName = hdr.ModelName,
-            BuildingName = hdr.BuildingName,
-            OwnerName = hdr.OwnerName,
-            BuiltOnTitleNumber = hdr.BuiltOnTitleNumber,
-            LicenseSource = null,   // no source
-            LicenseNumber = null,   // no source
-            UsableArea = hdr.UsableArea,
-            SizeText = null,        // no source (no width/length columns)
-            BuildingAge = hdr.BuildingAge,
-            BuildingCondition = hdr.BuildingCondition,
-            Maintenance = null,     // no source
-            MaterialQuality = hdr.MaterialQuality,
-            BuildingForm = hdr.BuildingForm,
-            Utilization = utilization,
-            MainStructure = FlattenJson(hdr.StructureType, hdr.StructureTypeOther),
-            RoofMaterial = FlattenJson(hdr.RoofType, hdr.RoofTypeOther),
-            Wall = wall,
-            Ceiling = FlattenJson(hdr.CeilingType, hdr.CeilingTypeOther),
-            Painting = painting,
-            Door = null,            // no source
-            Window = null,          // no source
-            Sanitary = null,        // no source
-            Decoration = decoration,
-            CostRows = costRows,
-            TotalArea = totalArea == 0 ? null : totalArea,
-            TotalPrice = totalPrice == 0 ? null : totalPrice,
-            TotalValueAfterDepreciation = totalValueAfterDepr == 0 ? null : totalValueAfterDepr,
-            Remark = hdr.Remark,
-        };
+            var deps = depByBuilding.GetValueOrDefault(hdr.BuildingDetailId) ?? [];
+            var surfaces = surfacesByBuilding.GetValueOrDefault(hdr.BuildingDetailId) ?? [];
+
+            var costRows = deps
+                .Select((r, i) => new BuildingCostRow
+                {
+                    Sequence = i + 1,
+                    AreaItemName = r.AreaDescription,
+                    Area = r.Area == 0 ? null : r.Area,
+                    PricePerSqm = r.PricePerSqMBeforeDepreciation == 0 ? null : r.PricePerSqMBeforeDepreciation,
+                    Price = r.PriceBeforeDepreciation == 0 ? null : r.PriceBeforeDepreciation,
+                    AgeYears = r.AgeYears == 0 ? null : r.AgeYears,
+                    DepreciationPctPerYear = r.DepreciationYearPct == 0 ? null : r.DepreciationYearPct,
+                    TotalDepreciationPct = r.TotalDepreciationPct == 0 ? null : r.TotalDepreciationPct,
+                    DepreciationAmount = r.DepreciationAmount == 0 ? null : r.DepreciationAmount,
+                    ValueAfterDepreciation = r.PriceAfterDepreciation == 0 ? null : r.PriceAfterDepreciation,
+                })
+                .ToList();
+
+            // Totals (computed in C# to avoid a second SQL round-trip)
+            decimal? totalArea = deps.Count > 0 ? deps.Sum(r => r.Area) : null;
+            decimal? totalPrice = deps.Count > 0 ? deps.Sum(r => r.PriceBeforeDepreciation) : null;
+            decimal? totalValueAfterDepr = deps.Count > 0 ? deps.Sum(r => r.PriceAfterDepreciation) : null;
+
+            // Resolve coded structure/material columns (JSON arrays of codes) to Thai.
+            string? wall = BuildWallText(
+                ResolveCodes("Exterior", hdr.ExteriorWallType, hdr.ExteriorWallTypeOther),
+                ResolveCodes("Interior", hdr.InteriorWallType, hdr.InteriorWallTypeOther));
+
+            // Floor surface rows (FSD #22–26)
+            var floors = surfaces
+                .Select(s => new BuildingFloorRow
+                {
+                    FromFloor = s.FromFloorNumber,
+                    ToFloor = s.ToFloorNumber,
+                    FloorType = ResolveCodes("FloorType", s.FloorType),
+                    FloorStructure = ResolveCodes("FloorStructure", s.FloorStructureType, s.FloorStructureTypeOther),
+                    FloorSurface = ResolveCodes("FloorSurface", s.FloorSurfaceType, s.FloorSurfaceTypeOther),
+                })
+                .ToList();
+
+            sections.Add(new BuildingSection
+            {
+                GroupNumber = hdr.GroupNumber,
+                GroupName = hdr.GroupName,
+                HouseNumber = hdr.HouseNumber,
+                BuildingTypeText = hdr.BuildingTypeText,
+                NumberOfFloors = hdr.NumberOfFloors,
+                ModelName = hdr.ModelName,
+                BuildingName = hdr.BuildingName,
+                OwnerName = hdr.OwnerName,
+                BuiltOnTitleNumber = hdr.BuiltOnTitleNumber,
+                LicenseSource = null,   // no source
+                LicenseNumber = null,   // no source
+                UsableArea = hdr.UsableArea,
+                SizeText = null,        // no source (no width/length columns)
+                BuildingAge = hdr.BuildingAge,
+                BuildingCondition = hdr.BuildingCondition,
+                Maintenance = null,     // no source
+                MaterialQuality = ResolveCodes("BuildingMaterial", hdr.MaterialQuality),
+                BuildingForm = ResolveCodes("BuildingStyle", hdr.BuildingForm),
+                Utilization = ResolveCodes("Utilization", hdr.UtilizationType, hdr.UtilizationTypeOther),
+                MainStructure = ResolveCodes("GeneralStructure", hdr.StructureType, hdr.StructureTypeOther),
+                RoofFrame = ResolveCodes("RoofFrame", hdr.RoofFrameType, hdr.RoofFrameTypeOther),
+                RoofMaterial = ResolveCodes("Roof", hdr.RoofType, hdr.RoofTypeOther),
+                Wall = wall,
+                Ceiling = ResolveCodes("Ceiling", hdr.CeilingType, hdr.CeilingTypeOther),
+                Painting = ResolveCodes("Decoration", hdr.DecorationType, hdr.DecorationTypeOther),
+                Door = null,            // no source
+                Window = null,          // no source
+                Sanitary = null,        // no source
+                Decoration = ResolveCodes("ConstructionType", hdr.ConstructionType, hdr.ConstructionTypeOther),
+                Floors = floors,
+                CostRows = costRows,
+                TotalArea = totalArea == 0 ? null : totalArea,
+                TotalPrice = totalPrice == 0 ? null : totalPrice,
+                TotalValueAfterDepreciation = totalValueAfterDepr == 0 ? null : totalValueAfterDepr,
+                Remark = hdr.Remark,
+            });
+        }
+
+        return sections;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -303,6 +355,8 @@ internal static class BuildingSectionLoader
     private sealed class BuildingHeaderRow
     {
         public Guid BuildingDetailId { get; init; }
+        public int GroupNumber { get; init; }
+        public string? GroupName { get; init; }
         public string? HouseNumber { get; init; }
         public string? BuildingTypeText { get; init; }
         public decimal? NumberOfFloors { get; init; }
@@ -340,6 +394,7 @@ internal static class BuildingSectionLoader
 
     private sealed class DepreciationRow
     {
+        public Guid BuildingAppraisalDetailId { get; init; }
         public string? AreaDescription { get; init; }
         public decimal Area { get; init; }
         public decimal PricePerSqMBeforeDepreciation { get; init; }
@@ -349,5 +404,24 @@ internal static class BuildingSectionLoader
         public decimal TotalDepreciationPct { get; init; }
         public decimal DepreciationAmount { get; init; }
         public decimal PriceAfterDepreciation { get; init; }
+    }
+
+    private sealed class ParamRow
+    {
+        public string? Group { get; init; }
+        public string? Code { get; init; }
+        public string? Description { get; init; }
+    }
+
+    private sealed class SurfaceRow
+    {
+        public Guid BuildingAppraisalDetailId { get; init; }
+        public int FromFloorNumber { get; init; }
+        public int ToFloorNumber { get; init; }
+        public string? FloorType { get; init; }
+        public string? FloorStructureType { get; init; }
+        public string? FloorStructureTypeOther { get; init; }
+        public string? FloorSurfaceType { get; init; }
+        public string? FloorSurfaceTypeOther { get; init; }
     }
 }

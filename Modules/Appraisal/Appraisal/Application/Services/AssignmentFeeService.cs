@@ -2,6 +2,8 @@ using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using Collateral.Contracts.ConstructionInspection;
 using MediatR;
+using Parameter.Contracts.Parameters;
+using Parameter.Contracts.Parameters.Dtos;
 
 namespace Appraisal.Application.Services;
 
@@ -14,11 +16,22 @@ namespace Appraisal.Application.Services;
 public class AssignmentFeeService(
     AppraisalDbContext dbContext,
     ISender mediator,
+    IParameterLookupService parameterLookup,
     ILogger<AssignmentFeeService> logger) : IAssignmentFeeService
 {
     // Bank absorbs the full customer bill for these payment types.
     private static readonly HashSet<string> FullAbsorbFeePaymentTypes = new(StringComparer.Ordinal) { "05", "06", "07" };
 
+    // Fee names are maintained in the TypeOfFee parameter group, resolved by code.
+    private const string FeeTypeParameterGroup = "TypeOfFee";
+
+    // Resolves the English fee-type description for a code; falls back to the code itself.
+    private async Task<string> ResolveFeeNameAsync(string feeCode, CancellationToken ct)
+    {
+        var description = await parameterLookup.GetDescriptionAsync(
+            new ParameterDto(null, FeeTypeParameterGroup, null, "EN", feeCode, null, true, null), ct);
+        return string.IsNullOrWhiteSpace(description) ? feeCode : description;
+    }
 
     public async Task EnsureAssignmentFeeItemsAsync(
         Guid appraisalId,
@@ -99,7 +112,8 @@ public class AssignmentFeeService(
                         totalSellingPrice, fee.Id, matched.BaseAmount);
                 }
 
-                fee.AddItem(matched.FeeCode, matched.FeeName, matched.BaseAmount);
+                var feeName = await ResolveFeeNameAsync(matched.FeeCode, ct);
+                fee.AddItem(matched.FeeCode, feeName, matched.BaseAmount);
 
                 logger.LogInformation(
                     "Appraisal fee created: fee {FeeId} assigned tier item (FeeCode={FeeCode}, BaseAmount={BaseAmount}) for AssignmentId={AssignmentId} (TotalSellingPrice={TotalSellingPrice})",

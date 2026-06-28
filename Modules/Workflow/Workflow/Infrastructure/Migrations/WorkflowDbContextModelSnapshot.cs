@@ -1792,6 +1792,13 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int?>("AnchorType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AppraisalType")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<Guid?>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1849,17 +1856,17 @@ namespace Workflow.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("WorkflowDefinitionId", "LoanType")
+                    b.HasIndex("WorkflowDefinitionId", "LoanType", "AppraisalType")
                         .IsUnique()
                         .HasDatabaseName("IX_SlaPolicies_Workflow")
                         .HasFilter("[Scope] = 3");
 
-                    b.HasIndex("ActivityId", "WorkflowDefinitionId", "CompanyId", "LoanType", "Priority")
+                    b.HasIndex("ActivityId", "WorkflowDefinitionId", "CompanyId", "LoanType", "AppraisalType", "Priority")
                         .IsUnique()
                         .HasDatabaseName("IX_SlaPolicies_Activity")
                         .HasFilter("[Scope] = 1");
 
-                    b.HasIndex("StartActivityKey", "WorkflowDefinitionId", "CompanyId", "LoanType", "Priority")
+                    b.HasIndex("StartActivityKey", "WorkflowDefinitionId", "CompanyId", "LoanType", "AppraisalType", "Priority")
                         .IsUnique()
                         .HasDatabaseName("IX_SlaPolicies_Stage_Start")
                         .HasFilter("[Scope] = 2");
@@ -2022,6 +2029,9 @@ namespace Workflow.Infrastructure.Migrations
                         .HasDefaultValue("F");
 
                     b.Property<DateTime?>("SlaBreachedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("SlaStartAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("SlaStatus")

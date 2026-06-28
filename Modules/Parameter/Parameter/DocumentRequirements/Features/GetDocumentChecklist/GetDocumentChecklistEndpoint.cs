@@ -23,6 +23,7 @@ public class GetDocumentChecklistEndpoint : ICarterModule
                     result.ApplicationDocuments,
                     result.PropertyTypeGroups));
             })
+            .RequireAuthorization()
             .WithName("GetDocumentChecklist")
             .WithSummary("Get document checklist for specified property types")
             .Produces<GetDocumentChecklistResponse>()

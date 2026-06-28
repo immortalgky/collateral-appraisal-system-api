@@ -8,7 +8,7 @@
   <!-- Header row: report no (left) + logo placeholder (right) -->
   <div class="letter-header-row">
     <div class="letter-report-no">รายงานเลขที่ {{ model.appraisal_book_number }}</div>
-    <div class="letter-logo-box">LOGO</div>
+    <div class="letter-logo-box"><img src="logo-lh-bank.svg" alt="LH Bank"/></div>
   </div>
 
   <!-- Date -->
@@ -115,13 +115,6 @@
     <tr>
       <th class="kv-label" scope="row">พรบ.ผังเมือง</th>
       <td class="kv-value">{{ model.city_plan }}</td>
-    </tr>
-    {{ end }}
-
-    {{ if model.appraisal_purpose }}
-    <tr>
-      <th class="kv-label" scope="row">วัตถุประสงค์การประเมิน</th>
-      <td class="kv-value">{{ model.appraisal_purpose }}</td>
     </tr>
     {{ end }}
 

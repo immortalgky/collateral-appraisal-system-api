@@ -15,9 +15,10 @@ public interface IRegulatoryExportQuery
 /// Produced by <c>RegulatoryExportQuery</c> via <c>vw_RegulatoryExport</c>.
 /// </summary>
 public sealed record RegulatoryExportRow(
-    string? EarliestAppraisalNumber,
+    string? PreviousAppraisalNumber,
     string? LatestAppraisalNumber,
     string CollateralType,
+    string? LatestAppraisalType,
     bool IsUnderConstruction,
     decimal? ConstructionProgressPercent,
     decimal? LatestAppraisalValue,

@@ -134,7 +134,7 @@ public class GetMonitoredTasksQueryHandler(
         foreach (var t in result.Items)
         {
             var (elapsed, remaining) =
-                await businessTime.ComputeElapsedRemainingHoursAsync(now, t.AssignedAt, t.DueAt, cancellationToken);
+                await businessTime.ComputeElapsedRemainingHoursAsync(now, t.SlaStartAt ?? t.AssignedAt, t.DueAt, clockStart: t.SlaStartAt, ct: cancellationToken);
             items.Add(t with { ElapsedHours = elapsed, RemainingHours = remaining });
         }
 

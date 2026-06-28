@@ -31,16 +31,13 @@ public class PreviewIncomeAnalysisCommandHandler(
             command.DiscountedRate,
             id: Guid.NewGuid());
 
-        analysis.SetFinalValueAdjust(command.FinalValueAdjust);
-
         analysis.SetHighestBestUsed(
             command.IsHighestBestUsed,
             Domain.Appraisals.Income.HighestBestUsed.Create(
                 command.HighestBestUsed?.AreaRai,
                 command.HighestBestUsed?.AreaNgan,
                 command.HighestBestUsed?.AreaWa,
-                command.HighestBestUsed?.PricePerSqWa),
-            command.AppraisalPriceRounded);
+                command.HighestBestUsed?.PricePerSqWa));
 
         // 3. Build section tree — every entity gets a real Guid so the calc service can key on Id
         var newSections = BuildSectionsWithIds(analysis.Id, command.Sections);
@@ -92,7 +89,12 @@ public class PreviewIncomeAnalysisCommandHandler(
         analysis.ApplyCalculationResult(result);
 
         // 8. Return DTO — the analysis object is garbage-collected after this return
-        return new PreviewIncomeAnalysisResult(IncomeAnalysisMapper.ToDto(analysis));
+        return new PreviewIncomeAnalysisResult(IncomeAnalysisMapper.ToDto(
+            analysis,
+            result.FinalValue,
+            result.FinalValueRounded,
+            command.FinalValueAdjust,
+            command.AppraisalPriceRounded));
     }
 
     // ── Validation — identical to SaveIncomeAnalysisCommandHandler ───────────

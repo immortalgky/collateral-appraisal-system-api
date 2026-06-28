@@ -123,6 +123,7 @@ public static class MenuSeedData
                 new("main.standalone.block-reappraisal", "Block Reappraisal", "building-circle-arrow-right", IconStyle.Solid, "text-teal-500", "/standalone/block-reappraisal", "BLOCK_REAPPRAISAL_VIEW", "BLOCK_REAPPRAISAL_CREATE"),
             }),
         new("main.parameter", "Parameter", "sliders", IconStyle.Solid, "text-rose-500", "/parameter", "PARAMETER_MANAGE", null),
+        new("main.document-requirements", "Document Requirements", "file-lines", IconStyle.Solid, "text-rose-500", "/admin/document-requirements", "PARAMETER_MANAGE", "PARAMETER_MANAGE"),
         new("main.user-management", "User Management", "users", IconStyle.Solid, "text-violet-500", "/users", "USER_MANAGE", null,
             new List<MenuSeedNode>
             {
@@ -152,6 +153,9 @@ public static class MenuSeedData
         new("main.workflow-roundrobin-config", "Company Round-Robin Pools", "shuffle", IconStyle.Solid, "text-orange-500", "/admin/workflow-roundrobin-config", "WORKFLOW_ADMIN", "WORKFLOW_ADMIN"),
         new("main.fee-approval-tiers", "Fee Approval Tiers", "layer-group", IconStyle.Solid, "text-orange-500", "/admin/fee-approval-tiers", "FEE_APPROVAL_CONFIG", "FEE_APPROVAL_CONFIG"),
         new("main.appointment-approval-rule", "Appointment Approval Rule", "calendar-xmark", IconStyle.Solid, "text-orange-500", "/admin/appointment-approval-rule", "APPOINTMENT_APPROVAL_CONFIG", "APPOINTMENT_APPROVAL_CONFIG"),
+        new("main.evaluation-config", "Evaluation Criteria Config", "star-half-stroke", IconStyle.Solid, "text-orange-500", "/admin/evaluation-config", "EVALUATION_CONFIG_MANAGE", "EVALUATION_CONFIG_MANAGE"),
+        new("main.sla-config", "OLA / SLA Targets", "stopwatch", IconStyle.Solid, "text-orange-500", "/admin/sla-config", "SLA_CONFIG_MANAGE", "SLA_CONFIG_MANAGE"),
+        new("main.fee-structures", "Fee Structure", "money-bill-1", IconStyle.Solid, "text-orange-500", "/admin/fee-structures", "PARAMETER_MANAGE", "PARAMETER_MANAGE"),
         new("main.webhook-subscriptions", "Webhook Subscriptions", "plug-circle-bolt", IconStyle.Solid, "text-slate-500", "/admin/webhook-subscriptions", "WEBHOOK_SUBSCRIPTIONS_MANAGE", null),
         new("main.webhook-deliveries", "Webhook Deliveries", "satellite-dish", IconStyle.Solid, "text-slate-500", "/admin/webhook-deliveries", "WEBHOOK_DELIVERIES_VIEW", null),
         // OAuth client/scope registration + token administration (OpenIddict).

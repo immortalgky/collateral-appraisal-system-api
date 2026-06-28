@@ -29,12 +29,16 @@ public class AppraisalCreatedEventHandler(
             FacilityLimit = appraisal.FacilityLimit,
             Priority = appraisal.Priority,
             HasAppraisalBook = appraisal.HasAppraisalBook,
-            Channel = appraisal.Channel
+            Channel = appraisal.Channel,
+            // Pass-through context from creation (mirrors RequestedBy) — the appointment date flows on
+            // the domain event, so no DbContext query is needed. The Workflow consumer writes it into
+            // WorkflowInstance.Variables atomically with appraisalId (no second concurrent writer).
+            AppointmentDateTime = notification.AppointmentDateTime
         }, appraisal.Id.ToString());
 
         logger.LogInformation(
-            "Published AppraisalCreatedIntegrationEvent for AppraisalId: {AppraisalId}, RequestId: {RequestId}",
-            appraisal.Id, appraisal.RequestId);
+            "Published AppraisalCreatedIntegrationEvent for AppraisalId: {AppraisalId}, RequestId: {RequestId}, AppointmentDateTime: {AppointmentDateTime}",
+            appraisal.Id, appraisal.RequestId, notification.AppointmentDateTime);
 
         return Task.CompletedTask;
     }

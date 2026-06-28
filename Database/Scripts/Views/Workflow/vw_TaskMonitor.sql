@@ -33,6 +33,7 @@ SELECT
     a.Status                                                           AS AppraisalStatus,
     pt.AssignedAt                                                      AS AssignedAt,
     pt.DueAt,
+    pt.SlaStartAt,
     pt.SlaStatus,
     -- ElapsedHours / RemainingHours are computed in C# (GetMonitoredTasksQueryHandler) using
     -- IBusinessTimeCalculator so they exclude weekends, holidays and lunch. They are NOT derived

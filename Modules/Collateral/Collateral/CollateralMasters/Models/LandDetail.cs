@@ -4,7 +4,9 @@ public class LandDetail
 {
     public Guid CollateralMasterId { get; private set; }
 
-    // Dedup key (8 columns — SurveyOrParcelNo was split into SurveyNumber + LandParcelNumber)
+    // Dedup key: Province + District + SubDistrict + TitleType + TitleNumber
+    //          + SurveyNumber + LandParcelNumber + Rawang.
+    // LandOfficeCode is retained as a descriptive column but is NOT part of the dedup key.
     public string LandOfficeCode { get; private set; } = null!;
     public string Province { get; private set; } = null!;
     public string District { get; private set; } = null!;
@@ -13,6 +15,7 @@ public class LandDetail
     public string TitleNumber { get; private set; } = null!;
     public string? SurveyNumber { get; private set; }
     public string? LandParcelNumber { get; private set; }
+    public string? Rawang { get; private set; }
 
     // Address (owned)
     public Address Address { get; private set; } = null!;
@@ -36,8 +39,8 @@ public class LandDetail
     // UnitPrice: populated on every land master (IsMaster + aliases) — cost approach only, null otherwise.
     // Source: PricingFinalValue.FinalValueAdjusted (the adjusted unit price per sq.wa).
     public decimal? UnitPrice { get; private set; }
-    // BuildingCost: IsMaster only — from PricingFinalValue.BuildingCost, cost approach only.
-    public decimal? BuildingCost { get; private set; }
+    // BuildingValue: IsMaster only — from PricingFinalValue.BuildingValue, cost approach only.
+    public decimal? BuildingValue { get; private set; }
     // AppraisalValue: IsMaster only — from PricingFinalValue.AppraisalPrice (fallbacks: FinalValueAdjusted, FinalValueRounded).
     public decimal? AppraisalValue { get; private set; }
 
@@ -59,6 +62,7 @@ public class LandDetail
         string titleNumber,
         string? surveyNumber,
         string? landParcelNumber,
+        string? rawang,
         string? street,
         string? village,
         decimal? latitude,
@@ -74,6 +78,7 @@ public class LandDetail
         TitleNumber = titleNumber;
         SurveyNumber = surveyNumber;
         LandParcelNumber = landParcelNumber;
+        Rawang = rawang;
         Address = new Address(street, village);
         Coordinates = new Coordinates(latitude, longitude);
         AppraisalSummary = new AppraisalSummary(null, null, null);
@@ -118,12 +123,12 @@ public class LandDetail
     /// <summary>
     /// Updates the three-value model fields.
     /// <paramref name="unitPrice"/> is set on every land master (IsMaster + aliases).
-    /// <paramref name="buildingCost"/> and <paramref name="appraisalValue"/> are IsMaster only (pass null for aliases).
+    /// <paramref name="buildingCost"/> (stored as BuildingValue) and <paramref name="appraisalValue"/> are IsMaster only (pass null for aliases).
     /// </summary>
     public void UpdateValues(decimal? unitPrice, decimal? buildingCost, decimal? appraisalValue)
     {
         UnitPrice = unitPrice;
-        BuildingCost = buildingCost;
+        BuildingValue = buildingCost;
         AppraisalValue = appraisalValue;
     }
 
@@ -175,6 +180,11 @@ public class LandDetail
         {
             diff["Land.LandParcelNumber"] = new { from = LandParcelNumber, to = edit.LandParcelNumber };
             LandParcelNumber = edit.LandParcelNumber;
+        }
+        if (edit.Rawang is not null && edit.Rawang != Rawang)
+        {
+            diff["Land.Rawang"] = new { from = Rawang, to = edit.Rawang };
+            Rawang = edit.Rawang;
         }
         if (edit.Street is not null && edit.Street != Address.Street)
         {

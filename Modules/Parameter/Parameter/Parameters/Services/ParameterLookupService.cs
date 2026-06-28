@@ -12,4 +12,13 @@ public class ParameterLookupService(IParameterRepository parameterRepository) : 
         var parameters = await parameterRepository.GetParameter(query, cancellationToken: ct);
         return parameters.Select(p => p.Code).ToHashSet();
     }
+
+    public async Task<string?> GetDescriptionAsync(
+        ParameterDto query,
+        CancellationToken ct
+    )
+    {
+        var parameters = await parameterRepository.GetParameter(query, cancellationToken: ct);
+        return parameters.FirstOrDefault()?.Description;
+    }
 }

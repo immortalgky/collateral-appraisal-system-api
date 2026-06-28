@@ -12,14 +12,18 @@ namespace Reporting.Application.Providers.Sections;
 ///   appraisal.AppendixTypes         (Id, Code, Name)
 ///   appraisal.AppendixDocuments     (AppraisalAppendixId, GalleryPhotoId, DisplaySequence)
 ///   appraisal.AppraisalGallery      (Id, DocumentId, FilePath, MimeType, Caption)
+///   document.Documents              (Id, StoragePath, MimeType) — authoritative file path/mime,
+///                                    coalesced over the often-null denormalized gallery columns
 ///
 /// Columns confirmed against AppendixConfiguration.cs and AppraisalGalleryConfiguration.cs.
 ///
 /// Rules:
 ///   - Rows with MimeType LIKE 'image/%' → AppendixImage in the matching AppendixGroup.
-///   - Rows with MimeType = 'application/pdf' → DocumentId collected into PdfDocumentIds
-///     so the existing <!-- SLOT: appendix --> mechanism merges them.
-///   - Groups with no images are omitted from the returned section.
+///   - Rows with MimeType = 'application/pdf' → DocumentId collected under that group's
+///     SLOT name, so the PDF merges directly under its own appendix section (e.g. a PDF
+///     uploaded under "Land Map" appears under the Land Map heading) rather than at the
+///     end of the document.
+///   - Groups with neither images nor PDFs are omitted from the returned section.
 ///   - Returns (null, empty) when the appraisal has no appendix rows at all.
 /// </summary>
 internal static class AppendixSectionLoader
@@ -49,9 +53,10 @@ internal static class AppendixSectionLoader
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
     /// A tuple of the <see cref="AppendixSection"/> (null when no appendix rows exist)
-    /// and the list of DocumentIds for PDF-type entries to merge via the appendix SLOT.
+    /// and a map of per-group SLOT name → DocumentIds of that group's PDF entries, ready
+    /// to assign to the model's AttachmentsBySlot so each group's PDFs merge under it.
     /// </returns>
-    public static async Task<(AppendixSection? Section, IReadOnlyList<Guid> PdfDocumentIds)> LoadAsync(
+    public static async Task<(AppendixSection? Section, IReadOnlyDictionary<string, IReadOnlyList<Guid>> PdfSlots)> LoadAsync(
         IDbConnection connection,
         Guid appraisalId,
         CancellationToken ct = default)
@@ -65,6 +70,10 @@ internal static class AppendixSectionLoader
         //   AppraisalAppendices.SortOrder / LayoutColumns — AppendixConfiguration
         //   AppendixDocuments.DisplaySequence / GalleryPhotoId — AppendixDocumentConfiguration
         //   AppraisalGallery.DocumentId / FilePath / MimeType / Caption — AppraisalGalleryConfiguration
+        // The denormalized AppraisalGallery.FilePath / MimeType are client-supplied on upload
+        // and are frequently NULL (the upload form doesn't always forward them). The authoritative
+        // on-disk path + mime live in document.Documents (same source the PDF merge resolves via
+        // DapperAttachmentSource), so COALESCE onto the document row and use it as the primary value.
         const string sql = """
             SELECT
                 at.Code            AS AppendixTypeCode,
@@ -73,30 +82,34 @@ internal static class AppendixSectionLoader
                 aa.LayoutColumns,
                 ad.DisplaySequence,
                 g.DocumentId,
-                g.FilePath,
-                g.MimeType,
+                COALESCE(d.StoragePath, g.FilePath) AS FilePath,
+                COALESCE(g.MimeType, d.MimeType)    AS MimeType,
                 g.Caption
             FROM appraisal.AppraisalAppendices aa
             JOIN appraisal.AppendixTypes at         ON at.Id = aa.AppendixTypeId
             JOIN appraisal.AppendixDocuments ad      ON ad.AppraisalAppendixId = aa.Id
             JOIN appraisal.AppraisalGallery g        ON g.Id = ad.GalleryPhotoId
+            LEFT JOIN document.Documents d           ON d.Id = g.DocumentId
+                                                    AND d.IsActive = 1
+                                                    AND d.IsDeleted = 0
             WHERE aa.AppraisalId = @AppraisalId
             ORDER BY aa.SortOrder, ad.DisplaySequence
             """;
 
         var rows = (await connection.QueryAsync<AppendixRow>(sql, p)).ToList();
 
-        if (rows.Count == 0)
-            return (null, Array.Empty<Guid>());
+        var empty = (IReadOnlyDictionary<string, IReadOnlyList<Guid>>)
+            new Dictionary<string, IReadOnlyList<Guid>>();
 
-        // Separate images from PDFs
-        var pdfDocumentIds = new List<Guid>();
+        // NOTE: do not early-return on empty appendix rows — Photos-tab topics (loaded below)
+        // are appended even when the appraisal has no formal appendix documents.
 
-        // Group by appendix type (preserving SortOrder from the query result)
-        // Use a list of (key, items) to maintain SortOrder order without re-sorting.
+        // Group by appendix type (preserving SortOrder from the query result).
+        // Use a list of keys to maintain SortOrder order without re-sorting.
         var groupOrder = new List<string>();           // ordered type codes
         var groupMeta  = new Dictionary<string, (string TypeNameThai, int LayoutColumns)>(StringComparer.OrdinalIgnoreCase);
         var groupImages = new Dictionary<string, List<AppendixImage>>(StringComparer.OrdinalIgnoreCase);
+        var groupPdfs   = new Dictionary<string, List<Guid>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var row in rows)
         {
@@ -114,6 +127,7 @@ internal static class AppendixSectionLoader
                 groupOrder.Add(key);
                 groupMeta[key] = (thaiName ?? key, cols);
                 groupImages[key] = [];
+                groupPdfs[key] = [];
             }
 
             var mime = row.MimeType ?? string.Empty;
@@ -133,35 +147,136 @@ internal static class AppendixSectionLoader
             }
             else if (string.Equals(mime, "application/pdf", StringComparison.OrdinalIgnoreCase))
             {
-                pdfDocumentIds.Add(row.DocumentId);
+                groupPdfs[key].Add(row.DocumentId);
             }
             // Other mime types are silently skipped
         }
 
-        // Build groups that have at least one image
-        var groups = groupOrder
-            .Where(k => groupImages[k].Count > 0)
-            .Select(k =>
+        // Build groups that have at least one image OR one PDF. Each surviving group gets a
+        // stable, slot-safe SLOT name (appendix-{index}) so its PDFs merge under its heading.
+        var groups = new List<AppendixGroup>();
+        var pdfSlots = new Dictionary<string, IReadOnlyList<Guid>>();
+
+        foreach (var key in groupOrder)
+        {
+            var images = groupImages[key];
+            var pdfs   = groupPdfs[key];
+            if (images.Count == 0 && pdfs.Count == 0)
+                continue;
+
+            var slotName = $"appendix-{groups.Count}";
+            var (typeName, cols) = groupMeta[key];
+
+            groups.Add(new AppendixGroup
             {
-                var (typeName, cols) = groupMeta[k];
-                return new AppendixGroup
-                {
-                    TypeNameThai  = typeName,
-                    LayoutColumns = cols,
-                    Images        = groupImages[k].AsReadOnly(),
-                };
-            })
-            .ToList();
+                TypeNameThai  = typeName,
+                LayoutColumns = cols,
+                Images        = images.AsReadOnly(),
+                SlotName      = slotName,
+            });
 
-        // If there are no image groups AND no PDFs, treat as empty
-        if (groups.Count == 0 && pdfDocumentIds.Count == 0)
-            return (null, Array.Empty<Guid>());
+            if (pdfs.Count > 0)
+                pdfSlots[slotName] = pdfs.AsReadOnly();
+        }
 
-        var section = groups.Count > 0
-            ? new AppendixSection { Groups = groups }
-            : null;
+        // Append the property "Photos" tab — one group per PhotoTopic, honouring its
+        // configured 1/2/3-column alignment (PhotoTopics.DisplayColumns) — AFTER the
+        // formal appendix groups, so photos always sit last in the appendix.
+        await AppendPhotoTopicGroupsAsync(connection, appraisalId, groups, pdfSlots);
 
-        return (section, pdfDocumentIds);
+        if (groups.Count == 0)
+            return (null, empty);
+
+        return (new AppendixSection { Groups = groups }, pdfSlots);
+    }
+
+    /// <summary>
+    /// Loads the property "Photos" tab — <c>appraisal.PhotoTopics</c> joined to its photos via
+    /// <c>appraisal.GalleryPhotoTopicMappings</c> → <c>appraisal.AppraisalGallery</c> — and appends
+    /// one <see cref="AppendixGroup"/> per topic to <paramref name="groups"/>. The grid column
+    /// count comes from <c>PhotoTopics.DisplayColumns</c> (clamped 1–3). Photo paths/mimes resolve
+    /// from <c>document.Documents</c> (coalesced over the often-null denormalized gallery columns),
+    /// identical to the appendix path. Topics with no usable photo are skipped.
+    /// </summary>
+    private static async Task AppendPhotoTopicGroupsAsync(
+        IDbConnection connection,
+        Guid appraisalId,
+        List<AppendixGroup> groups,
+        Dictionary<string, IReadOnlyList<Guid>> pdfSlots)
+    {
+        const string sql = """
+            SELECT
+                t.Id              AS TopicId,
+                t.TopicName,
+                t.SortOrder,
+                t.DisplayColumns,
+                g.DocumentId,
+                g.PhotoNumber,
+                g.Caption,
+                COALESCE(d.StoragePath, g.FilePath) AS FilePath,
+                COALESCE(g.MimeType, d.MimeType)    AS MimeType
+            FROM appraisal.PhotoTopics t
+            LEFT JOIN appraisal.GalleryPhotoTopicMappings m ON m.PhotoTopicId = t.Id
+            LEFT JOIN appraisal.AppraisalGallery g          ON g.Id = m.GalleryPhotoId
+            LEFT JOIN document.Documents d                  ON d.Id = g.DocumentId
+                                                           AND d.IsActive = 1
+                                                           AND d.IsDeleted = 0
+            WHERE t.AppraisalId = @AppraisalId
+            ORDER BY t.SortOrder, g.PhotoNumber
+            """;
+
+        var p = new DynamicParameters();
+        p.Add("AppraisalId", appraisalId);
+
+        var rows = (await connection.QueryAsync<PhotoTopicRow>(sql, p)).ToList();
+        if (rows.Count == 0)
+            return;
+
+        var topicOrder  = new List<Guid>();
+        var topicMeta   = new Dictionary<Guid, (string Name, int Columns)>();
+        var topicImages = new Dictionary<Guid, List<AppendixImage>>();
+
+        foreach (var row in rows)
+        {
+            if (!topicMeta.ContainsKey(row.TopicId))
+            {
+                // UI offers 1/2/3 columns; clamp to that range (default 1 when unset).
+                var cols = row.DisplayColumns >= 1 ? Math.Min(row.DisplayColumns, 3) : 1;
+                topicOrder.Add(row.TopicId);
+                topicMeta[row.TopicId] = (row.TopicName ?? string.Empty, cols);
+                topicImages[row.TopicId] = [];
+            }
+
+            // LEFT JOINs yield a placeholder row for topics with no photos.
+            if (row.DocumentId is null)
+                continue;
+
+            var mime = row.MimeType ?? string.Empty;
+            if (!mime.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                continue; // Photos tab is image-only; ignore anything else defensively.
+
+            topicImages[row.TopicId].Add(new AppendixImage
+            {
+                ImgSrc  = ToFileUri(row.FilePath),
+                Caption = string.IsNullOrWhiteSpace(row.Caption) ? null : row.Caption,
+            });
+        }
+
+        foreach (var topicId in topicOrder)
+        {
+            var images = topicImages[topicId];
+            if (images.Count == 0)
+                continue;
+
+            var (name, cols) = topicMeta[topicId];
+            groups.Add(new AppendixGroup
+            {
+                TypeNameThai  = name,
+                LayoutColumns = cols,
+                Images        = images.AsReadOnly(),
+                SlotName      = $"appendix-{groups.Count}",
+            });
+        }
     }
 
     /// <summary>
@@ -197,5 +312,18 @@ internal static class AppendixSectionLoader
         public string? FilePath         { get; init; }
         public string? MimeType         { get; init; }
         public string? Caption          { get; init; }
+    }
+
+    private sealed class PhotoTopicRow
+    {
+        public Guid    TopicId        { get; init; }
+        public string? TopicName      { get; init; }
+        public int     SortOrder      { get; init; }
+        public int     DisplayColumns { get; init; }
+        public Guid?   DocumentId     { get; init; }  // nullable: LEFT JOIN placeholder for empty topics
+        public int     PhotoNumber    { get; init; }
+        public string? Caption        { get; init; }
+        public string? FilePath       { get; init; }
+        public string? MimeType       { get; init; }
     }
 }

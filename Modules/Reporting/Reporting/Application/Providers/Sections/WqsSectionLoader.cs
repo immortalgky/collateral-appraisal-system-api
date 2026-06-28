@@ -11,9 +11,11 @@ namespace Reporting.Application.Providers.Sections;
 ///   Q1  appraisal.PricingAnalysis
 ///         → appraisal.PricingAnalysisApproaches
 ///           → appraisal.PricingAnalysisMethods WHERE MethodType = 'WQS'
-///       Resolves the first WQS PricingMethodId anchored to a PropertyGroup
+///       Resolves all WQS PricingMethodIds anchored to PropertyGroups
 ///       (SubjectType = 0) belonging to the given AppraisalId.
-///       Also pulls MethodValue → AppraisalValue and ValuePerUnit → LandPerSqWa/PricePerUnit.
+///       Groups by pg.Id; takes first pam.Id per group.
+///       Also pulls pg.GroupNumber / pg.GroupName (for the กลุ่มที่ N bar),
+///       pam.MethodValue → AppraisalValue and pam.ValuePerUnit → LandPerSqWa.
 ///
 ///   Q2  appraisal.PricingComparableLinks (PricingMethodId, DisplaySequence)
 ///       → comparable header labels ("ข้อมูล {seq}"), ordered by DisplaySequence.
@@ -36,20 +38,21 @@ namespace Reporting.Application.Providers.Sections;
 /// MarketComparableFactorConfiguration.cs. No HasColumnName overrides present on
 /// any of the five tables — DB column names match C# property names exactly.
 ///
-/// Returns <see langword="null"/> when no WQS method exists for the appraisal.
-/// When multiple WQS methods exist the first one (lowest PricingMethodId creation
-/// order via the approach/method join) is used.
+/// Returns an empty list when no WQS method exists for the appraisal.
+/// When a group has multiple WQS methods the first one (lowest pam.Id via ORDER BY pam.Id)
+/// is used for that group.
 /// </summary>
 internal static class WqsSectionLoader
 {
     /// <summary>
-    /// Loads the <see cref="WqsSection"/> for the given <paramref name="appraisalId"/>.
-    /// Returns <see langword="null"/> when the appraisal has no WQS pricing method.
+    /// Loads all <see cref="WqsSection"/>s for the given <paramref name="appraisalId"/>,
+    /// one per property group that has a WQS pricing method.
+    /// Returns an empty list when the appraisal has no WQS pricing method.
     /// </summary>
     /// <param name="connection">An open Dapper <see cref="IDbConnection"/>.</param>
-    /// <param name="appraisalId">The appraisal to load the WQS section for.</param>
+    /// <param name="appraisalId">The appraisal to load the WQS sections for.</param>
     /// <param name="ct">Cancellation token (unused by Dapper but signals intent).</param>
-    public static async Task<WqsSection?> LoadAsync(
+    public static async Task<IReadOnlyList<WqsSection>> LoadAllAsync(
         IDbConnection connection,
         Guid appraisalId,
         CancellationToken ct = default)
@@ -57,20 +60,26 @@ internal static class WqsSectionLoader
         var p = new DynamicParameters();
         p.Add("AppraisalId", appraisalId);
 
-        // ── Q1: Resolve the WQS PricingMethodId ──────────────────────────────────
+        // ── Q1: Resolve all WQS PricingMethodIds (one per property group) ─────────
         // Navigation path:
         //   appraisal.PropertyGroups → AnchorId in appraisal.PricingAnalysis
         //     (SubjectType = 0 = PropertyGroup)
         //   → appraisal.PricingAnalysisApproaches (PricingAnalysisId)
         //   → appraisal.PricingAnalysisMethods    (ApproachId, MethodType = 'WQS')
         //
-        // PropertyGroups.AppraisalId is the join key tying a group to an appraisal.
-        // SubjectType stored as int — 0 = PropertyGroup (PricingAnalysisSubjectType enum).
+        // pg.GroupNumber and pg.GroupName are included so the template can print a
+        // กลุ่มที่ N bar when the list size > 1 (mirrors appraisal-book.html:30-31).
+        //
+        // ORDER BY pg.GroupNumber, pam.Id — groups appear in group order; within a
+        // group, if multiple methods exist, the first by pam.Id is used (taken in C#).
         //
         // MethodValue  → AppraisalValue  (PricingAnalysisMethodConfiguration: decimal 18,2)
         // ValuePerUnit → LandPerSqWa / PricePerUnit (same column; decimal 18,2)
         const string methodSql = """
-            SELECT TOP 1
+            SELECT
+                pg.Id          AS PropertyGroupId,
+                pg.GroupNumber,
+                pg.GroupName,
                 pam.Id         AS PricingMethodId,
                 pam.MethodValue,
                 pam.ValuePerUnit
@@ -84,13 +93,38 @@ internal static class WqsSectionLoader
                 ON pam.ApproachId = paa.Id
                AND pam.MethodType = 'WQS'
             WHERE pg.AppraisalId = @AppraisalId
-            ORDER BY pam.Id
+            ORDER BY pg.GroupNumber, pam.Id
             """;
 
-        var method = await connection.QueryFirstOrDefaultAsync<MethodRow>(methodSql, p);
-        if (method is null)
-            return null;
+        var allMethodRows = (await connection.QueryAsync<MethodRow>(methodSql, p)).ToList();
+        if (allMethodRows.Count == 0)
+            return [];
 
+        // Take the first PricingMethodId per PropertyGroup (lowest pam.Id within group).
+        var methodsPerGroup = allMethodRows
+            .GroupBy(r => r.PropertyGroupId)
+            .Select(g => g.First())        // already ordered by pam.Id within each group
+            .OrderBy(r => r.GroupNumber)   // final list ordered by group number
+            .ToList();
+
+        var sections = new List<WqsSection>(methodsPerGroup.Count);
+        foreach (var method in methodsPerGroup)
+        {
+            var section = await LoadOneAsync(connection, method, ct);
+            if (section is not null)
+                sections.Add(section);
+        }
+
+        return sections;
+    }
+
+    // ── Per-method loader (unchanged logic extracted from the original LoadAsync) ──
+
+    private static async Task<WqsSection?> LoadOneAsync(
+        IDbConnection connection,
+        MethodRow method,
+        CancellationToken ct)
+    {
         var mp = new DynamicParameters();
         mp.Add("PricingMethodId", method.PricingMethodId);
 
@@ -245,21 +279,36 @@ internal static class WqsSectionLoader
             };
         }).ToList();
 
-        // ── Q6: Scatter points (regression graph) ─────────────────────────────────
-        // X = total weighted score per comparable = SUM(WeightedScore) over its factors
-        //     (mirrors WqsCalculationService: GetFactorScoresForComparable(id).Sum(WeightedScore)).
-        // Y = the comparable's adjusted price = PricingCalculations.TotalAdjustedValue.
-        // Subject point: X = SUM(WeightedScore) of the NULL-comparable rows; Y = Forecast.
-        // Regression line: y = Intercept + Slope·x. The loader maps everything to pixels.
+        // ── Q6: Per-comparable calculation row (scatter + price block) ────────────
+        // Scatter: X = total weighted score per comparable; Y = TotalAdjustedValue.
+        // Price block (FSD §2.1.2.9): purchase/offer prices + their adjustments, sourced
+        // from PricingCalculations (populated for WQS too — see SaveComparativeAnalysis).
+        //   ราคาซื้อขาย            = SellingPrice
+        //   การปรับแก้ราคาซื้อขาย % = CumulativeAdjPeriod
+        //   ราคาซื้อขายสุทธิหลังปรับ = SellingPrice × (1 + CumulativeAdjPeriod/100)
+        //   ราคาเสนอขาย            = OfferingPrice
+        //   การปรับแก้ราคาเสนอขาย % = AdjustOfferPricePct
+        //   ราคาเสนอขายสุทธิหลังปรับ = AdjustOfferPriceAmt (override) | OfferingPrice × (1 − AdjustOfferPricePct/100)
+        // "after adjust" math mirrors PricingCalculationHelper.ComputeInitialPrice.
         const string calcSql = """
-            SELECT MarketComparableId, TotalAdjustedValue
+            SELECT
+                MarketComparableId,
+                TotalAdjustedValue,
+                SellingPrice,
+                CumulativeAdjPeriod,
+                OfferingPrice,
+                AdjustOfferPricePct,
+                AdjustOfferPriceAmt
             FROM appraisal.PricingCalculations
             WHERE PricingMethodId = @PricingMethodId
             """;
-        var priceByComparable = (await connection.QueryAsync<CalcRow>(calcSql, mp))
-            .Where(c => c.TotalAdjustedValue.HasValue)
+        var calcByComparable = (await connection.QueryAsync<CalcRow>(calcSql, mp))
             .GroupBy(c => c.MarketComparableId)
-            .ToDictionary(g => g.Key, g => g.First().TotalAdjustedValue!.Value);
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var priceByComparable = calcByComparable
+            .Where(kv => kv.Value.TotalAdjustedValue.HasValue)
+            .ToDictionary(kv => kv.Key, kv => kv.Value.TotalAdjustedValue!.Value);
 
         // Total weighted score per comparable (skip null weighted scores).
         var scoreByComparable = scoreRows
@@ -275,12 +324,47 @@ internal static class WqsSectionLoader
 
         var scatter = BuildScatter(dataPoints, subjectByFactor, rsq);
 
+        // ── Totals row (ผลรวม) ────────────────────────────────────────────────────
+        // ΣWeight and Σ(Weight×Intensity) across factors; per-comparable and subject
+        // totals = Σ(Score×Weight) = ΣWeightedScore (the scatter X axis).
+        decimal? totalWeight = factors.Any(f => f.Weight.HasValue)
+            ? factors.Sum(f => f.Weight ?? 0m)
+            : null;
+        decimal? totalMaxScore = factors.Any(f => f.Weight.HasValue && f.Intensity.HasValue)
+            ? factors.Sum(f => (f.Weight ?? 0m) * (f.Intensity ?? 0m))
+            : null;
+
+        var comparableScoreTotals = comparableIds
+            .Select(cid => scoreByComparable.TryGetValue(cid, out var t) ? (decimal?)t : null)
+            .ToList();
+
+        decimal? subjectScoreTotal = subjectByFactor.Values.Any(s => s.WeightedScore.HasValue)
+            ? subjectByFactor.Values.Sum(s => s.WeightedScore ?? 0m)
+            : null;
+
+        // ── Price block (FSD §2.1.2.9) ────────────────────────────────────────────
+        var priceRows = BuildPriceRows(comparableIds, calcByComparable);
+
+        // ── เนื้อที่ดิน = ราคาประเมิน ÷ ตารางวาละ ──────────────────────────────────
+        decimal? landArea =
+            method.MethodValue.HasValue && method.ValuePerUnit.HasValue && method.ValuePerUnit.Value != 0m
+                ? method.MethodValue.Value / method.ValuePerUnit.Value
+                : null;
+
         // ── Build section ─────────────────────────────────────────────────────────
         return new WqsSection
         {
-            ComparableHeaders = comparableHeaders,
-            Factors           = factors,
-            Rsq               = rsq?.Rsq,
+            GroupNumber           = method.GroupNumber,
+            GroupName             = method.GroupName,
+            ComparableHeaders     = comparableHeaders,
+            Factors               = factors,
+            TotalWeight           = totalWeight,
+            TotalMaxScore         = totalMaxScore,
+            ComparableScoreTotals = comparableScoreTotals,
+            SubjectScoreTotal     = subjectScoreTotal,
+            PriceRows             = priceRows,
+            LandArea              = landArea,
+            Rsq                   = rsq?.Rsq,
             Steyx             = rsq?.Steyx,
             Intercept         = rsq?.Intercept,
             Slope             = rsq?.Slope,
@@ -292,7 +376,7 @@ internal static class WqsSectionLoader
             AppraisalValue    = method.MethodValue,
             Scatter           = scatter
         };
-    }
+    }  // LoadOneAsync
 
     // ── Scatter geometry (computed in C# so the template only emits literals) ────────
 
@@ -378,13 +462,68 @@ internal static class WqsSectionLoader
         };
     }
 
+    // ── Price block construction (FSD §2.1.2.9) ──────────────────────────────────
+
+    /// <summary>
+    /// Builds the six price-adjustment rows from per-comparable <see cref="CalcRow"/>s.
+    /// A row is emitted only when at least one comparable carries a value, so a WQS
+    /// analysis scored purely on quality factors shows no empty price block.
+    /// </summary>
+    private static IReadOnlyList<WqsPriceRow> BuildPriceRows(
+        IReadOnlyList<Guid> comparableIds,
+        IReadOnlyDictionary<Guid, CalcRow> calcByComparable)
+    {
+        const string Unit = "บาท/ตารางวา";
+
+        WqsPriceRow? Row(string label, Func<CalcRow, decimal?> selector)
+        {
+            var values = comparableIds
+                .Select(id => calcByComparable.TryGetValue(id, out var c) ? selector(c) : null)
+                .Select(v => v.HasValue ? v.Value.ToString("N2") : null)
+                .ToList();
+            return values.Any(v => v is not null)
+                ? new WqsPriceRow { Label = label, Unit = Unit, Values = values }
+                : null;
+        }
+
+        // ราคาซื้อขายสุทธิหลังปรับ = SellingPrice × (1 + CumulativeAdjPeriod/100)
+        static decimal? PurchaseNet(CalcRow c) =>
+            c.SellingPrice.HasValue
+                ? c.SellingPrice.Value * (1m + (c.CumulativeAdjPeriod ?? 0m) / 100m)
+                : null;
+
+        // ราคาเสนอขายสุทธิหลังปรับ = AdjustOfferPriceAmt (override) | OfferingPrice × (1 − pct/100)
+        static decimal? OfferNet(CalcRow c)
+        {
+            if (c.AdjustOfferPriceAmt is { } amt && amt != 0m) return amt;
+            if (c.OfferingPrice.HasValue)
+                return c.OfferingPrice.Value * (1m - (c.AdjustOfferPricePct ?? 0m) / 100m);
+            return null;
+        }
+
+        var rows = new List<WqsPriceRow?>
+        {
+            Row("ราคาซื้อขาย", c => c.SellingPrice),
+            Row("การปรับแก้ราคาซื้อขาย (%)", c => c.CumulativeAdjPeriod),
+            Row("ราคาซื้อขายสุทธิหลังปรับ", PurchaseNet),
+            Row("ราคาเสนอขาย", c => c.OfferingPrice),
+            Row("การปรับแก้ราคาเสนอขาย (%)", c => c.AdjustOfferPricePct),
+            Row("ราคาเสนอขายสุทธิหลังปรับ", OfferNet),
+        };
+
+        return rows.Where(r => r is not null).Select(r => r!).ToList();
+    }
+
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
 
     private sealed class MethodRow
     {
-        public Guid PricingMethodId { get; init; }
-        public decimal? MethodValue { get; init; }
-        public decimal? ValuePerUnit { get; init; }
+        public Guid    PropertyGroupId  { get; init; }
+        public int     GroupNumber      { get; init; }
+        public string? GroupName        { get; init; }
+        public Guid    PricingMethodId  { get; init; }
+        public decimal? MethodValue     { get; init; }
+        public decimal? ValuePerUnit    { get; init; }
     }
 
     private sealed class FactorNameRow
@@ -411,6 +550,11 @@ internal static class WqsSectionLoader
     {
         public Guid MarketComparableId { get; init; }
         public decimal? TotalAdjustedValue { get; init; }
+        public decimal? SellingPrice { get; init; }
+        public decimal? CumulativeAdjPeriod { get; init; }
+        public decimal? OfferingPrice { get; init; }
+        public decimal? AdjustOfferPricePct { get; init; }
+        public decimal? AdjustOfferPriceAmt { get; init; }
     }
 
     private sealed class RsqRow

@@ -69,7 +69,7 @@ public class DocumentChecklistService : IDocumentChecklistService
 
     public async Task<IReadOnlyDictionary<string, string>> GetAllDocumentTypeNamesAsync(CancellationToken ct)
     {
-        var all = await _repository.GetAllDocumentTypesAsync(ct);
+        var all = await _repository.GetAllDocumentTypesAsync(cancellationToken: ct);
         return all.ToDictionary(d => d.Code, d => d.Name);
     }
 

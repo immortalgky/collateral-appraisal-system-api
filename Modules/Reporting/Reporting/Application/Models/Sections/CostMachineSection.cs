@@ -3,144 +3,136 @@ namespace Reporting.Application.Models.Sections;
 /// <summary>
 /// Sub-model for the "วิธีต้นทุน (เครื่องจักร)" (Cost Approach – Machinery) section — FSD §2.1.2.11.
 ///
-/// Represents one rendered block in the external appraisal report for a MachineryCost
-/// pricing method: a narrative paragraph explaining the FMV formula followed by a
-/// per-machine calculation grid.
+/// Layout (per FSD): a full-page methodology cover (rendered statically in the template),
+/// followed by ONE calculation table per machine <b>property group</b>. Each table is headed
+/// by its group name and carries its own totals row. Machines that belong to no property
+/// group fall into a single ungrouped table (GroupNumber 0, no header).
 ///
-/// All scalar properties are nullable so that partial data renders as a blank rather
-/// than throwing. The section is absent from the report when
+/// The section is absent from the report when
 /// <see cref="CostMachineSectionLoader.LoadAsync"/> returns <see langword="null"/>
 /// (no MachineryCost method exists, or the method has no MachineCostItems).
 /// </summary>
 public sealed class CostMachineSection
 {
+    // ── Property group routing ────────────────────────────────────────────────────
+
     /// <summary>
-    /// Per-machine calculation rows, one per MachineCostItem ordered by DisplaySequence.
-    /// Empty list when no items exist.
+    /// PropertyGroups.GroupNumber — 0 for the shared machinery section.
+    /// CostMachine is not split per property group at the outer section level;
+    /// internal splitting uses MachineCostGroup.GroupNumber instead.
     /// </summary>
+    public int GroupNumber { get; init; }
+
+    /// <summary>PropertyGroups.GroupName — null for the shared machinery section.</summary>
+    public string? GroupName { get; init; }
+
+    /// <summary>
+    /// One block per machine property group, ordered by GroupNumber ascending.
+    /// Each group renders as a separate table with its own header and totals.
+    /// </summary>
+    public IReadOnlyList<MachineCostGroup> Groups { get; init; } = [];
+}
+
+/// <summary>
+/// One machine property group = one rendered cost table.
+/// Grouping source: <c>appraisal.PropertyGroups</c> / <c>appraisal.PropertyGroupItems</c>.
+/// </summary>
+public sealed class MachineCostGroup
+{
+    /// <summary>กลุ่มที่ — PropertyGroups.GroupNumber (0 = ungrouped fallback, renders without a header).</summary>
+    public int GroupNumber { get; init; }
+
+    /// <summary>ชื่อกลุ่ม — PropertyGroups.GroupName. Used as the table header.</summary>
+    public string? GroupName { get; init; }
+
+    /// <summary>Per-machine calculation rows, ordered by DisplaySequence within the group.</summary>
     public IReadOnlyList<MachineCostRow> Rows { get; init; } = [];
 
     /// <summary>
-    /// รวมต้นทุนทดแทนใหม่ (บาท) — SUM(MachineCostItems.RcnReplacementCost).
-    /// Null when all RCN values are null.
+    /// จำนวน X เครื่อง — number of machine rows listed in this group (the totals-row narrative).
     /// </summary>
-    public decimal? TotalRcn { get; init; }
+    public int MachineCount { get; init; }
 
     /// <summary>
-    /// รวมมูลค่าตามสภาพ (บาท) — SUM(MachineCostItems.FairMarketValue).
-    /// Null when all FMV values are null.
+    /// สำรวจพบ Y เครื่อง — SUM(Quantity) across the group's rows (machines actually found on survey).
+    /// Also the value printed in the totals row's จำนวน column.
     /// </summary>
+    public int SurveyedCount { get; init; }
+
+    /// <summary>รวมมูลค่าทดแทน RCN (บาท) — SUM(Rcn) for the group. Null when all RCN values are null.</summary>
+    public decimal? TotalRcn { get; init; }
+
+    /// <summary>รวมมูลค่าตามสภาพ FMV (บาท) — SUM(Fmv) for the group. Null when all FMV values are null.</summary>
     public decimal? TotalFmv { get; init; }
 }
 
 /// <summary>
-/// One row in the Cost Approach – Machinery calculation grid.
+/// One row in a Cost Approach – Machinery calculation table.
 ///
 /// Primary source: <c>appraisal.MachineCostItems</c> joined to
 /// <c>appraisal.MachineryAppraisalDetails</c> (via AppraisalPropertyId).
+/// Formula (FSD): FMV = RCN × P × F × E, where P = (1 − n/N) × C and R = N − n.
+/// RCN and FMV are stored (FMV computed client-side on save); P and R are derived here for display.
 /// </summary>
 public sealed class MachineCostRow
 {
-    // ── Sequence ──────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// ลำดับ — 1-based row number within the section.
-    /// Derived from MachineCostItems.DisplaySequence ordering.
-    /// </summary>
+    /// <summary>ลำดับที่ — 1-based row number within the group.</summary>
     public int Sequence { get; init; }
 
-    // ── Machine identification (from MachineryAppraisalDetails) ──────────────────
+    /// <summary>จำนวน — Source: MachineryAppraisalDetails.Quantity (int?).</summary>
+    public int? Quantity { get; init; }
 
     /// <summary>
-    /// รายละเอียดเครื่องจักร — composed as "{MachineName} {Brand} {Model}".
-    /// Sources: MachineryAppraisalDetails.MachineName (nvarchar 200),
-    ///          MachineryAppraisalDetails.Brand (nvarchar 100),
-    ///          MachineryAppraisalDetails.Model (nvarchar 100).
+    /// ชื่อและรายละเอียดเครื่องจักรพร้อมอุปกรณ์ — composed as "{MachineName} {Brand} {Model}".
     /// Null when the MachineryAppraisalDetail row is absent.
     /// </summary>
     public string? MachineDetail { get; init; }
 
-    /// <summary>
-    /// เลขทะเบียน — Source: MachineryAppraisalDetails.RegistrationNumber (nvarchar 50).
-    /// </summary>
+    /// <summary>หมายเลขทะเบียนเครื่องจักร — Source: MachineryAppraisalDetails.RegistrationNumber.</summary>
     public string? RegistrationNumber { get; init; }
 
-    /// <summary>
-    /// ประเทศ — No Country column exists on MachineryAppraisalDetails.
-    /// // no source — always null until schema adds a Country column.
-    /// </summary>
-    public string? Country { get; init; }
+    /// <summary>ประเทศผู้ผลิตผู้ประกอบ — Source: MachineryAppraisalDetails.Manufacturer (holds the maker/country).</summary>
+    public string? ManufacturerCountry { get; init; }
 
-    /// <summary>
-    /// การใช้งาน — Source: MachineryAppraisalDetails.ConditionUse (nvarchar 100).
-    /// </summary>
+    /// <summary>สภาพการใช้งาน — Source: MachineryAppraisalDetails.ConditionUse.</summary>
     public string? ConditionUse { get; init; }
 
-    // ── Age / lifespan (from both tables) ────────────────────────────────────────
-
     /// <summary>
-    /// ปีที่ผลิต — Source: MachineryAppraisalDetails.YearOfManufacture (int?).
+    /// ปีที่เริ่มใช้งาน (พ.ศ.) — Source: MachineryAppraisalDetails.YearOfManufacture (int?).
+    /// Rendered as stored (the FSD column is labelled พ.ศ. and the value is captured in Buddhist era).
     /// </summary>
     public int? YearOfUse { get; init; }
 
-    /// <summary>
-    /// อายุการใช้งาน N (ปี) — Source: MachineCostItems.LifeSpanYears (decimal(5,1)).
-    /// </summary>
+    /// <summary>N (ปี) อายุใช้งานทางกายภาพ — Source: MachineCostItems.LifeSpanYears (decimal(5,1)).</summary>
     public decimal? LifeSpanN { get; init; }
 
-    /// <summary>
-    /// อายุจริง n — Source: MachineryAppraisalDetails.MachineAge (decimal?).
-    /// Represents actual elapsed age in years as entered by the appraiser.
-    /// </summary>
+    /// <summary>n (ปี) อายุตามระยะเวลาที่ใช้งาน — Source: MachineryAppraisalDetails.MachineAge (decimal?).</summary>
     public decimal? AgeN { get; init; }
 
-    /// <summary>
-    /// อายุคงเหลือ R = N - n — No stored column; not computed here.
-    /// // no source — deferred; derive in template if both LifeSpanN and AgeN are present.
-    /// </summary>
+    /// <summary>R (ปี) อายุคงเหลือ — Derived: R = N − n. Null when N or n is missing.</summary>
     public decimal? RemainingR { get; init; }
 
-    // ── Depreciation factors (from MachineCostItems) ─────────────────────────────
-
-    /// <summary>
-    /// ปัจจัยทางสภาพ C — Source: MachineCostItems.ConditionFactor (decimal(5,2), NOT NULL).
-    /// Stored as a decimal (e.g. 0.85 = 85%).
-    /// </summary>
+    /// <summary>C ปัจจัยทางสภาพ — Source: MachineCostItems.ConditionFactor (decimal(5,2)).</summary>
     public decimal? ConditionFactorC { get; init; }
 
-    /// <summary>
-    /// การเสื่อมราคาทางหน้าที่ F — Source: MachineCostItems.FunctionalObsolescence (decimal(5,2), NOT NULL).
-    /// Stored as a decimal factor (e.g. 1.00 = no functional obsolescence).
-    /// </summary>
+    /// <summary>P การเสื่อมราคาทางกายภาพ — Derived: P = (1 − n/N) × C. Null when N or n is missing.</summary>
+    public decimal? PhysicalP { get; init; }
+
+    /// <summary>F การเสื่อมราคาทางประโยชน์ใช้สอย — Source: MachineCostItems.FunctionalObsolescence (decimal(5,2)).</summary>
     public decimal? FunctionalF { get; init; }
 
-    /// <summary>
-    /// การเสื่อมราคาทางเศรษฐกิจ E — Source: MachineCostItems.EconomicObsolescence (decimal(5,2), NOT NULL).
-    /// Stored as a decimal factor (e.g. 1.00 = no economic obsolescence).
-    /// </summary>
+    /// <summary>E การเสื่อมราคาทางเศรษฐกิจ/ปัจจัยภายนอก — Source: MachineCostItems.EconomicObsolescence (decimal(5,2)).</summary>
     public decimal? EconomicE { get; init; }
 
-    // ── Valuation outputs (from MachineCostItems) ─────────────────────────────────
-
-    /// <summary>
-    /// ต้นทุนทดแทนใหม่ RCN (บาท) — Source: MachineCostItems.RcnReplacementCost (decimal(18,2)).
-    /// </summary>
+    /// <summary>มูลค่าทดแทน RCN (บาท) — Source: MachineCostItems.RcnReplacementCost (decimal(18,2)).</summary>
     public decimal? Rcn { get; init; }
 
-    /// <summary>
-    /// มูลค่าตามสภาพ FMV (บาท) — Source: MachineCostItems.FairMarketValue (decimal(18,2)).
-    /// </summary>
+    /// <summary>มูลค่าตามสภาพ FMV (บาท) — Source: MachineCostItems.FairMarketValue (decimal(18,2)).</summary>
     public decimal? Fmv { get; init; }
 
-    // ── Market demand flag (from MachineCostItems) ────────────────────────────────
-
     /// <summary>
-    /// สภาพความต้องการของตลาด — Source: MachineCostItems.MarketDemandAvailable (bit).
-    /// Stored as bool on the item; surfaced as Thai display text by the loader
-    /// ("มี" / "ไม่มี" / null when the flag is false).
-    ///
-    /// Note: MachineryAppraisalSummaries.MarketDemand (nvarchar 4000) is an appraisal-level
-    /// narrative available on MachineSection, not on a per-item basis.
+    /// ความต้องการตลาด ใช้งานได้/ใช้งานไม่ได้ — Source: MachineCostItems.MarketDemandAvailable (bit).
+    /// Surfaced as "ใช้งานได้" / "ใช้งานไม่ได้" by the loader.
     /// </summary>
     public string? MarketDemand { get; init; }
 }

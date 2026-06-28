@@ -51,6 +51,11 @@ public class DocumentType : Entity<Guid>
         SortOrder = sortOrder;
     }
 
+    public void SetSortOrder(int sortOrder)
+    {
+        SortOrder = sortOrder;
+    }
+
     public void Activate()
     {
         IsActive = true;

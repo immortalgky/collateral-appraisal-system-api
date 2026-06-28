@@ -17,5 +17,6 @@ public record TaskAssignedEvent(
     string Movement = "F",
     Guid? AppraisalId = null,
     string? ReasonCode = null,
-    string? Reason = null
+    string? Reason = null,
+    DateTime? SlaStartAt = null
 ) : IDomainEvent;

@@ -17,10 +17,10 @@ public class PricingFinalValue : Entity<Guid>
     public decimal? LandArea { get; private set; }
     public decimal? LandValue { get; private set; }   // user-edited land price
 
-    // Building Cost (if applicable)
-    public bool HasBuildingCost { get; private set; }
-    public decimal? BuildingCost { get; private set; }
-    public decimal? AppraisalPrice { get; private set; } // user-edited final total (HasBuildingCost only)
+    // Building Value (if applicable)
+    public bool HasBuildingValue { get; private set; }
+    public decimal? BuildingValue { get; private set; }
+    public decimal? AppraisalPrice { get; private set; } // user-edited final total (HasBuildingValue only)
 
     private PricingFinalValue()
     {
@@ -38,7 +38,7 @@ public class PricingFinalValue : Entity<Guid>
             FinalValue = finalValue,
             FinalValueRounded = finalValueRounded,
             IncludeLandArea = true,
-            HasBuildingCost = false
+            HasBuildingValue = false
         };
     }
 
@@ -55,8 +55,8 @@ public class PricingFinalValue : Entity<Guid>
             IncludeLandArea = source.IncludeLandArea,
             LandArea = source.LandArea,
             LandValue = source.LandValue,
-            HasBuildingCost = source.HasBuildingCost,
-            BuildingCost = source.BuildingCost,
+            HasBuildingValue = source.HasBuildingValue,
+            BuildingValue = source.BuildingValue,
             AppraisalPrice = source.AppraisalPrice
         };
     }
@@ -75,10 +75,10 @@ public class PricingFinalValue : Entity<Guid>
         LandValue = null;
     }
 
-    public void SetBuildingCost(decimal buildingCost)
+    public void SetBuildingValue(decimal buildingValue)
     {
-        HasBuildingCost = true;
-        BuildingCost = buildingCost;
+        HasBuildingValue = true;
+        BuildingValue = buildingValue;
     }
 
     public void UpdateFinalValue(decimal finalValue, decimal finalValueRounded)
@@ -102,10 +102,10 @@ public class PricingFinalValue : Entity<Guid>
         AppraisalPrice = appraisalPrice;
     }
 
-    public void ClearBuildingCost()
+    public void ClearBuildingValue()
     {
-        HasBuildingCost = false;
-        BuildingCost = null;
+        HasBuildingValue = false;
+        BuildingValue = null;
     }
 
 }

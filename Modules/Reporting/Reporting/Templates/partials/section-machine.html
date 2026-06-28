@@ -1,0 +1,81 @@
+{{ if model.machine_section }}
+<div class="section-bar">รายละเอียดเครื่องจักร</div>
+
+<div class="pad">
+
+  {{ $ms = model.machine_section }}
+
+  {{ if $ms.surveyed_count != null || $ms.evaluated_count != null || $ms.installed_in_use_count != null || $ms.wreckage_count != null || $ms.not_installed_count != null }}
+  <div class="cols3">
+    <div class="kv"><span class="k">จำนวนที่สำรวจ :</span><span class="v">{{ $ms.surveyed_count }}</span></div>
+    <div class="kv"><span class="k">จำนวนที่ประเมิน :</span><span class="v">{{ $ms.evaluated_count }}</span></div>
+    <div class="kv"><span class="k">ติดตั้งและใช้งาน :</span><span class="v">{{ $ms.installed_in_use_count }}</span></div>
+    <div class="kv"><span class="k">จำนวนซาก :</span><span class="v">{{ $ms.wreckage_count }}</span></div>
+    <div class="kv"><span class="k">ยังไม่ติดตั้ง :</span><span class="v">{{ $ms.not_installed_count }}</span></div>
+  </div>
+  {{ end }}
+
+  <div class="cols2">
+    {{ if $ms.maintenance_condition }}
+    <div class="kv"><span class="k">สภาพการบำรุงรักษา :</span><span class="v">{{ $ms.maintenance_condition }}</span></div>
+    {{ end }}
+    {{ if $ms.exterior_condition }}
+    <div class="kv"><span class="k">สภาพภายนอก :</span><span class="v">{{ $ms.exterior_condition }}</span></div>
+    {{ end }}
+    {{ if $ms.efficiency }}
+    <div class="kv"><span class="k">ประสิทธิภาพ :</span><span class="v">{{ $ms.efficiency }}</span></div>
+    {{ end }}
+    {{ if $ms.market_demand }}
+    <div class="kv"><span class="k">สภาพความต้องการของตลาด :</span><span class="v">{{ $ms.market_demand }}</span></div>
+    {{ end }}
+  </div>
+
+  {{ if $ms.owner_name }}
+  <div class="kv"><span class="k">กรรมสิทธิ์เครื่องจักร :</span><span class="v">{{ $ms.owner_name }}</span></div>
+  {{ end }}
+  {{ if $ms.machine_location }}
+  <div class="kv"><span class="k">ที่ตั้งเครื่องจักร :</span><span class="v">{{ $ms.machine_location }}</span></div>
+  {{ end }}
+  {{ if $ms.obligation }}
+  <div class="kv"><span class="k">ภาระผูกพัน :</span><span class="v">{{ $ms.obligation }}</span></div>
+  {{ end }}
+  {{ if $ms.other }}
+  <div class="kv"><span class="k">อื่นๆ :</span><span class="v">{{ $ms.other }}</span></div>
+  {{ end }}
+  {{ if $ms.collateral_detail_narrative }}
+  <div class="kv"><span class="k">รายละเอียดหลักประกัน :</span><span class="v">{{ $ms.collateral_detail_narrative }}</span></div>
+  {{ end }}
+
+</div>
+
+{{ if $ms.machines.size > 0 }}
+{{ for m in $ms.machines }}
+<div class="machine-block">
+  <div class="machine-head">
+    <span class="machine-seq">{{ m.sequence }}.</span>
+    <span class="machine-qty">จำนวน {{ if m.quantity }}{{ m.quantity }}{{ else }}-{{ end }}</span>
+    <span class="machine-title">{{ m.machine_name }}</span>
+  </div>
+  <div class="machine-attrs">
+    <div class="kv"><span class="k">หมายเลขทะเบียน :</span><span class="v">{{ m.registration_number }}</span></div>
+    <div class="kv"><span class="k">ตำแหน่งที่ตั้ง :</span><span class="v">{{ m.location }}</span></div>
+    <div class="kv"><span class="k">สภาพการใช้งาน :</span><span class="v">{{ m.condition_use }}</span></div>
+    <div class="kv"><span class="k">ยี่ห้อ :</span><span class="v">{{ m.brand }}</span></div>
+    <div class="kv"><span class="k">แบบ :</span><span class="v">{{ m.type }}</span></div>
+    <div class="kv"><span class="k">รุ่น :</span><span class="v">{{ m.model }}{{ if m.year_of_manufacture }} , ปี {{ m.year_of_manufacture }}{{ end }}</span></div>
+    <div class="kv"><span class="k">ขนาดเครื่อง :</span><span class="v">{{ m.machine_dimensions }}</span></div>
+    <div class="kv"><span class="k">พลังงานที่ใช้ :</span><span class="v">{{ m.energy_use }}</span></div>
+    <div class="kv"><span class="k">หมายเลขเครื่อง :</span><span class="v">{{ m.serial_no }}</span></div>
+    <div class="kv"><span class="k">ใช้ในการ :</span><span class="v">{{ m.usage_purpose }}</span></div>
+    <div class="kv"><span class="k">ขนาดความสามารถ :</span><span class="v">{{ m.capacity }}</span></div>
+    <div class="kv"><span class="k">ผู้ผลิต :</span><span class="v">{{ m.manufacturer }}</span></div>
+    <div class="kv"><span class="k">อื่นๆ :</span><span class="v">{{ m.other }}</span></div>
+    <div class="kv kv-block"><span class="k">ส่วนประกอบของเครื่องจักร :</span><span class="v">{{ m.machine_parts }}</span></div>
+    <div class="kv kv-block"><span class="k">หมายเหตุ :</span><span class="v">{{ m.remark }}</span></div>
+    <div class="kv kv-block"><span class="k">ความเห็นผู้ประเมิน :</span><span class="v">{{ m.appraiser_opinion }}</span></div>
+  </div>
+</div>
+{{ end }}
+{{ end }}
+
+{{ end }}

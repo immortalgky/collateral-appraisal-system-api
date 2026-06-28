@@ -1,0 +1,181 @@
+{{- # caller sets: w = sec (one WqsSection) -}}
+{{ ncomp = w.comparable_headers.size }}
+<div class="section-bar">ตารางแสดงวิธีการเปรียบเทียบให้คะแนนคุณภาพถ่วงน้ำหนัก (WQS)</div>
+
+{{ if w.factors && w.factors.size > 0 }}
+<table class="grid">
+  <thead>
+    <tr>
+      <th style="width:140px;">ปัจจัย</th>
+      <th style="width:64px;">ถ่วงน้ำหนัก</th>
+      <th style="width:64px;">ความเข้ม</th>
+      <th style="width:64px;">คะแนน</th>
+      {{ for h in w.comparable_headers }}
+      <th style="width:80px;">{{ h }}</th>
+      {{ end }}
+      <th style="width:80px;">ทรัพย์สิน (SP)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ for f in w.factors }}
+    <tr>
+      <td>{{ f.factor_name }}</td>
+      <td class="num">{{ if f.weight; f.weight | math.format "N2"; end }}</td>
+      <td class="num">{{ if f.intensity; f.intensity | math.format "N2"; end }}</td>
+      <td class="num">{{ if f.weight && f.intensity; (f.weight * f.intensity) | math.format "N2"; end }}</td>
+      {{ for cs in f.comparable_scores }}
+      <td class="num">{{ if cs; cs | math.format "N2"; end }}</td>
+      {{ end }}
+      <td class="num">{{ if f.score; f.score | math.format "N2"; end }}</td>
+    </tr>
+    {{ end }}
+    <tr style="font-weight:700; background:#f3f3f3;">
+      <td>ผลรวม</td>
+      <td class="num">{{ if w.total_weight != null; w.total_weight | math.format "N2"; end }}</td>
+      <td class="num"></td>
+      <td class="num">{{ if w.total_max_score != null; w.total_max_score | math.format "N2"; end }}</td>
+      {{ for t in w.comparable_score_totals }}
+      <td class="num">{{ if t != null; t | math.format "N2"; end }}</td>
+      {{ end }}
+      <td class="num">{{ if w.subject_score_total != null; w.subject_score_total | math.format "N2"; end }}</td>
+    </tr>
+    <tr>
+      <td>เกณฑ์คะแนน</td>
+      <td class="ctr" colspan="{{ ncomp + 4 }}" style="font-size:7.5pt;">1-2 ต่ำมาก&nbsp;&nbsp; 3-4 พอใช้&nbsp;&nbsp; 5-6 ปานกลาง&nbsp;&nbsp; 7-8 ดี&nbsp;&nbsp; 9-10 ดีมาก</td>
+    </tr>
+    {{ for pr in w.price_rows }}
+    <tr>
+      <td>{{ pr.label }}</td>
+      <td class="num"></td>
+      <td class="num"></td>
+      <td class="ctr" style="font-size:7.5pt;">{{ pr.unit }}</td>
+      {{ for v in pr.values }}
+      <td class="num">{{ v }}</td>
+      {{ end }}
+      <td class="num"></td>
+    </tr>
+    {{ end }}
+    {{ if w.comparable_score_totals && w.comparable_score_totals.size > 0 }}
+    <tr>
+      <td>คะแนนเฉลี่ย</td>
+      <td class="num"></td>
+      <td class="num"></td>
+      <td class="ctr" style="font-size:7.5pt;">คะแนน</td>
+      {{ for t in w.comparable_score_totals }}
+      <td class="num">{{ if t != null; t | math.format "N2"; end }}</td>
+      {{ end }}
+      <td class="num">{{ if w.subject_score_total != null; w.subject_score_total | math.format "N2"; end }}</td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ end }}
+
+{{ if w.scatter }}
+{{ s = w.scatter }}
+<div style="margin-top:6px;">
+  <div style="font-size:8.5pt; font-weight:700; margin-bottom:2px;">กราฟแสดงความสัมพันธ์ คะแนนคุณภาพ – ราคา</div>
+  <svg viewBox="0 0 {{ s.width }} {{ s.height }}" width="100%" style="max-width:430px; border:1px solid #ccc; background:#fff;">
+    <!-- axes -->
+    <line x1="{{ s.plot_left }}" y1="{{ s.plot_top }}" x2="{{ s.plot_left }}" y2="{{ s.plot_bottom }}" stroke="#333" stroke-width="1"/>
+    <line x1="{{ s.plot_left }}" y1="{{ s.plot_bottom }}" x2="{{ s.plot_right }}" y2="{{ s.plot_bottom }}" stroke="#333" stroke-width="1"/>
+    <!-- axis tick labels -->
+    <text x="{{ s.plot_left }}" y="{{ s.plot_top }}" dx="-3" dy="3" text-anchor="end" font-size="7">{{ s.y_max_label }}</text>
+    <text x="{{ s.plot_left }}" y="{{ s.plot_bottom }}" dx="-3" dy="3" text-anchor="end" font-size="7">{{ s.y_min_label }}</text>
+    <text x="{{ s.plot_left }}" y="{{ s.plot_bottom }}" dy="12" text-anchor="middle" font-size="7">{{ s.x_min_label }}</text>
+    <text x="{{ s.plot_right }}" y="{{ s.plot_bottom }}" dy="12" text-anchor="middle" font-size="7">{{ s.x_max_label }}</text>
+    <!-- axis titles -->
+    <text x="{{ s.plot_right }}" y="{{ s.plot_bottom }}" dy="22" text-anchor="end" font-size="7.5" fill="#555">{{ s.x_axis_title }}</text>
+    <text x="{{ s.plot_left }}" y="{{ s.plot_top }}" dy="-6" text-anchor="start" font-size="7.5" fill="#555">{{ s.y_axis_title }} (บาท)</text>
+    <!-- regression line -->
+    {{ if s.has_line }}
+    <line x1="{{ s.line_x1 }}" y1="{{ s.line_y1 }}" x2="{{ s.line_x2 }}" y2="{{ s.line_y2 }}" stroke="#1a6fb5" stroke-width="1.4" stroke-dasharray="4 2"/>
+    {{ end }}
+    <!-- points -->
+    {{ for pt in s.points }}
+    {{ if pt.is_subject }}
+    <rect x="{{ pt.cx }}" y="{{ pt.cy }}" width="7" height="7" transform="rotate(45 {{ pt.cx }} {{ pt.cy }})" fill="#d62728"/>
+    {{ else }}
+    <circle cx="{{ pt.cx }}" cy="{{ pt.cy }}" r="3" fill="#1a6fb5" fill-opacity="0.75"/>
+    {{ end }}
+    {{ end }}
+  </svg>
+  <div style="font-size:7.5pt; color:#555; margin-top:2px;">
+    <span style="color:#1a6fb5;">&#9679;</span> ข้อมูลเปรียบเทียบ &nbsp;
+    <span style="color:#d62728;">&#9670;</span> ทรัพย์สินที่ประเมิน (Forecast) &nbsp;
+    <span style="color:#1a6fb5;">— —</span> เส้นถดถอย
+  </div>
+</div>
+{{ else }}
+<div style="font-size:8pt; color:#777; margin-top:4px;">ข้อมูลไม่เพียงพอสำหรับการแสดงกราฟ</div>
+{{ end }}
+
+{{ if w.rsq != null || w.steyx != null || w.intercept != null || w.slope != null || w.forecast != null || w.lowest_estimate != null || w.highest_estimate != null || w.land_area != null || w.land_per_sq_wa != null || w.appraisal_value != null }}
+<table class="totals">
+  {{ if w.rsq != null }}
+  <tr>
+    <td class="tl">สัมประสิทธิ์ในการตัดสินใจ (RSQ) :</td>
+    <td class="tv">{{ w.rsq | math.format "N4" }}</td>
+  </tr>
+  {{ end }}
+  {{ if w.steyx != null }}
+  <tr>
+    <td class="tl">ค่าผิดพลาดมาตรฐาน (STEYX) :</td>
+    <td class="tv">{{ w.steyx | math.format "N2" }}</td>
+  </tr>
+  {{ end }}
+  {{ if w.intercept != null }}
+  <tr>
+    <td class="tl">จุดตัดแกน (INTERCEPT) :</td>
+    <td class="tv">{{ w.intercept | math.format "N2" }}</td>
+  </tr>
+  {{ end }}
+  {{ if w.slope != null }}
+  <tr>
+    <td class="tl">ความชัน (SLOPE) :</td>
+    <td class="tv">{{ w.slope | math.format "N2" }}</td>
+  </tr>
+  {{ end }}
+  {{ if w.forecast != null }}
+  <tr>
+    <td class="tl">มูลค่าที่ดินประเมินราคา (FORECAST) :</td>
+    <td class="tv">{{ w.forecast | math.format "N2" }}</td>
+  </tr>
+  {{ end }}
+  {{ if w.lowest_estimate != null }}
+  <tr>
+    <td class="tl">ค่าประมาณต่ำสุด :</td>
+    <td class="tv">{{ w.lowest_estimate | math.format "N2" }}</td>
+  </tr>
+  {{ end }}
+  {{ if w.highest_estimate != null }}
+  <tr>
+    <td class="tl">ค่าประมาณสูงสุด :</td>
+    <td class="tv">{{ w.highest_estimate | math.format "N2" }}</td>
+  </tr>
+  {{ end }}
+</table>
+{{ end }}
+
+{{ if w.land_area != null || w.land_per_sq_wa != null || w.appraisal_value != null }}
+<table class="totals" style="margin-top:4px;">
+  {{ if w.land_area != null }}
+  <tr>
+    <td class="tl">เนื้อที่ดิน :</td>
+    <td class="tv">{{ w.land_area | math.format "N2" }} ตารางวา</td>
+  </tr>
+  {{ end }}
+  {{ if w.land_per_sq_wa != null }}
+  <tr>
+    <td class="tl">ตารางวาละ :</td>
+    <td class="tv">{{ w.land_per_sq_wa | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+  {{ if w.appraisal_value != null }}
+  <tr>
+    <td class="tl">ราคาประเมิน :</td>
+    <td class="tv">{{ w.appraisal_value | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+</table>
+{{ end }}

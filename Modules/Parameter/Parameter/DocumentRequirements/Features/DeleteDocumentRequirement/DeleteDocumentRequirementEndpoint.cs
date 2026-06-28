@@ -13,6 +13,7 @@ public class DeleteDocumentRequirementEndpoint : ICarterModule
                 await sender.Send(command, cancellationToken);
                 return Results.NoContent();
             })
+            .RequireAuthorization()
             .WithName("DeleteDocumentRequirement")
             .WithSummary("Delete a document requirement")
             .Produces(StatusCodes.Status204NoContent)

@@ -24,6 +24,7 @@ using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
 using Shared.Messaging.Services;
 using Workflow.Data;
+using Workflow.EventHandlers;
 using Shared.Observability;
 using Auth.Infrastructure.HealthChecks;
 using Notification.Infrastructure.Email.HealthChecks;
@@ -125,11 +126,11 @@ builder.Services.AddMassTransit(config =>
         // Single partitioned endpoint for webhook ordering per appraisal.
         // WebhookDispatchConsumer is marked [ExcludeFromConfigureEndpoints] so ConfigureEndpoints
         // above does not create separate per-message queues for these two event types.
-        // SingleActiveConsumer funnels the queue to ONE node so the partitioner's per-appraisal
-        // ordering actually holds across the 2-node cluster (a partitioner alone is in-process only).
+        // Partitioned by AppraisalId so per-appraisal ordering holds on the single consuming node.
+        // Each app node has its own RabbitMQ broker (no clustering) → no competing consumers, so the
+        // in-process partitioner alone is sufficient; no SingleActiveConsumer needed.
         configurator.ReceiveEndpoint("webhook-dispatch", e =>
         {
-            e.SingleActiveConsumer = true;
             var partitioner = e.CreatePartitioner(16);
             e.ConfigureConsumer<WebhookDispatchConsumer>(context);
             e.UsePartitioner<AppraisalCreatedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
@@ -137,46 +138,44 @@ builder.Services.AddMassTransit(config =>
         });
 
         // ---------------------------------------------------------------------
-        // Ordering-critical endpoints. SingleActiveConsumer funnels each queue to ONE
-        // node; the partitioner then serializes per AppraisalId on that node (parallel
-        // across appraisals). SAC alone is NOT enough — the active node still processes
-        // ConcurrentMessageLimit messages in parallel. Each consumer is marked
-        // [ExcludeFromConfigureEndpoints] so ConfigureEndpoints does not also auto-create
-        // a default (unordered) queue for it.
+        // Ordering-critical endpoints. Each app node has its own RabbitMQ broker (no clustering),
+        // so every queue is drained by a single consumer — an in-process partitioner is sufficient.
+        // It serializes messages per AppraisalId (parallel across appraisals) even though the node
+        // processes ConcurrentMessageLimit (= PrefetchCount = 16) in parallel. Each consumer is
+        // marked [ExcludeFromConfigureEndpoints] so ConfigureEndpoints does not also auto-create a
+        // default (unordered) queue for it.
         // ---------------------------------------------------------------------
-
-        // #1 Appraisal status sync — out-of-order WorkflowTransitioned events must not
-        // overwrite the authoritative Appraisals.Status with a stale value.
-        configurator.ReceiveEndpoint("appraisal-status-sync", e =>
-        {
-            e.SingleActiveConsumer = true;
-            var partitioner = e.CreatePartitioner(16);
-            e.ConfigureConsumer<WorkflowTransitionedIntegrationEventHandler>(context);
-            e.UsePartitioner<WorkflowTransitionedIntegrationEvent>(
-                partitioner, m => m.Message.AppraisalId ?? m.Message.WorkflowInstanceId);
-        });
 
         // #2 External cycle tracking — close-before-open must not silently no-op and
         // corrupt cycle counts / SLA business-minutes.
         configurator.ReceiveEndpoint("appraisal-ext-cycle", e =>
         {
-            e.SingleActiveConsumer = true;
             var partitioner = e.CreatePartitioner(16);
             e.ConfigureConsumer<ExternalCycleTrackingHandler>(context);
             e.UsePartitioner<WorkflowTransitionedIntegrationEvent>(
                 partitioner, m => m.Message.AppraisalId ?? m.Message.WorkflowInstanceId);
         });
 
-        // #3 Assignment sync — the three assignment events mutate the SAME AppraisalAssignment
-        // row. Co-locating them on one partitioned endpoint serializes all three per appraisal,
-        // eliminating the cross-type field-clobber race.
-        configurator.ReceiveEndpoint("appraisal-assignment-sync", e =>
+        // #3 Appraisal sync — all events that mutate the appraisal + its active AppraisalAssignment
+        // row are co-located on ONE partitioned endpoint so they serialize per appraisal:
+        //   - WorkflowTransitioned: appraisal status sync + assignment-status transitions + the
+        //     assignment-level SLADueDate stamp. (Out-of-order transitions must not overwrite the
+        //     authoritative Appraisals.Status with a stale value — preserved by per-AppraisalId order.)
+        //   - CompanyAssigned / InternalAssigned / InternalFollowupAssigned: the engagement events that
+        //     mutate the SAME AppraisalAssignment row (eliminates the cross-type field-clobber race).
+        // Co-locating WorkflowTransitioned with CompanyAssigned also fixes the stamp race: CompanyAssigned
+        // is staged in the outbox before the transition (earlier OccurredAt), so it is delivered first and,
+        // serialized here, sets the assignment to Assigned before the transition handler stamps SLADueDate
+        // at the window's start activity (otherwise the Pending guard would skip the stamp).
+        configurator.ReceiveEndpoint("appraisal-sync", e =>
         {
-            e.SingleActiveConsumer = true;
             var partitioner = e.CreatePartitioner(16);
+            e.ConfigureConsumer<WorkflowTransitionedIntegrationEventHandler>(context);
             e.ConfigureConsumer<CompanyAssignedIntegrationEventHandler>(context);
             e.ConfigureConsumer<InternalAssignedIntegrationEventHandler>(context);
             e.ConfigureConsumer<InternalFollowupAssignedIntegrationEventHandler>(context);
+            e.UsePartitioner<WorkflowTransitionedIntegrationEvent>(
+                partitioner, m => m.Message.AppraisalId ?? m.Message.WorkflowInstanceId);
             e.UsePartitioner<CompanyAssignedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
             e.UsePartitioner<InternalAssignedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
             e.UsePartitioner<InternalFollowupAssignedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
@@ -186,10 +185,30 @@ builder.Services.AddMassTransit(config =>
         // commutative; serialize per appraisal so out-of-order transitions don't drift counts.
         configurator.ReceiveEndpoint("appraisal-status-dashboard", e =>
         {
-            e.SingleActiveConsumer = true;
             var partitioner = e.CreatePartitioner(16);
             e.ConfigureConsumer<AppraisalStatusChangedDashboardHandler>(context);
             e.UsePartitioner<AppraisalStatusChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+        });
+
+        // #5 Assignment SLA recalculation — unconditionally re-stamps AppraisalAssignment.SLADueDate
+        // whenever an appointment-anchored group-window deadline shifts due to a reschedule.
+        // Partitioned by AppraisalId so per-appraisal ordering holds.
+        configurator.ReceiveEndpoint("appraisal-sla-recalc", e =>
+        {
+            var partitioner = e.CreatePartitioner(16);
+            e.ConfigureConsumer<AssignmentSlaRecalculatedIntegrationEventConsumer>(context);
+            e.UsePartitioner<AssignmentSlaRecalculatedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+        });
+
+        // #6 Appointment date changed — two concurrent reschedule events for the same appraisal
+        // must not publish the stale SLA recalculation last. Partitioned by AppraisalId so
+        // per-appraisal ordering holds. Consumer is [ExcludeFromConfigureEndpoints] to prevent
+        // ConfigureEndpoints from also creating an unordered auto-queue.
+        configurator.ReceiveEndpoint("workflow-appointment-changed", e =>
+        {
+            var partitioner = e.CreatePartitioner(16);
+            e.ConfigureConsumer<AppointmentDateChangedIntegrationEventConsumer>(context);
+            e.UsePartitioner<AppointmentDateChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
 
         // In-memory outbox removed — using per-module persistent outbox via IntegrationEventDeliveryService

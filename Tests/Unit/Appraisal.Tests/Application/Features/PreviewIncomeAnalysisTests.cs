@@ -255,7 +255,7 @@ public class PreviewIncomeAnalysisTests
         var calcResult = new IncomeCalculationService().Calculate(analysis);
         analysis.ApplyCalculationResult(calcResult);
 
-        Assert.Equal(analysis.FinalValueRounded, handlerResult.Analysis.FinalValueRounded);
+        Assert.Equal(calcResult.FinalValueRounded, handlerResult.Analysis.FinalValueRounded);
     }
 
     // ── Test 5: M13 iteration convergence — Fixed Charge = 5% of GOP (which itself contains M13 expenses) ──

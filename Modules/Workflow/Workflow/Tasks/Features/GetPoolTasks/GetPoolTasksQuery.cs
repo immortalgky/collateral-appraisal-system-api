@@ -59,6 +59,7 @@ public record PoolTaskDto
     public string? Appraiser { get; init; }
     public string? Priority { get; init; }
     public DateTime? DueAt { get; init; }
+    public DateTime? SlaStartAt { get; init; }
     public string? SlaStatus { get; init; }
     public int? ElapsedHours { get; init; }
     public int? RemainingHours { get; init; }

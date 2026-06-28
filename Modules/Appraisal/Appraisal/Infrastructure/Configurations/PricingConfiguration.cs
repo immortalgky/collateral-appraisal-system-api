@@ -313,7 +313,7 @@ public class PricingFinalValueConfiguration : IEntityTypeConfiguration<PricingFi
         builder.Property(f => f.LandArea).HasPrecision(18, 2);
         builder.Property(f => f.LandValue).HasPrecision(18, 2);
 
-        builder.Property(f => f.BuildingCost).HasPrecision(18, 2);
+        builder.Property(f => f.BuildingValue).HasPrecision(18, 2);
         builder.Property(f => f.AppraisalPrice).HasPrecision(18, 2);
     }
 }
@@ -372,8 +372,6 @@ public class LeaseholdAnalysisConfiguration : IEntityTypeConfiguration<Leasehold
         // Computed fields
         builder.Property(l => l.TotalIncomeOverLeaseTerm).HasPrecision(18, 2);
         builder.Property(l => l.ValueAtLeaseExpiry).HasPrecision(18, 2);
-        builder.Property(l => l.FinalValue).HasPrecision(18, 2);
-        builder.Property(l => l.FinalValueRounded).HasPrecision(18, 2);
 
         // Partial usage fields
         builder.Property(l => l.PartialRai).HasPrecision(18, 2);
@@ -467,7 +465,6 @@ public class ProfitRentAnalysisConfiguration : IEntityTypeConfiguration<ProfitRe
         builder.Property(p => p.TotalContractRentalFee).HasPrecision(18, 2);
         builder.Property(p => p.TotalReturnsFromLease).HasPrecision(18, 2);
         builder.Property(p => p.TotalPresentValue).HasPrecision(18, 2);
-        builder.Property(p => p.FinalValueRounded).HasPrecision(18, 2);
 
         builder.HasMany(p => p.GrowthPeriods)
             .WithOne()

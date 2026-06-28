@@ -9,13 +9,36 @@ namespace Reporting.Application.Models.Sections;
 /// </summary>
 public sealed class LandSection
 {
+    // ── Grouping (appraisal-book group-major layout; not displayed by the partial) ──
+
+    /// <summary>กลุ่มที่ — PropertyGroups.GroupNumber for this property (0 = ungrouped).</summary>
+    public int GroupNumber { get; init; }
+
+    /// <summary>Group label — PropertyGroups.GroupName (null when ungrouped).</summary>
+    public string? GroupName { get; init; }
+
     // ── Header / area summary ─────────────────────────────────────────────────────
 
+    // ── รวมเนื้อที่ดิน — total area across this property's titles (rendered as a table
+    //    total row). Normalised via ThaiLandAreaFormatter (100 sq wa = 1 ngan, 4 ngan = 1 rai).
+
+    /// <summary>รวมเนื้อที่ดิน (ไร่) — normalised carried sum.</summary>
+    public int TotalRai { get; init; }
+
+    /// <summary>รวมเนื้อที่ดิน (งาน) — normalised carried sum.</summary>
+    public int TotalNgan { get; init; }
+
+    /// <summary>รวมเนื้อที่ดิน (ตร.วา) — normalised carried sum.</summary>
+    public int TotalSquareWa { get; init; }
+
+    /// <summary>รวมทั้งหมดเป็นตารางวา ("หรือ X ตารางวา").</summary>
+    public decimal TotalAreaInWa { get; init; }
+
     /// <summary>
-    /// เนื้อที่ดินรวม — total area across all titles, formatted as
-    /// "{rai} - {ngan} - {wa} ไร่ หรือ {totalSqWa} ตารางวา".
+    /// ตรวจสอบจาก — land check-method, resolved from LandAppraisalDetails.LandCheckMethodType
+    /// (parameter group 'CheckBy'); falls back to LandCheckMethodTypeOther free-text.
     /// </summary>
-    public string? TotalAreaText { get; init; }
+    public string? CheckedFrom { get; init; }
 
     // ── Address ────────────────────────────────────────────────────────────────────
 
@@ -46,8 +69,8 @@ public sealed class LandSection
     public string? RoadPassInFrontOfLand { get; init; }
 
     /// <summary>
-    /// ลักษณะผิวจราจร — source: LandAppraisalDetails.RoadSurfaceType.
-    /// Code value; caller may translate via parameter.Parameters if needed.
+    /// ลักษณะผิวจราจร — source: LandAppraisalDetails.RoadSurfaceType, resolved to its
+    /// Thai description (parameter group 'RoadSurface') by LandSectionLoader.
     /// </summary>
     public string? RoadSurfaceType { get; init; }
 
@@ -164,6 +187,9 @@ public sealed class LandTitleRow
 
     /// <summary>หน้าสำรวจ — source: LandTitles.SurveyNumber.</summary>
     public string? SurveyNumber { get; init; }
+
+    /// <summary>ระวาง — source: LandTitles.MapSheetNumber + Rawang (space-joined).</summary>
+    public string? MapSheet { get; init; }
 
     /// <summary>เนื้อที่ดิน (ไร่) — source: LandTitles.Area.Rai (column AreaRai).</summary>
     public decimal? AreaRai { get; init; }

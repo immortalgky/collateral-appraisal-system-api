@@ -8,6 +8,7 @@ public sealed record Rcas004Filter(
     DateTime? CreatedFrom,
     DateTime? CreatedTo,
     string? Status,
+    string? AppraisalNumber,
     string? SortBy,
     string? SortDir);
 
@@ -25,6 +26,13 @@ internal static class Rcas004Report
         Title = "รายงานการตรวจงวดงานที่ยังไม่ครบ 100 %",
         OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, "AppraisalNumber"),
         Build = Build,
+        DescribeFilter = f =>
+        [
+            new("Created From", f.CreatedFrom?.ToString("yyyy-MM-dd")),
+            new("Created To", f.CreatedTo?.ToString("yyyy-MM-dd")),
+            new("Status", f.Status),
+            new("Appraisal No.", f.AppraisalNumber),
+        ],
         Columns =
         [
             new("Appraisal No.", r => r.AppraisalNumber),
@@ -50,6 +58,7 @@ internal static class Rcas004Report
 
         ReportFilterSql.DateRange(c, p, f.CreatedFrom, f.CreatedTo, "AppraisalCreateDate", "Created");
         ReportFilterSql.MultiValue(c, p, f.Status, "AppraisalStatus", "Statuses");
+        ReportFilterSql.Contains(c, p, f.AppraisalNumber, "AppraisalNumber", "AppraisalNumber");
 
         return ("SELECT * FROM reporting.vw_RCAS004_ConstructionInspection" + ReportFilterSql.Where(c), p);
     }

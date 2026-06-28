@@ -36,6 +36,16 @@ public class SaveMachineCostItemsCommandHandler(
         var calculationService = calculationServiceResolver.Resolve(method.MethodType);
         calculationService?.Recalculate(method);
 
+        // Mirror the committed total into the shared PricingFinalValue (single source of truth).
+        // Land area and building value are not applicable for MachineryCost.
+        var totalFmv = method.MachineCostItems.Sum(i => i.FairMarketValue ?? 0);
+        if (method.FinalValue is null)
+            method.SetFinalValue(PricingFinalValue.Create(method.Id, totalFmv, totalFmv));
+        else
+            method.FinalValue.UpdateFinalValue(totalFmv, totalFmv);
+        method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
+        method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
+
         // Propagate value up if method is selected
         if (method.IsSelected && method.MethodValue.HasValue)
         {
@@ -47,8 +57,6 @@ public class SaveMachineCostItemsCommandHandler(
             if (parentApproach.IsSelected)
                 pricingAnalysis.SetFinalValues(parentApproach.ApproachValue!.Value);
         }
-
-        var totalFmv = method.MachineCostItems.Sum(i => i.FairMarketValue ?? 0);
 
         return new SaveMachineCostItemsResult(
             command.PricingAnalysisId,

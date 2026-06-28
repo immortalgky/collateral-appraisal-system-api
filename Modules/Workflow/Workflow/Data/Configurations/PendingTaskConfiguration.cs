@@ -45,6 +45,9 @@ public class PendingTaskConfiguration : IEntityTypeConfiguration<PendingTask>
         builder.Property(p => p.DueAt)
             .IsRequired(false);
 
+        builder.Property(p => p.SlaStartAt)
+            .IsRequired(false);
+
         builder.Property(p => p.SlaStatus)
             .HasMaxLength(20)
             .IsRequired(false);

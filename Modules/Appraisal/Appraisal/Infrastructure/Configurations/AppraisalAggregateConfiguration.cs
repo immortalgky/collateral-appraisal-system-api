@@ -206,8 +206,12 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         // Indexes
+        // INCLUDE(RequestId) makes a prefix search (AppraisalNumber LIKE 'term%') a COVERING seek
+        // in workflow.sp_GetTaskList's #f_search build (returns RequestId without a clustered scan)
+        // — dropped that arm from ~2,906 logical reads to ~3 in testing.
         builder.HasIndex(a => a.AppraisalNumber)
             .IsUnique()
+            .IncludeProperties(a => a.RequestId)
             .HasFilter("[AppraisalNumber] IS NOT NULL");
 
         builder.HasIndex(a => a.RequestId);

@@ -287,6 +287,9 @@ namespace Collateral.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int?>("BuildingAge")
+                        .HasColumnType("int");
+
                     b.Property<decimal?>("BuildingArea")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -302,6 +305,10 @@ namespace Collateral.Migrations
 
                     b.Property<Guid>("EngagementId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("NumberOfFloors")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("decimal(5,1)");
 
                     b.Property<int>("Sequence")
                         .HasColumnType("int");
@@ -493,14 +500,14 @@ namespace Collateral.Migrations
                     b.Property<int?>("BuildingAge")
                         .HasColumnType("int");
 
-                    b.Property<decimal?>("BuildingCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<string>("BuildingNumber")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal?>("BuildingValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("CondoName")
                         .HasMaxLength(200)
@@ -514,6 +521,11 @@ namespace Collateral.Migrations
                     b.Property<int?>("ConstructionYear")
                         .HasColumnType("int");
 
+                    b.Property<string>("District")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("FloorNumber")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -525,7 +537,6 @@ namespace Collateral.Migrations
                         .HasDefaultValue(false);
 
                     b.Property<string>("LandOfficeCode")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -546,6 +557,7 @@ namespace Collateral.Migrations
                         .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Province")
+                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
@@ -555,15 +567,10 @@ namespace Collateral.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("RoomNumber");
 
-                    b.Property<string>("TitleNumber")
+                    b.Property<string>("SubDistrict")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("TitleType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<decimal?>("UnitPrice")
                         .HasPrecision(18, 2)
@@ -575,10 +582,7 @@ namespace Collateral.Migrations
 
                     b.HasKey("CollateralMasterId");
 
-                    b.HasIndex("LandOfficeCode", "TitleNumber", "TitleType")
-                        .HasDatabaseName("IX_CondoDetails_LandOffice_TitleNumber_TitleType");
-
-                    b.HasIndex("LandOfficeCode", "CondoRegistrationNumber", "BuildingNumber", "FloorNumber", "RoomNumber", "TitleNumber", "TitleType")
+                    b.HasIndex("CondoRegistrationNumber", "BuildingNumber", "FloorNumber", "RoomNumber", "Province", "District", "SubDistrict")
                         .IsUnique()
                         .HasDatabaseName("UX_CondoDetails_DedupKey_Active")
                         .HasFilter("[IsDeleted] = 0");
@@ -599,7 +603,7 @@ namespace Collateral.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal?>("BuildingCost")
+                    b.Property<decimal?>("BuildingValue")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -648,6 +652,10 @@ namespace Collateral.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("Rawang")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<decimal?>("RoadFrontage")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
@@ -688,7 +696,7 @@ namespace Collateral.Migrations
                     b.HasIndex("LandOfficeCode", "TitleNumber")
                         .HasDatabaseName("IX_LandDetails_LandOffice_TitleNumber");
 
-                    b.HasIndex("LandOfficeCode", "Province", "District", "SubDistrict", "TitleType", "TitleNumber", "SurveyNumber", "LandParcelNumber")
+                    b.HasIndex("Province", "District", "SubDistrict", "TitleType", "TitleNumber", "SurveyNumber", "LandParcelNumber", "Rawang")
                         .IsUnique()
                         .HasDatabaseName("UX_LandDetails_DedupKey_Active")
                         .HasFilter("[IsDeleted] = 0");

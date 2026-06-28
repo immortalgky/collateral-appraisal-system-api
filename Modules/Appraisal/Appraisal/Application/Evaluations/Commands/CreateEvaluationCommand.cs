@@ -46,6 +46,18 @@ public class CreateEvaluationCommandHandler(
             .FirstOrDefaultAsync(cancellationToken)
             ?? command.AppraisalId.ToString();
 
+        // Snapshot the composite score using the weights in force *now* — only when the
+        // evaluation is completed on create. Pending rows are scored live by the view.
+        decimal? totalScore = null;
+        if (command.EvaluationStatus == "Completed")
+        {
+            var weights = await EvaluationWeights.LoadAsync(db, command.AppraisalId, cancellationToken);
+            totalScore = AppraisalEvaluation.ComputeScore(
+                weights,
+                command.Criteria1Rating, command.Criteria2Rating, command.Criteria3Rating,
+                command.Criteria4Rating, command.Criteria5Rating);
+        }
+
         var evaluation = AppraisalEvaluation.Create(
             appraisalId:             command.AppraisalId,
             appraisalNumber:         appraisalNumber,
@@ -60,7 +72,8 @@ public class CreateEvaluationCommandHandler(
             criteria5Rating:         command.Criteria5Rating,
             additionalComments:      command.AdditionalComments,
             note:                    command.Note,
-            evaluatedAt:             dateTimeProvider.ApplicationNow);
+            evaluatedAt:             dateTimeProvider.ApplicationNow,
+            totalScore:              totalScore);
 
         db.AppraisalEvaluations.Add(evaluation);
 

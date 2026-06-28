@@ -67,13 +67,13 @@ namespace Reporting.Data.Migrations
                     b.HasData(
                         new
                         {
-                            ReportTypeKey = "appointment-quotation-request",
+                            ReportTypeKey = "appointment-letter",
                             Category = "Appointment",
-                            DisplayNameEn = "Appointment Quotation Request",
-                            DisplayNameTh = "แบบฟอร์มนัดหมายและใบเสนอราคา",
+                            DisplayNameEn = "Appointment Letter",
+                            DisplayNameTh = "หนังสือนัดหมาย",
                             GenerationMode = "Sync",
                             IsEnabled = true,
-                            TemplateId = "appointment-quotation-request",
+                            TemplateId = "appointment-letter",
                             Version = 1
                         },
                         new

@@ -2,6 +2,8 @@ using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Shared.Configurations;
 using Shared.Data;
 using Shared.Messaging.Services;
 using Workflow.Data;
@@ -14,10 +16,15 @@ namespace Workflow.Sla.Services;
 public class SlaMonitorService(
     IServiceScopeFactory scopeFactory,
     ILogger<SlaMonitorService> logger,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    IOptions<BackgroundJobsOptions> options)
     : LeasedBackgroundService<WorkflowDbContext>(scopeFactory, logger, dateTimeProvider)
 {
     protected override string LockId => "WorkflowDbContext-SlaMonitor";
+
+    protected override TimeSpan LeaseDuration => options.Value.SlaMonitor.LeaseDuration;
+    protected override TimeSpan WorkInterval => options.Value.SlaMonitor.WorkInterval;
+    protected override TimeSpan StandbyPollInterval => options.Value.SlaMonitor.StandbyPollInterval;
 
     protected override async Task ExecuteWhileLeasedAsync(IServiceScope scope, CancellationToken ct)
     {
@@ -42,11 +49,16 @@ public class SlaMonitorService(
             WHERE DueAt IS NOT NULL AND DueAt <= @Now AND SlaStatus != 'Breached'
             """, new { Now = now })).ToList();
 
+        // At-risk = 75% of the clock elapsed, measured from the task's real clock-start (SlaStartAt:
+        // AssignedAt / appointment / window start) — NOT AssignedAt, which is wrong for appointment-
+        // anchored and window-governed tasks. COALESCE keeps legacy rows (null SlaStartAt) on AssignedAt.
         var atRiskIds = (await conn.QueryAsync<Guid>(
             """
             SELECT Id FROM workflow.PendingTasks
             WHERE DueAt IS NOT NULL AND SlaStatus = 'OnTime'
-              AND DATEADD(SECOND, DATEDIFF(SECOND, AssignedAt, DueAt) * 0.75, AssignedAt) <= @Now
+              AND DATEADD(SECOND,
+                    DATEDIFF(SECOND, COALESCE(SlaStartAt, AssignedAt), DueAt) * 0.75,
+                    COALESCE(SlaStartAt, AssignedAt)) <= @Now
             """, new { Now = now })).ToList();
 
         if (breachedIds.Count == 0 && atRiskIds.Count == 0) return;

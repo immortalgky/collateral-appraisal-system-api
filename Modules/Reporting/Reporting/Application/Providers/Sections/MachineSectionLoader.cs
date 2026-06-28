@@ -50,12 +50,14 @@ internal static class MachineSectionLoader
         //   Maintenance→MaintenanceCondition, Exterior→ExteriorCondition,
         //   Performance→Efficiency, MarketDemand, Owner→OwnerName,
         //   MachineAddress→MachineLocation, Obligation, Other.
-        //   Deferred: CollateralDetailNarrative (no column), Country per MachineRow (no column).
+        //   Deferred: CollateralDetailNarrative (no column).
         //
         // QS2 column notes (MachineryAppraisalDetailConfiguration.cs, no HasColumnName):
-        //   MachineName, RegistrationNumber, Brand, Model, Series, Manufacturer,
-        //   YearOfManufacture, MachineAge, Quantity, ConditionUse, MachineCondition,
-        //   ReplacementValue, ConditionValue, Remark.
+        //   MachineName, RegistrationNumber, Brand, Model, Series (→แบบ/Type), SerialNo,
+        //   Manufacturer, YearOfManufacture, MachineAge, Quantity, Location,
+        //   MachineDimensions, EnergyUse, UsagePurpose, Capacity, MachineParts,
+        //   ConditionUse, MachineCondition, ReplacementValue, ConditionValue, Remark,
+        //   Other, AppraiserOpinion.
         const string batchSql = """
             -- RS01: QS1 — Machinery appraisal summary (appraisal-level, 1:1)
             SELECT
@@ -83,15 +85,24 @@ internal static class MachineSectionLoader
                 mad.Brand,
                 mad.Model,
                 mad.Series,
+                mad.SerialNo,
                 mad.Manufacturer,
                 mad.YearOfManufacture,
                 mad.MachineAge,
                 mad.Quantity,
+                mad.Location,
+                mad.MachineDimensions,
+                mad.EnergyUse,
+                mad.UsagePurpose,
+                mad.Capacity,
+                mad.MachineParts,
                 mad.ConditionUse,
                 mad.MachineCondition,
                 mad.ReplacementValue,
                 mad.ConditionValue,
-                mad.Remark
+                mad.Remark,
+                mad.Other,
+                mad.AppraiserOpinion
             FROM appraisal.MachineryAppraisalDetails mad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = mad.AppraisalPropertyId
             LEFT JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
@@ -126,15 +137,24 @@ internal static class MachineSectionLoader
                 Brand             = r.Brand,
                 Model             = r.Model,
                 Series            = r.Series,
+                Type              = r.Series,
+                SerialNo          = r.SerialNo,
                 Manufacturer      = r.Manufacturer,
                 YearOfManufacture = r.YearOfManufacture,
                 MachineAge        = r.MachineAge,
-                Country           = null,   // no source — no Country column on MachineryAppraisalDetails
+                Location          = r.Location,
+                MachineDimensions = r.MachineDimensions,
+                EnergyUse         = r.EnergyUse,
+                UsagePurpose      = r.UsagePurpose,
+                Capacity          = r.Capacity,
+                MachineParts      = r.MachineParts,
                 ConditionUse      = r.ConditionUse,
                 MachineCondition  = r.MachineCondition,
                 ReplacementValue  = r.ReplacementValue,
                 ConditionValue    = r.ConditionValue,
-                Remark            = r.Remark
+                Remark            = r.Remark,
+                Other             = r.Other,
+                AppraiserOpinion  = r.AppraiserOpinion
             })
             .ToList();
 
@@ -185,14 +205,23 @@ internal static class MachineSectionLoader
         public string? Brand { get; init; }
         public string? Model { get; init; }
         public string? Series { get; init; }
+        public string? SerialNo { get; init; }
         public string? Manufacturer { get; init; }
         public int? YearOfManufacture { get; init; }
         public decimal? MachineAge { get; init; }
         public int? Quantity { get; init; }
+        public string? Location { get; init; }
+        public string? MachineDimensions { get; init; }
+        public string? EnergyUse { get; init; }
+        public string? UsagePurpose { get; init; }
+        public string? Capacity { get; init; }
+        public string? MachineParts { get; init; }
         public string? ConditionUse { get; init; }
         public string? MachineCondition { get; init; }
         public decimal? ReplacementValue { get; init; }
         public decimal? ConditionValue { get; init; }
         public string? Remark { get; init; }
+        public string? Other { get; init; }
+        public string? AppraiserOpinion { get; init; }
     }
 }

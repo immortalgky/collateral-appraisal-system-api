@@ -47,8 +47,6 @@ public class AppraisalDbContext : DbContext
     // Valuation Entities
     // =====================================================
     public DbSet<ValuationAnalysis> ValuationAnalyses => Set<ValuationAnalysis>();
-    public DbSet<GroupValuation> GroupValuations => Set<GroupValuation>();
-    public DbSet<PropertyValuation> PropertyValuations => Set<PropertyValuation>();
 
     // =====================================================
     // Market Comparables

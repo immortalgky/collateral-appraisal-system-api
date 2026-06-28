@@ -72,7 +72,8 @@ public class AuthDataSeed(
                 "QUOTATION_VIEW", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT",
                 "TASK_QUOTATION_REVIEW", "TASK_QUOTATION_FINALIZE",
                 "COLLATERAL_ADMIN",
-                "INVOICE_VIEW", "INVOICE_APPROVE", "REPORT_EVALUATION_VIEW",
+                "INVOICE_VIEW", "INVOICE_APPROVE", "REPORT_EVALUATION_VIEW", "EVALUATION_CONFIG_MANAGE",
+                "SLA_CONFIG_MANAGE",
                 "STANDALONE_USE",
                 "BLOCK_UNIT_MAINT_VIEW", "BLOCK_UNIT_MAINT_EDIT", "REAPPRAISAL_VIEW",
                 "BLOCK_REAPPRAISAL_VIEW", "BLOCK_REAPPRAISAL_CREATE",
@@ -663,6 +664,12 @@ public class AuthDataSeed(
             ("INVOICE_APPROVE", "Approve Invoices", "Approve or reject submitted invoices", "Invoice"),
             // Service Quality Evaluation
             ("REPORT_EVALUATION_VIEW", "View Service Quality Evaluation", "View service quality evaluation reports",
+                "Common"),
+            ("EVALUATION_CONFIG_MANAGE", "Manage Evaluation Criteria Config",
+                "View and edit service-quality evaluation criteria labels, weights, guidance, and thresholds per banking segment",
+                "Common"),
+            ("SLA_CONFIG_MANAGE", "Manage OLA/SLA Targets",
+                "View and edit per-activity OLA targets and the end-to-end SLA umbrella per loan type and appraisal type",
                 "Common"),
             // History Search (FSD §2.6.7)
             ("HISTORY_SEARCH_VIEW", "View History Search",

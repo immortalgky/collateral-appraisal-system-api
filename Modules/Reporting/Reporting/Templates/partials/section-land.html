@@ -1,0 +1,175 @@
+{{- if land_section -}}
+<div class="section-bar">รายละเอียดที่ดิน</div>
+
+{{- if land_section.titles && land_section.titles.size > 0 }}
+<table class="grid">
+  <thead>
+    <tr>
+      <th style="width:36px;">ลำดับ</th>
+      <th>โฉนดเลขที่</th>
+      <th>เลขที่ดิน</th>
+      <th>หน้าสำรวจ</th>
+      <th>ระวาง</th>
+      <th colspan="3" style="text-align:center;">เนื้อที่ดิน</th>
+      <th>ผู้ถือกรรมสิทธิ์</th>
+    </tr>
+    <tr>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th style="width:52px;">ไร่</th>
+      <th style="width:52px;">งาน</th>
+      <th style="width:52px;">วา</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ for t in land_section.titles }}
+    <tr>
+      <td class="ctr">{{ t.sequence }}</td>
+      <td>{{ t.title_number }}</td>
+      <td>{{ t.land_parcel_number }}</td>
+      <td>{{ t.survey_number }}</td>
+      <td>{{ t.map_sheet }}</td>
+      <td class="num">{{ (t.area_rai ?? 0) | math.format "0.##" }}</td>
+      <td class="num">{{ (t.area_ngan ?? 0) | math.format "0.##" }}</td>
+      <td class="num">{{ (t.area_square_wa ?? 0) | math.format "0.##" }}</td>
+      <td>{{ t.owner_name }}</td>
+    </tr>
+    {{ end }}
+    <tr style="font-weight:700; background:#f5f5f5;">
+      <td colspan="5" style="text-align:right;">รวมเนื้อที่ดิน</td>
+      <td class="num">{{ land_section.total_rai }}</td>
+      <td class="num">{{ land_section.total_ngan }}</td>
+      <td class="num">{{ land_section.total_square_wa }}</td>
+      <td>หรือ {{ land_section.total_area_in_wa | math.format "0.##" }} ตารางวา</td>
+    </tr>
+  </tbody>
+</table>
+{{ end }}
+
+<div class="pad">
+
+  {{ if land_section.checked_from }}
+  <div class="kv"><span class="k">ตรวจสอบจาก :</span><span class="v">{{ land_section.checked_from }}</span></div>
+  {{ end }}
+
+  <div class="cols3">
+    {{ if land_section.sub_district }}
+    <div class="kv"><span class="k">ตำบล / แขวง :</span><span class="v">{{ land_section.sub_district }}</span></div>
+    {{ end }}
+    {{ if land_section.district }}
+    <div class="kv"><span class="k">อำเภอ / เขต :</span><span class="v">{{ land_section.district }}</span></div>
+    {{ end }}
+    {{ if land_section.province }}
+    <div class="kv"><span class="k">จังหวัด :</span><span class="v">{{ land_section.province }}</span></div>
+    {{ end }}
+  </div>
+
+  {{ if land_section.obligation }}
+  <div class="kv">
+    <span class="k">ภาระผูกพัน :</span>
+    <span class="v">{{ land_section.obligation }}</span>
+  </div>
+  {{ end }}
+
+</div>
+
+{{ if land_section.road_pass_in_front_of_land || land_section.road_surface_type || land_section.access_road_width || land_section.road_frontage }}
+<div class="section-bar" style="font-size:8pt;">การคมนาคม</div>
+<div class="pad">
+  <div class="cols2">
+    {{ if land_section.road_pass_in_front_of_land }}
+    <div class="kv"><span class="k">ถนนผ่านหน้า :</span><span class="v">{{ land_section.road_pass_in_front_of_land }}</span></div>
+    {{ end }}
+    {{ if land_section.road_surface_type }}
+    <div class="kv"><span class="k">ลักษณะผิวจราจร :</span><span class="v">{{ land_section.road_surface_type }}</span></div>
+    {{ end }}
+    {{ if land_section.access_road_width }}
+    <div class="kv"><span class="k">เขตทางกว้าง :</span><span class="v">{{ land_section.access_road_width | math.format "0.##" }} เมตร</span></div>
+    {{ end }}
+    {{ if land_section.road_frontage }}
+    <div class="kv"><span class="k">ผิวจราจรกว้าง :</span><span class="v">{{ land_section.road_frontage | math.format "0.##" }} เมตร</span></div>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+
+{{ if land_section.land_entrance_exit_type || land_section.plot_location_type || land_section.public_utility_type }}
+<div class="section-bar" style="font-size:8pt;">ทางเข้าออกที่ดิน</div>
+<div class="pad">
+  <div class="cols2">
+    {{ if land_section.land_entrance_exit_type }}
+    <div class="kv"><span class="k">สิทธิทางเข้าออก :</span><span class="v">{{ land_section.land_entrance_exit_type }}</span></div>
+    {{ end }}
+    {{ if land_section.plot_location_type }}
+    <div class="kv"><span class="k">สภาพที่ดิน :</span><span class="v">{{ land_section.plot_location_type }}</span></div>
+    {{ end }}
+    {{ if land_section.public_utility_type }}
+    <div class="kv"><span class="k">สาธารณูปโภค :</span><span class="v">{{ land_section.public_utility_type }}</span></div>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+
+{{ if land_section.land_description || land_section.land_use_type }}
+<div class="section-bar" style="font-size:8pt;">ลักษณะของที่ดิน</div>
+<div class="pad">
+  <div class="cols2">
+    {{ if land_section.land_description }}
+    <div class="kv"><span class="k">ลักษณะทางกายภาพ :</span><span class="v">{{ land_section.land_description }}</span></div>
+    {{ end }}
+    {{ if land_section.land_use_type }}
+    <div class="kv"><span class="k">การใช้ประโยชน์ที่ดิน :</span><span class="v">{{ land_section.land_use_type }}</span></div>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+
+{{ if land_section.transportation_access_type || land_section.property_anticipation_type }}
+<div class="section-bar" style="font-size:8pt;">สภาพแวดล้อม</div>
+<div class="pad">
+  <div class="cols2">
+    {{ if land_section.transportation_access_type }}
+    <div class="kv"><span class="k">ทรัพย์สินอยู่ในพื้นที่ :</span><span class="v">{{ land_section.transportation_access_type }}</span></div>
+    {{ end }}
+    {{ if land_section.property_anticipation_type }}
+    <div class="kv"><span class="k">สภาพแวดล้อม :</span><span class="v">{{ land_section.property_anticipation_type }}</span></div>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+
+{{ if land_section.is_in_expropriation_line != null || land_section.urban_planning_type || land_section.land_zone_type }}
+<div class="section-bar" style="font-size:8pt;">ข้อกำหนดทางกฎหมาย</div>
+<div class="pad">
+  {{ if land_section.is_in_expropriation_line != null }}
+  <div style="margin-bottom:3px;">
+    <span class="chk {{ if land_section.is_in_expropriation_line }}on{{ end }}"></span>
+    อยู่ในแนวเวนคืน
+    &nbsp;&nbsp;
+    <span class="chk {{ if land_section.is_in_expropriation_line }}{{ else }}on{{ end }}"></span>
+    ไม่อยู่ในแนวเวนคืน
+  </div>
+  {{ end }}
+  <div class="cols2">
+    {{ if land_section.urban_planning_type }}
+    <div class="kv"><span class="k">พื้นที่สี :</span><span class="v">{{ land_section.urban_planning_type }}</span></div>
+    {{ end }}
+    {{ if land_section.land_zone_type }}
+    <div class="kv"><span class="k">ที่ดินประเภท :</span><span class="v">{{ land_section.land_zone_type }}</span></div>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+
+{{ if land_section.remark }}
+<div class="section-bar" style="font-size:8pt;">หมายเหตุ</div>
+<div class="pad">
+  <div class="kv"><span class="k"></span><span class="v">{{ land_section.remark }}</span></div>
+</div>
+{{ end }}
+
+{{- end -}}

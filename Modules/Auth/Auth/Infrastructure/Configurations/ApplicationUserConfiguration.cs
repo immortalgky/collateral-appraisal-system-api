@@ -25,6 +25,11 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
         builder.Property(u => u.Department)
             .HasMaxLength(100);
 
+        // AO code is the bank officer code (joins to auth.Officers.OfficerCode); cap at 10 to
+        // match the AddAoCodeToApplicationUser migration (nvarchar(10)) and avoid model/snapshot drift.
+        builder.Property(u => u.AoCode)
+            .HasMaxLength(10);
+
         builder.Property(u => u.AuthSource)
             .HasMaxLength(20)
             .IsRequired()

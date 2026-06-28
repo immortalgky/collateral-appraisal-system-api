@@ -5,58 +5,35 @@
   model.approver_decision_approved, model.approvers (name/position/comment/approved),
   model.approver_summary_comment. Reused by every summary report.
 -->
-{{ if model.show_meeting || model.approvers.size > 0 }}
-<div class="section-bar">มติคณะกรรมการกำหนดราคาประเมิน{{ if model.show_meeting && model.meeting_number }} ในการประชุมครั้งที่ {{ model.meeting_number }} วันที่ {{ thai.date model.meeting_date }}{{ end }}</div>
+{{ if model.is_completed && model.approvers.size > 0 }}
+<div class="section-bar">{{ if model.meeting_number }}มติคณะกรรมการกำหนดราคาประเมิน ในการประชุมครั้งที่ {{ model.meeting_number }} วันที่ {{ thai.date model.meeting_date }}{{ else }}มติคณะอนุกรรมการกำหนดราคาประเมิน วันที่ {{ thai.date model.approval_date }}{{ end }}</div>
 
-<div class="pad">
-  <div class="kv"><span class="k">รายการทรัพย์สิน :</span><span class="v">{{ model.collateral_address }}</span></div>
-  <div class="kv">
-    <span class="k">ราคาประเมิน :</span>
-    <span class="v">{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; end }}
-      {{ if model.total_appraisal_value }}( {{ thai.baht_text model.total_appraisal_value }} ){{ end }}</span>
-  </div>
-
-  <table class="grid" style="margin-top:3px;">
-    <thead>
-      <tr>
-        <th style="width:120px;">มติ (อนุมัติ / ไม่อนุมัติ)</th>
-        <th>รายชื่อคณะกรรมการ (ลงนาม)</th>
-        <th style="width:230px;">ความเห็นเพิ่มเติม</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{ for a in model.approvers }}
-      <tr>
-        <td class="ctr">
-          <span class="chk">{{ if a.approved == true }}&#9745;{{ else }}&#9744;{{ end }}</span> อนุมัติ
-          &nbsp;
-          <span class="chk">{{ if a.approved == false }}&#9745;{{ else }}&#9744;{{ end }}</span> ไม่อนุมัติ
-        </td>
-        <td>
-          {{ a.name }}
-          {{ if a.position }}<div style="font-size:7.5pt; color:#333;">{{ a.position }}</div>{{ end }}
-        </td>
-        <td>{{ a.comment }}</td>
-      </tr>
-      {{ end }}
-      {{ if model.approvers.size == 0 }}
-      <tr>
-        <td class="ctr">
-          <span class="chk">{{ if model.approver_decision_approved == true }}&#9745;{{ else }}&#9744;{{ end }}</span> อนุมัติ
-          &nbsp;
-          <span class="chk">{{ if model.approver_decision_approved == false }}&#9745;{{ else }}&#9744;{{ end }}</span> ไม่อนุมัติ
-        </td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-      </tr>
-      {{ end }}
-    </tbody>
-  </table>
-
-  {{ if model.approver_summary_comment }}
-  <div class="kv" style="margin-top:4px;">
-    <span class="k">สรุปความเห็นมติคณะกรรมการ :</span><span class="v">{{ model.approver_summary_comment }}</span>
-  </div>
+<table class="grid">
+  <tr>
+    <td colspan="2"><strong>รายการทรัพย์สิน</strong></td>
+    <td colspan="2">{{ if model.approval_property_text }}{{ model.approval_property_text }}{{ else }}{{ model.collateral_address }}{{ end }}</td>
+  </tr>
+  <tr>
+    <td colspan="2"><strong>ราคาประเมิน</strong></td>
+    <td colspan="2">{{ if model.approval_value_text }}{{ model.approval_value_text }}{{ else }}{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; end }}{{ if model.total_appraisal_value }} ( {{ thai.baht_text model.total_appraisal_value }} ){{ end }}{{ end }}</td>
+  </tr>
+  <tr>
+    <th style="width:55px;">อนุมัติ</th>
+    <th style="width:55px;">ไม่อนุมัติ</th>
+    <th>รายชื่อคณะกรรมการ (ลงนาม)</th>
+    <th style="width:230px;">ความเห็นเพิ่มเติม</th>
+  </tr>
+  {{ for a in model.approvers }}
+  <tr class="cm-row">
+    <td class="ctr"><span class="chk {{ if a.approved == true }}on{{ end }}"></span></td>
+    <td class="ctr"><span class="chk {{ if a.approved == false }}on{{ end }}"></span></td>
+    <td><div class="committee-member"><span class="nm-name">{{ a.name }}</span><span class="c-pos">{{ a.position }}</span></div></td>
+    <td>{{ a.comment }}</td>
+  </tr>
   {{ end }}
-</div>
+  <tr>
+    <td colspan="2"><strong>สรุปความเห็นคณะกรรมการการกำหนดราคาประเมินฯ</strong></td>
+    <td colspan="2">{{ model.approver_summary_comment }}</td>
+  </tr>
+</table>
 {{ end }}

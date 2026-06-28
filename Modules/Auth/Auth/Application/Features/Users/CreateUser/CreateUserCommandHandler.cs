@@ -41,7 +41,9 @@ public class CreateUserCommandHandler(
             CompanyId: command.CompanyId,
             Permissions: [],
             Roles: command.Roles,
-            AuthSource: command.AuthSource);
+            AuthSource: command.AuthSource,
+            // Bank-internal attribute — only carry it for bank users (no company).
+            AoCode: command.CompanyId is null ? command.AoCode : null);
 
         var user = await registrationService.RegisterUser(registerUserDto, cancellationToken);
 

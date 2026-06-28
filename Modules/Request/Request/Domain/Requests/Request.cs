@@ -13,6 +13,7 @@ public class Request : Aggregate<Guid>
     public string? Purpose { get; private set; }
     public string? Channel { get; private set; }
     public UserInfo Requestor { get; private set; } = default!;
+    public Requestor? RequestorSnapshot { get; private set; }
     public DateTime? RequestedAt { get; private set; }
     public UserInfo Creator { get; private set; } = default!;
     public new DateTime CreatedAt { get; private set; }
@@ -80,6 +81,7 @@ public class Request : Aggregate<Guid>
         Purpose = data.Purpose;
         Channel = data.Channel;
         Requestor = data.Requestor;
+        RequestorSnapshot = data.RequestorSnapshot;
         Creator = data.Creator;
         Priority = data.Priority;
         // PMA is auto-derived: purpose code "14" is always a PMA appraisal, regardless of the
@@ -263,5 +265,6 @@ public record RequestData(
     UserInfo Creator,
     DateTime CreatedAt,
     string? Priority,
-    bool IsPma
+    bool IsPma,
+    Requestor? RequestorSnapshot = null
 );

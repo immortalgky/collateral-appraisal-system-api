@@ -28,7 +28,6 @@ public class ProfitRentAnalysis : Entity<Guid>
     public decimal TotalContractRentalFee { get; private set; }
     public decimal TotalReturnsFromLease { get; private set; }
     public decimal TotalPresentValue { get; private set; }
-    public decimal FinalValueRounded { get; private set; }
 
     private ProfitRentAnalysis()
     {
@@ -62,8 +61,7 @@ public class ProfitRentAnalysis : Entity<Guid>
             TotalMarketRentalFee = source.TotalMarketRentalFee,
             TotalContractRentalFee = source.TotalContractRentalFee,
             TotalReturnsFromLease = source.TotalReturnsFromLease,
-            TotalPresentValue = source.TotalPresentValue,
-            FinalValueRounded = source.FinalValueRounded
+            TotalPresentValue = source.TotalPresentValue
         };
 
         foreach (var p in source.GrowthPeriods)
@@ -100,14 +98,12 @@ public class ProfitRentAnalysis : Entity<Guid>
         decimal totalMarketRentalFee,
         decimal totalContractRentalFee,
         decimal totalReturnsFromLease,
-        decimal totalPresentValue,
-        decimal finalValueRounded)
+        decimal totalPresentValue)
     {
         TotalMarketRentalFee = totalMarketRentalFee;
         TotalContractRentalFee = totalContractRentalFee;
         TotalReturnsFromLease = totalReturnsFromLease;
         TotalPresentValue = totalPresentValue;
-        FinalValueRounded = finalValueRounded;
     }
 
     public ProfitRentGrowthPeriod AddGrowthPeriod(int fromYear, int toYear, decimal growthRatePercent)

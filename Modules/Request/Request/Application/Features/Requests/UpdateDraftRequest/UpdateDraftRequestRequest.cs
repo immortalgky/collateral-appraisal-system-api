@@ -3,7 +3,7 @@ namespace Request.Application.Features.Requests.UpdateDraftRequest;
 public record UpdateDraftRequestRequest(
     string? Purpose,
     string? Channel,
-    UserInfoDto Requestor,
+    string RequestorEmployeeId,
     UserInfoDto Creator,
     string? Priority,
     bool IsPma,

@@ -97,7 +97,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
             titleNumber: titleNo,
             titleType: "Chanote",
             ownerName: "Test Owner",
-            address: AdministrativeAddress.Create(null, null, province, landOffice));
+            address: AdministrativeAddress.Create("Test Subdistrict", "Test District", province, landOffice));
 
         db.Appraisals.Add(appraisal);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -160,7 +160,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
 
         var condoMaster = await collateralDb.CollateralMasters
             .Include(m => m.CondoDetail)
-            .FirstOrDefaultAsync(m => m.CondoDetail != null && m.CondoDetail.TitleNumber == $"TU-{run}");
+            .FirstOrDefaultAsync(m => m.CondoDetail != null && m.CondoDetail.CondoRegistrationNumber == $"CR-{run}");
         Assert.NotNull(condoMaster);
 
         // Assert: BackfillReport rows for all 3 appraisals

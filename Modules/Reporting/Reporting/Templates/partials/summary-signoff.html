@@ -1,23 +1,22 @@
 <!--
-  Partial: shared 3-column sign-off (ผู้ประเมิน / ผู้ตรวจสอบ / ผู้สอบทาน) + committee block,
-  identical across the three summary bodies (standard / construction / block).
-  Shares the parent Scriban scope; expects: model.* (AppraisalSummaryModel snake_case fields).
+  Partial: shared 3-column sign-off (ผู้นำเสนอ / ผู้จัดการส่วน / ผู้ช่วยผู้อำนวยการ) + committee block,
+  identical across all summary bodies. Shares the parent Scriban scope; expects model.* fields.
 -->
 <div class="signoff">
   <div class="cell">
-    <div>ผู้ประเมิน</div>
-    <div class="nm">( {{ if model.appraisal_staff_name; model.appraisal_staff_name; else; ".............................."; end }} )</div>
-    <div class="pos">{{ model.appraisal_staff_position }}</div>
+    <div class="nm-name">{{ model.appraisal_staff_name }}</div>
+    <div class="nm-paren">{{ if model.appraisal_staff_name }}( {{ model.appraisal_staff_name }} ){{ end }}</div>
+    <div>ผู้นำเสนอ</div>
   </div>
   <div class="cell">
-    <div>ผู้ตรวจสอบ</div>
-    <div class="nm">( {{ if model.appraisal_checker_name; model.appraisal_checker_name; else; ".............................."; end }} )</div>
-    <div class="pos">{{ model.appraisal_checker_position }}</div>
+    <div class="nm-name">{{ model.appraisal_checker_name }}</div>
+    <div class="nm-paren">{{ if model.appraisal_checker_name }}( {{ model.appraisal_checker_name }} ){{ end }}</div>
+    <div>ผู้จัดการส่วน</div>
   </div>
   <div class="cell">
-    <div>ผู้สอบทาน</div>
-    <div class="nm">( {{ if model.appraisal_verify_name; model.appraisal_verify_name; else; ".............................."; end }} )</div>
-    <div class="pos">{{ model.appraisal_verify_position }}</div>
+    <div class="nm-name">{{ model.appraisal_verify_name }}</div>
+    <div class="nm-paren">{{ if model.appraisal_verify_name }}( {{ model.appraisal_verify_name }} ){{ end }}</div>
+    <div>ผู้ช่วยผู้อำนวยการ</div>
   </div>
 </div>
 

@@ -1,4 +1,5 @@
 using Reporting.Application.Models;
+using Reporting.Application.Models.Sections;
 using Reporting.Application.Providers.Sections;
 using Reporting.Application.Services;
 
@@ -94,31 +95,71 @@ public sealed class AppraisalBookDataProvider(
         model.BodyType = bodyType;
 
         // ── Load the shared detail sections ONCE (same open connection) ──────────────
-        model.LandSection         = await LandSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        model.BuildingSection     = await BuildingSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
+        // Land + Building details: load one section per property, then assemble into
+        // group-major buckets (กลุ่มที่ N → its land(s) → its building(s)).
+        var landSections     = await LandSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
+        var buildingSections = await BuildingSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
+        model.PropertyGroups = BuildPropertyGroups(landSections, buildingSections);
         model.CondoSection        = await CondoSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
         model.ConstructionSection = await ConstructionSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
         model.MachineSection      = await MachineSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        model.ComparisonSection   = await ComparisonSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        model.WqsSection          = await WqsSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        model.SaleGridSection     = await SaleGridSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
-        model.CostMachineSection  = await CostMachineSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
+        model.ComparisonSections  = await ComparisonSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
+        model.WqsSections         = await WqsSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
+        model.SaleGridSections    = await SaleGridSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
+        model.CostMachineSections = await CostMachineSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
 
-        var (appendixSection, appendixPdfIds) = await AppendixSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
+        // ── Part B — new pricing-method sections ───────────────────────────────────
+        model.IncomeSections     = await IncomeSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
+        model.ProfitRentSections = await ProfitRentSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
+        model.LeaseholdSections  = await LeaseholdSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
+        model.HypothesisSections = await HypothesisSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
+
+        // Each appendix group carries its own SLOT name; PDFs are keyed per group so they
+        // merge under their own section heading rather than at the end of the document.
+        var (appendixSection, appendixPdfSlots) = await AppendixSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
         model.AppendixSection = appendixSection;
-        if (appendixPdfIds.Count > 0)
-        {
-            model.AttachmentsBySlot = new Dictionary<string, IReadOnlyList<Guid>>
-            {
-                ["appendix"] = appendixPdfIds
-            };
-        }
+        if (appendixPdfSlots.Count > 0)
+            model.AttachmentsBySlot = appendixPdfSlots;
 
         logger.LogDebug(
             "AppraisalBook model assembled for appraisal {AppraisalId}: isExternal={IsExternal}, bodyType={BodyType}",
             appraisalId, isExternal, bodyType ?? "external");
 
         return model;
+    }
+
+    /// <summary>
+    /// Buckets per-property land and building sections into group-major
+    /// <see cref="PropertyGroupDetail"/>s, ordered by group number. Groups carrying
+    /// neither land nor building are omitted; ungrouped properties fall under group 0.
+    /// </summary>
+    private static IReadOnlyList<PropertyGroupDetail> BuildPropertyGroups(
+        IReadOnlyList<LandSection> lands,
+        IReadOnlyList<BuildingSection> buildings)
+    {
+        var groupNumbers = lands.Select(l => l.GroupNumber)
+            .Concat(buildings.Select(b => b.GroupNumber))
+            .Distinct()
+            .OrderBy(n => n);
+
+        return groupNumbers
+            .Select(n =>
+            {
+                var groupLands = lands.Where(l => l.GroupNumber == n).ToList();
+                var groupBuildings = buildings.Where(b => b.GroupNumber == n).ToList();
+                var name = groupLands.Select(l => l.GroupName)
+                    .Concat(groupBuildings.Select(b => b.GroupName))
+                    .FirstOrDefault(s => !string.IsNullOrWhiteSpace(s));
+
+                return new PropertyGroupDetail
+                {
+                    GroupNumber = n,
+                    GroupName = name,
+                    Lands = groupLands,
+                    Buildings = groupBuildings
+                };
+            })
+            .ToList();
     }
 
     private sealed class RouteRow

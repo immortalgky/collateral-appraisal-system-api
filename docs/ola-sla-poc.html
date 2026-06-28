@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OLA / SLA — Configuration &amp; Task POC</title>
+<style>
+  :root{
+    --bg:#f5f6fa; --ink:#1f2430; --muted:#6b7280; --line:#e3e6ee; --card:#ffffff;
+    --primary:#2563eb; --primary-soft:#e8f0ff;
+    --bank:#5b63d3; --bank-bg:#eef0ff; --vendor:#c2740a; --vendor-bg:#fff3e0;
+    --shared:#0f9d76; --shared-bg:#e6f7f1;
+    --ok:#16a34a; --ok-bg:#e7f7ec; --warn:#d97706; --warn-bg:#fdf2e2; --bad:#dc2626; --bad-bg:#fdeaea;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 100px}
+  h1{font-size:26px;margin:0 0 4px}
+  h2{font-size:20px;margin:6px 0 14px}
+  h3{font-size:16px;margin:20px 0 8px}
+  .sub{color:var(--muted);margin:0 0 18px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;position:sticky;top:0;background:var(--bg);
+    padding:12px 0;border-bottom:1px solid var(--line);z-index:5;margin-bottom:18px}
+  .tab{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:7px 16px;
+    cursor:pointer;font-weight:600;font-size:14px;color:var(--muted)}
+  .tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+  .view{display:none} .view.active{display:block}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;
+    margin:14px 0;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .muted{color:var(--muted)} .small{font-size:13px}
+  code{background:#eef1f7;border-radius:5px;padding:1px 6px;font:13px/1.4 "SF Mono",Menlo,Consolas,monospace}
+  .badge{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
+  .b-bank{background:var(--bank-bg);color:var(--bank)} .b-vendor{background:var(--vendor-bg);color:var(--vendor)}
+  .b-shared{background:var(--shared-bg);color:var(--shared)}
+  .b-ok{background:var(--ok-bg);color:var(--ok)} .b-warn{background:var(--warn-bg);color:var(--warn)}
+  .b-bad{background:var(--bad-bg);color:var(--bad)} .b-anchor{background:#eef1f7;color:#475069}
+  .pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:5px 14px;
+    font-size:13px;font-weight:600;margin-right:6px;background:#fff;color:var(--muted)}
+  .pill.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .row{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:9px}
+  .row + .row{border-top:1px solid var(--line)}
+  .row .name{flex:1;font-weight:600}
+  .inp{border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:14px;width:74px;text-align:right;background:#fff}
+  .sel{border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:13px;background:#fff}
+  .btn{background:var(--primary);color:#fff;border:0;border-radius:8px;padding:6px 14px;font-weight:600;font-size:13px;cursor:pointer}
+  .btn.ghost{background:#fff;color:var(--primary);border:1px solid var(--primary)}
+  .sec-title{font-weight:700;margin:18px 0 6px;color:#374151}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:10px 0}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#f0f2f8}
+  .callout{border-left:4px solid var(--primary);background:#f1f6ff;border-radius:0 10px 10px 0;padding:10px 14px;margin:12px 0}
+  .callout.ok{border-color:var(--ok);background:var(--ok-bg)}
+  .callout.warn{border-color:var(--warn);background:var(--warn-bg)}
+  .callout.bad{border-color:var(--bad);background:var(--bad-bg)}
+  .bar{height:14px;border-radius:8px;background:#edf0f6;overflow:hidden;position:relative}
+  .bar > i{display:block;height:100%;border-radius:8px}
+  .fill-ok{background:var(--ok)} .fill-warn{background:var(--warn)} .fill-bad{background:var(--bad)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .tl{border-left:2px solid var(--line);margin-left:8px;padding-left:18px}
+  .tl .ev{position:relative;margin:0 0 16px}
+  .tl .ev::before{content:"";position:absolute;left:-25px;top:4px;width:12px;height:12px;border-radius:50%;
+    background:#fff;border:2px solid var(--primary)}
+  .tl .ev.warn::before{border-color:var(--warn)} .tl .ev.bad::before{border-color:var(--bad)}
+  .tl .ev.ok::before{border-color:var(--ok)}
+  .tl .t{font-weight:700} .tl .d{color:var(--muted);font-size:13.5px}
+  .step{display:flex;gap:12px;margin:10px 0}
+  .step .n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--primary);color:#fff;
+    font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px}
+  .kbd{font-size:12px;color:var(--muted)}
+  .screen{background:linear-gradient(#fff,#fbfcff);border:1px solid var(--line);border-radius:16px;
+    padding:16px 18px;box-shadow:0 6px 20px rgba(20,30,60,.06)}
+  .screen .head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);
+    padding-bottom:10px;margin-bottom:12px}
+  .tag{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted)}
+  .num{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tag">Collateral Appraisal · POC mock-up (not live UI)</div>
+  <h1>OLA / SLA — Configuration &amp; Task POC</h1>
+  <p class="sub">How an admin configures targets &amp; clock anchors, how the appraiser/supervisor sees the
+  SLA on a task, how it's computed, and how it behaves across the real activities and scenarios.</p>
+
+  <div class="tabs">
+    <div class="tab active" data-v="cfg">① Configuration page</div>
+    <div class="tab" data-v="task">② Task screen</div>
+    <div class="tab" data-v="how">③ How it works</div>
+    <div class="tab" data-v="scn">④ Scenarios</div>
+    <div class="tab" data-v="ext">⑤ External path</div>
+  </div>
+
+  <!-- ============ CONFIG ============ -->
+  <section class="view active" id="cfg">
+    <h2>Admin → SLA / OLA configuration</h2>
+    <p class="muted">Targets are set per <b>Loan Type × Appraisal Type</b>. Each row also has an
+    <b>anchor</b> — when its clock starts.</p>
+
+    <div class="screen">
+      <div class="head">
+        <div><b>OLA / SLA Targets</b><div class="kbd">admin/sla-config</div></div>
+        <div class="kbd">applies to new appraisals</div>
+      </div>
+
+      <div class="small muted">Loan Type</div>
+      <div style="margin:4px 0 10px"><span class="pill on">Retail</span><span class="pill">IBG</span></div>
+      <div class="small muted">Appraisal Type</div>
+      <div style="margin:4px 0 14px">
+        <span class="pill on">New</span><span class="pill">ReAppraisal</span>
+        <span class="pill">Progressive</span><span class="pill">PreAppraisal</span>
+      </div>
+
+      <div class="row" style="background:#f7f9ff">
+        <span class="name">SLA umbrella (end-to-end)</span>
+        <input class="inp" value="320"><span class="small muted">hrs · ≈ 40 days</span>
+        <button class="btn">Save</button>
+      </div>
+
+      <div class="sec-title">Group windows (Start → End)</div>
+      <div class="row">
+        <span class="badge b-vendor">External</span>
+        <span class="name">ext-appraisal-execution → ext-appraisal-verification</span>
+        <select class="sel"><option>Anchor: Appointment date</option><option>Anchor: Assignment</option></select>
+        <input class="inp" value="144"><span class="small muted">hrs</span>
+        <button class="btn">Save</button>
+      </div>
+      <div class="small muted" style="padding:6px 10px">+ Add group</div>
+
+      <div class="small muted" style="margin-top:10px"><b>Per activity:</b> choose <b>Clock</b>
+      (Own / Part of a window) and <b>Anchor</b> (Assignment / Appointment). Hours apply when it's an
+      own-clock. Values below are the <i>default seed</i> — all editable.</div>
+
+      <div class="sec-title">External / vendor activities <span class="badge b-vendor">vendor OLA</span></div>
+      <div class="row"><span class="name">External Appraisal Assignment</span>
+        <select class="sel"><option>Clock: Own</option><option>Clock: Vendor window</option></select>
+        <select class="sel"><option>Anchor: Assignment</option><option>Anchor: Appointment</option></select>
+        <input class="inp" value="48"><span class="small muted">hrs</span><button class="btn">Save</button></div>
+      <div class="row" style="background:#fffaf0"><span class="name">External Appraisal Execution</span>
+        <select class="sel"><option>Clock: Vendor window</option><option>Clock: Own</option></select>
+        <select class="sel" disabled><option>↳ from window</option></select>
+        <span class="small muted">governed by <b>Vendor window</b></span><button class="btn ghost">Save</button></div>
+      <div class="row"><span class="name">External Appraisal Check</span>
+        <select class="sel"><option>Clock: Vendor window</option><option>Clock: Own</option></select>
+        <select class="sel" disabled><option>↳ from window</option></select>
+        <span class="small muted">governed by <b>Vendor window</b></span><button class="btn ghost">Save</button></div>
+      <div class="row"><span class="name">External Appraisal Verification</span>
+        <select class="sel"><option>Clock: Vendor window</option><option>Clock: Own</option></select>
+        <select class="sel" disabled><option>↳ from window</option></select>
+        <span class="small muted">governed by <b>Vendor window</b></span><button class="btn ghost">Save</button></div>
+
+      <div class="sec-title">Bank appraisal step <span class="badge b-bank">bank OLA</span></div>
+      <div class="row"><span class="name">Appraisal Book Verification <span class="badge b-bank">external case</span></span>
+        <select class="sel"><option>Clock: Own</option><option>Clock: Vendor window</option></select>
+        <select class="sel"><option>Anchor: Assignment</option><option>Anchor: Appointment</option></select>
+        <input class="inp" value="72"><span class="small muted">hrs</span><button class="btn">Save</button></div>
+      <div class="row" style="background:#fffaf0"><span class="name">Internal Appraisal Execution
+        <span class="badge b-bank">in-house case</span></span>
+        <select class="sel"><option>Clock: Own</option><option>Clock: Window…</option></select>
+        <select class="sel"><option>Anchor: Appointment</option><option>Anchor: Assignment</option></select>
+        <input class="inp" value="72"><span class="small muted">hrs</span><button class="btn">Save</button></div>
+
+      <div class="sec-title">Shared activities (bank, both cases)</div>
+      <div class="row"><span class="name">Internal Appraisal Check</span>
+        <select class="sel"><option>Clock: Own</option><option>Clock: Window…</option></select>
+        <select class="sel"><option>Anchor: Assignment</option><option>Anchor: Appointment</option></select>
+        <input class="inp" value="48"><span class="small muted">hrs</span><button class="btn">Save</button></div>
+      <div class="row"><span class="name">Committee Approval</span>
+        <select class="sel"><option>Clock: Own</option><option>Clock: Window…</option></select>
+        <select class="sel"><option>Anchor: Assignment</option><option>Anchor: Appointment</option></select>
+        <input class="inp" value="72"><span class="small muted">hrs</span><button class="btn">Save</button></div>
+    </div>
+
+    <div class="callout ok"><b>Everything is configuration.</b> Each activity has two knobs —
+    <b>Clock</b> (Own clock vs Part of a window) and <b>Anchor</b> (Assignment vs Appointment date). The
+    engine just reads it: an activity assigned to a window is governed by that window; otherwise its own
+    clock runs from its anchor. The current "external = window, internal = per-activity, execution =
+    appointment" is only the <b>default seed</b>, fully changeable.</div>
+  </section>
+
+  <!-- ============ TASK ============ -->
+  <section class="view" id="task">
+    <h2>Appraiser / supervisor → task screen</h2>
+    <p class="muted">The task shows <b>total consumption vs budget</b> (cumulative), the anchor, and the
+    round — never a fresh per-execution clock.</p>
+
+    <div class="grid">
+      <div class="screen">
+        <div class="head"><div><b>External Appraisal Execution</b><div class="kbd">Appraisal #A-10231 · Vendor: ABC Survey</div></div>
+          <span class="badge b-warn">At risk</span></div>
+        <div class="small muted">SLA / OLA consumption</div>
+        <div style="margin:6px 0 4px;font-weight:700" class="num">62h <span class="muted" style="font-weight:500">consumed of</span> 72h</div>
+        <div class="bar"><i class="fill-warn" style="width:86%"></i></div>
+        <div class="small muted" style="margin-top:6px">Remaining <b class="num">10h</b> · Round <b>1</b></div>
+        <table>
+          <tr><td>Clock anchor</td><td><span class="badge b-anchor">⏱ Appointment</span> 01 Jul 2026, 09:00</td></tr>
+          <tr><td>Budget</td><td>72 business-hours</td></tr>
+          <tr><td>Due (computed)</td><td>04 Jul 2026, 17:00 <span class="kbd">= appointment + (72 − 0)</span></td></tr>
+          <tr><td>Status</td><td><span class="badge b-warn">At risk</span> (&lt; 2 days left)</td></tr>
+        </table>
+      </div>
+
+      <div class="screen">
+        <div class="head"><div><b>External Appraisal Execution</b><div class="kbd">Appraisal #A-10477 · Vendor: ABC Survey</div></div>
+          <span class="badge b-bad">Breached</span></div>
+        <div class="small muted">SLA / OLA consumption — after rework</div>
+        <div style="margin:6px 0 4px;font-weight:700" class="num">88h <span class="muted" style="font-weight:500">consumed of</span> 72h</div>
+        <div class="bar"><i class="fill-bad" style="width:100%"></i></div>
+        <div class="small muted" style="margin-top:6px">Over by <b class="num">16h</b> · Round <b>2</b> (rework)</div>
+        <table>
+          <tr><td>Round 1</td><td>68h <span class="kbd">first pass</span></td></tr>
+          <tr><td>Round 2 (rework)</td><td>20h so far <span class="kbd">started already over budget</span></td></tr>
+          <tr><td>Cumulative</td><td><b>88h</b> of 72h → <span class="badge b-bad">Breached</span></td></tr>
+        </table>
+        <div class="callout bad small" style="margin:8px 0 0">Rework did <b>not</b> reset the clock — the
+        2nd round started already over budget, so it shows red, not a fresh green.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Why "total consumption", not "this round"</h3>
+      <p class="small">If the screen showed only the current round, the right card would read
+      <span class="badge b-ok">20h / 72h — On track</span> even though the work has actually eaten
+      <b>88h across 2 rounds</b>. Showing cumulative keeps the signal honest and ungameable.</p>
+    </div>
+  </section>
+
+  <!-- ============ HOW ============ -->
+  <section class="view" id="how">
+    <h2>How a deadline is computed</h2>
+    <div class="card">
+      <div class="step"><div class="n">1</div><div><b>Resolve the anchor.</b> If the activity's policy
+        anchor is <i>Appointment date</i> → use the assignment's latest non-cancelled appointment.
+        Else → use <code>AssignedAt</code>. <span class="muted">No appointment yet ⇒ deadline is
+        "awaiting appointment" (not started).</span></div></div>
+      <div class="step"><div class="n">2</div><div><b>Sum prior consumption.</b> Add up the business-time of
+        this activity's <i>previous</i> completed runs (from <code>CompletedTasks</code>), excluding
+        supervisor-reassign rows. First pass ⇒ 0.</div></div>
+      <div class="step"><div class="n">3</div><div><b>Compute the deadline.</b>
+        <code>Due = anchor + (budget − cumulative)</code> in business-time (skips weekends / holidays /
+        lunch). If <code>budget − cumulative ≤ 0</code> ⇒ already breached.</div></div>
+      <div class="step"><div class="n">4</div><div><b>Display total consumption.</b> The task shows
+        <code>cumulative / budget · round N</code>. "Remaining" = <code>budget − cumulative</code> — goes
+        red when over. The existing SLA monitor watches <code>Due</code>, so at-risk / breach alerts
+        follow the cumulative automatically.</div></div>
+      <div class="step"><div class="n">5</div><div><b>On reschedule.</b> If the appointment moves, the
+        anchor-bound deadlines are <b>recomputed</b> (execution task + vendor window). Other (assignment-
+        anchored) activities are untouched.</div></div>
+    </div>
+
+    <h3>The three clocks (recap)</h3>
+    <table>
+      <tr><th>Clock</th><th>Anchor</th><th>On rework</th></tr>
+      <tr><td>Per-activity OLA</td><td>Appointment (execution) / Assignment (others)</td>
+        <td><b>Cumulative</b> across runs — never refreshes</td></tr>
+      <tr><td>Vendor window (group)</td><td>Appointment</td>
+        <td><b>Cumulative</b> across cycles — per-cycle shown as drill-down</td></tr>
+      <tr><td>End-to-end SLA</td><td>Request submitted</td><td>Continuous through all replays</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ SCENARIOS ============ -->
+  <section class="view" id="scn">
+    <h2>Scenarios — External Appraisal Execution (budget 72h)</h2>
+
+    <div class="card">
+      <h3>① Normal — appointment set, delivered on time</h3>
+      <div class="tl">
+        <div class="ev"><div class="t">28 Jun — task assigned</div><div class="d">Clock does <b>not</b> start
+          (anchor = appointment). Status: <span class="badge b-anchor">Awaiting appointment</span></div></div>
+        <div class="ev ok"><div class="t">01 Jul 09:00 — appointment (on-site visit)</div><div class="d">Clock
+          starts. Due = 01 Jul + 72h = <b>04 Jul 17:00</b>.</div></div>
+        <div class="ev ok"><div class="t">03 Jul 14:00 — submitted</div><div class="d">Consumed ~45h of 72h →
+          <span class="badge b-ok">Met</span></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>② Future appointment — early assignment doesn't burn time</h3>
+      <div class="tl">
+        <div class="ev"><div class="t">28 Jun — task assigned, appointment booked for 10 Jul</div>
+          <div class="d">Days pass, but consumption stays <b>0h</b> — the clock hasn't started.
+          Status: <span class="badge b-anchor">Awaiting appointment</span></div></div>
+        <div class="ev ok"><div class="t">10 Jul — appointment</div><div class="d">Now the 72h budget begins.
+          The 12 idle days are correctly <b>not</b> counted against the appraiser.</div></div>
+      </div>
+      <div class="callout small">This is the whole point of the appointment anchor — assigning early
+      can't penalize the appraiser.</div>
+    </div>
+
+    <div class="card">
+      <h3>③ Rework — cumulative continues (does NOT refresh)</h3>
+      <div class="tl">
+        <div class="ev"><div class="t">01 Jul — appointment, Round 1 starts</div><div class="d">Budget 72h.</div></div>
+        <div class="ev warn"><div class="t">04 Jul — submitted (68h used), bank routes back (quality)</div>
+          <div class="d">Round 1 consumed <b>68h</b> of 72h.</div></div>
+        <div class="ev bad"><div class="t">05 Jul — Round 2 (rework) starts</div><div class="d">Remaining =
+          72 − 68 = <b>4h</b>. Due = now + 4h. The task shows <span class="badge b-bad">88h / 72h —
+          Breached</span> as soon as Round 2 passes 4h.</div></div>
+      </div>
+      <div class="callout bad small"><b>Contrast:</b> if rework refreshed, Round 2 would show
+      <span class="badge b-ok">20h / 72h — On track</span> and hide that the work really took 88h. Cumulative
+      prevents that.</div>
+    </div>
+
+    <div class="card">
+      <h3>④ Reschedule — deadlines recalculated</h3>
+      <div class="tl">
+        <div class="ev"><div class="t">01 Jul appointment → Due 04 Jul 17:00</div><div class="d">Initial.</div></div>
+        <div class="ev warn"><div class="t">02 Jul — appointment rescheduled to 08 Jul (approved)</div>
+          <div class="d">Execution Due + vendor window are <b>recomputed</b> → new Due = 08 Jul + remaining
+          budget. The <code>appointmentDate</code> variable updates; monitor re-evaluates.</div></div>
+        <div class="ev"><div class="t">Other activities</div><div class="d">Assignment-anchored steps
+          (initiation, check, approval…) are <b>untouched</b> by the reschedule.</div></div>
+      </div>
+    </div>
+
+    <h3>Vendor window across a full external case</h3>
+    <table>
+      <tr><th>Round</th><th>Span (business-time)</th><th>Cumulative</th><th>vs 144h window</th></tr>
+      <tr><td>Cycle 1 (ext-exec → ext-verify)</td><td>120h</td><td>120h</td><td><span class="badge b-ok">OK</span></td></tr>
+      <tr><td>Routed back, Cycle 2 (rework)</td><td>40h</td><td><b>160h</b></td><td><span class="badge b-bad">Breached</span></td></tr>
+    </table>
+    <p class="small muted">Enforced on the <b>cumulative</b> (160h &gt; 144h). Per-cycle spans (120h, 40h)
+    are kept as a drill-down for the vendor scorecard.</p>
+  </section>
+
+  <!-- ============ EXTERNAL PATH ============ -->
+  <section class="view" id="ext">
+    <h2>External path — governed by ONE vendor window</h2>
+    <p class="muted">On the external path the company is held to a <b>single window</b> (the whole vendor
+    turnaround). The four <code>ext-*</code> tasks are just <b>stages inside it</b> — they show progress,
+    not separate enforced clocks.</p>
+
+    <!-- Governing window -->
+    <div class="card" style="border:2px solid var(--vendor);background:#fffaf0">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><span class="badge b-vendor">VENDOR WINDOW · ABC Survey</span>
+          <div class="kbd" style="margin-top:4px">anchor: Appointment 01 Jul 09:00 · budget 144h ·
+          cumulative across all stages &amp; reworks</div></div>
+        <div style="text-align:right"><div class="num" style="font-weight:700;font-size:22px">90h / 144h</div>
+          <span class="badge b-ok">On track · 54h left</span></div>
+      </div>
+      <div class="bar" style="height:18px;margin-top:10px"><i class="fill-ok" style="width:62%"></i></div>
+
+      <!-- stages stepper -->
+      <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:120px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff">
+          <div class="small muted">① Assignment</div><div><b>✓ done</b></div>
+          <div class="kbd">ExtAdmin · sets appointment</div></div>
+        <div style="flex:1;min-width:120px;border:1px solid var(--ok);border-radius:10px;padding:8px 10px;background:var(--ok-bg)">
+          <div class="small muted">② Execution</div><div><b>✓ 45h</b></div>
+          <div class="kbd">ExtAppraisalStaff</div></div>
+        <div style="flex:1;min-width:120px;border:2px solid var(--warn);border-radius:10px;padding:8px 10px;background:var(--warn-bg)">
+          <div class="small muted">③ Check ← active</div><div><b>+30h…</b></div>
+          <div class="kbd">ExtAppraisalChecker</div></div>
+        <div style="flex:1;min-width:120px;border:1px dashed var(--line);border-radius:10px;padding:8px 10px;background:#fff;opacity:.7">
+          <div class="small muted">④ Verification</div><div><b>—</b></div>
+          <div class="kbd">closes the window</div></div>
+      </div>
+      <div class="small muted" style="margin-top:8px">The window runs continuously from the appointment;
+      each stage adds to the same 90h. Whoever holds the task (checker now) sees this <b>one</b> number —
+      "90h / 144h" — not a private per-step clock.</div>
+    </div>
+
+    <div class="callout"><b>Why one window:</b> the bank's commitment is with the <i>company</i>, not with
+    its internal hand-offs. So the company is measured on the <b>total turnaround</b>; the per-stage split
+    is a drill-down for the scorecard, not four separate budgets that could each look "green" while the
+    whole thing drags.</div>
+
+    <p class="sec-title">Stage drill-down (informational)</p>
+    <table>
+      <tr><th>Stage</th><th>Owner</th><th>Contributed</th><th>Status</th></tr>
+      <tr><td>① ext-appraisal-assignment</td><td>ExtAdmin</td><td class="muted">pre-visit (see note)</td><td>done</td></tr>
+      <tr><td>② ext-appraisal-execution</td><td>ExtAppraisalStaff</td><td>45h</td><td><span class="badge b-ok">done</span></td></tr>
+      <tr><td>③ ext-appraisal-check</td><td>ExtAppraisalChecker</td><td>30h &amp; counting</td><td><span class="badge b-warn">active</span></td></tr>
+      <tr><td>④ ext-appraisal-verification</td><td>ExtAppraisalVerifier</td><td>—</td><td>pending → fires <code>SubmittedAt</code>, closes window</td></tr>
+    </table>
+
+    <div class="callout ok small"><b>Rework:</b> a routeback into the loop opens a new cycle but keeps
+    adding to the <b>same window total</b> — so a re-checked book that drags the company past 144h shows
+    breached, regardless of which stage caused it.</div>
+
+    <div class="callout ok"><b>Decided:</b> the window <b>starts at the appointment</b> (post-visit
+    appraisal turnaround). The pre-visit admin step (<code>ext-appraisal-assignment</code>) is its own
+    small clock and is <b>not</b> counted in the vendor window. The <b>internal path keeps per-activity
+    clocks</b> (it's not window-governed) — <code>int-appraisal-execution</code> appointment-anchored,
+    check / verification assignment-anchored.</div>
+  </section>
+
+  <p class="small muted" style="margin-top:30px">POC mock-up — visual proposal only, not the live UI.
+  Companion to the design note <code>~/.claude/plans/analyze-our-workflow-activity-golden-ember.md</code>.</p>
+</div>
+
+<script>
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click',()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById(t.dataset.v).classList.add('active');
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+  });
+  // make config pills + anchor selects feel interactive
+  document.querySelectorAll('.pill').forEach(p=>p.addEventListener('click',()=>{
+    const grp=p.parentElement; grp.querySelectorAll('.pill').forEach(x=>x.classList.remove('on'));
+    p.classList.add('on');
+  }));
+</script>
+</body>
+</html>

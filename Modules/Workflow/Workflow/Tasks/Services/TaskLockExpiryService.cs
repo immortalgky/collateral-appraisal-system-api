@@ -2,22 +2,27 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Shared.Configurations;
 using Workflow.Data;
 using Workflow.Workflow.Services;
 
 namespace Workflow.Tasks.Services;
 
-public class TaskLockExpiryService(IServiceScopeFactory scopeFactory, ILogger<TaskLockExpiryService> logger)
+public class TaskLockExpiryService(
+    IServiceScopeFactory scopeFactory,
+    ILogger<TaskLockExpiryService> logger,
+    IOptions<BackgroundJobsOptions> options)
     : BackgroundService
 {
-    private static readonly TimeSpan LockTimeout = TimeSpan.FromMinutes(30);
-    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
+    private readonly TimeSpan _lockTimeout = options.Value.TaskLockExpiry.LockTimeout;
+    private readonly TimeSpan _interval = options.Value.TaskLockExpiry.Interval;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            await Task.Delay(Interval, stoppingToken);
+            await Task.Delay(_interval, stoppingToken);
             await ReleaseExpiredLocksAsync(stoppingToken);
         }
     }
@@ -29,7 +34,7 @@ public class TaskLockExpiryService(IServiceScopeFactory scopeFactory, ILogger<Ta
         var notificationService = scope.ServiceProvider.GetRequiredService<IWorkflowNotificationService>();
         var dateTimeProvider = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var cutoff = dateTimeProvider.ApplicationNow.Subtract(LockTimeout);
+        var cutoff = dateTimeProvider.ApplicationNow.Subtract(_lockTimeout);
         var expiredTasks = await dbContext.PendingTasks
             .Where(t => t.AssignedType == "2" && t.WorkingBy != null && t.LockedAt != null && t.LockedAt < cutoff)
             .ToListAsync(cancellationToken);

@@ -18,14 +18,16 @@ public class StartBackfillEndpoint : ICarterModule
                 (
                     CollateralBackfillJob job,
                     ICurrentUserService currentUser,
-                    IDateTimeProvider dateTimeProvider,
-                    CancellationToken cancellationToken
+                    IDateTimeProvider dateTimeProvider
                 ) =>
                 {
                     if (!currentUser.IsInRole("Admin") && !currentUser.IsInRole("IntAdmin"))
                         throw new UnauthorizedAccessException("Only Admin users can trigger the backfill job.");
 
-                    var jobId = job.StartAsync(cancellationToken);
+                    // Do not pass the request CancellationToken — this is fire-and-forget and the
+                    // request token cancels as soon as the response returns. The job runs under the
+                    // host's ApplicationStopping token instead (see CollateralBackfillJob.StartAsync).
+                    var jobId = job.StartAsync();
                     var startedAt = dateTimeProvider.ApplicationNow;
 
                     return Results.Ok(new StartBackfillResponse(jobId, startedAt));

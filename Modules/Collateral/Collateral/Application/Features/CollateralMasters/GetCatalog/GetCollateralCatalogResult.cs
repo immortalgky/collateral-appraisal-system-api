@@ -27,7 +27,6 @@ public record CollateralCatalogItemDto(
     decimal? OverallConstructionProgressPercent,
     // Condo identity (matches SELECT order)
     string? Condo_Province,
-    string? Condo_TitleNumber,
     string? Condo_CondoName,
     decimal? Condo_Latitude,
     decimal? Condo_Longitude,

@@ -4,7 +4,7 @@ public interface IDocumentRequirementRepository
 {
     #region DocumentType Operations
 
-    Task<IReadOnlyList<DocumentType>> GetAllDocumentTypesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DocumentType>> GetAllDocumentTypesAsync(bool includeInactive = false, CancellationToken cancellationToken = default);
     Task<DocumentType?> GetDocumentTypeByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<DocumentType?> GetDocumentTypeByCodeAsync(string code, CancellationToken cancellationToken = default);
     void AddDocumentType(DocumentType documentType);
@@ -14,7 +14,7 @@ public interface IDocumentRequirementRepository
 
     #region DocumentRequirement Operations
 
-    Task<IReadOnlyList<DocumentRequirement>> GetAllRequirementsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DocumentRequirement>> GetAllRequirementsAsync(bool includeInactive = false, CancellationToken cancellationToken = default);
     Task<DocumentRequirement?> GetRequirementByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<DocumentRequirement>> GetUniversalRequirementsAsync(
@@ -31,6 +31,11 @@ public interface IDocumentRequirementRepository
     Task<IReadOnlyList<DocumentRequirement>> GetRequirementsByPropertyTypesAsync(
         IEnumerable<string> propertyTypeCodes,
         string? purposeCode = null,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<DocumentRequirement>> GetRequirementsByScopeAsync(
+        string? propertyTypeCode,
+        string? purposeCode,
         CancellationToken cancellationToken = default);
 
     Task<bool> RequirementExistsAsync(

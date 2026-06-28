@@ -1,0 +1,120 @@
+{{- # caller sets: lh = sec (one LeaseholdSection) -}}
+<div class="section-bar">การประเมินมูลค่าทรัพย์สินโดยวิธีสิทธิการเช่า (Leasehold Approach)</div>
+
+<table class="params" style="margin-bottom:6px;">
+  <tr>
+    <td class="pl">มูลค่าที่ดินต่อตารางวา</td>
+    <td class="pv">{{ if lh.land_value_per_sq_wa != null }}{{ lh.land_value_per_sq_wa | math.format "N2" }} บาท/ตร.วา{{ end }}</td>
+    <td class="pl">ประเภทการเติบโตของที่ดิน</td>
+    <td class="pv">{{ lh.land_growth_rate_type }}</td>
+  </tr>
+  <tr>
+    <td class="pl">อัตราการเติบโตของที่ดิน</td>
+    <td class="pv">{{ if lh.land_growth_rate_percent != null }}{{ lh.land_growth_rate_percent | math.format "N4" }} %{{ end }}</td>
+    <td class="pl">ช่วงเวลาการเติบโต</td>
+    <td class="pv">{{ if lh.land_growth_interval_years != null }}{{ lh.land_growth_interval_years }} ปี{{ end }}</td>
+  </tr>
+  <tr>
+    <td class="pl">ดัชนีต้นทุนก่อสร้าง</td>
+    <td class="pv">{{ if lh.construction_cost_index != null }}{{ lh.construction_cost_index | math.format "N4" }}{{ end }}</td>
+    <td class="pl">มูลค่าอาคารตั้งต้น</td>
+    <td class="pv">{{ if lh.initial_building_value != null }}{{ lh.initial_building_value | math.format "N2" }} บาท{{ end }}</td>
+  </tr>
+  <tr>
+    <td class="pl">อัตราค่าเสื่อมราคา</td>
+    <td class="pv">{{ if lh.depreciation_rate != null }}{{ lh.depreciation_rate | math.format "N4" }} %{{ end }}</td>
+    <td class="pl">ช่วงเวลาค่าเสื่อม</td>
+    <td class="pv">{{ if lh.depreciation_interval_years != null }}{{ lh.depreciation_interval_years }} ปี{{ end }}</td>
+  </tr>
+  <tr>
+    <td class="pl">ปีเริ่มต้นคำนวณอาคาร</td>
+    <td class="pv">{{ if lh.building_calc_start_year != null }}{{ lh.building_calc_start_year }}{{ end }}</td>
+    <td class="pl">อัตราคิดลด</td>
+    <td class="pv">{{ if lh.discount_rate != null }}{{ lh.discount_rate | math.format "N4" }} %{{ end }}</td>
+  </tr>
+</table>
+
+{{ if lh.table_rows && lh.table_rows.size > 0 }}
+<table class="grid leasehold-calc">
+  <thead>
+    <tr>
+      <th>ปีที่</th>
+      <th>มูลค่าที่ดิน (บาท)</th>
+      <th>อัตราการเติบโต (%)</th>
+      <th>มูลค่าอาคาร (บาท)</th>
+      <th>ค่าเสื่อมราคา (บาท)</th>
+      <th>อัตราค่าเสื่อม (%)</th>
+      <th>อาคารหลังค่าเสื่อม (บาท)</th>
+      <th>รวมที่ดิน+อาคาร (บาท)</th>
+      <th>รายได้ค่าเช่า (บาท)</th>
+      <th>ตัวคูณลด</th>
+      <th>รายได้ค่าเช่าปัจจุบันสุทธิ (บาท)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ for row in lh.table_rows }}
+    <tr>
+      <td class="num">{{ if row.year != null }}{{ row.year | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.land_value != null }}{{ row.land_value | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.land_growth_percent != null }}{{ row.land_growth_percent | math.format "N4" }}{{ end }}</td>
+      <td class="num">{{ if row.building_value != null }}{{ row.building_value | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.depreciation_amount != null }}{{ row.depreciation_amount | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.depreciation_percent != null }}{{ row.depreciation_percent | math.format "N4" }}{{ end }}</td>
+      <td class="num">{{ if row.building_after_depreciation != null }}{{ row.building_after_depreciation | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.total_land_and_building != null }}{{ row.total_land_and_building | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.rental_income != null }}{{ row.rental_income | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.pv_factor != null }}{{ row.pv_factor | math.format "N6" }}{{ end }}</td>
+      <td class="num">{{ if row.net_current_rental_income != null }}{{ row.net_current_rental_income | math.format "N2" }}{{ end }}</td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ end }}
+
+<table class="totals" style="margin-top:8px;">
+  {{ if lh.total_income_over_lease_term != null }}
+  <tr>
+    <td class="tl">รายได้รวมตลอดอายุสัญญา</td>
+    <td class="tv">{{ lh.total_income_over_lease_term | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+  {{ if lh.value_at_lease_expiry != null }}
+  <tr>
+    <td class="tl">มูลค่า ณ สิ้นสุดสัญญา</td>
+    <td class="tv">{{ lh.value_at_lease_expiry | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+  {{- # W3 fix: render effective_final_value = EstimatePriceRounded ?? FinalValueRounded -}}
+  {{ if lh.effective_final_value != null }}
+  <tr>
+    <td class="tl">มูลค่าทรัพย์สิน (ปัดเศษ)</td>
+    <td class="tv">{{ lh.effective_final_value | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+</table>
+
+{{ if lh.is_partial_usage }}
+<div class="sub-bar" style="margin-top:8px;">ส่วนการใช้ประโยชน์บางส่วน</div>
+<table class="params">
+  <tr>
+    <td class="pl">เนื้อที่ (ไร่-งาน-ตร.วา)</td>
+    <td class="pv">
+      {{ if lh.partial_rai != null }}{{ lh.partial_rai | math.format "N0" }}-{{ end }}{{ if lh.partial_ngan != null }}{{ lh.partial_ngan | math.format "N0" }}-{{ end }}{{ if lh.partial_wa != null }}{{ lh.partial_wa | math.format "N2" }}{{ end }} ตร.วา
+    </td>
+    <td class="pl">เนื้อที่ (ตร.วา)</td>
+    <td class="pv">{{ if lh.partial_land_area != null }}{{ lh.partial_land_area | math.format "N2" }}{{ end }}</td>
+  </tr>
+  <tr>
+    <td class="pl">ราคาต่อตารางวา</td>
+    <td class="pv">{{ if lh.price_per_sq_wa != null }}{{ lh.price_per_sq_wa | math.format "N2" }} บาท/ตร.วา{{ end }}</td>
+    <td class="pl">มูลค่าที่ดินส่วน</td>
+    <td class="pv">{{ if lh.partial_land_price != null }}{{ lh.partial_land_price | math.format "N2" }} บาท{{ end }}</td>
+  </tr>
+  <tr>
+    <td class="pl">มูลค่าสิทธิการเช่าสุทธิ</td>
+    <td class="pv">{{ if lh.estimate_net_price != null }}{{ lh.estimate_net_price | math.format "N2" }} บาท{{ end }}</td>
+    <td class="pl">มูลค่าสิทธิการเช่า (ปัดเศษ)</td>
+    <td class="pv">{{ if lh.estimate_price_rounded != null }}{{ lh.estimate_price_rounded | math.format "N2" }} บาท{{ end }}</td>
+  </tr>
+</table>
+{{ end }}

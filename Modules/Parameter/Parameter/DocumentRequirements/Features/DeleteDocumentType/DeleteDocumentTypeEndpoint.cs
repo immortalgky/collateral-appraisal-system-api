@@ -13,6 +13,7 @@ public class DeleteDocumentTypeEndpoint : ICarterModule
                 await sender.Send(command, cancellationToken);
                 return Results.NoContent();
             })
+            .RequireAuthorization()
             .WithName("DeleteDocumentType")
             .WithSummary("Delete a document type")
             .Produces(StatusCodes.Status204NoContent)

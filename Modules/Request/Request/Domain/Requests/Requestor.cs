@@ -1,68 +1,45 @@
 namespace Request.Domain.Requests;
 
+/// <summary>
+/// Snapshot of the requestor's org-structure data captured at the time the request is created.
+/// Stored as an owned entity on the Requests table so the data remains stable even if the
+/// user's profile or org tables change later.
+/// </summary>
 public class Requestor : ValueObject
 {
-    public string RequestorEmpId { get; } = default!;
-    public string RequestorName { get; } = default!;
-    public string RequestorEmail { get; } = default!;
-    public string RequestorContactNo { get; } = default!;
-    public string RequestorAo { get; } = default!;
-    public string RequestorBranch { get; } = default!;
-    public string RequestorBusinessUnit { get; } = default!;
-    public string RequestorDepartment { get; } = default!;
-    public string RequestorSection { get; } = default!;
-    public string RequestorCostCenter { get; } = default!;
-    
+    public string? RequestorEmail { get; }
+    public string? RequestorContactNo { get; }
+    public string? RequestorAoCode { get; }
+    public string? RequestorCostCenterCode { get; }
+    public string? RequestorCostCenterDesc { get; }
+    public string? RequestorDepartment { get; }
+
+    private Requestor() { }
+
     private Requestor(
-        string requestorEmpId,
-        string requestorName,
-        string requestorEmail,
-        string requestorContactNo,
-        string requestorAo,
-        string requestorBranch,
-        string requestorBusinessUnit,
-        string requestorDepartment,
-        string requestorSection,
-        string requestorCostCenter
-    )
+        string? email,
+        string? contactNo,
+        string? aoCode,
+        string? costCenterCode,
+        string? costCenterDesc,
+        string? department)
     {
-        RequestorEmpId = requestorEmpId;
-        RequestorName = requestorName;
-        RequestorEmail = requestorEmail;
-        RequestorContactNo = requestorContactNo;
-        RequestorAo = requestorAo;
-        RequestorBranch = requestorBranch;
-        RequestorBusinessUnit = requestorBusinessUnit;
-        RequestorDepartment = requestorDepartment;
-        RequestorSection = requestorSection;
-        RequestorCostCenter = requestorCostCenter;
+        RequestorEmail = email;
+        RequestorContactNo = contactNo;
+        RequestorAoCode = aoCode;
+        RequestorCostCenterCode = costCenterCode;
+        RequestorCostCenterDesc = costCenterDesc;
+        RequestorDepartment = department;
     }
 
-
     public static Requestor Create(
-        string requestorEmpId,
-        string requestorName,
-        string requestorEmail,
-        string requestorContactNo,
-        string requestorAo,
-        string requestorBranch,
-        string requestorBusinessUnit,
-        string requestorDepartment,
-        string requestorSection,
-        string requestorCostCenter
-    )
+        string? email,
+        string? contactNo,
+        string? aoCode,
+        string? costCenterCode,
+        string? costCenterDesc,
+        string? department)
     {
-        return new Requestor(
-            requestorEmpId,
-            requestorName,
-            requestorEmail,
-            requestorContactNo,
-            requestorAo,
-            requestorBranch,
-            requestorBusinessUnit,
-            requestorDepartment,
-            requestorSection,
-            requestorCostCenter
-        );
+        return new Requestor(email, contactNo, aoCode, costCenterCode, costCenterDesc, department);
     }
 }

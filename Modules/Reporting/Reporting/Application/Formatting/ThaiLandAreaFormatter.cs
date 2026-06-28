@@ -18,6 +18,17 @@ public static class ThaiLandAreaFormatter
     /// <summary>Returns the formatted area string (never null).</summary>
     public static string FormatTotal(decimal sumRai, decimal sumNgan, decimal sumSqWa)
     {
+        var t = NormalizeTotal(sumRai, sumNgan, sumSqWa);
+        return $"{t.Rai} - {t.Ngan} - {t.Wa} ไร่ หรือ {t.TotalSquareWa:0.##} ตารางวา";
+    }
+
+    /// <summary>
+    /// Normalises the raw rai/ngan/wa sums into a carried rai-ngan-wa triple plus the
+    /// absolute total in square wa. Same arithmetic as <see cref="FormatTotal"/> so a
+    /// table total row and the formatted string can never disagree.
+    /// </summary>
+    public static LandAreaTotal NormalizeTotal(decimal sumRai, decimal sumNgan, decimal sumSqWa)
+    {
         decimal totalSqWa = Math.Round(sumRai * 400m + sumNgan * 100m + sumSqWa, 2);
 
         var wa = (int)Math.Round(sumSqWa % 100);
@@ -25,6 +36,9 @@ public static class ThaiLandAreaFormatter
         var ngan = (int)(nganCarried % 4);
         var rai = (int)(sumRai + Math.Floor(nganCarried / 4));
 
-        return $"{rai} - {ngan} - {wa} ไร่ หรือ {totalSqWa:0.##} ตารางวา";
+        return new LandAreaTotal(rai, ngan, wa, totalSqWa);
     }
 }
+
+/// <summary>Normalised land-area total: carried rai/ngan/wa + absolute square-wa.</summary>
+public readonly record struct LandAreaTotal(int Rai, int Ngan, int Wa, decimal TotalSquareWa);

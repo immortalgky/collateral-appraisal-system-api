@@ -15,7 +15,12 @@ internal static class IncomeAnalysisMapper
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public static IncomeAnalysisDto ToDto(IncomeAnalysis analysis)
+    public static IncomeAnalysisDto ToDto(
+        IncomeAnalysis analysis,
+        decimal? finalValue,
+        decimal? finalValueRounded,
+        decimal? finalValueAdjust,
+        decimal? appraisalPriceRounded)
     {
         return new IncomeAnalysisDto(
             Id: analysis.Id,
@@ -26,16 +31,16 @@ internal static class IncomeAnalysisMapper
             TotalNumberOfDayInYear: analysis.TotalNumberOfDayInYear,
             CapitalizeRate: analysis.CapitalizeRate,
             DiscountedRate: analysis.DiscountedRate,
-            FinalValue: analysis.FinalValue,
-            FinalValueRounded: analysis.FinalValueRounded,
-            FinalValueAdjust: analysis.FinalValueAdjust,
+            FinalValue: finalValue,
+            FinalValueRounded: finalValueRounded,
+            FinalValueAdjust: finalValueAdjust,
             IsHighestBestUsed: analysis.IsHighestBestUsed,
             HighestBestUsed: new HighestBestUsedDto(
                 AreaRai: analysis.HighestBestUsed.AreaRai,
                 AreaNgan: analysis.HighestBestUsed.AreaNgan,
                 AreaWa: analysis.HighestBestUsed.AreaWa,
                 PricePerSqWa: analysis.HighestBestUsed.PricePerSqWa),
-            AppraisalPriceRounded: analysis.AppraisalPriceRounded,
+            AppraisalPriceRounded: appraisalPriceRounded,
             Sections: analysis.Sections
                 .OrderBy(s => s.DisplaySeq)
                 .Select(MapSection)

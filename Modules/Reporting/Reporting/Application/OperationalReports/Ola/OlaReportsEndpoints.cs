@@ -46,12 +46,13 @@ public sealed class OlaReportsEndpoints : ICarterModule
         group.MapGet("", async (
                 [FromQuery] DateTime? createdFrom, [FromQuery] DateTime? createdTo, [FromQuery] string? status,
                 [FromQuery] string? appraisalCompany, [FromQuery] string? internalStaff, [FromQuery] string? channel,
+                [FromQuery] string? appraisalNumber,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir,
                 [FromQuery] int? pageNumber, [FromQuery] int? pageSize,
                 IOperationalReportRunner runner, IOlaTimingService ola, CancellationToken ct) =>
             {
                 var def = OlaReport.Create(baseName, title, scope, ola);
-                var filter = new OlaFilter(createdFrom, createdTo, status, appraisalCompany, internalStaff, channel, sortBy, sortDir);
+                var filter = new OlaFilter(createdFrom, createdTo, status, appraisalCompany, internalStaff, channel, appraisalNumber, sortBy, sortDir);
                 var page = new PaginationRequest(pageNumber ?? 0, pageSize ?? 20);
                 return Results.Ok(await runner.PreviewAsync(def, filter, page, ct));
             })
@@ -60,11 +61,12 @@ public sealed class OlaReportsEndpoints : ICarterModule
         group.MapGet("/export", async (
                 [FromQuery] DateTime? createdFrom, [FromQuery] DateTime? createdTo, [FromQuery] string? status,
                 [FromQuery] string? appraisalCompany, [FromQuery] string? internalStaff, [FromQuery] string? channel,
+                [FromQuery] string? appraisalNumber,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir, [FromQuery] string? format,
                 IOperationalReportRunner runner, IOlaTimingService ola, CancellationToken ct) =>
             {
                 var def = OlaReport.Create(baseName, title, scope, ola);
-                var filter = new OlaFilter(createdFrom, createdTo, status, appraisalCompany, internalStaff, channel, sortBy, sortDir);
+                var filter = new OlaFilter(createdFrom, createdTo, status, appraisalCompany, internalStaff, channel, appraisalNumber, sortBy, sortDir);
                 var file = await runner.ExportAsync(def, filter, OperationalReportFormat.Parse(format), ct);
                 return Results.File(file.Bytes, file.ContentType, file.FileName);
             })

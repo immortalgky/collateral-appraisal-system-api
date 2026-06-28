@@ -4,11 +4,23 @@ namespace Reporting.Application.Models.Sections;
 /// Sub-model for the "WQS — Weighted Quality Score" comparison section — FSD §2.1.2.9.
 ///
 /// All scalar properties are nullable so that partial data renders as blank.
-/// The section is absent from the report when <see cref="WqsSectionLoader.LoadAsync"/>
-/// returns <see langword="null"/> (appraisal has no WQS method).
+/// The section is absent from the report when <see cref="WqsSectionLoader.LoadAllAsync"/>
+/// returns an empty list (appraisal has no WQS method).
 /// </summary>
 public sealed class WqsSection
 {
+    // ── Property group routing ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// PropertyGroups.GroupNumber for the group this WQS method belongs to.
+    /// 0 when ungrouped. Used to print a กลุ่มที่ N bar when multiple groups
+    /// use WQS (mirrors the land/building group bar in appraisal-book.html:30-31).
+    /// </summary>
+    public int GroupNumber { get; init; }
+
+    /// <summary>PropertyGroups.GroupName for the group, or null when no name is set.</summary>
+    public string? GroupName { get; init; }
+
     // ── Comparable column headers ─────────────────────────────────────────────────
 
     /// <summary>
@@ -24,6 +36,36 @@ public sealed class WqsSection
     /// One row per scoring factor, ordered by PricingComparativeFactors.DisplaySequence.
     /// </summary>
     public IReadOnlyList<WqsFactorRow> Factors { get; init; } = [];
+
+    // ── Totals row (ผลรวม) — FSD §2.1.2.9 ─────────────────────────────────────────
+
+    /// <summary>ผลรวม ค่าน้ำหนัก — ΣWeight across all factors.</summary>
+    public decimal? TotalWeight { get; init; }
+
+    /// <summary>
+    /// ผลรวม คะแนน — Σ(Weight × Intensity) across all factors. This is the maximum
+    /// attainable weighted score (the คะแนน column total).
+    /// </summary>
+    public decimal? TotalMaxScore { get; init; }
+
+    /// <summary>
+    /// Per-comparable total weighted score (Σ Score×Weight), in the same order as
+    /// <see cref="ComparableHeaders"/>. Also the คะแนนเฉลี่ย row and the scatter X axis.
+    /// Null element when a comparable has no scored factors.
+    /// </summary>
+    public IReadOnlyList<decimal?> ComparableScoreTotals { get; init; } = [];
+
+    /// <summary>ทรัพย์สิน (SP) total weighted score — Σ subject Score×Weight.</summary>
+    public decimal? SubjectScoreTotal { get; init; }
+
+    // ── Price block (ราคาซื้อขาย / ราคาเสนอขาย) — FSD §2.1.2.9 ─────────────────────
+
+    /// <summary>
+    /// Price-adjustment rows (purchase price, its %, net; offer price, its %, net),
+    /// one value per comparable column. Empty when no comparable carries price data
+    /// (e.g. a WQS analysis scored purely on quality factors).
+    /// </summary>
+    public IReadOnlyList<WqsPriceRow> PriceRows { get; init; } = [];
 
     // ── Regression statistics ─────────────────────────────────────────────────────
     // Source: appraisal.PricingRsqResults (PricingMethodId = WQS method).
@@ -65,6 +107,12 @@ public sealed class WqsSection
     /// The final appraised value for this WQS method.
     /// </summary>
     public decimal? AppraisalValue { get; init; }
+
+    /// <summary>
+    /// เนื้อที่ดิน (ตารางวา) — derived land area = MethodValue / ValuePerUnit
+    /// (ราคาประเมิน ÷ ตารางวาละ). Null when either input is missing or ValuePerUnit is 0.
+    /// </summary>
+    public decimal? LandArea { get; init; }
 
     /// <summary>
     /// ราคาต่อหน่วย — source: PricingAnalysisMethods.ValuePerUnit (same column as LandPerSqWa).
@@ -162,6 +210,25 @@ public sealed class WqsScatter
     /// <summary>Axis titles.</summary>
     public string XAxisTitle { get; init; } = "คะแนนคุณภาพ";
     public string YAxisTitle { get; init; } = "ราคา/หน่วย";
+}
+
+/// <summary>
+/// One price-block row in the WQS table (e.g. ราคาซื้อขาย / ราคาเสนอขายสุทธิหลังปรับ).
+/// Spans the same comparable columns as the factor rows; the subject (SP) column is blank.
+/// </summary>
+public sealed class WqsPriceRow
+{
+    /// <summary>Thai row label (first column), e.g. "ราคาซื้อขาย".</summary>
+    public string? Label { get; init; }
+
+    /// <summary>Unit label shown in the คะแนน column, e.g. "บาท/ตารางวา".</summary>
+    public string? Unit { get; init; }
+
+    /// <summary>
+    /// One pre-formatted value per comparable column, in <see cref="WqsSection.ComparableHeaders"/>
+    /// order. A null element renders as blank.
+    /// </summary>
+    public IReadOnlyList<string?> Values { get; init; } = [];
 }
 
 /// <summary>One plotted point in <see cref="WqsScatter"/> (pixel coords).</summary>

@@ -114,7 +114,7 @@ public record FinalValueDto(
     bool IncludeLandArea,
     decimal? LandArea,
     decimal? LandValue,       // user-edited land price
-    decimal? BuildingCost,    // user-edited building cost
-    decimal? AppraisalPrice,  // user-edited final total (hasBuildingCost only)
-    bool HasBuildingCost
+    decimal? BuildingValue,   // user-edited building value
+    decimal? AppraisalPrice,  // user-edited final total (hasBuildingValue only)
+    bool HasBuildingValue
 );

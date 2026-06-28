@@ -1,6 +1,6 @@
 -- CAS-AS400-Regulatory export view.
 -- One row per active IsMaster collateral master (IsDeleted=0, IsMaster=1).
--- Supplies all typed columns consumed by RegulatoryExportRow / RegulatoryFileWriter (308-char layout).
+-- Supplies all typed columns consumed by RegulatoryExportRow / RegulatoryFileWriter (300-char layout).
 --
 -- Engagement selection:
 --   Earliest: MIN(AppraisalDate) per master (tie-break CreatedAt ASC)  → application-id (prev)
@@ -46,12 +46,27 @@ LatestEngagement AS (
         e.CollateralMasterId,
         e.Id                  AS LatestEngagementId,
         e.AppraisalNumber     AS LatestAppraisalNumber,
+        e.AppraisalType       AS LatestAppraisalType,
         e.AppraisalDate       AS LatestAppraisalDate,
         e.AppraisalValue      AS LatestAppraisalValue,
         e.AppraisalCompanyId  AS LatestAppraisalCompanyId,
         ROW_NUMBER() OVER (
             PARTITION BY e.CollateralMasterId
             ORDER BY e.AppraisalDate DESC, e.CreatedAt DESC
+        ) AS rn
+    FROM collateral.CollateralEngagements e
+),
+
+-- Previous engagement per master: the 2nd-most-recent (rn=2 of the same DESC order as Latest).
+-- Feeds the "Application Id" field (the previous appraisal number, not the earliest). NULL when the
+-- master has only one engagement → writer emits blank.
+PreviousEngagement AS (
+    SELECT
+        e.CollateralMasterId,
+        e.AppraisalNumber  AS PreviousAppraisalNumber,
+        ROW_NUMBER() OVER (
+            PARTITION BY e.CollateralMasterId
+            ORDER BY e.AppraisalDate DESC, e.CreatedAt DESC, e.Id DESC
         ) AS rn
     FROM collateral.CollateralEngagements e
 ),
@@ -74,6 +89,8 @@ RepresentativeBuilding AS (
     SELECT
         ceb.EngagementId,
         ceb.BuildingTypeCode,
+        ceb.BuildingAge,
+        ceb.NumberOfFloors,
         CASE
             WHEN ceb.BuildingArea > 99999.99 THEN NULL
             ELSE ceb.BuildingArea
@@ -89,13 +106,16 @@ SELECT
     m.Id                                                        AS CollateralMasterId,
     m.CollateralType,
 
-    -- Earliest engagement
-    ee.EarliestAppraisalNumber,
+    -- Previous engagement (2nd-most-recent) → "Application Id" field
+    prev.PreviousAppraisalNumber,
+
+    -- Earliest engagement (feeds first valuation date + origination value)
     ee.EarliestAppraisalDate,
     ee.EarliestAppraisalValue,
 
     -- Latest engagement
     le.LatestAppraisalNumber,
+    le.LatestAppraisalType,
     le.LatestAppraisalDate,
     le.LatestAppraisalValue,
     le.LatestAppraisalCompanyId,
@@ -118,15 +138,20 @@ SELECT
         ELSE ld.LandArea
     END                                                           AS LandAreaSqWa,
 
-    -- Number of floors:
-    --   • Condo (U): CondoDetails has no NumberOfFloors column → NULL
-    --   • PRJ / LB: blank by spec → NULL
-    --   (A future enhancement can join ProjectUnits for PRJ-Condo projects if needed)
-    NULL                                                          AS NumberOfFloors,
-
-    -- Building age: Condo (U) only; sourced from CondoDetails
+    -- Number of floors: building types only (LB/LSB/LS), from the representative engagement building.
+    --   • Condo (U) / bare land / machinery: NULL → writer renders 0 (spec "else 0").
     CASE
-        WHEN m.CollateralType = 'U' THEN cd.BuildingAge
+        WHEN m.CollateralType IN ('LB', 'LSB', 'LS') THEN CAST(rb.NumberOfFloors AS int)
+        ELSE NULL
+    END                                                           AS NumberOfFloors,
+
+    -- Building age (years): all building types + condo.
+    --   • Building/L&B (LB, LSB, LS): representative building age from engagement buildings
+    --   • Condo (U): BuildingAge from CondoDetails
+    --   • Others (bare land, machinery): NULL
+    CASE
+        WHEN m.CollateralType IN ('LB', 'LSB', 'LS') THEN rb.BuildingAge
+        WHEN m.CollateralType = 'U'                  THEN cd.BuildingAge
         ELSE NULL
     END                                                           AS BuildingAge,
 
@@ -152,17 +177,16 @@ SELECT
         ELSE NULL
     END                                                           AS BuildingTypeDescription,
 
-    -- DOPA 6-digit sub-district code (Land/LB/LS* types, joined via LandDetails.SubDistrict name).
-    -- Sourced from the official parameter.DopaSubDistricts table (the "DOPA Location" field), NOT
-    -- TitleSubDistricts (which is the title-deed address list). Condo has no SubDistrict column on
-    -- CondoDetails → NULL for condo. MIN(Code) is a deterministic best-effort when multiple DOPA
-    -- rows share the same NameTh.
+    -- DOPA 6-digit sub-district code. Sourced from the official parameter.DopaSubDistricts table
+    -- (the "DOPA Location" field), NOT TitleSubDistricts (the title-deed address list). Land/LB/LS*
+    -- types use LandDetails.SubDistrict; condo (U) uses CondoDetails.SubDistrict (it has its own
+    -- address columns). MIN(Code) is a deterministic best-effort when multiple DOPA rows share NameTh.
     CASE
-        WHEN m.CollateralType IN ('L', 'LB', 'LSL', 'LSB', 'LS')
+        WHEN m.CollateralType IN ('L', 'LB', 'LSL', 'LSB', 'LS', 'U')
             THEN (
                 SELECT MIN(dsd.Code)
                 FROM parameter.DopaSubDistricts dsd
-                WHERE dsd.NameTh = ld.SubDistrict
+                WHERE dsd.NameTh = COALESCE(ld.SubDistrict, cd.SubDistrict)
             )
         ELSE NULL
     END                                                           AS DopaCode
@@ -178,6 +202,11 @@ LEFT JOIN EarliestEngagement ee
 LEFT JOIN LatestEngagement le
     ON  le.CollateralMasterId = m.Id
     AND le.rn                 = 1
+
+-- Previous engagement (rn=2 → the 2nd-most-recent)
+LEFT JOIN PreviousEngagement prev
+    ON  prev.CollateralMasterId = m.Id
+    AND prev.rn                 = 2
 
 -- Latest Progressive engagement (rn=1)
 LEFT JOIN LatestProgressiveEngagement pe

@@ -15,7 +15,7 @@ public class GetDocumentTypesQueryHandler : IQueryHandler<GetDocumentTypesQuery,
         GetDocumentTypesQuery query,
         CancellationToken cancellationToken)
     {
-        var documentTypes = await _repository.GetAllDocumentTypesAsync(cancellationToken);
+        var documentTypes = await _repository.GetAllDocumentTypesAsync(query.IncludeInactive, cancellationToken);
 
         var dtos = documentTypes.Select(dt => new DocumentTypeDto
         {

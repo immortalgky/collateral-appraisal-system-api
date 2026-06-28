@@ -10,18 +10,20 @@ public class CondoDetailConfiguration : IEntityTypeConfiguration<CondoDetail>
 
         builder.HasKey(d => d.CollateralMasterId);
 
-        // Dedup key columns (7 columns per spec v1 section 5.5)
-        builder.Property(d => d.LandOfficeCode).IsRequired().HasMaxLength(200);
+        // Dedup key columns (7): CondoRegistrationNumber + BuildingNumber + FloorNumber + RoomNumber
+        //                      + Province + District + SubDistrict.
+        // LandOfficeCode is descriptive (nullable), NOT part of the key. TitleNumber/TitleType dropped.
+        builder.Property(d => d.LandOfficeCode).HasMaxLength(200);
         builder.Property(d => d.CondoRegistrationNumber).IsRequired().HasMaxLength(200);
         builder.Property(d => d.BuildingNumber).IsRequired().HasMaxLength(50);
         builder.Property(d => d.FloorNumber).IsRequired().HasMaxLength(50);
         builder.Property(d => d.RoomNumber).IsRequired().HasMaxLength(50).HasColumnName("RoomNumber");
-        builder.Property(d => d.TitleNumber).IsRequired().HasMaxLength(50);
-        builder.Property(d => d.TitleType).IsRequired().HasMaxLength(20);
+        builder.Property(d => d.Province).IsRequired().HasMaxLength(100);
+        builder.Property(d => d.District).IsRequired().HasMaxLength(100);
+        builder.Property(d => d.SubDistrict).IsRequired().HasMaxLength(100);
 
         // Identity-extra
         builder.Property(d => d.CondoName).HasMaxLength(200);
-        builder.Property(d => d.Province).HasMaxLength(100);
 
         // Last-known
         builder.Property(d => d.UsableArea).HasPrecision(18, 4);
@@ -34,7 +36,7 @@ public class CondoDetailConfiguration : IEntityTypeConfiguration<CondoDetail>
 
         // Three-value model (Phase C)
         builder.Property(d => d.UnitPrice).HasPrecision(18, 2);
-        builder.Property(d => d.BuildingCost).HasPrecision(18, 2);
+        builder.Property(d => d.BuildingValue).HasPrecision(18, 2);
         builder.Property(d => d.AppraisalValue).HasPrecision(18, 2);
 
         // AppraisalSummary (owned — flat columns)
@@ -47,18 +49,15 @@ public class CondoDetailConfiguration : IEntityTypeConfiguration<CondoDetail>
 
         builder.Property(d => d.IsDeleted).IsRequired().HasDefaultValue(false);
 
-        // Filtered unique index for dedup
+        // Filtered unique index for dedup (7-column key)
         builder.HasIndex(d => new
             {
-                d.LandOfficeCode, d.CondoRegistrationNumber, d.BuildingNumber,
-                d.FloorNumber, d.RoomNumber, d.TitleNumber, d.TitleType
+                d.CondoRegistrationNumber, d.BuildingNumber,
+                d.FloorNumber, d.RoomNumber,
+                d.Province, d.District, d.SubDistrict
             })
             .IsUnique()
             .HasFilter("[IsDeleted] = 0")
             .HasDatabaseName("UX_CondoDetails_DedupKey_Active");
-
-        // Partial-key lookup
-        builder.HasIndex(d => new { d.LandOfficeCode, d.TitleNumber, d.TitleType })
-            .HasDatabaseName("IX_CondoDetails_LandOffice_TitleNumber_TitleType");
     }
 }

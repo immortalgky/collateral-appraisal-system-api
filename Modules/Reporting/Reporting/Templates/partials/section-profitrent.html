@@ -1,0 +1,73 @@
+{{- # caller sets: pr = sec (one ProfitRentSection) -}}
+<div class="section-bar">การประเมินมูลค่าทรัพย์สินโดยวิธีค่าเช่า (Profit Rent Approach)</div>
+
+<table class="params" style="margin-bottom:6px;">
+  <tr>
+    <td class="pl">ค่าเช่าตลาดต่อตารางวา</td>
+    <td class="pv">{{ if pr.market_rental_fee_per_sq_wa != null }}{{ pr.market_rental_fee_per_sq_wa | math.format "N2" }} บาท/ตร.วา{{ end }}</td>
+    <td class="pl">ประเภทการเติบโต</td>
+    <td class="pv">{{ pr.growth_rate_type }}</td>
+  </tr>
+  <tr>
+    <td class="pl">อัตราการเติบโต</td>
+    <td class="pv">{{ if pr.growth_rate_percent != null }}{{ pr.growth_rate_percent | math.format "N4" }} %{{ end }}</td>
+    <td class="pl">ช่วงเวลาการเติบโต</td>
+    <td class="pv">{{ if pr.growth_interval_years != null }}{{ pr.growth_interval_years }} ปี{{ end }}</td>
+  </tr>
+  <tr>
+    <td class="pl">อัตราคิดลด</td>
+    <td class="pv">{{ if pr.discount_rate != null }}{{ pr.discount_rate | math.format "N4" }} %{{ end }}</td>
+    <td></td><td></td>
+  </tr>
+</table>
+
+{{ if pr.table_rows && pr.table_rows.size > 0 }}
+<table class="grid profitrent-calc">
+  <thead>
+    <tr>
+      <th>ปีที่</th>
+      <th>จำนวนเดือน</th>
+      <th>ค่าเช่าตลาด/ตร.วา (บาท)</th>
+      <th>อัตราการเติบโต (%)</th>
+      <th>ค่าเช่าตลาด/เดือน (บาท)</th>
+      <th>ค่าเช่าตลาด/ปี (บาท)</th>
+      <th>ค่าเช่าตามสัญญา/ปี (บาท)</th>
+      <th>ผลตอบแทนจากการเช่า (บาท)</th>
+      <th>ตัวคูณลด</th>
+      <th>มูลค่าปัจจุบัน (บาท)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ for row in pr.table_rows }}
+    <tr>
+      <td class="num">{{ if row.year != null }}{{ row.year | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.number_of_months != null }}{{ row.number_of_months | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.market_rental_fee_per_sq_wa != null }}{{ row.market_rental_fee_per_sq_wa | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.market_rental_fee_growth_percent != null }}{{ row.market_rental_fee_growth_percent | math.format "N4" }}{{ end }}</td>
+      <td class="num">{{ if row.market_rental_fee_per_month != null }}{{ row.market_rental_fee_per_month | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.market_rental_fee_per_year != null }}{{ row.market_rental_fee_per_year | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.contract_rental_fee_per_year != null }}{{ row.contract_rental_fee_per_year | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.returns_from_lease != null }}{{ row.returns_from_lease | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.pv_factor != null }}{{ row.pv_factor | math.format "N6" }}{{ end }}</td>
+      <td class="num">{{ if row.present_value != null }}{{ row.present_value | math.format "N2" }}{{ end }}</td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ end }}
+
+<table class="totals" style="margin-top:8px;">
+  {{ if pr.total_present_value != null }}
+  <tr>
+    <td class="tl">รวมมูลค่าปัจจุบัน</td>
+    <td class="tv">{{ pr.total_present_value | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+  {{- # W2 fix: render effective_final_value = EstimatePriceRounded ?? FinalValueRounded -}}
+  {{ if pr.effective_final_value != null }}
+  <tr>
+    <td class="tl">มูลค่าทรัพย์สิน (ปัดเศษ)</td>
+    <td class="tv">{{ pr.effective_final_value | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+</table>

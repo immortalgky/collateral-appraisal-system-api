@@ -1,6 +1,7 @@
 using Auth.Contracts.Users;
 using Auth.Domain.Companies;
 using Auth.Domain.Identity;
+using Auth.Domain.Organization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -57,5 +58,41 @@ public class UserLookupService(AuthDbContext db, UserManager<ApplicationUser> us
                         && (companyId == null || u.CompanyId == companyId))
             .Select(u => u.UserName!)
             .ToArray();
+    }
+
+    public async Task<RequestorInfoDto?> GetRequestorAsync(string employeeId, CancellationToken ct = default)
+    {
+        var user = await db.Set<ApplicationUser>()
+            .Where(u => u.UserName == employeeId && u.IsActive)
+            .FirstOrDefaultAsync(ct);
+
+        if (user is null) return null;
+
+        // Left-join Officer on AoCode (AoCode == OfficerCode)
+        Officer? officer = null;
+        if (user.AoCode != null)
+            officer = await db.Set<Officer>()
+                .Where(o => o.OfficerCode == user.AoCode)
+                .FirstOrDefaultAsync(ct);
+
+        // Left-join CostCenter on Officer.CostCenterCode.
+        // There is a known 8-digit vs 3-digit mismatch; a null result here is expected.
+        string? costCenterDesc = null;
+        if (officer?.CostCenterCode != null)
+            costCenterDesc = await db.Set<CostCenter>()
+                .Where(c => c.Code == officer.CostCenterCode)
+                .Select(c => c.Description)
+                .FirstOrDefaultAsync(ct);
+
+        return new RequestorInfoDto(
+            UserId: user.Id,
+            EmployeeId: user.UserName ?? "",
+            Name: $"{user.FirstName} {user.LastName}".Trim(),
+            Email: user.Email,
+            ContactNo: user.PhoneNumber,
+            AoCode: user.AoCode,
+            CostCenterCode: officer?.CostCenterCode,
+            CostCenterDescription: costCenterDesc,
+            Department: user.Department);
     }
 }

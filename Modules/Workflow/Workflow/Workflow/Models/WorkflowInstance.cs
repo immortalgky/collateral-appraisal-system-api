@@ -119,20 +119,28 @@ public class WorkflowInstance : Entity<Guid>
 
     public void UpdateVariables(Dictionary<string, object> variables)
     {
+        // Rebuild the dictionary so the property gets a NEW reference. Variables has a JSON value
+        // converter but no value comparer, so EF detects changes by reference only — an in-place
+        // mutation (Variables[key] = ...) would never be persisted by SaveChanges.
+        var updated = new Dictionary<string, object>(Variables);
         foreach (var variable in variables)
         {
-            Variables[variable.Key] = variable.Value;
+            updated[variable.Key] = variable.Value;
         }
+        Variables = updated;
     }
 
     public void UpdateRuntimeOverrides(Dictionary<string, RuntimeOverride>? runtimeOverrides)
     {
         if (runtimeOverrides != null)
         {
+            // New reference for the same reason as UpdateVariables (converter, no value comparer).
+            var updated = new Dictionary<string, RuntimeOverride>(RuntimeOverrides);
             foreach (var kvp in runtimeOverrides)
             {
-                RuntimeOverrides[kvp.Key] = kvp.Value;
+                updated[kvp.Key] = kvp.Value;
             }
+            RuntimeOverrides = updated;
         }
     }
 

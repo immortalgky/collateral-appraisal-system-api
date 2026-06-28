@@ -3,6 +3,7 @@ using Appraisal.Contracts.Appraisals;
 using Collateral.CollateralMasters.Exceptions;
 using Collateral.CollateralMasters.Models;
 using Collateral.Data;
+using Microsoft.Extensions.Hosting;
 using Shared.Time;
 
 namespace Collateral.CollateralMasters.Services;
@@ -41,7 +42,8 @@ public record BackfillJobStatus(
 public class CollateralBackfillJob(
     IServiceScopeFactory scopeFactory,
     ILogger<CollateralBackfillJob> logger,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    IHostApplicationLifetime lifetime)
 {
     private const int PageSize = 100;
 
@@ -60,14 +62,23 @@ public class CollateralBackfillJob(
     /// If a job is already InProgress the caller may still start a new one
     /// (idempotency on the data layer protects against duplicates).
     /// </summary>
+    /// <remarks>
+    /// The job runs under <see cref="IHostApplicationLifetime.ApplicationStopping"/>, NOT the
+    /// caller's token. A fire-and-forget job triggered from an HTTP endpoint must not capture
+    /// the request's CancellationToken — that token cancels as soon as the response is sent,
+    /// which would abort the run partway through. Any token passed here is intentionally ignored.
+    /// </remarks>
     public Guid StartAsync(CancellationToken ct = default)
     {
         var jobId = Guid.CreateVersion7();
         var status = new BackfillJobStatus(jobId, dateTimeProvider.ApplicationNow, null, BackfillJobState.Started, 0, 0, 0);
         _jobs[jobId] = status;
 
+        // Run for the life of the process; stop gracefully only on app shutdown (e.g. IIS recycle).
+        var jobToken = lifetime.ApplicationStopping;
+
         // Fire-and-forget — not awaited by caller
-        _ = Task.Run(() => RunAsync(jobId, ct), ct);
+        _ = Task.Run(() => RunAsync(jobId, jobToken), jobToken);
 
         return jobId;
     }

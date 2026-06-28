@@ -95,6 +95,18 @@ public class AppraisalAssignment : Entity<Guid>
         SLADueDate = dueAt;
     }
 
+    /// <summary>
+    /// Re-stamps the assignment-level SLA deadline unconditionally. Used when an appointment
+    /// date changes and the governing stage window (AppointmentDate-anchored) must shift the
+    /// deadline. Unlike <see cref="SetSlaDueDate"/>, this is NOT frozen after the first call —
+    /// reschedules are a deliberate override of the prior value.
+    /// </summary>
+    public void RecalculateSlaDueDate(DateTime newDueAt)
+    {
+        if (newDueAt == default) throw new ArgumentException("newDueAt must not be the default DateTime value.", nameof(newDueAt));
+        SLADueDate = newDueAt;
+    }
+
     /// <summary>Opens a new external engagement cycle. Idempotent: returns the existing open cycle if one is already open.</summary>
     public ExternalEngagementCycle OpenExternalCycle(DateTime openedAt)
     {

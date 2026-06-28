@@ -77,13 +77,13 @@ internal static class CondoSectionLoader
             WHERE [Language] = 'TH'
               AND IsActive = 1
               AND [Group] IN (
-                  'FloorMaterial',
+                  'GroundFlooringMaterials',
                   'BuildingForm',
-                  'ConstructionMaterial',
-                  'RoofType',
+                  'ConstructionMaterials',
+                  'Roof',
                   'RoadSurface',
                   'PublicUtility',
-                  'BathroomMaterial'
+                  'BathroomFlooringMaterials'
               );
 
             -- RS02: QCond1 — condo detail rows (all properties, ordered by sequence)
@@ -108,9 +108,9 @@ internal static class CondoSectionLoader
                 cad.RoadSurfaceTypeOther,
                 cad.PublicUtilityType,
                 cad.PublicUtilityTypeOther,
-                cad.SubDistrict,
-                cad.District,
-                cad.Province,
+                COALESCE(tsub.NameTh,  cad.SubDistrict) AS SubDistrict,
+                COALESCE(tdist.NameTh, cad.District)    AS District,
+                COALESCE(tprov.NameTh, cad.Province)    AS Province,
                 cad.GroundFloorMaterialType,
                 cad.GroundFloorMaterialTypeOther,
                 cad.BathroomFloorMaterialType,
@@ -124,6 +124,9 @@ internal static class CondoSectionLoader
                 cad.Remark
             FROM appraisal.CondoAppraisalDetails cad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
+            LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = cad.Province
+            LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = cad.District
+            LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = cad.SubDistrict
             WHERE ap.AppraisalId = @AppraisalId
             ORDER BY ap.SequenceNumber;
 
@@ -136,11 +139,44 @@ internal static class CondoSectionLoader
             JOIN appraisal.CondoAppraisalDetails cad ON cad.Id = cada.CondoAppraisalDetailsId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
             WHERE ap.AppraisalId = @AppraisalId;
+
+            -- RS04: QPrice — selected pricing for the property GROUP(S) the condo belongs to.
+            --   The condo appraisal price comes from its group's value, NOT the application total.
+            --   Scope: only groups linked to a CondoAppraisalDetails row (via PropertyGroupItems).
+            --   Mirrors the Q9 join in AppraisalSummaryCommonLoader: selected
+            --   PricingAnalysis → selected Approach → selected Method → PricingFinalValue.
+            --   UnitType drives the per-unit-vs-per-sqm display rule.
+            SELECT DISTINCT
+                pg.Id AS GroupId,
+                m.UnitType,
+                m.ValuePerUnit,
+                m.MethodValue,
+                COALESCE(pa.FinalAppraisedValue, m.FinalValueRounded, m.AppraisalPrice) AS GroupValue
+            FROM appraisal.PropertyGroups pg
+            JOIN appraisal.PropertyGroupItems pgi
+                ON pgi.PropertyGroupId = pg.Id
+            JOIN appraisal.CondoAppraisalDetails cad
+                ON cad.AppraisalPropertyId = pgi.AppraisalPropertyId
+            LEFT JOIN appraisal.PricingAnalysis pa
+                ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
+            OUTER APPLY (
+                SELECT TOP 1
+                    pm.UnitType, pm.ValuePerUnit, pm.MethodValue,
+                    fv.FinalValueRounded, fv.AppraisalPrice
+                FROM appraisal.PricingAnalysisApproaches pap
+                JOIN appraisal.PricingAnalysisMethods pm
+                    ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
+                LEFT JOIN appraisal.PricingFinalValues fv
+                    ON fv.PricingMethodId = pm.Id
+                WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
+            ) m
+            WHERE pg.AppraisalId = @AppraisalId;
             """;
 
         List<ParamRow> paramRows;
         List<CondoDetailRow> detailRows;
         List<AreaDetailRow> areaRows;
+        List<PricingRow> pricingRows;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, appraisalParams))
         {
@@ -152,6 +188,9 @@ internal static class CondoSectionLoader
 
             // RS03: QCond2 — area detail rows
             areaRows = (await multi.ReadAsync<AreaDetailRow>()).ToList();
+
+            // RS04: QPrice — selected pricing per group
+            pricingRows = (await multi.ReadAsync<PricingRow>()).ToList();
         }
 
         if (detailRows.Count == 0)
@@ -212,37 +251,91 @@ internal static class CondoSectionLoader
         // ── Header fields from first condo detail ──────────────────────────────────
         var first = detailRows[0];
 
-        // Total usable area for LandAreaText (sum of all units' TotalArea)
-        decimal totalUsable = units.Sum(u => u.TotalArea ?? 0m);
-        string? landAreaText = totalUsable > 0
-            ? $"{totalUsable:0.##} ตารางเมตร"
-            : null;
+        // เนื้อที่ (FSD §2.1.2.3 field 15) = underlying LAND-plot area in ไร่-งาน-ตารางวา,
+        // NOT the condo unit's usable m². CondoAppraisalDetails has no land-area column,
+        // so render this empty until a proper source exists (do not fall back to unit area).
+        string? landAreaText = null;
 
         // Distance display
         string? distanceText = first.DistanceFromMainRoad.HasValue
             ? $"{first.DistanceFromMainRoad:0.##} เมตร"
             : null;
 
-        // PublicUtilityType is a JSON-serialised List<string>
-        string? publicUtility = DecodeJsonArray(first.PublicUtilityType, first.PublicUtilityTypeOther);
+        // PublicUtilityType is a JSON-serialised List<string> of codes → translate each.
+        string? publicUtility = DecodeJsonArrayWithTranslation(
+            first.PublicUtilityType, first.PublicUtilityTypeOther, paramMap, "PublicUtility");
 
         // RoofType is a JSON-serialised List<string>
         string? roofType = DecodeJsonArrayWithTranslation(
-            first.RoofType, first.RoofTypeOther, paramMap, "RoofType");
+            first.RoofType, first.RoofTypeOther, paramMap, "Roof");
 
         // Code → display translations for scalar code columns
         string? floorMaterial = TranslateWithOther(
-            first.GroundFloorMaterialType, first.GroundFloorMaterialTypeOther, paramMap, "FloorMaterial");
+            first.GroundFloorMaterialType, first.GroundFloorMaterialTypeOther, paramMap, "GroundFlooringMaterials");
 
         string? sanitary = TranslateWithOther(
-            first.BathroomFloorMaterialType, first.BathroomFloorMaterialTypeOther, paramMap, "BathroomMaterial");
+            first.BathroomFloorMaterialType, first.BathroomFloorMaterialTypeOther, paramMap, "BathroomFlooringMaterials");
 
         string? buildingForm = TranslateCode(first.BuildingFormType, paramMap, "BuildingForm");
 
-        string? constructionMaterial = TranslateCode(first.ConstructionMaterialType, paramMap, "ConstructionMaterial");
+        string? constructionMaterial = TranslateCode(first.ConstructionMaterialType, paramMap, "ConstructionMaterials");
 
         string? roadSurfaceType = TranslateWithOther(
             first.RoadSurfaceType, first.RoadSurfaceTypeOther, paramMap, "RoadSurface");
+
+        // ── Valuation table (รายละเอียดการประเมินมูลค่าทรัพย์สิน ห้องชุด) ──────────────
+        // Part A area components = sums across all units; per-sqm rate + amount have no source.
+        decimal interiorTotal = units.Sum(u => u.InteriorArea ?? 0m);
+        decimal balconyTotal  = units.Sum(u => u.BalconyArea ?? 0m);
+        decimal airConTotal   = units.Sum(u => u.AirConArea ?? 0m);
+        decimal otherTotal    = units.Sum(u => u.OtherArea ?? 0m);
+
+        // Part B market area = interior + balcony (รวมระเบียง); fall back to total unit area.
+        decimal marketArea = interiorTotal + balconyTotal;
+        if (marketArea <= 0)
+            marketArea = units.Sum(u => u.TotalArea ?? 0m);
+
+        // Aggregate the selected pricing across the appraisal's property groups.
+        var pricedRows = pricingRows.Where(p => p.GroupValue.HasValue).ToList();
+        decimal marketValue = pricedRows.Sum(p => p.GroupValue!.Value);
+        // Priced "by unit" only when every priced group is per-unit → per-sqm shows "-".
+        bool pricedByUnit = pricedRows.Count > 0 &&
+            pricedRows.All(p => string.Equals(p.UnitType, "Unit", StringComparison.OrdinalIgnoreCase));
+
+        decimal? marketPricePerSqm;
+        decimal? marketAmount;
+        if (marketValue <= 0)
+        {
+            marketPricePerSqm = null;
+            marketAmount = null;
+        }
+        else if (pricedByUnit)
+        {
+            marketPricePerSqm = null;       // renders as "-"
+            marketAmount = marketValue;     // lump sum
+        }
+        else
+        {
+            // Use the stored per-sqm rate for the single-group case; otherwise derive value ÷ area.
+            decimal? storedRate = pricedRows.Count == 1 ? pricedRows[0].ValuePerUnit : null;
+            marketPricePerSqm = storedRate
+                ?? (marketArea > 0 ? marketValue / marketArea : (decimal?)null);
+            marketAmount = marketPricePerSqm.HasValue && marketArea > 0
+                ? marketPricePerSqm.Value * marketArea
+                : marketValue;
+        }
+
+        var valuation = new CondoValuationDetail
+        {
+            InteriorArea      = interiorTotal > 0 ? interiorTotal : null,
+            BalconyArea       = balconyTotal  > 0 ? balconyTotal  : null,
+            AirConArea        = airConTotal   > 0 ? airConTotal   : null,
+            OtherArea         = otherTotal    > 0 ? otherTotal    : null,
+            MarketArea        = marketArea    > 0 ? marketArea    : null,
+            MarketPricePerSqm = marketPricePerSqm,
+            MarketAmount      = marketAmount,
+            TotalRoundedValue = marketValue   > 0 ? marketValue   : null
+        };
 
         return new CondoSection
         {
@@ -279,7 +372,8 @@ internal static class CondoSectionLoader
             IsInExpropriationLine = first.IsInExpropriationLine,
             AreaColour            = null,           // no source — UrbanPlanningType only on LandAppraisalDetails
             LandType              = null,           // no source — no LandZoneType on CondoAppraisalDetails
-            Remark                = first.Remark
+            Remark                = first.Remark,
+            Valuation             = valuation
         };
     }
 
@@ -428,5 +522,14 @@ internal static class CondoSectionLoader
         public string? Group       { get; init; }
         public string? Code        { get; init; }
         public string? Description { get; init; }
+    }
+
+    private sealed class PricingRow
+    {
+        public Guid     GroupId      { get; init; }
+        public string?  UnitType     { get; init; }
+        public decimal? ValuePerUnit { get; init; }
+        public decimal? MethodValue  { get; init; }
+        public decimal? GroupValue   { get; init; }
     }
 }

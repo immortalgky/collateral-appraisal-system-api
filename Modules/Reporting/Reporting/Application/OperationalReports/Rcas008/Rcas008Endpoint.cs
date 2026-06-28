@@ -18,11 +18,12 @@ public sealed class Rcas008Endpoint : ICarterModule
         group.MapGet("", async (
                 [FromQuery] DateTime? approvedFrom, [FromQuery] DateTime? approvedTo,
                 [FromQuery] string? bankingSegment, [FromQuery] string? appraisalCompany,
-                [FromQuery] string? evaluationStatus, [FromQuery] string? sortBy, [FromQuery] string? sortDir,
+                [FromQuery] string? evaluationStatus, [FromQuery] string? appraisalNumber,
+                [FromQuery] string? sortBy, [FromQuery] string? sortDir,
                 [FromQuery] int? pageNumber, [FromQuery] int? pageSize,
                 IOperationalReportRunner runner, CancellationToken ct) =>
             {
-                var filter = new Rcas008Filter(approvedFrom, approvedTo, bankingSegment, appraisalCompany, evaluationStatus, sortBy, sortDir);
+                var filter = new Rcas008Filter(approvedFrom, approvedTo, bankingSegment, appraisalCompany, evaluationStatus, appraisalNumber, sortBy, sortDir);
                 var page = new PaginationRequest(pageNumber ?? 0, pageSize ?? 20);
                 return Results.Ok(await runner.PreviewAsync(Rcas008Report.Definition, filter, page));
             })
@@ -31,11 +32,12 @@ public sealed class Rcas008Endpoint : ICarterModule
         group.MapGet("/export", async (
                 [FromQuery] DateTime? approvedFrom, [FromQuery] DateTime? approvedTo,
                 [FromQuery] string? bankingSegment, [FromQuery] string? appraisalCompany,
-                [FromQuery] string? evaluationStatus, [FromQuery] string? sortBy, [FromQuery] string? sortDir,
+                [FromQuery] string? evaluationStatus, [FromQuery] string? appraisalNumber,
+                [FromQuery] string? sortBy, [FromQuery] string? sortDir,
                 [FromQuery] string? format,
                 IOperationalReportRunner runner, CancellationToken ct) =>
             {
-                var filter = new Rcas008Filter(approvedFrom, approvedTo, bankingSegment, appraisalCompany, evaluationStatus, sortBy, sortDir);
+                var filter = new Rcas008Filter(approvedFrom, approvedTo, bankingSegment, appraisalCompany, evaluationStatus, appraisalNumber, sortBy, sortDir);
                 var file = await runner.ExportAsync(Rcas008Report.Definition, filter, OperationalReportFormat.Parse(format), ct);
                 return Results.File(file.Bytes, file.ContentType, file.FileName);
             })

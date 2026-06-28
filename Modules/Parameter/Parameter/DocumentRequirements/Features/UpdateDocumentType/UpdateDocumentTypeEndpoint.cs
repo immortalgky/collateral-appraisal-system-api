@@ -29,6 +29,7 @@ public class UpdateDocumentTypeEndpoint : ICarterModule
 
                 return Results.NoContent();
             })
+            .RequireAuthorization()
             .WithName("UpdateDocumentType")
             .WithSummary("Update a document type")
             .Produces(StatusCodes.Status204NoContent)

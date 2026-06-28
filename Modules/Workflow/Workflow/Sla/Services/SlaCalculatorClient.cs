@@ -10,9 +10,10 @@ public class SlaCalculatorClient(ISlaCalculator slaCalculator) : ISlaCalculatorC
     public Task<WorkflowSlaSnapshot?> GetWorkflowSlaAsync(
         Guid workflowDefinitionId,
         string? loanType,
+        string? appraisalType,
         DateTime startedAt,
         CancellationToken ct = default)
-        => slaCalculator.GetWorkflowSlaSnapshotAsync(workflowDefinitionId, loanType, startedAt, ct);
+        => slaCalculator.GetWorkflowSlaSnapshotAsync(workflowDefinitionId, loanType, appraisalType, startedAt, ct);
 
     public Task<DateTime?> GetStageDueAtAsync(
         Guid? workflowDefinitionId,
@@ -20,6 +21,11 @@ public class SlaCalculatorClient(ISlaCalculator slaCalculator) : ISlaCalculatorC
         DateTime startedAt,
         Guid? companyId,
         string? loanType,
+        string? appraisalType,
+        Guid? correlationId = null,
+        DateTime? appointmentDate = null,
         CancellationToken ct = default)
-        => slaCalculator.CalculateStageDueAtAsync(workflowDefinitionId, startActivityKey, startedAt, companyId, loanType, ct);
+        => slaCalculator.CalculateStageDueAtAsync(
+            workflowDefinitionId, startActivityKey, startedAt, companyId,
+            loanType, appraisalType, correlationId, appointmentDate, ct);
 }

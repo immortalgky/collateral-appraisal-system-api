@@ -144,12 +144,35 @@ public sealed class MachineRow
     /// <summary>อายุเครื่องจักร — Source: MachineryAppraisalDetails.MachineAge (decimal?).</summary>
     public decimal? MachineAge { get; init; }
 
-    /// <summary>
-    /// ประเทศ — Source: MachineryAppraisalDetails.Capacity (nvarchar 100).
-    /// MachineryAppraisalDetailConfiguration has no Country column; Capacity is the closest
-    /// available dimensional/origin field. Deferred to null when no data exists. // no source
-    /// </summary>
-    public string? Country { get; init; }
+    /// <summary>แบบ — Source: MachineryAppraisalDetails.Series (nvarchar 200).</summary>
+    public string? Type { get; init; }
+
+    /// <summary>หมายเลขเครื่อง — Source: MachineryAppraisalDetails.SerialNo (nvarchar).</summary>
+    public string? SerialNo { get; init; }
+
+    /// <summary>ตำแหน่งที่ตั้ง — Source: MachineryAppraisalDetails.Location (nvarchar).</summary>
+    public string? Location { get; init; }
+
+    /// <summary>ขนาดเครื่อง — Source: MachineryAppraisalDetails.MachineDimensions (nvarchar).</summary>
+    public string? MachineDimensions { get; init; }
+
+    /// <summary>พลังงานที่ใช้ — Source: MachineryAppraisalDetails.EnergyUse (nvarchar).</summary>
+    public string? EnergyUse { get; init; }
+
+    /// <summary>ใช้ในการ — Source: MachineryAppraisalDetails.UsagePurpose (nvarchar).</summary>
+    public string? UsagePurpose { get; init; }
+
+    /// <summary>ขนาดความสามารถ — Source: MachineryAppraisalDetails.Capacity (nvarchar 100).</summary>
+    public string? Capacity { get; init; }
+
+    /// <summary>ส่วนประกอบของเครื่องจักร — Source: MachineryAppraisalDetails.MachineParts (nvarchar).</summary>
+    public string? MachineParts { get; init; }
+
+    /// <summary>อื่นๆ — Source: MachineryAppraisalDetails.Other (nvarchar).</summary>
+    public string? Other { get; init; }
+
+    /// <summary>ความเห็นผู้ประเมิน — Source: MachineryAppraisalDetails.AppraiserOpinion (nvarchar).</summary>
+    public string? AppraiserOpinion { get; init; }
 
     /// <summary>
     /// การใช้งาน — Source: MachineryAppraisalDetails.ConditionUse (nvarchar 100).

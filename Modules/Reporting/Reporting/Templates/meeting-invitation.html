@@ -18,228 +18,110 @@
     .page {
       width:210mm;
       min-height:270mm;
-      padding:20mm 25mm 20mm 30mm;
+      padding:10mm 12mm;
       margin:0 auto;
     }
 
-    /* ── Logo / Header ───────────────────────────────────────────── */
-    .doc-header {
-      display:flex;
-      align-items:flex-start;
-      gap:16px;
-      margin-bottom:18px;
-    }
-    .bank-logo {
-      font-size:22pt;
-      font-weight:700;
-      letter-spacing:2px;
-      color:#1a237e;
-      white-space:nowrap;
-    }
-    .bank-logo .bar {
-      height:5px;
-      width:100%;
-      margin-top:3px;
-      background:linear-gradient(90deg,#e60012 0 20%,#f39800 20% 40%,#009944 40% 60%,#0068b7 60% 80%,#920783 80% 100%);
-    }
-    .doc-type {
-      flex:1;
+    /* ── Header: logo top-left, title centered below (FSD img38) ──── */
+    .bank-logo { margin-bottom:10px; }
+    .bank-logo img { height:42px; width:auto; }
+    .doc-title {
       text-align:center;
-    }
-    .doc-type .title-main {
       font-size:15pt;
       font-weight:700;
       text-decoration:underline;
-    }
-    .doc-type .title-sub {
-      font-size:11pt;
-    }
-
-    /* ── Memo field rows ────────────────────────────────────────── */
-    .memo-table {
-      width:100%;
-      border-collapse:collapse;
       margin-bottom:14px;
     }
-    .memo-table td {
-      padding:2px 4px;
-      vertical-align:top;
-    }
-    .memo-table .lbl {
-      white-space:nowrap;
-      font-weight:600;
-      width:110px;
-    }
-    .memo-table .colon {
-      width:12px;
-    }
-    .memo-table .val {
-      border-bottom:1px solid #555;
-      min-width:200px;
-    }
+
+    /* ── Memo fields (เรื่อง / เรียน / จาก / วันที่) — plain lines ─── */
+    .memo-block { margin-bottom:10px; }
+    .memo-row { display:flex; align-items:baseline; margin-bottom:2px; }
+    .memo-row .lbl { white-space:nowrap; min-width:60px; }
+    .memo-row .val { flex:1; }
 
     /* ── Intro paragraph ─────────────────────────────────────────── */
-    .intro-para {
-      margin:10px 0 16px;
-      text-indent:2em;
-    }
+    .intro-para { margin:8px 0 14px; text-indent:2em; }
 
     /* ── Agenda section ──────────────────────────────────────────── */
-    .agenda-heading {
-      font-weight:700;
-      margin:14px 0 6px;
-    }
-    .agenda-group {
-      margin-bottom:12px;
-    }
-    .agenda-group .wara-title {
-      font-weight:700;
-      margin-bottom:4px;
-    }
-    .agenda-group .count-text {
-      font-style:italic;
-      font-size:10pt;
-      margin-left:1.5em;
-      color:#333;
-    }
-    .agenda-group .body-text {
-      margin-left:1.5em;
-      white-space:pre-wrap;
-    }
-    .agenda-items {
-      margin:4px 0 0 2em;
-      width:100%;
-    }
-    .agenda-items .item-row {
-      display:flex;
-      align-items:baseline;
-      gap:4px;
-      margin-bottom:2px;
-    }
-    .agenda-items .item-seq {
-      min-width:24px;
-      font-weight:600;
-    }
-    .agenda-items .item-customer {
-      flex:1;
-    }
-    .agenda-items .item-value {
-      white-space:nowrap;
-      font-weight:600;
-      min-width:180px;
-      text-align:right;
-    }
-    .agenda-items .item-value-label {
-      font-size:9pt;
-      color:#444;
-      margin-right:4px;
-    }
+    .agenda-group { margin-bottom:10px; }
+    .agenda-group .wara-title { font-weight:400; margin-bottom:2px; }
+    .agenda-group .count-text { font-weight:400; }
+    .agenda-group .body-text { margin-left:1.5em; white-space:pre-wrap; }
+    .agenda-items { margin:2px 0 0 2em; }
+    .agenda-items .item-row { display:flex; align-items:baseline; gap:4px; margin-bottom:2px; }
+    .agenda-items .item-seq { min-width:24px; }
+    .agenda-items .item-customer { flex:1; }
+    .agenda-items .item-value { white-space:nowrap; min-width:200px; text-align:left; }
+    .agenda-items .item-value-label { margin-right:6px; }
 
-    /* ── Committee sign-off block ────────────────────────────────── */
-    .committee-section {
-      margin-top:24px;
+    /* ── Closing + secretary block (centered, FSD img39) ─────────── */
+    .closing { text-align:center; margin:20px 0 24px; }
+    .secretary-block { text-align:center; margin-bottom:28px; }
+    .secretary-block .sig-line {
+      width:280px; border-bottom:1px dotted #000; margin:0 auto 4px; height:1px;
     }
-    .committee-section .sec-title {
-      font-weight:700;
-      margin-bottom:8px;
-    }
-    .committee-list {
-      margin-left:2em;
-    }
-    .committee-list .member-row {
-      display:flex;
-      align-items:baseline;
-      gap:8px;
-      margin-bottom:3px;
-    }
-    .committee-list .m-seq {
-      min-width:20px;
-      font-weight:600;
-    }
-    .committee-list .m-name {
-      flex:1;
-    }
-    .committee-list .m-pos {
-      font-style:italic;
-      font-size:10pt;
-      color:#333;
-      min-width:140px;
-      text-align:right;
-    }
+    .secretary-block .sec-name { margin-bottom:2px; }
 
-    /* ── Secretary line ──────────────────────────────────────────── */
-    .secretary-line {
-      margin-top:20px;
-      display:flex;
-      align-items:baseline;
-      gap:6px;
+    /* ── Signature roster (FSD รายนาม / ลายเซ็น) ─────────────────── */
+    .roster-header { text-align:center; margin-bottom:16px; }
+    .roster-header div { line-height:1.6; }
+    table.roster-table { width:100%; border-collapse:collapse; }
+    table.roster-table th {
+      text-decoration:underline; font-weight:400; padding:4px 8px; text-align:center;
     }
-    .secretary-line .lbl { font-weight:600; white-space:nowrap; }
-    .secretary-line .val { border-bottom:1px solid #555; flex:1; min-height:16px; padding:0 4px; }
+    table.roster-table td { padding:10px 8px; vertical-align:bottom; }
+    table.roster-table td.name-cell { width:50%; text-align:left; padding-left:24px; }
+    table.roster-table td.sign-cell { width:50%; }
+    table.roster-table .sign-line { border-bottom:1px dotted #000; height:1px; }
   </style>
 </head>
 <body>
 <div class="page">
 
-  <!-- ── Header: LH BANK logo + document type ──────────────────── -->
-  <div class="doc-header">
-    <div>
-      <div class="bank-logo">LH BANK</div>
-      <div class="bank-logo bar"></div>
+  <!-- ── Header: LH BANK logo + centered document title ─────────── -->
+  <div class="bank-logo"><img src="logo-lh-bank.svg" alt="LH BANK"/></div>
+  <div class="doc-title">บันทึกภายใน</div>
+
+  <!-- ── Memo fields (เรื่อง / เรียน / จาก / วันที่) ──────────────── -->
+  <div class="memo-block">
+    <div class="memo-row">
+      <span class="lbl">เรื่อง</span>
+      <span class="val">ขออนุมัติราคาประเมิน ครั้งที่ {{ model.meeting_no }}</span>
     </div>
-    <div class="doc-type">
-      <div class="title-main">บันทึกภายใน</div>
-      <div class="title-sub">เรื่อง ขออนุมัติราคาประเมิน ครั้งที่ {{ model.meeting_no }}</div>
+    <div class="memo-row">
+      <span class="lbl">เรียน</span>
+      <span class="val">{{ model.to_text }}</span>
+    </div>
+    <div class="memo-row">
+      <span class="lbl">จาก</span>
+      <span class="val">{{ model.from_text }}</span>
+    </div>
+    <div class="memo-row">
+      <span class="lbl">วันที่</span>
+      <span class="val">{{ thai.date model.invitation_date }}</span>
     </div>
   </div>
-
-  <!-- ── Memo fields (เรียน / จาก / วันที่) ──────────────────────── -->
-  <table class="memo-table">
-    <tr>
-      <td class="lbl">เรียน</td>
-      <td class="colon">:</td>
-      <td class="val">{{ model.to_text }}</td>
-    </tr>
-    <tr>
-      <td class="lbl">จาก</td>
-      <td class="colon">:</td>
-      <td class="val">{{ model.from_text }}</td>
-    </tr>
-    <tr>
-      <td class="lbl">วันที่</td>
-      <td class="colon">:</td>
-      <td class="val">{{ thai.date model.invitation_date }}</td>
-    </tr>
-  </table>
 
   <!-- ── Opening paragraph ──────────────────────────────────────── -->
   <p class="intro-para">
     ขอเรียนเชิญคณะกรรมการฯ เข้าประชุมคณะกรรมการกำหนดราคาประเมินหลักประกันและทรัพย์สิน
-    ครั้งที่ <strong>{{ model.meeting_no }}</strong>
-    วันที่ <strong>{{ thai.date model.start_at }}</strong>
-    เวลา <strong>
-      {{- if model.start_at -}}
-        {{ model.start_at | date.to_string "%H.%M" }}
-      {{- else -}}……..{{- end -}}
-    </strong>
+    ครั้งที่ {{ model.meeting_no }}
+    วันที่ {{ thai.date model.start_at }}
+    เวลา
+    {{- if model.start_at }} {{ model.start_at | date.to_string "%H.%M" }}{{ else }} ……..{{ end -}}
     –
-    <strong>
-      {{- if model.end_at -}}
-        {{ model.end_at | date.to_string "%H.%M" }}
-      {{- else -}}……..{{- end -}}
-    </strong> น.
-    ณ ห้องประชุม <strong>{{ model.location }}</strong>
-    โดยมีวาระการประชุมดังนี้
+    {{- if model.end_at }}{{ model.end_at | date.to_string "%H.%M" }} {{ else }}…….. {{ end -}}
+    น.
+    ณ ห้องประชุม {{ model.location }}
+    โดยมีวาระการประชุม ดังนี้
   </p>
 
   <!-- ── Agenda groups ─────────────────────────────────────────── -->
-  <div class="agenda-heading">ระเบียบวาระการประชุม</div>
-
   {{ for ag in model.agendas }}
   <div class="agenda-group">
     <div class="wara-title">
       วาระที่ {{ ag.number }} {{ ag.title }}
-      {{- if ag.count_text }}  <span class="count-text">({{ ag.count_text }})</span>{{ end -}}
+      {{- if ag.count_text }} <span class="count-text">{{ ag.count_text }}</span>{{ end -}}
     </div>
     {{- if ag.body_text }}
     <div class="body-text">{{ ag.body_text }}</div>
@@ -264,25 +146,35 @@
   </div>
   {{ end }}
 
-  <!-- ── Committee member list ─────────────────────────────────── -->
-  <div class="committee-section">
-    <div class="sec-title">คณะกรรมการกำหนดราคาประเมินหลักประกันและทรัพย์สิน</div>
-    <div class="committee-list">
-      {{ for m in model.members }}
-      <div class="member-row">
-        <span class="m-seq">{{ for.index + 1 }}.</span>
-        <span class="m-name">{{ m.member_name }}</span>
-        <span class="m-pos">{{ m.position_thai }}</span>
-      </div>
-      {{ end }}
-    </div>
+  <!-- ── Closing sentence ──────────────────────────────────────── -->
+  <div class="closing">จึงเรียนมาเพื่อโปรดเข้าร่วมประชุมตามวัน และเวลาดังกล่าวข้างต้น</div>
+
+  <!-- ── Secretary sign-off (dashed line + name + title) ───────── -->
+  <div class="secretary-block">
+    <div class="sig-line"></div>
+    <div class="sec-name">( {{ model.secretary_name }} )</div>
+    <div>เลขานุการคณะกรรมการ ฯ</div>
   </div>
 
-  <!-- ── Secretary sign-off line ───────────────────────────────── -->
-  <div class="secretary-line">
-    <span class="lbl">เลขานุการคณะกรรมการฯ</span>
-    <span class="val">{{ model.secretary_name }}</span>
+  <!-- ── Signature roster (รายนาม / ลายเซ็น) ───────────────────── -->
+  <div class="roster-header">
+    <div>คณะกรรมการกำหนดราคาประเมินหลักประกันและทรัพย์สิน</div>
+    <div>การประชุมคณะกรรมการกำหนดราคาประเมินหลักประกัน และทรัพย์สิน ครั้งที่ {{ model.meeting_no }}</div>
+    <div>วันที่ {{ thai.date model.start_at }}</div>
   </div>
+  <table class="roster-table">
+    <thead>
+      <tr><th class="name-cell">รายนาม</th><th class="sign-cell">ลายเซ็น</th></tr>
+    </thead>
+    <tbody>
+      {{ for m in model.members }}
+      <tr>
+        <td class="name-cell">{{ m.member_name }}</td>
+        <td class="sign-cell"><div class="sign-line"></div></td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
 
 </div>
 </body>

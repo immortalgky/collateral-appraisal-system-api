@@ -53,7 +53,7 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
             titleNumber: titleNo,
             titleType: titleType,
             ownerName: "Test Owner",
-            address: AdministrativeAddress.Create(null, null, province, landOffice));
+            address: AdministrativeAddress.Create("Test Subdistrict", "Test District", province, landOffice));
         return prop;
     }
 
@@ -94,7 +94,6 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
         const string floor = "10";
         const string room1 = "1001"; // will become IsMaster
         const string room2 = "1002"; // will be manually demoted to alias
-        const string titleNo1 = "PR7-T1";
         const string titleNo2 = "PR7-T2";
         const string titleType = "Chanote";
         const string province = "Bangkok";
@@ -119,10 +118,10 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
                 buildingNumber: building,
                 floorNumber: floor,
                 roomNumber: room1,
-                titleNumber: titleNo1,
-                titleType: titleType,
-                condoName: "Test Condo",
-                province: province);
+                province: province,
+                district: null,
+                subDistrict: null,
+                condoName: "Test Condo");
             db.CollateralMasters.Add(parentMaster);
             await db.SaveChangesAsync(ct);
             parentMasterId = parentMaster.Id;
@@ -136,10 +135,10 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
                 buildingNumber: building,
                 floorNumber: floor,
                 roomNumber: room2,
-                titleNumber: titleNo2,
-                titleType: titleType,
-                condoName: "Test Condo",
-                province: province);
+                province: province,
+                district: null,
+                subDistrict: null,
+                condoName: "Test Condo");
 
             // Demote to alias: set IsMaster=false and ParentMasterId=parentMasterId
             typeof(CollateralMaster)

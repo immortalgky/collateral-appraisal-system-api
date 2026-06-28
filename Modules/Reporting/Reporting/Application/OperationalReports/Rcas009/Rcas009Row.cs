@@ -7,6 +7,7 @@ public sealed record Rcas009Row(
     string? CustomerName,
     string? AssignType,
     string? PayType,
+    string? PayTypeCode,
     string? Purpose,
     DateTime? AppraisalCreateDate,
     string? CollateralType,

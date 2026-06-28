@@ -94,7 +94,9 @@ public sealed class AppraisalSummaryConstructionDataProvider(
 
         // ── Batch: 6 construction-specific result sets, single round-trip ─────────
         const string batchSql = """
-            -- RS01: QCI1 — Construction inspection aggregate
+            -- RS01: QCI1 — Construction inspection aggregate (building under construction only).
+            -- Current/previous building value: summary fields when IsFullDetail=0, else the
+            -- aggregated work-detail values. Progress % is derived in C# from value ÷ 100%-value.
             SELECT
                 ISNULL(SUM(ci.TotalValue), 0)                                                AS CITotalValue,
                 ISNULL(SUM(
@@ -103,8 +105,12 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                          ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
                     END
                 ), 0)                                                                        AS CICurrentValue,
-                ISNULL(SUM(ci.SummaryPreviousProgressPct), 0)                               AS SumPreviousProgressPct,
-                ISNULL(SUM(ci.SummaryCurrentProgressPct), 0)                               AS SumCurrentProgressPct,
+                ISNULL(SUM(
+                    CASE WHEN ci.IsFullDetail = 0
+                         THEN ISNULL(ci.SummaryPreviousValue, 0)
+                         ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
+                    END
+                ), 0)                                                                        AS CIPreviousValue,
                 MAX(CASE WHEN ci.FileName IS NOT NULL THEN 1 ELSE 0 END)                    AS HasDocument,
                 STRING_AGG(CASE WHEN ci.Remark IS NOT NULL AND LEN(ci.Remark) > 0
                                 THEN ci.Remark ELSE NULL END, ' / ')
@@ -113,7 +119,8 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
             LEFT JOIN (
                 SELECT wd.ConstructionInspectionId,
-                       SUM(wd.CurrentPropertyValue)  AS CurrentPropertyValueSum
+                       SUM(wd.CurrentPropertyValue)  AS CurrentPropertyValueSum,
+                       SUM(wd.PreviousPropertyValue) AS PreviousPropertyValueSum
                 FROM appraisal.ConstructionWorkDetails wd
                 GROUP BY wd.ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
@@ -140,25 +147,30 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                   WHERE ci.AppraisalPropertyId = ap.Id
               );
 
-            -- RS04: QCI4 — First building name
-            SELECT TOP 1 bad.PropertyName
-            FROM appraisal.BuildingAppraisalDetails bad
-            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
-            WHERE ap.AppraisalId = @AppraisalId
-            ORDER BY ap.SequenceNumber;
-
-            -- RS05: QCI5 — First land address
-            SELECT TOP 1
-                lad.HouseNumber,
-                lad.Village,
-                lad.Soi,
-                lad.Street     AS Road,
-                lad.SubDistrict,
-                lad.District,
-                lad.Province,
-                lad.LandOffice
+            -- RS04: QCI4 — ชื่ออาคาร = village name of the first L/LB land property
+            SELECT TOP 1 lad.Village
             FROM appraisal.LandAppraisalDetails lad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+              AND ap.PropertyType IN ('L', 'LB')
+            ORDER BY ap.SequenceNumber;
+
+            -- RS05: QCI5 — First land detail: เขตการปกครอง (subdistrict) + สำนักงานที่ดิน (geocodes→Thai)
+            SELECT TOP 1
+                COALESCE(tsub.NameTh,  lad.SubDistrict) AS SubDistrict,
+                COALESCE(tdist.NameTh, lad.District)    AS District,
+                COALESCE(tprov.NameTh, lad.Province)    AS Province,
+                COALESCE(pLandOffice.[description], lad.LandOffice) AS LandOffice
+            FROM appraisal.LandAppraisalDetails lad
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
+            LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = lad.Province
+            LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = lad.District
+            LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = lad.SubDistrict
+            LEFT JOIN parameter.Parameters pLandOffice
+                ON pLandOffice.[group]    = 'LandOffice'
+               AND pLandOffice.[language] = 'TH'
+               AND pLandOffice.[isactive] = 1
+               AND pLandOffice.[code]     = lad.LandOffice
             WHERE ap.AppraisalId = @AppraisalId
             ORDER BY ap.SequenceNumber;
 
@@ -170,6 +182,19 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             LEFT JOIN appraisal.Appraisals prev ON prev.Id = a.PrevAppraisalId
             WHERE a.Id = @AppraisalId
               AND a.IsDeleted = 0;
+
+            -- RS07: QCI7 — ตรวจครั้งที่ = round of the PREVIOUS inspection (count of Progressive
+            -- appraisals in the prev-chain, starting from PrevAppraisalId and walking up).
+            WITH chain AS (
+                SELECT a.Id, a.AppraisalType, a.PrevAppraisalId
+                FROM appraisal.Appraisals a
+                WHERE a.Id = (SELECT PrevAppraisalId FROM appraisal.Appraisals WHERE Id = @AppraisalId)
+                UNION ALL
+                SELECT p.Id, p.AppraisalType, p.PrevAppraisalId
+                FROM appraisal.Appraisals p
+                JOIN chain c ON p.Id = c.PrevAppraisalId
+            )
+            SELECT COUNT(*) FROM chain WHERE AppraisalType = 'Progressive';
             """;
 
         var appraisalParams = new DynamicParameters();
@@ -181,6 +206,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         string? buildingName;
         LandAddressRow? landAddr;
         PrevAppraisalRow? prevRow;
+        int prevInspectionRound;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, appraisalParams))
         {
@@ -201,19 +227,13 @@ public sealed class AppraisalSummaryConstructionDataProvider(
 
             // RS06
             prevRow = await multi.ReadFirstOrDefaultAsync<PrevAppraisalRow>();
+
+            // RS07 — scalar int: round of the previous inspection
+            prevInspectionRound = await multi.ReadFirstOrDefaultAsync<int>();
         }
 
-        var collateralAddress = landAddr is not null
-            ? ThaiAddressFormatter.FormatLandBuilding(
-                houseNumber: landAddr.HouseNumber,
-                village: landAddr.Village,
-                moo: null,
-                soi: landAddr.Soi,
-                road: landAddr.Road,
-                subDistrict: landAddr.SubDistrict,
-                district: landAddr.District,
-                province: landAddr.Province)
-            : null;
+        // ที่ตั้งทรัพย์สิน from the Request detail (same as the other summary reports).
+        var collateralAddress = common.CollateralAddress;
 
         // ── Refer-book logic via PrevAppraisalId ─────────────────────────────────
         bool isReferAppraisalBook = false;
@@ -239,21 +259,24 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         }
 
         // ── Derive construction value fields ──────────────────────────────────────
-        decimal ciTotal   = ciRow?.CITotalValue    ?? 0m;
-        decimal ciCurrent = ciRow?.CICurrentValue  ?? 0m;
+        decimal ciTotal   = ciRow?.CITotalValue    ?? 0m;   // building value at 100%
+        decimal ciCurrent = ciRow?.CICurrentValue  ?? 0m;   // building value now
+        decimal ciPrev    = ciRow?.CIPreviousValue ?? 0m;   // building value previously
 
-        decimal? previousProgressPct = ciRow is not null ? ciRow.SumPreviousProgressPct : null;
-        decimal? totalProgressPct = ciRow is not null ? ciRow.SumCurrentProgressPct : null;
+        // Progress % is derived from the building-under-construction values: value ÷ 100%-value.
+        decimal? previousProgressPct = ciTotal > 0m ? Math.Round(ciPrev / ciTotal * 100m, 2) : (decimal?)null;
+        decimal? totalProgressPct = ciTotal > 0m ? Math.Round(ciCurrent / ciTotal * 100m, 2) : (decimal?)null;
         decimal? additionalProgressPct = (previousProgressPct.HasValue && totalProgressPct.HasValue)
             ? totalProgressPct.Value - previousProgressPct.Value
             : null;
 
         decimal? buildingValue100       = ciTotal > 0m ? ciTotal : null;
-        decimal? currentBuildingValue   = (nonCiBuilding + ciCurrent) > 0m ? nonCiBuilding + ciCurrent : (decimal?)null;
-        decimal? totalLandBuilding100   = (landAppraisalValue + nonCiBuilding + ciTotal) > 0m
-            ? landAppraisalValue + nonCiBuilding + ciTotal : (decimal?)null;
-        decimal? totalLandCurrentBuilding = (landAppraisalValue + nonCiBuilding + ciCurrent) > 0m
-            ? landAppraisalValue + nonCiBuilding + ciCurrent : (decimal?)null;
+        decimal? currentBuildingValue   = ciCurrent > 0m ? ciCurrent : (decimal?)null;   // building under construction, now
+        // Totals = land + building UNDER CONSTRUCTION only (pre-inspection buildings excluded).
+        decimal? totalLandBuilding100   = (landAppraisalValue + ciTotal) > 0m
+            ? landAppraisalValue + ciTotal : (decimal?)null;
+        decimal? totalLandCurrentBuilding = (landAppraisalValue + ciCurrent) > 0m
+            ? landAppraisalValue + ciCurrent : (decimal?)null;
         decimal? landAppraisalValueOut  = landAppraisalValue > 0m ? landAppraisalValue : (decimal?)null;
 
         bool hasProgressTable = (ciRow?.HasDocument ?? 0) == 1;
@@ -261,7 +284,10 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         bool hasConstructionLicense = false; // DEFERRED: no doc-type column in ConstructionInspections
         bool hasConstructionPhoto   = false; // DEFERRED: no doc-type column in ConstructionInspections
 
-        string? inspectionRound   = null; // DEFERRED: no stored source
+        // อ้างอิง: ตรวจครั้งที่ = round of the previous inspection being referenced (right branch only).
+        string? inspectionRound = prevInspectionRound > 0 ? prevInspectionRound.ToString() : null;
+        // Value block: ตรวจครั้งที่ = round of THIS inspection (one more than the previous).
+        string? currentInspectionRound = (prevInspectionRound + 1).ToString();
         string? installmentNumber = null; // DEFERRED: no stored source
 
         string? firstGroupType = common.GroupRows.FirstOrDefault()?.PropertyType;
@@ -308,6 +334,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             IsReferConstructionBook   = isReferConstructionBook,
             ReferConstructionBookNumber = referConstructionBookNumber,
             InspectionRound           = inspectionRound,
+            CurrentInspectionRound    = currentInspectionRound,
             InstallmentNumber         = installmentNumber,
             BuildingName              = buildingName,
             BuildingValue100          = buildingValue100,
@@ -345,6 +372,8 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             // ── Committee / approver block ───────────────────────────────────────
             MeetingNumber             = common.Review?.MeetingNo,
             MeetingDate               = common.Review?.MeetingDate,
+            ApprovalDate              = common.ApprovalDate,
+            IsCompleted               = common.IsCompleted,
             ShowMeeting               = common.ShowMeeting,
             ApproverDecisionApproved  = common.ApproverDecisionApproved,
             Approvers                 = common.Approvers,
@@ -367,11 +396,8 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         /// </summary>
         public decimal CICurrentValue { get; init; }
 
-        /// <summary>SUM(SummaryPreviousProgressPct) — previous progress percentage.</summary>
-        public decimal SumPreviousProgressPct { get; init; }
-
-        /// <summary>SUM(SummaryCurrentProgressPct) — cumulative current progress percentage.</summary>
-        public decimal SumCurrentProgressPct { get; init; }
+        /// <summary>Previous building value (summary or aggregated work-detail).</summary>
+        public decimal CIPreviousValue { get; init; }
 
         /// <summary>1 if any CI row has a non-null FileName; 0 otherwise.</summary>
         public int HasDocument { get; init; }
@@ -382,10 +408,6 @@ public sealed class AppraisalSummaryConstructionDataProvider(
 
     private sealed class LandAddressRow
     {
-        public string? HouseNumber { get; init; }
-        public string? Village { get; init; }
-        public string? Soi { get; init; }
-        public string? Road { get; init; }
         public string? SubDistrict { get; init; }
         public string? District { get; init; }
         public string? Province { get; init; }
