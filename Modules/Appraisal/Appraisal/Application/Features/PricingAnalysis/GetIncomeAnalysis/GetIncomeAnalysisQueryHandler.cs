@@ -26,6 +26,11 @@ public class GetIncomeAnalysisQueryHandler(
             return new GetIncomeAnalysisResult(null);
 
         return new GetIncomeAnalysisResult(
-            IncomeAnalysisMapper.ToDto(method.IncomeAnalysis));
+            IncomeAnalysisMapper.ToDto(
+                method.IncomeAnalysis,
+                method.FinalValue?.FinalValue,
+                method.FinalValue?.FinalValueRounded,
+                method.FinalValue?.FinalValueAdjusted,
+                method.FinalValue?.AppraisalPrice));
     }
 }

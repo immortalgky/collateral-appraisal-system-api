@@ -1,13 +1,12 @@
-using System;
-
 namespace Request.Application.Features.Requests.CreateDraftRequest;
 
 public class CreateDraftRequestCommandValidator : AbstractValidator<CreateDraftRequestCommand>
 {
     public CreateDraftRequestCommandValidator()
     {
-        RuleFor(x => x.Requestor)
+        RuleFor(x => x.RequestorEmployeeId)
             .NotNull()
+            .NotEmpty()
             .WithMessage("Requestor information is required.");
 
         RuleFor(x => x.Creator)

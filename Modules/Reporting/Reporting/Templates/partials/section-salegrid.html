@@ -1,0 +1,44 @@
+{{- # caller sets: sgr = sec (one SaleGridSection) -}}
+<div class="section-bar">ตารางวิเคราะห์มูลค่าทรัพย์สิน (โดยวิธีเปรียบเทียบข้อมูลตลาด)</div>
+
+{{ if sgr.comparable_headers && sgr.comparable_headers.size > 0 }}
+<table class="grid">
+  <thead>
+    <tr>
+      <th style="min-width:150px;">รายละเอียด</th>
+      {{ for hdr in sgr.comparable_headers }}
+      <th class="ctr">{{ hdr }}</th>
+      {{ end }}
+      <th class="ctr">ทรัพย์สิน (SP)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ for row in sgr.rows }}
+    <tr{{ if row.emphasis }} style="font-weight:700; background:#f3f3f3;"{{ end }}>
+      <td>{{ row.label }}</td>
+      {{ for v in row.values }}
+      <td class="num">{{ v }}</td>
+      {{ end }}
+      <td class="num">{{ row.subject_value }}</td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ end }}
+
+{{ if sgr.summary_value || sgr.summary_value_rounded }}
+<table class="totals" style="margin-top:4px;">
+  {{ if sgr.summary_value }}
+  <tr>
+    <td class="tl">สรุปมูลค่าทรัพย์สิน</td>
+    <td class="tv">{{ sgr.summary_value | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+  {{ if sgr.summary_value_rounded }}
+  <tr>
+    <td class="tl">สรุปมูลค่าทรัพย์สิน (ปัดเศษ)</td>
+    <td class="tv">{{ sgr.summary_value_rounded | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+</table>
+{{ end }}

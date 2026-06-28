@@ -1,11 +1,13 @@
 using Appraisal.Contracts.Appraisals;
+using Auth.Contracts.Users;
 
 namespace Request.Application.Features.Requests.UpdateDraftRequest;
 
 internal class UpdateDraftRequestCommandHandler(
     IRequestRepository requestRepository,
     IRequestSyncService syncService,
-    ISender mediator
+    ISender mediator,
+    IUserLookupService userLookupService
 ) : ICommandHandler<UpdateDraftRequestCommand, UpdateDraftRequestResult>
 {
     public async Task<UpdateDraftRequestResult> Handle(UpdateDraftRequestCommand command,
@@ -30,14 +32,27 @@ internal class UpdateDraftRequestCommandHandler(
         var request = await requestRepository.GetByIdWithDocumentsAsync(command.Id, cancellationToken);
         if (request is null) throw new RequestNotFoundException(command.Id);
 
+        var requestorInfo = await userLookupService.GetRequestorAsync(command.RequestorEmployeeId, cancellationToken);
+        if (requestorInfo is null)
+            throw new NotFoundException("Requestor", command.RequestorEmployeeId);
+
+        var requestorSnapshot = Requestor.Create(
+            requestorInfo.Email,
+            requestorInfo.ContactNo,
+            requestorInfo.AoCode,
+            requestorInfo.CostCenterCode,
+            requestorInfo.CostCenterDescription,
+            requestorInfo.Department);
+
         request.Save(new RequestData(
             command.Purpose,
             command.Channel,
-            new UserInfo(command.Requestor.UserId, command.Requestor.Username),
+            new UserInfo(requestorInfo.EmployeeId, requestorInfo.Name),
             new UserInfo(command.Creator.UserId, command.Creator.Username),
             request.CreatedAt,
             command.Priority,
-            command.IsPma
+            command.IsPma,
+            requestorSnapshot
         ));
 
         AppraisalReferenceResult? appraisalRef = null;

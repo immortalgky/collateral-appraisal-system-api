@@ -58,7 +58,7 @@ public record LandDetailDto(
     DateTime? LastAppraisedDate,
     // Three-value model (Phase C)
     decimal? UnitPrice,
-    decimal? BuildingCost,
+    decimal? BuildingValue,
     decimal? AppraisalValue,
     /// <summary>
     /// Alias titles belonging to the same multi-title group as this master.
@@ -77,15 +77,16 @@ public record AliasTitleDto(
 );
 
 public record CondoDetailDto(
-    string LandOfficeCode,
+    // LandOfficeCode is descriptive (nullable) — no longer a dedup-key field. TitleNumber/TitleType dropped.
+    string? LandOfficeCode,
     string CondoRegistrationNumber,
     string BuildingNumber,
     string FloorNumber,
     string RoomNumber,
-    string TitleNumber,
-    string TitleType,
     string? CondoName,
     string? Province,
+    string? District,
+    string? SubDistrict,
     decimal? UsableArea,
     string? LocationType,
     int? BuildingAge,
@@ -96,7 +97,7 @@ public record CondoDetailDto(
     DateTime? LastAppraisedDate,
     // Three-value model (Phase C)
     decimal? UnitPrice,
-    decimal? BuildingCost,
+    decimal? BuildingValue,
     decimal? AppraisalValue
 );
 

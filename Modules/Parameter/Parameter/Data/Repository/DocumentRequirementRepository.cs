@@ -13,10 +13,15 @@ public class DocumentRequirementRepository : IDocumentRequirementRepository
 
     #region DocumentType Operations
 
-    public async Task<IReadOnlyList<DocumentType>> GetAllDocumentTypesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<DocumentType>> GetAllDocumentTypesAsync(
+        bool includeInactive = false,
+        CancellationToken cancellationToken = default)
     {
-        return await _context.DocumentTypes
-            .Where(d => d.IsActive)
+        var query = _context.DocumentTypes.AsQueryable();
+        if (!includeInactive)
+            query = query.Where(d => d.IsActive);
+
+        return await query
             .OrderBy(d => d.SortOrder)
             .ThenBy(d => d.Name)
             .ToListAsync(cancellationToken);
@@ -49,11 +54,16 @@ public class DocumentRequirementRepository : IDocumentRequirementRepository
     #region DocumentRequirement Operations
 
     public async Task<IReadOnlyList<DocumentRequirement>> GetAllRequirementsAsync(
+        bool includeInactive = false,
         CancellationToken cancellationToken = default)
     {
-        return await _context.DocumentRequirements
+        var query = _context.DocumentRequirements
             .Include(r => r.DocumentType)
-            .Where(r => r.IsActive)
+            .AsQueryable();
+        if (!includeInactive)
+            query = query.Where(r => r.IsActive);
+
+        return await query
             .OrderBy(r => r.PropertyTypeCode ?? "")
             .ThenBy(r => r.PurposeCode ?? "")
             .ThenBy(r => r.DocumentType.SortOrder)
@@ -118,6 +128,8 @@ public class DocumentRequirementRepository : IDocumentRequirementRepository
             .Include(r => r.DocumentType)
             .Where(r => r.IsActive && r.PropertyTypeCode != null && normalizedCodes.Contains(r.PropertyTypeCode));
 
+        // Wildcard cascade: a purpose-specific row matches the request's purpose, and a
+        // purpose=Any (null) row matches any purpose.
         if (purposeCode is not null)
             query = query.Where(r => r.PurposeCode == null || r.PurposeCode == purposeCode);
         else
@@ -128,6 +140,21 @@ public class DocumentRequirementRepository : IDocumentRequirementRepository
             .ThenBy(r => r.PurposeCode ?? "")
             .ThenBy(r => r.DocumentType.SortOrder)
             .ThenBy(r => r.DocumentType.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DocumentRequirement>> GetRequirementsByScopeAsync(
+        string? propertyTypeCode,
+        string? purposeCode,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedCode = propertyTypeCode?.ToUpperInvariant();
+
+        // Exact-scope match (incl. inactive) so excluded rows can be deactivated
+        // and previously-removed rows re-activated.
+        return await _context.DocumentRequirements
+            .Include(r => r.DocumentType)
+            .Where(r => r.PropertyTypeCode == normalizedCode && r.PurposeCode == purposeCode)
             .ToListAsync(cancellationToken);
     }
 

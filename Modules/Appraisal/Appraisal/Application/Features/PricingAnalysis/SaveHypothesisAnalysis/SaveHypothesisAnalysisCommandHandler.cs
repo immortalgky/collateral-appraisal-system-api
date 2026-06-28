@@ -68,6 +68,10 @@ public class SaveHypothesisAnalysisCommandHandler(
             // Set method value from FSD C81 (TotalAssetValueRounded)
             var finalValue = snapshot.Summary.TotalAssetValueRounded ?? 0m;
             method.SetValue(finalValue);
+            MirrorToFinalValue(method, finalValue);
+            // Land area and building value are not applicable for Hypothesis.
+            method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
+            method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
             PropagateValue(pricingAnalysis, method, finalValue);
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -86,6 +90,10 @@ public class SaveHypothesisAnalysisCommandHandler(
             // Set method value from FSD E58 (TotalAssetValueRounded)
             var finalValue = computedSummary.TotalAssetValueRounded ?? 0m;
             method.SetValue(finalValue);
+            MirrorToFinalValue(method, finalValue);
+            // Land area and building value are not applicable for Hypothesis.
+            method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
+            method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
             PropagateValue(pricingAnalysis, method, finalValue);
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -205,6 +213,15 @@ public class SaveHypothesisAnalysisCommandHandler(
         => inputs is null || inputs.Count == 0
             ? null
             : inputs.Select(p => (p.AtYear, p.ToYear, p.DepreciationPerYear)).ToList();
+
+    // Mirror the committed final value into the shared PricingFinalValue (single source of truth).
+    private static void MirrorToFinalValue(PricingAnalysisMethod method, decimal value)
+    {
+        if (method.FinalValue is null)
+            method.SetFinalValue(PricingFinalValue.Create(method.Id, value, value));
+        else
+            method.FinalValue.UpdateFinalValue(value, value);
+    }
 
     private static void PropagateValue(Domain.Appraisals.PricingAnalysis pricingAnalysis, PricingAnalysisMethod method, decimal value)
     {

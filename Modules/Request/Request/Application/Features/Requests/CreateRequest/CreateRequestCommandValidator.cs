@@ -14,8 +14,9 @@ public class CreateRequestCommandValidator : AbstractValidator<CreateRequestComm
             .NotEmpty()
             .WithMessage("Channel is required.");
 
-        RuleFor(x => x.Requestor)
+        RuleFor(x => x.RequestorEmployeeId)
             .NotNull()
+            .NotEmpty()
             .WithMessage("Requestor is required.");
 
         RuleFor(x => x.Creator)

@@ -108,6 +108,87 @@ public class AppraisalCreatedIntegrationEventConsumerTests
             Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Consume_WithAppointmentDateTime_SetsAppointmentDateInVariables()
+    {
+        await using var db = NewDb();
+        var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
+        var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var inboxGuard = new InboxGuard<WorkflowDbContext>(
+            db,
+            Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>(),
+            Substitute.For<Shared.Time.IDateTimeProvider>());
+
+        var requestId = Guid.NewGuid();
+        var appraisalId = Guid.NewGuid();
+        var appointmentDateTime = new DateTime(2026, 7, 15, 9, 0, 0);
+        var instance = WorkflowInstance.Create(
+            Guid.NewGuid(), "test-workflow", requestId.ToString(), "system");
+
+        instanceRepository.GetByCorrelationId(requestId.ToString(), Arg.Any<CancellationToken>())
+            .Returns(instance);
+
+        var signalDispatcher = Substitute.For<IWorkflowSignalDispatcher>();
+
+        var consumer = new AppraisalCreatedIntegrationEventConsumer(
+            Substitute.For<ILogger<AppraisalCreatedIntegrationEventConsumer>>(),
+            instanceRepository, signalDispatcher, unitOfWork, inboxGuard);
+
+        var ctx = BuildContext(new AppraisalCreatedIntegrationEvent
+        {
+            AppraisalId = appraisalId,
+            RequestId = requestId,
+            AppraisalNumber = "APR-002",
+            AppraisalType = "New",
+            CreatedBy = "system",
+            CreatedAt = DateTime.UtcNow,
+            AppointmentDateTime = appointmentDateTime
+        });
+
+        await consumer.Consume(ctx);
+
+        instance.Variables["appointmentDate"].Should().Be(appointmentDateTime);
+        instance.Variables["appraisalId"].Should().Be(appraisalId);
+    }
+
+    [Fact]
+    public async Task Consume_WithoutAppointmentDateTime_DoesNotSetAppointmentDateInVariables()
+    {
+        await using var db = NewDb();
+        var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
+        var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var inboxGuard = new InboxGuard<WorkflowDbContext>(
+            db,
+            Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>(),
+            Substitute.For<Shared.Time.IDateTimeProvider>());
+
+        var requestId = Guid.NewGuid();
+        var instance = WorkflowInstance.Create(
+            Guid.NewGuid(), "test-workflow", requestId.ToString(), "system");
+
+        instanceRepository.GetByCorrelationId(requestId.ToString(), Arg.Any<CancellationToken>())
+            .Returns(instance);
+
+        var signalDispatcher = Substitute.For<IWorkflowSignalDispatcher>();
+
+        var consumer = new AppraisalCreatedIntegrationEventConsumer(
+            Substitute.For<ILogger<AppraisalCreatedIntegrationEventConsumer>>(),
+            instanceRepository, signalDispatcher, unitOfWork, inboxGuard);
+
+        var ctx = BuildContext(new AppraisalCreatedIntegrationEvent
+        {
+            AppraisalId = Guid.NewGuid(),
+            RequestId = requestId,
+            CreatedBy = "system",
+            CreatedAt = DateTime.UtcNow,
+            AppointmentDateTime = null
+        });
+
+        await consumer.Consume(ctx);
+
+        instance.Variables.Should().NotContainKey("appointmentDate");
+    }
+
     // ── Helpers ──
 
     private static ConsumeContext<AppraisalCreatedIntegrationEvent> BuildContext(

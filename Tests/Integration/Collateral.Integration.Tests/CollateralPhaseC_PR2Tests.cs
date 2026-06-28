@@ -115,7 +115,7 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
             titleNumber: titleNo,
             titleType: titleType,
             ownerName: ownerName ?? "Test Owner",
-            address: AdministrativeAddress.Create(null, null, province, landOffice),
+            address: AdministrativeAddress.Create("Test Subdistrict", "Test District", province, landOffice),
             condoName: condoName,
             usableArea: usableArea,
             locationType: locationType,
@@ -300,7 +300,7 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
 
         var master = await collateralDb.CollateralMasters
             .Include(m => m.CondoDetail)
-            .FirstOrDefaultAsync(m => m.CondoDetail != null && m.CondoDetail.TitleNumber == $"CT-{tag}",
+            .FirstOrDefaultAsync(m => m.CondoDetail != null && m.CondoDetail.CondoRegistrationNumber == $"CR-{tag}",
                 TestContext.Current.CancellationToken);
 
         Assert.NotNull(master);
@@ -525,12 +525,12 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
         Assert.Null(isMasterRow.LandDetail!.UnitPrice);
         Assert.Null(aliasRow.LandDetail!.UnitPrice);
 
-        // BuildingCost + AppraisalValue on alias must always be null
-        Assert.Null(aliasRow.LandDetail.BuildingCost);
+        // BuildingValue + AppraisalValue on alias must always be null
+        Assert.Null(aliasRow.LandDetail.BuildingValue);
         Assert.Null(aliasRow.LandDetail.AppraisalValue);
 
         // IsMaster: null when no PricingAnalysis seeded (no pricing info available)
-        Assert.Null(isMasterRow.LandDetail.BuildingCost);
+        Assert.Null(isMasterRow.LandDetail.BuildingValue);
         Assert.Null(isMasterRow.LandDetail.AppraisalValue);
     }
 

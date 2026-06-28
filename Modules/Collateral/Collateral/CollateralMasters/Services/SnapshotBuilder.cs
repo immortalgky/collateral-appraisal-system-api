@@ -21,8 +21,8 @@ namespace Collateral.CollateralMasters.Services;
 ///           "role": "isMaster",    // or "alias"
 ///           "propertyId": "...",   // AppraisalProperty.Id
 ///           "unitPrice": 50000,    // cost-approach per sq.wa (null until PR-2-pricing wired)
-///           "titleNumber": "...",  // first title (or condo unit title)
-///           "titleType": "...",
+///           "titleNumber": "...",  // Land entries only (first title); condo entries omit it
+///           "titleType": "...",    // Land entries only
 ///           "province": "...",
 ///           ... type-specific fields ...
 ///         }
@@ -114,8 +114,6 @@ internal static class SnapshotBuilder
             building = condo.BuildingNumber,
             floor = condo.FloorNumber,
             unit = condo.RoomNumber,
-            titleNumber = condo.TitleNumber,
-            titleType = condo.TitleType,
             province = condo.Province,
             unitPrice
         };
@@ -240,7 +238,7 @@ internal sealed class PropertyGroupSnapshot
     public int? GroupNumber { get; init; }
     public string IsMasterId { get; init; } = null!;
     public bool IsPrimary { get; init; }
-    public decimal? BuildingCost { get; init; }
+    public decimal? BuildingValue { get; init; }
     public decimal? AppraisalValue { get; init; }
     public IReadOnlyList<object> Properties { get; init; } = [];
     public IReadOnlyList<object> ConstructionInspections { get; init; } = [];

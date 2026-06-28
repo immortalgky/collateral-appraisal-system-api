@@ -14,7 +14,7 @@ public record SetFinalValueCommand(
     bool? IncludeLandArea,
     decimal? LandArea,
     decimal? LandValue,
-    bool? HasBuildingCost,
-    decimal? BuildingCost,
+    bool? HasBuildingValue,
+    decimal? BuildingValue,
     decimal? AppraisalPrice
 ) : ICommand<SetFinalValueResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

@@ -9,7 +9,7 @@ using Shared.Messaging.Filters;
 
 namespace Appraisal.Application.EventHandlers;
 
-// Co-located on the partitioned, SingleActiveConsumer "appraisal-assignment-sync" endpoint
+// Co-located on the partitioned "appraisal-sync" endpoint
 // (Program.cs) with the internal-assignment handlers so all assignment events for one appraisal
 // are serialized, eliminating the cross-event-type field-clobber race on AppraisalAssignment.
 [ExcludeFromConfigureEndpoints]

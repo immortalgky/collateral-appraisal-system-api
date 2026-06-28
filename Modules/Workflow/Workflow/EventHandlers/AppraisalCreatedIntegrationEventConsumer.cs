@@ -48,6 +48,12 @@ public class AppraisalCreatedIntegrationEventConsumer(
                 ["appraisalType"] = message.AppraisalType ?? "New"
             };
 
+            // When the creation request included an appointment date, thread it into the
+            // same payload so Variables["appointmentDate"] is written atomically with the
+            // appraisal-created signal — no second consumer, no RowVersion race.
+            if (message.AppointmentDateTime.HasValue)
+                appraisalPayload["appointmentDate"] = message.AppointmentDateTime.Value;
+
             // Wrap in execution strategy + transaction so that
             // SqlServerRetryingExecutionStrategy allows DB operations inside
             // the user-initiated transaction, and ResumeWorkflowAsync takes

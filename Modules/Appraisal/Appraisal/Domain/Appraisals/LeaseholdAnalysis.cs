@@ -29,8 +29,6 @@ public class LeaseholdAnalysis : Entity<Guid>
     // Computed fields
     public decimal TotalIncomeOverLeaseTerm { get; private set; }
     public decimal ValueAtLeaseExpiry { get; private set; }
-    public decimal FinalValue { get; private set; }
-    public decimal FinalValueRounded { get; private set; }
 
     // Partial usage fields
     public bool IsPartialUsage { get; private set; }
@@ -77,8 +75,6 @@ public class LeaseholdAnalysis : Entity<Guid>
             DiscountRate = source.DiscountRate,
             TotalIncomeOverLeaseTerm = source.TotalIncomeOverLeaseTerm,
             ValueAtLeaseExpiry = source.ValueAtLeaseExpiry,
-            FinalValue = source.FinalValue,
-            FinalValueRounded = source.FinalValueRounded,
             IsPartialUsage = source.IsPartialUsage,
             PartialRai = source.PartialRai,
             PartialNgan = source.PartialNgan,
@@ -128,14 +124,10 @@ public class LeaseholdAnalysis : Entity<Guid>
 
     public void SetComputedValues(
         decimal totalIncomeOverLeaseTerm,
-        decimal valueAtLeaseExpiry,
-        decimal finalValue,
-        decimal finalValueRounded)
+        decimal valueAtLeaseExpiry)
     {
         TotalIncomeOverLeaseTerm = totalIncomeOverLeaseTerm;
         ValueAtLeaseExpiry = valueAtLeaseExpiry;
-        FinalValue = finalValue;
-        FinalValueRounded = finalValueRounded;
     }
 
     public void SetPartialUsage(

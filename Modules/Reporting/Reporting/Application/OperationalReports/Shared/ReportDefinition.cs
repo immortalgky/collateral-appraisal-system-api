@@ -35,4 +35,11 @@ public sealed class ReportDefinition<TRow, TFilter>
 
     /// <summary>Hard cap on exported rows (preview is always paginated).</summary>
     public int MaxRows { get; init; } = 10_000;
+
+    /// <summary>
+    /// Optional: describes the filter as an ordered list of <see cref="FilterField"/>s so the export
+    /// can print an "Applied filters" block (curated labels; coded values resolved to descriptions).
+    /// Not used by preview (the UI already shows the filters on screen).
+    /// </summary>
+    public Func<TFilter, IReadOnlyList<FilterField>>? DescribeFilter { get; init; }
 }

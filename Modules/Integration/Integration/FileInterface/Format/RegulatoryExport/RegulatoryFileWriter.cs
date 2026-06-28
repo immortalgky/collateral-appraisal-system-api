@@ -13,6 +13,9 @@ public sealed class RegulatoryFileWriter
 {
     public const int RecordLength = 300;
 
+    // Engagement AppraisalType value for a construction (progressive) inspection.
+    private const string ProgressiveAppraisalType = "Progressive";
+
     private static readonly FixedWidthField[] DetailFields =
     [
         new("RecordType",                   1,   FixedWidthAlign.Left),
@@ -113,16 +116,21 @@ public sealed class RegulatoryFileWriter
         string? buildingTypeId = isBuildingType ? row.BuildingTypeCode : null;
         string? buildingName   = isBuildingType ? row.BuildingTypeDescription : null;
 
+        // Origination value: for a construction (Progressive) inspection the first appraisal already
+        // estimated the as-completed (100%) value, so use the earliest value; otherwise the latest.
+        var isProgressive = string.Equals(row.LatestAppraisalType, ProgressiveAppraisalType, StringComparison.Ordinal);
+        var originationValue = isProgressive ? row.EarliestAppraisalValue : row.LatestAppraisalValue;
+
         var values = new Dictionary<string, string?>
         {
             ["RecordType"]                 = "D",
-            ["ApplicationId"]              = row.EarliestAppraisalNumber,
+            ["ApplicationId"]              = row.PreviousAppraisalNumber,
             ["NewestApplicationId"]        = row.LatestAppraisalNumber,
             ["CollateralIdHost"]           = null,
             ["UnderConstruction"]          = underConstruction,
             ["ConstructionProgress"]       = constructionProgress,
             ["AppraisalValueCompleted"]    = Money(row.LatestAppraisalValue),
-            ["AppraisalValueOrigination"]  = Money(row.EarliestAppraisalValue),
+            ["AppraisalValueOrigination"]  = Money(originationValue),
             ["NumberOfFloors"]             = SmallInt(row.NumberOfFloors, 999),
             ["BuildingAge"]                = SmallInt(row.BuildingAge, 999),
             ["MarketSellingPrice"]         = null,

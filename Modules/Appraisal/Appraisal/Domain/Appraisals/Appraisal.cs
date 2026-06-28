@@ -137,7 +137,8 @@ public class Appraisal : Aggregate<Guid>
         decimal? facilityLimit = null,
         bool hasAppraisalBook = false,
         DateTime? requestedAt = null,
-        Guid? prevAppraisalId = null)
+        Guid? prevAppraisalId = null,
+        DateTime? appointmentDate = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appraisalType);
         ArgumentException.ThrowIfNullOrWhiteSpace(priority);
@@ -145,7 +146,10 @@ public class Appraisal : Aggregate<Guid>
         var appraisal = new Appraisal(requestId, appraisalType, priority, slaHours, slaDueDate,
             isPma, purpose, channel, bankingSegment, facilityLimit, hasAppraisalBook,
             requestedBy, requestedAt, prevAppraisalId, now);
-        appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal, requestedBy));
+        // appointmentDate is pass-through context for the integration event (not stored on the
+        // aggregate) — mirrors requestedBy. It lets the workflow receive the appointment atomically
+        // with appraisalId on appraisal-created, instead of a second racing AppointmentDateChanged event.
+        appraisal.AddDomainEvent(new AppraisalCreatedEvent(appraisal, requestedBy, appointmentDate));
         appraisal.AddDomainEvent(new AppraisalStatusChangedEvent(appraisal, OldStatus: null, NewStatus: appraisal.Status));
 
         return appraisal;

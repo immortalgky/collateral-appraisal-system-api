@@ -8,7 +8,7 @@ using Shared.Messaging.Filters;
 
 namespace Appraisal.Application.EventHandlers;
 
-// Co-located on the partitioned, SingleActiveConsumer "appraisal-assignment-sync" endpoint (Program.cs)
+// Co-located on the partitioned "appraisal-sync" endpoint (Program.cs)
 // with the company/internal-followup handlers so all assignment events for one appraisal are serialized.
 [ExcludeFromConfigureEndpoints]
 public class InternalAssignedIntegrationEventHandler(

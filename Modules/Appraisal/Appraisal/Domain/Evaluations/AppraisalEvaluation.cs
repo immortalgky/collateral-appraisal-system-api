@@ -41,6 +41,16 @@ public class AppraisalEvaluation : Entity<Guid>
     public string? AdditionalComments { get; private set; }
     public string? Note { get; private set; }
 
+    // ── Frozen composite score ────────────────────────────────────────────────
+    /// <summary>
+    /// Weighted composite score, snapshotted at the moment the evaluation is Completed
+    /// using the config weights in force at that time. NULL while Pending. Persisting it
+    /// freezes history so later edits to EvaluationCriteriaConfig weights do not retroactively
+    /// rewrite the scores (and company averages) of already-completed evaluations.
+    /// Pending rows are scored live in vw_AppraisalEvaluationList instead.
+    /// </summary>
+    public decimal? TotalScore { get; private set; }
+
     // ── Private constructor for EF Core ────────────────────────────────────
     private AppraisalEvaluation()
     {
@@ -67,7 +77,8 @@ public class AppraisalEvaluation : Entity<Guid>
         int? criteria5Rating,
         string? additionalComments,
         string? note,
-        DateTime evaluatedAt)
+        DateTime evaluatedAt,
+        decimal? totalScore = null)
     {
         ValidateStatus(evaluationStatus);
         ValidateRatings(
@@ -100,6 +111,7 @@ public class AppraisalEvaluation : Entity<Guid>
         {
             evaluation.EvaluatedAt = evaluatedAt;
             evaluation.EvaluatedBy = evaluatedBy;
+            evaluation.TotalScore = totalScore;
         }
 
         return evaluation;
@@ -123,7 +135,8 @@ public class AppraisalEvaluation : Entity<Guid>
         string? note,
         string evaluationStatus,
         string? evaluatedBy,
-        DateTime evaluatedAt)
+        DateTime evaluatedAt,
+        decimal? totalScore = null)
     {
         if (EvaluationStatus == "Completed")
             throw new InvalidOperationException("A completed evaluation cannot be modified.");
@@ -153,7 +166,35 @@ public class AppraisalEvaluation : Entity<Guid>
         {
             EvaluatedAt = evaluatedAt;
             EvaluatedBy = evaluatedBy;
+            TotalScore = totalScore;
         }
+    }
+
+    // ── Score calculation ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Computes the weighted composite score from the five ratings and the per-slot
+    /// weights (slot 1..5 → weight) in force. NULL ratings are treated as 0 and the
+    /// result is rounded to 2 decimals — identical to the live formula in
+    /// vw_AppraisalEvaluationList so a snapshot equals what the view would have shown.
+    /// </summary>
+    public static decimal ComputeScore(
+        IReadOnlyDictionary<int, decimal> weights,
+        int? criteria1Rating,
+        int? criteria2Rating,
+        int? criteria3Rating,
+        int? criteria4Rating,
+        int? criteria5Rating)
+    {
+        decimal W(int slot) => weights.TryGetValue(slot, out var w) ? w : 0m;
+
+        var raw = W(1) * (criteria1Rating ?? 0)
+                  + W(2) * (criteria2Rating ?? 0)
+                  + W(3) * (criteria3Rating ?? 0)
+                  + W(4) * (criteria4Rating ?? 0)
+                  + W(5) * (criteria5Rating ?? 0);
+
+        return Math.Round(raw, 2, MidpointRounding.AwayFromZero);
     }
 
     // ── Invariant guards ────────────────────────────────────────────────────

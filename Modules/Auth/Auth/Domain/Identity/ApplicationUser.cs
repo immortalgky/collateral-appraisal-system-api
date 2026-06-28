@@ -9,6 +9,7 @@ public class ApplicationUser : IdentityUser<Guid>
     public string? Department { get; set; }
     public Guid? CompanyId { get; set; }
     public string AuthSource { get; set; } = AuthSources.Local;
+    public string? AoCode { get; set; }
     public List<UserPermission> Permissions { get; set; } = default!;
 
     /// <summary>Whether the account is allowed to sign in. Defaults to true.</summary>

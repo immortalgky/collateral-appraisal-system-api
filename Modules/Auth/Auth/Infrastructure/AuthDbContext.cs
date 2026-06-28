@@ -3,6 +3,7 @@ using Auth.Domain.Companies;
 using Auth.Domain.Configuration;
 using Auth.Domain.Groups;
 using Auth.Domain.Menu;
+using Auth.Domain.Organization;
 using Auth.Domain.Preferences;
 using Auth.Domain.Teams;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
@@ -28,6 +29,9 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
     public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
     public DbSet<PasswordPolicy> PasswordPolicy => Set<PasswordPolicy>();
     public DbSet<PasswordHistory> PasswordHistory => Set<PasswordHistory>();
+    public DbSet<Department> Departments => Set<Department>();
+    public DbSet<Officer> Officers => Set<Officer>();
+    public DbSet<CostCenter> CostCenters => Set<CostCenter>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

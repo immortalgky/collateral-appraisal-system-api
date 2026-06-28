@@ -4,6 +4,14 @@ namespace Workflow.Sla.Models;
 
 public enum SlaPolicyScope { Activity = 1, Stage = 2, Workflow = 3 }
 
+/// <summary>
+/// Determines which timestamp starts the SLA clock for a given policy.
+/// Assignment = clock starts when the task is assigned (AssignedAt).
+/// AppointmentDate = clock starts when the on-site visit occurs (appointment date).
+/// Null on an existing row is treated as Assignment (backward compatible).
+/// </summary>
+public enum SlaAnchorType { Assignment = 0, AppointmentDate = 1 }
+
 public class SlaPolicy : Entity<Guid>
 {
     // Existing fields — unchanged semantics for Activity scope.
@@ -11,6 +19,11 @@ public class SlaPolicy : Entity<Guid>
     public Guid? WorkflowDefinitionId { get; private set; }
     public Guid? CompanyId { get; private set; }
     public string? LoanType { get; private set; }
+
+    // New target dimension: null = any (wildcard). Values from AppraisalTypes
+    // (New/ReAppraisal/Progressive/PreAppraisal). AssignmentType is a deferred future axis.
+    public string? AppraisalType { get; private set; }
+
     public int DurationHours { get; private set; }
     public bool UseBusinessDays { get; private set; }
     public int Priority { get; private set; }
@@ -25,6 +38,12 @@ public class SlaPolicy : Entity<Guid>
     // Documentation only: middle activity keys in the stage span (stored as JSON).
     public string? MiddleActivityKeys { get; private set; }
 
+    /// <summary>
+    /// Configurable anchor for the SLA clock. Null = Assignment (preserves existing behaviour).
+    /// AppointmentDate means the deadline is computed from the on-site visit date, not AssignedAt.
+    /// </summary>
+    public SlaAnchorType? AnchorType { get; private set; }
+
     private SlaPolicy() { }
 
     public static SlaPolicy Create(
@@ -38,7 +57,9 @@ public class SlaPolicy : Entity<Guid>
         SlaPolicyScope scope = SlaPolicyScope.Activity,
         string? startActivityKey = null,
         string? endActivityKey = null,
-        string? middleActivityKeys = null)
+        string? middleActivityKeys = null,
+        string? appraisalType = null,
+        SlaAnchorType? anchorType = null)
     {
         ValidateScopeFields(scope, activityId, startActivityKey, endActivityKey, workflowDefinitionId);
 
@@ -49,13 +70,15 @@ public class SlaPolicy : Entity<Guid>
             WorkflowDefinitionId = workflowDefinitionId,
             CompanyId = companyId,
             LoanType = loanType,
+            AppraisalType = appraisalType,
             DurationHours = durationHours,
             UseBusinessDays = useBusinessDays,
             Priority = priority,
             Scope = scope,
             StartActivityKey = startActivityKey,
             EndActivityKey = endActivityKey,
-            MiddleActivityKeys = middleActivityKeys
+            MiddleActivityKeys = middleActivityKeys,
+            AnchorType = anchorType
         };
     }
 
@@ -69,7 +92,9 @@ public class SlaPolicy : Entity<Guid>
         string? startActivityKey = null,
         string? endActivityKey = null,
         string? middleActivityKeys = null,
-        Guid? workflowDefinitionId = null)
+        Guid? workflowDefinitionId = null,
+        string? appraisalType = null,
+        SlaAnchorType? anchorType = null)
     {
         var effectiveScope = scope ?? Scope;
         var effectiveActivityId = ActivityId;
@@ -83,7 +108,9 @@ public class SlaPolicy : Entity<Guid>
         UseBusinessDays = useBusinessDays;
         Priority = priority;
         LoanType = loanType;
+        AppraisalType = appraisalType;
         CompanyId = companyId;
+        AnchorType = anchorType;
 
         if (scope.HasValue) Scope = scope.Value;
         if (startActivityKey is not null) StartActivityKey = startActivityKey;
@@ -91,6 +118,12 @@ public class SlaPolicy : Entity<Guid>
         if (middleActivityKeys is not null) MiddleActivityKeys = middleActivityKeys;
         if (workflowDefinitionId.HasValue) WorkflowDefinitionId = workflowDefinitionId;
     }
+
+    /// <summary>
+    /// Stamps the anchor type on an existing row — used by the seeder to upgrade existing
+    /// default policies without re-running the full Update validation path.
+    /// </summary>
+    public void SetAnchorType(SlaAnchorType? anchorType) => AnchorType = anchorType;
 
     /// <summary>
     /// Validates that the supplied scope-specific fields are consistent with the given scope.

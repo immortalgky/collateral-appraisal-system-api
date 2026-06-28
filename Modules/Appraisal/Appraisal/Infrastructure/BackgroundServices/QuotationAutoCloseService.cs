@@ -1,5 +1,7 @@
 using Dapper;
 using MassTransit;
+using Microsoft.Extensions.Options;
+using Shared.Configurations;
 using Shared.Messaging.Events;
 using Shared.Messaging.Services;
 using Shared.Time;
@@ -19,10 +21,15 @@ namespace Appraisal.Infrastructure.BackgroundServices;
 public sealed class QuotationAutoCloseService(
     IServiceScopeFactory scopeFactory,
     ILogger<QuotationAutoCloseService> logger,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    IOptions<BackgroundJobsOptions> options)
     : LeasedBackgroundService<AppraisalDbContext>(scopeFactory, logger, dateTimeProvider)
 {
     protected override string LockId => "AppraisalDbContext-QuotationAutoClose";
+
+    protected override TimeSpan LeaseDuration => options.Value.QuotationAutoClose.LeaseDuration;
+    protected override TimeSpan WorkInterval => options.Value.QuotationAutoClose.WorkInterval;
+    protected override TimeSpan StandbyPollInterval => options.Value.QuotationAutoClose.StandbyPollInterval;
 
     protected override async Task ExecuteWhileLeasedAsync(IServiceScope scope, CancellationToken ct)
     {

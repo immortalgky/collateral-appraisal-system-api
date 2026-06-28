@@ -18,6 +18,10 @@ public class SlaPolicyConfiguration : IEntityTypeConfiguration<SlaPolicy>
             .HasMaxLength(50)
             .IsRequired(false);
 
+        builder.Property(s => s.AppraisalType)
+            .HasMaxLength(20)
+            .IsRequired(false);
+
         builder.Property(s => s.Priority)
             .IsRequired();
 
@@ -37,22 +41,29 @@ public class SlaPolicyConfiguration : IEntityTypeConfiguration<SlaPolicy>
             .HasColumnType("nvarchar(max)")
             .IsRequired(false);
 
+        // Nullable int: 0 = Assignment (default behaviour), 1 = AppointmentDate.
+        // Null treated as Assignment by the calculator so existing rows are unaffected.
+        builder.Property(s => s.AnchorType)
+            .HasColumnType("int")
+            .IsRequired(false);
+
         // M2: Filtered unique indexes per scope so FirstOrDefaultAsync is deterministic.
+        // AppraisalType is part of each key so every matrix cell is uniquely addressable.
         builder.HasIndex(
-                s => new { s.ActivityId, s.WorkflowDefinitionId, s.CompanyId, s.LoanType, s.Priority })
+                s => new { s.ActivityId, s.WorkflowDefinitionId, s.CompanyId, s.LoanType, s.AppraisalType, s.Priority })
             .IsUnique()
             .HasFilter("[Scope] = 1")
             .HasDatabaseName("IX_SlaPolicies_Activity");
 
         builder.HasIndex(
-                s => new { s.StartActivityKey, s.WorkflowDefinitionId, s.CompanyId, s.LoanType, s.Priority })
+                s => new { s.StartActivityKey, s.WorkflowDefinitionId, s.CompanyId, s.LoanType, s.AppraisalType, s.Priority })
             .IsUnique()
             .HasFilter("[Scope] = 2")
             .HasDatabaseName("IX_SlaPolicies_Stage_Start");
 
-        // Workflow-scope uniqueness: per (WorkflowDefinitionId, LoanType) to allow one row
-        // per loan type per workflow, matching CalculateWorkflowDueAtAsync's LoanType filter.
-        builder.HasIndex(s => new { s.WorkflowDefinitionId, s.LoanType })
+        // Workflow-scope uniqueness: per (WorkflowDefinitionId, LoanType, AppraisalType) to allow one row
+        // per loan type / appraisal type per workflow, matching CalculateWorkflowDueAtAsync's filters.
+        builder.HasIndex(s => new { s.WorkflowDefinitionId, s.LoanType, s.AppraisalType })
             .IsUnique()
             .HasFilter("[Scope] = 3")
             .HasDatabaseName("IX_SlaPolicies_Workflow");

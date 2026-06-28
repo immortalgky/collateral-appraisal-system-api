@@ -15,6 +15,7 @@ public class UpdateUserCommandValidator : AbstractValidator<UpdateUserCommand>
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);
         RuleFor(x => x.Position).MaximumLength(100);
         RuleFor(x => x.Department).MaximumLength(100);
+        RuleFor(x => x.AoCode).MaximumLength(10);
 
         // AuthSource is optional on update (null = unchanged). Validate only when a value is sent.
         When(x => x.AuthSource is not null, () =>

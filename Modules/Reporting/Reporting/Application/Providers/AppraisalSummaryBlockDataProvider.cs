@@ -100,13 +100,13 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 p.LandAreaSquareWa,
                 p.UnitForSaleCount,
                 p.NumberOfPhase,
-                p.LandOffice,
+                COALESCE(pLandOffice.[description], p.LandOffice) AS LandOffice,
                 p.HouseNumber,
                 p.Soi,
                 p.Road,
-                p.SubDistrict,
-                p.District,
-                p.Province,
+                COALESCE(tsub.NameTh,  p.SubDistrict) AS SubDistrict,
+                COALESCE(tdist.NameTh, p.District)    AS District,
+                COALESCE(tprov.NameTh, p.Province)    AS Province,
                 p.Latitude,
                 p.Longitude,
                 p.Utilities,
@@ -116,6 +116,14 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 p.ProjectType,
                 p.Id            AS ProjectId
             FROM appraisal.Projects p
+            LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = p.Province
+            LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = p.District
+            LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = p.SubDistrict
+            LEFT JOIN parameter.Parameters pLandOffice
+                ON pLandOffice.[group]    = 'LandOffice'
+               AND pLandOffice.[language] = 'TH'
+               AND pLandOffice.[isactive] = 1
+               AND pLandOffice.[code]     = p.LandOffice
             WHERE p.AppraisalId = @AppraisalId;
 
             -- RS02: QB2 — House/unit models (derive ProjectId via subquery)
@@ -161,6 +169,28 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 WHERE p3.AppraisalId = @AppraisalId)
               AND u.IsSold = 0
             ORDER BY u.SequenceNumber;
+
+            -- RS04: distinct request property types (ประเภททรัพย์สิน — same as land-building)
+            SELECT DISTINCT rp.PropertyType
+            FROM request.RequestProperties rp
+            WHERE rp.RequestId = (
+                SELECT a.RequestId FROM appraisal.Appraisals a
+                WHERE a.Id = @AppraisalId AND a.IsDeleted = 0)
+              AND rp.PropertyType IS NOT NULL;
+
+            -- RS05: combined selected pricing approaches across ALL project models (วิธีการประเมิน)
+            SELECT DISTINCT paa.ApproachType
+            FROM appraisal.PricingAnalysisApproaches paa
+            JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId AND pa.SubjectType = 1
+            JOIN appraisal.ProjectModels pm ON pm.Id = pa.AnchorId
+            WHERE pm.ProjectId = (SELECT p.Id FROM appraisal.Projects p WHERE p.AppraisalId = @AppraisalId)
+              AND paa.IsSelected = 1;
+
+            -- RS06: utility/facility code → Thai description maps
+            SELECT [group] AS [Group], [code] AS [Code], [description] AS [Description]
+            FROM parameter.Parameters
+            WHERE [group] IN ('PublicUtility', 'Facilities')
+              AND [language] = 'TH' AND [isactive] = 1;
             """;
 
         var batchParams = new DynamicParameters();
@@ -169,6 +199,9 @@ public sealed class AppraisalSummaryBlockDataProvider(
         ProjectRow? project;
         List<ProjectModelRow> modelRows;
         List<UnitPriceRow> unitRows;
+        List<string> requestPropertyTypes;
+        List<string> modelApproachTypes;
+        List<ParamRow> utilityFacilityParams;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, batchParams))
         {
@@ -180,7 +213,25 @@ public sealed class AppraisalSummaryBlockDataProvider(
 
             // RS03: QB3 — unit price rows
             unitRows = (await multi.ReadAsync<UnitPriceRow>()).ToList();
+
+            // RS04: distinct request property types
+            requestPropertyTypes = (await multi.ReadAsync<string>()).ToList();
+
+            // RS05: combined approaches across project models
+            modelApproachTypes = (await multi.ReadAsync<string>()).ToList();
+
+            // RS06: utility/facility param maps
+            utilityFacilityParams = (await multi.ReadAsync<ParamRow>()).ToList();
         }
+
+        var utilityMap = utilityFacilityParams
+            .Where(p => string.Equals(p.Group, "PublicUtility", StringComparison.OrdinalIgnoreCase) && p.Code is not null)
+            .GroupBy(p => p.Code!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Description, StringComparer.OrdinalIgnoreCase);
+        var facilityMap = utilityFacilityParams
+            .Where(p => string.Equals(p.Group, "Facilities", StringComparison.OrdinalIgnoreCase) && p.Code is not null)
+            .GroupBy(p => p.Code!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Description, StringComparer.OrdinalIgnoreCase);
 
         // A block appraisal must have a Project; if absent the appraisal exists but is not a block type.
         if (project is null)
@@ -188,7 +239,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
 
         // ── Build composed fields ────────────────────────────────────────────────
 
-        // Project address (same formatter signature as LandBuilding)
+        // Project address — drop any label whose value is empty (same as the other forms).
         var projectAddress = ThaiAddressFormatter.FormatLandBuilding(
             houseNumber: project.HouseNumber,
             village: null,
@@ -201,29 +252,42 @@ public sealed class AppraisalSummaryBlockDataProvider(
         if (string.IsNullOrWhiteSpace(projectAddress))
             projectAddress = null;
 
+        // Committee table รายการทรัพย์สิน (block): ชื่อโครงการ + ที่ตั้งโครงการ.
+        var approvalPropertyText = string.Join(" ",
+            new[] { project.ProjectName, projectAddress }.Where(s => !string.IsNullOrWhiteSpace(s)));
+
         // GPS
-        var gps = (project.Latitude is not null && project.Longitude is not null)
-            ? $"{project.Latitude:F6}, {project.Longitude:F6}"
-            : null;
+        var gps = ThaiAddressFormatter.FormatGps(project.Latitude, project.Longitude);
 
         // Utilities + Facilities: JSON array → comma-joined, appended with free-text Other
-        var utilities = BuildUtilityDisplay(JsonArrayToDisplay(project.Utilities), project.UtilitiesOther);
-        var facilities = BuildUtilityDisplay(JsonArrayToDisplay(project.Facilities), project.FacilitiesOther);
+        var utilities = BuildUtilityDisplay(JsonArrayToDisplay(project.Utilities, utilityMap), project.UtilitiesOther);
+        var facilities = BuildUtilityDisplay(JsonArrayToDisplay(project.Facilities, facilityMap), project.FacilitiesOther);
 
         // ProjectDetails: composed narrative from type + area + model list
         var projectDetails = BuildProjectDetails(project, modelRows);
 
+        // วิธีการประเมิน — combine the selected approaches from all project models.
+        var methodFlags = AppraisalSummaryCommonLoader.BuildMethodFlags(modelApproachTypes);
+
         // Determine ProjectType code ("U" / "LB" / "L")
         var projectTypeCode = project.ProjectType?.Trim().ToUpperInvariant();
 
-        // Property type display: translate via CollateralType param map; fall back to code description
-        var propertyTypeDisplay = projectTypeCode switch
-        {
-            "U"  => "อาคารชุด/ห้องชุด",
-            "LB" => "บ้านพร้อมที่ดิน",
-            "L"  => "ที่ดินจัดสรร",
-            _    => projectTypeCode
-        };
+        // Property type — distinct Request property types translated to Thai (same as the
+        // land-building form); fall back to the project-type code description.
+        var requestTypeLabel = string.Join(", ",
+            requestPropertyTypes
+                .Select(common.TranslateCollateralType)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct());
+        var propertyTypeDisplay = !string.IsNullOrWhiteSpace(requestTypeLabel)
+            ? requestTypeLabel
+            : projectTypeCode switch
+            {
+                "U"  => "อาคารชุด/ห้องชุด",
+                "LB" => "บ้านพร้อมที่ดิน",
+                "L"  => "ที่ดินจัดสรร",
+                _    => projectTypeCode
+            };
 
         // Per-unit table rows — branch on ProjectType
         var buildingUnits = new List<BlockBuildingUnitRow>();
@@ -285,8 +349,8 @@ public sealed class AppraisalSummaryBlockDataProvider(
             AppraisalPurpose    = common.AppraisalPurpose,
             PropertyType        = propertyTypeDisplay,
 
-            // For the "ที่ตั้งทรัพย์สิน" header row we show the project address
-            CollateralAddress       = projectAddress,
+            // ที่ตั้งทรัพย์สิน from the Request detail (same as the land-building form)
+            CollateralAddress       = common.CollateralAddress,
             AdministrativeDistrict  = project.SubDistrict,
             LandOffice              = project.LandOffice,
             OldAppraisalValue       = null,
@@ -307,7 +371,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
             ProjectAddress        = projectAddress,
             Developer             = project.Developer,
             ProjectDetails        = projectDetails,
-            ProjectSaleLaunchDate = project.ProjectSaleLaunchDate,
+            ProjectSaleLaunchDate = FormatThaiPartialDate(project.ProjectSaleLaunchDate),
             Utilities             = utilities,
             Facilities            = facilities,
             AppraisalValueWording =
@@ -326,14 +390,14 @@ public sealed class AppraisalSummaryBlockDataProvider(
             GovernmentAssessedValue = null,
             Utilization            = null,
 
-            // Pricing method flags from common
-            IsWqs       = common.IsWqs,
-            IsSaleGrid  = common.IsSaleGrid,
-            IsCost      = common.IsCost,
-            IsIncome    = common.IsIncome,
-            IsHypothesis = common.IsHypothesis,
-            IsLeasehold  = common.IsLeasehold,
-            IsProfitRent = common.IsProfitRent,
+            // วิธีการประเมิน — combined approaches across all project models
+            IsWqs       = methodFlags.IsWqs,
+            IsSaleGrid  = methodFlags.IsSaleGrid,
+            IsCost      = methodFlags.IsCost,
+            IsIncome    = methodFlags.IsIncome,
+            IsHypothesis = methodFlags.IsHypothesis,
+            IsLeasehold  = methodFlags.IsLeasehold,
+            IsProfitRent = methodFlags.IsProfitRent,
 
             AppraiserComment        = common.AppraiserComment,
             AppraisalStaffName      = common.StaffName,
@@ -345,10 +409,14 @@ public sealed class AppraisalSummaryBlockDataProvider(
 
             MeetingNumber           = common.Review?.MeetingNo,
             MeetingDate             = common.Review?.MeetingDate,
+            ApprovalDate            = common.ApprovalDate,
+            IsCompleted             = common.IsCompleted,
             ShowMeeting             = common.ShowMeeting,
             ApproverDecisionApproved = common.ApproverDecisionApproved,
             Approvers               = common.Approvers,
-            ApproverSummaryComment  = common.CommitteeOpinion
+            ApproverSummaryComment  = common.CommitteeOpinion,
+            ApprovalValueText       = "ตามแนบ",
+            ApprovalPropertyText    = string.IsNullOrWhiteSpace(approvalPropertyText) ? null : approvalPropertyText
         };
 
         return model;
@@ -386,7 +454,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
         {
             parts.Append(
                 $" พื้นที่โครงการประมาณ " +
-                $"{project.LandAreaRai:0.##}-{project.LandAreaNgan:0.##}-{project.LandAreaSquareWa:0.##} ไร่");
+                $"{project.LandAreaRai.GetValueOrDefault():0.##}-{project.LandAreaNgan.GetValueOrDefault():0.##}-{project.LandAreaSquareWa.GetValueOrDefault():0.##} ไร่");
         }
 
         if (project.UnitForSaleCount.HasValue && project.UnitForSaleCount.Value > 0)
@@ -438,7 +506,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 }
 
                 if (modelParts.Count > 0)
-                    parts.Append($" {i + 1}.) {string.Join(" ", modelParts)}");
+                    parts.Append($"\n{i + 1}.) {string.Join(" ", modelParts)}");
             }
         }
 
@@ -450,6 +518,32 @@ public sealed class AppraisalSummaryBlockDataProvider(
     /// Combines a decoded JSON-array display string with a free-text "Other" suffix.
     /// Returns null when both inputs are blank.
     /// </summary>
+    // วันที่เปิดขายโครงการ may be partial: "YYYY", "YYYY-MM", or "YYYY-MM-DD" (Gregorian).
+    // Show only the parts present, converting the year to Buddhist era.
+    private static readonly string[] ThaiMonths =
+    {
+        "", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+        "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+    };
+
+    private static string? FormatThaiPartialDate(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var parts = raw.Trim().Split('-');
+        if (!int.TryParse(parts[0], out var year)) return null;
+        var beYear = year + 543;
+
+        if (parts.Length >= 3
+            && int.TryParse(parts[1], out var m) && m is >= 1 and <= 12
+            && int.TryParse(parts[2], out var d) && d >= 1)
+            return $"{d} {ThaiMonths[m]} {beYear}";
+
+        if (parts.Length >= 2 && int.TryParse(parts[1], out var m2) && m2 is >= 1 and <= 12)
+            return $"{ThaiMonths[m2]} {beYear}";
+
+        return beYear.ToString();
+    }
+
     private static string? BuildUtilityDisplay(string? decoded, string? other)
     {
         var parts = new List<string>();
@@ -464,7 +558,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
     /// Returns a comma-joined display string, falls back to the raw value for non-JSON,
     /// and null for empty/null input.
     /// </summary>
-    private static string? JsonArrayToDisplay(string? raw)
+    private static string? JsonArrayToDisplay(string? raw, IReadOnlyDictionary<string, string?> codeMap)
     {
         if (string.IsNullOrWhiteSpace(raw))
             return null;
@@ -478,7 +572,10 @@ public sealed class AppraisalSummaryBlockDataProvider(
             var items = System.Text.Json.JsonSerializer.Deserialize<List<string>>(s);
             if (items is null || items.Count == 0)
                 return null;
-            var joined = string.Join(", ", items.Where(x => !string.IsNullOrWhiteSpace(x)));
+            // Translate each code to its description; fall back to the code if unmapped.
+            var joined = string.Join(", ", items
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(c => codeMap.TryGetValue(c, out var d) && !string.IsNullOrWhiteSpace(d) ? d : c));
             return string.IsNullOrWhiteSpace(joined) ? null : joined;
         }
         catch (System.Text.Json.JsonException)
@@ -529,6 +626,13 @@ public sealed class AppraisalSummaryBlockDataProvider(
         public decimal? UsableAreaMin     { get; init; }
         public decimal? UsableAreaMax     { get; init; }
         public decimal? StandardUsableArea { get; init; }
+    }
+
+    private sealed class ParamRow
+    {
+        public string? Group { get; init; }
+        public string? Code { get; init; }
+        public string? Description { get; init; }
     }
 
     private sealed class UnitPriceRow

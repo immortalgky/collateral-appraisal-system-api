@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using Shared.Data;
 using Shared.Identity;
@@ -35,56 +36,39 @@ public class GetPoolTasksQueryHandler(
 
         var team = await teamService.GetTeamForUserAsync(username, cancellationToken);
 
-        var clause = PoolTaskAccess.BuildSqlClause(userGroups, team?.TeamId, currentUserService.CompanyId, username);
-        if (clause is null)
+        var (assignees, companyGate) =
+            PoolTaskAccess.BuildProcAccess(userGroups, team?.TeamId, currentUserService.CompanyId, username);
+        if (assignees.Count == 0)
             return new GetPoolTasksResult(new PaginatedResult<PoolTaskDto>([], 0, 0, 10));
 
-        var parameters = new DynamicParameters();
-        foreach (var (k, v) in clause.Parameters)
-            parameters.Add(k, v);
+        var parameters = TaskListProcParams.Build(
+            assignedType: "2",
+            assignees: assignees,
+            companyGate: companyGate,
+            callerCompanyId: currentUserService.CompanyId,
+            filter: query.Filter,
+            pagination: query.PaginationRequest);
 
-        // Base predicates reference only raw PendingTasks columns (AssignedType +
-        // the pool-access clause on AssigneeUserId/AssigneeCompanyId).
-        var basePredicates = new List<string> { "AssignedType = '2'", clause.Sql };
+        var connection = connectionFactory.GetOpenConnection();
+        using var grid = await connection.QueryMultipleAsync(new CommandDefinition(
+            "workflow.sp_GetTaskList", parameters,
+            commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
 
-        var filter = query.Filter;
-        var filterConditions = TaskListFilterBuilder.BuildConditions(filter, parameters);
+        var rows = (await grid.ReadAsync<PoolTaskDto>()).ToList();
+        var total = await grid.ReadFirstAsync<int>();
 
-        // Data query reads the enriched view (it returns enriched columns).
-        var dataConditions = basePredicates.Concat(filterConditions.Select(c => c.Sql));
-        var sql = "SELECT * FROM workflow.vw_TaskList WHERE " + string.Join(" AND ", dataConditions);
-
-        // COUNT is the expensive part over the view (it can't short-circuit like the
-        // paged data query). When every filter is on a base PendingTasks column we
-        // count straight off the base table instead — a pure index seek.
-        string? countSql = null;
-        if (!filterConditions.Any(c => c.IsEnriched))
-        {
-            var countConditions = basePredicates.Concat(filterConditions.Select(c => c.Sql));
-            countSql = TaskListFilterBuilder.BaseCountSource + " WHERE " + string.Join(" AND ", countConditions);
-        }
-
-        var orderBy = TaskListFilterBuilder.ResolveOrderBy(filter);
-
-        var result = await connectionFactory.QueryPaginatedAsync<PoolTaskDto>(
-            sql,
-            countSql,
-            orderBy,
-            query.PaginationRequest,
-            parameters);
-
-        // Elapsed/Remaining are computed in C# (business hours, excl. weekends/holidays/lunch)
-        // since vw_TaskList no longer derives them. Only the returned page is recomputed.
+        // Elapsed/Remaining are computed in C# (business hours, excl. weekends/holidays/lunch).
         var now = clock.ApplicationNow;
-        var items = new List<PoolTaskDto>();
-        foreach (var t in result.Items)
+        var items = new List<PoolTaskDto>(rows.Count);
+        foreach (var t in rows)
         {
             var (elapsed, remaining) =
-                await businessTime.ComputeElapsedRemainingHoursAsync(now, t.AssignedDate, t.DueAt, cancellationToken);
+                await businessTime.ComputeElapsedRemainingHoursAsync(now, t.SlaStartAt ?? t.AssignedDate, t.DueAt, clockStart: t.SlaStartAt, ct: cancellationToken);
             items.Add(t with { ElapsedHours = elapsed, RemainingHours = remaining });
         }
 
-        var paged = new PaginatedResult<PoolTaskDto>(items, result.Count, result.PageNumber, result.PageSize);
+        var paged = new PaginatedResult<PoolTaskDto>(
+            items, total, query.PaginationRequest.PageNumber, query.PaginationRequest.PageSize);
         return new GetPoolTasksResult(paged);
     }
 }

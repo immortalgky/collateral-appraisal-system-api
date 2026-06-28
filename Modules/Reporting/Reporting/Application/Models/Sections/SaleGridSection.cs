@@ -14,6 +14,17 @@ namespace Reporting.Application.Models.Sections;
 /// </summary>
 public sealed class SaleGridSection
 {
+    // ── Property group routing ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// PropertyGroups.GroupNumber for the group this SaleGrid method belongs to.
+    /// Used to print a กลุ่มที่ N bar when multiple groups use SaleGrid.
+    /// </summary>
+    public int GroupNumber { get; init; }
+
+    /// <summary>PropertyGroups.GroupName for the group, or null when no name is set.</summary>
+    public string? GroupName { get; init; }
+
     // ── Column headers ────────────────────────────────────────────────────────
 
     /// <summary>
@@ -59,11 +70,11 @@ public sealed class SaleGridSection
 }
 
 /// <summary>
-/// One horizontal row in the Sale Grid adjustment table.
+/// One horizontal row in the Sale Grid / Direct Comparison analysis table (FSD §2.1.2.10).
 ///
-/// <c>Label</c> is the Thai row heading (first column).
-/// <c>Values</c> contains one formatted string per comparable in
-/// <c>ComparableHeaders</c> order; null entries render as blank.
+/// <c>Label</c> is the Thai row heading (first column), <c>Values</c> the per-comparable
+/// cells, and <c>SubjectValue</c> the ทรัพย์สิน (SP) column. <c>Emphasis</c> marks
+/// subtotal/summary rows that the FSD renders in bold.
 /// </summary>
 public sealed class SaleGridRow
 {
@@ -76,4 +87,14 @@ public sealed class SaleGridRow
     /// A null element means the comparable has no data for this row.
     /// </summary>
     public IReadOnlyList<string?> Values { get; init; } = [];
+
+    /// <summary>
+    /// ทรัพย์สิน (SP) column value for this row (subject property). Null renders as blank.
+    /// Detail rows source it from PricingComparativeFactors.CollateralValue; the final
+    /// summary rows source it from the method's MethodValue / rounded value.
+    /// </summary>
+    public string? SubjectValue { get; init; }
+
+    /// <summary>True for subtotal/summary rows the FSD renders in bold.</summary>
+    public bool Emphasis { get; init; }
 }

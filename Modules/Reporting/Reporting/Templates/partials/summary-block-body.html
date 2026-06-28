@@ -18,60 +18,53 @@
   <!-- ════ HEADER + INFO BLOCK opening — shared partial (opens .pad) ════ -->
   {{ summary_title = "สรุปรายงานการประเมินราคาทรัพย์สิน" }}
   {{ include 'partials/summary-head' }}
-    <div class="cols2">
-      <div class="kv"><span class="k">เขตการปกครอง :</span><span class="v">{{ model.administrative_district }}</span></div>
-      <div class="kv"><span class="k">ผู้ประเมินราคา :</span><span class="v">{{ model.appraiser }}</span></div>
-    </div>
+    <div class="kv"><span class="k">เขตการปกครอง</span><span class="v">{{ model.administrative_district }}</span></div>
+    <div class="kv"><span class="k">ผู้ประเมินราคา</span><span class="v">{{ model.appraiser }}</span></div>
   </div>
 
   <!-- ════ SECTION: รายการทรัพย์สิน ════ -->
   <div class="section-bar">รายการทรัพย์สิน</div>
   <div class="pad">
 
-    <div class="kv"><span class="k">ชื่อโครงการ :</span><span class="v">{{ model.project_name }}</span></div>
-    <div class="kv"><span class="k">ที่ตั้งโครงการ :</span><span class="v">{{ model.project_address }}</span></div>
-    <div class="kv"><span class="k">เจ้าของโครงการ :</span><span class="v">{{ model.developer }}</span></div>
+    <div class="kv"><span class="k">ชื่อโครงการ</span><span class="v">{{ model.project_name }}</span></div>
+    <div class="kv"><span class="k">ที่ตั้งโครงการ</span><span class="v">{{ model.project_address }}</span></div>
+    <div class="kv"><span class="k">เจ้าของโครงการ</span><span class="v">{{ model.developer }}</span></div>
 
     {{ if model.project_details }}
     <div class="kv">
-      <span class="k">ลักษณะโครงการ :</span>
+      <span class="k">ลักษณะโครงการ</span>
       <span class="v project-details">{{ model.project_details }}</span>
     </div>
     {{ end }}
 
     {{ if model.project_sale_launch_date }}
-    <div class="kv"><span class="k">วันที่เปิดขายโครงการ :</span><span class="v">{{ model.project_sale_launch_date }}</span></div>
+    <div class="kv"><span class="k">วันที่เปิดขายโครงการ</span><span class="v">{{ model.project_sale_launch_date }}</span></div>
     {{ end }}
 
     {{ if model.utilities }}
-    <div class="kv"><span class="k">สาธารณูปโภค :</span><span class="v">{{ model.utilities }}</span></div>
+    <div class="kv"><span class="k">สาธารณูปโภค</span><span class="v">{{ model.utilities }}</span></div>
     {{ end }}
 
     {{ if model.facilities }}
-    <div class="kv"><span class="k">สิ่งอำนวยความสะดวก :</span><span class="v">{{ model.facilities }}</span></div>
+    <div class="kv"><span class="k">สิ่งอำนวยความสะดวก</span><span class="v">{{ model.facilities }}</span></div>
     {{ end }}
 
-    <div class="kv"><span class="k">ราคาประเมิน :</span><span class="v">{{ model.appraisal_value_wording }}</span></div>
+    <div class="kv"><span class="k">ราคาประเมิน</span><span class="v">{{ model.appraisal_value_wording }}</span></div>
 
-    {{ if model.condition }}
-    <div class="kv"><span class="k">เงื่อนไข :</span><span class="v">{{ model.condition }}</span></div>
-    {{ end }}
-
-    {{ if model.remark }}
-    <div class="kv"><span class="k">หมายเหตุ :</span><span class="v">{{ model.remark }}</span></div>
-    {{ end }}
+    <div class="kv"><span class="k">เงื่อนไข</span><span class="v brk">{{ model.condition }}</span></div>
+    <div class="kv"><span class="k">หมายเหตุ</span><span class="v brk">{{ model.remark }}</span></div>
 
     {{ if model.gps }}
-    <div class="kv"><span class="k">พิกัด :</span><span class="v">{{ model.gps }}</span></div>
+    <div class="kv"><span class="k">พิกัด</span><span class="v">{{ model.gps }}</span></div>
     {{ end }}
 
     <div class="kv" style="margin-top:4px;">
-      <span class="k">วิธีการประเมิน :</span>
+      <span class="k">วิธีการประเมิน</span>
       <span class="methods">
-        <span class="m"><span class="chk">{{ if model.is_wqs || model.is_sale_grid }}&#9745;{{ else }}&#9744;{{ end }}</span> Market Comparison Approach</span>
-        <span class="m"><span class="chk">{{ if model.is_cost }}&#9745;{{ else }}&#9744;{{ end }}</span> Cost Approach</span>
-        <span class="m"><span class="chk">{{ if model.is_income }}&#9745;{{ else }}&#9744;{{ end }}</span> Income Approach</span>
-        <span class="m"><span class="chk">{{ if model.is_hypothesis }}&#9745;{{ else }}&#9744;{{ end }}</span> Residual Approach</span>
+        <span class="m"><span class="chk {{ if model.is_wqs || model.is_sale_grid }}on{{ end }}"></span> Market Comparison Approach</span>
+        <span class="m"><span class="chk {{ if model.is_cost }}on{{ end }}"></span> Cost Approach</span>
+        <span class="m"><span class="chk {{ if model.is_income }}on{{ end }}"></span> Income Approach</span>
+        <span class="m"><span class="chk {{ if model.is_hypothesis }}on{{ end }}"></span> Residual Approach</span>
       </span>
     </div>
 
@@ -88,7 +81,8 @@
 
   <!-- ════ UNIT TABLE: LB / Land ════ -->
   {{ if model.building_units.size > 0 }}
-  <div class="section-bar" style="margin-top:10px;">
+  <div class="landscape-page">
+  <div class="section-bar">
     สรุปราคาประเมินรายแปลง เพื่อสนับสนุนรายย่อยโครงการ
   </div>
   <table class="unit-table">
@@ -123,11 +117,13 @@
       {{ end }}
     </tbody>
   </table>
+  </div><!-- .landscape-page -->
   {{ end }}
 
   <!-- ════ UNIT TABLE: Condo ════ -->
   {{ if model.condo_units.size > 0 }}
-  <div class="section-bar" style="margin-top:10px;">
+  <div class="landscape-page">
+  <div class="section-bar">
     สรุปราคาประเมินรายยูนิต เพื่อสนับสนุนรายย่อยโครงการ
   </div>
   <table class="unit-table">
@@ -162,6 +158,7 @@
       {{ end }}
     </tbody>
   </table>
+  </div><!-- .landscape-page -->
   {{ end }}
 
 </div>

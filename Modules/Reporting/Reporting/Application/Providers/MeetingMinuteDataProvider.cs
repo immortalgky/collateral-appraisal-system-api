@@ -69,17 +69,29 @@ public sealed class MeetingMinuteDataProvider(
                 mi.AppraisalId,
                 mi.Kind,
                 a.AppraisalType,
+                mi.AcknowledgementGroup,
                 mi.FacilityLimit,
                 c.Name AS CustomerName,
+                pr.ProjectName,
+                u.FirstName + ' ' + u.LastName AS AppraisalStaff,
+                u.Position AS StaffPosition,
                 v.AppraisedValue,
                 ad.IsPriceVerified
             FROM workflow.MeetingItems mi
             INNER JOIN appraisal.Appraisals a ON a.Id = mi.AppraisalId
             OUTER APPLY (
-                SELECT TOP 1 Name
-                FROM request.RequestCustomers
-                WHERE RequestId = a.RequestId
+                SELECT STRING_AGG(rc.Name, '||') AS Name
+                FROM request.RequestCustomers rc
+                WHERE rc.RequestId = a.RequestId
             ) c
+            OUTER APPLY (
+                SELECT TOP 1 COALESCE(AssigneeUserId, InternalAppraiserId) AS InternalAppraiserId
+                FROM appraisal.AppraisalAssignments
+                WHERE AppraisalId = a.Id AND AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+                ORDER BY AssignedAt DESC, CreatedAt DESC
+            ) aa
+            LEFT JOIN auth.AspNetUsers u ON u.UserName = aa.InternalAppraiserId
+            LEFT JOIN appraisal.Projects pr ON pr.AppraisalId = a.Id
             LEFT JOIN appraisal.ValuationAnalyses v ON v.AppraisalId = a.Id
             LEFT JOIN appraisal.AppraisalDecisions ad ON ad.AppraisalId = a.Id
             WHERE mi.MeetingId = @MeetingId
@@ -155,6 +167,8 @@ public sealed class MeetingMinuteDataProvider(
             header.AgendaChairmanInformed,
             header.AgendaOthers);
 
+        var presenters = MeetingAgendaBuilder.BuildPresenters(items);
+
         var committeeOpinions = voteRows.Select(v => new CommitteeOpinionRow
         {
             MemberName = v.MemberName,
@@ -174,6 +188,7 @@ public sealed class MeetingMinuteDataProvider(
             Location = header.Location,
             MinuteDate = minuteDate,
             Members = members,
+            Presenters = presenters,
             Agendas = agendas,
             CommitteeOpinions = committeeOpinions
         };

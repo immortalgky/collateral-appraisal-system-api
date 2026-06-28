@@ -4,27 +4,31 @@ using Reporting.Application.Models;
 namespace Reporting.Application.Providers;
 
 /// <summary>
-/// Derives the FSD §2.1.8 วาระ 1–9 agenda groups from raw meeting data.
+/// Derives the FSD §2.1.8 วาระ 1–9 agenda groups from raw meeting data. The grouping mirrors
+/// the meeting-detail screen (<c>GetMeetingDetailQueryHandler</c>): Decision items split by
+/// <see cref="MeetingItemFlat.AppraisalType"/>, Acknowledgement items split by
+/// <see cref="MeetingItemFlat.AcknowledgementGroup"/>. There is NO facility-amount bucketing.
 ///
-/// Grouping rules (Decision items only; Acknowledgement items are excluded):
-///   วาระ 3 = New,  FacilityLimit &gt; 30,000,000
-///   วาระ 4 = ReAppraisal, &gt; 30M
-///   วาระ 5 = &gt; 30M and not New/ReAppraisal/Block (Construction/Progressive + catch-all)
-///   วาระ 6 = Block/Project types (any FacilityLimit)
-///   วาระ 7 = group 2: 10M &lt; FacilityLimit &lt;= 30M, non-Block
-///   วาระ 8 = FacilityLimit &lt;= 10M, non-Block
+///   วาระ 3 = Decision · New                 (NEW APPRAISALS)
+///   วาระ 4 = Decision · ReAppraisal         (RE-APPRAISALS)
+///   วาระ 5 = Decision · Progressive         (PROGRESSIVE APPRAISALS)
+///   วาระ 6 = Decision · PreAppraisal        (PRE-APPRAISALS / block-MF)
+///   วาระ 7 = Acknowledgement · group "2"    (ACKNOWLEDGE FOR URGENT APPROVAL / GROUP 2)
+///   วาระ 8 = Acknowledgement · other groups (ACKNOWLEDGE / GROUP 1)
 ///
 /// Text-only agendas (no item list):
 ///   วาระ 1 = รับรองรายงานการประชุมครั้งที่ {previousMeetingNo} + AgendaCertifyMinutes
 ///   วาระ 2 = AgendaChairmanInformed
-///   วาระ 9 = AgendaOthers (only if non-empty)
+///   วาระ 9 = AgendaOthers
 ///
-/// Only agendas that have at least one item (or a non-empty body text) are included.
+/// All 9 วาระ are always emitted (fixed form), even when a วาระ carries no items/data.
 /// </summary>
 internal static class MeetingAgendaBuilder
 {
-    private const decimal Threshold30M = 30_000_000m;
-    private const decimal Threshold10M = 10_000_000m;
+    // Acknowledgement group whose items go to วาระ 7 (urgent approval / Group 2). Per
+    // appsettings Workflow:AcknowledgementGroupByCommitteeCode, COMMITTEE → "2". Everything
+    // else (e.g. SUB_COMMITTEE → "1") falls to วาระ 8 so no acknowledgement item is dropped.
+    private const string UrgentApprovalGroup = "2";
 
     public static IReadOnlyList<MeetingAgendaGroup> Build(
         IReadOnlyList<MeetingItemFlat> items,
@@ -33,99 +37,91 @@ internal static class MeetingAgendaBuilder
         string? agendaChairmanInformed,
         string? agendaOthers)
     {
-        var groups = new List<MeetingAgendaGroup>();
+        var byWara = EnumerateAgendaItems(items)
+            .GroupBy(x => x.Wara)
+            .ToDictionary(g => g.Key, g => g.Select(x => ToRow(x.Item)).ToList());
 
-        // ── วาระ 1: รับรองรายงานการประชุม (certify previous minutes) ─────────
-        var w1Body = BuildCertifyBody(previousMeetingNo, agendaCertifyMinutes);
-        if (!string.IsNullOrWhiteSpace(w1Body))
+        List<MeetingAgendaItemRow> Rows(int wara) =>
+            byWara.TryGetValue(wara, out var rows) ? rows : new List<MeetingAgendaItemRow>();
+
+        // FSD §2.1.8 — all 9 วาระ are a fixed form and always rendered, even when a วาระ carries
+        // no items/data. Decision วาระ (3–8) always show their "จำนวน N ราย" count (N may be 0).
+        return new List<MeetingAgendaGroup>
         {
-            groups.Add(new MeetingAgendaGroup
+            TextGroup(1, BuildCertifyTitle(previousMeetingNo), agendaCertifyMinutes),
+            TextGroup(2, "ประธานแจ้งเพื่อทราบ", agendaChairmanInformed),
+            DecisionGroup(3, "กำหนดราคาประเมินของวงเงินสินเชื่อใหม่", Rows(3)),
+            DecisionGroup(4, "ขอทบทวนราคาประเมิน", Rows(4)),
+            DecisionGroup(5, "การตรวจงวดงานก่อสร้าง", Rows(5)),
+            DecisionGroup(6, "งานประเมินเพื่อสนับสนุนรายย่อยภายในโครงการ (MF)", Rows(6)),
+            DecisionGroup(7, "อนุมัติเร่งด่วน", Rows(7)),
+            DecisionGroup(8, "แจ้งเพื่อทราบ", Rows(8)),
+            TextGroup(9, "อื่นๆ", agendaOthers),
+        }.AsReadOnly();
+    }
+
+    /// <summary>
+    /// FSD §2.1.9 fields 4.1–4.3: distinct appraisal staff (presenters) across all decision/ack
+    /// agenda items, each with their position and the "{วาระ}.{seq}" references of the items they
+    /// presented (e.g. a staff on วาระ 8 item 1 → "8.1"; multiple → "8.1, 8.2"). Minute only.
+    /// </summary>
+    public static IReadOnlyList<MeetingPresenterRow> BuildPresenters(IReadOnlyList<MeetingItemFlat> items)
+    {
+        var byStaff = new Dictionary<string, (string Position, List<string> Refs)>();
+        var order = new List<string>();
+
+        foreach (var (wara, seq, item) in EnumerateAgendaItems(items))
+        {
+            var name = item.AppraisalStaff?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                continue;
+
+            if (!byStaff.TryGetValue(name, out var entry))
             {
-                Number = 1,
-                Title = "รับรองรายงานการประชุม",
-                BodyText = w1Body
-            });
+                entry = (item.StaffPosition?.Trim() ?? string.Empty, new List<string>());
+                byStaff[name] = entry;
+                order.Add(name);
+            }
+            entry.Refs.Add($"{wara}.{seq}");
         }
 
-        // ── วาระ 2: แจ้งเพื่อทราบ (chairman informed) ───────────────────────
-        if (!string.IsNullOrWhiteSpace(agendaChairmanInformed))
-        {
-            groups.Add(new MeetingAgendaGroup
+        return order
+            .Select(name => new MeetingPresenterRow
             {
-                Number = 2,
-                Title = "แจ้งเพื่อทราบ",
-                BodyText = agendaChairmanInformed
-            });
-        }
+                PresenterName = name,
+                Position = byStaff[name].Position,
+                AgendaRefs = string.Join(", ", byStaff[name].Refs)
+            })
+            .ToList()
+            .AsReadOnly();
+    }
 
-        // Decision items only
+    /// <summary>
+    /// Yields every decision/ack agenda item with its วาระ number (3–8) and 1-based sequence
+    /// within that วาระ — the single source of truth shared by <see cref="Build"/> (item rows)
+    /// and <see cref="BuildPresenters"/> (presenter references), so the two never disagree.
+    /// </summary>
+    private static IEnumerable<(int Wara, int Seq, MeetingItemFlat Item)> EnumerateAgendaItems(
+        IReadOnlyList<MeetingItemFlat> items)
+    {
         var decisionItems = items.Where(i =>
             string.Equals(i.Kind, "Decision", StringComparison.OrdinalIgnoreCase)).ToList();
+        var ackItems = items.Where(i =>
+            string.Equals(i.Kind, "Acknowledgement", StringComparison.OrdinalIgnoreCase)).ToList();
 
-        // ── วาระ 3: ขออนุมัติราคา New > 30M ─────────────────────────────────
-        var w3 = decisionItems
-            .Where(i => IsNew(i) && i.FacilityLimit > Threshold30M)
-            .Select(ToRow)
-            .ToList();
-        if (w3.Count > 0)
-            groups.Add(MakeGroup(3, "ขออนุมัติราคาประเมินรายใหม่ (วงเงินเกิน 30 ล้านบาท)", w3));
-
-        // ── วาระ 4: ขออนุมัติราคา ReAppraisal > 30M ──────────────────────────
-        var w4 = decisionItems
-            .Where(i => IsReAppraisal(i) && i.FacilityLimit > Threshold30M)
-            .Select(ToRow)
-            .ToList();
-        if (w4.Count > 0)
-            groups.Add(MakeGroup(4, "ขออนุมัติราคาประเมินซ้ำ (วงเงินเกิน 30 ล้านบาท)", w4));
-
-        // ── วาระ 5: Construction/Progressive > 30M, AND the >30M catch-all ────────
-        // Any decision item over 30M that is NOT New/ReAppraisal/Block lands here, so
-        // an unhandled AppraisalType (e.g. PreAppraisal) is never silently dropped from
-        // the committee agenda (the 10M/≤10M buckets only catch ≤30M items).
-        var w5 = decisionItems
-            .Where(i => i.FacilityLimit > Threshold30M
-                        && !IsNew(i) && !IsReAppraisal(i) && !IsBlock(i))
-            .Select(ToRow)
-            .ToList();
-        if (w5.Count > 0)
-            groups.Add(MakeGroup(5, "ขออนุมัติราคาประเมินระหว่างก่อสร้าง (วงเงินเกิน 30 ล้านบาท)", w5));
-
-        // ── วาระ 6: Block/Project ─────────────────────────────────────────────
-        var w6 = decisionItems
-            .Where(i => IsBlock(i))
-            .Select(ToRow)
-            .ToList();
-        if (w6.Count > 0)
-            groups.Add(MakeGroup(6, "ขออนุมัติราคาประเมินโครงการ", w6));
-
-        // ── วาระ 7: กลุ่ม 2 (10M < limit <= 30M; excludes block) ─────────────
-        var w7 = decisionItems
-            .Where(i => !IsBlock(i) && i.FacilityLimit > Threshold10M && i.FacilityLimit <= Threshold30M)
-            .Select(ToRow)
-            .ToList();
-        if (w7.Count > 0)
-            groups.Add(MakeGroup(7, "ขออนุมัติราคาประเมิน (วงเงิน 10–30 ล้านบาท)", w7));
-
-        // ── วาระ 8: กลุ่ม 3 (<= 10M; excludes block) ────────────────────────
-        var w8 = decisionItems
-            .Where(i => !IsBlock(i) && i.FacilityLimit <= Threshold10M)
-            .Select(ToRow)
-            .ToList();
-        if (w8.Count > 0)
-            groups.Add(MakeGroup(8, "ขออนุมัติราคาประเมิน (วงเงินไม่เกิน 10 ล้านบาท)", w8));
-
-        // ── วาระ 9: วาระอื่น ๆ (others free text) ────────────────────────────
-        if (!string.IsNullOrWhiteSpace(agendaOthers))
+        var buckets = new (int Wara, List<MeetingItemFlat> Items)[]
         {
-            groups.Add(new MeetingAgendaGroup
-            {
-                Number = 9,
-                Title = "วาระอื่น ๆ",
-                BodyText = agendaOthers
-            });
-        }
+            (3, decisionItems.Where(IsNew).ToList()),
+            (4, decisionItems.Where(IsReAppraisal).ToList()),
+            (5, decisionItems.Where(IsProgressive).ToList()),
+            (6, decisionItems.Where(IsBlock).ToList()),
+            (7, ackItems.Where(IsUrgentGroup).ToList()),
+            (8, ackItems.Where(i => !IsUrgentGroup(i)).ToList()),
+        };
 
-        return groups.AsReadOnly();
+        foreach (var (wara, list) in buckets)
+            for (var idx = 0; idx < list.Count; idx++)
+                yield return (wara, idx + 1, list[idx]);
     }
 
     // ── AppraisalType classification helpers ──────────────────────────────────
@@ -136,20 +132,35 @@ internal static class MeetingAgendaBuilder
     private static bool IsReAppraisal(MeetingItemFlat i) =>
         string.Equals(i.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsConstruction(MeetingItemFlat i) =>
-        string.Equals(i.AppraisalType, "Construction", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(i.AppraisalType, "Progressive", StringComparison.OrdinalIgnoreCase);
+    private static bool IsProgressive(MeetingItemFlat i) =>
+        string.Equals(i.AppraisalType, "Progressive", StringComparison.OrdinalIgnoreCase);
 
+    // Block/Project (MF — งานประเมินเพื่อสนับสนุนรายย่อยภายในโครงการ, FSD วาระ 6) is carried on
+    // Appraisal.AppraisalType == "PreAppraisal".
     private static bool IsBlock(MeetingItemFlat i) =>
-        string.Equals(i.AppraisalType, "Block", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(i.AppraisalType, "Project", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(i.AppraisalType, "BlockCondo", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(i.AppraisalType, "BlockLandBuilding", StringComparison.OrdinalIgnoreCase);
+        string.Equals(i.AppraisalType, "PreAppraisal", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsUrgentGroup(MeetingItemFlat i) =>
+        string.Equals(i.AcknowledgementGroup, UrgentApprovalGroup, StringComparison.OrdinalIgnoreCase);
 
     // ── Row builder ───────────────────────────────────────────────────────────
 
     private static MeetingAgendaItemRow ToRow(MeetingItemFlat i)
     {
+        // Block/Project items (วาระ 6) show the project name + "ดูตามสรุปราคา" wording instead of a
+        // customer name and numeric value (FSD §2.1.8 #25 / §2.1.9 #24-25). The empty value lets the
+        // invitation render the project name alone; the minute template supplies the FSD value wording.
+        if (IsBlock(i))
+        {
+            return new MeetingAgendaItemRow
+            {
+                CustomerName = string.IsNullOrWhiteSpace(i.ProjectName)
+                    ? JoinThaiNames(i.CustomerName)
+                    : i.ProjectName!,
+                ValueText = string.Empty
+            };
+        }
+
         // When IsPriceVerified is explicitly false, show ไม่รับรองราคา instead of the value.
         var valueText = i.IsPriceVerified == false
             ? "ไม่รับรองราคา"
@@ -159,12 +170,34 @@ internal static class MeetingAgendaBuilder
 
         return new MeetingAgendaItemRow
         {
-            CustomerName = i.CustomerName ?? string.Empty,
+            CustomerName = JoinThaiNames(i.CustomerName),
             ValueText = valueText
         };
     }
 
-    private static MeetingAgendaGroup MakeGroup(int number, string title, List<MeetingAgendaItemRow> rows) =>
+    /// <summary>
+    /// Joins a "||"-delimited customer-name list (from the provider's STRING_AGG) into the
+    /// FSD display form: names separated by ", " with "และ" before the last
+    /// (e.g. "ก, ข และ ค"). Single name passes through unchanged.
+    /// </summary>
+    internal static string JoinThaiNames(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return string.Empty;
+
+        var names = raw
+            .Split("||", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        return names.Length switch
+        {
+            0 => string.Empty,
+            1 => names[0],
+            _ => string.Join(", ", names[..^1]) + " และ " + names[^1]
+        };
+    }
+
+    /// <summary>A decision วาระ (3–8): always carries a "จำนวน N ราย" count, items may be empty.</summary>
+    private static MeetingAgendaGroup DecisionGroup(int number, string title, List<MeetingAgendaItemRow> rows) =>
         new()
         {
             Number = number,
@@ -173,15 +206,19 @@ internal static class MeetingAgendaBuilder
             Items = rows.AsReadOnly()
         };
 
-    private static string BuildCertifyBody(string? previousMeetingNo, string? agendaCertifyMinutes)
-    {
-        var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(previousMeetingNo))
-            parts.Add($"รับรองรายงานการประชุมครั้งที่ {previousMeetingNo}");
-        if (!string.IsNullOrWhiteSpace(agendaCertifyMinutes))
-            parts.Add(agendaCertifyMinutes.Trim());
-        return string.Join(" — ", parts);
-    }
+    /// <summary>A text วาระ (1/2/9): heading always shown; body text optional.</summary>
+    private static MeetingAgendaGroup TextGroup(int number, string title, string? bodyText) =>
+        new()
+        {
+            Number = number,
+            Title = title,
+            BodyText = string.IsNullOrWhiteSpace(bodyText) ? null : bodyText.Trim()
+        };
+
+    private static string BuildCertifyTitle(string? previousMeetingNo) =>
+        string.IsNullOrWhiteSpace(previousMeetingNo)
+            ? "รับรองรายงานการประชุม"
+            : $"รับรองรายงานการประชุมครั้งที่ {previousMeetingNo}";
 }
 
 /// <summary>
@@ -193,8 +230,22 @@ internal sealed class MeetingItemFlat
     public Guid AppraisalId { get; init; }
     public string? Kind { get; init; }
     public string? AppraisalType { get; init; }
+
+    /// <summary>Acknowledgement group key ("1"/"2") for ack items; null for decision items.</summary>
+    public string? AcknowledgementGroup { get; init; }
+
     public decimal FacilityLimit { get; init; }
     public string? CustomerName { get; init; }
+
+    /// <summary>Appraisal staff (presenter) display name; FSD §2.1.9 field 4.1. Minute only.</summary>
+    public string? AppraisalStaff { get; init; }
+
+    /// <summary>Appraisal staff position/title (auth.AspNetUsers.Position); FSD field 4.2. Minute only.</summary>
+    public string? StaffPosition { get; init; }
+
+    /// <summary>Project name (appraisal.Projects) for block items; null for non-block.</summary>
+    public string? ProjectName { get; init; }
+
     public decimal? AppraisedValue { get; init; }
 
     /// <summary>

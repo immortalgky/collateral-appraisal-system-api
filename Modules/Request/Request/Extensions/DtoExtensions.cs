@@ -377,23 +377,6 @@ public static class DtoExtensions
         );
     }
 
-    public static Requestor ToDomain(this RequestorDto dto)
-    {
-        return Requestor.Create(
-            dto.RequestorEmpId,
-            dto.RequestorName,
-            dto.RequestorEmail,
-            dto.RequestorContactNo,
-            dto.RequestorAo,
-            dto.RequestorBranch,
-            dto.RequestorBusinessUnit,
-            dto.RequestorDepartment,
-            dto.RequestorSection,
-            dto.RequestorCostCenter
-        );
-    }
-
-
     public static Appointment ToDomain(this AppointmentDto? dto)
     {
         return Appointment.Create(

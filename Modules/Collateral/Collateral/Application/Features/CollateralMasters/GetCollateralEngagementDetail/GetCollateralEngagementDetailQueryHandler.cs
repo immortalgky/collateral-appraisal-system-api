@@ -250,7 +250,6 @@ public class GetCollateralEngagementDetailQueryHandler(
         p.PropertyTypeCode switch
         {
             "U" => p.CondoIdentity?.RoomNumber
-                   ?? p.CondoIdentity?.TitleNumber
                    ?? p.CondoIdentity?.CondoName,
             "L" or "LB" => p.LandIdentity?.Titles.FirstOrDefault()?.TitleNumber,
             "M" => p.MachineryIdentity?.RegistrationNumber ?? p.MachineryIdentity?.SerialNo,

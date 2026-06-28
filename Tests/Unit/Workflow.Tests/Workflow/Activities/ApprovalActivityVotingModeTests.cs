@@ -38,7 +38,8 @@ public class ApprovalActivityVotingModeTests
 
     private ApprovalActivity BuildActivity() =>
         new(_memberResolver, _voteRepository, _publisher, _outbox, _committeeRepository,
-            _clock, Substitute.For<ILogger<ApprovalActivity>>());
+            _clock, Substitute.For<global::Workflow.Sla.Services.ISlaCalculator>(),
+            Substitute.For<ILogger<ApprovalActivity>>());
 
     private static string Normalize(string id) =>
         id.Replace("-", "_").Replace(" ", "_").Replace(".", "_").ToLowerInvariant();

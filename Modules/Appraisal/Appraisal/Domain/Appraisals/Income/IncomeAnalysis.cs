@@ -31,27 +31,12 @@ public class IncomeAnalysis : Entity<Guid>
     /// <summary>Discount rate as a percentage, e.g. 8.0 = 8%.</summary>
     public decimal DiscountedRate { get; private set; }
 
-    // Server-computed final values
-    public decimal? FinalValue { get; private set; }
-    public decimal? FinalValueRounded { get; private set; }
-
-    /// <summary>
-    /// User-adjustable value that defaults to <see cref="FinalValueRounded"/> on the frontend.
-    /// Stored as-is; the backend never recomputes it.
-    /// The frontend derives Appraisal Price = FinalValueAdjust + HBU.TotalValue
-    /// when !IsHighestBestUsed and HBU has value, otherwise = FinalValueAdjust.
-    /// </summary>
-    public decimal? FinalValueAdjust { get; private set; }
-
     // Highest-and-Best-Used top-up (user inputs only; derived totals recompute client-side).
     // When IsHighestBestUsed is false AND the land area/price is populated, the appraiser
     // considers that the highest-and-best use of the land exceeds the income-approach value,
     // and the extra land value is added to the final appraisal price on the client.
     public bool IsHighestBestUsed { get; private set; } = true;
     public HighestBestUsed HighestBestUsed { get; private set; } = HighestBestUsed.Empty();
-
-    /// <summary>User-editable rounded appraisal price (overrides the client-derived default).</summary>
-    public decimal? AppraisalPriceRounded { get; private set; }
 
     // Summary (owned — year-indexed arrays)
     public IncomeSummary Summary { get; private set; } = IncomeSummary.Empty();
@@ -110,20 +95,12 @@ public class IncomeAnalysis : Entity<Guid>
         DiscountedRate = discountedRate;
     }
 
-    /// <summary>Sets the user-adjustable final value. Pass null to clear.</summary>
-    public void SetFinalValueAdjust(decimal? value)
-    {
-        FinalValueAdjust = value;
-    }
-
     public void SetHighestBestUsed(
         bool isHighestBestUsed,
-        HighestBestUsed highestBestUsed,
-        decimal? appraisalPriceRounded)
+        HighestBestUsed highestBestUsed)
     {
         IsHighestBestUsed = isHighestBestUsed;
         HighestBestUsed = highestBestUsed;
-        AppraisalPriceRounded = appraisalPriceRounded;
     }
 
     public void ReplaceSections(IEnumerable<IncomeSection> sections)
@@ -136,13 +113,8 @@ public class IncomeAnalysis : Entity<Guid>
 
     public void RemoveSection(IncomeSection section) => _sections.Remove(section);
 
-    public void SetComputedValues(
-        decimal finalValue,
-        decimal finalValueRounded,
-        IncomeSummary summary)
+    public void SetComputedValues(IncomeSummary summary)
     {
-        FinalValue = finalValue;
-        FinalValueRounded = finalValueRounded;
         Summary = summary;
     }
 
@@ -182,7 +154,7 @@ public class IncomeAnalysis : Entity<Guid>
             discountJson: SerializeArray(result.Discount),
             presentValueJson: SerializeArray(result.PresentValue));
 
-        SetComputedValues(result.FinalValue, result.FinalValueRounded, summary);
+        SetComputedValues(summary);
     }
 
     /// <summary>Deep-clone for CI carry-forward — copies parameters, computed values, owned value objects, and full Sections tree.</summary>
@@ -198,12 +170,8 @@ public class IncomeAnalysis : Entity<Guid>
             TotalNumberOfDayInYear = source.TotalNumberOfDayInYear,
             CapitalizeRate = source.CapitalizeRate,
             DiscountedRate = source.DiscountedRate,
-            FinalValue = source.FinalValue,
-            FinalValueRounded = source.FinalValueRounded,
-            FinalValueAdjust = source.FinalValueAdjust,
             IsHighestBestUsed = source.IsHighestBestUsed,
             HighestBestUsed = HighestBestUsed.Clone(source.HighestBestUsed),
-            AppraisalPriceRounded = source.AppraisalPriceRounded,
             Summary = IncomeSummary.Clone(source.Summary)
         };
 

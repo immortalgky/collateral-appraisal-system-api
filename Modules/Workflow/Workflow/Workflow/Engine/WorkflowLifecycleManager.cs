@@ -92,12 +92,18 @@ public class WorkflowLifecycleManager : IWorkflowLifecycleManager
                 initialVariables,
                 runtimeOverrides);
 
-            // Calculate workflow-level SLA
-            var loanType = initialVariables?.TryGetValue("loanType", out var lt) == true
-                ? lt?.ToString()
+            // Calculate workflow-level SLA (umbrella). The SLA "loan type" axis carries banking-segment
+            // values, so the segment variable feeds the loanType argument. AppraisalType is not yet
+            // known at workflow start (the appraisal is created later), so it resolves as a wildcard.
+            var loanType = initialVariables?.TryGetValue("bankingSegment", out var seg) == true
+                           && !string.IsNullOrWhiteSpace(seg?.ToString())
+                ? seg!.ToString()
+                : null;
+            var appraisalType = initialVariables?.TryGetValue("appraisalType", out var at) == true
+                ? at?.ToString()
                 : null;
             var workflowDueAt = await _slaCalculator.CalculateWorkflowDueAtAsync(
-                workflowDefinitionId, loanType, workflowInstance.StartedOn, cancellationToken);
+                workflowDefinitionId, loanType, appraisalType, workflowInstance.StartedOn, cancellationToken);
             if (workflowDueAt.HasValue)
                 workflowInstance.SetWorkflowSla(workflowDueAt.Value);
 

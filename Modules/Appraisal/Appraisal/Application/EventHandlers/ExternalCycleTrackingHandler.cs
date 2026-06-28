@@ -8,7 +8,7 @@ using Workflow.Contracts.Sla;
 
 namespace Appraisal.Application.EventHandlers;
 
-// Wired to the partitioned, SingleActiveConsumer "appraisal-ext-cycle" endpoint in Program.cs so
+// Wired to the partitioned "appraisal-ext-cycle" endpoint in Program.cs so
 // open/close cycle transitions for one appraisal are processed in order across the cluster.
 [ExcludeFromConfigureEndpoints]
 public class ExternalCycleTrackingHandler(
@@ -49,7 +49,7 @@ public class ExternalCycleTrackingHandler(
         if (!isOpen && !isClose) return;
         if (message.AppraisalId is null) return;
 
-        // Per-AppraisalId ordering is enforced by the partitioned, SingleActiveConsumer
+        // Per-AppraisalId ordering is enforced by the partitioned
         // "appraisal-ext-cycle" endpoint (Program.cs). The defensive close-before-open and
         // idempotent OpenExternalCycle remain as belt-and-suspenders.
         if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, ct))

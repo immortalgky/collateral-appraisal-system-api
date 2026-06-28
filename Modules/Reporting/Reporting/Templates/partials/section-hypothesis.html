@@ -1,0 +1,120 @@
+{{- # caller sets: hyp = sec (one HypothesisSection) -}}
+<div class="section-bar">การประเมินมูลค่าทรัพย์สินโดยวิธีสมมติฐาน (Hypothesis Approach)</div>
+
+{{ if hyp.variant == 1 }}
+{{- # ── LandBuilding variant (Variant=1) — FSD C15–C82 ── -}}
+<div class="sub-bar">โครงการจัดสรรที่ดิน / บ้านจัดสรร</div>
+<table class="grid hyp-summary">
+  <tbody>
+    <tr>
+      <td>รายรับรวม (C15)</td>
+      <td class="num">{{ if hyp.lb_total_revenue != null }}{{ hyp.lb_total_revenue | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>ต้นทุนพัฒนาโครงการรวม (C38)</td>
+      <td class="num">{{ if hyp.lb_total_project_dev_cost != null }}{{ hyp.lb_total_project_dev_cost | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>ภาษีรัฐบาลรวม (C72)</td>
+      <td class="num">{{ if hyp.lb_total_gov_tax != null }}{{ hyp.lb_total_gov_tax | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>ค่าความเสี่ยง / กำไร % (C74)</td>
+      <td class="num">{{ if hyp.lb_risk_premium_percent != null }}{{ hyp.lb_risk_premium_percent | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>ค่าความเสี่ยง / กำไร (บาท) (C75)</td>
+      <td class="num">{{ if hyp.lb_risk_premium_amount != null }}{{ hyp.lb_risk_premium_amount | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr class="grp-total">
+      <td>ต้นทุนพัฒนาและค่าใช้จ่ายรวม (C76)</td>
+      <td class="num">{{ if hyp.lb_total_dev_costs_and_expenses != null }}{{ hyp.lb_total_dev_costs_and_expenses | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>มูลค่าทรัพย์สินปัจจุบัน (C77)</td>
+      <td class="num">{{ if hyp.lb_current_property_value != null }}{{ hyp.lb_current_property_value | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>อัตราคิดลด (C78)</td>
+      <td class="num">{{ if hyp.lb_discount_rate != null }}{{ hyp.lb_discount_rate | math.format "N2" }} %{{ end }}</td>
+    </tr>
+    <tr>
+      <td>ตัวคูณลด (C79)</td>
+      <td class="num">{{ if hyp.lb_discount_rate_factor != null }}{{ hyp.lb_discount_rate_factor | math.format "N6" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>มูลค่าทรัพย์สินสุทธิ (C80)</td>
+      <td class="num">{{ if hyp.lb_final_property_value != null }}{{ hyp.lb_final_property_value | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr class="grp-total">
+      <td>มูลค่าทรัพย์สิน (ปัดเศษ) (C81)</td>
+      <td class="num">{{ if hyp.lb_total_asset_value_rounded != null }}{{ hyp.lb_total_asset_value_rounded | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>มูลค่าต่อตารางวา (C82)</td>
+      <td class="num">{{ if hyp.lb_total_asset_value_per_sq_wa != null }}{{ hyp.lb_total_asset_value_per_sq_wa | math.format "N2" }} บาท/ตร.วา{{ end }}</td>
+    </tr>
+  </tbody>
+</table>
+
+{{ else }}
+{{- # ── Condominium variant (Variant=2) — FSD E13–E59 ── -}}
+<div class="sub-bar">โครงการคอนโดมิเนียม</div>
+<table class="grid hyp-summary">
+  <tbody>
+    <tr>
+      <td>รายรับรวม (E13)</td>
+      <td class="num">{{ if hyp.cnd_total_revenue != null }}{{ hyp.cnd_total_revenue | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>ต้นทุนก่อสร้างรวม (E27)</td>
+      <td class="num">{{ if hyp.cnd_total_hard_cost != null }}{{ hyp.cnd_total_hard_cost | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>ต้นทุนอ่อนรวม (E45)</td>
+      <td class="num">{{ if hyp.cnd_total_soft_cost != null }}{{ hyp.cnd_total_soft_cost | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>ภาษีรัฐบาลรวม (E50)</td>
+      <td class="num">{{ if hyp.cnd_total_gov_tax != null }}{{ hyp.cnd_total_gov_tax | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>กำไร / ความเสี่ยง % (E51)</td>
+      <td class="num">{{ if hyp.cnd_risk_profit_percent != null }}{{ hyp.cnd_risk_profit_percent | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>กำไร / ความเสี่ยง (บาท) (E52)</td>
+      <td class="num">{{ if hyp.cnd_risk_profit_total != null }}{{ hyp.cnd_risk_profit_total | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr class="grp-total">
+      <td>ต้นทุนพัฒนารวม (E53)</td>
+      <td class="num">{{ if hyp.cnd_total_dev_costs != null }}{{ hyp.cnd_total_dev_costs | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>มูลค่าเหลือสุทธิ (E54)</td>
+      <td class="num">{{ if hyp.cnd_total_remaining_value != null }}{{ hyp.cnd_total_remaining_value | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>อัตราคิดลด (E55)</td>
+      <td class="num">{{ if hyp.cnd_discount_rate != null }}{{ hyp.cnd_discount_rate | math.format "N2" }} %{{ end }}</td>
+    </tr>
+    <tr>
+      <td>ตัวคูณลด (E56)</td>
+      <td class="num">{{ if hyp.cnd_discount_rate_factor != null }}{{ hyp.cnd_discount_rate_factor | math.format "N6" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>มูลค่าเหลือสุทธิหลังคิดลด (E57)</td>
+      <td class="num">{{ if hyp.cnd_final_remaining_value != null }}{{ hyp.cnd_final_remaining_value | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr class="grp-total">
+      <td>มูลค่าทรัพย์สิน (ปัดเศษ) (E58)</td>
+      <td class="num">{{ if hyp.cnd_total_asset_value_rounded != null }}{{ hyp.cnd_total_asset_value_rounded | math.format "N2" }}{{ end }}</td>
+    </tr>
+    <tr>
+      <td>มูลค่าต่อตารางเมตร (E59)</td>
+      <td class="num">{{ if hyp.cnd_total_asset_value_per_sq_m != null }}{{ hyp.cnd_total_asset_value_per_sq_m | math.format "N2" }} บาท/ตร.ม.{{ end }}</td>
+    </tr>
+  </tbody>
+</table>
+
+{{ end }}

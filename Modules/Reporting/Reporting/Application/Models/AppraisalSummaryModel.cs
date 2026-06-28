@@ -18,6 +18,13 @@ public sealed class AppraisalSummaryModel
 {
     // ── Header ───────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Report title shown in the header band. Set by the provider so it can vary by
+    /// collateral type (e.g. land-only "…ราคาที่ดิน" vs "…ราคาทรัพย์สิน").
+    /// Templates fall back to their own literal when this is null.
+    /// </summary>
+    public string? ReportTitle { get; init; }
+
     /// <summary>Field 1 — Appraisal book number (e.g. "APP-2567-00042").</summary>
     public string? AppraisalBookNumber { get; init; }
 
@@ -36,8 +43,15 @@ public sealed class AppraisalSummaryModel
     /// <summary>Field 5 — Appraisal purpose code/description.</summary>
     public string? AppraisalPurpose { get; init; }
 
-    /// <summary>Field 6 — Property type (first property's PropertyType code).</summary>
+    /// <summary>Field 6 — Property type (header) — the property's direct type.</summary>
     public string? PropertyType { get; init; }
+
+    /// <summary>
+    /// Property type shown in the appraiser-opinion section. Auto-detected from actual
+    /// contents (land+building / land / building) for the land-building summary; null for
+    /// other variants (opinion falls back to <see cref="PropertyType"/>).
+    /// </summary>
+    public string? SummaryPropertyType { get; init; }
 
     /// <summary>Field 7 — Full collateral address built via ThaiAddressFormatter.</summary>
     public string? CollateralAddress { get; init; }
@@ -54,6 +68,9 @@ public sealed class AppraisalSummaryModel
     /// </summary>
     public decimal? OldAppraisalValue { get; init; }
 
+    /// <summary>True when AppraisalType is ReAppraisal — gates the ราคาประเมินเดิม row.</summary>
+    public bool IsReAppraisal { get; init; }
+
     /// <summary>
     /// Field 11 — Appraiser line.
     /// Internal: literal bank name.  External: company name.
@@ -61,10 +78,20 @@ public sealed class AppraisalSummaryModel
     public string? Appraiser { get; init; }
 
     /// <summary>
-    /// Field 12 — Loan / facility limit.
-    /// Only populated when Purpose implies a new loan; null otherwise.
+    /// Field 12 — Loan / facility limit (the last-row amount).
+    /// Labelled วงเงินสินเชื่อ by default, ขอเพิ่มวงเงิน when <see cref="IsIncreaseLimit"/>.
     /// </summary>
     public decimal? LoanValue { get; init; }
+
+    /// <summary>
+    /// True for the "increase credit limit" purpose. Drives BOTH the วงเงินสินเชื่อเดิม
+    /// (existing limit) row and the ขอเพิ่มวงเงิน relabel of the loan row. Default false
+    /// (space reserved but hidden) until the specific purpose + source are wired.
+    /// </summary>
+    public bool IsIncreaseLimit { get; init; }
+
+    /// <summary>วงเงินสินเชื่อเดิม — existing credit limit; shown only when <see cref="IsIncreaseLimit"/>.</summary>
+    public decimal? ExistingLoanValue { get; init; }
 
     // ── Collateral detail rows ────────────────────────────────────────────────────
 
@@ -103,8 +130,11 @@ public sealed class AppraisalSummaryModel
     /// <summary>Field 25 — Building owner name.</summary>
     public string? BuildingOwner { get; init; }
 
-    /// <summary>Field 26 — Land condition / obligation description.</summary>
+    /// <summary>Field 26 — Land condition / obligation description (joined fallback).</summary>
     public string? LandCondition { get; init; }
+
+    /// <summary>Field 26 — Land condition per group (rendered one line each).</summary>
+    public IReadOnlyList<string> LandConditions { get; init; } = [];
 
     /// <summary>Field 27 — Obligation (encumbrance) details.</summary>
     public string? Obligation { get; init; }
@@ -124,8 +154,17 @@ public sealed class AppraisalSummaryModel
     /// </summary>
     public decimal? GovernmentAssessedValue { get; init; }
 
-    /// <summary>Field 31 — Utilization / current use description.</summary>
+    /// <summary>
+    /// Field 30 — Government price text (per sq.wa), grouped by same price with title-number
+    /// detail when prices differ. Preferred over <see cref="GovernmentAssessedValue"/> for display.
+    /// </summary>
+    public string? GovernmentPriceText { get; init; }
+
+    /// <summary>Field 31 — Utilization / current use description (joined fallback).</summary>
     public string? Utilization { get; init; }
+
+    /// <summary>Field 31 — Utilization per group (rendered one line each).</summary>
+    public IReadOnlyList<string> Utilizations { get; init; } = [];
 
     // ── Machine-variant attributes (§2.1.3.3; null for Land/Condo) ─────────────────
 
@@ -145,8 +184,10 @@ public sealed class AppraisalSummaryModel
     public bool IsReferConstructionBook { get; init; }
     /// <summary>Refer construction-inspection book number.</summary>
     public string? ReferConstructionBookNumber { get; init; }
-    /// <summary>ตรวจครั้งที่ (inspection round) — no stored source; deferred.</summary>
+    /// <summary>ตรวจครั้งที่ in the อ้างอิง row — round of the PREVIOUS inspection being referenced.</summary>
     public string? InspectionRound { get; init; }
+    /// <summary>ตรวจครั้งที่ in the value block — round of THIS (current) inspection.</summary>
+    public string? CurrentInspectionRound { get; init; }
     /// <summary>งวดงานที่ (installment work no) — no stored source; deferred.</summary>
     public string? InstallmentNumber { get; init; }
     /// <summary>ชื่ออาคาร (building name).</summary>
@@ -186,7 +227,7 @@ public sealed class AppraisalSummaryModel
     public string? Developer { get; init; }
     /// <summary>ลักษณะโครงการ (project details + house-model list, composed).</summary>
     public string? ProjectDetails { get; init; }
-    /// <summary>วันที่เปิดขายโครงการ (sale launch date — display string).</summary>
+    /// <summary>วันที่เปิดขายโครงการ — preformatted Thai partial date (year / month-year / day-month-year).</summary>
     public string? ProjectSaleLaunchDate { get; init; }
     /// <summary>สาธารณูปโภค (utilities).</summary>
     public string? Utilities { get; init; }
@@ -264,6 +305,12 @@ public sealed class AppraisalSummaryModel
     /// <summary>Field 43 — Meeting date.</summary>
     public DateTime? MeetingDate { get; init; }
 
+    /// <summary>Latest approval-vote date — used for the sub-committee header (no meeting).</summary>
+    public DateTime? ApprovalDate { get; init; }
+
+    /// <summary>True when the appraisal status is Completed — gates the committee/approval block.</summary>
+    public bool IsCompleted { get; init; }
+
     /// <summary>
     /// True when the committee/meeting block should be shown.
     /// Gate: FacilityLimit > 30,000,000 (application group 3) AND a review exists.
@@ -281,6 +328,14 @@ public sealed class AppraisalSummaryModel
 
     /// <summary>Field 51 — Committee summary comment (CommitteeOpinion).</summary>
     public string? ApproverSummaryComment { get; init; }
+
+    /// <summary>Optional override for the ราคาประเมิน row in the committee table (e.g. block → "ตามแนบ").
+    /// When null the numeric TotalAppraisalValue is shown.</summary>
+    public string? ApprovalValueText { get; init; }
+
+    /// <summary>Optional override for the รายการทรัพย์สิน row in the committee table (e.g. block →
+    /// ชื่อโครงการ + ที่ตั้งโครงการ). When null CollateralAddress is shown.</summary>
+    public string? ApprovalPropertyText { get; init; }
 
     // ── Unified appraisal-book discriminators (set by AppraisalBookDataProvider) ──────
     // For the standalone summary forms these stay default (IsExternal=false, BodyType=null)
@@ -347,23 +402,33 @@ public sealed class AppraisalSummaryModel
     // Set only by AppraisalBookDataProvider (loaded once for every variant).
     // Standalone summary providers leave all of these null/empty (zero behaviour change).
 
-    /// <summary>Land details section (§2.1.2.4). Null when not included in this report.</summary>
-    public LandSection? LandSection { get; set; }
-
-    /// <summary>Building details section (§2.1.2.5). Null when not included in this report.</summary>
-    public BuildingSection? BuildingSection { get; set; }
+    /// <summary>
+    /// Land + Building details (§2.1.2.4 / §2.1.2.5), grouped by property group and rendered
+    /// group-major ("กลุ่มที่ N → its land(s) → its building(s)"). Empty when neither present.
+    /// </summary>
+    public IReadOnlyList<PropertyGroupDetail> PropertyGroups { get; set; } = [];
 
     /// <summary>Construction progress section (§2.1.2.6). Null when not included in this report.</summary>
     public ConstructionSection? ConstructionSection { get; set; }
 
-    /// <summary>Market comparison section (§2.1.2.8). Null when not included in this report.</summary>
-    public ComparisonSection? ComparisonSection { get; set; }
+    /// <summary>
+    /// Market comparison sections (§2.1.2.8), one per rendering group.
+    /// For the comparison section the loader returns a list of 1 (all comparables share one section).
+    /// Empty when no comparables exist for this appraisal.
+    /// </summary>
+    public IReadOnlyList<ComparisonSection> ComparisonSections { get; set; } = [];
 
-    /// <summary>WQS price analysis section (§2.1.2.9). Null when not included in this report.</summary>
-    public WqsSection? WqsSection { get; set; }
+    /// <summary>
+    /// WQS price-analysis sections (§2.1.2.9), one per property group that uses the WQS method.
+    /// Empty when no WQS method exists for this appraisal.
+    /// </summary>
+    public IReadOnlyList<WqsSection> WqsSections { get; set; } = [];
 
-    /// <summary>Sale grid / direct comparison section (§2.1.2.10). Null when not included.</summary>
-    public SaleGridSection? SaleGridSection { get; set; }
+    /// <summary>
+    /// Sale grid / direct comparison sections (§2.1.2.10), one per property group.
+    /// Empty when no SaleGrid / DirectComparison method exists.
+    /// </summary>
+    public IReadOnlyList<SaleGridSection> SaleGridSections { get; set; } = [];
 
     /// <summary>Condo details section (§2.1.2.3). Null when not included in this report.</summary>
     public CondoSection? CondoSection { get; set; }
@@ -371,15 +436,46 @@ public sealed class AppraisalSummaryModel
     /// <summary>Machine details section (§2.1.2.7). Null when not included in this report.</summary>
     public MachineSection? MachineSection { get; set; }
 
-    /// <summary>Cost approach – machinery section (§2.1.2.11). Null when not included.</summary>
-    public CostMachineSection? CostMachineSection { get; set; }
+    /// <summary>
+    /// Cost approach – machinery sections (§2.1.2.11), one per rendering group.
+    /// For the cost-machine section the loader returns a list of 1 (internal grouping is per MachineCostGroup).
+    /// Empty when no MachineryCost items exist.
+    /// </summary>
+    public IReadOnlyList<CostMachineSection> CostMachineSections { get; set; } = [];
+
+    // ── Part B — new pricing-method sections ─────────────────────────────────────
+
+    /// <summary>
+    /// Income (DCF) sections (§2.1.2.xx), one per property group that uses the Income method.
+    /// Empty when no Income method exists for this appraisal.
+    /// </summary>
+    public IReadOnlyList<IncomeSection> IncomeSections { get; set; } = [];
+
+    /// <summary>
+    /// Profit Rent sections, one per property group that uses the ProfitRent method.
+    /// Empty when no ProfitRent method exists for this appraisal.
+    /// </summary>
+    public IReadOnlyList<ProfitRentSection> ProfitRentSections { get; set; } = [];
+
+    /// <summary>
+    /// Leasehold sections, one per property group that uses the Leasehold method.
+    /// Empty when no Leasehold method exists for this appraisal.
+    /// </summary>
+    public IReadOnlyList<LeaseholdSection> LeaseholdSections { get; set; } = [];
+
+    /// <summary>
+    /// Hypothesis (residual) sections, one per property group that uses the Hypothesis method.
+    /// Empty when no Hypothesis method exists for this appraisal.
+    /// </summary>
+    public IReadOnlyList<HypothesisSection> HypothesisSections { get; set; } = [];
 
     /// <summary>Appendix image section (§2.1.2.12+). Null when no image entries exist.</summary>
     public AppendixSection? AppendixSection { get; set; }
 
     /// <summary>
-    /// PDF document IDs keyed by slot name (e.g. "appendix").
-    /// Merged at the corresponding &lt;!-- SLOT: name --&gt; marker by PdfSharpAssembler.
+    /// PDF document IDs keyed by slot name (e.g. "appendix-0", one per appendix group).
+    /// Merged at the corresponding &lt;!-- SLOT: name --&gt; marker by PdfSharpAssembler,
+    /// so each group's PDFs land under that group's heading.
     /// Defaults to empty; populated by internal-report providers via AppendixSectionLoader.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<Guid>> AttachmentsBySlot { get; set; }
@@ -415,6 +511,56 @@ public sealed class SummaryGroupRow
 
     /// <summary>Remark text for this group.</summary>
     public string? Remark { get; init; }
+
+    // ── Cost-approach per-item breakdown (land-building standard body) ─────────────
+    // Populated only for the land-building summary. Condo/Machine leave these default
+    // and keep using the flat fields above.
+
+    /// <summary>True when this group was valued by the Cost approach (per-item breakdown shown).</summary>
+    public bool IsCostApproach { get; init; }
+
+    /// <summary>True when the group contains land (renders ☑ ที่ดิน).</summary>
+    public bool HasLand { get; init; }
+
+    /// <summary>True when the group contains buildings (renders ☑ สิ่งปลูกสร้าง).</summary>
+    public bool HasBuilding { get; init; }
+
+    /// <summary>Land title description (โฉนด…), without the building clause.</summary>
+    public string? LandDescription { get; init; }
+
+    /// <summary>One entry per land title — rendered as separate lines in the cost-approach land row.</summary>
+    public List<string> LandDescriptions { get; init; } = [];
+
+    /// <summary>Per-item detail lines (e.g. each machine) — rendered as a numbered list.</summary>
+    public List<string> DetailItems { get; init; } = [];
+
+    /// <summary>Total land area in square-wa (rai×400 + ngan×100 + sqwa). Cost approach only.</summary>
+    public decimal? TotalSquareWa { get; init; }
+
+    /// <summary>Land price per square-wa (PricingFinalValues.FinalValueAdjusted). Cost approach only.</summary>
+    public decimal? LandUnitPrice { get; init; }
+
+    /// <summary>Land appraised value (PricingFinalValues.LandValue). Cost approach only.</summary>
+    public decimal? LandValue { get; init; }
+
+    /// <summary>Building line items (BuildingDepreciationDetails where IsBuilding=1). Cost approach only.</summary>
+    public IReadOnlyList<SummaryItemRow> Buildings { get; init; } = [];
+
+    /// <summary>Development/improvement items (ส่วนพัฒนา; IsBuilding=0). Cost approach only.</summary>
+    public IReadOnlyList<SummaryItemRow> DevelopmentItems { get; init; } = [];
+
+    /// <summary>Group total value (รวมมูลค่าทรัพย์สินกลุ่ม). Also the combined value for market groups.</summary>
+    public decimal? GroupTotal { get; init; }
+}
+
+/// <summary>One line item in a cost-approach group breakdown (a building or development item).</summary>
+public sealed class SummaryItemRow
+{
+    /// <summary>Display description, e.g. "อาคารโรงงานชั้นเดียว พื้นที่ใช้สอย 1,800 ตารางเมตร อายุ 9 ปี".</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Appraised value (PriceAfterDepreciation).</summary>
+    public decimal? Value { get; init; }
 }
 
 /// <summary>One committee approver row (fields 45–50).</summary>

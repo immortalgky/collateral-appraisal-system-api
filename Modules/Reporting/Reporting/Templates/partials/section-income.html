@@ -1,0 +1,66 @@
+{{- # caller sets: inc = sec (one IncomeSection) -}}
+<div class="section-bar">การประเมินมูลค่าทรัพย์สินโดยวิธีรายได้ (Income Approach / DCF)</div>
+
+<table class="params" style="margin-bottom:6px;">
+  <tr>
+    <td class="pl">ระยะเวลาประเมิน</td>
+    <td class="pv">{{ inc.total_number_of_years }} ปี</td>
+    <td class="pl">อัตราผลตอบแทน (Cap Rate)</td>
+    <td class="pv">{{ if inc.capitalize_rate != null }}{{ inc.capitalize_rate | math.format "N2" }} %{{ end }}</td>
+  </tr>
+  <tr>
+    <td class="pl">อัตราคิดลด (Discount Rate)</td>
+    <td class="pv">{{ if inc.discounted_rate != null }}{{ inc.discounted_rate | math.format "N2" }} %{{ end }}</td>
+    <td></td><td></td>
+  </tr>
+</table>
+
+{{ if inc.year_rows && inc.year_rows.size > 0 }}
+<table class="grid income-dcf">
+  <thead>
+    <tr>
+      <th style="width:40px;">ปีที่</th>
+      <th>รายได้รวม (บาท)</th>
+      <th>มูลค่าซากสุดท้าย (บาท)</th>
+      <th>รายได้สุทธิ (บาท)</th>
+      <th>ตัวคูณลด</th>
+      <th>มูลค่าปัจจุบัน (บาท)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ for row in inc.year_rows }}
+    <tr>
+      <td class="ctr">{{ row.year_index }}</td>
+      <td class="num">{{ if row.gross_revenue != null }}{{ row.gross_revenue | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.terminal_revenue != null }}{{ row.terminal_revenue | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.total_net != null }}{{ row.total_net | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if row.discount != null }}{{ row.discount | math.format "N6" }}{{ end }}</td>
+      <td class="num">{{ if row.present_value != null }}{{ row.present_value | math.format "N2" }}{{ end }}</td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ end }}
+
+{{- # C1 fix: HBU block applies when IsHighestBestUsed = false (flag defaults true = no HBU top-up) -}}
+{{ if inc.is_highest_best_used == false }}
+<div class="sub-bar" style="margin-top:8px;">การปรับมูลค่าสูงสุดและดีที่สุด (Highest and Best Use)</div>
+<table class="params">
+  <tr>
+    <td class="pl">เนื้อที่ (ไร่-งาน-วา)</td>
+    <td class="pv">
+      {{ if inc.hbu_area_rai != null }}{{ inc.hbu_area_rai | math.format "N0" }}-{{ end }}{{ if inc.hbu_area_ngan != null }}{{ inc.hbu_area_ngan | math.format "N0" }}-{{ end }}{{ if inc.hbu_area_wa != null }}{{ inc.hbu_area_wa | math.format "N2" }}{{ end }} ตร.วา
+    </td>
+    <td class="pl">ราคาต่อตารางวา</td>
+    <td class="pv">{{ if inc.hbu_price_per_sq_wa != null }}{{ inc.hbu_price_per_sq_wa | math.format "N2" }} บาท/ตร.วา{{ end }}</td>
+  </tr>
+</table>
+{{ end }}
+
+{{- # W1 fix: render effective_final_value (mirrors handler precedence AppraisalPriceRounded → FinalValueAdjust+HBU → FinalValueRounded) -}}
+<table class="totals" style="margin-top:8px;">
+  <tr>
+    <td class="tl">มูลค่าทรัพย์สิน (ปัดเศษ)</td>
+    <td class="tv">{{ if inc.effective_final_value != null }}{{ inc.effective_final_value | math.format "N2" }}{{ end }} บาท</td>
+  </tr>
+</table>

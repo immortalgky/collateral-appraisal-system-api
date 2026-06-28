@@ -45,11 +45,28 @@ public static class TaskListFilterBuilder
     /// text is matched literally. Pair with an <c>ESCAPE '\'</c> clause. The escape character
     /// <c>\</c> itself is escaped first to avoid double-escaping.
     /// </summary>
-    private static string EscapeLikePattern(string value) =>
+    public static string EscapeLikePattern(string value) =>
         value.Replace("\\", "\\\\")
             .Replace("%", "\\%")
             .Replace("_", "\\_")
             .Replace("[", "\\[");
+
+    /// <summary>
+    /// Builds a LIKE pattern with glob semantics for the task search box:
+    /// <c>*</c> is the user wildcard (translated to <c>%</c>); all real LIKE metacharacters
+    /// (<c>% _ [ \</c>) are escaped to literal via <see cref="EscapeLikePattern"/>. When the term
+    /// contains no <c>*</c>, a trailing <c>%</c> is appended so the default is a seekable
+    /// <b>prefix</b> search (<c>term%</c>) on <c>IX_RequestCustomer_Name</c> — fast and flat under
+    /// load. Users opt into substring/suffix matching with <c>*</c> (e.g. <c>*somchai*</c>), which
+    /// produces a leading wildcard and falls back to a scan. Pair with <c>ESCAPE '\'</c>.
+    /// </summary>
+    public static string BuildSearchPattern(string value)
+    {
+        var escaped = EscapeLikePattern(value);   // % _ [ \ -> literal; leaves * untouched
+        var hasGlob = escaped.Contains('*');
+        var pattern = escaped.Replace('*', '%');
+        return hasGlob ? pattern : pattern + "%"; // no * => prefix search
+    }
 
     private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
     {

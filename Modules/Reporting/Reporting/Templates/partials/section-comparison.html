@@ -1,0 +1,26 @@
+{{- # caller sets: cs = sec (one ComparisonSection) -}}
+<div class="section-bar">ข้อมูลตลาดเปรียบเทียบในการประเมินมูลค่าหลักทรัพย์</div>
+
+{{ if cs.tables && cs.tables.size > 0 }}
+{{ for table in cs.tables }}
+{{ if table.comparable_headers && table.comparable_headers.size > 0 }}
+{{ if table.property_type_label }}<div class="sub-bar">{{ table.property_type_label }}</div>{{ end }}
+<table class="grid comparison">
+  <thead>
+    <tr>
+      <th>รายละเอียด</th>
+      {{ for h in table.comparable_headers }}<th>{{ h }}</th>{{ end }}
+    </tr>
+  </thead>
+  <tbody>
+    {{ for row in table.rows }}
+    <tr>
+      <td>{{ row.factor_name }}</td>
+      {{ for v in row.values }}<td>{{ v }}</td>{{ end }}
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ end }}
+{{ end }}
+{{ end }}

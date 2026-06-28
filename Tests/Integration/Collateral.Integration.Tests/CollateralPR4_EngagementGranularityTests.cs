@@ -67,7 +67,7 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             titleNumber: titleNo,
             titleType: titleType,
             ownerName: "Test Owner",
-            address: AdministrativeAddress.Create(null, null, province, landOffice));
+            address: AdministrativeAddress.Create("Test Subdistrict", "Test District", province, landOffice));
         return prop;
     }
 
@@ -191,7 +191,7 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
         Assert.Equal(expectedUnitPrice, isMaster.LandDetail!.UnitPrice);
         Assert.Equal(expectedUnitPrice, alias.LandDetail!.UnitPrice);
         // BuildingCost and AppraisalValue are IsMaster-only; alias must have null
-        Assert.Null(alias.LandDetail.BuildingCost);
+        Assert.Null(alias.LandDetail.BuildingValue);
         Assert.Null(alias.LandDetail.AppraisalValue);
     }
 
@@ -215,7 +215,7 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
         method.SetValue(appraisalPrice);
 
         var fv = PricingFinalValue.Create(method.Id, finalValueAdjusted, appraisalPrice);
-        fv.SetBuildingCost(buildingCost);
+        fv.SetBuildingValue(buildingCost);
         fv.SetAppraisalPrice(appraisalPrice);
         method.SetFinalValue(fv);
 
@@ -325,7 +325,7 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
         var condoMaster = await db.CollateralMasters
             .Include(m => m.CondoDetail)
             .Include(m => m.Engagements)
-            .FirstAsync(m => m.CondoDetail != null && m.CondoDetail.TitleNumber == titleCondo,
+            .FirstAsync(m => m.CondoDetail != null && m.CondoDetail.CondoRegistrationNumber == "CONDO-REG-001",
                 TestContext.Current.CancellationToken);
 
         // Land group is primary — engagement attaches there

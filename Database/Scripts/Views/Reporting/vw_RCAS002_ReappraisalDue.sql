@@ -7,11 +7,24 @@
 -- appraisal.vw_AppraisalList (folder "Appraisal") sorts before this view.
 -- NOTE: the reappraisal vertical moved request -> collateral schema; this view follows it.
 -- AppraisalDate / NextValuationDate are derived here the same way the Request view derives them.
+--
+-- CODE -> DESCRIPTION RESOLUTION:
+--   * ReviewType : AS400 review code 1/2/3 -> readable label via CASE (documented enum:
+--                  1 = Normal, 2 = Before Stage 3, 3 = Stage 3). COALESCE-style fallback to the
+--                  raw value keeps any unmapped code visible.
+--   The remaining AS400-proprietary codes (CollateralCategory, Stage, IBGRetail) are passed through
+--   unchanged: they are not bank parameter codes and have no parameter.Parameters group, so they
+--   need a business-supplied code list before they can be resolved.
 CREATE
 OR ALTER VIEW reporting.vw_RCAS002_ReappraisalDue
 AS
 SELECT c.Id,
-       c.ReviewType,
+       CASE c.ReviewType
+           WHEN '1' THEN 'Normal'
+           WHEN '2' THEN 'Before Stage 3'
+           WHEN '3' THEN 'Stage 3'
+           ELSE c.ReviewType
+       END                                 AS ReviewType,
        c.Stage,
        c.SurveyNumber                      AS AppraisalNumber,
        CAST(NULL AS NVARCHAR(50))          AS PreviousAppraisalNumber, -- prior cycle not tracked yet

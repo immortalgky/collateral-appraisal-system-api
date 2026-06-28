@@ -1,0 +1,112 @@
+{{- # caller sets: cms = sec (one CostMachineSection) -}}
+
+<!-- Methodology cover page (portrait) — FSD "รายละเอียดวิธีการประเมินมูลค่าทรัพย์สิน" -->
+<div class="cm-cover">
+  <div class="cm-cover-title">รายละเอียดวิธีการประเมินมูลค่าทรัพย์สิน</div>
+
+  <p>การประเมินมูลค่าทรัพย์นี้ บริษัทได้พิจารณาจากสภาพของเครื่องจักรและอุปกรณ์ ณ วันสำรวจ
+     และข้อมูลที่ได้รับจากลูกค้า ประกอบกับเปรียบเทียบราคาซื้อ-ขายในท้องตลาดของเครื่องจักรและอุปกรณ์
+     ประเภทเดียวกัน รุ่นเดียวกัน กำลังความสามารถเท่ากัน หรือใกล้เคียงกันและสามารถใช้ทดแทนกันได้
+     เพื่อนำมาคำนวณหามูลค่าตามสภาพของเครื่องจักร และอุปกรณ์</p>
+
+  <p>ในการประเมินราคาจะต้องปรับราคาของเครื่องจักรพร้อมอุปกรณ์ทุกรายการให้เป็นราคาต้นทุนทดแทนใหม่
+     หรือสร้างขึ้นใหม่ในปัจจุบัน (Replacement Cost New or Reproduction Cost New) โดยการแปลงค่าเงิน
+     เป็นเงินบาทพร้อมค่าระวางบรรทุก, ค่าภาษี, ค่าขนส่ง, ค่าติดตั้ง (ถ้ามี) สำหรับเครื่องจักรพร้อมอุปกรณ์
+     ที่นำเข้าจากต่างประเทศ ส่วนเครื่องจักรเก่าที่ไม่สามารถสร้างใหม่ หรือซื้อใหม่ได้
+     เนื่องจากได้มีการเลิกผลิตไปแล้วนั้น จะใช้วิธีประเมินราคาต้นทุนทดแทน โดยจะใช้ดัชนี (Index)
+     หรือแนวโน้มจากต้นทุนตั้งเดิม (Historical Cost) ของเครื่องจักร แปลงให้เป็นต้นทุนในปัจจุบัน
+     จากนั้นจึงพิจารณาการเสื่อมราคาทางกายภาพ (Physical Deterioration) โดยพิจารณาอายุการใช้งาน
+     ตามมาตรฐานของกรมโรงงานอุตสาหกรรม อายุการผ่านงาน สภาพเครื่องจักรปัจจุบันและการบำรุงรักษา
+     การเสื่อมราคาทางประโยชน์ใช้สอย (Functional Obsolescence) และการเสื่อมราคาทางเศรษฐกิจ
+     หรือจากปัจจัยภายนอก (Economic / External Obsolescence) โดยสามารถพิจารณาได้จากสูตรการคำนวณดังนี้</p>
+
+  <div class="cm-formula">
+    <div class="lead">จากสูตร</div><div class="sym">FMV</div><div>= RCN &times; P &times; F &times; E</div>
+    <div></div><div class="sym">P</div><div>= ( 1 - n / N ) &times; C</div>
+    <div class="lead">โดยที่</div><div class="sym">FMV</div><div>= มูลค่าตลาด (Fair Market Value)</div>
+    <div></div><div class="sym">RCN</div><div>= ต้นทุนทดแทนใหม่ (Replacement Cost New)</div>
+    <div></div><div class="sym">P</div><div>= การเสื่อมราคาทางกายภาพ (Physical Deterioration)</div>
+    <div></div><div class="sym">N</div><div>= อายุใช้งานทางกายภาพ (Physical Life)</div>
+    <div></div><div class="sym">n</div><div>= อายุตามระยะเวลาที่ใช้งานของเครื่องจักร (Chronological Age)</div>
+    <div></div><div class="sym">C</div><div>= ปัจจัยทางสภาพ (Condition Factor)</div>
+    <div></div><div class="sym">F</div><div>= การเสื่อมราคาทางประโยชน์ใช้สอย (Functional Obsolescence)</div>
+    <div></div><div class="sym">E</div><div>= การเสื่อมราคาทางเศรษฐกิจ หรือปัจจัยภายนอก (Economic / External Obsolescence)</div>
+  </div>
+</div>
+
+<!-- Calculation tables (landscape) — one table per machine property group -->
+{{ if cms.groups.size > 0 }}
+<div class="landscape-page">
+
+  {{ for grp in cms.groups }}
+  <div class="section-bar">{{ if grp.group_name }}{{ grp.group_name }}{{ else }}เครื่องจักรและอุปกรณ์{{ end }}</div>
+
+  <table class="grid cm-cost-table">
+    <thead>
+      <tr>
+        <th rowspan="2" style="width:22px;">ลำดับที่</th>
+        <th rowspan="2" style="width:30px;">จำนวน</th>
+        <th rowspan="2">ชื่อและรายละเอียดเครื่องจักรพร้อมอุปกรณ์</th>
+        <th rowspan="2" style="width:70px;">หมายเลขทะเบียนเครื่องจักร</th>
+        <th rowspan="2" style="width:52px;">ประเทศผู้ผลิต/ผู้ประกอบ</th>
+        <th rowspan="2" style="width:52px;">สภาพการใช้งาน</th>
+        <th rowspan="2" style="width:42px;">ปีที่เริ่มใช้งาน (พ.ศ.)</th>
+        <th rowspan="2" style="width:26px;">N (ปี)</th>
+        <th rowspan="2" style="width:26px;">n (ปี)</th>
+        <th rowspan="2" style="width:26px;">R (ปี)</th>
+        <th colspan="4">ค่าเสื่อมราคา</th>
+        <th rowspan="2" style="width:72px;">มูลค่าทดแทน RCN (บาท)</th>
+        <th rowspan="2" style="width:72px;">มูลค่าตามสภาพ FMV (บาท)</th>
+        <th rowspan="2" style="width:50px;">ความต้องการตลาด ใช้งานได้/ใช้งานไม่ได้</th>
+      </tr>
+      <tr>
+        <th style="width:30px;">C</th>
+        <th style="width:30px;">P</th>
+        <th style="width:30px;">F</th>
+        <th style="width:30px;">E</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ for row in grp.rows }}
+      <tr>
+        <td class="ctr">{{ row.sequence }}</td>
+        <td class="ctr">{{ row.quantity }}</td>
+        <td>{{ row.machine_detail }}</td>
+        <td class="ctr">{{ row.registration_number }}</td>
+        <td class="ctr">{{ row.manufacturer_country }}</td>
+        <td class="ctr">{{ row.condition_use }}</td>
+        <td class="ctr">{{ row.year_of_use }}</td>
+        <td class="ctr">{{ if row.life_span_n != null; row.life_span_n | math.format "N1"; end }}</td>
+        <td class="ctr">{{ if row.age_n != null; row.age_n | math.format "N1"; end }}</td>
+        <td class="ctr">{{ if row.remaining_r != null; row.remaining_r | math.format "N1"; end }}</td>
+        <td class="ctr">{{ if row.condition_factor_c != null; row.condition_factor_c | math.format "N2"; end }}</td>
+        <td class="ctr">{{ if row.physical_p != null; row.physical_p | math.format "N2"; end }}</td>
+        <td class="ctr">{{ if row.functional_f != null; row.functional_f | math.format "N2"; end }}</td>
+        <td class="ctr">{{ if row.economic_e != null; row.economic_e | math.format "N2"; end }}</td>
+        <td class="num">{{ if row.rcn != null; row.rcn | math.format "N2"; end }}</td>
+        <td class="num">{{ if row.fmv != null; row.fmv | math.format "N2"; end }}</td>
+        <td class="ctr">{{ row.market_demand }}</td>
+      </tr>
+      {{ end }}
+      <tr class="grp-total">
+        <td class="ctr">รวม</td>
+        <td class="ctr">{{ grp.surveyed_count }}</td>
+        <td colspan="12" style="text-align:right;">
+          รวมมูลค่าเครื่องจักรและอุปกรณ์ จำนวน {{ grp.machine_count }} เครื่อง&nbsp;&nbsp;
+          สำรวจพบ {{ grp.surveyed_count }} เครื่อง&nbsp;&nbsp;เป็นเงิน
+        </td>
+        <td class="num">{{ if grp.total_rcn != null; grp.total_rcn | math.format "N2"; end }}</td>
+        <td class="num">{{ if grp.total_fmv != null; grp.total_fmv | math.format "N2"; end }}</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+  {{ end }}
+
+  <div class="cm-notes">
+    <div class="lbl">หมายเหตุ :</div>
+    <div>(1) มูลค่าทดแทนเป็นมูลค่าที่ไม่รวมภาษีมูลค่าเพิ่ม 7 %</div>
+  </div>
+
+</div>
+{{ end }}

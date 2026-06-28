@@ -8,8 +8,7 @@
 <!-- ════ HEADER ════ -->
 <div class="head">
   <div class="logo">
-    <div class="lh">LH <span class="b">BANK</span></div>
-    <div class="bars"></div>
+    <img src="logo-lh-bank.svg" class="brand-logo" alt="LH Bank"/>
   </div>
   <div class="title">{{ summary_title }}</div>
   <div class="meta">
@@ -20,10 +19,12 @@
 
 <!-- ════ INFO BLOCK (common opening — includer adds its rows and closes .pad) ════ -->
 <div class="pad">
-  <div class="kv"><span class="k">ชื่อลูกค้า :</span><span class="v">{{ model.customer_name }}</span></div>
-  <div class="kv"><span class="k">ผู้แจ้ง :</span><span class="v">{{ model.ao_name }}</span></div>
   <div class="cols2">
-    <div class="kv"><span class="k">วัตถุประสงค์ :</span><span class="v">{{ model.appraisal_purpose }}</span></div>
-    <div class="kv"><span class="k">ประเภททรัพย์สิน :</span><span class="v">{{ model.property_type }}</span></div>
+    <div class="kv"><span class="k">ชื่อลูกค้า</span><span class="v">{{ model.customer_name }}</span></div>
+    <div class="kv"><span class="k">ผู้แจ้ง</span><span class="v">{{ model.ao_name }}</span></div>
   </div>
-  <div class="kv"><span class="k">ที่ตั้งทรัพย์สิน :</span><span class="v">{{ model.collateral_address }}</span></div>
+  <div class="cols2">
+    <div class="kv"><span class="k">วัตถุประสงค์</span><span class="v">{{ model.appraisal_purpose }}</span></div>
+    <div class="kv"><span class="k">ประเภททรัพย์สิน</span><span class="v">{{ model.property_type }}</span></div>
+  </div>
+  <div class="kv"><span class="k">ที่ตั้งทรัพย์สิน</span><span class="v">{{ model.collateral_address }}</span></div>

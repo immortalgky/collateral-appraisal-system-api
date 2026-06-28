@@ -19,4 +19,11 @@ public interface IUserLookupService
         string role,
         Guid? companyId = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Resolves a single user by their <paramref name="employeeId"/> (UserName / bank code, e.g. P5229)
+    /// and returns their identity + org-structure snapshot (AO code, cost center, department).
+    /// Returns null when the user does not exist or is inactive.
+    /// </summary>
+    Task<RequestorInfoDto?> GetRequestorAsync(string employeeId, CancellationToken ct = default);
 }

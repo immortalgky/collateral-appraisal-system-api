@@ -1,5 +1,8 @@
 using Appraisal.Application.Features.Shared;
+using Shared.Data.Outbox;
 using Shared.Identity;
+using Shared.Messaging.Events;
+using Shared.Time;
 using Workflow.Contracts.FeeAppointmentApprovals;
 
 namespace Appraisal.Application.Features.Appointments.RescheduleAppointment;
@@ -8,7 +11,9 @@ public class RescheduleAppointmentCommandHandler(
     IAppraisalRepository appraisalRepository,
     AppraisalDbContext dbContext,
     ISender sender,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser,
+    IIntegrationEventOutbox outbox,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<RescheduleAppointmentCommand>
 {
     public async Task<Unit> Handle(
@@ -52,6 +57,17 @@ public class RescheduleAppointmentCommandHandler(
         {
             // Auto-apply: no approval needed
             appointment.Approve("system");
+
+            // Notify Workflow module so it can (a) update WorkflowInstance.Variables["appointmentDate"]
+            // and (b) recompute PendingTask.DueAt for appointment-anchored activities.
+            outbox.Publish(new AppointmentDateChangedIntegrationEvent
+            {
+                AppraisalId = command.AppraisalId,
+                CorrelationId = appraisal.RequestId,
+                AssignmentId = appointment.AssignmentId,
+                AppointmentDate = command.NewDateTime,
+                OccurredOn = dateTimeProvider.ApplicationNow
+            });
         }
         else
         {

@@ -1,8 +1,14 @@
+using Shared.Data.Outbox;
+using Shared.Messaging.Events;
+using Shared.Time;
+
 namespace Appraisal.Application.Features.Appointments.CreateAppointment;
 
 public class CreateAppointmentCommandHandler(
     IAppraisalRepository appraisalRepository,
-    AppraisalDbContext dbContext)
+    AppraisalDbContext dbContext,
+    IIntegrationEventOutbox outbox,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<CreateAppointmentCommand, CreateAppointmentResult>
 {
     public async Task<CreateAppointmentResult> Handle(
@@ -37,6 +43,19 @@ public class CreateAppointmentCommandHandler(
             command.ContactPhone);
 
         dbContext.Appointments.Add(appointment);
+
+        // Notify Workflow module so it can (a) store appointmentDate in WorkflowInstance.Variables
+        // (read by TaskActivity on next task assignment as the SLA anchor) and (b) recompute
+        // PendingTask.DueAt for any appointment-anchored task already active on this correlation.
+        // Appointment.Create sets Status = "Appointed" immediately — the date is confirmed.
+        outbox.Publish(new AppointmentDateChangedIntegrationEvent
+        {
+            AppraisalId = command.AppraisalId,
+            CorrelationId = appraisal.RequestId,
+            AssignmentId = assignment.Id,
+            AppointmentDate = command.AppointmentDateTime,
+            OccurredOn = dateTimeProvider.ApplicationNow
+        });
 
         return new CreateAppointmentResult(appointment.Id);
     }

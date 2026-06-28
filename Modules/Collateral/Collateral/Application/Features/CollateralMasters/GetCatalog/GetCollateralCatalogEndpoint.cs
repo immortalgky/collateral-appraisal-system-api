@@ -4,7 +4,7 @@ namespace Collateral.Application.Features.CollateralMasters.GetCatalog;
 /// GET /collateral-masters
 /// Supports all existing filters plus Phase 1 additions:
 ///   type (multi-select: ?type=Land&amp;type=Condo)
-///   titleNumber (LIKE — Land + Condo)
+///   titleNumber (LIKE — Land only; Condo has no title number)
 ///   district, subDistrict (exact)
 ///   companyId (masters with at least one engagement by this company)
 ///   q (free-text: owner, titleNumber, address, condoName)

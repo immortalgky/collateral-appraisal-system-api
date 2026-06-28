@@ -17,7 +17,9 @@ public class SaveMachineCostItemsEndpoint : ICarterModule
                         pricingAnalysisId,
                         methodId,
                         request.Items,
-                        request.Remark
+                        request.Remark,
+                        request.FinalValueAdjusted,
+                        request.AppraisalPrice
                     );
 
                     var result = await sender.Send(command);

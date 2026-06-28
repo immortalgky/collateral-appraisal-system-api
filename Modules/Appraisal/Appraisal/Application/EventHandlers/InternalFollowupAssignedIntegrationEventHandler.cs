@@ -7,7 +7,7 @@ using Shared.Messaging.Filters;
 
 namespace Appraisal.Application.EventHandlers;
 
-// Co-located on the partitioned, SingleActiveConsumer "appraisal-assignment-sync" endpoint (Program.cs).
+// Co-located on the partitioned "appraisal-sync" endpoint (Program.cs).
 [ExcludeFromConfigureEndpoints]
 public class InternalFollowupAssignedIntegrationEventHandler(
     IAppraisalRepository appraisalRepository,

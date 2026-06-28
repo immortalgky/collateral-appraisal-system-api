@@ -19,6 +19,22 @@ namespace Reporting.Application.Formatting;
 /// </summary>
 public static class ThaiAddressFormatter
 {
+    /// <summary>
+    /// Formats GPS as the FSD's "N 13.270399 E 100.94802" string. The hemisphere is
+    /// derived from the sign (N/S latitude, E/W longitude) using the absolute value,
+    /// so any negative/bad coordinate degrades correctly rather than mislabelling.
+    /// Thai collateral is always N/E in practice. Returns null when either side is missing.
+    /// </summary>
+    public static string? FormatGps(decimal? latitude, decimal? longitude)
+    {
+        if (latitude is not { } lat || longitude is not { } lon)
+            return null;
+
+        var ns = lat >= 0 ? "N" : "S";
+        var ew = lon >= 0 ? "E" : "W";
+        return $"{ns} {Math.Abs(lat):F6} {ew} {Math.Abs(lon):F6}";
+    }
+
     public static string FormatLandBuilding(
         string? houseNumber,
         string? village,
@@ -65,7 +81,9 @@ public static class ThaiAddressFormatter
 
     private static void Append(StringBuilder sb, string? label, string? value, bool spaceAfterLabel = true)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        // Treat a lone "-" (a common placeholder for "no value") as blank so the
+        // segment — and its label — drops out cleanly instead of printing "ซอย -".
+        if (string.IsNullOrWhiteSpace(value) || value.Trim() == "-")
             return;
 
         if (sb.Length > 0)

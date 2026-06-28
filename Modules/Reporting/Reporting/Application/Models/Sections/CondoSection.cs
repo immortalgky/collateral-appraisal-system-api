@@ -49,11 +49,12 @@ public sealed class CondoSection
     public string? Province { get; init; }
 
     /// <summary>
-    /// เนื้อที่ — no standalone land-area column on CondoAppraisalDetails.
-    /// Derived from sum of CondoAppraisalAreaDetails.AreaSize where applicable,
-    /// expressed as total usable area in square metres (formatted string).
+    /// เนื้อที่ (FSD §2.1.2.3 field 15) — underlying LAND-plot area in ไร่-งาน-ตารางวา.
+    /// No land-area column exists on CondoAppraisalDetails (only the unit's UsableArea,
+    /// which is a different quantity), so this is rendered empty (null) until a proper
+    /// source is available — the loader does NOT fall back to the unit's m².
     /// </summary>
-    // no source for rai/ngan/wa land area on condo — display total usable m² instead
+    // no source for rai/ngan/wa land area on condo — render empty
     public string? LandAreaText { get; init; }
 
     /// <summary>ตั้งอยู่บนถนน — source: CondoAppraisalDetails.Street.</summary>
@@ -208,6 +209,63 @@ public sealed class CondoSection
 
     /// <summary>หมายเหตุ — source: CondoAppraisalDetails.Remark.</summary>
     public string? Remark { get; init; }
+
+    // ── Valuation detail (รายละเอียดการประเมินมูลค่าทรัพย์สิน ห้องชุด) ──────────────
+
+    /// <summary>
+    /// Condo valuation breakdown table (FSD §2.1.2.x — Image #4).
+    /// Null when the appraisal has no condo properties (same lifetime as the section).
+    /// </summary>
+    public CondoValuationDetail? Valuation { get; init; }
+}
+
+/// <summary>
+/// Condo valuation table — FSD "รายละเอียดการประเมินมูลค่าทรัพย์สิน ห้องชุด" (Image #4).
+///
+/// PART A — ราคาประเมินทุนทรัพย์ห้องชุดในการจดทะเบียนสิทธิ์และนิติกรรม (government registration value).
+///   Area components are sourced from CondoAppraisalAreaDetails; the per-sqm rate and amount have
+///   NO source column on the condo schema (government price exists only on LandTitles), so they are
+///   rendered empty for now ("show empty first").
+///
+/// PART B — ราคาประเมินโดยวิธีเปรียบเทียบราคาตลาด (market comparison value), sourced from the selected
+///   PricingAnalysis → Approach → Method → PricingFinalValue.
+///   Business rule: when the method is priced per-unit, the per-sqm cell shows "-" (the column is
+///   NOT hidden) and the amount is the lump-sum value; otherwise the per-sqm rate is shown and
+///   amount = rate × area. Empty numeric cells render as "-" throughout this table.
+/// </summary>
+public sealed class CondoValuationDetail
+{
+    // ── PART A: registration value area components (areas only; rate/amount have no source) ──
+
+    /// <summary>พื้นที่ภายในห้องชุด (ตร.ม.) — sum of all units' interior area.</summary>
+    public decimal? InteriorArea { get; init; }
+
+    /// <summary>พื้นที่ระเบียง (ตร.ม.) — sum of all units' balcony area.</summary>
+    public decimal? BalconyArea { get; init; }
+
+    /// <summary>พื้นที่วางแอร์ (ตร.ม.) — sum of all units' air-con-ledge area.</summary>
+    public decimal? AirConArea { get; init; }
+
+    /// <summary>พื้นที่อื่นๆ (ตร.ม.) — sum of all units' other area.</summary>
+    public decimal? OtherArea { get; init; }
+
+    // ── PART B: market comparison value ────────────────────────────────────────────
+
+    /// <summary>พื้นที่ห้องชุดรวมระเบียง (ตร.ม.) — interior + balcony total.</summary>
+    public decimal? MarketArea { get; init; }
+
+    /// <summary>
+    /// ตร.ม. ละ (บาท) — market price per sqm. Null (renders as "-") when the method is priced
+    /// per UNIT (UnitType == "Unit"). Otherwise sourced from PricingAnalysisMethod.ValuePerUnit,
+    /// or derived as value ÷ area when not stored.
+    /// </summary>
+    public decimal? MarketPricePerSqm { get; init; }
+
+    /// <summary>จำนวนเงิน (บาท) — market comparison amount (= rate × area, or lump sum when by-unit).</summary>
+    public decimal? MarketAmount { get; init; }
+
+    /// <summary>รวมราคาประเมินมูลค่าทรัพย์สิน (ปัดเศษ) — rounded grand total.</summary>
+    public decimal? TotalRoundedValue { get; init; }
 }
 
 /// <summary>

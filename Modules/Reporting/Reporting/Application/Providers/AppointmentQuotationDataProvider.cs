@@ -27,56 +27,56 @@ public sealed class AppointmentQuotationDataProvider(
     ILogger<AppointmentQuotationDataProvider> logger)
     : IReportDataProvider
 {
-    public string ReportTypeKey => "appointment-quotation-request";
+    public string ReportTypeKey => "appointment-letter";
 
     public async Task<object> GetModelAsync(string entityId, CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(entityId, out var appraisalId))
-            throw new NotFoundException("Appraisal", entityId);
+        if (!Guid.TryParse(entityId, out var requestId))
+            throw new NotFoundException("Request", entityId);
 
         using var connection = connectionFactory.CreateNewConnection();
 
-        // ── 1. Appraisal header + request info ──────────────────────────────────
+        // ── 1. Request header (customer, purpose, loan, requestor) ──────────────
+        // Keyed by RequestId so the letter can be produced at the request stage (an appraisal need
+        // not exist yet). The screen resolves a typed Request No. OR Appraisal No. → RequestId via
+        // ReportEntityResolver.
         const string headerSql = """
             SELECT
-                al.CustomerName,
-                COALESCE(pPurpose.Description, al.Purpose) AS AppraisalPurpose,
-                al.FacilityLimit  AS LoanAmount,
-                al.AppraisalType  AS AppraisalType,
-                al.RequestId      AS RequestId,
-                al.RequestedAt    AS RequestDate,
-                r.CreatorName     AS RequesterMakerName
-            FROM appraisal.vw_AppraisalList al
-            LEFT JOIN request.Requests r ON r.Id = al.RequestId
+                cust.Name              AS CustomerName,
+                COALESCE(pPurpose.Description, r.Purpose) AS AppraisalPurpose,
+                rd.FacilityLimit       AS LoanAmount,
+                r.RequestedAt          AS RequestDate,
+                r.CreatorName          AS RequesterMakerName,
+                r.RequestorName        AS ReferrerName,
+                ru.PhoneNumber         AS ReferrerTel,
+                rd.PrevAppraisalNumber AS PrevAppraisalNumber
+            FROM request.Requests r
+            LEFT JOIN request.RequestDetails rd ON rd.RequestId = r.Id
+            LEFT JOIN auth.AspNetUsers ru ON ru.UserName = r.Requestor
+            OUTER APPLY (
+                SELECT TOP 1 c.Name FROM request.RequestCustomers c
+                WHERE c.RequestId = r.Id ORDER BY c.Id
+            ) cust
             LEFT JOIN parameter.Parameters pPurpose
                 ON pPurpose.[Group]    = 'AppraisalPurpose'
                AND pPurpose.[Language] = 'TH'
                AND pPurpose.IsActive   = 1
-               AND pPurpose.[Code]     = al.Purpose
-            WHERE al.Id = @AppraisalId
+               AND pPurpose.[Code]     = r.Purpose
+            WHERE r.Id = @RequestId AND r.IsDeleted = 0
             """;
 
-        var parameters = new DynamicParameters();
-        parameters.Add("AppraisalId", appraisalId);
+        var detailParams = new DynamicParameters();
+        detailParams.Add("RequestId", requestId);
 
-        var header = await connection.QueryFirstOrDefaultAsync<HeaderRow>(headerSql, parameters);
+        var header = await connection.QueryFirstOrDefaultAsync<HeaderRow>(headerSql, detailParams);
         if (header is null)
-            throw new NotFoundException("Appraisal", entityId);
+            throw new NotFoundException("Request", entityId);
 
-        // ── 2. Request detail (single collateral address, contact, fee) ─────────
-        // Address/Contact/Fee are owned value objects flattened into request.RequestDetails.
-        // Codes are resolved to Thai names/descriptions via the shared parameter schema
-        // (COALESCE falls back to the raw code if a lookup row is missing). Address geocodes
-        // use the Title (per-title-deed) master; Title/Dopa share identical codes+names.
+        // ── 2. Request detail (contact, fee, old report number) ────────────────
+        // Contact/Fee are owned value objects flattened into request.RequestDetails. Addresses now
+        // come from the title (section 2b) — RequestDetails address is no longer used here.
         const string detailSql = """
             SELECT
-                rd.HouseNumber,
-                rd.ProjectName,
-                rd.Soi,
-                rd.Road,
-                COALESCE(subd.NameTh, rd.SubDistrict) AS SubDistrict,
-                COALESCE(dist.NameTh, rd.District)    AS District,
-                COALESCE(prov.NameTh, rd.Province)    AS Province,
                 rd.ContactPersonName,
                 rd.ContactPersonPhone  AS ContactPersonTel,
                 COALESCE(pFee.Description, rd.FeePaymentType) AS FeePaymentType,
@@ -87,16 +87,61 @@ public sealed class AppointmentQuotationDataProvider(
                AND pFee.[Language] = 'TH'
                AND pFee.IsActive   = 1
                AND pFee.[Code]     = rd.FeePaymentType
-            LEFT JOIN parameter.TitleProvinces    prov ON prov.Code = rd.Province
-            LEFT JOIN parameter.TitleDistricts    dist ON dist.Code = rd.District
-            LEFT JOIN parameter.TitleSubDistricts subd ON subd.Code = rd.SubDistrict
             WHERE rd.RequestId = @RequestId
             """;
 
-        var detailParams = new DynamicParameters();
-        detailParams.Add("RequestId", header.RequestId);
-
         var detail = await connection.QueryFirstOrDefaultAsync<DetailRow>(detailSql, detailParams);
+
+        // ── 2b. Title addresses: deed (TitleAddress→Title master, FSD 15–21) and
+        //         administrative (DopaAddress→Dopa master, FSD 22–28). One form → first title. ──
+        const string titleAddrSql = """
+            SELECT TOP 1
+                t.ProjectName AS TitleProjectName,
+                t.HouseNumber AS TitleHouseNumber,
+                t.Soi         AS TitleSoi,
+                t.Road        AS TitleRoad,
+                COALESCE(tsub.NameTh,  t.SubDistrict) AS TitleSubDistrict,
+                COALESCE(tdist.NameTh, t.District)    AS TitleDistrict,
+                COALESCE(tprov.NameTh, t.Province)    AS TitleProvince,
+                t.DopaProjectName AS DopaProjectName,
+                t.DopaHouseNumber AS DopaHouseNumber,
+                t.DopaSoi         AS DopaSoi,
+                t.DopaRoad        AS DopaRoad,
+                COALESCE(dsub.NameTh,  t.DopaSubDistrict) AS DopaSubDistrict,
+                COALESCE(ddist.NameTh, t.DopaDistrict)    AS DopaDistrict,
+                COALESCE(dprov.NameTh, t.DopaProvince)    AS DopaProvince
+            FROM request.RequestTitles t
+            LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = t.Province
+            LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = t.District
+            LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = t.SubDistrict
+            LEFT JOIN parameter.DopaProvinces     dprov ON dprov.Code = t.DopaProvince
+            LEFT JOIN parameter.DopaDistricts     ddist ON ddist.Code = t.DopaDistrict
+            LEFT JOIN parameter.DopaSubDistricts  dsub  ON dsub.Code  = t.DopaSubDistrict
+            WHERE t.RequestId = @RequestId
+            ORDER BY t.Id
+            """;
+
+        var titleAddr = await connection.QueryFirstOrDefaultAsync<TitleAddrRow>(titleAddrSql, detailParams);
+
+        // ── 2c. Checker (FSD 33–34) ← whoever the appraisal-initiation-check task was assigned
+        //         to, and when they completed it. The task is optional (entry-source dependent),
+        //         so this tolerates no row. CompletedTask.CorrelationId is the appraisal's RequestId.
+        const string checkTaskSql = """
+            SELECT TOP 1
+                ct.AssignedTo,
+                LTRIM(RTRIM(COALESCE(u.FirstName, '') + ' ' + COALESCE(u.LastName, ''))) AS AssignedToName,
+                ct.CompletedAt
+            FROM workflow.CompletedTasks ct
+            LEFT JOIN auth.AspNetUsers u ON u.UserName = ct.AssignedTo
+            WHERE ct.CorrelationId = @RequestId
+              AND ct.ActivityId = 'appraisal-initiation-check'
+            ORDER BY ct.CompletedAt DESC
+            """;
+
+        var checkTask = await connection.QueryFirstOrDefaultAsync<CheckTaskRow>(checkTaskSql, detailParams);
+        var checkerName = checkTask is null
+            ? null
+            : (!string.IsNullOrWhiteSpace(checkTask.AssignedToName) ? checkTask.AssignedToName : checkTask.AssignedTo);
 
         // ── 3. Collateral detail (FSD 13/14) — free text, not a table ───────────
         // request.RequestProperties carries PropertyType/BuildingType only. The FSD front page
@@ -126,10 +171,8 @@ public sealed class AppointmentQuotationDataProvider(
         var propertyDetail = JoinDistinct(propertyRows.Select(p => p.PropertyType));
         var collateralType = JoinDistinct(propertyRows.Select(p => p.BuildingType));
 
-        // ── 4. Collateral new/existing from AppraisalType ───────────────────────
-        // AppraisalType values: New | ReAppraisal | Progressive | PreAppraisal.
-        bool isNewCollateral =
-            !string.Equals(header.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase);
+        // ── 4. Collateral new/existing: existing (เดิม) when a previous appraisal is referenced ─
+        bool isNewCollateral = string.IsNullOrWhiteSpace(header.PrevAppraisalNumber);
 
         // ── 5. Uploaded PDF attachments linked to the request ───────────────────
         const string attachmentsSql = """
@@ -179,36 +222,56 @@ public sealed class AppointmentQuotationDataProvider(
             }).ToList()
         }).ToList();
 
-        // ── Build model ─────────────────────────────────────────────────────────
+        // ── Build model (Dash → "-" for any null/empty text value) ──────────────
         var model = new AppointmentQuotationFormModel
         {
-            CustomerName = header.CustomerName,
-            AppraisalPurpose = header.AppraisalPurpose,
-            LoanAmount = header.LoanAmount,
-            RequesterMakerName = header.RequesterMakerName,
-            RequestDate = header.RequestDate,
+            // Requestor org block (1–4) still has no data source → "-".
+            Division = Dash(null),
+            Department = Dash(null),
+            LineOfWork = Dash(null),
+            CostCenter = Dash(null),
 
-            ContactPersonName = detail?.ContactPersonName,
-            ContactPersonTel = detail?.ContactPersonTel,
-            FeePaymentType = detail?.FeePaymentType,
-            OldAppraisalReportNumber = detail?.OldAppraisalReportNumber,
+            // Referrer (5–6) ← the request's Requestor (name + auth phone).
+            ReferrerName = Dash(header.ReferrerName),
+            ReferrerTel = Dash(header.ReferrerTel),
+
+            CustomerName = Dash(header.CustomerName),
+            AppraisalPurpose = Dash(header.AppraisalPurpose),
+            LoanAmount = header.LoanAmount,          // numeric → template renders "-" when null
+            RequesterMakerName = Dash(header.RequesterMakerName),
+            RequestDate = header.RequestDate,        // date → template renders "-" when null
+
+            ContactPersonName = Dash(detail?.ContactPersonName),
+            ContactPersonTel = Dash(detail?.ContactPersonTel),
+            FeePaymentType = Dash(detail?.FeePaymentType),
+            OldAppraisalReportNumber = Dash(detail?.OldAppraisalReportNumber),
 
             IsNewCollateral = isNewCollateral,
-            PropertyDetail = propertyDetail,
-            CollateralType = collateralType,
+            PropertyDetail = Dash(propertyDetail),
+            CollateralType = Dash(collateralType),
             ChecklistSections = checklistSections,
 
-            // Property location per title deed (ตามโฉนด). หมู่บ้าน[15] ← ProjectName.
-            ProjectName = detail?.ProjectName,
-            HouseNumber = detail?.HouseNumber,
-            Soi = detail?.Soi,
-            Road = detail?.Road,
-            SubDistrict = detail?.SubDistrict,
-            District = detail?.District,
-            Province = detail?.Province,
+            // Property location per title deed (ตามโฉนด, 15–21) ← RequestTitle.TitleAddress.
+            ProjectName = Dash(titleAddr?.TitleProjectName),
+            HouseNumber = Dash(titleAddr?.TitleHouseNumber),
+            Soi = Dash(titleAddr?.TitleSoi),
+            Road = Dash(titleAddr?.TitleRoad),
+            SubDistrict = Dash(titleAddr?.TitleSubDistrict),
+            District = Dash(titleAddr?.TitleDistrict),
+            Province = Dash(titleAddr?.TitleProvince),
 
-            // Admin-jurisdiction address (ตามเขตปกครอง), org block, and checker have no
-            // data source today → left null → render as blank fill-in lines.
+            // Property location per administrative jurisdiction (ตามเขตปกครอง, 22–28) ← DopaAddress.
+            AdminProjectName = Dash(titleAddr?.DopaProjectName),
+            AdminHouseNumber = Dash(titleAddr?.DopaHouseNumber),
+            AdminSoi = Dash(titleAddr?.DopaSoi),
+            AdminRoad = Dash(titleAddr?.DopaRoad),
+            AdminSubDistrict = Dash(titleAddr?.DopaSubDistrict),
+            AdminDistrict = Dash(titleAddr?.DopaDistrict),
+            AdminProvince = Dash(titleAddr?.DopaProvince),
+
+            // Checker (33–34) ← appraisal-initiation-check assignee + its completion date.
+            RequesterCheckerName = Dash(checkerName),
+            CheckerDate = checkTask?.CompletedAt,
 
             AttachmentsBySlot = new Dictionary<string, IReadOnlyList<Guid>>
             {
@@ -217,11 +280,14 @@ public sealed class AppointmentQuotationDataProvider(
         };
 
         logger.LogDebug(
-            "AppointmentQuotation model assembled for appraisal {AppraisalId}: {PropertyTypeCount} distinct property types, {AttachmentCount} PDF attachments",
-            appraisalId, propertyRows.Count, attachmentDocumentIds.Count);
+            "AppointmentLetter model assembled for request {RequestId}: {PropertyTypeCount} distinct property types, {AttachmentCount} PDF attachments",
+            requestId, propertyRows.Count, attachmentDocumentIds.Count);
 
         return model;
     }
+
+    /// <summary>Returns the trimmed value, or "-" when null/blank (FSD blanks print as a dash).</summary>
+    private static string Dash(string? v) => string.IsNullOrWhiteSpace(v) ? "-" : v.Trim();
 
     /// <summary>Joins distinct, non-blank values with a comma; returns null when nothing to show.</summary>
     private static string? JoinDistinct(IEnumerable<string?> values)
@@ -242,25 +308,37 @@ public sealed class AppointmentQuotationDataProvider(
         public string? CustomerName { get; init; }
         public string? AppraisalPurpose { get; init; }
         public decimal? LoanAmount { get; init; }
-        public string? AppraisalType { get; init; }
-        public Guid RequestId { get; init; }
         public DateTime? RequestDate { get; init; }
         public string? RequesterMakerName { get; init; }
+        public string? ReferrerName { get; init; }
+        public string? ReferrerTel { get; init; }
+        public string? PrevAppraisalNumber { get; init; }
     }
 
     private sealed class DetailRow
     {
-        public string? HouseNumber { get; init; }
-        public string? ProjectName { get; init; }
-        public string? Soi { get; init; }
-        public string? Road { get; init; }
-        public string? SubDistrict { get; init; }
-        public string? District { get; init; }
-        public string? Province { get; init; }
         public string? ContactPersonName { get; init; }
         public string? ContactPersonTel { get; init; }
         public string? FeePaymentType { get; init; }
         public string? OldAppraisalReportNumber { get; init; }
+    }
+
+    private sealed class TitleAddrRow
+    {
+        public string? TitleProjectName { get; init; }
+        public string? TitleHouseNumber { get; init; }
+        public string? TitleSoi { get; init; }
+        public string? TitleRoad { get; init; }
+        public string? TitleSubDistrict { get; init; }
+        public string? TitleDistrict { get; init; }
+        public string? TitleProvince { get; init; }
+        public string? DopaProjectName { get; init; }
+        public string? DopaHouseNumber { get; init; }
+        public string? DopaSoi { get; init; }
+        public string? DopaRoad { get; init; }
+        public string? DopaSubDistrict { get; init; }
+        public string? DopaDistrict { get; init; }
+        public string? DopaProvince { get; init; }
     }
 
     private sealed class PropertyTypeRow
@@ -273,6 +351,13 @@ public sealed class AppointmentQuotationDataProvider(
     {
         public string? CollateralType { get; init; }
         public string? DocumentType { get; init; }
+    }
+
+    private sealed class CheckTaskRow
+    {
+        public string? AssignedTo { get; init; }
+        public string? AssignedToName { get; init; }
+        public DateTime? CompletedAt { get; init; }
     }
 
     // ── Page-2 checklist definition (FSD img4) ──────────────────────────────────

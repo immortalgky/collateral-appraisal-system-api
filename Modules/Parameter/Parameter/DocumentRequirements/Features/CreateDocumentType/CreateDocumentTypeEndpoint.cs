@@ -28,6 +28,7 @@ public class CreateDocumentTypeEndpoint : ICarterModule
                 var response = result.Adapt<CreateDocumentTypeResponse>();
                 return Results.Created($"/document-types/{response.Id}", response);
             })
+            .RequireAuthorization()
             .WithName("CreateDocumentType")
             .WithSummary("Create a new document type")
             .Produces<CreateDocumentTypeResponse>(StatusCodes.Status201Created)

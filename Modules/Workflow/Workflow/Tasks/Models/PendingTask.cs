@@ -16,6 +16,15 @@ public class PendingTask : Aggregate<Guid>
     public Guid WorkflowInstanceId { get; private set; }
     public string ActivityId { get; private set; } = default!;
     public DateTime? DueAt { get; private set; }
+
+    /// <summary>
+    /// The SLA clock-start anchor — the point the budget runs from (AssignedAt for Assignment-anchored
+    /// policies, the appointment date for AppointmentDate-anchored ones, or a window's start-entry for
+    /// window-governed tasks). The at-risk monitor measures the 75% threshold from here, not AssignedAt.
+    /// Null when there is no deadline.
+    /// </summary>
+    public DateTime? SlaStartAt { get; private set; }
+
     public string? SlaStatus { get; private set; }
     public DateTime? SlaBreachedAt { get; private set; }
     public string Movement { get; private set; } = "F";
@@ -60,11 +69,13 @@ public class PendingTask : Aggregate<Guid>
     public static PendingTask Create(Guid correlationId, string taskName, string assignedTo,
         string assignedType, DateTime assignedAt, Guid workflowInstanceId, string activityId,
         DateTime? dueAt = null, string? taskDescription = null, string movement = "F",
-        Guid? assigneeCompanyId = null, string? committeeCode = null)
+        Guid? assigneeCompanyId = null, string? committeeCode = null, DateTime? slaStartAt = null)
     {
         var task = new PendingTask(correlationId, taskName, assignedTo, assignedType, assignedAt,
             workflowInstanceId, activityId, taskDescription, movement, assigneeCompanyId, committeeCode);
         task.DueAt = dueAt;
+        // Default the clock-start to AssignedAt when the caller doesn't supply an explicit anchor.
+        task.SlaStartAt = dueAt.HasValue ? (slaStartAt ?? assignedAt) : null;
         task.SlaStatus = dueAt.HasValue ? "OnTime" : null;
         return task;
     }
@@ -135,5 +146,19 @@ public class PendingTask : Aggregate<Guid>
             SlaStatus = "Breached";
             SlaBreachedAt = breachedAt;
         }
+    }
+
+    /// <summary>
+    /// Re-stamps DueAt (and its clock-start anchor) and resets SlaStatus to OnTime. Used by
+    /// appointment-anchored SLA recalculation when the appointment is set or rescheduled after task
+    /// assignment. <paramref name="slaStartAt"/> falls back to the existing AssignedAt when null.
+    /// </summary>
+    public void RecalculateDueAt(DateTime? dueAt, DateTime? slaStartAt = null)
+    {
+        DueAt = dueAt;
+        SlaStartAt = dueAt.HasValue ? (slaStartAt ?? AssignedAt) : null;
+        // If a new deadline is set, reset status to OnTime; null means "no deadline yet".
+        SlaStatus = dueAt.HasValue ? "OnTime" : null;
+        SlaBreachedAt = null;
     }
 }

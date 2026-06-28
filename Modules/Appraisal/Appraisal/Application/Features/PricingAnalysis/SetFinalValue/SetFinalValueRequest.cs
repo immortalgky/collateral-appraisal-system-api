@@ -9,7 +9,7 @@ public record SetFinalValueRequest(
     bool? IncludeLandArea = null,
     decimal? LandArea = null,
     decimal? LandValue = null,
-    bool? HasBuildingCost = null,
-    decimal? BuildingCost = null,
+    bool? HasBuildingValue = null,
+    decimal? BuildingValue = null,
     decimal? AppraisalPrice = null
 );

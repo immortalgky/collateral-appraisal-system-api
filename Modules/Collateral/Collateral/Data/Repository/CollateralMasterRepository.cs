@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Collateral.CollateralMasters.Models;
 using Collateral.Contracts;
 
@@ -5,6 +6,38 @@ namespace Collateral.Data.Repository;
 
 public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollateralMasterRepository
 {
+    // Single source of truth for the Land/LB dedup-key predicate. MUST stay in sync with
+    // UX_LandDetails_DedupKey_Active (LandDetailConfiguration) and the in-memory BuildTitleKey
+    // (CollateralMasterUpsertService). LandOfficeCode is NOT part of the key. Nullable
+    // survey/parcel/rawang use EF null-semantics: a null param matches NULL rows (IS NULL).
+    private static Expression<Func<CollateralMaster, bool>> LandKeyMatches(
+        string province, string district, string subDistrict,
+        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber, string? rawang)
+        => m =>
+            m.LandDetail!.Province == province &&
+            m.LandDetail.District == district &&
+            m.LandDetail.SubDistrict == subDistrict &&
+            m.LandDetail.TitleType == titleType &&
+            m.LandDetail.TitleNumber == titleNumber &&
+            m.LandDetail.SurveyNumber == surveyNumber &&
+            m.LandDetail.LandParcelNumber == landParcelNumber &&
+            m.LandDetail.Rawang == rawang;
+
+    // Single source of truth for the Condo dedup-key predicate. MUST stay in sync with
+    // UX_CondoDetails_DedupKey_Active (CondoDetailConfiguration). LandOfficeCode is NOT part of
+    // the key; Province/District/SubDistrict are the required geographic disambiguator.
+    private static Expression<Func<CollateralMaster, bool>> CondoKeyMatches(
+        string condoRegistrationNumber, string buildingNumber, string floorNumber, string roomNumber,
+        string province, string district, string subDistrict)
+        => m =>
+            m.CondoDetail!.CondoRegistrationNumber == condoRegistrationNumber &&
+            m.CondoDetail.BuildingNumber == buildingNumber &&
+            m.CondoDetail.FloorNumber == floorNumber &&
+            m.CondoDetail.RoomNumber == roomNumber &&
+            m.CondoDetail.Province == province &&
+            m.CondoDetail.District == district &&
+            m.CondoDetail.SubDistrict == subDistrict;
+
     public void Add(CollateralMaster master) => dbContext.CollateralMasters.Add(master);
 
     public async Task<CollateralMaster?> FindByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -30,48 +63,32 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
 
     public async Task<CollateralMaster?> FindLandByDedupKey(
-        string landOfficeCode, string province, string district, string subDistrict,
-        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber,
+        string province, string district, string subDistrict,
+        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber, string? rawang,
         CancellationToken ct = default)
     {
-        // null is a valid dedup component for survey/parcel — must match exactly
         // Dedup matches both L (bare land) and LB (land+building) — same physical title.
         var landTypes = new[] { CollateralTypes.Land, CollateralTypes.LandWithBuilding };
         return await dbContext.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .Where(m => !m.IsDeleted && landTypes.Contains(m.CollateralType) && m.IsMaster &&
-                m.LandDetail!.LandOfficeCode == landOfficeCode &&
-                m.LandDetail.Province == province &&
-                m.LandDetail.District == district &&
-                m.LandDetail.SubDistrict == subDistrict &&
-                m.LandDetail.TitleType == titleType &&
-                m.LandDetail.TitleNumber == titleNumber &&
-                m.LandDetail.SurveyNumber == surveyNumber &&
-                m.LandDetail.LandParcelNumber == landParcelNumber)
+            .Where(m => !m.IsDeleted && landTypes.Contains(m.CollateralType) && m.IsMaster)
+            .Where(LandKeyMatches(province, district, subDistrict, titleType, titleNumber, surveyNumber, landParcelNumber, rawang))
             .FirstOrDefaultAsync(ct);
     }
 
     public async Task<CollateralMaster?> FindLandByDedupKeyIncludingAliases(
-        string landOfficeCode, string province, string district, string subDistrict,
-        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber,
+        string province, string district, string subDistrict,
+        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber, string? rawang,
         CancellationToken ct = default)
     {
         // Same as FindLandByDedupKey but includes alias rows (IsMaster=false).
-        // Matches both L and LB — same physical title.
         var landTypes = new[] { CollateralTypes.Land, CollateralTypes.LandWithBuilding };
         return await dbContext.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .Where(m => !m.IsDeleted && landTypes.Contains(m.CollateralType) &&
-                m.LandDetail!.LandOfficeCode == landOfficeCode &&
-                m.LandDetail.Province == province &&
-                m.LandDetail.District == district &&
-                m.LandDetail.SubDistrict == subDistrict &&
-                m.LandDetail.TitleType == titleType &&
-                m.LandDetail.TitleNumber == titleNumber &&
-                m.LandDetail.SurveyNumber == surveyNumber &&
-                m.LandDetail.LandParcelNumber == landParcelNumber)
+            .Where(m => !m.IsDeleted && landTypes.Contains(m.CollateralType))
+            .Where(LandKeyMatches(province, district, subDistrict, titleType, titleNumber, surveyNumber, landParcelNumber, rawang))
             .FirstOrDefaultAsync(ct);
     }
 
@@ -88,23 +105,15 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .ToListAsync(ct);
 
     public async Task<CollateralMaster?> FindCondoByDedupKey(
-        string landOfficeCode, string condoRegistrationNumber,
+        string condoRegistrationNumber,
         string buildingNumber, string floorNumber, string roomNumber,
-        string titleNumber, string titleType,
+        string province, string district, string subDistrict,
         CancellationToken ct = default)
         => await dbContext.CollateralMasters
             .Include(m => m.CondoDetail)
             .Include(m => m.Engagements)
-            .Where(m =>
-                !m.IsDeleted &&
-                m.CollateralType == CollateralTypes.Condo && // "U"
-                m.CondoDetail!.LandOfficeCode == landOfficeCode &&
-                m.CondoDetail.CondoRegistrationNumber == condoRegistrationNumber &&
-                m.CondoDetail.BuildingNumber == buildingNumber &&
-                m.CondoDetail.FloorNumber == floorNumber &&
-                m.CondoDetail.RoomNumber == roomNumber &&
-                m.CondoDetail.TitleNumber == titleNumber &&
-                m.CondoDetail.TitleType == titleType)
+            .Where(m => !m.IsDeleted && m.CollateralType == CollateralTypes.Condo) // "U"
+            .Where(CondoKeyMatches(condoRegistrationNumber, buildingNumber, floorNumber, roomNumber, province, district, subDistrict))
             .FirstOrDefaultAsync(ct);
 
     public async Task<CollateralMaster?> FindLeaseholdByDedupKey(
@@ -195,45 +204,26 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
 
     public async Task<bool> LandDedupCollidesAsync(
         Guid excludeMasterId,
-        string landOfficeCode, string province, string district, string subDistrict,
-        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber,
+        string province, string district, string subDistrict,
+        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber, string? rawang,
         CancellationToken ct = default)
     {
         var landTypes = new[] { CollateralTypes.Land, CollateralTypes.LandWithBuilding };
         return await dbContext.CollateralMasters
-            .Where(m =>
-                m.Id != excludeMasterId &&
-                !m.IsDeleted &&
-                landTypes.Contains(m.CollateralType) &&
-                m.LandDetail!.LandOfficeCode == landOfficeCode &&
-                m.LandDetail.Province == province &&
-                m.LandDetail.District == district &&
-                m.LandDetail.SubDistrict == subDistrict &&
-                m.LandDetail.TitleType == titleType &&
-                m.LandDetail.TitleNumber == titleNumber &&
-                m.LandDetail.SurveyNumber == surveyNumber &&
-                m.LandDetail.LandParcelNumber == landParcelNumber)
+            .Where(m => m.Id != excludeMasterId && !m.IsDeleted && landTypes.Contains(m.CollateralType))
+            .Where(LandKeyMatches(province, district, subDistrict, titleType, titleNumber, surveyNumber, landParcelNumber, rawang))
             .AnyAsync(ct);
     }
 
     public async Task<bool> CondoDedupCollidesAsync(
         Guid excludeMasterId,
-        string landOfficeCode, string condoRegistrationNumber,
+        string condoRegistrationNumber,
         string buildingNumber, string floorNumber, string roomNumber,
-        string titleNumber, string titleType,
+        string province, string district, string subDistrict,
         CancellationToken ct = default)
         => await dbContext.CollateralMasters
-            .Where(m =>
-                m.Id != excludeMasterId &&
-                !m.IsDeleted &&
-                m.CollateralType == CollateralTypes.Condo &&
-                m.CondoDetail!.LandOfficeCode == landOfficeCode &&
-                m.CondoDetail.CondoRegistrationNumber == condoRegistrationNumber &&
-                m.CondoDetail.BuildingNumber == buildingNumber &&
-                m.CondoDetail.FloorNumber == floorNumber &&
-                m.CondoDetail.RoomNumber == roomNumber &&
-                m.CondoDetail.TitleNumber == titleNumber &&
-                m.CondoDetail.TitleType == titleType)
+            .Where(m => m.Id != excludeMasterId && !m.IsDeleted && m.CollateralType == CollateralTypes.Condo)
+            .Where(CondoKeyMatches(condoRegistrationNumber, buildingNumber, floorNumber, roomNumber, province, district, subDistrict))
             .AnyAsync(ct);
 
     public async Task<bool> LeaseholdDedupCollidesAsync(

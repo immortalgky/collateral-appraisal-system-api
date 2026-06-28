@@ -64,8 +64,8 @@ export const PRIORITIES = ["Normal", "High"];
 // We set the request's properties[].propertyType to the matching family to keep them consistent.
 export const COLLATERAL_TYPES = [
   { code: "01", family: "L" },
-  { code: "02", family: "LB" },
-  { code: "08", family: "U" },
+  // { code: "02", family: "LB" },
+  // { code: "08", family: "U" },
 ];
 
 export const FIRST_NAMES = [

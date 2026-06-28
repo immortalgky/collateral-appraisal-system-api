@@ -71,16 +71,13 @@ public class SaveIncomeAnalysisCommandHandler(
                 command.DiscountedRate);
         }
 
-        analysis.SetFinalValueAdjust(command.FinalValueAdjust);
-
         analysis.SetHighestBestUsed(
             command.IsHighestBestUsed,
             Domain.Appraisals.Income.HighestBestUsed.Create(
                 command.HighestBestUsed?.AreaRai,
                 command.HighestBestUsed?.AreaNgan,
                 command.HighestBestUsed?.AreaWa,
-                command.HighestBestUsed?.PricePerSqWa),
-            command.AppraisalPriceRounded);
+                command.HighestBestUsed?.PricePerSqWa));
 
         var (sectionPairs, categoryPairs, assumptionPairs) = SyncSections(analysis, command.Sections);
 
@@ -134,11 +131,11 @@ public class SaveIncomeAnalysisCommandHandler(
         // Priority: AppraisalPriceRounded (explicit override) → derived appraisal price
         //           (FinalValueAdjust + HBU.TotalValue when applicable) → FinalValueRounded.
         decimal methodValue;
-        if (analysis.AppraisalPriceRounded is > 0)
+        if (command.AppraisalPriceRounded is > 0)
         {
-            methodValue = analysis.AppraisalPriceRounded.Value;
+            methodValue = command.AppraisalPriceRounded.Value;
         }
-        else if (analysis.FinalValueAdjust.HasValue)
+        else if (command.FinalValueAdjust.HasValue)
         {
             // Mirror the frontend TotalValue derivation:
             // totalWa = AreaRai*400 + AreaNgan*100 + AreaWa
@@ -152,13 +149,21 @@ public class SaveIncomeAnalysisCommandHandler(
                             + (hbu.AreaWa ?? 0m);
                 hbuValue = totalWa * (hbu.PricePerSqWa ?? 0m);
             }
-            methodValue = analysis.FinalValueAdjust.Value + hbuValue;
+            methodValue = command.FinalValueAdjust.Value + hbuValue;
         }
         else
         {
             methodValue = result.FinalValueRounded;
         }
         method.SetValue(methodValue);
+
+        // Mirror the committed final value into the shared PricingFinalValue (single source of truth).
+        if (method.FinalValue is null)
+            method.SetFinalValue(PricingFinalValue.Create(method.Id, result.FinalValue, result.FinalValueRounded));
+        else
+            method.FinalValue.UpdateFinalValue(result.FinalValue, result.FinalValueRounded);
+        method.FinalValue.SetFinalValueAdjusted(command.FinalValueAdjust);
+        method.FinalValue.SetAppraisalPrice(command.AppraisalPriceRounded);
 
         // Propagate up the approach/analysis chain if this method is selected
         if (method.IsSelected)
@@ -178,7 +183,12 @@ public class SaveIncomeAnalysisCommandHandler(
         var remainingRooms = GatherMethod01RoomNames(command.Sections);
         await cleanupService.CleanupForIncomeRoomsAsync(command.MethodId, remainingRooms, cancellationToken);
 
-        return new SaveIncomeAnalysisResult(IncomeAnalysisMapper.ToDto(analysis));
+        return new SaveIncomeAnalysisResult(IncomeAnalysisMapper.ToDto(
+            analysis,
+            method.FinalValue?.FinalValue,
+            method.FinalValue?.FinalValueRounded,
+            method.FinalValue?.FinalValueAdjusted,
+            method.FinalValue?.AppraisalPrice));
     }
 
     // ── Validation ────────────────────────────────────────────────────────

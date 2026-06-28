@@ -105,9 +105,7 @@ public class SaveLeaseholdAnalysisCommandHandler(
 
         analysis.SetComputedValues(
             calcResult.TotalIncomeOverLeaseTerm,
-            calcResult.ValueAtLeaseExpiry,
-            calcResult.FinalValue,
-            calcResult.FinalValueRounded);
+            calcResult.ValueAtLeaseExpiry);
 
         // Store full calculation table
         analysis.ClearTableRows();
@@ -154,6 +152,15 @@ public class SaveLeaseholdAnalysisCommandHandler(
         var computedEstimate = computedEstimatePriceRounded ?? calcResult.FinalValueRounded;
         var finalPrice = command.EstimatePriceRounded ?? computedEstimate;
         method.SetValue(finalPrice);
+
+        // Mirror the committed final value into the shared PricingFinalValue (single source of truth).
+        // Land area and building value are not applicable for Leasehold.
+        if (method.FinalValue is null)
+            method.SetFinalValue(PricingFinalValue.Create(method.Id, calcResult.FinalValue, calcResult.FinalValueRounded));
+        else
+            method.FinalValue.UpdateFinalValue(calcResult.FinalValue, calcResult.FinalValueRounded);
+        method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
+        method.FinalValue.SetAppraisalPrice(command.AppraisalPrice ?? finalPrice);
 
         // Propagate value up if method is selected
         if (method.IsSelected && method.MethodValue.HasValue)

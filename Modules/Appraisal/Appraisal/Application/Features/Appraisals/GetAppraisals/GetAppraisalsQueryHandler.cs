@@ -46,7 +46,7 @@ public class GetAppraisalsQueryHandler(
         foreach (var a in result.Items)
         {
             var (elapsed, remaining) =
-                await businessTime.ComputeElapsedRemainingHoursAsync(now, a.CreatedAt, a.SLADueDate, cancellationToken);
+                await businessTime.ComputeElapsedRemainingHoursAsync(now, a.CreatedAt, a.SLADueDate, ct: cancellationToken);
             items.Add(a with { ElapsedHours = elapsed, RemainingHours = remaining });
         }
 

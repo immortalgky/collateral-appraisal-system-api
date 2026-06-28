@@ -343,6 +343,7 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
                     TitleNumber: null,
                     SurveyNumber: null,
                     LandParcelNumber: null,
+                    Rawang: null,
                     Street: "123 Test Street",
                     Village: null,
                     Latitude: null,
@@ -455,8 +456,8 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
 
             var collides = await repo.LandDedupCollidesAsync(
                 master.Id,
-                ld.LandOfficeCode, ld.Province, ld.District, ld.SubDistrict,
-                ld.TitleType, ld.TitleNumber, ld.SurveyNumber, ld.LandParcelNumber,
+                ld.Province, ld.District, ld.SubDistrict,
+                ld.TitleType, ld.TitleNumber, ld.SurveyNumber, ld.LandParcelNumber, ld.Rawang,
                 TestContext.Current.CancellationToken);
 
             Assert.True(collides,
@@ -487,10 +488,10 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
 
             var collides = await repo.LandDedupCollidesAsync(
                 masterIdA,
-                ld.LandOfficeCode, ld.Province, ld.District, ld.SubDistrict,
+                ld.Province, ld.District, ld.SubDistrict,
                 ld.TitleType,
                 titleNoB,   // would match master B
-                ld.SurveyNumber, ld.LandParcelNumber,
+                ld.SurveyNumber, ld.LandParcelNumber, ld.Rawang,
                 TestContext.Current.CancellationToken);
 
             Assert.True(collides,

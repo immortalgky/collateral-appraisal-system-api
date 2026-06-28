@@ -79,14 +79,14 @@ public class SetFinalValueCommandHandler(
             finalValue.ExcludeLandArea();
         }
 
-        // Handle building cost (toggle + amount); AppraisalPrice persists independently below.
-        if (command.HasBuildingCost == true && command.BuildingCost.HasValue)
+        // Handle building value (toggle + amount); AppraisalPrice persists independently below.
+        if (command.HasBuildingValue == true && command.BuildingValue.HasValue)
         {
-            finalValue.SetBuildingCost(command.BuildingCost.Value);
+            finalValue.SetBuildingValue(command.BuildingValue.Value);
         }
-        else if (command.HasBuildingCost == false)
+        else if (command.HasBuildingValue == false)
         {
-            finalValue.ClearBuildingCost();
+            finalValue.ClearBuildingValue();
         }
 
         if (command.AppraisalPrice.HasValue)
@@ -101,8 +101,8 @@ public class SetFinalValueCommandHandler(
             finalValue.IncludeLandArea,
             finalValue.LandArea,
             finalValue.LandValue,
-            finalValue.HasBuildingCost,
-            finalValue.BuildingCost,
+            finalValue.HasBuildingValue,
+            finalValue.BuildingValue,
             finalValue.AppraisalPrice
         );
     }

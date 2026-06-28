@@ -1,4 +1,5 @@
 using Appraisal.Application.Configurations;
+using Appraisal.Domain.Evaluations;
 using Shared.Identity;
 using Shared.Time;
 
@@ -33,6 +34,18 @@ public class UpdateEvaluationCommandHandler(
             ?? throw new NotFoundException(
                 $"AppraisalEvaluation with id '{command.Id}' was not found.");
 
+        // Snapshot the composite score using the weights in force *now* — only on the
+        // Pending → Completed transition. Pending rows are scored live by the view.
+        decimal? totalScore = null;
+        if (command.EvaluationStatus == "Completed")
+        {
+            var weights = await EvaluationWeights.LoadAsync(db, evaluation.AppraisalId, cancellationToken);
+            totalScore = AppraisalEvaluation.ComputeScore(
+                weights,
+                command.Criteria1Rating, command.Criteria2Rating, command.Criteria3Rating,
+                command.Criteria4Rating, command.Criteria5Rating);
+        }
+
         evaluation.Update(
             criteria1Rating:         command.Criteria1Rating,
             criteria2Rating:         command.Criteria2Rating,
@@ -45,7 +58,8 @@ public class UpdateEvaluationCommandHandler(
             note:                    command.Note,
             evaluationStatus:        command.EvaluationStatus,
             evaluatedBy:             currentUser.Username,
-            evaluatedAt:             dateTimeProvider.ApplicationNow);
+            evaluatedAt:             dateTimeProvider.ApplicationNow,
+            totalScore:              totalScore);
 
         await db.SaveChangesAsync(cancellationToken);
 

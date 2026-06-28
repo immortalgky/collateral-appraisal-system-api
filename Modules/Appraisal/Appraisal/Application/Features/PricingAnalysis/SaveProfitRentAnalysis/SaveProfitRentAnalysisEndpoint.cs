@@ -25,7 +25,8 @@ public class SaveProfitRentAnalysisEndpoint : ICarterModule
                         request.GrowthPeriods,
                         request.Remark,
                         request.EstimatePriceRounded,
-                        request.AppraisalPrice
+                        request.AppraisalPrice,
+                        request.FinalValueAdjusted
                     );
 
                     var result = await sender.Send(command, cancellationToken);

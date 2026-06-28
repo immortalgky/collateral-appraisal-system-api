@@ -3,14 +3,16 @@ namespace Reporting.Application.Models.Sections;
 /// <summary>
 /// Sub-model for the appendix (ภาคผนวก) — FSD §2.1.2.12+.
 ///
-/// Image-type gallery entries are grouped by appendix type and rendered as HTML image pages.
-/// PDF-type entries are collected as DocumentIds and merged via the existing SLOT mechanism.
+/// Gallery entries are grouped by appendix type. Within each group, image-type entries
+/// render as HTML image pages and PDF-type entries are merged — via a per-group SLOT
+/// marker (<see cref="AppendixGroup.SlotName"/>) — right under that group's heading,
+/// so a PDF uploaded under "Land Map" appears under the Land Map section.
 /// The section is absent when no appendix rows exist for the appraisal.
 /// </summary>
 public sealed class AppendixSection
 {
     /// <summary>
-    /// One entry per appendix type that contains at least one image.
+    /// One entry per appendix type that contains at least one image OR one PDF.
     /// Ordered by AppraisalAppendices.SortOrder.
     /// </summary>
     public IReadOnlyList<AppendixGroup> Groups { get; init; } = [];
@@ -34,8 +36,17 @@ public sealed class AppendixGroup
 
     /// <summary>
     /// Images belonging to this group, ordered by AppendixDocuments.DisplaySequence.
+    /// May be empty when the group has only PDF entries.
     /// </summary>
     public IReadOnlyList<AppendixImage> Images { get; init; } = [];
+
+    /// <summary>
+    /// Unique slot name for this group (e.g. "appendix-0"). The partial emits a
+    /// <c>&lt;!-- SLOT: {SlotName} --&gt;</c> marker after the group's images so this
+    /// group's PDF entries — keyed by the same name in the model's AttachmentsBySlot —
+    /// are merged immediately under the group, not at the end of the document.
+    /// </summary>
+    public string SlotName { get; init; } = string.Empty;
 }
 
 /// <summary>One image entry inside an appendix group.</summary>

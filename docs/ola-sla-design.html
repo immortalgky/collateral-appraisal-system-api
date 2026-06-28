@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OLA / SLA Design — Collateral Appraisal Workflow</title>
+<style>
+  :root{
+    --bg:#0f1220; --panel:#171a2b; --ink:#e7e9f3; --muted:#a3a8c3; --line:#2a2f48;
+    --accent:#6ea8fe; --bank:#7c8cff; --vendor:#ffb454; --shared:#5ad1a8;
+    --ok:#34d399; --warn:#fbbf24; --bad:#f87171; --chip:#222743;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:980px;margin:0 auto;padding:40px 24px 120px}
+  header.h{padding:28px 0 8px;border-bottom:1px solid var(--line);margin-bottom:28px}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:.2px}
+  h2{font-size:22px;margin:46px 0 12px;padding-top:10px;border-top:1px dashed var(--line)}
+  h3{font-size:17px;margin:26px 0 8px;color:#cdd2f0}
+  p{color:var(--ink)}
+  .sub{color:var(--muted);margin:0}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{background:#0b0e1a;border:1px solid var(--line);border-radius:6px;padding:1px 6px;
+    font:13px/1.4 "SF Mono",Menlo,Consolas,monospace;color:#d9e0ff}
+  pre{background:#0b0e1a;border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto}
+  pre code{border:0;background:none;padding:0}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:14px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#1c2138;color:#cfd5f7;font-weight:600}
+  tr:nth-child(even) td{background:#141728}
+  .chip{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;
+    border:1px solid var(--line);background:var(--chip);color:#cdd2f0}
+  .bank{background:rgba(124,140,255,.16);border-color:#3a3f7a;color:#aab4ff}
+  .vendor{background:rgba(255,180,84,.16);border-color:#6b5326;color:#ffce8a}
+  .shared{background:rgba(90,209,168,.16);border-color:#2c5e4d;color:#8ee9c9}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+  .callout{border-left:4px solid var(--accent);background:#131830;border-radius:0 10px 10px 0;
+    padding:12px 16px;margin:14px 0}
+  .callout.warn{border-color:var(--warn);background:#241f12}
+  .callout.bad{border-color:var(--bad);background:#241416}
+  .callout.ok{border-color:var(--ok);background:#10231b}
+  .toc{columns:2;column-gap:28px;font-size:14.5px}
+  @media(max-width:600px){.toc{columns:1}}
+  .toc a{display:block;padding:3px 0;color:var(--muted)}
+  .toc a:hover{color:var(--ink)}
+  .lead{font-size:18px;color:#cdd2f0}
+  .kbd{font-size:12px;color:var(--muted)}
+  ul{padding-left:20px} li{margin:4px 0}
+  .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+  .small{font-size:13px;color:var(--muted)}
+  hr{border:0;border-top:1px solid var(--line);margin:34px 0}
+  .tag{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .built{color:var(--ok);font-weight:600}
+  .todo{color:var(--warn);font-weight:600}
+  .mono{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="h">
+  <div class="tag">Collateral Appraisal System · Design Note</div>
+  <h1>OLA / SLA for the Appraisal Workflow</h1>
+  <p class="sub">Concept, configuration model, the activity ownership/scenario model, how the engine
+  assigns SLA, and the clock-state &amp; responsibility model for a workflow that moves forward and replays.</p>
+</header>
+
+<div class="panel">
+  <strong>Contents</strong>
+  <nav class="toc">
+    <a href="#concept">1 · Concept: OLA vs SLA (ownership split)</a>
+    <a href="#dims">2 · What the targets vary by</a>
+    <a href="#owner">3 · Activity ownership &amp; scenarios</a>
+    <a href="#screen">4 · The config screen</a>
+    <a href="#engine">5 · How the engine assigns SLA</a>
+    <a href="#submitted">6 · How "delivered" is detected (SubmittedAt)</a>
+    <a href="#clocks">7 · Clock-state &amp; responsibility (forward + replay)</a>
+    <a href="#vendor">8 · Detecting vendor SLA</a>
+    <a href="#plan">9 · Implementation plan</a>
+    <a href="#status">10 · Built vs deferred</a>
+  </nav>
+</div>
+
+<h2 id="concept">1 · Concept — OLA vs SLA (ownership split)</h2>
+<p class="lead">SLA is the promise to the customer. OLA is the internal accountability behind it.</p>
+<div class="grid2">
+  <div class="panel">
+    <span class="chip">SLA</span>
+    <p><strong>End-to-end customer commitment</strong> — request submitted → appraisal completed.
+    One umbrella number per path, set independently (the business promise).</p>
+  </div>
+  <div class="panel">
+    <span class="chip">OLA</span>
+    <p><strong>Internal / inter-party targets</strong> — the building blocks. The external company's
+    turnaround is <em>vendor OLA</em>; the bank's own steps are <em>internal OLA</em>. They live
+    <em>within</em> the SLA umbrella.</p>
+  </div>
+</div>
+<div class="callout">
+  The key word is <strong>accountability</strong>. "This appraisal took 12 days" doesn't tell you
+  <em>who</em> was slow. OLA splits the time by the party responsible for each chunk.
+</div>
+
+<h2 id="dims">2 · What the targets vary by</h2>
+<p>OLA/SLA targets are configured per <strong>Loan Type × Appraisal Type</strong>:</p>
+<ul>
+  <li><strong>Loan Type</strong> — the banking-segment value (Retail / IBG), reused as the
+  <code>SlaPolicy.LoanType</code> dimension.</li>
+  <li><strong>Appraisal Type</strong> — New / ReAppraisal / Progressive / PreAppraisal.</li>
+</ul>
+<p class="small">Stored as nullable wildcard rows: a fully-specified cell wins; a null acts as
+"applies to all". Existing seeded defaults (all-null) keep working as universal fallbacks —
+no data backfill needed. <em>Assignment type</em> is a deferred future axis.</p>
+
+<h2 id="owner">3 · Activity ownership &amp; scenarios</h2>
+<p>Each activity carries two independent attributes:</p>
+<ul>
+  <li><strong>Owner</strong> — who is responsible for the time (drives display group + OLA attribution).</li>
+  <li><strong>Scenario</strong> — which mutually-exclusive case it runs in.</li>
+</ul>
+<p>An appraisal runs <strong>either</strong> the external-company case <strong>or</strong> the in-house case — never both:</p>
+<table>
+  <thead><tr><th>Owner group</th><th>Activities</th><th>Scenario</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="chip shared">Shared</span><br><span class="small">bank, both cases</span></td>
+      <td>appraisal-initiation-check, appraisal-initiation, int-pma-input, appraisal-assignment,
+      <strong>int-appraisal-check</strong>, <strong>int-appraisal-verification</strong>,
+      pending-meeting, pending-approval</td>
+      <td>Both</td>
+    </tr>
+    <tr>
+      <td><span class="chip vendor">External / Vendor</span><br><span class="small">external company</span></td>
+      <td>ext-appraisal-assignment, ext-appraisal-execution, ext-appraisal-check, ext-appraisal-verification</td>
+      <td>External case</td>
+    </tr>
+    <tr>
+      <td rowspan="2"><span class="chip bank">Bank appraisal step</span></td>
+      <td><strong>appraisal-book-verification</strong> <span class="small">(bank verifies the vendor's book)</span></td>
+      <td>External case</td>
+    </tr>
+    <tr>
+      <td><strong>int-appraisal-execution</strong> <span class="small">(in-house appraisal)</span></td>
+      <td>In-house case</td>
+    </tr>
+  </tbody>
+</table>
+<div class="callout ok">
+  <strong>"External SLA" = vendor <code>ext-*</code> only.</strong> <code>appraisal-book-verification</code>
+  is <em>bank staff time</em> — it runs only in the external case but is never counted against the vendor's OLA.
+</div>
+<div class="callout">
+  <strong>The mutually-exclusive pair:</strong> <code>appraisal-book-verification</code> (external case)
+  and <code>int-appraisal-execution</code> (in-house case) are the bank's "first appraisal step" in each
+  scenario — they never happen together. Meanwhile <code>int-appraisal-check</code> /
+  <code>int-appraisal-verification</code> happen in <em>both</em> cases, so they're Shared.
+</div>
+
+<h2 id="screen">4 · The config screen</h2>
+<p>Selector-driven (Loan Type × Appraisal Type), simplified to what's actually needed:</p>
+<ul>
+  <li><strong>SLA umbrella</strong> — one end-to-end target field.</li>
+  <li><strong>Per-activity hours</strong> — grouped by owner (Shared / External / Bank), each row a
+  name + hours + Save, with override/inherited badges and a revert.</li>
+  <li><strong>Group windows (Start → End + hours)</strong> — a shared OLA/SLA window over a span
+  (e.g. the external company's total turnaround). Create / edit / delete (override → revert;
+  default → global delete with confirmation).</li>
+</ul>
+<div class="callout">
+  Earlier iterations showed Σ-sum bars and "inner — not summed" coverage tags. Those were removed —
+  per-activity hours plus configurable group windows are enough, without the sum machinery.
+</div>
+<p class="small">Gated by a new <code>SLA_CONFIG_MANAGE</code> permission, route <code>admin/sla-config</code>,
+menu node seeded; all idempotent on the next deploy (no backfill).</p>
+
+<h2 id="engine">5 · How the engine assigns SLA</h2>
+<p class="lead">There are two independent clocks — and they behave oppositely.</p>
+<table>
+  <thead><tr><th>Clock</th><th>Applied to</th><th>On forward to the next step</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Per-activity SLA</strong><br><span class="small">PendingTask.DueAt</span></td>
+      <td>each activity's own deadline (its policy, or the workflow JSON timeout)</td>
+      <td><span class="warn">restarts</span> — a fresh clock from 0 when the next activity is assigned</td>
+    </tr>
+    <tr>
+      <td><strong>Group / stage window</strong><br><span class="small">AppraisalAssignment.SLADueDate</span></td>
+      <td>one deadline on the assignment, anchored to the <em>Start</em> activity</td>
+      <td><span class="ok">continues</span> — one envelope across the whole span, accumulates, includes idle gaps</td>
+    </tr>
+  </tbody>
+</table>
+<div class="callout">
+  <strong>Worked example.</strong> Group window <code>ext-execution → ext-verification = 144h</code>.
+  ext-staff takes 7h, 2h handoff gap, then ext-check takes 5h:
+  <ul>
+    <li><strong>Group window:</strong> 7 → continues through the gap → 14h / 144 (it never resets until the End).</li>
+    <li><strong>ext-execution own SLA:</strong> 7h, done. <strong>ext-check own SLA:</strong> fresh 0 → 5h.</li>
+  </ul>
+  They're nested: the group is the total budget; each activity has its own restarting sub-budget.
+  A group catches "every step was on time but the whole thing still took too long" (including waiting between steps).
+</div>
+<div class="callout warn">
+  Today the group deadline is <code>Start + duration</code>; <code>EndActivityKey</code> and
+  <code>MiddleActivityKeys</code> are <strong>not read at runtime</strong> — they're documentation only.
+</div>
+
+<h2 id="submitted">6 · How "delivered" is detected (SubmittedAt)</h2>
+<p><code>AppraisalAssignment.SubmittedAt</code> is <em>not</em> derived from the group's End activity.
+It's stamped by a <strong>hardcoded workflow transition edge</strong> in <code>MarkUnderReview()</code>:</p>
+<pre><code>var isFirstSubmission = AssignmentStatus == InProgress &amp;&amp; SubmittedAt is null;
+AssignmentStatus = UnderReview;
+if (isFirstSubmission) SubmittedAt = DateTime.Now;</code></pre>
+<ul>
+  <li><strong>External case:</strong> transition <code>ext-appraisal-verification → appraisal-book-verification</code> (vendor hands the book to the bank).</li>
+  <li><strong>In-house case:</strong> transition <code>int-appraisal-execution → int-appraisal-check</code>.</li>
+  <li><strong>First submission only</strong> — not re-stamped on rework/routeback.</li>
+</ul>
+<div class="callout">
+  So the vendor's "end" is already captured by <code>SubmittedAt</code> — which is why
+  <code>EndActivityKey</code> on the group config is redundant. A cleaner alternative is to
+  detect the window's end from the configured <strong>End activity's completion in
+  <code>CompletedTasks</code></strong>, which makes Start/End genuinely meaningful and is consistent
+  with how the OLA reports already measure segments.
+</div>
+
+<h2 id="clocks">7 · Clock-state &amp; responsibility (forward + replay)</h2>
+<p class="lead">Governing principle: <strong>a clock attaches to responsibility, not to activities.</strong></p>
+<p>It runs while a party holds the baton, stops when the baton leaves, and pauses when they're blocked
+on someone else. <strong>Replay (routeback) = the baton comes back = a NEW accountable span</strong> —
+it never rewinds the closed one. The appraisal workflow has ~20 routeback edges, so this matters.</p>
+
+<h3>Three clock scopes, three replay behaviors</h3>
+<table>
+  <thead><tr><th>Scope</th><th>On replay</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Per-activity (leg)</strong></td><td>restart every execution</td>
+      <td>each <code>CompletedTask</code> row is one leg; <code>Movement="B"</code> tags a rework leg;
+      report first-pass vs rework separately</td></tr>
+    <tr><td><strong>Per-party OLA (cycle)</strong></td><td>per engagement cycle; accumulate within; attribute across</td>
+      <td>vendor already has this (<code>ExternalEngagementCycle</code> + <code>TotalExternalBusinessMinutes</code>)</td></tr>
+    <tr><td><strong>End-to-end SLA</strong></td><td>continuous across all replays</td>
+      <td>bank owns rework time; pause only for genuine "waiting on customer / third party"</td></tr>
+  </tbody>
+</table>
+
+<h3>Fault attribution</h3>
+<p>Whether a party's <em>rework</em> cycle counts against them depends on <strong>who caused the replay</strong>:</p>
+<ul>
+  <li>Reviewer quality-rejection (vendor's fault) → the rework time <strong>counts against the vendor</strong>.</li>
+  <li>Bank changed requirements / "request more info" → <strong>excluded</strong> from the vendor's OLA.</li>
+</ul>
+<div class="callout bad">
+  <strong>Gap:</strong> the routeback <em>reason</em> is transient (workflow variables + fire-and-forget
+  events, not on the task log) and the <em>responsible party / fault owner</em> is recorded
+  <strong>nowhere</strong>. Fair cross-cycle measurement needs this persisted.
+</div>
+
+<h3>What we'd build on</h3>
+<div class="grid2">
+  <div class="panel">
+    <strong class="ok">Already exists (reuse)</strong>
+    <ul class="small">
+      <li><code>workflow.CompletedTasks</code> — leg-grained log; rework ⇒ multiple rows per <code>(CorrelationId, ActivityId)</code></li>
+      <li><code>Movement</code> F / B / C on every leg</li>
+      <li><code>IBusinessTimeCalculator</code> — business-time (holidays/lunch)</li>
+      <li><code>ExternalEngagementCycle</code> — per-cycle accumulation template (vendor)</li>
+      <li><code>OlaTimingService</code> — group-by + first-round reduction</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <strong class="warn">Missing (to build)</strong>
+    <ul class="small">
+      <li>per-leg business-minutes not persisted</li>
+      <li>bank-side cycle accumulation (only vendor exists)</li>
+      <li>routeback reason/owner durability (fault attribution)</li>
+      <li>explicit end-to-end "pause" state</li>
+    </ul>
+  </div>
+</div>
+
+<h2 id="vendor">8 · Detecting vendor SLA</h2>
+<p>Vendor SLA = <strong>actual turnaround (business time) vs target</strong>, from timestamps the
+assignment already records:</p>
+<table>
+  <thead><tr><th>Piece</th><th>Field</th></tr></thead>
+  <tbody>
+    <tr><td>clock start</td><td><code>AppraisalAssignment.AssignedAt</code></td></tr>
+    <tr><td>clock end</td><td><code>AppraisalAssignment.SubmittedAt</code></td></tr>
+    <tr><td>elapsed</td><td><code>IBusinessTimeCalculator.GetBusinessMinutesBetweenAsync(...)</code></td></tr>
+    <tr><td>multi-round</td><td><code>TotalExternalBusinessMinutes</code>, <code>Cycles</code>, <code>SubmissionCount</code></td></tr>
+    <tr><td>target</td><td>group/stage policy hours <em>or</em> delivery thresholds</td></tr>
+  </tbody>
+</table>
+<p>Two detection flavors already half-exist:</p>
+<ul>
+  <li><strong class="built">Graded (live)</strong> — <code>DetectDeliveryTimeQuery</code> maps turnaround
+  to a 1–5 rating via <code>EvaluationCriteriaConfigs</code> thresholds → feeds company scoring.</li>
+  <li><strong class="todo">Binary met/missed (dormant)</strong> — <code>vw_AssignmentList</code> derives
+  <code>SLAStatus</code> from <code>SubmittedAt ≤ SLADueDate</code>, but nothing reads that view yet.</li>
+</ul>
+<div class="callout warn">
+  <strong>Pick one source of truth</strong> for "how long the vendor should take" — the group/stage
+  policy <em>and</em> the delivery thresholds both encode it. Otherwise a vendor can be "MetSLA" yet
+  scored 2/5.
+</div>
+
+<h2 id="plan">9 · Implementation plan — Vendor + Bank party-SLA</h2>
+<p><strong>Decisions:</strong> full Vendor + Bank split; measure raw first (defer fault attribution).</p>
+<p><strong>Approach:</strong> a single on-read evaluator over <code>CompletedTasks</code> — no new tables,
+no new event handlers.</p>
+<ol>
+  <li><strong>PartySlaEvaluator</strong> (Reporting module, beside <code>OlaTimingService</code>) — load
+  legs for the appraisal, exclude <code>"Reassigned"</code> audit rows, classify owner
+  (<code>ext-*</code> → Vendor, else Bank).</li>
+  <li><strong>Derive cycles</strong> — order legs by <code>AssignedAt</code>, group consecutive
+  same-owner legs; ownership flip = cycle boundary.</li>
+  <li><strong>Per cycle</strong> — <code>businessTime(firstLeg.AssignedAt → lastLeg.CompletedAt)</code>
+  (includes within-cycle gaps, excludes the other party's time); tag <code>IsRework</code>.</li>
+  <li><strong>Compare</strong> each party's elapsed (per-cycle + cumulative) to the configured
+  group/stage target → met/missed.</li>
+  <li><strong>Surface</strong> — <code>GET /appraisals/{id}/party-sla</code> with the per-party cycle breakdown.</li>
+</ol>
+<p class="small"><strong>Deferred:</strong> routeback reason/owner persistence (fault attribution),
+explicit end-to-end pause states, live at-risk monitoring on party cycles, any persisted bank-cycle table.</p>
+
+<h2 id="status">10 · Built vs deferred</h2>
+<table>
+  <thead><tr><th>Item</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>SlaPolicy</code> + AppraisalType dimension, resolver threading, migration</td><td class="built">Built</td></tr>
+    <tr><td>Matrix API + admin screen (per-activity hours, group windows, owner/scenario)</td><td class="built">Built</td></tr>
+    <tr><td>Permission / role grant / menu node (idempotent seed)</td><td class="built">Built</td></tr>
+    <tr><td>Group detection from End activity (true Start→End elapsed)</td><td class="todo">Design / optional</td></tr>
+    <tr><td>Party-SLA evaluator (Vendor + Bank, on-read)</td><td class="todo">Planned</td></tr>
+    <tr><td>RCAS007 / RCAS012 SLA reports</td><td class="todo">Follow-up</td></tr>
+    <tr><td>Fault attribution (routeback reason / owner)</td><td class="todo">Deferred</td></tr>
+  </tbody>
+</table>
+
+<hr>
+<p class="small">Generated as a reading companion to the working design note
+<code>~/.claude/plans/analyze-our-workflow-activity-golden-ember.md</code>.</p>
+
+</div>
+</body>
+</html>
