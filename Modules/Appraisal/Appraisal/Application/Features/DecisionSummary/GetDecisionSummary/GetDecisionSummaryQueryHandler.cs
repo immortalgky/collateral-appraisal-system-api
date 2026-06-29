@@ -35,7 +35,7 @@ public class GetDecisionSummaryQueryHandler(
 
         // Query 3: Government prices
         const string govPriceSql = """
-            SELECT lt.TitleNumber, lt.AreaSquareWa, lt.IsMissingFromSurvey,
+            SELECT lt.TitleNumber, ISNULL(lt.AreaSquareWa, 0) + (ISNULL(lt.AreaNgan, 0) * 100) + (ISNULL(lt.AreaRai, 0) * 400) as AreaSquareWa, lt.IsMissingFromSurvey,
                    lt.GovernmentPricePerSqWa, lt.GovernmentPrice
             FROM appraisal.LandTitles lt
             JOIN appraisal.LandAppraisalDetails lad ON lad.Id = lt.LandAppraisalDetailId
