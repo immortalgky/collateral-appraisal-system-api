@@ -30,12 +30,12 @@ public class CreateLandPMAPropertyEndpoint : ICarterModule
                         response);
                 }
             )
-            .WithName("CreateLandProperty")
+            .WithName("CreateLandPMAProperty")
             .Produces<CreateLandPropertyResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .WithSummary("Create a land property")
-            .WithDescription("Creates a new land property with its appraisal detail for an appraisal.")
+            .WithSummary("Create a land pma property")
+            .WithDescription("Creates a new land pma property with its appraisal detail for an appraisal.")
             .WithTags("Appraisal Properties");
     }
 }
