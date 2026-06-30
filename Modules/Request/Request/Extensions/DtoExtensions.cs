@@ -220,6 +220,8 @@ public static class DtoExtensions
                 {
                     TitleNumber = leaseLand.TitleDeedInfo?.TitleNumber,
                     TitleType = leaseLand.TitleDeedInfo?.TitleType,
+                    BookNumber = leaseLand.LandLocationInfo?.BookNumber,
+                    PageNumber = leaseLand.LandLocationInfo?.PageNumber,
                     LandParcelNumber = leaseLand.LandLocationInfo?.LandParcelNumber,
                     SurveyNumber = leaseLand.LandLocationInfo?.SurveyNumber,
                     Rawang = leaseLand.LandLocationInfo?.Rawang,
@@ -241,6 +243,8 @@ public static class DtoExtensions
                 {
                     TitleNumber = leaseLandBuilding.TitleDeedInfo?.TitleNumber,
                     TitleType = leaseLandBuilding.TitleDeedInfo?.TitleType,
+                    BookNumber = leaseLandBuilding.LandLocationInfo?.BookNumber,
+                    PageNumber = leaseLandBuilding.LandLocationInfo?.PageNumber,
                     LandParcelNumber = leaseLandBuilding.LandLocationInfo?.LandParcelNumber,
                     SurveyNumber = leaseLandBuilding.LandLocationInfo?.SurveyNumber,
                     Rawang = leaseLandBuilding.LandLocationInfo?.Rawang,
