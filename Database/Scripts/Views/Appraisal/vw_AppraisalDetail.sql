@@ -46,6 +46,8 @@ SELECT a.Id,
        NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(u.FirstName, N''), N' ', NULLIF(u.LastName, N'')))), N'')
                                                                                            AS AppraiserName,
        COALESCE(lap.AppointmentDateTime, a.CompletedAt, la.CompletedAt)                    AS AppraisalDate,
+       -- Final appraised value (same source as vw_AppraisalList.AppraisalValue).
+       va.AppraisedValue                                                                   AS AppraisalValue,
        -- Committee approval tier + meeting linkage. Tier derives from the approving committee
        -- CODE stored on the appraisal (1 = sub-committee, 2 = committee without meeting,
        -- 3 = committee with meeting) — robust even when the Committees table lacks that code.
@@ -94,8 +96,11 @@ FROM appraisal.Appraisals a
          LEFT JOIN auth.Companies c
                 ON c.Id = TRY_CAST(la.AssigneeCompanyId AS UNIQUEIDENTIFIER)
                AND c.IsDeleted = 0
+         -- AssigneeUserId / InternalAppraiserId hold the UserName (bank code), NOT the user Id —
+         -- join on UserName. (A TRY_CAST-to-uniqueidentifier on Id silently misses and yields NULL.)
          LEFT JOIN auth.AspNetUsers u
-                ON u.Id = TRY_CAST(CASE WHEN la.AssigneeCompanyId IS NOT NULL
-                                        THEN la.InternalAppraiserId
-                                        ELSE la.AssigneeUserId
-                                   END AS UNIQUEIDENTIFIER)
+                ON u.UserName = CASE WHEN la.AssigneeCompanyId IS NOT NULL
+                                     THEN la.InternalAppraiserId
+                                     ELSE la.AssigneeUserId
+                                END
+         LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id
