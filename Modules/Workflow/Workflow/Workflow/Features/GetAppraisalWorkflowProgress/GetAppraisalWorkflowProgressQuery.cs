@@ -17,7 +17,7 @@ public class GetAppraisalWorkflowProgressResponse
 public class PhaseStepDto
 {
     public string Group { get; set; } = default!;
-    public string Status { get; set; } = default!; // Completed | Current | Pending
+    public string Status { get; set; } = default!; // Completed | Current | Pending | Cancelled
 }
 
 public class ActivityLogItemDto
@@ -36,4 +36,5 @@ public class ActivityLogItemDto
     public string? Group { get; set; }
     public string? ActivityId { get; set; }
     public string? CompanyName { get; set; }
+    public string? Movement { get; set; } // F | C (Cancel) | B (back) — "C" marks the cancelled activity
 }

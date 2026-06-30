@@ -171,6 +171,12 @@ public class TaskActivity : WorkflowActivityBase
             if (resumeInput.TryGetValue("comments", out var commentsValue))
                 outputData[$"{NormalizeActivityId(context.ActivityId)}_comments"] = commentsValue;
 
+            // Capture optional coded decision reason (e.g. CancelReason/RoutebackReason code)
+            // so PublishTaskCompletedEventAsync can persist it onto CompletedTask.ReasonCode.
+            // `reasonCode` is reserved below so the generic passthrough loop skips it.
+            if (resumeInput.TryGetValue("reasonCode", out var reasonCodeValue))
+                outputData[$"{NormalizeActivityId(context.ActivityId)}_reasonCode"] = reasonCodeValue;
+
             // Process all input data using inputMappings (unified approach)
             foreach (var kvp in resumeInput)
                 if (!IsReservedKey(kvp.Key))
@@ -454,6 +460,7 @@ public class TaskActivity : WorkflowActivityBase
         return key.Equals("decisionTaken", StringComparison.OrdinalIgnoreCase) ||
                key.Equals("decision", StringComparison.OrdinalIgnoreCase) ||
                key.Equals("comments", StringComparison.OrdinalIgnoreCase) ||
+               key.Equals("reasonCode", StringComparison.OrdinalIgnoreCase) ||
                key.Equals("completedBy", StringComparison.OrdinalIgnoreCase) ||
                key.Equals("variableUpdates", StringComparison.OrdinalIgnoreCase);
     }
@@ -752,6 +759,12 @@ public class TaskActivity : WorkflowActivityBase
             : null;
         if (string.IsNullOrWhiteSpace(remark)) remark = null;
 
+        var reasonCodeKey = $"{NormalizeActivityId(context.ActivityId)}_reasonCode";
+        var reasonCode = outputData.TryGetValue(reasonCodeKey, out var reasonCodeValue)
+            ? reasonCodeValue?.ToString()
+            : null;
+        if (string.IsNullOrWhiteSpace(reasonCode)) reasonCode = null;
+
         // Pass CompletedBy for pool task implicit assignment
         var completedBy = context.WorkflowInstance.CurrentAssignee;
 
@@ -783,7 +796,7 @@ public class TaskActivity : WorkflowActivityBase
             new TaskCompletedDomainEvent(correlationGuid, taskName, actionTaken, _dateTimeProvider.ApplicationNow,
                 completedBy,
                 context.WorkflowInstance.Name, remark, appraisalNumber, movement,
-                completedAppraisalId, context.ActivityId),
+                completedAppraisalId, context.ActivityId, reasonCode),
             cancellationToken);
     }
 

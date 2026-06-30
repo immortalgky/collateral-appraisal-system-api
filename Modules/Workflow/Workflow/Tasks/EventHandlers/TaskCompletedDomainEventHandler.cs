@@ -48,7 +48,7 @@ public class TaskCompletedDomainEventHandler(
 
         var completedTask = CompletedTask.CreateFromPendingTask(
             pendingTask, notification.ActionTaken, notification.CompletedAt, notification.Remark,
-            notification.Movement);
+            notification.Movement, notification.ReasonCode);
 
         await assignmentRepository.AddCompletedTaskAsync(completedTask, cancellationToken);
         await assignmentRepository.RemovePendingTaskAsync(pendingTask, cancellationToken);
