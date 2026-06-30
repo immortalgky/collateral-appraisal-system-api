@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Request.Infrastructure;
 
@@ -11,9 +12,11 @@ using Request.Infrastructure;
 namespace Request.Infrastructure.Migrations
 {
     [DbContext(typeof(RequestDbContext))]
-    partial class RequestDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260629152238_ExtendTitleDocumentNotesTo4000")]
+    partial class ExtendTitleDocumentNotesTo4000
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1127,6 +1130,49 @@ namespace Request.Infrastructure.Migrations
                                 .HasForeignKey("RequestId");
                         });
 
+                    b.OwnsOne("Request.Domain.Requests.Requestor", "RequestorSnapshot", b1 =>
+                        {
+                            b1.Property<Guid>("RequestId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("RequestorAoCode")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)")
+                                .HasColumnName("RequestorAoCode");
+
+                            b1.Property<string>("RequestorContactNo")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("RequestorContactNo");
+
+                            b1.Property<string>("RequestorCostCenterCode")
+                                .HasMaxLength(8)
+                                .HasColumnType("nvarchar(8)")
+                                .HasColumnName("RequestorCostCenterCode");
+
+                            b1.Property<string>("RequestorCostCenterDesc")
+                                .HasMaxLength(40)
+                                .HasColumnType("nvarchar(40)")
+                                .HasColumnName("RequestorCostCenterDesc");
+
+                            b1.Property<string>("RequestorDepartment")
+                                .HasMaxLength(255)
+                                .HasColumnType("nvarchar(255)")
+                                .HasColumnName("RequestorDepartment");
+
+                            b1.Property<string>("RequestorEmail")
+                                .HasMaxLength(255)
+                                .HasColumnType("nvarchar(255)")
+                                .HasColumnName("RequestorEmail");
+
+                            b1.HasKey("RequestId");
+
+                            b1.ToTable("Requests", "request");
+
+                            b1.WithOwner()
+                                .HasForeignKey("RequestId");
+                        });
+
                     b.OwnsOne("Request.Domain.Requests.SoftDelete", "SoftDelete", b1 =>
                         {
                             b1.Property<Guid>("RequestId")
@@ -1168,6 +1214,8 @@ namespace Request.Infrastructure.Migrations
 
                     b.Navigation("Requestor")
                         .IsRequired();
+
+                    b.Navigation("RequestorSnapshot");
 
                     b.Navigation("SoftDelete")
                         .IsRequired();

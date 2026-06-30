@@ -41,14 +41,7 @@ internal class UpdateRequestCommandHandler(
         if (requestorInfo is null)
             throw new NotFoundException("Requestor", command.RequestorEmployeeId);
 
-        var requestorSnapshot = Requestor.Create(
-            requestorInfo.Email,
-            requestorInfo.ContactNo,
-            requestorInfo.AoCode,
-            requestorInfo.CostCenterCode,
-            requestorInfo.CostCenterDescription,
-            requestorInfo.Department);
-
+        // Store only the requestor identity (employee code + name); org detail is resolved on read.
         request.Save(new RequestData(
             command.Purpose,
             command.Channel,
@@ -56,8 +49,7 @@ internal class UpdateRequestCommandHandler(
             new UserInfo(command.Creator.UserId, command.Creator.Username),
             request.CreatedAt,
             command.Priority,
-            command.IsPma,
-            requestorSnapshot
+            command.IsPma
         ));
 
         AppraisalReferenceResult? appraisalRef = null;
