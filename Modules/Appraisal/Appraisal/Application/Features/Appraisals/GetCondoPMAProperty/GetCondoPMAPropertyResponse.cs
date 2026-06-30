@@ -5,6 +5,7 @@ public record GetCondoPMAPropertyResponse(
     decimal? BuildingInsurancePrice,
     decimal? SellingPrice,
     decimal? ForceSellingPrice,
+    string? CondoName,
     string? BuildingNumber,
     string? BuiltOnTitleNumber,
     string? CondoRegistrationNumber,

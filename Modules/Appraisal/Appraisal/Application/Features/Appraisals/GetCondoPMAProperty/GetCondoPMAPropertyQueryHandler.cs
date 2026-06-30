@@ -30,6 +30,7 @@ public class GetCondoPMAPropertyQueryHandler(
             BuildingNumber: detail.BuildingNumber,
             BuiltOnTitleNumber: detail.BuiltOnTitleNumber,
             CondoRegistrationNumber: detail.CondoRegistrationNumber,
+            CondoName: detail.CondoName,
             RoomNumber: detail.RoomNumber,
             FloorNumber: detail.FloorNumber,
             SubDistrict: detail.Address?.SubDistrict,
