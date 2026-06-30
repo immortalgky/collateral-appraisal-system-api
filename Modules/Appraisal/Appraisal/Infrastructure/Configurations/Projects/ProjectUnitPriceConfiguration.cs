@@ -1,3 +1,4 @@
+
 namespace Appraisal.Infrastructure.Configurations.Projects;
 
 public class ProjectUnitPriceConfiguration : IEntityTypeConfiguration<ProjectUnitPrice>
