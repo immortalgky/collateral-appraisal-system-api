@@ -60,10 +60,10 @@ public class CreateRequestService(
         DateTime now,
         CancellationToken cancellationToken)
     {
-        // UI path: resolve employee code → full profile + org snapshot (single resolution point).
+        // UI path: resolve employee code → identity (name). Org detail (email, cost center, etc.)
+        // is NOT snapshotted — it is resolved on read from the stored employee code via auth.
         // Integration / reappraisal path: requestor is pre-resolved; use directly.
         UserInfo requestorUserInfo;
-        Requestor? requestorSnapshot = null;
 
         if (!string.IsNullOrWhiteSpace(command.RequestorEmployeeId))
         {
@@ -72,9 +72,6 @@ public class CreateRequestService(
                 throw new NotFoundException("Requestor", command.RequestorEmployeeId);
 
             requestorUserInfo = new UserInfo(info.EmployeeId, info.Name);
-            requestorSnapshot = Requestor.Create(
-                info.Email, info.ContactNo, info.AoCode,
-                info.CostCenterCode, info.CostCenterDescription, info.Department);
         }
         else
         {
@@ -88,8 +85,7 @@ public class CreateRequestService(
             new UserInfo(command.Creator.UserId, command.Creator.Username),
             now,
             command.Priority,
-            command.IsPma,
-            requestorSnapshot
+            command.IsPma
         ));
 
         if (command.Detail is not null)
