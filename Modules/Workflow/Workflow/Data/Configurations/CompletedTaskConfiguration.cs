@@ -55,6 +55,10 @@ public class CompletedTaskConfiguration : IEntityTypeConfiguration<CompletedTask
             .IsRequired()
             .HasDefaultValue("F");
 
+        builder.Property(p => p.ReasonCode)
+            .HasMaxLength(20)
+            .IsRequired(false);
+
         builder.Property(p => p.AssigneeCompanyId)
             .IsRequired(false);
 

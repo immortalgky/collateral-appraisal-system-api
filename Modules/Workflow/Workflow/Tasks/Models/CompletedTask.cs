@@ -19,6 +19,13 @@ public class CompletedTask : Aggregate<Guid>
     public string Movement { get; private set; } = "F";
 
     /// <summary>
+    /// Optional reason code for the decision, interpreted via <see cref="Movement"/>
+    /// (e.g. a CancelReason code when Movement is "C", a RoutebackReason code when "B").
+    /// Null for forward movements or completions without a coded reason.
+    /// </summary>
+    public string? ReasonCode { get; private set; }
+
+    /// <summary>
     /// Carried forward from PendingTask.AssigneeCompanyId so historical pool-task
     /// visibility queries can enforce per-company isolation on completed rows.
     /// Null for non-fan-out tasks.
@@ -34,7 +41,7 @@ public class CompletedTask : Aggregate<Guid>
         string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt,
         DateTime? dueAt = null, string? slaStatus = null, DateTime? slaBreachedAt = null,
         string? taskDescription = null, string? remark = null, string movement = "F",
-        string? activityId = null, Guid? assigneeCompanyId = null)
+        string? activityId = null, Guid? assigneeCompanyId = null, string? reasonCode = null)
     {
         Id = id;
         CorrelationId = correlationId;
@@ -53,18 +60,19 @@ public class CompletedTask : Aggregate<Guid>
         Remark = remark;
         Movement = movement;
         AssigneeCompanyId = assigneeCompanyId;
+        ReasonCode = reasonCode;
     }
 
     public static CompletedTask Create(Guid id, Guid correlationId, string taskName, string assignedTo,
         string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt,
-        string? remark = null, string movement = "F")
+        string? remark = null, string movement = "F", string? reasonCode = null)
     {
         return new CompletedTask(id, correlationId, taskName, assignedTo, assignedType, assignedAt,
-            actionTaken, completedAt, remark: remark, movement: movement);
+            actionTaken, completedAt, remark: remark, movement: movement, reasonCode: reasonCode);
     }
 
     public static CompletedTask CreateFromPendingTask(PendingTask pendingTask, string actionTaken,
-        DateTime completedAt, string? remark = null, string? movement = null)
+        DateTime completedAt, string? remark = null, string? movement = null, string? reasonCode = null)
     {
         return new CompletedTask(
             pendingTask.Id,
@@ -82,7 +90,8 @@ public class CompletedTask : Aggregate<Guid>
             remark,
             movement ?? pendingTask.Movement,
             pendingTask.ActivityId,
-            pendingTask.AssigneeCompanyId
+            pendingTask.AssigneeCompanyId,
+            reasonCode
         );
     }
 
