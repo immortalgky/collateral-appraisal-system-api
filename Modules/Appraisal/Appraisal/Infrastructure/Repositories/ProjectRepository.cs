@@ -76,4 +76,5 @@ public class ProjectRepository(AppraisalDbContext dbContext) : IProjectRepositor
     {
         _dbContext.Projects.Update(project);
     }
+
 }

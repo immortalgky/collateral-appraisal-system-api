@@ -72,13 +72,20 @@ public class PricingAnalysisRepository(AppraisalDbContext dbContext)
                 ModelId = pa.AnchorId!.Value,
                 pa.Id,
                 pa.Status,
-                pa.FinalAppraisedValue
+                pa.FinalAppraisedValue,
+                FinalValueAdjusted = pa.Approaches
+                    .Where(ap => ap.IsSelected)
+                    .SelectMany(a => a.Methods)
+                    .Where(m => m.IsSelected)
+                    .Where(m => m.FinalValue != null)
+                    .Select(m => m.FinalValue!.FinalValueAdjusted)
+                    .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
 
         return rows.ToDictionary(
             r => r.ModelId,
-            r => new ProjectModelPricingSummary(r.Id, r.Status, r.FinalAppraisedValue));
+            r => new ProjectModelPricingSummary(r.Id, r.Status, r.FinalAppraisedValue, r.FinalValueAdjusted));
     }
 
     // ── Full-graph read ──────────────────────────────────────────────────────
