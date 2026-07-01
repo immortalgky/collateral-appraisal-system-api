@@ -33,6 +33,27 @@ public class RespondNegotiationCommandHandler(
             i => i.AppraisalId,
             i => i.NegotiatedDiscount);
 
+        if (command.Verb == "Counter" && command.Items is { Count: > 0 })
+        {
+            var companyQuotationPre = quotation.Quotations
+                .FirstOrDefault(q => q.Id == command.CompanyQuotationId)
+                ?? throw new NotFoundException($"CompanyQuotation '{command.CompanyQuotationId}' not found");
+
+            var newDiscounts = command.Items.ToDictionary(i => i.AppraisalId, i => i.NegotiatedDiscount ?? 0m);
+
+            var zeroFeeItems = companyQuotationPre.Items
+                .Where(item =>
+                {
+                    var neg = newDiscounts.TryGetValue(item.AppraisalId, out var d) ? d : (item.NegotiatedDiscount ?? 0m);
+                    return item.FeeAmount - item.Discount - neg <= 0;
+                })
+                .ToList();
+
+            if (zeroFeeItems.Any())
+                throw new BadRequestException(
+                    "All items must have a fee after discount greater than 0 when submitting a counter-proposal.");
+        }
+
         quotation.RespondNegotiation(
             command.CompanyQuotationId,
             command.NegotiationId,
@@ -59,7 +80,7 @@ public class RespondNegotiationCommandHandler(
         {
             QuotationRequestId = quotation.Id,
             ActivityId = "ext-respond-negotiation",
-            DecisionTaken = command.Verb,  // Accept | Counter | Reject
+            DecisionTaken = command.Verb,
             CompletedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty,
             CompanyId = currentUser.CompanyId
         }, correlationId: quotation.Id.ToString());

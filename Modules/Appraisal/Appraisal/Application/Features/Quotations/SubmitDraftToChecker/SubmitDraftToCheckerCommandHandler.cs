@@ -53,6 +53,12 @@ public class SubmitDraftToCheckerCommandHandler(
             throw new BadRequestException(
                 $"Cannot submit to checker: existing quotation is in status '{companyQuotation.Status}'");
 
+        var zeroFeeItems = companyQuotation.Items
+            .Where(i => i.FeeAmount - i.Discount - (i.NegotiatedDiscount ?? 0) <= 0)
+            .ToList();
+        if (zeroFeeItems.Any())
+            throw new BadRequestException("All items must have a fee after discount greater than 0 before submitting to checker.");
+
         var makerUsername = currentUser.Username
             ?? currentUser.UserId?.ToString()
             ?? throw new UnauthorizedAccessException("Cannot resolve the current user identity for maker attribution");
