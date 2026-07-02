@@ -6,19 +6,12 @@ namespace Appraisal.Domain.Appraisals;
 /// </summary>
 public class ValuationAnalysis : Entity<Guid>
 {
-    private readonly List<GroupValuation> _groupValuations = [];
-    private readonly List<PropertyValuation> _propertyValuations = [];
-
-    public IReadOnlyList<GroupValuation> GroupValuations => _groupValuations.AsReadOnly();
-    public IReadOnlyList<PropertyValuation> PropertyValuations => _propertyValuations.AsReadOnly();
-
     // Core Properties
     public Guid AppraisalId { get; private set; }
     public string ValuationApproach { get; private set; } = null!; // Market, Cost, Income, Combined
     public DateTime ValuationDate { get; private set; }
 
     // Total Values
-    public decimal MarketValue { get; private set; }
     public decimal AppraisedValue { get; private set; }
     public decimal? ForcedSaleValue { get; private set; }
     public decimal? InsuranceValue { get; private set; }
@@ -48,18 +41,6 @@ public class ValuationAnalysis : Entity<Guid>
         };
     }
 
-    public void SetValues(
-        decimal marketValue,
-        decimal appraisedValue,
-        decimal? forcedSaleValue = null,
-        decimal? insuranceValue = null)
-    {
-        MarketValue = marketValue;
-        AppraisedValue = appraisedValue;
-        ForcedSaleValue = forcedSaleValue;
-        InsuranceValue = insuranceValue;
-    }
-
     public void UpdateSummary(
         string valuationApproach,
         DateTime valuationDate,
@@ -72,34 +53,5 @@ public class ValuationAnalysis : Entity<Guid>
         AppraisedValue = appraisedValue;
         ForcedSaleValue = forcedSaleValue;
         InsuranceValue = insuranceValue;
-    }
-
-    public void SetOpinion(string? opinion, string? notes)
-    {
-        AppraiserOpinion = opinion;
-        ValuationNotes = notes;
-    }
-
-    public GroupValuation AddGroupValuation(
-        Guid collateralGroupId,
-        decimal marketValue,
-        decimal appraisedValue)
-    {
-        var groupValuation = GroupValuation.Create(
-            Id, collateralGroupId, marketValue, appraisedValue);
-        _groupValuations.Add(groupValuation);
-        return groupValuation;
-    }
-
-    public PropertyValuation AddPropertyValuation(
-        string propertyDetailType,
-        Guid propertyDetailId,
-        decimal marketValue,
-        decimal appraisedValue)
-    {
-        var propertyValuation = PropertyValuation.Create(
-            Id, propertyDetailType, propertyDetailId, marketValue, appraisedValue);
-        _propertyValuations.Add(propertyValuation);
-        return propertyValuation;
     }
 }

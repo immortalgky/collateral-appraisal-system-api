@@ -12,6 +12,7 @@ public sealed record OlaFilter(
     string? AppraisalCompany,
     string? InternalStaff,
     string? Channel,
+    string? AppraisalNumber,
     string? SortBy,
     string? SortDir);
 
@@ -36,6 +37,16 @@ internal static class OlaReport
         Columns = Columns,
         OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, "AppraisalNumber"),
         Build = f => Build(f, assignmentScope),
+        DescribeFilter = f =>
+        [
+            new("Created From", f.CreatedFrom?.ToString("yyyy-MM-dd")),
+            new("Created To", f.CreatedTo?.ToString("yyyy-MM-dd")),
+            new("Status", f.Status),
+            new("Appraisal Company", f.AppraisalCompany),
+            new("Internal Staff", f.InternalStaff),
+            new("Channel", f.Channel, "Channel"),
+            new("Appraisal No.", f.AppraisalNumber),
+        ],
         EnrichAsync = (rows, ct) => EnrichAsync(rows, ola, ct),
     };
 
@@ -53,8 +64,12 @@ internal static class OlaReport
         ReportFilterSql.DateRange(c, p, f.CreatedFrom, f.CreatedTo, "AppraisalCreateDate", "Created");
         ReportFilterSql.MultiValue(c, p, f.Status, "AppraisalStatus", "Statuses");
         ReportFilterSql.Contains(c, p, f.AppraisalCompany, "AppraisalCompany", "AppraisalCompany");
-        ReportFilterSql.Exact(c, p, f.InternalStaff, "InternalAppraisalStaff", "InternalStaff");
+        // Filter on the raw assignee code (InternalAppraisalStaffCode); the InternalAppraisalStaff
+        // column now emits the resolved "First Last" name for display, so binding the code against it
+        // would never match.
+        ReportFilterSql.Exact(c, p, f.InternalStaff, "InternalAppraisalStaffCode", "InternalStaff");
         ReportFilterSql.Exact(c, p, f.Channel, "Channel", "Channel");
+        ReportFilterSql.Contains(c, p, f.AppraisalNumber, "AppraisalNumber", "AppraisalNumber");
 
         return ("SELECT * FROM reporting.vw_RCAS_OlaBase" + ReportFilterSql.Where(c), p);
     }

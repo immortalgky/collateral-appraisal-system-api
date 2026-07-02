@@ -1,11 +1,13 @@
 using Appraisal.Contracts.Appraisals;
+using Auth.Contracts.Users;
 
 namespace Request.Application.Features.Requests.UpdateRequest;
 
 internal class UpdateRequestCommandHandler(
     IRequestRepository requestRepository,
     IRequestSyncService syncService,
-    ISender mediator
+    ISender mediator,
+    IUserLookupService userLookupService
 ) : ICommandHandler<UpdateRequestCommand, UpdateRequestResult>
 {
     public async Task<UpdateRequestResult> Handle(UpdateRequestCommand command, CancellationToken cancellationToken)
@@ -35,10 +37,15 @@ internal class UpdateRequestCommandHandler(
         var request = await requestRepository.GetByIdWithDocumentsAsync(command.Id, cancellationToken);
         if (request is null) throw new RequestNotFoundException(command.Id);
 
+        var requestorInfo = await userLookupService.GetRequestorAsync(command.RequestorEmployeeId, cancellationToken);
+        if (requestorInfo is null)
+            throw new NotFoundException("Requestor", command.RequestorEmployeeId);
+
+        // Store only the requestor identity (employee code + name); org detail is resolved on read.
         request.Save(new RequestData(
             command.Purpose,
             command.Channel,
-            new UserInfo(command.Requestor.UserId, command.Requestor.Username),
+            new UserInfo(requestorInfo.EmployeeId, requestorInfo.Name),
             new UserInfo(command.Creator.UserId, command.Creator.Username),
             request.CreatedAt,
             command.Priority,

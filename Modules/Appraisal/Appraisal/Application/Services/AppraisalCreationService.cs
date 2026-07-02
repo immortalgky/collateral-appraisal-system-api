@@ -87,23 +87,30 @@ public class AppraisalCreationService(
         // Use the snapshot's business-hours-aware DueAt (already in application-local time) rather
         // than recomputing a naive calendar delta, and anchor it to the same base time the appraisal
         // records below (requestedAt ?? ApplicationNow) so SLAHours, SLADueDate and the base agree.
+        // Resolve the effective appraisal type up-front so the SLA umbrella can be matched per
+        // (bankingSegment, appraisalType). The SLA "loan type" axis carries banking-segment values.
+        var resolvedAppraisalType =
+            isProgressive ? AppraisalTypes.Progressive
+            : appraisalType == AppraisalTypes.ReAppraisal ? AppraisalTypes.ReAppraisal
+            : isBlock ? AppraisalTypes.PreAppraisal
+            : AppraisalTypes.New;
+
         int? appraisalSlaHours = null;
         DateTime? appraisalSlaDueDate = null;
         if (workflowDefinitionId.HasValue)
         {
             var slaBase = requestedAt ?? dateTimeProvider.ApplicationNow;
             var slaSnapshot = await slaCalculatorClient.GetWorkflowSlaAsync(
-                workflowDefinitionId.Value, loanType: null, startedAt: slaBase, cancellationToken);
+                workflowDefinitionId.Value,
+                loanType: string.IsNullOrWhiteSpace(bankingSegment) ? null : bankingSegment,
+                appraisalType: resolvedAppraisalType,
+                startedAt: slaBase,
+                cancellationToken);
             appraisalSlaHours = slaSnapshot?.DurationHours;
             appraisalSlaDueDate = slaSnapshot?.DueAt;
         }
 
         // Step 4: Create Appraisal aggregate
-        var resolvedAppraisalType =
-            isProgressive ? AppraisalTypes.Progressive
-            : appraisalType == AppraisalTypes.ReAppraisal ? AppraisalTypes.ReAppraisal
-            : isBlock ? AppraisalTypes.PreAppraisal
-            : AppraisalTypes.New;
         var appraisal = Domain.Appraisals.Appraisal.Create(
             requestId,
             resolvedAppraisalType,
@@ -119,7 +126,8 @@ public class AppraisalCreationService(
             facilityLimit,
             hasAppraisalBook,
             requestedAt,
-            prevAppraisalId);
+            prevAppraisalId,
+            appointment?.AppointmentDateTime);
 
         // Stamp the reappraisal batch tag when provided (system-only; no user edit path).
         if (!string.IsNullOrWhiteSpace(groupTag))
@@ -317,6 +325,11 @@ public class AppraisalCreationService(
                     contact?.ContactPersonPhone);
 
                 dbContext.Appointments.Add(appt);
+
+                // Note: appointmentDate reaches the Workflow module via AppraisalCreatedIntegrationEvent
+                // (field AppointmentDateTime), written atomically into WorkflowInstance.Variables by
+                // AppraisalCreatedIntegrationEventConsumer. A separate AppointmentDateChangedIntegrationEvent
+                // is NOT published here to avoid a concurrent-write race on the RowVersion token.
 
                 logger.LogInformation("Created appointment {AppointmentId} for assignment {AssignmentId}",
                     appt.Id, assignment.Id);

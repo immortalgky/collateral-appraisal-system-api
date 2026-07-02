@@ -18,7 +18,9 @@ public class SaveHypothesisAnalysisEndpoint : ICarterModule
                         request.LandBuildingSummary,
                         request.CondominiumSummary,
                         request.CostItems,
-                        request.Remark);
+                        request.Remark,
+                        request.FinalValueAdjusted,
+                        request.AppraisalPrice);
 
                     var result = await sender.Send(command);
                     return Results.Ok(result);

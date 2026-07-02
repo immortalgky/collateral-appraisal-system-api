@@ -171,6 +171,12 @@ public class TaskActivity : WorkflowActivityBase
             if (resumeInput.TryGetValue("comments", out var commentsValue))
                 outputData[$"{NormalizeActivityId(context.ActivityId)}_comments"] = commentsValue;
 
+            // Capture optional coded decision reason (e.g. CancelReason/RoutebackReason code)
+            // so PublishTaskCompletedEventAsync can persist it onto CompletedTask.ReasonCode.
+            // `reasonCode` is reserved below so the generic passthrough loop skips it.
+            if (resumeInput.TryGetValue("reasonCode", out var reasonCodeValue))
+                outputData[$"{NormalizeActivityId(context.ActivityId)}_reasonCode"] = reasonCodeValue;
+
             // Process all input data using inputMappings (unified approach)
             foreach (var kvp in resumeInput)
                 if (!IsReservedKey(kvp.Key))
@@ -454,6 +460,7 @@ public class TaskActivity : WorkflowActivityBase
         return key.Equals("decisionTaken", StringComparison.OrdinalIgnoreCase) ||
                key.Equals("decision", StringComparison.OrdinalIgnoreCase) ||
                key.Equals("comments", StringComparison.OrdinalIgnoreCase) ||
+               key.Equals("reasonCode", StringComparison.OrdinalIgnoreCase) ||
                key.Equals("completedBy", StringComparison.OrdinalIgnoreCase) ||
                key.Equals("variableUpdates", StringComparison.OrdinalIgnoreCase);
     }
@@ -599,8 +606,16 @@ public class TaskActivity : WorkflowActivityBase
                         && Guid.TryParse(cid?.ToString(), out var parsedCid)
             ? parsedCid
             : (Guid?)null;
-        var loanType = context.WorkflowInstance.Variables.TryGetValue("loanType", out var lt)
-            ? lt?.ToString()
+        // The SLA "loan type" axis is populated with banking-segment values (see SLA config), so the
+        // segment variable feeds the loanType resolver argument. AppraisalType is written into the
+        // instance variables by AppraisalCreatedIntegrationEventConsumer once the appraisal exists
+        // (null for pre-creation activities, which then match wildcard policies).
+        var loanType = context.WorkflowInstance.Variables.TryGetValue("bankingSegment", out var seg)
+                       && !string.IsNullOrWhiteSpace(seg?.ToString())
+            ? seg!.ToString()
+            : null;
+        var appraisalType = context.WorkflowInstance.Variables.TryGetValue("appraisalType", out var at)
+            ? at?.ToString()
             : null;
         // Parse timeoutDuration from activity properties (ISO 8601 duration, e.g., "PT72H")
         TimeSpan? defaultTimeout = null;
@@ -618,15 +633,67 @@ public class TaskActivity : WorkflowActivityBase
                 }
         }
 
-        var dueAt = await _slaCalculator.CalculateActivityDueAtAsync(
+        // Read appointmentDate from workflow variables (set when an appointment is confirmed).
+        // Used for appointment-anchored SLA policies (AnchorType = AppointmentDate).
+        DateTime? appointmentDate = null;
+        if (context.WorkflowInstance.Variables.TryGetValue("appointmentDate", out var apptDateObj))
+        {
+            // Parse with InvariantCulture so a value that survived a JSON round-trip (string/JsonElement)
+            // can't be day/month-inverted by the host's CurrentCulture.
+            appointmentDate = apptDateObj switch
+            {
+                DateTime dt => dt,
+                string s when DateTime.TryParse(s, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var parsedDate) => parsedDate,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String
+                    && DateTime.TryParse(je.GetString(), System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.RoundtripKind, out var parsedJsonDate) => parsedJsonDate,
+                _ => null
+            };
+        }
+
+        // Workflow correlationId = Request.Id (used for cumulative time lookup across rework legs).
+        Guid? slaCorrelationId = !string.IsNullOrEmpty(context.WorkflowInstance.CorrelationId)
+            && Guid.TryParse(context.WorkflowInstance.CorrelationId, out var parsedCorr)
+            ? parsedCorr
+            : (Guid?)null;
+
+        var activityDeadline = await _slaCalculator.CalculateActivityDueAtAsync(
             context.ActivityId,
             context.WorkflowInstance.WorkflowDefinitionId,
             companyId,
             loanType,
+            appraisalType,
             _dateTimeProvider.ApplicationNow,
             defaultTimeout,
             context.WorkflowInstance.WorkflowDueAt,
+            correlationId: slaCorrelationId,
+            appointmentDate: appointmentDate,
             cancellationToken);
+        var dueAt = activityDeadline.DueAt;
+        // The SLA clock-start anchor (AssignedAt, appointment, or window start) — persisted so the
+        // at-risk monitor measures the 75% threshold from where the budget actually began.
+        var slaStartAt = activityDeadline.StartAt;
+
+        // If this activity is a member of a group window, the WINDOW governs its task SLA: use the
+        // shared window deadline instead of the per-activity clock (per-activity hours are drill-down
+        // only). A non-null result with null DueAt = appointment-anchored window awaiting an appointment.
+        var governing = await _slaCalculator.ResolveGoverningStageDueAtAsync(
+            context.ActivityId,
+            context.WorkflowInstance.WorkflowDefinitionId,
+            companyId,
+            loanType,
+            appraisalType,
+            _dateTimeProvider.ApplicationNow,
+            correlationId: slaCorrelationId,
+            appointmentDate: appointmentDate,
+            cancellationToken);
+        if (governing is not null)
+        {
+            dueAt = governing.DueAt;
+            slaStartAt = governing.StartAt;
+            // (No workflow-umbrella cap — the window's own deadline stands.)
+        }
 
         var appraisalNumber = context.WorkflowInstance.Variables.TryGetValue("appraisalNumber", out var appraisalNumObj)
             ? appraisalNumObj?.ToString()
@@ -665,7 +732,7 @@ public class TaskActivity : WorkflowActivityBase
                 _dateTimeProvider.ApplicationNow, context.WorkflowInstanceId, context.ActivityId, dueAt,
                 context.WorkflowInstance.StartedBy, context.WorkflowInstance.Name,
                 context.ActivityName, completedBy, appraisalNumber, context.Movement, appraisalId,
-                reasonCode, reason),
+                reasonCode, reason, slaStartAt),
             cancellationToken);
     }
 
@@ -691,6 +758,12 @@ public class TaskActivity : WorkflowActivityBase
             ? commentsValue?.ToString()
             : null;
         if (string.IsNullOrWhiteSpace(remark)) remark = null;
+
+        var reasonCodeKey = $"{NormalizeActivityId(context.ActivityId)}_reasonCode";
+        var reasonCode = outputData.TryGetValue(reasonCodeKey, out var reasonCodeValue)
+            ? reasonCodeValue?.ToString()
+            : null;
+        if (string.IsNullOrWhiteSpace(reasonCode)) reasonCode = null;
 
         // Pass CompletedBy for pool task implicit assignment
         var completedBy = context.WorkflowInstance.CurrentAssignee;
@@ -723,7 +796,7 @@ public class TaskActivity : WorkflowActivityBase
             new TaskCompletedDomainEvent(correlationGuid, taskName, actionTaken, _dateTimeProvider.ApplicationNow,
                 completedBy,
                 context.WorkflowInstance.Name, remark, appraisalNumber, movement,
-                completedAppraisalId, context.ActivityId),
+                completedAppraisalId, context.ActivityId, reasonCode),
             cancellationToken);
     }
 

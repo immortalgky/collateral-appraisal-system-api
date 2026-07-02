@@ -22,6 +22,7 @@ public class CreateDocumentRequirementEndpoint : ICarterModule
                     $"/document-requirements/{result.Id}",
                     new CreateDocumentRequirementResponse(result.Id));
             })
+            .RequireAuthorization()
             .WithName("CreateDocumentRequirement")
             .WithSummary("Create a document requirement")
             .Produces<CreateDocumentRequirementResponse>(StatusCodes.Status201Created)

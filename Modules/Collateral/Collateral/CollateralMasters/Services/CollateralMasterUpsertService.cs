@@ -109,24 +109,37 @@ public class CollateralMasterUpsertService(
         // Track the resolved CollateralType per group (for engagement stamping)
         var groupCollateralTypes = new Dictionary<string, string>(); // groupKey → CollateralType code
 
+        // Land: ONE IsMaster per appraisal. All Land/LB titles across ALL groups collapse into a
+        // single IsMaster + aliases set (first title = IsMaster, every other title = alias).
+        // UpsertLandGroupAsync already does "first title → IsMaster, all remaining titles across all
+        // passed properties → aliases", so feeding it the full land set yields exactly one master.
+        CollateralMaster? landMaster = null;
+        var landAliases = new List<CollateralMaster>();
+        string? landCollateralType = null;
+        int? landGroupNumber = null;
+        if (landOrLbProperties.Count > 0)
+        {
+            (landMaster, landAliases, landCollateralType) =
+                await UpsertLandGroupAsync(landOrLbProperties, appraisal, buildingProperties, ct);
+            foreach (var lp in landOrLbProperties)
+                landMasterByPropertyId[lp.PropertyId] = landMaster;
+            // Primary ordering uses the lowest GroupNumber among the land groups.
+            landGroupNumber = grouped
+                .Where(g => g.Properties.Any(p => p.PropertyTypeCode is "L" or "LB"))
+                .Min(g => g.GroupNumber ?? int.MaxValue);
+        }
+
+        // Condo / Machine: unchanged — one IsMaster per group. A group that contains land is a land
+        // group; its condo/machine props are ignored (preserves the original land-wins else-if).
         foreach (var group in grouped)
         {
-            var landInGroup = group.Properties.Where(p => p.PropertyTypeCode is "L" or "LB").ToList();
+            if (group.Properties.Any(p => p.PropertyTypeCode is "L" or "LB"))
+                continue; // land handled above (one master per appraisal)
+
             var condoInGroup = group.Properties.Where(p => p.PropertyTypeCode == "U").ToList();
             var machineInGroup = group.Properties.Where(p => p.PropertyTypeCode == "MAC").ToList();
 
-            // Land/LB properties in this group share an IsMaster
-            if (landInGroup.Count > 0)
-            {
-                var (master, newAliases, landCollateralType) = await UpsertLandGroupAsync(landInGroup, appraisal, buildingProperties, ct);
-                foreach (var lp in landInGroup)
-                    landMasterByPropertyId[lp.PropertyId] = master;
-                groupIsMasters[group.GroupKey] = master;
-                groupAliases[group.GroupKey] = newAliases;
-                // Store the resolved collateral type so AppendEngagement can stamp it.
-                groupCollateralTypes[group.GroupKey] = landCollateralType;
-            }
-            else if (condoInGroup.Count > 0)
+            if (condoInGroup.Count > 0)
             {
                 // Condo — typically one per group (singleton)
                 var master = await UpsertCondoAsync(condoInGroup.First(), appraisal, ct);
@@ -153,15 +166,32 @@ public class CollateralMasterUpsertService(
         }
 
         // -----------------------------------------------------------------------
+        // Build the snapshot bucket list: ONE consolidated land bucket (all land titles across all
+        // groups, under the single IsMaster) + every non-land group (condo / machine / leasehold).
+        // This collapses all land groups into one snapshot group, matching the
+        // one-IsMaster-per-appraisal model. Non-land groups keep their own IsMaster.
+        // -----------------------------------------------------------------------
+        var snapshotBuckets = new List<PropertyGroupBucket>();
+        if (landMaster is not null)
+        {
+            snapshotBuckets.Add(new PropertyGroupBucket("land:all", null, landGroupNumber, landOrLbProperties));
+            groupIsMasters["land:all"] = landMaster;
+            groupAliases["land:all"] = landAliases;
+            groupCollateralTypes["land:all"] = landCollateralType!;
+        }
+        snapshotBuckets.AddRange(grouped
+            .Where(g => g.Properties.All(p => p.PropertyTypeCode is not "L" and not "LB")));
+
+        // -----------------------------------------------------------------------
         // Build the single engagement snapshot covering ALL groups.
         // Primary = group with the lowest GroupNumber (or lowest implicit sequence for ungrouped).
         // -----------------------------------------------------------------------
-        if (grouped.Count > 0)
+        if (snapshotBuckets.Count > 0)
         {
-            var groupSnapshots = BuildGroupSnapshots(grouped, groupIsMasters, groupAliases, appraisal, buildingProperties);
+            var groupSnapshots = BuildGroupSnapshots(snapshotBuckets, groupIsMasters, groupAliases, appraisal, buildingProperties);
 
             // Primary IsMaster = IsMaster of the principal group (first in ordered list)
-            var primaryGroup = grouped.OrderBy(g => g.GroupNumber ?? int.MaxValue).First();
+            var primaryGroup = snapshotBuckets.OrderBy(g => g.GroupNumber ?? int.MaxValue).First();
             var primaryMaster = groupIsMasters.GetValueOrDefault(primaryGroup.GroupKey);
 
             if (primaryMaster is not null)
@@ -191,16 +221,16 @@ public class CollateralMasterUpsertService(
 
                 AppendEngagement(primaryMaster, appraisal, snapshot, appraisedCollateralType, landAreaInSqWa, engagementAppraisalValue);
 
-                // Append building rows to the engagement for each building in the primary group.
-                var primaryTitleNumbers = primaryGroup.Properties
-                    .Where(p => p.LandIdentity is not null)
-                    .SelectMany(p => p.LandIdentity!.Titles.Select(t => t.TitleNumber))
-                    .ToHashSet();
-
+                // Append building rows to the engagement for every building in the appraisal.
+                // We no longer match BuildingIdentity.BuiltOnTitleNumber against the land titles:
+                // that ordinal match was fragile (dirty data such as a trailing space — e.g.
+                // "619257 " vs land title "619257" — silently dropped the building). Instead we
+                // assume every building in the appraisal sits on this appraisal's land and attach
+                // it to the primary (IsMaster) land engagement. Typed buildings are ordered first
+                // so the regulatory export's representative building (Sequence=1) carries a type.
                 var buildingsForPrimaryGroup = buildingProperties
-                    .Where(b => b.BuildingIdentity?.BuiltOnTitleNumber is { } btn
-                                && primaryTitleNumbers.Contains(btn)
-                                && !string.IsNullOrWhiteSpace(b.BuildingIdentity.BuildingTypeCode))
+                    .Where(b => b.BuildingIdentity is not null)
+                    .OrderByDescending(b => !string.IsNullOrWhiteSpace(b.BuildingIdentity!.BuildingTypeCode))
                     .ToList();
 
                 if (buildingsForPrimaryGroup.Count > 0 && primaryMaster.Engagements.Count > 0)
@@ -215,11 +245,15 @@ public class CollateralMasterUpsertService(
                         // duplicate the group total. A proper per-building value requires extending
                         // BuildingIdentityForCollateral with the building's own pricing component
                         // (separate task). The column is nullable to leave room for that.
+                        // BuildingTypeCode is NOT NULL on the entity; a type-less building still
+                        // attaches (for its area) with an empty code → blank type/name in the export.
                         newEngagement.AddBuilding(
-                            buildingTypeCode: b.BuildingIdentity!.BuildingTypeCode!,
+                            buildingTypeCode: b.BuildingIdentity!.BuildingTypeCode ?? string.Empty,
                             buildingArea: b.BuildingIdentity.BuildingArea,
                             buildingValue: null,
-                            sequence: seq + 1);
+                            sequence: seq + 1,
+                            buildingAge: b.BuildingIdentity.BuildingAge,
+                            numberOfFloors: b.BuildingIdentity.NumberOfFloors);
                     }
                 }
             }
@@ -344,14 +378,16 @@ public class CollateralMasterUpsertService(
             }
             case "U":
             {
+                // Dedup key is CondoRegistrationNumber + BuildingNumber + FloorNumber + RoomNumber
+                // + Province + District + SubDistrict. LandOffice/TitleNumber/TitleType are not key fields.
                 var condo = p.CondoIdentity;
-                if (string.IsNullOrWhiteSpace(condo?.LandOffice)) missing.Add("LandOfficeCode");
                 if (string.IsNullOrWhiteSpace(condo?.CondoRegistrationNumber)) missing.Add("CondoRegistrationNumber");
                 if (string.IsNullOrWhiteSpace(condo?.BuildingNumber)) missing.Add("BuildingNumber");
                 if (string.IsNullOrWhiteSpace(condo?.FloorNumber)) missing.Add("FloorNumber");
                 if (string.IsNullOrWhiteSpace(condo?.RoomNumber)) missing.Add("RoomNumber");
-                if (string.IsNullOrWhiteSpace(condo?.TitleNumber)) missing.Add("TitleNumber");
-                if (string.IsNullOrWhiteSpace(condo?.TitleType)) missing.Add("TitleType");
+                if (string.IsNullOrWhiteSpace(condo?.Province)) missing.Add("Province");
+                if (string.IsNullOrWhiteSpace(condo?.District)) missing.Add("District");
+                if (string.IsNullOrWhiteSpace(condo?.SubDistrict)) missing.Add("SubDistrict");
                 break;
             }
             case "LSL" or "LSB" or "LS":
@@ -433,8 +469,9 @@ public class CollateralMasterUpsertService(
         foreach (var (_, title) in allTitlesWithOwner)
         {
             var hit = await repo.FindLandByDedupKeyIncludingAliases(
-                land.LandOffice!, land.Province!, land.District!, land.SubDistrict!,
-                title.TitleType, title.TitleNumber, null, null, ct);
+                land.Province!, land.District!, land.SubDistrict!,
+                title.TitleType, title.TitleNumber,
+                title.SurveyNumber, title.LandParcelNumber, title.Rawang, ct);
 
             if (hit is null) continue;
 
@@ -465,14 +502,18 @@ public class CollateralMasterUpsertService(
         CollateralMaster master;
         var newAliases = new List<CollateralMaster>();
 
-        // Determine the CollateralType for this group based on whether building properties exist.
-        // Primary land property's code (L or LB) is the authoritative type for this engagement.
+        // Determine the CollateralType based on whether ANY building exists in the appraisal.
+        // Primary land property's code (L or LB) is the baseline type.
         var primaryPropertyTypeCode = landPropertiesInGroup[0].PropertyTypeCode; // "L" or "LB"
-        var hasBuildingsInGroup = allBuildingProperties
-            .Any(b => b.BuildingIdentity?.BuiltOnTitleNumber is { } btn
-                      && allTitlesWithOwner.Any(x => x.Title.TitleNumber == btn));
-        // If any building in the appraisal matches this group's titles, treat as LB.
-        var resolvedCollateralType = hasBuildingsInGroup ? "LB" : primaryPropertyTypeCode;
+        // If the appraisal contains any building, the land is Land & Building. We no longer
+        // require BuildingIdentity.BuiltOnTitleNumber to match a land title — that ordinal match
+        // was fragile against dirty data (trailing spaces, null links) and is the same reason
+        // building rows attach to the primary engagement without title matching (see
+        // ProcessAppraisalAsync). A building in the appraisal sits on this appraisal's land.
+        var appraisalHasBuilding = allBuildingProperties.Any(b => b.BuildingIdentity is not null);
+        var resolvedCollateralType = appraisalHasBuilding
+            ? CollateralTypes.LandWithBuilding // "LB"
+            : primaryPropertyTypeCode;
 
         if (matchedMasterIds.Count == 0)
         {
@@ -487,8 +528,9 @@ public class CollateralMasterUpsertService(
                 subDistrict: firstLand.SubDistrict!,
                 titleType: firstTitle.TitleType,
                 titleNumber: firstTitle.TitleNumber,
-                surveyNumber: null,
-                landParcelNumber: null,
+                surveyNumber: firstTitle.SurveyNumber,
+                landParcelNumber: firstTitle.LandParcelNumber,
+                rawang: firstTitle.Rawang,
                 street: null, village: null,
                 latitude: null, longitude: null,
                 collateralType: resolvedCollateralType);
@@ -506,8 +548,9 @@ public class CollateralMasterUpsertService(
                     subDistrict: lpLand.SubDistrict!,
                     titleType: t.TitleType,
                     titleNumber: t.TitleNumber,
-                    surveyNumber: null,
-                    landParcelNumber: null,
+                    surveyNumber: t.SurveyNumber,
+                    landParcelNumber: t.LandParcelNumber,
+                    rawang: t.Rawang,
                     collateralType: resolvedCollateralType);
                 repo.Add(alias);
                 newAliases.Add(alias);
@@ -533,7 +576,7 @@ public class CollateralMasterUpsertService(
             foreach (var (lp, t) in allTitlesWithOwner)
             {
                 var lpLand = lp.LandIdentity!;
-                var tKey = BuildTitleKey(lpLand.LandOffice!, lpLand.Province!, lpLand.District!, lpLand.SubDistrict!, t.TitleType, t.TitleNumber);
+                var tKey = BuildTitleKey(lpLand.Province!, lpLand.District!, lpLand.SubDistrict!, t.TitleType, t.TitleNumber, t.SurveyNumber, t.LandParcelNumber, t.Rawang);
                 if (!existingTitleKeys.Contains(tKey))
                 {
                     // New title not yet in this group — create alias
@@ -545,8 +588,10 @@ public class CollateralMasterUpsertService(
                         subDistrict: lpLand.SubDistrict!,
                         titleType: t.TitleType,
                         titleNumber: t.TitleNumber,
-                        surveyNumber: null,
-                        landParcelNumber: null);
+                        surveyNumber: t.SurveyNumber,
+                        landParcelNumber: t.LandParcelNumber,
+                        rawang: t.Rawang,
+                        collateralType: resolvedCollateralType);
                     repo.Add(alias);
                     newAliases.Add(alias);
                 }
@@ -585,9 +630,14 @@ public class CollateralMasterUpsertService(
             master = parent;
         }
 
-        // LATEST-wins: flip master CollateralType to the current appraisal's classification.
-        // e.g. a previously-bare L master upgrades to LB when a building is appraised on it.
+        // LATEST-wins: flip CollateralType on the IsMaster AND every alias to the current
+        // appraisal's classification. CollateralType is stored per row, so all title rows in the
+        // group must agree — e.g. a previously-bare L group upgrades to LB when a building is
+        // appraised on it. UpdateCollateralType early-returns when unchanged (no spurious events)
+        // and has no IsMaster guard, so it is safe on aliases.
         master.UpdateCollateralType(resolvedCollateralType);
+        foreach (var alias in newAliases)
+            alias.UpdateCollateralType(resolvedCollateralType);
 
         // -----------------------------------------------------------------------
         // Step 4: Update IsMaster with last-known + construction + appraisal data
@@ -611,7 +661,7 @@ public class CollateralMasterUpsertService(
         {
             logger.LogWarning(
                 "No PricingInfo for land group containing PropertyId={PropertyId} in AppraisalId={AppraisalId}. " +
-                "UnitPrice / BuildingCost / AppraisalValue will be null on this master.",
+                "UnitPrice / BuildingValue / AppraisalValue will be null on this master.",
                 primaryProp.PropertyId, appraisal.AppraisalId);
         }
 
@@ -634,8 +684,8 @@ public class CollateralMasterUpsertService(
             OverallConstructionProgressPercent: overallPct,
             // UnitPrice: cost approach only — FinalValueAdjusted from PricingFinalValue (PR-8).
             UnitPrice: pricingInfo?.UnitPrice,
-            // BuildingCost: cost approach only — from PricingFinalValue.BuildingCost (PR-8).
-            BuildingCost: pricingInfo?.BuildingCost,
+            // BuildingValue: cost approach only — from PricingFinalValue.BuildingValue (PR-8).
+            BuildingValue: pricingInfo?.BuildingValue,
             // AppraisalValue: from PricingFinalValue (all approaches) (PR-8).
             AppraisalValue: pricingInfo?.AppraisalValue
         );
@@ -645,7 +695,7 @@ public class CollateralMasterUpsertService(
         // -----------------------------------------------------------------------
         // Step 5: Propagate UnitPrice to alias rows (PR-8).
         // Per the three-value model spec, UnitPrice is stamped on every master in the group
-        // (IsMaster + all aliases). BuildingCost and AppraisalValue are IsMaster only.
+        // (IsMaster + all aliases). BuildingValue and AppraisalValue are IsMaster only.
         //
         // IMPORTANT: newAliases already contains both newly-created aliases (not yet in DB) and
         // pre-existing aliases loaded earlier (matchedMasterIds.Count == 1 branch). We do NOT
@@ -674,22 +724,23 @@ public class CollateralMasterUpsertService(
         var condo = p.CondoIdentity!;
 
         var master = await repo.FindCondoByDedupKey(
-            condo.LandOffice!, condo.CondoRegistrationNumber!, condo.BuildingNumber!,
-            condo.FloorNumber!, condo.RoomNumber!, condo.TitleNumber!, condo.TitleType!, ct);
+            condo.CondoRegistrationNumber!, condo.BuildingNumber!,
+            condo.FloorNumber!, condo.RoomNumber!,
+            condo.Province!, condo.District!, condo.SubDistrict!, ct);
 
         if (master is null)
         {
             master = CollateralMaster.CreateCondo(
                 ownerName: condo.OwnerName ?? string.Empty,
-                landOfficeCode: condo.LandOffice!,
+                landOfficeCode: condo.LandOffice,
                 condoRegistrationNumber: condo.CondoRegistrationNumber!,
                 buildingNumber: condo.BuildingNumber!,
                 floorNumber: condo.FloorNumber!,
                 roomNumber: condo.RoomNumber!,
-                titleNumber: condo.TitleNumber!,
-                titleType: condo.TitleType!,
-                condoName: condo.CondoName,
-                province: condo.Province);
+                province: condo.Province!,
+                district: condo.District!,
+                subDistrict: condo.SubDistrict!,
+                condoName: condo.CondoName);
             repo.Add(master);
         }
 
@@ -716,14 +767,13 @@ public class CollateralMasterUpsertService(
         {
             logger.LogWarning(
                 "No PricingInfo for condo PropertyId={PropertyId} in AppraisalId={AppraisalId}. " +
-                "UnitPrice / BuildingCost / AppraisalValue will be null on this master.",
+                "UnitPrice / BuildingValue / AppraisalValue will be null on this master.",
                 p.PropertyId, appraisal.AppraisalId);
         }
 
         var upsertData = new CondoUpsertData(
             OwnerName: condo.OwnerName,
             CondoName: condo.CondoName,
-            Province: condo.Province,
             UsableArea: condo.UsableArea,
             LocationType: condo.LocationType,
             BuildingAge: condo.BuildingAge,
@@ -737,8 +787,8 @@ public class CollateralMasterUpsertService(
             AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
             // UnitPrice: cost approach only — FinalValueAdjusted from PricingFinalValue (PR-8).
             UnitPrice: pricingInfo?.UnitPrice,
-            // BuildingCost: cost approach only — from PricingFinalValue.BuildingCost (PR-8).
-            BuildingCost: pricingInfo?.BuildingCost,
+            // BuildingValue: cost approach only — from PricingFinalValue.BuildingValue (PR-8).
+            BuildingValue: pricingInfo?.BuildingValue,
             // AppraisalValue: from PricingFinalValue (all approaches) (PR-8).
             AppraisalValue: pricingInfo?.AppraisalValue
         );
@@ -809,8 +859,9 @@ public class CollateralMasterUpsertService(
             if (underlyingMaster is null)
             {
                 var landHit = await repo.FindLandByDedupKeyIncludingAliases(
-                    landId.LandOffice!, landId.Province!, landId.District!, landId.SubDistrict!,
-                    title.TitleType, title.TitleNumber, null, null, ct);
+                    landId.Province!, landId.District!, landId.SubDistrict!,
+                    title.TitleType, title.TitleNumber,
+                    title.SurveyNumber, title.LandParcelNumber, title.Rawang, ct);
 
                 if (landHit is not null && !landHit.IsMaster)
                 {
@@ -832,8 +883,9 @@ public class CollateralMasterUpsertService(
                     subDistrict: landId.SubDistrict!,
                     titleType: title.TitleType,
                     titleNumber: title.TitleNumber,
-                    surveyNumber: null,
-                    landParcelNumber: null,
+                    surveyNumber: title.SurveyNumber,
+                    landParcelNumber: title.LandParcelNumber,
+                    rawang: title.Rawang,
                     street: null, village: null,
                     latitude: null, longitude: null);
                 repo.Add(underlyingMaster);
@@ -843,22 +895,23 @@ public class CollateralMasterUpsertService(
                  condoSibling.CondoIdentity is { } condoId)
         {
             underlyingMaster = await repo.FindCondoByDedupKey(
-                condoId.LandOffice!, condoId.CondoRegistrationNumber!, condoId.BuildingNumber!,
-                condoId.FloorNumber!, condoId.RoomNumber!, condoId.TitleNumber!, condoId.TitleType!, ct);
+                condoId.CondoRegistrationNumber!, condoId.BuildingNumber!,
+                condoId.FloorNumber!, condoId.RoomNumber!,
+                condoId.Province!, condoId.District!, condoId.SubDistrict!, ct);
 
             if (underlyingMaster is null)
             {
                 underlyingMaster = CollateralMaster.CreateCondo(
                     ownerName: string.Empty,
-                    landOfficeCode: condoId.LandOffice!,
+                    landOfficeCode: condoId.LandOffice,
                     condoRegistrationNumber: condoId.CondoRegistrationNumber!,
                     buildingNumber: condoId.BuildingNumber!,
                     floorNumber: condoId.FloorNumber!,
                     roomNumber: condoId.RoomNumber!,
-                    titleNumber: condoId.TitleNumber!,
-                    titleType: condoId.TitleType!,
-                    condoName: null,
-                    province: condoId.Province);
+                    province: condoId.Province!,
+                    district: condoId.District!,
+                    subDistrict: condoId.SubDistrict!,
+                    condoName: null);
                 repo.Add(underlyingMaster);
             }
         }
@@ -1040,8 +1093,8 @@ public class CollateralMasterUpsertService(
             }
 
             // Group-level values (from the IsMaster master detail row)
-            decimal? buildingCost = isMasterRow.LandDetail?.BuildingCost
-                                    ?? isMasterRow.CondoDetail?.BuildingCost;
+            decimal? buildingCost = isMasterRow.LandDetail?.BuildingValue
+                                    ?? isMasterRow.CondoDetail?.BuildingValue;
             decimal? groupAppraisalValue = isMasterRow.LandDetail?.AppraisalValue
                                            ?? isMasterRow.CondoDetail?.AppraisalValue;
 
@@ -1066,7 +1119,7 @@ public class CollateralMasterUpsertService(
                 GroupNumber = group.GroupNumber,
                 IsMasterId = isMasterRow.Id.ToString(),
                 IsPrimary = isPrimary,
-                BuildingCost = buildingCost,
+                BuildingValue = buildingCost,
                 AppraisalValue = groupAppraisalValue,
                 Properties = propertyEntries,
                 ConstructionInspections = ciList
@@ -1086,19 +1139,23 @@ public class CollateralMasterUpsertService(
     {
         var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (master.LandDetail is { } ld)
-            keys.Add(BuildTitleKey(ld.LandOfficeCode, ld.Province, ld.District, ld.SubDistrict, ld.TitleType, ld.TitleNumber));
+            keys.Add(BuildTitleKey(ld.Province, ld.District, ld.SubDistrict, ld.TitleType, ld.TitleNumber, ld.SurveyNumber, ld.LandParcelNumber, ld.Rawang));
         foreach (var a in aliases)
         {
             if (a.LandDetail is { } ald)
-                keys.Add(BuildTitleKey(ald.LandOfficeCode, ald.Province, ald.District, ald.SubDistrict, ald.TitleType, ald.TitleNumber));
+                keys.Add(BuildTitleKey(ald.Province, ald.District, ald.SubDistrict, ald.TitleType, ald.TitleNumber, ald.SurveyNumber, ald.LandParcelNumber, ald.Rawang));
         }
         return keys;
     }
 
+    // In-memory dedup key — MUST mirror the DB dedup key / UX_LandDetails_DedupKey_Active
+    // (Province + District + SubDistrict + TitleType + TitleNumber + SurveyNumber +
+    //  LandParcelNumber + Rawang). LandOfficeCode is NOT part of the key.
     private static string BuildTitleKey(
-        string landOffice, string province, string amphur, string tambon,
-        string titleType, string titleNo)
-        => $"{landOffice}|{province}|{amphur}|{tambon}|{titleType}|{titleNo}";
+        string province, string amphur, string tambon,
+        string titleType, string titleNo,
+        string? surveyNumber, string? landParcelNumber, string? rawang)
+        => $"{province}|{amphur}|{tambon}|{titleType}|{titleNo}|{surveyNumber}|{landParcelNumber}|{rawang}";
 
     /// <summary>
     /// Translates the Appraisal-side <see cref="ProjectUnitForCollateral"/> DTOs into
@@ -1192,7 +1249,7 @@ public class CollateralMasterUpsertService(
                 landValue = ld.UnitPrice.Value * landAreaInSqWa.Value;
             // BuildingValue intentionally stays null for bare Land — only L&B carries a building cost.
             if (primaryMaster.CollateralType == CollateralTypes.LandWithBuilding)
-                buildingValue = ld.BuildingCost;
+                buildingValue = ld.BuildingValue;
         }
 
         primaryMaster.AppendEngagement(

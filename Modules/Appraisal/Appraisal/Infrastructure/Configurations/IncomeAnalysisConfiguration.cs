@@ -24,12 +24,7 @@ public class IncomeAnalysisConfiguration : IEntityTypeConfiguration<IncomeAnalys
         builder.Property(a => a.CapitalizeRate).HasPrecision(5, 2);
         builder.Property(a => a.DiscountedRate).HasPrecision(5, 2);
 
-        builder.Property(a => a.FinalValue).HasPrecision(18, 2);
-        builder.Property(a => a.FinalValueRounded).HasPrecision(18, 2);
-        builder.Property(a => a.FinalValueAdjust).HasPrecision(18, 2);
-
         builder.Property(a => a.IsHighestBestUsed).HasDefaultValue(true);
-        builder.Property(a => a.AppraisalPriceRounded).HasPrecision(18, 2);
 
         builder.OwnsOne(a => a.HighestBestUsed, h =>
         {

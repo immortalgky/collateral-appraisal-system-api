@@ -17,9 +17,9 @@ public sealed class MeetingMinuteModel
     // ── Committee members present (ordered: Chairman first, then Directors, Secretary last) ──
     public IReadOnlyList<MeetingMemberRow> Members { get; init; } = Array.Empty<MeetingMemberRow>();
 
-    // ── Staff presenters — DEFERRED: no source in current schema.
-    //    Rendered as an empty placeholder table in the template.
-    // public IReadOnlyList<PresenterRow> Presenters { get; init; } = ...;
+    // ── Staff presenters (FSD §2.1.9 fields 4.1–4.3) ─────────────────────────
+    public IReadOnlyList<MeetingPresenterRow> Presenters { get; init; }
+        = Array.Empty<MeetingPresenterRow>();
 
     // ── Agenda groups (same grouping logic as invitation) ─────────────────────
     public IReadOnlyList<MeetingAgendaGroup> Agendas { get; init; } = Array.Empty<MeetingAgendaGroup>();
@@ -31,6 +31,18 @@ public sealed class MeetingMinuteModel
     // ── No attachment slots — this report is self-contained ───────────────────
     public IReadOnlyDictionary<string, IReadOnlyList<Guid>> AttachmentsBySlot { get; init; }
         = new Dictionary<string, IReadOnlyList<Guid>>();
+}
+
+/// <summary>
+/// One presenter row (FSD §2.1.9 fields 4.1–4.3): appraisal staff name, their position,
+/// and the "{วาระ}.{seq}" agenda references of the items they presented.
+/// </summary>
+public sealed class MeetingPresenterRow
+{
+    public string PresenterName { get; init; } = string.Empty;
+    public string Position { get; init; } = string.Empty;
+    /// <summary>Comma-joined "{วาระ}.{seq}" references, e.g. "8.1, 8.2".</summary>
+    public string AgendaRefs { get; init; } = string.Empty;
 }
 
 /// <summary>

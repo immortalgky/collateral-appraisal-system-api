@@ -47,7 +47,6 @@ public class GetCollateralCatalogQueryHandler(
             IsUnderConstructionAtLastAppraisal,
             OverallConstructionProgressPercent,
             Condo_Province,
-            Condo_TitleNumber,
             Condo_CondoName,
             Condo_Latitude,
             Condo_Longitude,
@@ -113,10 +112,10 @@ public class GetCollateralCatalogQueryHandler(
 
         // --- Phase 1 new filters ---
 
-        // TitleNumber: LIKE against Land title number AND Condo TitleNumber
+        // TitleNumber: LIKE against Land title number (Condo has no title number)
         if (!string.IsNullOrWhiteSpace(query.TitleNumber))
         {
-            sql += " AND (Land_TitleNumber LIKE @TitleNumberPattern OR Condo_TitleNumber LIKE @TitleNumberPattern)";
+            sql += " AND Land_TitleNumber LIKE @TitleNumberPattern";
             p.Add("TitleNumberPattern", "%" + query.TitleNumber.Trim() + "%");
         }
 
@@ -144,7 +143,7 @@ public class GetCollateralCatalogQueryHandler(
             p.Add("CompanyId", companyGuid);
         }
 
-        // Q: free-text OR across owner, both title numbers, province/district/subDistrict, condoName
+        // Q: free-text OR across owner, land title number, province/district/subDistrict, condoName
         if (!string.IsNullOrWhiteSpace(query.Q))
         {
             var qPattern = "%" + query.Q.Trim() + "%";
@@ -152,7 +151,6 @@ public class GetCollateralCatalogQueryHandler(
                  AND (
                      OwnerName          LIKE @QPattern
                   OR Land_TitleNumber   LIKE @QPattern
-                  OR Condo_TitleNumber  LIKE @QPattern
                   OR Land_Province      LIKE @QPattern
                   OR Land_District      LIKE @QPattern
                   OR Land_SubDistrict   LIKE @QPattern

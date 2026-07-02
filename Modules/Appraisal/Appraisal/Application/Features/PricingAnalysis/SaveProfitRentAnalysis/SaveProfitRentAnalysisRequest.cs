@@ -10,7 +10,9 @@ public record SaveProfitRentAnalysisRequest(
     IReadOnlyList<ProfitRentGrowthPeriodInput>? GrowthPeriods = null,
     string? Remark = null,
     decimal? EstimatePriceRounded = null,
-    decimal? AppraisalPrice = null
+    decimal? AppraisalPrice = null,
+    // User-overridden adjusted final value (stored as-is; never recomputed)
+    decimal? FinalValueAdjusted = null
 );
 
 public record ProfitRentGrowthPeriodInput(

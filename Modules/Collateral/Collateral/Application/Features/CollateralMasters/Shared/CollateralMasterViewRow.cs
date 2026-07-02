@@ -49,7 +49,7 @@ public class CollateralMasterViewRow
     public DateTime? Land_LastAppraisedDate { get; init; }
     // Three-value model
     public decimal? Land_UnitPrice { get; init; }
-    public decimal? Land_BuildingCost { get; init; }
+    public decimal? Land_BuildingValue { get; init; }
     public decimal? Land_AppraisalValue { get; init; }
 
     // Condo columns
@@ -58,9 +58,9 @@ public class CollateralMasterViewRow
     public string? Condo_BuildingNumber { get; init; }
     public string? Condo_FloorNumber { get; init; }
     public string? Condo_RoomNumber { get; init; }
-    public string? Condo_TitleNumber { get; init; }
-    public string? Condo_TitleType { get; init; }
     public string? Condo_CondoName { get; init; }
+    public string? Condo_District { get; init; }
+    public string? Condo_SubDistrict { get; init; }
     public string? Condo_Province { get; init; }
     public decimal? Condo_UsableArea { get; init; }
     public string? Condo_LocationType { get; init; }
@@ -72,7 +72,7 @@ public class CollateralMasterViewRow
     public DateTime? Condo_LastAppraisedDate { get; init; }
     // Three-value model
     public decimal? Condo_UnitPrice { get; init; }
-    public decimal? Condo_BuildingCost { get; init; }
+    public decimal? Condo_BuildingValue { get; init; }
     public decimal? Condo_AppraisalValue { get; init; }
 
     // Leasehold columns

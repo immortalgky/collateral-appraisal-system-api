@@ -3,6 +3,7 @@ using Appraisal.Contracts.Appraisals;
 using Collateral.CollateralMasters.Exceptions;
 using Collateral.CollateralMasters.Models;
 using Collateral.Data;
+using Microsoft.Extensions.Hosting;
 using Shared.Time;
 
 namespace Collateral.CollateralMasters.Services;
@@ -41,7 +42,8 @@ public record BackfillJobStatus(
 public class CollateralBackfillJob(
     IServiceScopeFactory scopeFactory,
     ILogger<CollateralBackfillJob> logger,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    IHostApplicationLifetime lifetime)
 {
     private const int PageSize = 100;
 
@@ -60,14 +62,23 @@ public class CollateralBackfillJob(
     /// If a job is already InProgress the caller may still start a new one
     /// (idempotency on the data layer protects against duplicates).
     /// </summary>
+    /// <remarks>
+    /// The job runs under <see cref="IHostApplicationLifetime.ApplicationStopping"/>, NOT the
+    /// caller's token. A fire-and-forget job triggered from an HTTP endpoint must not capture
+    /// the request's CancellationToken — that token cancels as soon as the response is sent,
+    /// which would abort the run partway through. Any token passed here is intentionally ignored.
+    /// </remarks>
     public Guid StartAsync(CancellationToken ct = default)
     {
         var jobId = Guid.CreateVersion7();
         var status = new BackfillJobStatus(jobId, dateTimeProvider.ApplicationNow, null, BackfillJobState.Started, 0, 0, 0);
         _jobs[jobId] = status;
 
+        // Run for the life of the process; stop gracefully only on app shutdown (e.g. IIS recycle).
+        var jobToken = lifetime.ApplicationStopping;
+
         // Fire-and-forget — not awaited by caller
-        _ = Task.Run(() => RunAsync(jobId, ct), ct);
+        _ = Task.Run(() => RunAsync(jobId, jobToken), jobToken);
 
         return jobId;
     }
@@ -170,6 +181,13 @@ public class CollateralBackfillJob(
                 "CollateralBackfillJob: SkippedMissingKey AppraisalId={AppraisalId} Reason={Reason}",
                 appraisalId, ex.Message);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // App shutdown — let it propagate so the record is NOT recorded as an error
+            // (it is idempotent and reprocesses cleanly on the next run). RunAsync's outer
+            // catch logs-and-finalizes the job gracefully.
+            throw;
+        }
         catch (Exception ex)
         {
             status = "Error";
@@ -178,10 +196,29 @@ public class CollateralBackfillJob(
             logger.LogError(ex, "CollateralBackfillJob: Error processing AppraisalId={AppraisalId}", appraisalId);
         }
 
-        // Write the report row — use the same scope's DbContext
-        var report = new CollateralBackfillReport(appraisalId, status, message, dateTimeProvider.ApplicationNow);
-        db.CollateralBackfillReports.Add(report);
-        await db.SaveChangesAsync(ct);
+        // Drop any partial tracked entities before writing the report.
+        // db is the SAME scoped DbContext the upsert service writes through, so:
+        //   - a record that threw mid-processing leaves its Added-but-unsaved masters/aliases tracked, and
+        //   - even the idempotent "duplicate engagement" no-op (ProcessAppraisalAsync swallows the
+        //     DbUpdateException internally) leaves its rolled-back Added entities tracked.
+        // Without this clear, the report SaveChangesAsync below would re-attempt (and re-throw on)
+        // those entities, which would propagate to RunAsync's outer catch and abort the WHOLE run.
+        db.ChangeTracker.Clear();
+
+        // Write the report row — use the same scope's DbContext.
+        // Guard it: failing to log a single record's outcome must never abort the run.
+        try
+        {
+            var report = new CollateralBackfillReport(appraisalId, status, message, dateTimeProvider.ApplicationNow);
+            db.CollateralBackfillReports.Add(report);
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "CollateralBackfillJob: failed to write BackfillReport for AppraisalId={AppraisalId} (Status={Status})",
+                appraisalId, status);
+        }
 
         return status;
     }

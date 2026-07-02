@@ -1,3 +1,5 @@
+using Parameter.Contracts.Parameters;
+using Parameter.Contracts.Parameters.Dtos;
 using Parameter.DocumentRequirements.Models;
 
 namespace Parameter.DocumentRequirements.Features.CreateDocumentRequirement;
@@ -6,13 +8,16 @@ public class CreateDocumentRequirementCommandHandler : ICommandHandler<CreateDoc
 {
     private readonly IDocumentRequirementRepository _repository;
     private readonly IParameterUnitOfWork _unitOfWork;
+    private readonly IParameterLookupService _parameterLookup;
 
     public CreateDocumentRequirementCommandHandler(
         IDocumentRequirementRepository repository,
-        IParameterUnitOfWork unitOfWork)
+        IParameterUnitOfWork unitOfWork,
+        IParameterLookupService parameterLookup)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
+        _parameterLookup = parameterLookup;
     }
 
     public async Task<CreateDocumentRequirementResult> Handle(
@@ -22,7 +27,24 @@ public class CreateDocumentRequirementCommandHandler : ICommandHandler<CreateDoc
         var documentType = await _repository.GetDocumentTypeByIdAsync(command.DocumentTypeId, cancellationToken);
         if (documentType is null)
         {
-            throw new InvalidOperationException($"Document type with ID {command.DocumentTypeId} not found");
+            throw new BadRequestException($"Document type with ID {command.DocumentTypeId} not found");
+        }
+
+        // Validate the collateral-type / purpose codes against their parameter groups.
+        if (!string.IsNullOrWhiteSpace(command.PropertyTypeCode))
+        {
+            var validCollateralTypes = await _parameterLookup.GetValidCodesAsync(
+                new ParameterDto(null, "CollateralType", null, null, null, null, true, null), cancellationToken);
+            if (!validCollateralTypes.Contains(command.PropertyTypeCode))
+                throw new BadRequestException($"Invalid collateral type code '{command.PropertyTypeCode}'");
+        }
+
+        if (!string.IsNullOrWhiteSpace(command.PurposeCode))
+        {
+            var validPurposes = await _parameterLookup.GetValidCodesAsync(
+                new ParameterDto(null, "AppraisalPurpose", null, null, null, null, true, null), cancellationToken);
+            if (!validPurposes.Contains(command.PurposeCode))
+                throw new BadRequestException($"Invalid purpose code '{command.PurposeCode}'");
         }
 
         var exists = await _repository.RequirementExistsAsync(
@@ -35,7 +57,7 @@ public class CreateDocumentRequirementCommandHandler : ICommandHandler<CreateDoc
         {
             var typeDesc = command.PropertyTypeCode ?? "Application Level";
             var purposeDesc = command.PurposeCode is not null ? $" with purpose '{command.PurposeCode}'" : "";
-            throw new InvalidOperationException(
+            throw new BadRequestException(
                 $"A requirement for document type '{documentType.Code}' already exists for {typeDesc}{purposeDesc}");
         }
 

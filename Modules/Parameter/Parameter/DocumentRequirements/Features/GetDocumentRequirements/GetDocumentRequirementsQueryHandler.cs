@@ -42,7 +42,7 @@ public class GetDocumentRequirementsQueryHandler : IQueryHandler<GetDocumentRequ
         }
         else
         {
-            requirements = await _repository.GetAllRequirementsAsync(cancellationToken);
+            requirements = await _repository.GetAllRequirementsAsync(query.IncludeInactive, cancellationToken);
         }
 
         if (!string.IsNullOrWhiteSpace(query.PurposeCode))

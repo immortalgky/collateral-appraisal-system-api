@@ -28,7 +28,6 @@ public class RestoreCollateralMasterCommandHandler(
         {
             collides = await repository.LandDedupCollidesAsync(
                 master.Id,
-                master.LandDetail.LandOfficeCode,
                 master.LandDetail.Province,
                 master.LandDetail.District,
                 master.LandDetail.SubDistrict,
@@ -36,19 +35,20 @@ public class RestoreCollateralMasterCommandHandler(
                 master.LandDetail.TitleNumber,
                 master.LandDetail.SurveyNumber,
                 master.LandDetail.LandParcelNumber,
+                master.LandDetail.Rawang,
                 cancellationToken);
         }
         else if (master.CondoDetail is not null)
         {
             collides = await repository.CondoDedupCollidesAsync(
                 master.Id,
-                master.CondoDetail.LandOfficeCode,
                 master.CondoDetail.CondoRegistrationNumber,
                 master.CondoDetail.BuildingNumber,
                 master.CondoDetail.FloorNumber,
                 master.CondoDetail.RoomNumber,
-                master.CondoDetail.TitleNumber,
-                master.CondoDetail.TitleType,
+                master.CondoDetail.Province,
+                master.CondoDetail.District,
+                master.CondoDetail.SubDistrict,
                 cancellationToken);
         }
         else if (master.LeaseholdDetail is not null)

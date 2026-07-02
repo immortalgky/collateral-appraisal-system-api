@@ -190,6 +190,12 @@
     "ReportsSubfolder": "reports",
     "ArtifactRetentionDays": 7
   },
+  "BackgroundJobs": {
+    "OutboxDelivery": { "PollInterval": "00:00:05", "BatchSize": 50, "MaxRetries": 5, "LeaseDuration": "00:00:30" },
+    "SlaMonitor": { "LeaseDuration": "00:03:00", "WorkInterval": "00:01:00", "StandbyPollInterval": "00:00:05" },
+    "QuotationAutoClose": { "LeaseDuration": "00:03:00", "WorkInterval": "00:01:00", "StandbyPollInterval": "00:00:05" },
+    "TaskLockExpiry": { "Interval": "00:05:00", "LockTimeout": "00:30:00" }
+  },
   "SeedData": {
     "AdminUser": {
       "Username": "#{ADMIN_USERNAME}#",

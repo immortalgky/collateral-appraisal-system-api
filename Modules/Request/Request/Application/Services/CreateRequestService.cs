@@ -1,4 +1,5 @@
 using Appraisal.Contracts.Appraisals;
+using Auth.Contracts.Users;
 
 namespace Request.Application.Services;
 
@@ -8,7 +9,8 @@ public class CreateRequestService(
     IRequestTitleRepository requestTitleRepository,
     IRequestCommentRepository requestCommentRepository,
     IRequestUnitOfWork unitOfWork,
-    ISender mediator
+    ISender mediator,
+    IUserLookupService userLookupService
 ) : ICreateRequestService
 {
     public async Task<(Request.Domain.Requests.Request, List<RequestTitle>)> CreateRequestAsync(CreateRequestData data,
@@ -58,10 +60,28 @@ public class CreateRequestService(
         DateTime now,
         CancellationToken cancellationToken)
     {
+        // UI path: resolve employee code → identity (name). Org detail (email, cost center, etc.)
+        // is NOT snapshotted — it is resolved on read from the stored employee code via auth.
+        // Integration / reappraisal path: requestor is pre-resolved; use directly.
+        UserInfo requestorUserInfo;
+
+        if (!string.IsNullOrWhiteSpace(command.RequestorEmployeeId))
+        {
+            var info = await userLookupService.GetRequestorAsync(command.RequestorEmployeeId, cancellationToken);
+            if (info is null)
+                throw new NotFoundException("Requestor", command.RequestorEmployeeId);
+
+            requestorUserInfo = new UserInfo(info.EmployeeId, info.Name);
+        }
+        else
+        {
+            requestorUserInfo = new UserInfo(command.Requestor!.UserId, command.Requestor.Username);
+        }
+
         var request = Domain.Requests.Request.Create(new RequestData(
             command.Purpose,
             command.Channel,
-            new UserInfo(command.Requestor.UserId, command.Requestor.Username),
+            requestorUserInfo,
             new UserInfo(command.Creator.UserId, command.Creator.Username),
             now,
             command.Priority,

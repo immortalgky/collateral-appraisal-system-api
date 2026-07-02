@@ -6,16 +6,16 @@
 <div class="form">
 
   <!-- ════ HEADER + INFO BLOCK opening (fields 1–12) — shared partial (opens .pad) ════ -->
-  {{ summary_title = "สรุปรายงานการประเมินราคาทรัพย์สิน" }}
+  {{ if model.report_title; summary_title = model.report_title; else; summary_title = "สรุปรายงานการประเมินราคาทรัพย์สิน"; end }}
   {{ include 'partials/summary-head' }}
     <div class="cols3">
-      <div class="kv"><span class="k">เขตการปกครอง :</span><span class="v">{{ model.administrative_district }}</span></div>
-      <div class="kv"><span class="k">สำนักงานที่ดิน :</span><span class="v">{{ model.land_office }}</span></div>
-      <div class="kv"><span class="k">ราคาประเมินเดิม :</span><span class="v">{{ if model.old_appraisal_value; model.old_appraisal_value | math.format "N2"; else; "-"; end }}</span></div>
+      <div class="kv"><span class="k">เขตการปกครอง</span><span class="v">{{ model.administrative_district }}</span></div>
+      <div class="kv"><span class="k">สำนักงานที่ดิน</span><span class="v">{{ model.land_office }}</span></div>
+      <div class="kv">{{ if model.is_increase_limit }}<span class="k">วงเงินสินเชื่อเดิม</span><span class="v">{{ if model.existing_loan_value; model.existing_loan_value | math.format "N2"; else; "-"; end }} บาท</span>{{ else if model.is_reappraisal }}<span class="k">ราคาประเมินเดิม</span><span class="v">{{ if model.old_appraisal_value; model.old_appraisal_value | math.format "N2"; else; "-"; end }}</span>{{ end }}</div>
     </div>
-    <div class="cols2">
-      <div class="kv"><span class="k">ผู้ประเมินราคา :</span><span class="v">{{ model.appraiser }}</span></div>
-      <div class="kv"><span class="k">วงเงินสินเชื่อ :</span><span class="v">{{ if model.loan_value; model.loan_value | math.format "N2"; else; "-"; end }} บาท</span></div>
+    <div class="cols3">
+      <div class="kv" style="grid-column:span 2;"><span class="k">ผู้ประเมินราคา</span><span class="v">{{ model.appraiser }}</span></div>
+      <div class="kv">{{ if !model.is_reappraisal }}<span class="k">{{ if model.is_increase_limit }}ขอเพิ่มวงเงิน{{ else }}วงเงินสินเชื่อ{{ end }}</span><span class="v">{{ if model.loan_value; model.loan_value | math.format "N2"; else; "-"; end }} บาท</span>{{ end }}</div>
     </div>
   </div>
 
@@ -23,31 +23,74 @@
   <table class="grid">
     <thead>
       <tr>
+        <th style="width:130px;"></th>
         <th>รายการทรัพย์สิน</th>
-        <th style="width:110px;">พื้นที่ / จำนวน</th>
-        <th style="width:95px;">ราคาต่อหน่วย</th>
-        <th style="width:110px;">ราคาประเมิน</th>
+        <th style="width:90px;">พื้นที่ / จำนวน</th>
+        <th style="width:85px;">ราคาต่อหน่วย</th>
+        <th style="width:100px;">ราคาประเมิน</th>
       </tr>
     </thead>
     <tbody>
+      {{ multi = model.groups.size > 1 }}
       {{ for g in model.groups }}
-      <tr>
-        <td>
-          <span class="chk">&#9745;</span>
-          <strong>{{ g.property_type }}</strong>
-          {{ if g.group_name }}<span style="color:#555;">({{ g.group_name }})</span>{{ end }}
-          {{ if g.collateral_details }}<div style="margin-top:2px;">{{ g.collateral_details }}</div>{{ end }}
-        </td>
-        <td>{{ g.area_or_unit }}</td>
-        <td class="num">{{ if g.price_per_area_or_unit; g.price_per_area_or_unit | math.format "N2"; end }}</td>
-        <td class="num">{{ if g.appraisal_value; g.appraisal_value | math.format "N2"; end }}</td>
-      </tr>
+        {{ if g.is_cost_approach }}
+        <!-- Cost approach: land + building list + ส่วนพัฒนา, each line valued -->
+        <tr class="grp-first">
+          <td>{{ if g.has_land }}<span class="chk on"></span> <strong>ที่ดิน</strong>{{ end }}</td>
+          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ for d in g.land_descriptions }}<div style="margin-top:1px;">{{ if g.land_descriptions.size > 1 }}{{ for.index + 1 }}. {{ end }}{{ d }}</div>{{ end }}</td>
+          <td class="num">{{ if g.total_square_wa; g.total_square_wa | math.format "N2"; end }}</td>
+          <td class="num">{{ if g.land_unit_price; g.land_unit_price | math.format "N2"; end }}</td>
+          <td class="num">{{ if g.land_value; g.land_value | math.format "N2"; end }}</td>
+        </tr>
+        {{ for b in g.buildings }}
+        <tr class="cont">
+          <td>{{ if for.first }}<span class="chk on"></span> <strong>สิ่งปลูกสร้าง</strong>{{ end }}</td>
+          <td>{{ for.index + 1 }}. {{ b.description }}</td>
+          <td></td><td></td>
+          <td class="num">{{ if b.value; b.value | math.format "N2"; end }}</td>
+        </tr>
+        {{ end }}
+        {{ if g.development_items.size > 0 }}
+        <tr class="cont"><td></td><td><strong>ส่วนพัฒนา</strong></td><td></td><td></td><td></td></tr>
+        {{ for d in g.development_items }}
+        <tr class="cont">
+          <td></td>
+          <td>- {{ d.description }}</td>
+          <td></td><td></td>
+          <td class="num">{{ if d.value; d.value | math.format "N2"; end }}</td>
+        </tr>
+        {{ end }}
+        {{ end }}
+        {{ if multi }}
+        <tr class="grp-total">
+          <td></td>
+          <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าทรัพย์สินกลุ่ม {{ g.group_number }}</strong></td>
+          <td class="num"><strong>{{ if g.group_total; g.group_total | math.format "N2"; end }}</strong></td>
+        </tr>
+        {{ end }}
+        {{ else }}
+        <!-- Market / combined: single value, no per-unit breakdown -->
+        <tr>
+          <td><span class="chk on"></span> <strong>{{ g.property_type }}</strong></td>
+          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.collateral_details }}<div style="margin-top:1px;">{{ g.collateral_details }}</div>{{ end }}</td>
+          <td></td>
+          <td></td>
+          <td class="num">{{ if g.group_total; g.group_total | math.format "N2"; end }}</td>
+        </tr>
+        {{ if multi }}
+        <tr class="grp-total">
+          <td></td>
+          <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าทรัพย์สินกลุ่ม {{ g.group_number }}</strong></td>
+          <td class="num"><strong>{{ if g.group_total; g.group_total | math.format "N2"; end }}</strong></td>
+        </tr>
+        {{ end }}
+        {{ end }}
       {{ end }}
       {{ if model.groups.size == 0 }}
-      <tr><td colspan="4" style="height:34px;">&nbsp;</td></tr>
+      <tr><td colspan="5" style="height:34px;">&nbsp;</td></tr>
       {{ end }}
-      <tr><td colspan="4"><strong>เงื่อนไข :</strong> {{ model.condition }}</td></tr>
-      <tr><td colspan="4"><strong>หมายเหตุ :</strong> {{ model.remark }}</td></tr>
+      {{ if model.condition }}<tr><td><strong>เงื่อนไข</strong></td><td colspan="4" class="brk">{{ model.condition }}</td></tr>{{ end }}
+      {{ if model.remark }}<tr><td><strong>หมายเหตุ</strong></td><td colspan="4" class="brk">{{ model.remark }}</td></tr>{{ end }}
     </tbody>
   </table>
 
@@ -73,25 +116,25 @@
   <!-- ════ ATTRIBUTES (fields 24–32) ════ -->
   <div class="pad sep">
     <div class="cols2">
-      <div class="kv"><span class="k">กรรมสิทธิ์ที่ดิน :</span><span class="v">{{ model.land_owner }}</span></div>
-      <div class="kv"><span class="k">สิทธิทางเข้า-ออก :</span><span class="v">{{ model.entry_exit_rights }}</span></div>
-      <div class="kv"><span class="k">กรรมสิทธิ์สิ่งปลูกสร้าง :</span><span class="v">{{ model.building_owner }}</span></div>
-      <div class="kv"><span class="k">สภาพที่ดิน :</span><span class="v">{{ model.land_condition }}</span></div>
-      <div class="kv"><span class="k">ภาระผูกพัน :</span><span class="v">{{ model.obligation }}</span></div>
-      <div class="kv"><span class="k">ผังเมือง :</span><span class="v">{{ model.city_plan }}</span></div>
+      <div class="kv"><span class="k">กรรมสิทธิ์ที่ดิน</span><span class="v">{{ model.land_owner }}</span></div>
+      <div class="kv"><span class="k">สิทธิทางเข้า-ออก</span><span class="v">{{ model.entry_exit_rights }}</span></div>
+      <div class="kv"><span class="k">กรรมสิทธิ์สิ่งปลูกสร้าง</span><span class="v">{{ model.building_owner }}</span></div>
+      <div class="kv"><span class="k">สภาพที่ดิน</span><span class="v">{{ for c in model.land_conditions }}{{ c }}{{ if !for.last }}<br>{{ end }}{{ end }}</span></div>
+      <div class="kv"><span class="k">ภาระผูกพัน</span><span class="v">{{ model.obligation }}</span></div>
+      <div class="kv"><span class="k">ผังเมือง</span><span class="v">{{ model.city_plan }}</span></div>
     </div>
-    <div class="cols3">
-      <div class="kv"><span class="k">พิกัด :</span><span class="v">{{ model.gps }}</span></div>
-      <div class="kv"><span class="k">ราคาประเมินราชการ :</span><span class="v">{{ if model.government_assessed_value; model.government_assessed_value | math.format "N2"; end }}</span></div>
-      <div class="kv"><span class="k">การใช้ประโยชน์ :</span><span class="v">{{ model.utilization }}</span></div>
+    <div class="kv"><span class="k">พิกัด</span><span class="v">{{ model.gps }}</span></div>
+    <div class="cols2">
+      <div class="kv"><span class="k">ราคาประเมินราชการ</span><span class="v">{{ model.government_price_text }}</span></div>
+      <div class="kv"><span class="k">การใช้ประโยชน์</span><span class="v">{{ for u in model.utilizations }}{{ u }}{{ if !for.last }}<br>{{ end }}{{ end }}</span></div>
     </div>
     <div class="kv" style="margin-top:3px;">
-      <span class="k">วิธีการประเมิน :</span>
+      <span class="k">วิธีการประเมิน</span>
       <span class="methods">
-        <span class="m"><span class="chk">{{ if model.is_wqs || model.is_sale_grid }}&#9745;{{ else }}&#9744;{{ end }}</span> Market Comparison Approach</span>
-        <span class="m"><span class="chk">{{ if model.is_cost }}&#9745;{{ else }}&#9744;{{ end }}</span> Cost Approach</span>
-        <span class="m"><span class="chk">{{ if model.is_income }}&#9745;{{ else }}&#9744;{{ end }}</span> Income Approach</span>
-        <span class="m"><span class="chk">{{ if model.is_hypothesis }}&#9745;{{ else }}&#9744;{{ end }}</span> Residual Approach</span>
+        <span class="m"><span class="chk {{ if model.is_wqs || model.is_sale_grid }}on{{ end }}"></span> Market Comparison Approach</span>
+        <span class="m"><span class="chk {{ if model.is_cost }}on{{ end }}"></span> Cost Approach</span>
+        <span class="m"><span class="chk {{ if model.is_income }}on{{ end }}"></span> Income Approach</span>
+        <span class="m"><span class="chk {{ if model.is_hypothesis || model.is_leasehold || model.is_profit_rent }}on{{ end }}"></span> Residual Approach</span>
       </span>
     </div>
   </div>
@@ -99,7 +142,7 @@
   <!-- ════ APPRAISER OPINION (fields 34–35) ════ -->
   <div class="section-bar">สรุปความเห็นผู้ประเมิน</div>
   <div class="pad">
-    {{ if model.property_type }}<div class="kv"><span class="k">ประเภททรัพย์ :</span><span>{{ model.property_type }}</span></div>{{ end }}
+    {{ if model.summary_property_type }}<div class="opinion-type">{{ model.summary_property_type }}</div>{{ else if model.property_type }}<div class="opinion-type">{{ model.property_type }}</div>{{ end }}
     <div class="comment-box">{{ model.appraiser_comment }}</div>
   </div>
 

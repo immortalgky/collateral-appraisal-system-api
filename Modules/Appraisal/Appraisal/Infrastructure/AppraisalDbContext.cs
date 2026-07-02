@@ -47,8 +47,6 @@ public class AppraisalDbContext : DbContext
     // Valuation Entities
     // =====================================================
     public DbSet<ValuationAnalysis> ValuationAnalyses => Set<ValuationAnalysis>();
-    public DbSet<GroupValuation> GroupValuations => Set<GroupValuation>();
-    public DbSet<PropertyValuation> PropertyValuations => Set<PropertyValuation>();
 
     // =====================================================
     // Market Comparables
@@ -204,6 +202,12 @@ public class AppraisalDbContext : DbContext
     public DbSet<Domain.SupportingDataMaintenance.SupportingData> SupportingData => Set<Domain.SupportingDataMaintenance.SupportingData>();
     public DbSet<Domain.SupportingDataMaintenance.SupportingDataDetail> SupportingDataDetails => Set<Domain.SupportingDataMaintenance.SupportingDataDetail>();
     public DbSet<Domain.SupportingDataMaintenance.SupportingDataDetailImage> SupportingDataDetailImages => Set<Domain.SupportingDataMaintenance.SupportingDataDetailImage>();
+
+    // =====================================================
+    // Legacy Migration — Asset Summary (read-only)
+    // =====================================================
+    public DbSet<Domain.Appraisals.AssetSummary> AssetSummaries => Set<Domain.Appraisals.AssetSummary>();
+    public DbSet<Domain.Appraisals.AssetSummaryGroup> AssetSummaryGroups => Set<Domain.Appraisals.AssetSummaryGroup>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

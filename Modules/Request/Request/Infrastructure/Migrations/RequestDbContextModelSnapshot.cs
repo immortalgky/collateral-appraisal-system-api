@@ -596,8 +596,8 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("bit");
 
                             b1.Property<string>("Notes")
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)");
+                                .HasMaxLength(4000)
+                                .HasColumnType("nvarchar(4000)");
 
                             b1.Property<string>("Prefix")
                                 .HasMaxLength(50)
@@ -738,8 +738,12 @@ namespace Request.Infrastructure.Migrations
                             b1.HasIndex("Name")
                                 .HasDatabaseName("IX_RequestCustomer_Name");
 
+                            SqlServerIndexBuilderExtensions.IncludeProperties(b1.HasIndex("Name"), new[] { "RequestId" });
+
                             b1.HasIndex("RequestId")
                                 .HasDatabaseName("IX_RequestCustomer_RequestId");
+
+                            SqlServerIndexBuilderExtensions.IncludeProperties(b1.HasIndex("RequestId"), new[] { "Name" });
 
                             b1.ToTable("RequestCustomers", "request");
 

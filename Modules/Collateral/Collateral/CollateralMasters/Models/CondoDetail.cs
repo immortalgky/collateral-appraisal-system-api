@@ -4,18 +4,24 @@ public class CondoDetail
 {
     public Guid CollateralMasterId { get; private set; }
 
-    // Dedup key (7 columns per spec v1 section 5.5)
-    public string LandOfficeCode { get; private set; } = null!;
+    // Dedup key (7 columns): CondoRegistrationNumber + BuildingNumber + FloorNumber + RoomNumber
+    //                      + Province + District + SubDistrict.
+    // Province/District/SubDistrict are the geographic disambiguator (replacing LandOfficeCode),
+    // since a CondoRegistrationNumber is only unique within an administrative area.
+    // LandOfficeCode is retained as a descriptive column (nullable) but is NOT part of the dedup key.
+    // TitleNumber/TitleType were dropped — they carried no condo identity (TitleType was always the
+    // "DEED" constant; TitleNumber was the underlying land's BuiltOnTitleNumber).
+    public string? LandOfficeCode { get; private set; }
     public string CondoRegistrationNumber { get; private set; } = null!;
     public string BuildingNumber { get; private set; } = null!;
     public string FloorNumber { get; private set; } = null!;
     public string RoomNumber { get; private set; } = null!;
-    public string TitleNumber { get; private set; } = null!;
-    public string TitleType { get; private set; } = null!;
+    public string Province { get; private set; } = null!;
+    public string District { get; private set; } = null!;
+    public string SubDistrict { get; private set; } = null!;
 
     // Identity-extra
     public string? CondoName { get; private set; }
-    public string? Province { get; private set; }
 
     // Last-known
     public decimal? UsableArea { get; private set; }
@@ -31,8 +37,8 @@ public class CondoDetail
     // Three-value model (Phase C, wired in PR-8)
     // UnitPrice: per-unit price — cost approach only. Source: PricingFinalValue.FinalValueAdjusted.
     public decimal? UnitPrice { get; private set; }
-    // BuildingCost: IsMaster only — from PricingFinalValue.BuildingCost, cost approach only.
-    public decimal? BuildingCost { get; private set; }
+    // BuildingValue: IsMaster only — from PricingFinalValue.BuildingValue, cost approach only.
+    public decimal? BuildingValue { get; private set; }
     // AppraisalValue: IsMaster only — from PricingFinalValue.AppraisalPrice (fallbacks: FinalValueAdjusted, FinalValueRounded).
     public decimal? AppraisalValue { get; private set; }
 
@@ -46,15 +52,15 @@ public class CondoDetail
 
     internal CondoDetail(
         Guid collateralMasterId,
-        string landOfficeCode,
+        string? landOfficeCode,
         string condoRegistrationNumber,
         string buildingNumber,
         string floorNumber,
         string roomNumber,
-        string titleNumber,
-        string titleType,
+        string province,
+        string district,
+        string subDistrict,
         string? condoName,
-        string? province,
         bool isDeleted)
     {
         CollateralMasterId = collateralMasterId;
@@ -63,17 +69,18 @@ public class CondoDetail
         BuildingNumber = buildingNumber;
         FloorNumber = floorNumber;
         RoomNumber = roomNumber;
-        TitleNumber = titleNumber;
-        TitleType = titleType;
-        CondoName = condoName;
         Province = province;
+        District = district;
+        SubDistrict = subDistrict;
+        CondoName = condoName;
         AppraisalSummary = new AppraisalSummary(null, null, null);
         IsDeleted = isDeleted;
     }
 
+    // Province/District/SubDistrict are dedup-key identity (set at construction only),
+    // so they are intentionally NOT updated here — matching how LandDetail treats its geo key.
     public void UpdateLastKnown(
         string? condoName,
-        string? province,
         decimal? usableArea,
         string? locationType,
         int? buildingAge,
@@ -83,7 +90,6 @@ public class CondoDetail
         decimal? longitude)
     {
         CondoName = condoName;
-        Province = province;
         UsableArea = usableArea;
         LocationType = locationType;
         BuildingAge = buildingAge;
@@ -108,7 +114,7 @@ public class CondoDetail
     public void UpdateValues(decimal? unitPrice, decimal? buildingCost, decimal? appraisalValue)
     {
         UnitPrice = unitPrice;
-        BuildingCost = buildingCost;
+        BuildingValue = buildingCost;
         AppraisalValue = appraisalValue;
     }
 
@@ -141,16 +147,6 @@ public class CondoDetail
             diff["Condo.RoomNumber"] = new { from = RoomNumber, to = edit.RoomNumber };
             RoomNumber = edit.RoomNumber;
         }
-        if (edit.TitleNumber is not null && edit.TitleNumber != TitleNumber)
-        {
-            diff["Condo.TitleNumber"] = new { from = TitleNumber, to = edit.TitleNumber };
-            TitleNumber = edit.TitleNumber;
-        }
-        if (edit.TitleType is not null && edit.TitleType != TitleType)
-        {
-            diff["Condo.TitleType"] = new { from = TitleType, to = edit.TitleType };
-            TitleType = edit.TitleType;
-        }
         if (edit.CondoName is not null && edit.CondoName != CondoName)
         {
             diff["Condo.CondoName"] = new { from = CondoName, to = edit.CondoName };
@@ -160,6 +156,16 @@ public class CondoDetail
         {
             diff["Condo.Province"] = new { from = Province, to = edit.Province };
             Province = edit.Province;
+        }
+        if (edit.District is not null && edit.District != District)
+        {
+            diff["Condo.District"] = new { from = District, to = edit.District };
+            District = edit.District;
+        }
+        if (edit.SubDistrict is not null && edit.SubDistrict != SubDistrict)
+        {
+            diff["Condo.SubDistrict"] = new { from = SubDistrict, to = edit.SubDistrict };
+            SubDistrict = edit.SubDistrict;
         }
         if (edit.UsableArea is not null && edit.UsableArea != UsableArea)
         {

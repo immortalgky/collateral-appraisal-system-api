@@ -11,6 +11,15 @@ public class AppraisalSlaPolicySeeder(
 {
     private const string WorkflowName = "Collateral Appraisal Workflow";
 
+    // Activity IDs that start the clock from the confirmed appointment date rather than AssignedAt.
+    // Vendor execution: on-site visit determines the actual inspection start.
+    // Internal execution: treated symmetrically for unified SLA governance.
+    private static readonly HashSet<string> AppointmentAnchoredActivityIds = new(StringComparer.Ordinal)
+    {
+        "ext-appraisal-execution",
+        "int-appraisal-execution"
+    };
+
     public async Task SeedAllAsync()
     {
         var workflow = await context.WorkflowDefinitions
@@ -69,7 +78,33 @@ public class AppraisalSlaPolicySeeder(
                 toAdd.Add(candidate);
         }
 
-        if (toAdd.Count == 0)
+        // Back-fill AnchorType on rows that were seeded before this column was added.
+        // AnchorType is an editable field (operators can override via the matrix UI), so we only
+        // set it when it is null (unset) — never overwrite an intentional operator change.
+        var backfilled = 0;
+        foreach (var row in existing)
+        {
+            if (row.AnchorType.HasValue)
+                continue;
+
+            var shouldAnchor = row.Scope switch
+            {
+                // Activity-scope rows for ext/int-appraisal-execution are appointment-anchored.
+                // Stage-scope rows use Assignment anchor (WorkflowTransitioned handler stamps AssignedAt).
+                // The appointment-date clip for vendor OLA reporting is applied in PartySlaEvaluator.
+                SlaPolicyScope.Activity => !string.IsNullOrEmpty(row.ActivityId) &&
+                                           AppointmentAnchoredActivityIds.Contains(row.ActivityId),
+                _                       => false
+            };
+
+            if (shouldAnchor)
+            {
+                row.SetAnchorType(SlaAnchorType.AppointmentDate);
+                backfilled++;
+            }
+        }
+
+        if (toAdd.Count == 0 && backfilled == 0)
         {
             logger.LogInformation(
                 "All SLA policies for workflow '{Name}' already present, nothing to seed", WorkflowName);
@@ -80,30 +115,32 @@ public class AppraisalSlaPolicySeeder(
         await context.SaveChangesAsync();
 
         logger.LogInformation(
-            "Seeded {Added} SLA policies for workflow '{Name}' ({Skipped} already existed)",
-            toAdd.Count, WorkflowName, candidates.Count - toAdd.Count);
+            "SLA policy seed for workflow '{Name}': added={Added}, backfilled AnchorType={Backfilled}, skipped={Skipped}",
+            WorkflowName, toAdd.Count, backfilled, candidates.Count - toAdd.Count);
     }
 
     private static List<SlaPolicy> BuildPolicies(Guid workflowDefinitionId)
     {
         var policies = new List<SlaPolicy>();
 
-        // Activity scope (11 rows) — mirror timeoutDuration from appraisal-workflow.json
-        var activityHours = new (string ActivityId, int Hours)[]
+        // Activity scope (11 rows) — mirror timeoutDuration from appraisal-workflow.json.
+        // Execution activities are appointment-anchored: the SLA clock starts from the confirmed
+        // on-site visit, not from AssignedAt. This prevents re-assignments from granting a fresh window.
+        var activityHours = new (string ActivityId, int Hours, SlaAnchorType? AnchorType)[]
         {
-            ("appraisal-initiation-check",  48),
-            ("appraisal-initiation",        48),
-            ("appraisal-assignment",        72),
-            ("ext-appraisal-assignment",    48),
-            ("ext-appraisal-execution",     72),
-            ("ext-appraisal-check",         48),
-            ("ext-appraisal-verification",  24),
-            ("int-appraisal-execution",     72),
-            ("int-appraisal-check",         48),
-            ("int-appraisal-verification",  24),
-            ("appraisal-book-verification", 72),
+            ("appraisal-initiation-check",  48, null),
+            ("appraisal-initiation",        48, null),
+            ("appraisal-assignment",        72, null),
+            ("ext-appraisal-assignment",    48, null),
+            ("ext-appraisal-execution",     72, SlaAnchorType.AppointmentDate),
+            ("ext-appraisal-check",         48, null),
+            ("ext-appraisal-verification",  24, null),
+            ("int-appraisal-execution",     72, SlaAnchorType.AppointmentDate),
+            ("int-appraisal-check",         48, null),
+            ("int-appraisal-verification",  24, null),
+            ("appraisal-book-verification", 72, null),
         };
-        foreach (var (activityId, hours) in activityHours)
+        foreach (var (activityId, hours, anchorType) in activityHours)
         {
             policies.Add(SlaPolicy.Create(
                 activityId: activityId,
@@ -111,20 +148,27 @@ public class AppraisalSlaPolicySeeder(
                 useBusinessDays: true,
                 priority: 100,
                 workflowDefinitionId: workflowDefinitionId,
-                scope: SlaPolicyScope.Activity));
+                scope: SlaPolicyScope.Activity,
+                anchorType: anchorType));
         }
 
-        // Stage scope (2 rows)
+        // Stage scope (2 rows).
+        // Vendor window (ext-appraisal-assignment → ext-appraisal-verification): Appointment-anchored,
+        // 24h — the external company's total turnaround, measured from the on-site visit. Members =
+        // ext-assignment / -execution / -check / -verification. SLADueDate is stamped at stage entry by
+        // WorkflowTransitionedIntegrationEventHandler, which supplies the appointment (E2) so this
+        // appointment-anchored window can compute `appointment + 24h` (else it would stamp null).
         policies.Add(SlaPolicy.Create(
             activityId: "*",
-            durationHours: 144,   // 18 business-days (8h convention) for ext window
+            durationHours: 24,
             useBusinessDays: true,
             priority: 100,
             workflowDefinitionId: workflowDefinitionId,
             scope: SlaPolicyScope.Stage,
-            startActivityKey: "ext-appraisal-execution",
+            startActivityKey: "ext-appraisal-assignment",
             endActivityKey: "ext-appraisal-verification",
-            middleActivityKeys: "[\"ext-appraisal-check\"]"));
+            middleActivityKeys: "[\"ext-appraisal-execution\",\"ext-appraisal-check\"]",
+            anchorType: SlaAnchorType.AppointmentDate));
 
         policies.Add(SlaPolicy.Create(
             activityId: "*",

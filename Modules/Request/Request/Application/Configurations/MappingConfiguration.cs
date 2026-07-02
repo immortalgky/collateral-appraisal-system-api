@@ -54,21 +54,6 @@ public static class MappingConfiguration
                 src.AbsorbedAmount
             ));
 
-        TypeAdapterConfig<RequestorDto, Requestor>
-            .NewConfig()
-            .ConstructUsing(src => Requestor.Create(
-                src.RequestorEmpId,
-                src.RequestorName,
-                src.RequestorEmail,
-                src.RequestorContactNo,
-                src.RequestorAo,
-                src.RequestorBranch,
-                src.RequestorBusinessUnit,
-                src.RequestorDepartment,
-                src.RequestorSection,
-                src.RequestorCostCenter
-            ));
-
         TypeAdapterConfig<RequestCustomerDto, RequestCustomer>
             .NewConfig()
             .ConstructUsing(src => RequestCustomer.Create(

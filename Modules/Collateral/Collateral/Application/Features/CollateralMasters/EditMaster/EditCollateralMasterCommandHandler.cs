@@ -23,7 +23,6 @@ public class EditCollateralMasterCommandHandler(
         {
             var d = command.LandEdit;
             var ld = master.LandDetail;
-            var targetLoc = d.LandOfficeCode ?? ld.LandOfficeCode;
             var targetProv = d.Province ?? ld.Province;
             var targetDistrict = d.District ?? ld.District;
             var targetSubDistrict = d.SubDistrict ?? ld.SubDistrict;
@@ -31,10 +30,11 @@ public class EditCollateralMasterCommandHandler(
             var targetNo = d.TitleNumber ?? ld.TitleNumber;
             var targetSurvey = d.SurveyNumber ?? ld.SurveyNumber;
             var targetParcel = d.LandParcelNumber ?? ld.LandParcelNumber;
+            var targetRawang = d.Rawang ?? ld.Rawang;
 
             bool collides = await repository.LandDedupCollidesAsync(
-                master.Id, targetLoc, targetProv, targetDistrict, targetSubDistrict,
-                targetType, targetNo, targetSurvey, targetParcel, cancellationToken);
+                master.Id, targetProv, targetDistrict, targetSubDistrict,
+                targetType, targetNo, targetSurvey, targetParcel, targetRawang, cancellationToken);
 
             if (collides)
                 throw new ConflictException(
@@ -47,13 +47,13 @@ public class EditCollateralMasterCommandHandler(
             var cd = master.CondoDetail;
             bool collides = await repository.CondoDedupCollidesAsync(
                 master.Id,
-                d.LandOfficeCode ?? cd.LandOfficeCode,
                 d.CondoRegistrationNumber ?? cd.CondoRegistrationNumber,
                 d.BuildingNumber ?? cd.BuildingNumber,
                 d.FloorNumber ?? cd.FloorNumber,
                 d.RoomNumber ?? cd.RoomNumber,
-                d.TitleNumber ?? cd.TitleNumber,
-                d.TitleType ?? cd.TitleType,
+                d.Province ?? cd.Province,
+                d.District ?? cd.District,
+                d.SubDistrict ?? cd.SubDistrict,
                 cancellationToken);
 
             if (collides)

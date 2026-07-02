@@ -67,6 +67,9 @@ Database/Backups/
 # SqlProj publish output
 Database/publish/
 
+# Deploy artifact bundles produced by deploy/Publish.ps1
+dist-artifacts/
+
 # -------------------------------------
 # Docker (keep Dockerfile & docker-compose.yml)
 # -------------------------------------

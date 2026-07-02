@@ -68,6 +68,7 @@ public class GetUserByIdQueryHandler(
             user.AvatarUrl,
             user.Position,
             user.Department,
+            user.AoCode,
             user.CompanyId,
             companyName,
             user.AuthSource,

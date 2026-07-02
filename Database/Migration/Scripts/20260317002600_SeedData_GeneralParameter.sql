@@ -1215,7 +1215,7 @@ VALUES
 GO
 
 -- ----------------------------------------
--- Group: DocumentType (EN=41, TH=41)
+-- Group: DocumentType (EN=43, TH=43)
 -- ----------------------------------------
 INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
 VALUES
@@ -1300,7 +1300,11 @@ VALUES
     (N'DocumentType', N'TH', N'EN', N'D040', N'Project Plan', 1, 40),
     (N'DocumentType', N'TH', N'TH', N'D040', N'ผังโครงการ', 1, 40),
     (N'DocumentType', N'TH', N'EN', N'D041', N'Others', 1, 41),
-    (N'DocumentType', N'TH', N'TH', N'D041', N'อื่นๆ', 1, 41);
+    (N'DocumentType', N'TH', N'TH', N'D041', N'อื่นๆ', 1, 41),
+    (N'DocumentType', N'TH', N'EN', N'D042', N'Construction Progress Inspection Summary Report', 1, 42),
+    (N'DocumentType', N'TH', N'TH', N'D042', N'รายงานสรุปผลการตรวจสอบงานก่อสร้าง', 1, 42),
+    (N'DocumentType', N'TH', N'EN', N'D043', N'Property Valuation Summary Report', 1, 43),
+    (N'DocumentType', N'TH', N'TH', N'D043', N'รายงานสรุปผลการประเมินราคาทรัพย์สิน', 1, 43);
 GO
 
 -- ----------------------------------------
@@ -4169,10 +4173,10 @@ VALUES
     (N'Roof', N'TH', N'TH', N'07', N'สังกะสี', 1, 7),
     (N'Roof', N'TH', N'EN', N'08', N'Can''t Check', 1, 8),
     (N'Roof', N'TH', N'TH', N'08', N'ตรวจสอบไม่ได้', 1, 8),
-    (N'Roof', N'TH', N'EN', N'08', N'Tile', 1, 9),
-    (N'Roof', N'TH', N'TH', N'08', N'กระเบื้อง', 1, 9),
-    (N'Roof', N'TH', N'EN', N'08', N'Duplex', 1, 10),
-    (N'Roof', N'TH', N'TH', N'08', N'ดูเพล็กซ์', 1, 10),
+    (N'Roof', N'TH', N'EN', N'09', N'Tile', 1, 9),
+    (N'Roof', N'TH', N'TH', N'09', N'กระเบื้อง', 1, 9),
+    (N'Roof', N'TH', N'EN', N'10', N'Duplex', 1, 10),
+    (N'Roof', N'TH', N'TH', N'10', N'ดูเพล็กซ์', 1, 10),
     (N'Roof', N'TH', N'EN', N'99', N'Other', 1, 99),
     (N'Roof', N'TH', N'TH', N'99', N'อื่นๆ', 1, 99);
 GO

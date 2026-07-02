@@ -17,7 +17,7 @@ namespace Integration.Collateral.Integration.Tests;
 ///
 /// Field mapping (per user spec — FinalValueAdjust → actual schema field FinalValueAdjusted):
 ///   UnitPrice     ← PricingFinalValue.FinalValueAdjusted    (cost approach only)
-///   BuildingCost  ← PricingFinalValue.BuildingCost           (cost approach only)
+///   BuildingCost  ← PricingFinalValue.BuildingValue           (cost approach only)
 ///   AppraisalValue← PricingFinalValue.AppraisalPrice         (all approaches)
 ///                   ?? PricingFinalValue.FinalValueAdjusted
 ///                   ?? PricingFinalValue.FinalValueRounded
@@ -58,7 +58,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
     ///
     /// Field mapping (post user-correction):
     ///   UnitPrice     ← FinalValue.FinalValueAdjusted   (the "adjusted unit price" rate)
-    ///   BuildingCost  ← FinalValue.BuildingCost
+    ///   BuildingCost  ← FinalValue.BuildingValue
     ///   AppraisalValue← FinalValue.AppraisalPrice ?? FinalValueAdjusted ?? FinalValueRounded
     /// </summary>
     private static PricingAnalysis SeedCostApproachPricing(
@@ -79,7 +79,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
         // PricingFinalValue.Create(methodId, finalValueAdjusted, finalValueRounded)
         var fv = PricingFinalValue.Create(method.Id, finalValueAdjusted, appraisalPrice);
-        fv.SetBuildingCost(buildingCost);
+        fv.SetBuildingValue(buildingCost);
         fv.SetAppraisalPrice(appraisalPrice);
         method.SetFinalValue(fv);
 
@@ -179,7 +179,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
         var ld = master.LandDetail!;
         Assert.Equal(12_000m,    ld.UnitPrice);       // FinalValueAdjusted (the adjusted unit price)
-        Assert.Equal(500_000m,   ld.BuildingCost);    // PricingFinalValue.BuildingCost
+        Assert.Equal(500_000m,   ld.BuildingValue);    // PricingFinalValue.BuildingValue
         Assert.Equal(1_500_000m, ld.AppraisalValue);  // PricingFinalValue.AppraisalPrice
     }
 
@@ -246,14 +246,14 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
         // IsMaster gets all three values
         Assert.Equal(8_000m,    isMasterRow.LandDetail!.UnitPrice);
-        Assert.Equal(300_000m,  isMasterRow.LandDetail.BuildingCost);
+        Assert.Equal(300_000m,  isMasterRow.LandDetail.BuildingValue);
         Assert.Equal(800_000m,  isMasterRow.LandDetail.AppraisalValue);
 
         // Aliases get UnitPrice only; BuildingCost + AppraisalValue must be null
         foreach (var alias in aliases)
         {
             Assert.Equal(8_000m, alias.LandDetail!.UnitPrice);
-            Assert.Null(alias.LandDetail.BuildingCost);
+            Assert.Null(alias.LandDetail.BuildingValue);
             Assert.Null(alias.LandDetail.AppraisalValue);
         }
     }
@@ -307,7 +307,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
         // Non-cost approach: UnitPrice must be null
         Assert.Null(ld.UnitPrice);
         // BuildingCost: null (no cost approach, HasBuildingCost = false)
-        Assert.Null(ld.BuildingCost);
+        Assert.Null(ld.BuildingValue);
         // AppraisalValue: populated from AppraisalPrice on the market-approach FinalValue
         Assert.Equal(2_000_000m, ld.AppraisalValue);
     }
@@ -346,7 +346,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
         Assert.NotNull(master);
         Assert.Null(master.LandDetail!.UnitPrice);
-        Assert.Null(master.LandDetail.BuildingCost);
+        Assert.Null(master.LandDetail.BuildingValue);
         Assert.Null(master.LandDetail.AppraisalValue);
     }
 

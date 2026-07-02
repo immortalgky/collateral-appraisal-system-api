@@ -1,3 +1,5 @@
+using Shared.Messaging.Events;
+
 namespace Request.Application.Features.Requests.CreateRequest;
 
 public class CreateRequestCommandHandler(
@@ -7,7 +9,20 @@ public class CreateRequestCommandHandler(
 {
     public async Task<CreateRequestResult> Handle(CreateRequestCommand command, CancellationToken cancellationToken)
     {
-        var createRequestData = command.Adapt<CreateRequestData>();
+        // Resolution (employee code → full profile + snapshot) happens once inside CreateRequestService.
+        var createRequestData = new CreateRequestData(
+            Purpose: command.Purpose,
+            Channel: command.Channel,
+            Creator: command.Creator,
+            Priority: command.Priority,
+            IsPma: command.IsPma,
+            Detail: command.Detail,
+            Customers: command.Customers,
+            Properties: command.Properties,
+            Titles: command.Titles,
+            Documents: command.Documents,
+            Comments: command.Comments,
+            RequestorEmployeeId: command.RequestorEmployeeId);
 
         var (request, titles) = await createRequestService.CreateRequestAsync(createRequestData, cancellationToken);
 

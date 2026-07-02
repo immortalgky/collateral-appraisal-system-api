@@ -7,6 +7,12 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+            <_Parameter1>Reporting.Tests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="../../../Shared/Shared/Shared.csproj"/>
         <ProjectReference Include="../../../Shared/Shared.Messaging/Shared.Messaging.csproj"/>
         <ProjectReference Include="../../Workflow/Workflow.Contracts/Workflow.Contracts.csproj"/>

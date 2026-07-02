@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collateral Appraisal System API — Offline Installation &amp; Configuration Guide</title>
+<style>
+  :root {
+    --ink: #1f2933;
+    --muted: #6b7280;
+    --line: #e2e8f0;
+    --band: #f8fafc;
+    --brand: #1e3a5f;
+    --brand-soft: #eef3f9;
+    --mand: #b91c1c;
+    --mand-bg: #fef2f2;
+    --opt: #b45309;
+    --opt-bg: #fffbeb;
+    --rec: #1d4ed8;
+    --rec-bg: #eff6ff;
+    --ok: #047857;
+    --ok-bg: #ecfdf5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    line-height: 1.5;
+    margin: 0;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 40px 32px 80px; }
+  header.doc {
+    border-bottom: 3px solid var(--brand);
+    padding-bottom: 18px;
+    margin-bottom: 8px;
+  }
+  header.doc h1 { margin: 0 0 4px; font-size: 26px; color: var(--brand); }
+  header.doc .sub { color: var(--muted); font-size: 14px; }
+  .meta { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  .meta b { color: var(--ink); }
+
+  h2 {
+    font-size: 19px;
+    color: var(--brand);
+    margin: 40px 0 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  h2 .tag { font-size: 12px; color: var(--muted); font-weight: 400; }
+  h3 { font-size: 15px; margin: 26px 0 8px; }
+  h3 .id {
+    display: inline-block; background: var(--brand); color: #fff;
+    font-size: 12px; font-weight: 700; border-radius: 4px;
+    padding: 1px 7px; margin-right: 8px; vertical-align: 1px;
+  }
+  p { margin: 8px 0; }
+  code {
+    background: var(--brand-soft);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    color: #0f3057;
+  }
+  pre {
+    background: #0f1c2e;
+    color: #e6edf3;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 12px 0;
+    overflow-x: auto;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  pre .c { color: #7d8da1; }      /* comment */
+  pre .p { color: #f0b86e; }      /* prompt / placeholder accent */
+  pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+
+  ol.steps { padding-left: 22px; margin: 10px 0; }
+  ol.steps > li { margin: 9px 0; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 4px; }
+  .pill {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 2px 10px;
+    white-space: nowrap;
+    line-height: 1.7;
+  }
+  .pill.m { color: var(--mand); background: var(--mand-bg); border: 1px solid #f3c9c9; }
+  .pill.o { color: var(--opt); background: var(--opt-bg); border: 1px solid #f5e3b3; }
+  .pill.r { color: var(--rec); background: var(--rec-bg); border: 1px solid #c7d9f7; }
+
+  .topo {
+    background: var(--band);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin: 16px 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    color: #334155;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 8px;
+    font-size: 13.5px;
+  }
+  thead th {
+    background: var(--brand);
+    color: #fff;
+    text-align: left;
+    padding: 9px 11px;
+    font-weight: 600;
+    font-size: 12.5px;
+  }
+  tbody td { padding: 9px 11px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:nth-child(even) { background: var(--band); }
+  td.id { font-weight: 700; color: var(--brand); white-space: nowrap; width: 46px; }
+  td.center { text-align: center; white-space: nowrap; }
+  td code, th code { font-size: 11.5px; }
+
+  .note {
+    border-left: 4px solid var(--brand);
+    background: var(--brand-soft);
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    margin: 16px 0;
+    font-size: 13.5px;
+  }
+  .note b { color: var(--brand); }
+  .note ul { margin: 8px 0 0; padding-left: 20px; }
+  .note li { margin: 4px 0; }
+  .note.warn { border-left-color: var(--mand); background: var(--mand-bg); }
+  .note.warn b { color: var(--mand); }
+  .note.ok { border-left-color: var(--ok); background: var(--ok-bg); }
+  .note.ok b { color: var(--ok); }
+
+  ul.check { list-style: none; padding-left: 0; margin: 8px 0; }
+  ul.check li { padding: 4px 0 4px 28px; position: relative; font-size: 13.5px; border-bottom: 1px dashed var(--line); }
+  ul.check li::before {
+    content: "\2610";
+    position: absolute; left: 4px; top: 3px;
+    font-size: 16px; color: var(--brand);
+  }
+  .verify {
+    margin: 10px 0; padding: 10px 14px;
+    background: var(--ok-bg); border: 1px solid #bbf7d0;
+    border-radius: 6px; font-size: 12.5px;
+  }
+  .verify b { color: var(--ok); }
+  .verify code { background: #fff; border-color: #bbf7d0; }
+  .verify pre code { background: none; border: none; color: inherit; }
+
+  .toc { background: var(--band); border: 1px solid var(--line); border-radius: 8px; padding: 14px 20px; margin: 18px 0; font-size: 13.5px; }
+  .toc b { color: var(--brand); }
+  .toc ul { margin: 6px 0 0; padding-left: 20px; columns: 2; }
+  .toc li { margin: 3px 0; }
+  .toc a { color: var(--ink); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  footer.doc { margin-top: 50px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+
+  @media print {
+    .wrap { padding: 0 12px; max-width: none; }
+    h2, h3 { page-break-after: avoid; }
+    table, .note, .topo, .verify, pre, ul.check { page-break-inside: avoid; }
+    .toc ul { columns: 1; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <h1>Offline Installation &amp; Configuration Guide</h1>
+  <div class="sub">Infrastructure software for the Collateral Appraisal System — air-gapped (no internet) deployment</div>
+  <div class="meta">
+    <b>Audience:</b> Bank Windows administrators, DBA, and Linux administrator &nbsp;&middot;&nbsp;
+    <b>Companion to:</b> <code>windows-iis-prerequisites.html</code> (the component list) &nbsp;&middot;&nbsp;
+    <b>Component IDs</b> (A1–A5, B2) match that document.
+  </div>
+</header>
+
+<div class="note">
+  <b>What this guide covers — and what it does not.</b>
+  This runbook explains how to <b>install and configure the third-party software</b> that hosts the
+  application, on a network with <b>no internet access</b>. It deliberately <b>excludes deployment of the
+  application itself</b> (publishing the build, creating the IIS site, and filling in
+  <code>appsettings.Production.json</code>) — that is a separate document. Where an install step produces a
+  value the application later needs (e.g. the Edge executable path, the RabbitMQ credentials, the Redis
+  host &amp; password), record it on the sign-off sheet and hand it to whoever does the application deploy.
+</div>
+
+<div class="toc">
+  <b>Contents</b>
+  <ul>
+    <li><a href="#topo">Target topology</a></li>
+    <li><a href="#offline">0. Offline staging workflow</a></li>
+    <li><a href="#secA">Section A — Each Windows app node</a></li>
+    <li><a href="#a1">A1 · IIS Web Server role</a></li>
+    <li><a href="#a2">A2 · .NET 9 Hosting Bundle</a></li>
+    <li><a href="#a3">A3 · URL Rewrite</a></li>
+    <li><a href="#a4">A4 · Microsoft Edge (PDF)</a></li>
+    <li><a href="#a5">A5 · Erlang/OTP + RabbitMQ</a></li>
+    <li><a href="#secB">Section B — Backing infrastructure</a></li>
+    <li><a href="#b2">B2 · Redis on RHEL Linux</a></li>
+    <li><a href="#verify">Verification summary</a></li>
+    <li><a href="#appA">Appendix A — Staging manifest</a></li>
+    <li><a href="#appB">Appendix B — Placeholder glossary</a></li>
+  </ul>
+</div>
+
+<h2 id="topo">Target topology</h2>
+<p>
+  Production runs as <b>two Windows Server 2022 / IIS application servers</b> behind a bank-owned
+  <b>F5 load balancer</b>. Each app server hosts the application <b>plus its own RabbitMQ</b> broker
+  (co-located, not shared). The two nodes share one <b>SQL Server</b>, one <b>Redis</b> server (on RHEL
+  Linux), an SMTP relay, a NAS file share, an SFTP endpoint and the AD/LDAP directory. Because there are
+  two app nodes (N=2), every shared component must be reachable from <b>both</b> nodes.
+</p>
+<div class="topo">                         ┌──────────────────────┐
+   clients  ───────────▶  │  F5 load balancer    │  (owned by the bank)
+                         └─────────┬────────────┘
+                  ┌────────────────┴────────────────┐
+                  ▼                                  ▼
+   ┌─────────────────────────┐      ┌─────────────────────────┐
+   │  IIS App Server 1       │      │  IIS App Server 2       │  ◀── Section A
+   │  Win 2022 + RabbitMQ    │      │  Win 2022 + RabbitMQ    │      installs on
+   │  (local broker)         │      │  (local broker)         │      EVERY node
+   └────────────┬────────────┘      └────────────┬────────────┘
+                └───────────────┬─────────────────┘
+     ┌─────────┬─────────┬──────┴────┬─────────┬─────────┐
+     ▼         ▼         ▼           ▼         ▼         ▼
+  SQL Server  Redis   SMTP relay  NAS / SMB   SFTP     AD / LDAP
+  (bank)      (B2)    (mail)      share       (AS400)  (sign-in)
+              RHEL                                          ◀── Section B</div>
+<p style="font-size:13px;color:var(--muted)">
+  This guide details <b>A1–A5</b> (every Windows node) and <b>B2 (Redis on RHEL)</b>. SQL Server, SMTP,
+  NAS, SFTP and AD are existing bank-provided services the application merely connects to — no install or
+  configuration is documented for them here.
+</p>
+
+<!-- ============================================================= -->
+<h2 id="offline">0. Offline staging workflow <span class="tag">(read first — applies to every step)</span></h2>
+<p>
+  None of the target servers can reach the internet, a package repository, WSUS, or Microsoft Web
+  Platform Installer. Every installer must therefore be brought in by hand. Use this same pattern
+  for <b>every</b> download referenced below:
+</p>
+<ol class="steps">
+  <li><b>Transfer via the bank's approved media / file-transfer process</b> (sealed USB, one-way
+    transfer gateway, etc.) — bring in each file named in
+    <a href="#appA">Appendix A — Staging manifest</a>.</li>
+  <li><b>Copy to a local install folder</b> on the target server — <code>D:\CAS Installation</code> on
+    each Windows node, <code>/opt/staging/</code> on the Linux node — then install locally from there.</li>
+</ol>
+
+<!-- ============================================================= -->
+<h2 id="secA">Section A — On EACH Windows Server 2022 app node <span class="tag">(repeat all steps on both nodes)</span></h2>
+<p>
+  Perform A1 through A5 on <b>App Server 1</b>, then repeat identically on <b>App Server 2</b>. The two
+  nodes are configured the same way; only the values that are intentionally shared (SQL, Redis, NAS) point
+  at common servers. Run all steps from an <b>elevated Windows PowerShell</b> (Run as Administrator), with
+  the staged files already copied to <code>D:\CAS Installation</code> per Section 0.
+</p>
+
+<h3 id="a1"><span class="id">A1</span>IIS (Web Server) role + features — offline</h3>
+<p>The application is hosted <b>in-process inside IIS</b>. Install the Web Server role plus the features the
+  app needs.</p>
+<pre><code>Install-WindowsFeature -Name `
+  Web-Server, Web-WebServer, Web-Common-Http, Web-Static-Content, Web-Default-Doc, `
+  Web-Http-Errors, Web-Health, Web-Http-Logging, `
+  Web-Performance, Web-Stat-Compression, `
+  Web-Security, Web-Filtering `
+  -IncludeManagementTools</code></pre>
+<div class="verify"><b>Verify:</b>
+  <code>Get-WindowsFeature Web-Server</code> shows
+  <code>Install State : Installed</code>. Browsing to <code>http://localhost/</code> shows the default
+  IIS welcome page.
+</div>
+
+<h3 id="a2"><span class="id">A2</span>.NET 9 Hosting Bundle — offline</h3>
+<p>Install the <b>Hosting Bundle</b> — not the plain .NET runtime. The Hosting Bundle adds the .NET
+  Runtime + ASP.NET Core Runtime <b>and registers the ASP.NET Core Module v2 (ANCM)</b> in IIS, which is
+  what lets IIS run the app in-process. <b>Install A1 (IIS) first</b>, otherwise ANCM is not registered and
+  you must re-run the bundle.</p>
+<pre><code>cd "D:\CAS Installation"
+.\dotnet-hosting-9.0.11-win.exe /install /quiet /norestart
+<span class="c"># after it completes, recycle IIS so the new native module loads</span>
+iisreset</code></pre>
+<div class="verify"><b>Verify:</b>
+  <pre style="margin:6px 0 0"><code>dotnet --list-runtimes      <span class="c"># lists Microsoft.AspNetCore.App 9.0.11 and Microsoft.NETCore.App 9.0.11</span>
+(Get-WebGlobalModule).Name | Select-String AspNetCore   <span class="c"># shows AspNetCoreModuleV2</span></code></pre>
+</div>
+
+<h3 id="a3"><span class="id">A3</span>IIS URL Rewrite Module — offline</h3>
+<p>URL Rewrite supports HTTPS-redirect and forwarded-header rules and is expected in most bank IIS setups.
+  The F5 is the only proxy in front, so URL Rewrite alone is sufficient (no ARR needed). The normal
+  installer (Web PI) needs the internet, so install the standalone MSI:</p>
+<pre><code>cd "D:\CAS Installation"
+msiexec /i rewrite_amd64_en-US.msi /qn /norestart
+iisreset</code></pre>
+<div class="verify"><b>Verify:</b> open <b>IIS Manager</b> → select the server node → the Features view shows
+  a <b>URL Rewrite</b> icon.
+</div>
+
+<h3 id="a4"><span class="id">A4</span>Microsoft Edge for PDF rendering — configure only</h3>
+<p>The Reporting module renders PDFs with headless Chromium (PuppeteerSharp), which drives a
+  Chromium-based browser over the DevTools protocol. <b>Microsoft Edge ships in-box on Windows Server
+  2022</b>, so there is <b>nothing to install</b> — you only confirm the executable path and hand it to the
+  application-deploy step.</p>
+<pre><code>$edge = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+Test-Path $edge        <span class="c"># expect: True</span>
+&amp; $edge --version       <span class="c"># prints the installed Edge/Chromium version</span></code></pre>
+
+<h3 id="a5"><span class="id">A5</span>Erlang/OTP + RabbitMQ — offline</h3>
+<p>RabbitMQ is the message broker for the application's event bus. <b>Each app node runs its own local
+  broker — there is no clustering.</b> RabbitMQ on Windows runs on the Erlang runtime, so install
+  <b>Erlang first, then RabbitMQ</b>, and they must be a <b>compatible pair</b>.</p>
+<ol class="steps">
+  <li><b>Install Erlang/OTP</b> (silent), then set the <code>ERLANG_HOME</code> system variable RabbitMQ
+    looks for:
+    <pre><code>cd "D:\CAS Installation"
+.\otp_win64_28.5.0.2.exe /S
+[Environment]::SetEnvironmentVariable("ERLANG_HOME", "C:\Program Files\Erlang OTP", "Machine")</code></pre>
+    <span style="font-size:12.5px;color:var(--muted)">Adjust the path to the actual Erlang install
+    directory (the installer prints it).</span></li>
+  <li><b>Install RabbitMQ</b> (silent). It registers and starts as a Windows service automatically:
+    <pre><code>.\rabbitmq-server-4.2.6.exe /S</code></pre></li>
+  <li><b>Sync the Erlang cookie</b> so <code>rabbitmqctl</code> can authenticate to the broker. The
+    RabbitMQ <b>service</b> runs as <b>LocalSystem</b> and reads its cookie from the system profile, but
+    <code>rabbitmqctl</code> launched in your admin shell reads the cookie from <b>your</b> profile — if
+    they differ you get "authentication failed / unable to connect to node". Copy the service's cookie to
+    your profile so they match:
+    <pre><code><span class="c"># compare the two cookies (they must be identical)</span>
+Get-Content "$env:SystemRoot\System32\config\systemprofile\.erlang.cookie"
+Get-Content "$env:USERPROFILE\.erlang.cookie"
+
+<span class="c"># if they differ (or yours is missing), copy the service cookie over yours</span>
+Copy-Item "$env:SystemRoot\System32\config\systemprofile\.erlang.cookie" `
+  "$env:USERPROFILE\.erlang.cookie" -Force</code></pre>
+    <span style="font-size:12.5px;color:var(--muted)">Then confirm connectivity from the
+    <code>sbin</code> folder: <code>.\rabbitmqctl.bat status</code> should report the running node (not a
+    cookie/auth error) before continuing.</span></li>
+  <li><b>Enable the management plugin</b> (admin UI + <code>rabbitmqctl</code> niceties). Run from the
+    RabbitMQ <code>sbin</code> folder:
+    <pre><code>cd "C:\Program Files\RabbitMQ Server\rabbitmq_server-4.2.6\sbin"
+.\rabbitmq-plugins.bat enable rabbitmq_management</code></pre></li>
+  <li><b>Create the application user + virtual host and remove the default <code>guest</code></b>
+    account (it is a well-known credential and must not survive):
+    <pre><code>.\rabbitmqctl.bat add_user <span class="p">&lt;RABBITMQ_USER&gt;</span> <span class="p">&lt;RABBITMQ_PASSWORD&gt;</span>
+.\rabbitmqctl.bat set_user_tags <span class="p">&lt;RABBITMQ_USER&gt;</span> administrator
+.\rabbitmqctl.bat set_permissions -p / <span class="p">&lt;RABBITMQ_USER&gt;</span> ".*" ".*" ".*"
+.\rabbitmqctl.bat delete_user guest</code></pre>
+    <span style="font-size:12.5px;color:var(--muted)">The application connects to its own node at
+    <code>amqp://localhost:5672/</code> (default virtual host <code>/</code>) using these credentials —
+    record them for the app-deploy step.</span></li>
+</ol>
+<div class="verify"><b>Verify:</b>
+  <code>.\rabbitmqctl.bat status</code> reports the running node;
+  <code>.\rabbitmq-plugins.bat list</code> shows <code>[E*] rabbitmq_management</code>;
+  the UI answers at <code>http://localhost:15672</code> (log in with the new user, confirm
+  <code>guest</code> is gone).
+</div>
+
+<h3>Per-node completion checklist</h3>
+<ul class="check">
+  <li>A1 — IIS Web Server role installed; default page loads.</li>
+  <li>A2 — .NET 9 Hosting Bundle installed; <code>AspNetCoreModuleV2</code> present; <code>iisreset</code> run.</li>
+  <li>A3 — URL Rewrite installed.</li>
+  <li>A4 — Edge path <code>...\msedge.exe</code> confirmed and recorded for the app config.</li>
+  <li>A5 — Erlang + RabbitMQ installed; management plugin on; app user created; <code>guest</code> deleted.</li>
+  <li>Repeated identically on the second app node.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="secB">Section B — Backing infrastructure</h2>
+
+<h3 id="b2"><span class="id">B2</span>Redis on RHEL Linux — offline, build from source</h3>
+<p>Redis provides the distributed cache and — critically for the two-node setup — the <b>SignalR
+  backplane</b>, so real-time messages reach a browser no matter which app node it is connected to. <b>Both
+  app nodes must reach this one Redis.</b> The primary, most reliable offline method on an air-gapped RHEL
+  box is to <b>build from the official source tarballs</b> (jemalloc + Redis), which depend only on the
+  local C toolchain.</p>
+<ol class="steps">
+  <li><b>Confirm a build toolchain is present</b> (Redis only needs a C compiler + make; <code>tcl</code>
+    is needed only for the optional test suite):
+    <pre><code>gcc --version &amp;&amp; make --version       <span class="c"># both must already be installed</span></code></pre>
+    <div class="note warn">
+      <b>If <code>gcc</code>/<code>make</code> are absent — install them from the RHEL ISO (no internet
+      needed).</b> The RHEL installation ISO already contains the toolchain in its <code>BaseOS</code> and
+      <code>AppStream</code> repositories. Mount the ISO, point <code>dnf</code> at it as a local repo,
+      then install:
+      <pre><code><span class="c"># 1) mount the RHEL ISO (attached as a virtual DVD drive)</span>
+sudo mkdir -p /mnt/disc
+sudo mount /dev/sr0 /mnt/disc            <span class="c"># ISO file on disk instead? sudo mount -o loop /path/rhel9.iso /mnt/disc</span>
+
+<span class="c"># 2) define a local offline repo pointing at the mounted ISO</span>
+sudo tee /etc/yum.repos.d/rhel9-local.repo &lt;&lt;'EOF'
+[BaseOS]
+name=RHEL 9 BaseOS (Offline)
+baseurl=file:///mnt/disc/BaseOS
+enabled=1
+gpgcheck=0
+
+[AppStream]
+name=RHEL 9 AppStream (Offline)
+baseurl=file:///mnt/disc/AppStream
+enabled=1
+gpgcheck=0
+EOF
+
+<span class="c"># 3) rebuild the dnf cache and confirm both repos are seen</span>
+sudo dnf clean all
+sudo dnf makecache
+sudo dnf repolist
+
+<span class="c"># 4) install the build toolchain (gcc-c++ optional; tcl only for Redis' self-test)</span>
+sudo dnf install -y gcc gcc-c++ make</code></pre>
+    </div></li>
+  <li><b>Build and install jemalloc</b> (Redis' preferred memory allocator). On a minimal RHEL image
+    jemalloc is often not present; build it from source staged per Section 0:
+    <pre><code>sudo mkdir -p /opt/staging &amp;&amp; cd /opt/staging
+<span class="c"># jemalloc-5.3.0.tar.bz2 already copied here via approved media</span>
+tar xjf jemalloc-5.3.0.tar.bz2
+cd jemalloc-5.3.0
+
+<span class="c"># If ./configure is MISSING (you took the GitHub source ZIP / git clone, not the</span>
+<span class="c"># release tarball), generate it first with autogen.sh — it needs the autotools:</span>
+<span class="c">#   sudo dnf install -y autoconf automake libtool   # from the same RHEL ISO repo</span>
+<span class="c">#   ./autogen.sh</span>
+
+./configure
+make
+sudo make install
+sudo ldconfig                            <span class="c"># refresh the linker cache so libjemalloc is found</span></code></pre>
+    <span style="font-size:12.5px;color:var(--muted)">The jemalloc <b>release tarball</b>
+    (<code>jemalloc-5.3.0.tar.bz2</code> on the GitHub Releases page) already ships a generated
+    <code>configure</code> — run it directly. Only a <b>git checkout / source ZIP</b> lacks
+    <code>configure</code> and needs <code>./autogen.sh</code> first (which is why it ran last time).</span></li>
+  <li><b>Stage and unpack Redis</b> (after transfer per Section 0):
+    <pre><code>cd /opt/staging
+<span class="c"># redis-stable.tar.gz already copied here via approved media</span>
+tar xzf redis-stable.tar.gz
+cd redis-stable</code></pre></li>
+  <li><b>Build and install</b> into <code>/usr/local</code>, forcing the jemalloc allocator:
+    <pre><code>make MALLOC=jemalloc
+sudo make install PREFIX=/usr/local      <span class="c"># installs redis-server, redis-cli to /usr/local/bin</span></code></pre>
+    <span style="font-size:12.5px;color:var(--muted)"><code>MALLOC=jemalloc</code> is the correct,
+    current Redis build flag (the legacy <code>USE_JEMALLOC=yes</code> is broken and may silently fall
+    back to glibc malloc). Verify the allocator afterwards with
+    <code>redis-server --version</code> / <code>INFO memory</code> (<code>mem_allocator:jemalloc</code>).</span></li>
+  <li><b>Create a service account, config and data directories:</b>
+    <pre><code>sudo useradd -r -s /sbin/nologin redis
+sudo mkdir -p /var/lib/redis /etc/redis
+sudo chown -R redis:redis /var/lib/redis /etc/redis
+sudo chmod 750 /var/lib/redis</code></pre>
+    <span style="font-size:12.5px;color:var(--muted)"><code>-r</code> makes a no-login <b>system</b>
+    account; <code>chmod 750</code> keeps the data dir private to the <code>redis</code> user. Logging goes
+    to <b>journald</b> (see <code>logfile ""</code> below), so no <code>/var/log/redis</code> is needed.</span></li>
+  <li><b>Create <code>/etc/redis/redis.conf</code></b>. Tuned for a <b>cache + SignalR backplane</b>
+    (transient data, no disk persistence). Bind to the interface the app nodes reach, require a password,
+    and keep protected mode on:
+    <pre><code>sudo tee /etc/redis/redis.conf &gt;/dev/null &lt;&lt;'EOF'
+# Network — listen on all interfaces (firewall + requirepass restrict access)
+bind 0.0.0.0
+protected-mode yes
+port 6379
+tcp-keepalive 300
+
+# Security
+requirepass <span class="p">&lt;REDIS_PASSWORD&gt;</span>
+
+# Process control (systemd-managed)
+daemonize no
+supervised systemd
+
+# Data directory + log (empty logfile = stdout -> journald)
+dir /var/lib/redis
+logfile ""
+
+# Memory — cache + backplane; adjust maxmemory to the server's RAM
+maxmemory 4gb
+maxmemory-policy allkeys-lru
+
+# Persistence OFF — data is a cache / SignalR backplane (transient)
+save ""
+appendonly no
+
+# Pub/Sub — don't disconnect slow SignalR subscribers (bounded, not unlimited)
+client-output-buffer-limit pubsub 256mb 64mb 60
+EOF
+
+<span class="c"># lock the config down — it holds the password</span>
+sudo chown redis:redis /etc/redis/redis.conf
+sudo chmod 640 /etc/redis/redis.conf</code></pre>
+    <span style="font-size:12.5px;color:var(--muted)"><b>SignalR-backplane notes:</b>
+    <code>allkeys-lru</code> is safe — the backplane is pub/sub and stores no keys, so eviction never
+    touches it. <code>save ""</code> + <code>appendonly no</code> disable disk persistence (not needed for
+    transient cache/backplane). The <code>pubsub</code> buffer is raised (not <code>0 0 0</code>) so a slow
+    subscriber won't be dropped, while still protecting Redis from a runaway client.</span></li>
+  <li><b>Create the systemd unit</b> <code>/etc/systemd/system/redis.service</code>:
+    <pre><code>sudo tee /etc/systemd/system/redis.service &gt;/dev/null &lt;&lt;'EOF'
+[Unit]
+Description=Redis In-Memory Data Store (Collateral Appraisal System)
+After=network.target
+
+[Service]
+User=redis
+Group=redis
+ExecStart=/usr/local/bin/redis-server /etc/redis/redis.conf
+Restart=always
+LimitNOFILE=100000
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+EOF</code></pre>
+    <span style="font-size:12.5px;color:var(--muted)">No <code>ExecStop</code> is needed: systemd's
+    default stop sends <b>SIGTERM</b>, which <code>redis-server</code> handles as a clean shutdown — so we
+    avoid putting the password in the unit file (which an authenticated <code>redis-cli ... shutdown</code>
+    would require). <code>LimitNOFILE=100000</code> raises the file-descriptor cap Redis needs for many
+    client connections.</span>
+    then enable and start it:
+    <pre><code>sudo systemctl daemon-reload
+sudo systemctl enable --now redis</code></pre></li>
+  <li><b>Open the firewall</b> to the two app nodes only:
+    <pre><code>sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" \
+  source address="<span class="p">&lt;APPNODE1_IP&gt;</span>" port port="6379" protocol="tcp" accept'
+sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" \
+  source address="<span class="p">&lt;APPNODE2_IP&gt;</span>" port port="6379" protocol="tcp" accept'
+sudo firewall-cmd --reload</code></pre>
+    <span style="font-size:12.5px;color:var(--muted)">If SELinux is enforcing and you bind to a custom
+    interface/port, also confirm Redis is allowed (<code>setsebool -P</code> /
+    <code>semanage port</code> as your SELinux policy requires).</span></li>
+</ol>
+<div class="note">
+  <b>Connection string the app will use</b> (StackExchange.Redis format, recorded for the app-deploy step):
+  <code><span class="p">&lt;REDIS_LAN_IP&gt;</span>:6379,password=<span class="p">&lt;REDIS_PASSWORD&gt;</span>,abortConnect=false</code>.
+  The same Redis serves both the cache and the SignalR backplane.
+</div>
+<div class="verify"><b>Verify:</b>
+  <pre style="margin:6px 0 0"><code>sudo systemctl status redis                  <span class="c"># active (running)</span>
+sudo journalctl -u redis -n 50 --no-pager    <span class="c"># Redis startup log (via journald)</span>
+<span class="c"># on the Redis host</span>
+redis-cli -a <span class="p">&lt;REDIS_PASSWORD&gt;</span> ping            <span class="c"># PONG</span>
+<span class="c"># from an app node (proves network + firewall + auth)</span>
+redis-cli -h <span class="p">&lt;REDIS_LAN_IP&gt;</span> -a <span class="p">&lt;REDIS_PASSWORD&gt;</span> ping   <span class="c"># PONG</span></code></pre>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="verify">Verification summary <span class="tag">(sign-off)</span></h2>
+<table>
+  <thead>
+    <tr><th>#</th><th>Component</th><th>Check command</th><th>Expected</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="id">A1</td><td>IIS role</td><td><code>Get-WindowsFeature Web-Server</code></td><td>Install State : Installed; default page loads</td></tr>
+    <tr><td class="id">A2</td><td>.NET 9 Hosting Bundle</td><td><code>dotnet --list-runtimes</code></td><td><code>Microsoft.AspNetCore.App 9.0.11</code>; <code>AspNetCoreModuleV2</code> present</td></tr>
+    <tr><td class="id">A3</td><td>URL Rewrite</td><td>IIS Manager → server Features view</td><td>URL Rewrite icon</td></tr>
+    <tr><td class="id">A4</td><td>Edge (PDF)</td><td><code>&amp; "…\msedge.exe" --version</code></td><td>Prints Edge version; path recorded</td></tr>
+    <tr><td class="id">A5</td><td>RabbitMQ + Erlang</td><td><code>rabbitmqctl status</code> / UI :15672</td><td>Node running; mgmt plugin on; <code>guest</code> deleted</td></tr>
+    <tr><td class="id">B2</td><td>Redis</td><td><code>redis-cli -h host -a … ping</code></td><td><code>PONG</code> from host AND from an app node</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================= -->
+<h2 id="appA">Appendix A — Staging manifest <span class="tag">(the offline shopping list)</span></h2>
+<p>Bring each file across via the bank's approved media / file-transfer process.
+  Versions shown are representative — confirm the current/approved version at staging time, and for A5
+  confirm the RabbitMQ↔Erlang pairing on the vendor compatibility matrix.</p>
+<table>
+  <thead>
+    <tr><th>For</th><th>File (pattern)</th><th>Version</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="id">A2</td><td><code>dotnet-hosting-9.0.11-win.exe</code> (ASP.NET Core Hosting Bundle)</td><td>9.0.11</td></tr>
+    <tr><td class="id">A3</td><td><code>rewrite_amd64_en-US.msi</code> (URL Rewrite)</td><td>2.1</td></tr>
+    <tr><td class="id">A4</td><td>— none — Edge ships in-box on Server 2022</td><td>in-box</td></tr>
+    <tr><td class="id">A5</td><td><code>otp_win64_28.5.0.2.exe</code> (Erlang/OTP)</td><td>28.5.0.2</td></tr>
+    <tr><td class="id">A5</td><td><code>rabbitmq-server-4.2.6.exe</code></td><td>4.2.6</td></tr>
+    <tr><td class="id">B2</td><td><code>jemalloc-5.3.0.tar.bz2</code> (source)</td><td>5.3.0</td></tr>
+    <tr><td class="id">B2</td><td><code>redis-stable.tar.gz</code> (source)</td><td>8.4</td></tr>
+    <tr><td class="id">B2</td><td><span style="color:var(--muted)">(only if toolchain absent)</span> <code>gcc</code>, <code>gcc-c++</code>, <code>make</code></td><td>per RHEL ver.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="appB">Appendix B — Placeholder glossary</h2>
+<p>Replace every <code>&lt;PLACEHOLDER&gt;</code> in the commands above with the bank's real value. These are
+  the values these installs produce or require — hand them to whoever performs the application deploy.</p>
+<table>
+  <thead><tr><th>Placeholder</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>&lt;APPNODE1_IP&gt;</code> / <code>&lt;APPNODE2_IP&gt;</code></td><td>IP addresses of the two IIS app servers (for firewall scoping)</td></tr>
+    <tr><td><code>&lt;RABBITMQ_USER&gt;</code> / <code>&lt;RABBITMQ_PASSWORD&gt;</code></td><td>Application's RabbitMQ credentials, created per node</td></tr>
+    <tr><td><code>&lt;REDIS_LAN_IP&gt;</code></td><td>Redis server IP on the interface the app nodes reach</td></tr>
+    <tr><td><code>&lt;REDIS_PASSWORD&gt;</code></td><td>Redis <code>requirepass</code> value</td></tr>
+  </tbody>
+</table>
+
+<footer class="doc">
+  Collateral Appraisal System API — Offline Installation &amp; Configuration Guide.
+  Companion to <code>docs/deployment/windows-iis-prerequisites.html</code>. Excludes application
+  deployment (separate document). Print to PDF via Chrome/Edge for distribution.
+</footer>
+
+</div>
+</body>
+</html>

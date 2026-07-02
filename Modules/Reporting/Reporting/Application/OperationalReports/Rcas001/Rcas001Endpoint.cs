@@ -24,11 +24,12 @@ public sealed class Rcas001Endpoint : ICarterModule
         group.MapGet("", async (
                 [FromQuery] DateTime? createdFrom, [FromQuery] DateTime? createdTo,
                 [FromQuery] string? status, [FromQuery] string? bankingSegment,
+                [FromQuery] string? appraisalNumber,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir,
                 [FromQuery] int? pageNumber, [FromQuery] int? pageSize,
                 IOperationalReportRunner runner, CancellationToken ct) =>
             {
-                var filter = new Rcas001Filter(createdFrom, createdTo, status, bankingSegment, sortBy, sortDir);
+                var filter = new Rcas001Filter(createdFrom, createdTo, status, bankingSegment, appraisalNumber, sortBy, sortDir);
                 var page = new PaginationRequest(pageNumber ?? 0, pageSize ?? 20);
                 return Results.Ok(await runner.PreviewAsync(Rcas001Report.Definition, filter, page));
             })
@@ -37,11 +38,12 @@ public sealed class Rcas001Endpoint : ICarterModule
         group.MapGet("/export", async (
                 [FromQuery] DateTime? createdFrom, [FromQuery] DateTime? createdTo,
                 [FromQuery] string? status, [FromQuery] string? bankingSegment,
+                [FromQuery] string? appraisalNumber,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir,
                 [FromQuery] string? format,
                 IOperationalReportRunner runner, CancellationToken ct) =>
             {
-                var filter = new Rcas001Filter(createdFrom, createdTo, status, bankingSegment, sortBy, sortDir);
+                var filter = new Rcas001Filter(createdFrom, createdTo, status, bankingSegment, appraisalNumber, sortBy, sortDir);
                 var file = await runner.ExportAsync(Rcas001Report.Definition, filter, OperationalReportFormat.Parse(format), ct);
                 return Results.File(file.Bytes, file.ContentType, file.FileName);
             })

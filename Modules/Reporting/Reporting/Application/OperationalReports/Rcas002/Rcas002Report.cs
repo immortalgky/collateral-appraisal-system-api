@@ -8,6 +8,7 @@ public sealed record Rcas002Filter(
     string? ReviewType,
     string? Stage,
     string? CustomerName,
+    string? AppraisalNumber,
     string? SortBy,
     string? SortDir);
 
@@ -25,6 +26,14 @@ internal static class Rcas002Report
         Title = "รายงานการครบกำหนดทบทวนหลักประกันตามประเภท",
         OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, "RemainingDays"),
         Build = Build,
+        DescribeFilter = f =>
+        [
+            // ReviewType is a fixed AS400 enum resolved in the view; mirror that mapping here.
+            new("Review Type", MapReviewType(f.ReviewType)),
+            new("Stage", f.Stage),
+            new("Customer Name", f.CustomerName),
+            new("Appraisal No.", f.AppraisalNumber),
+        ],
         Columns =
         [
             new("Review Type", r => r.ReviewType),
@@ -48,6 +57,23 @@ internal static class Rcas002Report
         ],
     };
 
+    // Mirrors the view's CASE: AS400 review code 1/2/3 -> readable label (multi-value safe).
+    private static string? MapReviewType(string? csv)
+    {
+        if (string.IsNullOrWhiteSpace(csv)) return null;
+
+        var labels = csv
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(code => code switch
+            {
+                "1" => "Normal",
+                "2" => "Before Stage 3",
+                "3" => "Stage 3",
+                _ => code,
+            });
+        return string.Join(", ", labels);
+    }
+
     private static (string, DynamicParameters) Build(Rcas002Filter f)
     {
         var c = new List<string>();
@@ -56,6 +82,7 @@ internal static class Rcas002Report
         ReportFilterSql.MultiValue(c, p, f.ReviewType, "ReviewType", "ReviewTypes");
         ReportFilterSql.MultiValue(c, p, f.Stage, "Stage", "Stages");
         ReportFilterSql.Contains(c, p, f.CustomerName, "CustomerName", "CustomerName");
+        ReportFilterSql.Contains(c, p, f.AppraisalNumber, "AppraisalNumber", "AppraisalNumber");
 
         return ("SELECT * FROM reporting.vw_RCAS002_ReappraisalDue" + ReportFilterSql.Where(c), p);
     }

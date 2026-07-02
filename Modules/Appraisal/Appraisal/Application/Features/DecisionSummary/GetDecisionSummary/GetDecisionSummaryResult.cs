@@ -102,6 +102,7 @@ public record BlockModelPriceRow(
 );
 
 public record ConstructionSummaryData(
+    string? Village,
     IReadOnlyList<ConstructionSummaryRow> Rows
 );
 

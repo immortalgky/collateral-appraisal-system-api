@@ -87,10 +87,10 @@ public class ReportingDbContext(DbContextOptions<ReportingDbContext> options) : 
     private static ReportDefinition[] SeedData() =>
     [
         ReportDefinition.Create(
-            reportTypeKey: "appointment-quotation-request",
-            templateId: "appointment-quotation-request",
-            displayNameTh: "แบบฟอร์มนัดหมายและใบเสนอราคา",
-            displayNameEn: "Appointment Quotation Request",
+            reportTypeKey: "appointment-letter",
+            templateId: "appointment-letter",
+            displayNameTh: "หนังสือนัดหมาย",
+            displayNameEn: "Appointment Letter",
             category: "Appointment",
             generationMode: ReportGenerationMode.Sync),
 

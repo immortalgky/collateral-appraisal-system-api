@@ -15,8 +15,8 @@ public interface ICollateralMasterRepository
     // --- Type-aware dedup lookups (tracked entities for upsert) ---
 
     Task<CollateralMaster?> FindLandByDedupKey(
-        string landOfficeCode, string province, string district, string subDistrict,
-        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber,
+        string province, string district, string subDistrict,
+        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber, string? rawang,
         CancellationToken ct = default);
 
     /// <summary>
@@ -25,8 +25,8 @@ public interface ICollateralMasterRepository
     /// Used by the multi-title upsert algorithm to detect which group a title belongs to.
     /// </summary>
     Task<CollateralMaster?> FindLandByDedupKeyIncludingAliases(
-        string landOfficeCode, string province, string district, string subDistrict,
-        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber,
+        string province, string district, string subDistrict,
+        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber, string? rawang,
         CancellationToken ct = default);
 
     /// <summary>
@@ -44,9 +44,9 @@ public interface ICollateralMasterRepository
     Task<List<CollateralMaster>> FindAliasesByParentMasterIdAsync(Guid masterId, CancellationToken ct = default);
 
     Task<CollateralMaster?> FindCondoByDedupKey(
-        string landOfficeCode, string condoRegistrationNumber,
+        string condoRegistrationNumber,
         string buildingNumber, string floorNumber, string roomNumber,
-        string titleNumber, string titleType,
+        string province, string district, string subDistrict,
         CancellationToken ct = default);
 
     Task<CollateralMaster?> FindLeaseholdByDedupKey(
@@ -67,15 +67,15 @@ public interface ICollateralMasterRepository
 
     Task<bool> LandDedupCollidesAsync(
         Guid excludeMasterId,
-        string landOfficeCode, string province, string district, string subDistrict,
-        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber,
+        string province, string district, string subDistrict,
+        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber, string? rawang,
         CancellationToken ct = default);
 
     Task<bool> CondoDedupCollidesAsync(
         Guid excludeMasterId,
-        string landOfficeCode, string condoRegistrationNumber,
+        string condoRegistrationNumber,
         string buildingNumber, string floorNumber, string roomNumber,
-        string titleNumber, string titleType,
+        string province, string district, string subDistrict,
         CancellationToken ct = default);
 
     Task<bool> LeaseholdDedupCollidesAsync(

@@ -7,7 +7,7 @@ public class MarketComparableImageConfiguration : IEntityTypeConfiguration<Marke
         builder.ToTable("MarketComparableImages");
 
         builder.HasKey(i => i.Id);
-        builder.Property(i => i.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(i => i.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         builder.Property(i => i.MarketComparableId).IsRequired();
         builder.Property(i => i.GalleryPhotoId).IsRequired();

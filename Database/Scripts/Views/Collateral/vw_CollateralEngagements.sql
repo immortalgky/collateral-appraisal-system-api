@@ -45,7 +45,6 @@ SELECT
 
     -- Condo identity for filtering (NULL when not a Condo type engagement)
     cd.Province         AS Condo_Province,
-    cd.TitleNumber      AS Condo_TitleNumber,
     cd.GeoPoint         AS Condo_GeoPoint,
     cd.Latitude         AS Condo_Latitude,
     cd.Longitude        AS Condo_Longitude,

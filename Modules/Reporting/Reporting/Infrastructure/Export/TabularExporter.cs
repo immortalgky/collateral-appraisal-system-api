@@ -25,6 +25,7 @@ internal sealed class TabularExporter(
         string baseName,
         ReportFormat format,
         string? title = null,
+        IReadOnlyList<FilterCriterion>? appliedFilters = null,
         CancellationToken cancellationToken = default)
     {
         var timestamp = dateTimeProvider.ApplicationNow.ToString("yyyyMMdd-HHmmss", Inv);
@@ -32,38 +33,68 @@ internal sealed class TabularExporter(
         return format switch
         {
             ReportFormat.Csv => new ReportFile(
-                BuildCsv(rows, columns),
+                BuildCsv(rows, columns, appliedFilters),
                 "text/csv",
                 $"{baseName}-{timestamp}.csv"),
 
             ReportFormat.Pdf => new ReportFile(
-                await pdfRenderer.RenderAsync(BuildHtml(rows, columns, title), cancellationToken),
+                await pdfRenderer.RenderAsync(BuildHtml(rows, columns, title, appliedFilters), cancellationToken),
                 "application/pdf",
                 $"{baseName}-{timestamp}.pdf"),
 
             _ => new ReportFile(
-                BuildExcel(rows, columns, title),
+                BuildExcel(rows, columns, title, appliedFilters),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"{baseName}-{timestamp}.xlsx"),
         };
     }
 
+    // "Label: Value" lines for the applied-filter block; a single "(none)" line when nothing was set.
+    private static IReadOnlyList<string> FilterLines(IReadOnlyList<FilterCriterion>? appliedFilters)
+    {
+        if (appliedFilters is null) return [];
+        if (appliedFilters.Count == 0) return ["(none)"];
+        return appliedFilters.Select(f => $"{f.Label}: {f.Value}").ToList();
+    }
+
     // ---------- Excel ----------
 
     private static byte[] BuildExcel<T>(
-        IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns, string? title)
+        IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns, string? title,
+        IReadOnlyList<FilterCriterion>? appliedFilters)
     {
         using var workbook = new XLWorkbook();
         var ws = workbook.Worksheets.Add("Report");
+        var span = Math.Max(1, columns.Count);
 
         var headerRow = 1;
         if (!string.IsNullOrWhiteSpace(title))
         {
-            ws.Cell(1, 1).Value = title;
-            ws.Range(1, 1, 1, Math.Max(1, columns.Count)).Merge();
-            ws.Row(1).Style.Font.Bold = true;
-            ws.Row(1).Style.Font.FontSize = 13;
-            headerRow = 2;
+            ws.Cell(headerRow, 1).Value = title;
+            ws.Range(headerRow, 1, headerRow, span).Merge();
+            ws.Row(headerRow).Style.Font.Bold = true;
+            ws.Row(headerRow).Style.Font.FontSize = 13;
+            headerRow++;
+        }
+
+        var filterLines = FilterLines(appliedFilters);
+        if (filterLines.Count > 0)
+        {
+            ws.Cell(headerRow, 1).Value = "Applied filters";
+            ws.Range(headerRow, 1, headerRow, span).Merge();
+            ws.Row(headerRow).Style.Font.Bold = true;
+            headerRow++;
+
+            foreach (var line in filterLines)
+            {
+                ws.Cell(headerRow, 1).Value = line;
+                ws.Range(headerRow, 1, headerRow, span).Merge();
+                ws.Row(headerRow).Style.Font.Italic = true;
+                ws.Row(headerRow).Style.Font.FontColor = XLColor.Gray;
+                headerRow++;
+            }
+
+            headerRow++; // blank spacer row before the table header
         }
 
         for (var c = 0; c < columns.Count; c++)
@@ -137,9 +168,22 @@ internal sealed class TabularExporter(
 
     // ---------- CSV ----------
 
-    private static byte[] BuildCsv<T>(IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns)
+    private static byte[] BuildCsv<T>(
+        IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns,
+        IReadOnlyList<FilterCriterion>? appliedFilters)
     {
         var sb = new StringBuilder();
+
+        // Applied-filter block as leading '#' comment lines, kept out of the data grid.
+        var filterLines = FilterLines(appliedFilters);
+        if (filterLines.Count > 0)
+        {
+            sb.AppendLine("# Applied filters");
+            foreach (var line in filterLines)
+                sb.AppendLine("# " + CsvCell(line));
+            sb.AppendLine();
+        }
+
         sb.AppendLine(string.Join(',', columns.Select(c => CsvCell(c.Header))));
 
         foreach (var row in rows)
@@ -166,13 +210,16 @@ internal sealed class TabularExporter(
     // ---------- PDF (HTML table → Puppeteer) ----------
 
     private static string BuildHtml<T>(
-        IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns, string? title)
+        IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns, string? title,
+        IReadOnlyList<FilterCriterion>? appliedFilters)
     {
         var sb = new StringBuilder();
         sb.Append("""
             <!DOCTYPE html><html><head><meta charset="utf-8"><style>
             body{font-family:'Sarabun','Noto Sans Thai',Arial,sans-serif;font-size:11px;color:#111}
-            h1{font-size:15px;margin:0 0 10px}
+            h1{font-size:15px;margin:0 0 6px}
+            .filters{font-size:10px;color:#555;margin:0 0 10px}
+            .filters strong{display:block;color:#111;margin-bottom:2px}
             table{border-collapse:collapse;width:100%}
             th,td{border:1px solid #999;padding:3px 5px;text-align:left;vertical-align:top}
             th{background:#e9e9e9;font-weight:bold}
@@ -184,6 +231,15 @@ internal sealed class TabularExporter(
 
         if (!string.IsNullOrWhiteSpace(title))
             sb.Append("<h1>").Append(HtmlEnc(title)).Append("</h1>");
+
+        var filterLines = FilterLines(appliedFilters);
+        if (filterLines.Count > 0)
+        {
+            sb.Append("<div class=\"filters\"><strong>Applied filters</strong>");
+            foreach (var line in filterLines)
+                sb.Append("<div>").Append(HtmlEnc(line)).Append("</div>");
+            sb.Append("</div>");
+        }
 
         sb.Append("<table><thead><tr>");
         foreach (var col in columns)

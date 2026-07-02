@@ -60,7 +60,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             titleNumber: titleNo,
             titleType: titleType,
             ownerName: "Test Owner",   // Required NOT NULL by DB schema
-            address: AdministrativeAddress.Create(null, null, province, landOffice));
+            address: AdministrativeAddress.Create("Test Subdistrict", "Test District", province, landOffice));
         return prop;
     }
 
@@ -162,7 +162,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
 
         Assert.Single(masters);
         var master = masters[0];
-        Assert.Equal("Land", master.CollateralType);
+        Assert.Equal(CollateralTypes.Land, master.CollateralType);
         Assert.True(master.LandDetail!.IsUnderConstructionAtLastAppraisal);
         // PR-5: LastConstructionInspectionId removed from LandDetail; CI list is now in the engagement snapshot.
         Assert.NotNull(master.LandDetail.OverallConstructionProgressPercent);
@@ -451,9 +451,10 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         using var assertScope = CreateScope();
         var collateralDb = GetCollateralDbContext(assertScope);
 
+        // One engagement per appraisal, on the primary (consolidated land) IsMaster.
         var engCount = await collateralDb.CollateralEngagements
             .CountAsync(e => e.AppraisalId == appraisalId, TestContext.Current.CancellationToken);
-        Assert.Equal(3, engCount);
+        Assert.Equal(1, engCount);
 
         var masterCount = await collateralDb.CollateralMasters
             .CountAsync(m => !m.IsDeleted, TestContext.Current.CancellationToken);
@@ -543,20 +544,22 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
+            .ThenInclude(e => e.Buildings)
             .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
 
         Assert.NotNull(master);
-        // Snapshot should reference the building
-        var snapshot = master.Engagements.Single().Snapshot;
-        Assert.Contains("buildingsOnLand", snapshot);
+        // The building attaches to the engagement's Buildings child collection.
+        Assert.NotEmpty(master.Engagements.Single().Buildings);
     }
 
     // -----------------------------------------------------------------------
-    // Test 12: Cross-title isolation — buildings on title A don't pollute title B
+    // Test 12: One master per appraisal — two land titles + buildings collapse to a single
+    // IsMaster (first title) with the second title as an alias and one shared engagement.
+    // (Buildings all attach to that single engagement.)
     // -----------------------------------------------------------------------
     [Fact]
-    public async Task Test12_CrossTitleIsolation_BuildingsMatchCorrectLandMaster()
+    public async Task Test12_TwoLandTitles_CollapseToSingleMasterWithOneEngagement()
     {
         using var scope = CreateScope();
         var appraisalDb = GetAppraisalDbContext(scope);
@@ -578,16 +581,24 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
 
         await svc.ProcessAppraisalAsync(a.Id, TestContext.Current.CancellationToken);
 
-        // Check: Land A's master has exactly 1 engagement from this appraisal
-        var masterA = await collateralDb.CollateralMasters
+        var rows = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
-            .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleA,
-                TestContext.Current.CancellationToken);
+            .Where(m => m.LandDetail != null &&
+                        (m.LandDetail.TitleNumber == titleA || m.LandDetail.TitleNumber == titleB))
+            .ToListAsync(TestContext.Current.CancellationToken);
 
-        Assert.NotNull(masterA);
-        var engAppraisalA = masterA.Engagements.Where(e => e.AppraisalId == a.Id).ToList();
-        Assert.Single(engAppraisalA);
+        Assert.Equal(2, rows.Count);
+        var masterA = rows.Single(m => m.IsMaster);          // first title is the only IsMaster
+        var aliasB = rows.Single(m => !m.IsMaster);
+        Assert.Equal(masterA.Id, aliasB.ParentMasterId);     // second title is an alias of it
+
+        // Exactly one engagement from this appraisal, on the IsMaster.
+        Assert.Single(masterA.Engagements.Where(e => e.AppraisalId == a.Id));
+        Assert.Empty(aliasB.Engagements);
+
+        // Buildings present → both rows are Land & Building.
+        Assert.All(rows, m => Assert.Equal(CollateralTypes.LandWithBuilding, m.CollateralType));
     }
 
     // -----------------------------------------------------------------------
@@ -621,11 +632,11 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
                 .Include(m => m.CondoDetail)
                 .Include(m => m.Engagements)
                 .FirstOrDefaultAsync(m => m.CondoDetail != null &&
-                                          m.CondoDetail.TitleNumber == $"CT-{tag}",
+                                          m.CondoDetail.CondoRegistrationNumber == $"CR-{tag}",
                     TestContext.Current.CancellationToken);
 
             Assert.NotNull(master);
-            Assert.Equal("Condo", master.CollateralType);
+            Assert.Equal(CollateralTypes.Condo, master.CollateralType);
             Assert.Single(master.Engagements);
             masterId = master.Id;
         }
@@ -1013,6 +1024,118 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             Assert.Empty(alias.Engagements);
             Assert.Equal(master.Id, alias.ParentMasterId);
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // OneMasterPerAppraisal: SEPARATE land properties (each its own ungrouped group)
+    // collapse into a single IsMaster + aliases. No building → all rows stay "L".
+    // -----------------------------------------------------------------------
+    [Fact]
+    public async Task SeparateLandProperties_CollapseToOneMaster_AllLand()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var t1 = $"OM1-{tag}";
+        var t2 = $"OM2-{tag}";
+        var t3 = $"OM3-{tag}";
+
+        Guid appraisalId;
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a = CreateAppraisalSeed(Guid.NewGuid());
+            // Three distinct land properties (no PropertyGroup) — previously 3 masters, now 1.
+            SeedLandProperty(a, "LO-001", "BKK", "D1", "S1", t1, "Chanote");
+            SeedLandProperty(a, "LO-001", "BKK", "D1", "S1", t2, "Chanote");
+            SeedLandProperty(a, "LO-001", "BKK", "D1", "S1", t3, "Chanote");
+            appraisalDb.Appraisals.Add(a);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            appraisalId = a.Id;
+        }
+
+        await ProcessAppraisalInNewScopeAsync(appraisalId);
+
+        using var assertScope = CreateScope();
+        var collateralDb = GetCollateralDbContext(assertScope);
+
+        var allRows = await collateralDb.CollateralMasters
+            .Include(m => m.LandDetail)
+            .Include(m => m.Engagements)
+            .Where(m => m.LandDetail != null &&
+                        (m.LandDetail.TitleNumber == t1 ||
+                         m.LandDetail.TitleNumber == t2 ||
+                         m.LandDetail.TitleNumber == t3))
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, allRows.Count);
+
+        var masterRows = allRows.Where(m => m.IsMaster).ToList();
+        var aliasRows = allRows.Where(m => !m.IsMaster).ToList();
+
+        Assert.Single(masterRows);        // exactly one IsMaster per appraisal
+        Assert.Equal(2, aliasRows.Count);
+
+        var master = masterRows[0];
+        Assert.Single(master.Engagements); // single engagement on the IsMaster
+        foreach (var alias in aliasRows)
+            Assert.Equal(master.Id, alias.ParentMasterId);
+
+        // No building → every row stays Land.
+        Assert.All(allRows, m => Assert.Equal(CollateralTypes.Land, m.CollateralType));
+    }
+
+    // -----------------------------------------------------------------------
+    // OneMasterPerAppraisal + a building (NON-matching BuiltOnTitleNumber) → every land
+    // row (IsMaster + all aliases) becomes "LB", proving the type switch no longer depends
+    // on the fragile title match and propagates to all titles.
+    // -----------------------------------------------------------------------
+    [Fact]
+    public async Task SeparateLandProperties_WithBuilding_AllRowsBecomeLandWithBuilding()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var t1 = $"LB1-{tag}";
+        var t2 = $"LB2-{tag}";
+        var t3 = $"LB3-{tag}";
+
+        Guid appraisalId;
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a = CreateAppraisalSeed(Guid.NewGuid());
+            SeedLandProperty(a, "LO-001", "BKK", "D1", "S1", t1, "Chanote");
+            SeedLandProperty(a, "LO-001", "BKK", "D1", "S1", t2, "Chanote");
+            SeedLandProperty(a, "LO-001", "BKK", "D1", "S1", t3, "Chanote");
+            // Building whose BuiltOnTitleNumber matches NO land title — must still flip to LB.
+            var bProp = a.AddBuildingProperty();
+            bProp.BuildingDetail!.Update(builtOnTitleNumber: $"NO-MATCH-{tag}");
+            appraisalDb.Appraisals.Add(a);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            appraisalId = a.Id;
+        }
+
+        await ProcessAppraisalInNewScopeAsync(appraisalId);
+
+        using var assertScope = CreateScope();
+        var collateralDb = GetCollateralDbContext(assertScope);
+
+        var allRows = await collateralDb.CollateralMasters
+            .Include(m => m.LandDetail)
+            .Include(m => m.Engagements)
+            .ThenInclude(e => e.Buildings)
+            .Where(m => m.LandDetail != null &&
+                        (m.LandDetail.TitleNumber == t1 ||
+                         m.LandDetail.TitleNumber == t2 ||
+                         m.LandDetail.TitleNumber == t3))
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, allRows.Count);
+        Assert.Single(allRows.Where(m => m.IsMaster));
+
+        // Every land row — IsMaster AND aliases — is Land & Building.
+        Assert.All(allRows, m => Assert.Equal(CollateralTypes.LandWithBuilding, m.CollateralType));
+
+        // Building attached to the single engagement's Buildings child collection.
+        var master = allRows.First(m => m.IsMaster);
+        Assert.NotEmpty(master.Engagements.Single().Buildings);
     }
 
     // -----------------------------------------------------------------------
@@ -1433,7 +1556,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var condo = await collateralDb.CollateralMasters
             .Include(m => m.CondoDetail)
             .FirstOrDefaultAsync(m => m.CondoDetail != null &&
-                                      m.CondoDetail.TitleNumber == $"SING-CT-{tag}",
+                                      m.CondoDetail.CondoRegistrationNumber == $"SING-CR-{tag}",
                 TestContext.Current.CancellationToken);
         Assert.NotNull(condo);
         Assert.True(condo.IsMaster, "Condo must be IsMaster=true");

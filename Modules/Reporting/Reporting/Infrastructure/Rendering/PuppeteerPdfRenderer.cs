@@ -48,6 +48,9 @@ internal sealed class PuppeteerPdfRenderer(
             {
                 Format = PaperFormat.A4,
                 PrintBackground = true,
+                // Honour CSS @page size when a template declares it (e.g. landscape pages);
+                // templates without an @page rule keep the A4 format above.
+                PreferCSSPageSize = true,
                 MarginOptions = new MarginOptions
                 {
                     Top = "15mm",

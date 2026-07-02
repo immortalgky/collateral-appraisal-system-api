@@ -1,6 +1,10 @@
+using Auth.Contracts.Users;
+
 namespace Request.Application.Features.Requests.GetRequestById;
 
-internal class GetRequestByIdQueryHandler(RequestDbContext dbContext)
+internal class GetRequestByIdQueryHandler(
+    RequestDbContext dbContext,
+    IUserLookupService userLookupService)
     : IQueryHandler<GetRequestByIdQuery, GetRequestByIdResult>
 {
     public async Task<GetRequestByIdResult> Handle(GetRequestByIdQuery query, CancellationToken cancellationToken)
@@ -17,6 +21,10 @@ internal class GetRequestByIdQueryHandler(RequestDbContext dbContext)
             .Where(t => t.RequestId == query.Id)
             .ToListAsync(cancellationToken);
 
+        // Resolve requestor org detail on read from the stored employee code — not snapshotted.
+        // Falls back to the stored identity if the user can no longer be resolved.
+        var requestorInfo = await userLookupService.GetRequestorAsync(request.Requestor.UserId, cancellationToken);
+
         return new GetRequestByIdResult
         {
             Id = request.Id,
@@ -25,7 +33,15 @@ internal class GetRequestByIdQueryHandler(RequestDbContext dbContext)
             Purpose = request.Purpose,
             Channel = request.Channel,
             RequestedAt = request.RequestedAt,
-            Requestor = new UserInfoDto(request.Requestor.UserId, request.Requestor.Username),
+            Requestor = new RequestorDetailDto(
+                EmployeeId: request.Requestor.UserId,
+                Name: requestorInfo?.Name ?? request.Requestor.Username,
+                Email: requestorInfo?.Email,
+                ContactNo: requestorInfo?.ContactNo,
+                AoCode: requestorInfo?.AoCode,
+                CostCenterCode: requestorInfo?.CostCenterCode,
+                CostCenterDescription: requestorInfo?.CostCenterDescription,
+                Department: requestorInfo?.Department),
             Creator = new UserInfoDto(request.Creator.UserId, request.Creator.Username),
             Priority = request.Priority,
             IsPma = request.IsPma,

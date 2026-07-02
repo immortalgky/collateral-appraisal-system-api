@@ -1,0 +1,217 @@
+{{ if model.condo_section }}
+<div class="section-bar">รายละเอียดห้องชุด</div>
+
+{{ if model.condo_section.units && model.condo_section.units.size > 0 }}
+<div class="pad" style="padding-bottom:0;">
+  <div style="font-weight:600; margin-bottom:3px; font-size:8pt;">รายการห้องชุด</div>
+  <table class="grid">
+    <thead>
+      <tr>
+        <th style="width:30px;">ลำดับ</th>
+        <th>ห้องชุดเลขที่</th>
+        <th style="width:60px;">ชั้นที่</th>
+        <th style="width:90px;" class="num">พื้นที่ภายใน<br>ห้องชุด (ตร.ม.)</th>
+        <th style="width:80px;" class="num">พื้นที่ระเบียง<br>(ตร.ม.)</th>
+        <th style="width:80px;" class="num">พื้นที่วางแอร์<br>(ตร.ม.)</th>
+        <th style="width:80px;" class="num">พื้นที่อื่นๆ<br>(ตร.ม.)</th>
+        <th style="width:90px;" class="num">พื้นที่รวม<br>(ตร.ม.)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ for u in model.condo_section.units }}
+      <tr>
+        <td class="ctr">{{ u.sequence }}</td>
+        <td>{{ u.room_number }}</td>
+        <td class="ctr">{{ u.floor_number }}</td>
+        <td class="num">{{ if u.interior_area; u.interior_area | math.format "N2"; end }}</td>
+        <td class="num">{{ if u.balcony_area; u.balcony_area | math.format "N2"; end }}</td>
+        <td class="num">{{ if u.air_con_area; u.air_con_area | math.format "N2"; end }}</td>
+        <td class="num">{{ if u.other_area; u.other_area | math.format "N2"; end }}</td>
+        <td class="num">{{ if u.total_area; u.total_area | math.format "N2"; end }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ end }}
+
+<div class="pad">
+
+  <div class="cols2">
+    <div class="kv"><span class="k">ชื่ออาคารห้องชุด :</span><span class="v">{{ model.condo_section.condo_name }}</span></div>
+    <div class="kv"><span class="k">อาคารเลขที่ :</span><span class="v">{{ model.condo_section.building_number }}</span></div>
+  </div>
+
+  <div class="cols2">
+    <div class="kv"><span class="k" style="width:auto; padding-right:8px;">ทะเบียนอาคารห้องชุดเลขที่ :</span><span class="v">{{ model.condo_section.registration_number }}</span></div>
+    <div class="kv"><span class="k">โฉนดที่ดินเลขที่ :</span><span class="v">{{ model.condo_section.built_on_title_number }}</span></div>
+  </div>
+
+  <div class="cols3">
+    <div class="kv"><span class="k">ตำบล/แขวง :</span><span class="v">{{ model.condo_section.sub_district }}</span></div>
+    <div class="kv"><span class="k">อำเภอ/เขต :</span><span class="v">{{ model.condo_section.district }}</span></div>
+    <div class="kv"><span class="k">จังหวัด :</span><span class="v">{{ model.condo_section.province }}</span></div>
+  </div>
+
+  <div class="cols2">
+    <div class="kv"><span class="k">เนื้อที่ :</span><span class="v">{{ model.condo_section.land_area_text }}</span></div>
+    <div class="kv"><span class="k">ตั้งอยู่บน :</span><span class="v">{{ model.condo_section.located_on_road }}</span></div>
+  </div>
+
+  <div class="cols2">
+    <div class="kv"><span class="k">ซอย :</span><span class="v">{{ model.condo_section.soi }}</span></div>
+    <div class="kv"><span class="k">ระยะทาง :</span><span class="v">{{ model.condo_section.distance_text }}</span></div>
+  </div>
+
+  <div class="cols2">
+    <div class="kv"><span class="k">ผู้ถือกรรมสิทธิ์ :</span><span class="v">{{ model.condo_section.owner_name }}</span></div>
+    <div class="kv"><span class="k">ภาระผูกพัน :</span><span class="v">{{ model.condo_section.obligation }}</span></div>
+  </div>
+
+  <div class="kv">
+    <span class="k">ตำแหน่งหลักประกัน :</span>
+    <span class="v" style="display:flex; gap:16px; align-items:center;">
+      <span>
+        <span class="chk {{ if model.condo_section.position_correct == true }}on{{ end }}"></span>
+        ถูกต้อง
+      </span>
+      <span>
+        <span class="chk {{ if model.condo_section.position_correct == false }}on{{ end }}"></span>
+        ไม่ถูกต้อง
+      </span>
+    </span>
+  </div>
+
+</div>
+
+<div class="section-bar" style="font-size:8pt;">สภาพและการตกแต่งภายในห้องชุด</div>
+<div class="pad">
+  <div class="cols2">
+    <div class="kv"><span class="k">วัสดุปูพื้น :</span><span class="v">{{ model.condo_section.floor_material }}</span></div>
+    <div class="kv"><span class="k">ผนัง :</span><span class="v">{{ model.condo_section.wall }}</span></div>
+    <div class="kv"><span class="k">ฝ้าเพดาน :</span><span class="v">{{ model.condo_section.ceiling }}</span></div>
+    <div class="kv"><span class="k">ประตู :</span><span class="v">{{ model.condo_section.door }}</span></div>
+    <div class="kv"><span class="k">หน้าต่าง :</span><span class="v">{{ model.condo_section.window }}</span></div>
+    <div class="kv"><span class="k">สุขภัณฑ์ :</span><span class="v">{{ model.condo_section.sanitary }}</span></div>
+  </div>
+</div>
+
+<div class="section-bar" style="font-size:8pt;">ทางเข้าออกอาคารชุด</div>
+<div class="pad">
+  <div class="cols2">
+    <div class="kv"><span class="k">ผิวจราจรกว้าง :</span><span class="v">{{ if model.condo_section.road_surface_width; model.condo_section.road_surface_width | math.format "0.##"; end }}{{ if model.condo_section.road_surface_width }} เมตร{{ end }}</span></div>
+    <div class="kv"><span class="k">เขตทางกว้าง :</span><span class="v">{{ if model.condo_section.road_zone_width; model.condo_section.road_zone_width | math.format "0.##"; end }}{{ if model.condo_section.road_zone_width }} เมตร{{ end }}</span></div>
+  </div>
+  <div class="cols2">
+    <div class="kv"><span class="k">ลักษณะผิวจราจร :</span><span class="v">{{ model.condo_section.road_surface_type }}</span></div>
+    <div class="kv"><span class="k">สาธารณูปโภค :</span><span class="v">{{ model.condo_section.public_utility }}</span></div>
+  </div>
+</div>
+
+<div class="section-bar" style="font-size:8pt;">ข้อมูลอาคาร</div>
+<div class="pad">
+  <div class="cols2">
+    <div class="kv"><span class="k">อายุอาคาร :</span><span class="v">{{ model.condo_section.building_age }}{{ if model.condo_section.building_age }} ปี{{ end }}</span></div>
+    <div class="kv"><span class="k">ความสูง (ชั้น) :</span><span class="v">{{ if model.condo_section.building_height_floors; model.condo_section.building_height_floors | math.format "0.##"; end }}{{ if model.condo_section.building_height_floors }} ชั้น{{ end }}</span></div>
+  </div>
+  <div class="cols3">
+    <div class="kv"><span class="k">รูปแบบอาคารชุด :</span><span class="v">{{ model.condo_section.building_form }}</span></div>
+    <div class="kv"><span class="k">วัสดุก่อสร้าง :</span><span class="v">{{ model.condo_section.construction_material }}</span></div>
+    <div class="kv"><span class="k">หลังคาอาคารชุด :</span><span class="v">{{ model.condo_section.roof_type }}</span></div>
+  </div>
+</div>
+
+<div class="section-bar" style="font-size:8pt;">ข้อกำหนดทางกฎหมาย</div>
+<div class="pad">
+  <div class="kv">
+    <span class="k">อยู่ในแนวเวนคืน :</span>
+    <span class="v" style="display:flex; gap:16px; align-items:center;">
+      <span>
+        <span class="chk {{ if model.condo_section.is_in_expropriation_line == true }}on{{ end }}"></span>
+        ใช่
+      </span>
+      <span>
+        <span class="chk {{ if model.condo_section.is_in_expropriation_line == false }}on{{ end }}"></span>
+        ไม่ใช่
+      </span>
+    </span>
+  </div>
+  <div class="cols2">
+    <div class="kv"><span class="k">เป็นพื้นที่สี :</span><span class="v">{{ model.condo_section.area_colour }}</span></div>
+    <div class="kv"><span class="k">ที่ดินประเภท :</span><span class="v">{{ model.condo_section.land_type }}</span></div>
+  </div>
+</div>
+
+<div class="pad">
+  <div class="kv"><span class="k">หมายเหตุ :</span><span class="v">{{ model.condo_section.remark }}</span></div>
+</div>
+
+{{ if model.condo_section.valuation }}
+{{ cval = model.condo_section.valuation }}
+<div style="page-break-before:always;">
+<div class="section-bar">รายละเอียดการประเมินมูลค่าทรัพย์สิน ห้องชุด</div>
+<div class="pad">
+  <table class="grid">
+    <thead>
+      <tr>
+        <th style="border-top:0;"></th>
+        <th style="width:115px; border-top:0;" class="num">ตร.ม. ละ (บาท)</th>
+        <th style="width:110px; border-top:0;" class="num">เนื้อที่ (ตารางเมตร)</th>
+        <th style="width:125px; border-top:0;" class="num">จำนวนเงิน (บาท)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- PART A: registration value (per-sqm rate + amount have no source → "-") -->
+      <tr><td colspan="4"><strong>ราคาประเมินทุนทรัพย์ห้องชุดในการจดทะเบียนสิทธิ์และนิติกรรม</strong></td></tr>
+      <tr>
+        <td>พื้นที่ภายในห้องชุด</td>
+        <td class="num">-</td>
+        <td class="num">{{ if cval.interior_area; cval.interior_area | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">-</td>
+      </tr>
+      <tr><td colspan="4">พื้นที่ภายนอกห้องชุด</td></tr>
+      <tr>
+        <td style="padding-left:18px;">- พื้นที่ระเบียง</td>
+        <td class="num">-</td>
+        <td class="num">{{ if cval.balcony_area; cval.balcony_area | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">-</td>
+      </tr>
+      <tr>
+        <td style="padding-left:18px;">- พื้นที่วางแอร์</td>
+        <td class="num">-</td>
+        <td class="num">{{ if cval.air_con_area; cval.air_con_area | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">-</td>
+      </tr>
+      <tr>
+        <td style="padding-left:18px;">- พื้นที่อื่นๆ</td>
+        <td class="num">-</td>
+        <td class="num">{{ if cval.other_area; cval.other_area | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">-</td>
+      </tr>
+      <!-- PART B: market comparison value -->
+      <tr><td colspan="4"><strong>ราคาประเมินโดยวิธีเปรียบเทียบราคาตลาด</strong></td></tr>
+      <tr>
+        <td>พื้นที่ห้องชุดรวมระเบียง</td>
+        <td class="num">{{ if cval.market_price_per_sqm; cval.market_price_per_sqm | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.market_area; cval.market_area | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.market_amount; cval.market_amount | math.format "N2"; else; "-"; end }}</td>
+      </tr>
+      <!-- Rounded grand total -->
+      <tr>
+        <td><strong>รวมราคาประเมินมูลค่าทรัพย์สิน (ปัดเศษ)</strong></td>
+        <td class="num"></td>
+        <td class="num">(ปัดเศษ)</td>
+        <td class="num"><strong>{{ if cval.total_rounded_value; cval.total_rounded_value | math.format "N2"; else; "-"; end }}</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:6px;">
+    <span>ประเมินเมื่อวันที่ {{ if model.appraisal_date }}{{ thai.date model.appraisal_date }}{{ end }}</span>
+    {{ if cval.total_rounded_value }}<span>( {{ thai.baht_text cval.total_rounded_value }} )</span>{{ end }}
+  </div>
+</div>
+</div>
+{{ end }}
+
+{{ end }}

@@ -4,7 +4,7 @@ public record CreateRequestCommand(
     Guid? SessionId,
     string? Purpose,
     string? Channel,
-    UserInfoDto Requestor,
+    string RequestorEmployeeId,
     UserInfoDto Creator,
     string? Priority,
     bool IsPma,

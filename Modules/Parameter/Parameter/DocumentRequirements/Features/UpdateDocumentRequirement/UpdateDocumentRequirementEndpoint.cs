@@ -25,6 +25,7 @@ public class UpdateDocumentRequirementEndpoint : ICarterModule
 
                 return Results.NoContent();
             })
+            .RequireAuthorization()
             .WithName("UpdateDocumentRequirement")
             .WithSummary("Update a document requirement")
             .Produces(StatusCodes.Status204NoContent)

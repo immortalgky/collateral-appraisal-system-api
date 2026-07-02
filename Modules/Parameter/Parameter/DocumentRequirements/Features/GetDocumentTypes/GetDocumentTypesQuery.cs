@@ -1,3 +1,3 @@
 namespace Parameter.DocumentRequirements.Features.GetDocumentTypes;
 
-public record GetDocumentTypesQuery : IQuery<GetDocumentTypesResult>;
+public record GetDocumentTypesQuery(bool IncludeInactive = false) : IQuery<GetDocumentTypesResult>;

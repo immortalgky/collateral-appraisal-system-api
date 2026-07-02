@@ -12,6 +12,7 @@
         <ProjectReference Include="..\..\..\Shared\Shared.Messaging\Shared.Messaging.csproj"/>
         <ProjectReference Include="..\..\Parameter\Parameter.Contracts\Parameter.Contracts.csproj"/>
         <ProjectReference Include="..\..\Appraisal\Appraisal.Contracts\Appraisal.Contracts.csproj"/>
+        <ProjectReference Include="..\..\Auth\Auth.Contracts\Auth.Contracts.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

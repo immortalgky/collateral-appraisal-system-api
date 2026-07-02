@@ -716,8 +716,10 @@ public class IncomeCalculationServiceTests
         var result = _sut.Calculate(analysis);
         analysis.ApplyCalculationResult(result);
 
-        Assert.NotNull(analysis.FinalValue);
-        Assert.True(analysis.FinalValue > 0m);
+        // FinalValue/FinalValueRounded are now read from IncomeCalculationResult,
+        // not stored on the entity. The entity's Summary gets populated instead.
+        Assert.True(result.FinalValue > 0m);
+        Assert.True(result.FinalValueRounded > 0m);
 
         // Summary JSON should be non-empty arrays.
         Assert.NotEqual("[]", analysis.Summary.GrossRevenueJson);
@@ -762,20 +764,22 @@ public class IncomeCalculationServiceTests
         Assert.Equal(20_000_000m, result.PresentValue[0]); // 1_200_000 / (6/100)
     }
 
-  // ── FinalValueRounded preservation ───────────────────────────────────
+  // ── FinalValueRounded is always server-computed ──────────────────────
 
   [Fact]
-  public void Calculate_PreservesFinalValueRoundedWhenAlreadySet()
+  public void Calculate_AlwaysComputesFinalValueRoundedFromDcfPipeline()
   {
-    // FinalValueRounded is set to a custom value on the analysis — it should be preserved.
+    // FinalValueRounded is no longer stored on the entity — it is always
+    // derived fresh by the calculator from the DCF pipeline output.
     var detail = new Method03Detail { FirstYearAmt = 1_000_000m, IncreaseRatePct = 5m, IncreaseRateYrs = 1 };
     var analysis = BuildAnalysisWithSingleAssumption(3, 5m, 8m, "03", Serialize(detail));
 
-    // Simulate a previously saved custom rounded value.
-    analysis.SetComputedValues(0m, 99_999_999m, IncomeSummary.Empty());
+    // Clearing the summary (simulating a fresh state) does not affect the computed output.
+    analysis.SetComputedValues(IncomeSummary.Empty());
 
     var result = _sut.Calculate(analysis);
-    Assert.Equal(99_999_999m, result.FinalValueRounded);
+    Assert.True(result.FinalValueRounded > 0,
+      $"FinalValueRounded should be server-computed and positive but was {result.FinalValueRounded}");
   }
 
     // ── Method 10 — server-side bracket derivation ────────────────────────

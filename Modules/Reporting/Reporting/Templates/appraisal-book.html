@@ -23,21 +23,83 @@
   {{ if model.body_type == "standard" }}{{ include 'partials/summary-standard-body' }}{{ end }}
 {{ end }}
 
-<!-- ══ Shared detail sections (each on a new page when its data is present) ══ -->
-{{ if model.condo_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-condo' }}</div>{{ end }}
-{{ if model.land_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-land' }}</div>{{ end }}
-{{ if model.building_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-building' }}</div>{{ end }}
-{{ if model.construction_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-construction' }}</div>{{ end }}
-{{ if model.machine_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-machine' }}</div>{{ end }}
+<!-- ══ Shared detail sections (rendered for BOTH internal & external; each on a new page when its data is present) ══ -->
+{{ if model.condo_section }}<div style="page-break-before:always;">{{ include 'partials/section-condo' }}</div>{{ end }}
+{{ for grp in model.property_groups }}
+<div style="page-break-before:always;">
+  {{ if model.property_groups.size > 1 && grp.group_number > 0 }}
+  <div class="section-bar">กลุ่มที่ {{ grp.group_number }}{{ if grp.group_name }} - {{ grp.group_name }}{{ end }}</div>
+  {{ end }}
+  {{ for ls in grp.lands }}
+    {{ land_section = ls }}
+    {{ include 'partials/section-land' }}
+  {{ end }}
+  {{ for bs in grp.buildings }}
+    {{ building_section = bs }}
+    {{ include 'partials/section-building' }}
+  {{ end }}
+</div>
+{{ end }}
+{{ if model.construction_section }}<div style="page-break-before:always;">{{ include 'partials/section-construction' }}</div>{{ end }}
+{{ if model.machine_section }}<div style="page-break-before:always;">{{ include 'partials/section-machine' }}</div>{{ end }}
 
-<!-- ══ Price-analysis sections ══ -->
-{{ if model.comparison_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-comparison' }}</div>{{ end }}
-{{ if model.wqs_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-wqs' }}</div>{{ end }}
-{{ if model.sale_grid_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-salegrid' }}</div>{{ end }}
-{{ if model.cost_machine_section }}<div style="page-break-before:always;">{{ include 'partials/ext-section-costmachine' }}</div>{{ end }}
+<!-- ══ Price-analysis sections (shared) — one section per property group ══ -->
+{{ for sec in model.comparison_sections }}
+<div style="page-break-before:always;">
+  {{ cs = sec }}
+  {{ include 'partials/section-comparison' }}
+</div>
+{{ end }}
+{{ for sec in model.wqs_sections }}
+<div style="page-break-before:always;">
+  {{ if model.wqs_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
+  {{ w = sec }}
+  {{ include 'partials/section-wqs' }}
+</div>
+{{ end }}
+{{ for sec in model.sale_grid_sections }}
+<div style="page-break-before:always;">
+  {{ if model.sale_grid_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
+  {{ sgr = sec }}
+  {{ include 'partials/section-salegrid' }}
+</div>
+{{ end }}
+{{ for sec in model.cost_machine_sections }}
+<div style="page-break-before:always;">
+  {{ cms = sec }}
+  {{ include 'partials/section-costmachine' }}
+</div>
+{{ end }}
+{{ for sec in model.income_sections }}
+<div style="page-break-before:always;">
+  {{ if model.income_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
+  {{ inc = sec }}
+  {{ include 'partials/section-income' }}
+</div>
+{{ end }}
+{{ for sec in model.profit_rent_sections }}
+<div style="page-break-before:always;">
+  {{ if model.profit_rent_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
+  {{ pr = sec }}
+  {{ include 'partials/section-profitrent' }}
+</div>
+{{ end }}
+{{ for sec in model.leasehold_sections }}
+<div style="page-break-before:always;">
+  {{ if model.leasehold_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
+  {{ lh = sec }}
+  {{ include 'partials/section-leasehold' }}
+</div>
+{{ end }}
+{{ for sec in model.hypothesis_sections }}
+<div style="page-break-before:always;">
+  {{ if model.hypothesis_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
+  {{ hyp = sec }}
+  {{ include 'partials/section-hypothesis' }}
+</div>
+{{ end }}
 
-{{ if model.appendix_section }}{{ include 'partials/ext-section-appendix' }}{{ end }}
-<!-- SLOT: appendix -->
+{{ if model.appendix_section }}{{ include 'partials/section-appendix' }}{{ end }}
 
 </body>
 </html>

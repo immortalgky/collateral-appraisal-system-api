@@ -8,7 +8,7 @@ public sealed record GetRequestByIdResult
     public string? Purpose { get; init; }
     public string? Channel { get; init; }
     public DateTime? RequestedAt { get; init; }
-    public UserInfoDto Requestor { get; init; } = default!;
+    public RequestorDetailDto Requestor { get; init; } = default!;
     public UserInfoDto Creator { get; init; } = default!;
     public string? Priority { get; init; }
     public bool IsPma { get; init; }

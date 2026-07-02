@@ -30,6 +30,7 @@ public record GetAppraisalByIdResult
     public string? CompanyName { get; set; }
     public string? AppraiserName { get; set; }
     public DateTime? AppraisalDate { get; set; }
+    public decimal? AppraisalValue { get; set; }
     public DateTime? CreatedOn { get; set; }
     public string? CreatedBy { get; set; }
     public DateTime? UpdatedOn { get; set; }

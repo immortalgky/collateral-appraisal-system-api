@@ -15,6 +15,7 @@ public interface ISlaCalculatorClient
     Task<WorkflowSlaSnapshot?> GetWorkflowSlaAsync(
         Guid workflowDefinitionId,
         string? loanType,
+        string? appraisalType,
         DateTime startedAt,
         CancellationToken ct = default);
 
@@ -24,12 +25,23 @@ public interface ISlaCalculatorClient
     /// Pass <c>null</c> for <paramref name="workflowDefinitionId"/> when the ID is unknown (e.g.
     /// from the appraisal-creation path); only wildcard policies (WorkflowDefinitionId = null) will match.
     /// </summary>
+    /// <param name="correlationId">
+    /// Workflow correlation ID (= Request.Id). When provided, consumed time from prior stage
+    /// executions is subtracted from the budget (cumulative enforcement).
+    /// </param>
+    /// <param name="appointmentDate">
+    /// On-site visit date. Required when the resolved policy has AnchorType = AppointmentDate;
+    /// null returns null DueAt ("awaiting appointment").
+    /// </param>
     Task<DateTime?> GetStageDueAtAsync(
         Guid? workflowDefinitionId,
         string startActivityKey,
         DateTime startedAt,
         Guid? companyId,
         string? loanType,
+        string? appraisalType,
+        Guid? correlationId = null,
+        DateTime? appointmentDate = null,
         CancellationToken ct = default);
 }
 

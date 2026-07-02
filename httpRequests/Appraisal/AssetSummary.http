@@ -1,0 +1,4 @@
+@baseUrl = https://localhost:7111
+@appraisalId = 019e1ae5-96a9-7356-a420-1b7966300ba2
+GET {{baseUrl}}/appraisals/{{appraisalId}}/asset-summary
+X-Dev-Auth: dev-bypass

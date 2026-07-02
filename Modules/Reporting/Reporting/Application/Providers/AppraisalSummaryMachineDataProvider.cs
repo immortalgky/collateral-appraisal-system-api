@@ -107,9 +107,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
         }
 
         // GPS from the machinery summary table
-        var gps = (machSummary?.Latitude is not null && machSummary.Longitude is not null)
-            ? $"{machSummary.Latitude:F6}, {machSummary.Longitude:F6}"
-            : null;
+        var gps = ThaiAddressFormatter.FormatGps(machSummary?.Latitude, machSummary?.Longitude);
 
         var collateralAddress = string.IsNullOrWhiteSpace(machSummary?.MachineAddress)
             ? null
@@ -119,18 +117,23 @@ public sealed class AppraisalSummaryMachineDataProvider(
             .GroupBy(r => r.PropertyGroupId)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.SequenceInGroup).ToList());
 
-        // ── Build per-group summary rows ─────────────────────────────────────────
-        var summaryGroups = common.GroupRows.Select(g =>
+        // ── Build per-group summary rows (machine / vehicle / vessel groups only) ──
+        var machineFamily = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "MAC", "VEH", "VES" };
+        var summaryGroups = common.GroupRows
+            .Where(g => g.PropertyType != null && machineFamily.Contains(g.PropertyType))
+            .Select(g =>
         {
             machineByGroup.TryGetValue(g.GroupId, out var machRows);
             machRows ??= [];
 
-            var detailParts = new List<string>();
-
             int machineCount = machRows.Count > 0 ? machRows.Count : g.PropertyCount;
-            if (machineCount > 0)
-                detailParts.Add($"จดทะเบียนกรรมสิทธิ์เครื่องจักร จำนวน {machineCount} รายการ");
+            // Header line above the numbered item list.
+            var collateralDetails = machineCount > 0
+                ? $"จดทะเบียนกรรมสิทธิ์เครื่องจักร จำนวน {machineCount} รายการ"
+                : null;
 
+            // One entry per machine — rendered as a numbered list (1., 2., …).
+            var detailItems = new List<string>();
             foreach (var m in machRows)
             {
                 var parts = new List<string>();
@@ -151,17 +154,16 @@ public sealed class AppraisalSummaryMachineDataProvider(
                     parts.Add($"สภาพ{m.MachineCondition}");
 
                 if (parts.Count > 0)
-                    detailParts.Add(string.Join(" ", parts));
+                    detailItems.Add(string.Join(" ", parts));
             }
-
-            var collateralDetails = detailParts.Count > 0 ? string.Join(" ", detailParts) : null;
 
             return new SummaryGroupRow
             {
                 GroupNumber = g.GroupNumber,
                 GroupName = g.GroupName,
-                PropertyType = common.TranslateCollateralType(g.PropertyType),
+                PropertyType = "เครื่องจักร",
                 CollateralDetails = collateralDetails,
+                DetailItems = detailItems,
                 AreaOrUnit = null,
                 PricePerAreaOrUnit = null,
                 AppraisalValue = g.GroupAppraisalValue,
@@ -170,7 +172,10 @@ public sealed class AppraisalSummaryMachineDataProvider(
             };
         }).ToList();
 
-        string? firstPropertyType = summaryGroups.FirstOrDefault()?.PropertyType;
+        // วิธีการประเมิน — scoped to the methods of the machine groups actually shown.
+        var methodFlags = AppraisalSummaryCommonLoader.FlagsForGroups(
+            common.GroupMethodTypes,
+            common.GroupRows.Where(g => g.PropertyType != null && machineFamily.Contains(g.PropertyType)).Select(g => g.GroupId));
 
         // ── Build model ──────────────────────────────────────────────────────────
         var model = new AppraisalSummaryModel
@@ -180,20 +185,25 @@ public sealed class AppraisalSummaryMachineDataProvider(
             CustomerName = common.CustomerName,
             AoName = common.AoName,
             AppraisalPurpose = common.AppraisalPurpose,
-            PropertyType = firstPropertyType,
-            CollateralAddress = collateralAddress,
+            // Machine form: property type is fixed (header + appraiser opinion).
+            PropertyType = "เครื่องจักร",
+            SummaryPropertyType = "เครื่องจักร",
+            // ที่ตั้งทรัพย์สิน from the Request detail (same as land-building); fall back to the machine's own address.
+            CollateralAddress = common.CollateralAddress ?? collateralAddress,
             AdministrativeDistrict = null,
             LandOffice = null,
             OldAppraisalValue = null,
             Appraiser = common.Appraiser,
             LoanValue = common.LoanValue,
             Groups = summaryGroups,
-            TotalAppraisalValue = common.TotalAppraisalValue,
+            TotalAppraisalValue = summaryGroups.Count > 0 ? summaryGroups.Sum(g => g.AppraisalValue ?? 0m) : common.TotalAppraisalValue,
             BuildingCoverageAmount = common.BuildingCoverageAmount,
             ForcedSaleValue = common.ForcedSaleValue,
             Condition = common.Condition,
             Remark = common.Remark,
-            LandOwner = machSummary?.Owner ?? machSummary?.Proprietor,
+            // Machine owner = first machine's owner (normally the same across the appraisal).
+            LandOwner = groupMachineRows.Select(r => r.OwnerName).FirstOrDefault(o => !string.IsNullOrWhiteSpace(o))
+                ?? machSummary?.Owner ?? machSummary?.Proprietor,
             EntryExitRights = null,
             BuildingOwner = null,
             LandCondition = null,
@@ -204,13 +214,13 @@ public sealed class AppraisalSummaryMachineDataProvider(
             Utilization = null,
             MachineType = machSummary?.InIndustrial,
             MarketDemandConditions = machSummary?.MarketDemand,
-            IsWqs = common.IsWqs,
-            IsSaleGrid = common.IsSaleGrid,
-            IsCost = common.IsCost,
-            IsIncome = common.IsIncome,
-            IsHypothesis = common.IsHypothesis,
-            IsLeasehold = common.IsLeasehold,
-            IsProfitRent = common.IsProfitRent,
+            IsWqs = methodFlags.IsWqs,
+            IsSaleGrid = methodFlags.IsSaleGrid,
+            IsCost = methodFlags.IsCost,
+            IsIncome = methodFlags.IsIncome,
+            IsHypothesis = methodFlags.IsHypothesis,
+            IsLeasehold = methodFlags.IsLeasehold,
+            IsProfitRent = methodFlags.IsProfitRent,
             AppraiserComment = common.AppraiserComment,
             AppraisalStaffName = common.StaffName,
             AppraisalStaffPosition = common.StaffPosition,
@@ -220,6 +230,8 @@ public sealed class AppraisalSummaryMachineDataProvider(
             AppraisalVerifyPosition = common.VerifyPosition,
             MeetingNumber = common.Review?.MeetingNo,
             MeetingDate = common.Review?.MeetingDate,
+            ApprovalDate = common.ApprovalDate,
+            IsCompleted = common.IsCompleted,
             ShowMeeting = common.ShowMeeting,
             ApproverDecisionApproved = common.ApproverDecisionApproved,
             Approvers = common.Approvers,

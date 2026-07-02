@@ -18,11 +18,12 @@ public sealed class Rcas009Endpoint : ICarterModule
         group.MapGet("", async (
                 [FromQuery] DateTime? createdFrom, [FromQuery] DateTime? createdTo,
                 [FromQuery] string? payType, [FromQuery] string? appraisalCompany, [FromQuery] string? feeStatus,
+                [FromQuery] string? appraisalNumber,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir,
                 [FromQuery] int? pageNumber, [FromQuery] int? pageSize,
                 IOperationalReportRunner runner, CancellationToken ct) =>
             {
-                var filter = new Rcas009Filter(createdFrom, createdTo, payType, appraisalCompany, feeStatus, sortBy, sortDir);
+                var filter = new Rcas009Filter(createdFrom, createdTo, payType, appraisalCompany, feeStatus, appraisalNumber, sortBy, sortDir);
                 var page = new PaginationRequest(pageNumber ?? 0, pageSize ?? 20);
                 return Results.Ok(await runner.PreviewAsync(Rcas009Report.Definition, filter, page));
             })
@@ -31,10 +32,11 @@ public sealed class Rcas009Endpoint : ICarterModule
         group.MapGet("/export", async (
                 [FromQuery] DateTime? createdFrom, [FromQuery] DateTime? createdTo,
                 [FromQuery] string? payType, [FromQuery] string? appraisalCompany, [FromQuery] string? feeStatus,
+                [FromQuery] string? appraisalNumber,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir, [FromQuery] string? format,
                 IOperationalReportRunner runner, CancellationToken ct) =>
             {
-                var filter = new Rcas009Filter(createdFrom, createdTo, payType, appraisalCompany, feeStatus, sortBy, sortDir);
+                var filter = new Rcas009Filter(createdFrom, createdTo, payType, appraisalCompany, feeStatus, appraisalNumber, sortBy, sortDir);
                 var file = await runner.ExportAsync(Rcas009Report.Definition, filter, OperationalReportFormat.Parse(format), ct);
                 return Results.File(file.Bytes, file.ContentType, file.FileName);
             })

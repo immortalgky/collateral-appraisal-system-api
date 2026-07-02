@@ -30,8 +30,8 @@ public sealed record LandUpsertData(
     // Three-value model (Phase C, wired in PR-8)
     // UnitPrice: cost-approach only — from PricingFinalValue.FinalValueAdjusted. IsMaster + aliases.
     decimal? UnitPrice,
-    // BuildingCost: cost-approach only — from PricingFinalValue.BuildingCost. IsMaster only.
-    decimal? BuildingCost,
+    // BuildingValue: cost-approach only — from PricingFinalValue.BuildingValue. IsMaster only.
+    decimal? BuildingValue,
     // AppraisalValue: all approaches — from PricingFinalValue.AppraisalPrice (fallbacks: FinalValueAdjusted, FinalValueRounded). IsMaster only.
     decimal? AppraisalValue
 );
@@ -44,7 +44,6 @@ public sealed record CondoUpsertData(
     string? OwnerName,
     // Last-known
     string? CondoName,
-    string? Province,
     decimal? UsableArea,
     string? LocationType,
     int? BuildingAge,
@@ -58,8 +57,8 @@ public sealed record CondoUpsertData(
     string AppraisalNumber,
     DateTime AppraisalDate,
     // Three-value model (Phase C, wired in PR-8)
-    decimal? UnitPrice,    // cost-approach only — PricingFinalValue.FinalValueAdjusted
-    decimal? BuildingCost, // cost-approach only — PricingFinalValue.BuildingCost
+    decimal? UnitPrice,     // cost-approach only — PricingFinalValue.FinalValueAdjusted
+    decimal? BuildingValue, // cost-approach only — PricingFinalValue.BuildingValue
     decimal? AppraisalValue // all approaches — PricingFinalValue.AppraisalPrice (with fallbacks)
 );
 
@@ -180,6 +179,7 @@ public class CollateralMaster : Aggregate<Guid>
         string titleNumber,
         string? surveyNumber,
         string? landParcelNumber,
+        string? rawang,
         string? street,
         string? village,
         decimal? latitude,
@@ -204,7 +204,7 @@ public class CollateralMaster : Aggregate<Guid>
         master.LandDetail = new LandDetail(
             master.Id,
             landOfficeCode, province, district, subDistrict, titleType, titleNumber,
-            surveyNumber, landParcelNumber,
+            surveyNumber, landParcelNumber, rawang,
             street, village, latitude, longitude,
             isDeleted: false);
 
@@ -227,6 +227,7 @@ public class CollateralMaster : Aggregate<Guid>
         string titleNumber,
         string? surveyNumber,
         string? landParcelNumber,
+        string? rawang,
         string? collateralType = null)
     {
         var effectiveType = string.IsNullOrWhiteSpace(collateralType)
@@ -247,7 +248,7 @@ public class CollateralMaster : Aggregate<Guid>
         alias.LandDetail = new LandDetail(
             alias.Id,
             landOfficeCode, province, district, subDistrict, titleType, titleNumber,
-            surveyNumber, landParcelNumber,
+            surveyNumber, landParcelNumber, rawang,
             street: null, village: null,
             latitude: null, longitude: null,
             isDeleted: false);
@@ -373,15 +374,15 @@ public class CollateralMaster : Aggregate<Guid>
 
     public static CollateralMaster CreateCondo(
         string ownerName,
-        string landOfficeCode,
+        string? landOfficeCode,
         string condoRegistrationNumber,
         string buildingNumber,
         string floorNumber,
         string roomNumber,
-        string titleNumber,
-        string titleType,
-        string? condoName,
-        string? province)
+        string province,
+        string district,
+        string subDistrict,
+        string? condoName)
     {
         var master = new CollateralMaster
         {
@@ -395,8 +396,8 @@ public class CollateralMaster : Aggregate<Guid>
 
         master.CondoDetail = new CondoDetail(
             master.Id,
-            landOfficeCode, condoRegistrationNumber, buildingNumber, floorNumber, roomNumber, titleNumber, titleType,
-            condoName, province,
+            landOfficeCode, condoRegistrationNumber, buildingNumber, floorNumber, roomNumber,
+            province, district, subDistrict, condoName,
             isDeleted: false);
 
         master.AddDomainEvent(new CollateralMasterCreatedEvent(master.Id, master.CollateralType));
@@ -489,7 +490,7 @@ public class CollateralMaster : Aggregate<Guid>
             data.Street, data.Village,
             data.Latitude, data.Longitude);
 
-        LandDetail.UpdateValues(data.UnitPrice, data.BuildingCost, data.AppraisalValue);
+        LandDetail.UpdateValues(data.UnitPrice, data.BuildingValue, data.AppraisalValue);
 
         bool wasUnderConstruction = LandDetail.IsUnderConstructionAtLastAppraisal;
         decimal? fromPercent = LandDetail.OverallConstructionProgressPercent;
@@ -523,11 +524,11 @@ public class CollateralMaster : Aggregate<Guid>
             OwnerName = data.OwnerName;
 
         CondoDetail.UpdateLastKnown(
-            data.CondoName, data.Province, data.UsableArea, data.LocationType,
+            data.CondoName, data.UsableArea, data.LocationType,
             data.BuildingAge, data.ConstructionYear, data.ModelName,
             data.Latitude, data.Longitude);
 
-        CondoDetail.UpdateValues(data.UnitPrice, data.BuildingCost, data.AppraisalValue);
+        CondoDetail.UpdateValues(data.UnitPrice, data.BuildingValue, data.AppraisalValue);
 
         CondoDetail.UpdateAppraisalSummary(
             data.AppraisalId, data.AppraisalNumber, data.AppraisalDate);

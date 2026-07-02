@@ -31,6 +31,18 @@ public class CollateralEngagementBuilding
     /// <summary>Display order within the engagement (1..N).</summary>
     public int Sequence { get; private set; }
 
+    /// <summary>
+    /// Building age in years at engagement time.
+    /// Sourced from BuildingAppraisalDetail.BuildingAge. Consumed by the regulatory export.
+    /// </summary>
+    public int? BuildingAge { get; private set; }
+
+    /// <summary>
+    /// Number of floors at engagement time.
+    /// Sourced from BuildingAppraisalDetail.NumberOfFloors. Consumed by the regulatory export.
+    /// </summary>
+    public decimal? NumberOfFloors { get; private set; }
+
     private CollateralEngagementBuilding() { }
 
     internal static CollateralEngagementBuilding Create(
@@ -38,7 +50,9 @@ public class CollateralEngagementBuilding
         string buildingTypeCode,
         decimal? buildingArea,
         decimal? buildingValue,
-        int sequence)
+        int sequence,
+        int? buildingAge,
+        decimal? numberOfFloors)
     {
         return new CollateralEngagementBuilding
         {
@@ -48,6 +62,8 @@ public class CollateralEngagementBuilding
             BuildingArea = buildingArea,
             BuildingValue = buildingValue,
             Sequence = sequence,
+            BuildingAge = buildingAge,
+            NumberOfFloors = numberOfFloors,
         };
     }
 }

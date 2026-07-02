@@ -25,6 +25,14 @@ public static class SharedServicesExtensions
         services.Configure<FileStorageConfiguration>(
             configuration.GetSection(FileStorageConfiguration.SectionName));
 
+        // Configure non-Hangfire background job cadence (outbox, leased scanners, lock expiry).
+        // ValidateOnStart forces the options pipeline (incl. the PostConfigure validation below)
+        // to run during host startup, so a bad cadence fails fast instead of on first resolution.
+        services.AddOptions<BackgroundJobsOptions>()
+            .Bind(configuration.GetSection(BackgroundJobsOptions.SectionName))
+            .ValidateOnStart();
+        services.PostConfigure<BackgroundJobsOptions>(o => o.Validate());
+
         // Time abstraction
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 

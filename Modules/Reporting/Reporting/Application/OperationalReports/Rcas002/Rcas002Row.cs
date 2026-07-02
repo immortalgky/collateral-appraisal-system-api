@@ -17,7 +17,7 @@ public sealed record Rcas002Row(
     string? AppraisalCompany,
     string? InternalAppraisalStaff,
     decimal? OldAppraisalValue,
-    decimal? PastDueDay,
+    int? PastDueDay,
     DateTime? ValuationDate,
     DateTime? NextValuationDate,
     int? RemainingDays);

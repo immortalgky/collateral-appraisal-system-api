@@ -129,11 +129,20 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             customer.Property(p => p.ContactNumber).HasMaxLength(100).HasColumnName("ContactNumber");
 
             //Index
-            customer.HasIndex(p => p.Name).HasDatabaseName("IX_RequestCustomer_Name");
+            // INCLUDE(RequestId) makes a prefix search (Name LIKE 'term%') a COVERING seek in
+            // workflow.sp_GetTaskList's #f_* build (returns RequestId without a key lookup) —
+            // dropped that arm from ~1,902 logical reads to ~10 in testing.
+            customer.HasIndex(p => p.Name)
+                .IncludeProperties("RequestId")
+                .HasDatabaseName("IX_RequestCustomer_Name");
 
             // Index 3: supports OUTER APPLY (SELECT TOP 1 Name FROM request.RequestCustomers WHERE RequestId = a.RequestId)
-            // in vw_AppraisalList
-            customer.HasIndex("RequestId").HasDatabaseName("IX_RequestCustomer_RequestId");
+            // in vw_AppraisalList and workflow.sp_GetTaskList. INCLUDE(Name) makes the apply a
+            // covering seek (no key lookup) — the per-row Name lookup was the dominant cost of the
+            // task-list customer-name search (~241K logical reads over the pool slice).
+            customer.HasIndex("RequestId")
+                .IncludeProperties(p => p.Name)
+                .HasDatabaseName("IX_RequestCustomer_RequestId");
         });
 
         // RequestProperties

@@ -29,6 +29,13 @@ internal static class Rcas010Report
         Title = "ค่าใช้จ่ายค่าประเมินที่ธนาคารจ่าย ประจำเดือน",
         OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, "Channel"),
         Build = Build,
+        DescribeFilter = f =>
+        [
+            new("Created From", f.CreatedFrom?.ToString("yyyy-MM-dd")),
+            new("Created To", f.CreatedTo?.ToString("yyyy-MM-dd")),
+            new("Channel", f.Channel, "Channel"),
+            new("Assign Type", f.AssignType),
+        ],
         Columns =
         [
             new("Channel", r => r.Channel),

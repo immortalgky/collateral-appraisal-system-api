@@ -18,247 +18,186 @@
     .page {
       width:210mm;
       min-height:270mm;
-      padding:20mm 25mm 20mm 30mm;
+      padding:10mm 12mm;
       margin:0 auto;
     }
 
-    /* ── Header ──────────────────────────────────────────────────── */
-    .doc-header { text-align:center; margin-bottom:14px; }
-    .bank-logo-center {
-      font-size:20pt;
-      font-weight:700;
-      letter-spacing:3px;
-      color:#1a237e;
-      display:inline-block;
-    }
-    .bank-logo-center .bar {
-      height:5px;
-      margin-top:3px;
-      background:linear-gradient(90deg,#e60012 0 20%,#f39800 20% 40%,#009944 40% 60%,#0068b7 60% 80%,#920783 80% 100%);
-    }
-    .doc-title {
-      font-size:14pt;
-      font-weight:700;
-      margin-top:10px;
-    }
-    .doc-subtitle {
-      font-size:12pt;
-      margin-top:2px;
-    }
-    .doc-date {
-      font-size:11pt;
-      margin-top:2px;
-    }
+    /* ── Header: logo top-left, title + date centered (FSD img40) ── */
+    .bank-logo { margin-bottom:8px; }
+    .bank-logo img { height:40px; width:auto; }
+    .doc-title { text-align:center; font-size:13pt; font-weight:700; }
+    .doc-date { text-align:center; margin-top:2px; }
 
-    /* ── Section headings ────────────────────────────────────────── */
-    .section-bar {
-      background:#1a237e;
-      color:#fff;
-      font-weight:700;
-      padding:3px 10px;
-      margin:16px 0 8px;
-      font-size:10.5pt;
-    }
+    /* ── Plain section heading (no colored bar) ──────────────────── */
+    .section-head { font-weight:700; margin:14px 0 6px; }
 
-    /* ── Member attendance table ─────────────────────────────────── */
-    table.member-table {
-      width:100%;
-      border-collapse:collapse;
-      font-size:10.5pt;
-      margin-bottom:10px;
-    }
-    table.member-table th {
-      background:#e8eaf6;
-      border:1px solid #9fa8da;
-      padding:4px 8px;
-      text-align:center;
-      font-weight:700;
-    }
-    table.member-table td {
-      border:1px solid #c5cae9;
-      padding:3px 8px;
-    }
-    table.member-table tr:nth-child(even) td { background:#f5f5ff; }
+    /* ── Member roster — plain two columns ───────────────────────── */
+    table.plain-list { border-collapse:collapse; margin:0 0 6px 1em; }
+    table.plain-list td { padding:1px 12px 1px 0; vertical-align:top; }
+    table.plain-list td.col-pos { padding-left:24px; }
 
-    /* ── Presenter placeholder ───────────────────────────────────── */
-    .presenter-note {
-      border:1px dashed #bbb;
-      padding:10px;
-      color:#666;
-      font-style:italic;
-      font-size:9.5pt;
-      margin-bottom:10px;
-    }
+    /* ── Presenter columns (FSD 4.1/4.2/4.3) ─────────────────────── */
+    table.presenter-list { border-collapse:collapse; margin:0 0 6px 1em; width:100%; }
+    table.presenter-list td { padding:1px 16px 1px 0; vertical-align:top; }
+    table.presenter-list td.pr-name { width:30%; } table.presenter-list td.pr-pos { width:45%; } table.presenter-list td.pr-wara { width:25%; }
+    .deferred-note { color:#666; font-style:italic; font-size:9.5pt; margin:2px 0 6px 1em; }
 
-    /* ── Agenda groups ───────────────────────────────────────────── */
-    .agenda-group {
-      margin-bottom:14px;
-    }
-    .agenda-group .wara-title {
-      font-weight:700;
-      margin-bottom:4px;
-    }
-    .agenda-group .count-text {
-      font-style:italic;
-      font-size:10pt;
-      margin-left:1.5em;
-      color:#333;
-    }
-    .agenda-group .body-text {
-      margin-left:1.5em;
-      white-space:pre-wrap;
-    }
-    .agenda-items {
-      margin:4px 0 0 2em;
-      width:100%;
-    }
-    .agenda-items .item-row {
-      display:flex;
-      align-items:baseline;
-      gap:4px;
-      margin-bottom:3px;
-    }
-    .agenda-items .item-seq { min-width:24px; font-weight:600; }
-    .agenda-items .item-customer { flex:1; }
-    .agenda-items .item-value {
-      white-space:nowrap;
-      font-weight:600;
-      min-width:180px;
-      text-align:right;
-    }
-    .agenda-items .item-value-label { font-size:9pt; color:#444; margin-right:4px; }
+    /* ── Intro paragraph ─────────────────────────────────────────── */
+    .intro-para { margin:10px 0 12px; text-indent:2em; }
 
-    /* ── Committee opinion / signature block ─────────────────────── */
-    .opinion-grid {
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:14px;
-      margin-top:10px;
-    }
-    .opinion-cell {
-      border:1px solid #9fa8da;
-      border-radius:4px;
-      padding:10px 12px;
-    }
-    .opinion-cell .oc-name { font-weight:700; margin-bottom:2px; }
-    .opinion-cell .oc-pos { font-size:9.5pt; color:#555; margin-bottom:8px; }
-    .opinion-cell .oc-vote-label { font-size:9.5pt; font-weight:600; color:#1a237e; margin-bottom:4px; }
-    .opinion-cell .oc-opinion { font-size:9.5pt; color:#333; min-height:32px; white-space:pre-wrap; }
-    .opinion-cell .sig-line {
-      border-bottom:1px solid #555;
-      margin:18px 10px 4px;
-    }
-    .opinion-cell .sig-label { font-size:8.5pt; text-align:center; color:#555; }
+    /* ── Agenda text-only (วาระ 1/2/9) ───────────────────────────── */
+    .agenda-text { margin-bottom:8px; }
+    .agenda-text .wara-title { font-weight:700; }
+    .agenda-text .body-text { margin-left:1.5em; white-space:pre-wrap; }
+
+    /* ── Agenda decision tables (วาระ 3–8) — monochrome bordered ─── */
+    .agenda-block { margin-bottom:14px; }
+    .agenda-block .wara-title { font-weight:700; margin-bottom:4px; }
+    .agenda-block .count-text { font-weight:400; }
+    table.agenda-table { width:100%; border-collapse:collapse; font-size:10.5pt; }
+    table.agenda-table th, table.agenda-table td { border:1px solid #000; padding:4px 8px; }
+    table.agenda-table th { background:#eee; text-align:center; font-weight:700; }
+    table.agenda-table td.col-item { width:62%; }
+    table.agenda-table td.col-value { white-space:nowrap; }
+    table.agenda-table .val-cell { display:flex; justify-content:space-between; gap:12px; }
+
+    /* ── Sign-off 3-column table (FSD img43) ─────────────────────── */
+    .signoff-header { text-align:center; margin:18px 0 10px; }
+    table.signoff-table { width:100%; border-collapse:collapse; font-size:10.5pt; }
+    table.signoff-table th, table.signoff-table td { border:1px solid #000; padding:6px 8px; vertical-align:top; }
+    table.signoff-table th { text-align:center; font-weight:700; }
+    table.signoff-table td.col-sign { width:30%; }
+    table.signoff-table td.col-name { width:40%; text-align:center; }
+    table.signoff-table td.col-opinion { width:30%; }
+    table.signoff-table .role { color:#000; }
   </style>
 </head>
 <body>
 <div class="page">
 
   <!-- ── Header ──────────────────────────────────────────────────── -->
-  <div class="doc-header">
-    <div class="bank-logo-center">
-      LH BANK
-      <div class="bar"></div>
-    </div>
-    <div class="doc-title">รายงานการประชุมคณะกรรมการกำหนดราคาประเมินหลักประกันและทรัพย์สิน</div>
-    <div class="doc-subtitle">ครั้งที่ {{ model.meeting_no }}</div>
-    <div class="doc-date">
-      ลงวันที่ {{ thai.date model.minute_date }}
-      — เวลา {{ if model.start_at }}{{ model.start_at | date.to_string "%H.%M" }}{{ else }}——{{ end }}
-        – {{ if model.end_at }}{{ model.end_at | date.to_string "%H.%M" }}{{ else }}——{{ end }} น.
-    </div>
-    <div class="doc-date">ณ ห้องประชุม {{ model.location }}</div>
+  <div class="bank-logo"><img src="logo-lh-bank.svg" alt="LH BANK"/></div>
+  <div class="doc-title">
+    รายงานการประชุมคณะกรรมการกำหนดราคาประเมินหลักประกันและทรัพย์สิน ครั้งที่ {{ model.meeting_no }}
   </div>
+  <div class="doc-date">ลงวันที่ {{ thai.date model.minute_date }}</div>
 
-  <!-- ── Section 1: ผู้เข้าร่วมประชุม ──────────────────────────── -->
-  <div class="section-bar">รายชื่อคณะกรรมการที่เข้าร่วมประชุม</div>
-  <table class="member-table">
+  <!-- ── รายชื่อคณะกรรมการ (plain two-column list) ─────────────────── -->
+  <div class="section-head">รายชื่อคณะกรรมการ</div>
+  {{ if model.members.size > 0 }}
+  <table class="plain-list">
+    {{ for m in model.members }}
+    <tr>
+      <td>{{ m.member_name }}</td>
+      <td class="col-pos">{{ m.position_thai }}</td>
+    </tr>
+    {{ end }}
+  </table>
+  {{ else }}
+  <div class="deferred-note">— ไม่มีข้อมูล —</div>
+  {{ end }}
+
+  <!-- ── เจ้าหน้าที่นำเสนอ (FSD §2.1.9 fields 4.1–4.3) ─────────────── -->
+  <div class="section-head">เจ้าหน้าที่นำเสนอ</div>
+  {{ if model.presenters.size > 0 }}
+  <table class="presenter-list">
+    {{ for p in model.presenters }}
+    <tr>
+      <td class="pr-name">{{ p.presenter_name }}</td>
+      <td class="pr-pos">{{ p.position }}</td>
+      <td class="pr-wara">วาระที่ {{ p.agenda_refs }}</td>
+    </tr>
+    {{ end }}
+  </table>
+  {{ else }}
+  <div class="deferred-note">— ไม่มีข้อมูล —</div>
+  {{ end }}
+
+  <!-- ── Opening paragraph ──────────────────────────────────────── -->
+  <p class="intro-para">
+    เริ่มการประชุมเวลา
+    {{- if model.start_at }} {{ model.start_at | date.to_string "%H.%M" }}{{ else }} ……..{{ end -}}
+    –
+    {{- if model.end_at }}{{ model.end_at | date.to_string "%H.%M" }} {{ else }}…….. {{ end -}}
+    น. ณ ห้องประชุม {{ model.location }} โดยที่ประชุมพิจารณาเรื่องต่าง ๆ ตามระเบียบวาระ ดังนี้
+  </p>
+
+  <!-- ── Agenda groups ─────────────────────────────────────────── -->
+  {{ for ag in model.agendas }}
+    {{ if ag.number >= 3 && ag.number <= 8 }}
+    <!-- Decision agenda → bordered table (always shown, even with no items) -->
+    <div class="agenda-block">
+      <div class="wara-title">
+        วาระที่ {{ ag.number }} {{ ag.title }}
+        {{- if ag.count_text }} <span class="count-text">{{ ag.count_text }}</span>{{ end -}}
+      </div>
+      <table class="agenda-table">
+        <thead>
+          <tr>
+            <th>รายการ</th>
+            <th>{{ if ag.number == 6 }}อนุมัติ/ไม่อนุมัติ{{ else }}อนุมัติราคาประเมิน (ตามเอกสารแนบ){{ end }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ for item in ag.items }}
+          <tr>
+            <td class="col-item">{{ for.index + 1 }}. {{ item.customer_name }}</td>
+            <td class="col-value">
+              {{- if ag.number == 6 -}}
+              <div class="val-cell"><span>ราคาประเมิน</span><span>รายละเอียดดูตาม สรุปราคา</span></div>
+              {{- else if item.value_text -}}
+              <div class="val-cell"><span>ราคาประเมิน</span><span>{{ item.value_text }}{{ if item.value_text != "ไม่รับรองราคา" }} บาท{{ end }}</span></div>
+              {{- end -}}
+            </td>
+          </tr>
+          {{ end }}
+          {{ if ag.items.size == 0 }}
+          <tr><td class="col-item">&nbsp;</td><td class="col-value">&nbsp;</td></tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+    {{ else }}
+    <!-- Text-only agenda (วาระ 1/2/9) -->
+    <div class="agenda-text">
+      <div class="wara-title">วาระที่ {{ ag.number }} {{ ag.title }}</div>
+      {{- if ag.body_text }}<div class="body-text">{{ ag.body_text }}</div>{{ end -}}
+    </div>
+    {{ end }}
+  {{ end }}
+
+  <!-- ── Sign-off 3-column table ───────────────────────────────── -->
+  <div class="signoff-header">
+    คณะกรรมการรับรองรายงานการประชุมครั้งที่ {{ model.meeting_no }} วันที่ {{ thai.date model.minute_date }}
+  </div>
+  <table class="signoff-table">
     <thead>
       <tr>
-        <th style="width:32px;">ลำดับ</th>
-        <th>ชื่อ-สกุล</th>
-        <th style="width:200px;">ตำแหน่ง</th>
+        <th class="col-sign">ลงนาม</th>
+        <th class="col-name">รายชื่อคณะกรรมการ</th>
+        <th class="col-opinion">ความเห็นเพิ่มเติม</th>
       </tr>
     </thead>
     <tbody>
-      {{ for m in model.members }}
-      <tr>
-        <td style="text-align:center;">{{ for.index + 1 }}</td>
-        <td>{{ m.member_name }}</td>
-        <td>{{ m.position_thai }}</td>
-      </tr>
-      {{ end }}
-      {{ if model.members.size == 0 }}
-      <tr><td colspan="3" style="text-align:center;color:#999;font-style:italic;">— ไม่มีข้อมูล —</td></tr>
+      {{ if model.committee_opinions.size > 0 }}
+        {{ for op in model.committee_opinions }}
+        <tr>
+          <td class="col-sign"></td>
+          <td class="col-name">{{ op.member_name }}<br/><span class="role">{{ op.position_thai }}</span></td>
+          <td class="col-opinion">{{ if op.opinion }}{{ op.opinion }}{{ else }}ไม่มีความเห็นเพิ่มเติม{{ end }}</td>
+        </tr>
+        {{ end }}
+      {{ else }}
+        {{ for m in model.members }}
+        <tr>
+          <td class="col-sign"></td>
+          <td class="col-name">{{ m.member_name }}<br/><span class="role">{{ m.position_thai }}</span></td>
+          <td class="col-opinion">ไม่มีความเห็นเพิ่มเติม</td>
+        </tr>
+        {{ end }}
       {{ end }}
     </tbody>
   </table>
-
-  <!-- ── Section 2: เจ้าหน้าที่นำเสนอ (DEFERRED) ─────────────── -->
-  <div class="section-bar">เจ้าหน้าที่นำเสนอ</div>
-  <div class="presenter-note">
-    [ส่วนนี้อยู่ระหว่างการพัฒนา — การแมปเจ้าหน้าที่นำเสนอกับแต่ละวาระยังไม่มีข้อมูลในระบบ]
-  </div>
-
-  <!-- ── Section 3: ระเบียบวาระการประชุม ──────────────────────── -->
-  <div class="section-bar">ระเบียบวาระการประชุมและมติที่ประชุม</div>
-
-  {{ for ag in model.agendas }}
-  <div class="agenda-group">
-    <div class="wara-title">
-      วาระที่ {{ ag.number }} {{ ag.title }}
-      {{- if ag.count_text }}  <span class="count-text">({{ ag.count_text }})</span>{{ end -}}
-    </div>
-    {{- if ag.body_text }}
-    <div class="body-text">{{ ag.body_text }}</div>
-    {{- end -}}
-    {{- if ag.items.size > 0 }}
-    <div class="agenda-items">
-      {{ for item in ag.items }}
-      <div class="item-row">
-        <span class="item-seq">{{ for.index + 1 }}.</span>
-        <span class="item-customer">{{ item.customer_name }}</span>
-        {{- if item.value_text }}
-        <span class="item-value">
-          <span class="item-value-label">ราคาประเมิน</span>
-          {{ item.value_text }}
-          {{- if item.value_text != "ไม่รับรองราคา" }} บาท{{ end -}}
-        </span>
-        {{- end -}}
-      </div>
-      {{ end }}
-    </div>
-    {{- end }}
-  </div>
-  {{ end }}
-
-  {{ if model.agendas.size == 0 }}
-  <p style="color:#999;font-style:italic;margin:8px 0;">(ไม่มีวาระการประชุม)</p>
-  {{ end }}
-
-  <!-- ── Section 4: ความเห็นและลายมือชื่อคณะกรรมการ ─────────── -->
-  <div class="section-bar">ความเห็นและลายมือชื่อคณะกรรมการ</div>
-
-  {{ if model.committee_opinions.size > 0 }}
-  <div class="opinion-grid">
-    {{ for op in model.committee_opinions }}
-    <div class="opinion-cell">
-      <div class="oc-name">{{ op.member_name }}</div>
-      <div class="oc-pos">{{ op.position_thai }}</div>
-      {{- if op.vote_label }}
-      <div class="oc-vote-label">มติ: {{ op.vote_label }}</div>
-      {{- end -}}
-      {{- if op.opinion }}
-      <div class="oc-opinion">{{ op.opinion }}</div>
-      {{- end }}
-      <div class="sig-line"></div>
-      <div class="sig-label">({{ op.member_name }})</div>
-    </div>
-    {{ end }}
-  </div>
-  {{ else }}
-  <p style="color:#999;font-style:italic;margin:8px 0;">(ยังไม่มีการบันทึกมติคณะกรรมการ)</p>
-  {{ end }}
 
 </div>
 </body>

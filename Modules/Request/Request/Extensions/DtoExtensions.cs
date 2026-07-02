@@ -220,6 +220,8 @@ public static class DtoExtensions
                 {
                     TitleNumber = leaseLand.TitleDeedInfo?.TitleNumber,
                     TitleType = leaseLand.TitleDeedInfo?.TitleType,
+                    BookNumber = leaseLand.LandLocationInfo?.BookNumber,
+                    PageNumber = leaseLand.LandLocationInfo?.PageNumber,
                     LandParcelNumber = leaseLand.LandLocationInfo?.LandParcelNumber,
                     SurveyNumber = leaseLand.LandLocationInfo?.SurveyNumber,
                     Rawang = leaseLand.LandLocationInfo?.Rawang,
@@ -241,6 +243,8 @@ public static class DtoExtensions
                 {
                     TitleNumber = leaseLandBuilding.TitleDeedInfo?.TitleNumber,
                     TitleType = leaseLandBuilding.TitleDeedInfo?.TitleType,
+                    BookNumber = leaseLandBuilding.LandLocationInfo?.BookNumber,
+                    PageNumber = leaseLandBuilding.LandLocationInfo?.PageNumber,
                     LandParcelNumber = leaseLandBuilding.LandLocationInfo?.LandParcelNumber,
                     SurveyNumber = leaseLandBuilding.LandLocationInfo?.SurveyNumber,
                     Rawang = leaseLandBuilding.LandLocationInfo?.Rawang,
@@ -376,23 +380,6 @@ public static class DtoExtensions
             dto.DeletedBy
         );
     }
-
-    public static Requestor ToDomain(this RequestorDto dto)
-    {
-        return Requestor.Create(
-            dto.RequestorEmpId,
-            dto.RequestorName,
-            dto.RequestorEmail,
-            dto.RequestorContactNo,
-            dto.RequestorAo,
-            dto.RequestorBranch,
-            dto.RequestorBusinessUnit,
-            dto.RequestorDepartment,
-            dto.RequestorSection,
-            dto.RequestorCostCenter
-        );
-    }
-
 
     public static Appointment ToDomain(this AppointmentDto? dto)
     {

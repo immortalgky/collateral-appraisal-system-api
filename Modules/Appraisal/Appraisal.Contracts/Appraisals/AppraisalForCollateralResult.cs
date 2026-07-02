@@ -126,7 +126,7 @@ public record AppraisalPropertyForCollateral(
     decimal? AppraisedValue,
     // --- Pricing values from the selected cost-approach method (null when non-cost) ---
     // PricingInfo is set at the group level; every property in the group carries the same object.
-    // The upsert service decides which fields to stamp per-master (UnitPrice on all; BuildingCost +
+    // The upsert service decides which fields to stamp per-master (UnitPrice on all; BuildingValue +
     // AppraisalValue on IsMaster only).
     PricingInfoForCollateral? PricingInfo,
     // --- Land / LB fields ---
@@ -145,20 +145,20 @@ public record AppraisalPropertyForCollateral(
 
 /// <summary>
 /// Pricing values derived from the selected approach's method FinalValue for a property group.
-/// Populated when a cost-approach method exists and is selected (HasBuildingCost = true on
+/// Populated when a cost-approach method exists and is selected (HasBuildingValue = true on
 /// PricingFinalValue). NULL when non-cost approach or no pricing analysis present.
 ///
 /// Field mappings from PricingAnalysisMethod / PricingFinalValue:
 ///   UnitPrice     ← PricingFinalValue.FinalValueAdjusted  (the adjusted unit price per sq.wa)
-///   BuildingCost  ← PricingFinalValue.BuildingCost         (building cost component, cost approach)
+///   BuildingValue ← PricingFinalValue.BuildingValue        (building value component, cost approach)
 ///   AppraisalValue ← PricingFinalValue.AppraisalPrice      (user-edited final total)
 ///                    fallback: FinalValueAdjusted → FinalValueRounded
 /// </summary>
 public record PricingInfoForCollateral(
     bool IsCostApproach,
-    decimal? UnitPrice,        // PricingFinalValue.FinalValueAdjusted (cost approach only)
-    decimal? BuildingCost,     // PricingFinalValue.BuildingCost (cost approach only)
-    decimal? AppraisalValue    // PricingFinalValue.AppraisalPrice (all approaches)
+    decimal? UnitPrice,         // PricingFinalValue.FinalValueAdjusted (cost approach only)
+    decimal? BuildingValue,     // PricingFinalValue.BuildingValue (cost approach only)
+    decimal? AppraisalValue     // PricingFinalValue.AppraisalPrice (all approaches)
 );
 
 /// <summary>
@@ -190,14 +190,19 @@ public record LandIdentityForCollateral(
 public record LandTitleForCollateral(
     Guid TitleId,
     string TitleNumber,       // LandTitle.TitleNumber
-    string TitleType          // LandTitle.TitleType (free-text — NOT a canonical enum)
+    string TitleType,         // LandTitle.TitleType (free-text — NOT a canonical enum)
+    // Dedup-key fields (per-title): part of the Land/LB dedup key alongside
+    // Province/District/SubDistrict/TitleType/TitleNumber on the parent identity.
+    string? SurveyNumber,     // LandTitle.SurveyNumber (หน้าสำรวจ)
+    string? LandParcelNumber, // LandTitle.LandParcelNumber (เลขที่ดิน)
+    string? Rawang            // LandTitle.Rawang (ระวาง — map-sheet number)
 );
 
 /// <summary>
 /// Condo-specific identity fields for collateral dedup, plus last-known populate fields.
-/// All required dedup fields are present: LandOffice (treated as LandOfficeCode),
-/// CondoRegistrationNumber, BuildingNumber, FloorNumber, RoomNumber (UnitNumber),
-/// TitleNumber (the underlying land title — BuiltOnTitleNumber) and TitleType (always DEED).
+/// Dedup key is CondoRegistrationNumber + BuildingNumber + FloorNumber + RoomNumber
+/// + Province + District + SubDistrict (the geographic disambiguator).
+/// LandOffice is carried as a descriptive field only (not part of the key).
 /// </summary>
 public record CondoIdentityForCollateral(
     // Dedup fields
@@ -206,9 +211,9 @@ public record CondoIdentityForCollateral(
     string? FloorNumber,             // CondoAppraisalDetail.FloorNumber
     string? RoomNumber,              // CondoAppraisalDetail.RoomNumber (= UnitNumber in spec)
     string? Province,                // CondoAppraisalDetail.Address?.Province
+    string? District,                // CondoAppraisalDetail.Address?.District
+    string? SubDistrict,             // CondoAppraisalDetail.Address?.SubDistrict
     string? LandOffice,              // CondoAppraisalDetail.Address?.LandOffice (= LandOfficeCode)
-    string? TitleNumber,             // CondoAppraisalDetail.BuiltOnTitleNumber (underlying land title)
-    string? TitleType,               // Constant "DEED" — condo collateral title type is always DEED
     // Last-known populate fields (Phase C)
     string? OwnerName,               // CondoAppraisalDetail.OwnerName
     string? CondoName,               // CondoAppraisalDetail.CondoName
@@ -260,11 +265,15 @@ public record MachineryIdentityForCollateral(
 /// BuiltOnTitleNumber links this building to the Land property group.
 /// BuildingTypeCode is from BuildingAppraisalDetail.BuildingType (parameter group "BuildingType").
 /// BuildingArea is from BuildingAppraisalDetail.TotalBuildingArea (sq.m).
+/// BuildingAge is from BuildingAppraisalDetail.BuildingAge (years); used by the regulatory export.
+/// NumberOfFloors is from BuildingAppraisalDetail.NumberOfFloors; used by the regulatory export.
 /// </summary>
 public record BuildingIdentityForCollateral(
     string? BuiltOnTitleNumber, // BuildingAppraisalDetail.BuiltOnTitleNumber
     string? BuildingTypeCode,   // BuildingAppraisalDetail.BuildingType (parameter code)
-    decimal? BuildingArea       // BuildingAppraisalDetail.TotalBuildingArea (sq.m)
+    decimal? BuildingArea,      // BuildingAppraisalDetail.TotalBuildingArea (sq.m)
+    int? BuildingAge,           // BuildingAppraisalDetail.BuildingAge (years)
+    decimal? NumberOfFloors     // BuildingAppraisalDetail.NumberOfFloors
 );
 
 /// <summary>

@@ -112,24 +112,55 @@ public class DatabaseMigrator
     private async Task ExecuteRepeatableScripts(string connectionString, string environment)
     {
         var assembly = typeof(DatabaseMigrator).Assembly;
-        var repeatableScripts = assembly.GetManifestResourceNames()
+        var pending = assembly.GetManifestResourceNames()
             .Where(name => IsRepeatableScript(name) && FilterScriptsByEnvironment(name, environment))
-            .OrderBy(name => name);
+            .OrderBy(name => name)
+            .ToList();
 
-        foreach (var scriptName in repeatableScripts)
+        // Views may reference other views, and alphabetical order does not guarantee a dependency
+        // is created before its dependents (e.g. vw_CompanyOverview / vw_MonitoringPendingApprovals
+        // both reference vw_MonitoringPendingTasks, which sorts later). On a fresh database the
+        // dependent fails CREATE VIEW with SQL error 208 ("Invalid object name"). Defer those and
+        // retry in later passes until a pass makes no progress; a still-failing script after a
+        // no-progress pass is a genuine error and is surfaced.
+        while (pending.Count > 0)
         {
-            var scriptContent = GetEmbeddedScript(assembly, scriptName);
-            var currentChecksum = CalculateChecksum(scriptContent);
+            var deferred = new List<string>();
+            Exception? lastError = null;
+            var progressed = false;
 
-            if (await ShouldExecuteRepeatableScript(connectionString, scriptName, currentChecksum))
+            foreach (var scriptName in pending)
             {
-                _logger.LogInformation("Executing repeatable script: {ScriptName}", scriptName);
-                await ExecuteScript(connectionString, scriptName, scriptContent, currentChecksum);
+                var scriptContent = GetEmbeddedScript(assembly, scriptName);
+                var currentChecksum = CalculateChecksum(scriptContent);
+
+                if (!await ShouldExecuteRepeatableScript(connectionString, scriptName, currentChecksum))
+                {
+                    _logger.LogDebug("Skipping unchanged repeatable script: {ScriptName}", scriptName);
+                    continue;
+                }
+
+                try
+                {
+                    _logger.LogInformation("Executing repeatable script: {ScriptName}", scriptName);
+                    await ExecuteScript(connectionString, scriptName, scriptContent, currentChecksum);
+                    progressed = true;
+                }
+                catch (SqlException ex) when (ex.Number == 208) // Invalid object name — dependency not yet created
+                {
+                    _logger.LogWarning(
+                        "Deferring repeatable script (missing dependency): {ScriptName} — {Message}",
+                        scriptName, ex.Message);
+                    deferred.Add(scriptName);
+                    lastError = ex;
+                }
             }
-            else
-            {
-                _logger.LogDebug("Skipping unchanged repeatable script: {ScriptName}", scriptName);
-            }
+
+            if (deferred.Count == 0)
+                break; // all scripts executed (or skipped as unchanged)
+            if (!progressed)
+                throw lastError!; // no dependency was created this pass → unresolved dependency
+            pending = deferred;
         }
     }
 

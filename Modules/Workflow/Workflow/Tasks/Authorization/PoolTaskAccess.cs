@@ -57,6 +57,21 @@ public static class PoolTaskAccess
         return new PoolTaskAccessClause(sql, inParams);
     }
 
+    /// <summary>Resolves the access arguments for <c>workflow.sp_GetTaskList</c>: the candidate
+    /// assignee set (username + groups + group:Team_ combos) and the company-gate selector
+    /// (1 = caller has a company → NULL-or-match; 2 = internal caller → NULL-only). Returns an
+    /// empty candidate set when the caller has nothing to match — caller should short-circuit.</summary>
+    public static (IReadOnlyCollection<string> Assignees, int CompanyGate) BuildProcAccess(
+        IReadOnlyList<string> userGroups,
+        string? userTeamId,
+        Guid? callerCompanyId,
+        string? username = null)
+    {
+        var candidates = BuildCandidateSet(userGroups, userTeamId, username);
+        var gate = callerCompanyId.HasValue ? 1 : 2;
+        return (candidates, gate);
+    }
+
     /// <summary>In-memory ownership check for a single hydrated row (used by GetTaskById and
     /// QuotationTaskOwnershipService).
     ///

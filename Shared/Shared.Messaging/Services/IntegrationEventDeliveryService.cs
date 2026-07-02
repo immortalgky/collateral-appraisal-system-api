@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Shared.Configurations;
 using Shared.Data.Outbox;
 using Shared.Time;
 
@@ -12,13 +14,14 @@ namespace Shared.Messaging.Services;
 public class IntegrationEventDeliveryService<TDbContext>(
     IServiceScopeFactory scopeFactory,
     ILogger<IntegrationEventDeliveryService<TDbContext>> logger,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    IOptions<BackgroundJobsOptions> options)
     : BackgroundService where TDbContext : DbContext
 {
-    private const int BatchSize = 50;
-    private const int MaxRetries = 5;
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan LeaseDuration = TimeSpan.FromSeconds(30);
+    private readonly int _batchSize = options.Value.OutboxDelivery.BatchSize;
+    private readonly int _maxRetries = options.Value.OutboxDelivery.MaxRetries;
+    private readonly TimeSpan _pollInterval = options.Value.OutboxDelivery.PollInterval;
+    private readonly TimeSpan _leaseDuration = options.Value.OutboxDelivery.LeaseDuration;
 
     private const string AllowedNamespace = "Shared.Messaging.Events";
 
@@ -43,7 +46,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
 
                 if (!await TryAcquireLeaseAsync(dbContext, stoppingToken))
                 {
-                    await Task.Delay(PollInterval, stoppingToken);
+                    await Task.Delay(_pollInterval, stoppingToken);
                     continue;
                 }
 
@@ -51,7 +54,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
                 var processedCount = await ProcessBatchAsync(dbContext, bus, stoppingToken);
 
                 if (processedCount == 0)
-                    await Task.Delay(PollInterval, stoppingToken);
+                    await Task.Delay(_pollInterval, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -60,7 +63,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
             catch (Exception ex)
             {
                 logger.LogError(ex, "[OUTBOX] Error in delivery service for {DbContext}", _lockId);
-                await Task.Delay(PollInterval, stoppingToken);
+                await Task.Delay(_pollInterval, stoppingToken);
             }
 
         // Graceful shutdown: release the lease
@@ -81,7 +84,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
     private async Task<bool> TryAcquireLeaseAsync(TDbContext dbContext, CancellationToken ct)
     {
         var now = dateTimeProvider.ApplicationNow;
-        var leasedUntil = now.Add(LeaseDuration);
+        var leasedUntil = now.Add(_leaseDuration);
         var schema = dbContext.Model.GetDefaultSchema() ?? "dbo";
 
         // Try to renew existing lease or claim an expired one
@@ -130,7 +133,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
             .Where(m => m.Status == OutboxMessageStatus.Pending)
             .OrderBy(m => m.OccurredAt)
             .ThenBy(m => m.Id)
-            .Take(BatchSize)
+            .Take(_batchSize)
             .ToListAsync(stoppingToken);
 
         if (messages.Count == 0)
@@ -157,7 +160,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
                 {
                     logger.LogError("[OUTBOX] Disallowed or unresolvable type {EventType} for message {MessageId}",
                         message.EventType, message.Id);
-                    message.IncrementRetryCount($"Disallowed type: {message.EventType}", MaxRetries);
+                    message.IncrementRetryCount($"Disallowed type: {message.EventType}", _maxRetries);
                     continue;
                 }
 
@@ -165,7 +168,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
                 if (eventObject == null)
                 {
                     logger.LogError("[OUTBOX] Failed to deserialize message {MessageId}", message.Id);
-                    message.IncrementRetryCount("Deserialization returned null", MaxRetries);
+                    message.IncrementRetryCount("Deserialization returned null", _maxRetries);
                     continue;
                 }
 
@@ -178,7 +181,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
                 logger.LogWarning(ex, "[OUTBOX] Failed to deliver message {MessageId} (retry {RetryCount})",
                     message.Id, message.RetryCount + 1);
 
-                message.IncrementRetryCount(ex.Message, MaxRetries);
+                message.IncrementRetryCount(ex.Message, _maxRetries);
 
                 // Stop processing this correlation group, continue others
                 break;

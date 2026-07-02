@@ -11,6 +11,7 @@ using Workflow.Workflow.Engine.Expression;
 using Workflow.Workflow.Events;
 using Workflow.Workflow.Models;
 using Workflow.Workflow.Schema;
+using Workflow.Sla.Services;
 
 namespace Workflow.Workflow.Activities;
 
@@ -23,6 +24,7 @@ public class ApprovalActivity : WorkflowActivityBase
     private readonly ICommitteeRepository _committeeRepository;
     private readonly ExpressionEvaluator _expressionEvaluator;
     private readonly IDateTimeProvider _dateTimeProvider;
+    private readonly ISlaCalculator _slaCalculator;
     private readonly ILogger<ApprovalActivity> _logger;
 
     public ApprovalActivity(
@@ -32,6 +34,7 @@ public class ApprovalActivity : WorkflowActivityBase
         IIntegrationEventOutbox outbox,
         ICommitteeRepository committeeRepository,
         IDateTimeProvider dateTimeProvider,
+        ISlaCalculator slaCalculator,
         ILogger<ApprovalActivity> logger)
     {
         _memberResolver = memberResolver;
@@ -40,6 +43,7 @@ public class ApprovalActivity : WorkflowActivityBase
         _outbox = outbox;
         _committeeRepository = committeeRepository;
         _dateTimeProvider = dateTimeProvider;
+        _slaCalculator = slaCalculator;
         _expressionEvaluator = new ExpressionEvaluator();
         _logger = logger;
     }
@@ -106,18 +110,63 @@ public class ApprovalActivity : WorkflowActivityBase
                 ["activityName"] = activityName
             };
 
-            // Calculate SLA from timeout property
-            DateTime? dueAt = null;
+            // Calculate the SLA deadline via the business-time SLA calculator — the same path
+            // TaskActivity uses — so approval activities (a) count in BUSINESS hours (excl.
+            // weekends/holidays/lunch) and (b) honour the SlaPolicy config (per-activity OLA,
+            // group windows, wildcards) from the OLA/SLA Targets screen, instead of a naive calendar
+            // `now + timeout`. The workflow JSON `timeoutDuration` is the fallback default when no
+            // policy matches. (Previously: now.Add(PT72H) stamped a 72-CALENDAR-hour deadline, which
+            // the business-hours task list then rendered as ~24h remaining.)
+            TimeSpan? defaultTimeout = null;
             var timeoutDuration = GetProperty<string>(context, "timeoutDuration");
             if (!string.IsNullOrEmpty(timeoutDuration))
             {
-                try
-                {
-                    var timeout = System.Xml.XmlConvert.ToTimeSpan(timeoutDuration);
-                    dueAt = _dateTimeProvider.ApplicationNow.Add(timeout);
-                }
-                catch { /* ignore invalid format */ }
+                try { defaultTimeout = System.Xml.XmlConvert.ToTimeSpan(timeoutDuration); }
+                catch { /* invalid format — fall back to SLA config policies */ }
             }
+
+            var companyId = context.WorkflowInstance.Variables.TryGetValue("assignedCompanyId", out var cid)
+                            && Guid.TryParse(cid?.ToString(), out var parsedCid)
+                ? parsedCid : (Guid?)null;
+            // SLA "loan type" axis carries banking-segment values; appraisalType scopes per-type policies.
+            var loanType = context.WorkflowInstance.Variables.TryGetValue("bankingSegment", out var seg)
+                           && !string.IsNullOrWhiteSpace(seg?.ToString())
+                ? seg!.ToString() : null;
+            var appraisalType = context.WorkflowInstance.Variables.TryGetValue("appraisalType", out var at)
+                ? at?.ToString() : null;
+            var slaCorrelationId = !string.IsNullOrEmpty(context.WorkflowInstance.CorrelationId)
+                && Guid.TryParse(context.WorkflowInstance.CorrelationId, out var parsedCorr)
+                ? parsedCorr : (Guid?)null;
+
+            var deadline = await _slaCalculator.CalculateActivityDueAtAsync(
+                context.ActivityId,
+                context.WorkflowInstance.WorkflowDefinitionId,
+                companyId,
+                loanType,
+                appraisalType,
+                _dateTimeProvider.ApplicationNow,
+                defaultTimeout,
+                context.WorkflowInstance.WorkflowDueAt,
+                correlationId: slaCorrelationId,
+                appointmentDate: null,   // approval activities are assignment-anchored (never appointment-anchored)
+                cancellationToken);
+            DateTime? dueAt = deadline.DueAt;
+
+            // Parity with TaskActivity: if a group window governs this activity, use the shared window
+            // deadline. Approval activities aren't window members in the default seed (→ null here), but
+            // this keeps them config-driven if a window is ever defined to span them.
+            var governing = await _slaCalculator.ResolveGoverningStageDueAtAsync(
+                context.ActivityId,
+                context.WorkflowInstance.WorkflowDefinitionId,
+                companyId,
+                loanType,
+                appraisalType,
+                _dateTimeProvider.ApplicationNow,
+                correlationId: slaCorrelationId,
+                appointmentDate: null,
+                cancellationToken);
+            if (governing is not null)
+                dueAt = governing.DueAt;
 
             // Use CorrelationId if available
             var correlationGuid = !string.IsNullOrEmpty(context.WorkflowInstance.CorrelationId)

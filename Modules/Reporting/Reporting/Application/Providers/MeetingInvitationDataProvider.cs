@@ -71,17 +71,20 @@ public sealed class MeetingInvitationDataProvider(
                 mi.AppraisalId,
                 mi.Kind,
                 a.AppraisalType,
+                mi.AcknowledgementGroup,
                 mi.FacilityLimit,
                 c.Name AS CustomerName,
+                pr.ProjectName,
                 v.AppraisedValue,
                 ad.IsPriceVerified
             FROM workflow.MeetingItems mi
             INNER JOIN appraisal.Appraisals a ON a.Id = mi.AppraisalId
             OUTER APPLY (
-                SELECT TOP 1 Name
-                FROM request.RequestCustomers
-                WHERE RequestId = a.RequestId
+                SELECT STRING_AGG(rc.Name, '||') AS Name
+                FROM request.RequestCustomers rc
+                WHERE rc.RequestId = a.RequestId
             ) c
+            LEFT JOIN appraisal.Projects pr ON pr.AppraisalId = a.Id
             LEFT JOIN appraisal.ValuationAnalyses v ON v.AppraisalId = a.Id
             LEFT JOIN appraisal.AppraisalDecisions ad ON ad.AppraisalId = a.Id
             WHERE mi.MeetingId = @MeetingId
@@ -148,12 +151,6 @@ public sealed class MeetingInvitationDataProvider(
     {
         "Chairman"  => "ประธาน",
         "Secretary" => "เลขานุการฯ",
-        "Director"  => "กรรมการ",
-        "UW"        => "กรรมการ (UW)",
-        "Risk"      => "กรรมการ (Risk)",
-        "Appraisal" => "กรรมการ (Appraisal)",
-        "Credit"    => "กรรมการ (Credit)",
-        "Member"    => "กรรมการ",
         _           => "กรรมการ"
     };
 

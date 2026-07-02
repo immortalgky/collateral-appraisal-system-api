@@ -1,3 +1,4 @@
+using Reporting.Application.Formatting;
 using Reporting.Application.Models;
 using System.Data;
 
@@ -34,7 +35,34 @@ namespace Reporting.Application.Providers;
 /// </summary>
 internal static class AppraisalSummaryCommonLoader
 {
-    private const decimal Group3FacilityThreshold = 30_000_000m;
+    /// <summary>
+    /// Maps a set of pricing APPROACH types (Market / Cost / Income / Residual) to the four
+    /// วิธีการประเมิน checkboxes. Callers pass the approaches of the groups a report actually shows.
+    /// Flag names are kept for template compatibility: IsWqs→Market, IsHypothesis→Residual.
+    /// </summary>
+    public static MethodFlags BuildMethodFlags(IEnumerable<string> approachTypes)
+    {
+        var s = approachTypes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return new MethodFlags(
+            IsWqs: s.Contains("Market"),       // Market Comparison Approach
+            IsSaleGrid: false,
+            IsCost: s.Contains("Cost"),        // Cost Approach
+            IsIncome: s.Contains("Income"),    // Income Approach
+            IsHypothesis: s.Contains("Residual"), // Residual Approach
+            IsLeasehold: false,
+            IsProfitRent: false);
+    }
+
+    /// <summary>Union of pricing method types across the given group ids.</summary>
+    public static MethodFlags FlagsForGroups(
+        IReadOnlyDictionary<Guid, IReadOnlySet<string>> groupMethodTypes,
+        IEnumerable<Guid> groupIds)
+    {
+        var types = groupIds
+            .SelectMany(id => groupMethodTypes.TryGetValue(id, out var t) ? t : Enumerable.Empty<string>())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return BuildMethodFlags(types);
+    }
 
     /// <summary>
     /// Loads all common appraisal-summary data for the given <paramref name="appraisalId"/>.
@@ -54,9 +82,31 @@ internal static class AppraisalSummaryCommonLoader
                 a.AppraisalNumber,
                 a.RequestId,
                 a.AppraisalType,
-                a.Purpose          AS AppraisalPurpose,
-                a.FacilityLimit
+                a.Status           AS AppraisalStatus,
+                a.Purpose          AS PurposeCode,
+                COALESCE(pPurpose.[description], a.Purpose) AS AppraisalPurpose,
+                a.FacilityLimit,
+                rd.AdditionalFacilityLimit,
+                rd.PreviousFacilityLimit,
+                -- Collateral address (ที่ตั้งทรัพย์สิน) from the Request detail, same as land-building
+                rd.HouseNumber,
+                rd.ProjectName,
+                rd.Moo,
+                rd.Soi,
+                rd.Road,
+                COALESCE(tsub.NameTh,  rd.SubDistrict) AS ReqSubDistrict,
+                COALESCE(tdist.NameTh, rd.District)    AS ReqDistrict,
+                COALESCE(tprov.NameTh, rd.Province)    AS ReqProvince
             FROM appraisal.Appraisals a
+            LEFT JOIN parameter.Parameters pPurpose
+                ON pPurpose.[group]    = 'AppraisalPurpose'
+               AND pPurpose.[language] = 'TH'
+               AND pPurpose.[isactive] = 1
+               AND pPurpose.[code]     = a.Purpose
+            LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
+            LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = rd.Province
+            LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = rd.District
+            LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = rd.SubDistrict
             WHERE a.Id = @AppraisalId
               AND a.IsDeleted = 0;
 
@@ -95,15 +145,14 @@ internal static class AppraisalSummaryCommonLoader
             FROM appraisal.ValuationAnalyses va
             WHERE va.AppraisalId = @AppraisalId;
 
-            -- RS06: Q9 — Per-group skeleton rows
+            -- RS06: Q9 — Per-group skeleton rows.
+            -- Per-group value comes from the selected PricingAnalysis → Approach → Method →
+            -- PricingFinalValue (GroupValuations is not populated by the live flow).
             SELECT
                 pg.Id                AS GroupId,
                 pg.GroupNumber,
                 pg.GroupName,
-                gv.AppraisedValue    AS GroupAppraisalValue,
-                gv.ForcedSaleValue   AS GroupForcedSaleValue,
-                gv.ValuePerUnit,
-                gv.UnitType,
+                COALESCE(pa.FinalAppraisedValue, pfv.FinalValueRounded, pfv.AppraisalPrice) AS GroupAppraisalValue,
                 (SELECT TOP 1 ap.PropertyType
                  FROM appraisal.PropertyGroupItems gi2
                  JOIN appraisal.AppraisalProperties ap ON ap.Id = gi2.AppraisalPropertyId
@@ -113,21 +162,28 @@ internal static class AppraisalSummaryCommonLoader
                  FROM appraisal.PropertyGroupItems gi3
                  WHERE gi3.PropertyGroupId = pg.Id) AS PropertyCount
             FROM appraisal.PropertyGroups pg
-            LEFT JOIN appraisal.ValuationAnalyses vab ON vab.AppraisalId = pg.AppraisalId
-            LEFT JOIN appraisal.GroupValuations gv
-                ON gv.PropertyGroupId = pg.Id
-               AND gv.ValuationAnalysisId = vab.Id
+            LEFT JOIN appraisal.PricingAnalysis pa
+                ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
+            OUTER APPLY (
+                SELECT TOP 1 fv.FinalValueRounded, fv.AppraisalPrice
+                FROM appraisal.PricingAnalysisApproaches pap
+                JOIN appraisal.PricingAnalysisMethods pm
+                    ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
+                JOIN appraisal.PricingFinalValues fv
+                    ON fv.PricingMethodId = pm.Id
+                WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
+            ) pfv
             WHERE pg.AppraisalId = @AppraisalId
             ORDER BY pg.GroupNumber;
 
-            -- RS07: Q10 — Pricing method flags
-            SELECT DISTINCT pam.MethodType
-            FROM appraisal.PricingAnalysisMethods pam
-            JOIN appraisal.PricingAnalysisApproaches paa ON paa.Id = pam.ApproachId
+            -- RS07: Q10 — Selected pricing APPROACH per group (drives the วิธีการประเมิน checkboxes)
+            SELECT DISTINCT pg.Id AS GroupId, paa.ApproachType AS MethodType
+            FROM appraisal.PricingAnalysisApproaches paa
             JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId
             JOIN appraisal.PropertyGroups pg ON pg.Id = pa.AnchorId
             WHERE pg.AppraisalId = @AppraisalId
-              AND pa.SubjectType = 0;
+              AND pa.SubjectType = 0
+              AND paa.IsSelected = 1;
 
             -- RS08: Q11 — Appraisal decision
             SELECT
@@ -169,6 +225,7 @@ internal static class AppraisalSummaryCommonLoader
                 FROM appraisal.Appraisals a4
                 WHERE a4.Id = @AppraisalId AND a4.IsDeleted = 0)
               AND ct.ActivityId IN (
+                  'int-appraisal-execution',
                   'int-appraisal-check',
                   'int-appraisal-verification',
                   'appraisal-book-verification')
@@ -189,7 +246,7 @@ internal static class AppraisalSummaryCommonLoader
         AssignmentRow? assignment;
         ValuationRow? valuation;
         List<GroupRow> groupRows;
-        HashSet<string> methodTypes;
+        List<GroupMethodRow> groupMethodRows;
         DecisionRow? decision;
         ReviewRow? review;
         RequestorRow? requestorRow;
@@ -219,7 +276,7 @@ internal static class AppraisalSummaryCommonLoader
             groupRows = (await multi.ReadAsync<GroupRow>()).ToList();
 
             // RS07
-            methodTypes = (await multi.ReadAsync<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            groupMethodRows = (await multi.ReadAsync<GroupMethodRow>()).ToList();
 
             // RS08
             decision = await multi.ReadFirstOrDefaultAsync<DecisionRow>();
@@ -241,97 +298,91 @@ internal static class AppraisalSummaryCommonLoader
             ? string.Join(" และ ", customerNames)
             : null;
 
-        // ── Batch 2a: C#-conditional — Q6/Q7 appraiser resolution ───────────────
-        // Only one of these two branches fires per call; no way to fold into the
-        // batch without scanning both tables unconditionally for every appraisal.
+        // Per-group pricing method types (for the วิธีการประเมิน checkboxes, scoped to the
+        // groups a given report actually shows); plus a global union for the default flags.
+        var groupMethodTypes = groupMethodRows
+            .GroupBy(r => r.GroupId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlySet<string>)g.Select(x => x.MethodType)
+                    .Where(t => !string.IsNullOrWhiteSpace(t))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase));
+        var methodTypes = groupMethodRows
+            .Select(r => r.MethodType)
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Default (appraisal-wide) flags — used by reports that show all groups (construction/block).
+        var globalFlags = BuildMethodFlags(methodTypes);
+
+        // ── Batch 2a: C#-conditional — appraiser (header) resolution ────────────
+        // The sign-off ผู้ประเมิน name is resolved later from the workflow completed task
+        // (int-appraisal-execution for internal, appraisal-book-verification for external).
+        bool isInternal = assignment is not null && string.Equals(
+            assignment.AssignmentType, "Internal", StringComparison.OrdinalIgnoreCase);
+
         string? appraiser = null;
-        string? staffName = null;
-        string? staffPosition = null;
 
         if (assignment is not null)
         {
-            bool isInternal = string.Equals(
-                assignment.AssignmentType, "Internal", StringComparison.OrdinalIgnoreCase);
-
             if (isInternal)
             {
                 appraiser = "ธนาคารแลนด์ แอนด์ เฮ้าส์ จำกัด (มหาชน)";
-
-                // Q6: Only issued when InternalAppraiserId is set.
-                if (!string.IsNullOrWhiteSpace(assignment.InternalAppraiserId))
-                {
-                    const string staffSql = """
-                        SELECT u.FirstName + ' ' + u.LastName AS FullName,
-                               u.Position
-                        FROM auth.AspNetUsers u
-                        WHERE u.UserName = @UserCode
-                        """;
-                    var staffParams = new DynamicParameters();
-                    staffParams.Add("UserCode", assignment.InternalAppraiserId);
-                    var staff = await connection.QueryFirstOrDefaultAsync<StaffRow>(staffSql, staffParams);
-                    staffName = staff?.FullName;
-                    staffPosition = staff?.Position;
-                }
             }
-            else
+            // Q7: Only issued when AssigneeCompanyId is a valid Guid.
+            else if (!string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId)
+                     && Guid.TryParse(assignment.AssigneeCompanyId, out var companyGuid))
             {
-                // Q7: Only issued when AssigneeCompanyId is a valid Guid.
-                if (!string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId)
-                    && Guid.TryParse(assignment.AssigneeCompanyId, out var companyGuid))
-                {
-                    const string companySql = """
-                        SELECT c.Name FROM auth.Companies c WHERE c.Id = @CompanyId
-                        """;
-                    var companyParams = new DynamicParameters();
-                    companyParams.Add("CompanyId", companyGuid);
-                    appraiser = await connection.QueryFirstOrDefaultAsync<string>(companySql, companyParams);
-                }
+                const string companySql = """
+                    SELECT c.Name FROM auth.Companies c WHERE c.Id = @CompanyId
+                    """;
+                var companyParams = new DynamicParameters();
+                companyParams.Add("CompanyId", companyGuid);
+                appraiser = await connection.QueryFirstOrDefaultAsync<string>(companySql, companyParams);
             }
         }
 
-        // ── Batch 2b: C#-conditional — Q12b votes ───────────────────────────────
-        // Only issued when a review row exists. Folding into Batch 1 would always
-        // scan CommitteeVotes even for appraisals with no review — wasteful and
-        // would require joining through the review to get the filter right in one pass.
-        List<ApproverRow> approvers = [];
-        bool? approverDecisionApproved = null;
+        // ── Committee / sub-committee votes from workflow.ApprovalVotes (by AppraisalId) ──
+        const string votesSql = """
+            SELECT
+                COALESCE(NULLIF(LTRIM(RTRIM(u.FirstName + ' ' + u.LastName)), ''), av.Member) AS MemberName,
+                COALESCE(NULLIF(u.Position, ''), av.MemberRole) AS Position,
+                av.Vote,
+                av.Comments   AS Comment,
+                av.Member     AS Member,
+                av.VotedAt    AS VotedAt
+            FROM workflow.ApprovalVotes av
+            LEFT JOIN auth.AspNetUsers u ON u.UserName = av.Member
+            WHERE av.AppraisalId = @AppraisalId
+            ORDER BY av.VotedAt
+            """;
+        var voteParams = new DynamicParameters();
+        voteParams.Add("AppraisalId", appraisalId);
 
-        if (review is not null)
+        // One row per member (latest vote), in case of re-approval rounds.
+        var votes = (await connection.QueryAsync<VoteRow>(votesSql, voteParams))
+            .GroupBy(v => v.Member, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderByDescending(v => v.VotedAt).First())
+            .ToList();
+
+        List<ApproverRow> approvers = votes.Select(v => new ApproverRow
         {
-            const string votesSql = """
-                SELECT
-                    cv.MemberName,
-                    cv.MemberRole  AS Position,
-                    cv.Vote,
-                    cv.Comments    AS Comment
-                FROM appraisal.CommitteeVotes cv
-                WHERE cv.ReviewId = @ReviewId
-                ORDER BY cv.MemberName
-                """;
+            Name = v.MemberName,
+            Position = v.Position,
+            Comment = v.Comment,
+            Approved = string.Equals(v.Vote, "Approve", StringComparison.OrdinalIgnoreCase)
+                ? true
+                : string.Equals(v.Vote, "Reject", StringComparison.OrdinalIgnoreCase)
+                    ? false
+                    : (bool?)null
+        }).ToList();
 
-            var voteParams = new DynamicParameters();
-            voteParams.Add("ReviewId", review.ReviewId);
+        int approveCount = votes.Count(v => string.Equals(v.Vote, "Approve", StringComparison.OrdinalIgnoreCase));
+        int rejectCount = votes.Count(v => string.Equals(v.Vote, "Reject", StringComparison.OrdinalIgnoreCase));
+        bool? approverDecisionApproved = votes.Count > 0 ? approveCount > rejectCount : null;
 
-            var votes = (await connection.QueryAsync<VoteRow>(votesSql, voteParams)).ToList();
-
-            approvers = votes.Select(v => new ApproverRow
-            {
-                Name = v.MemberName,
-                Position = v.Position,
-                Comment = v.Comment,
-                Approved = string.Equals(v.Vote, "Approve", StringComparison.OrdinalIgnoreCase)
-                    ? true
-                    : string.Equals(v.Vote, "Reject", StringComparison.OrdinalIgnoreCase)
-                        ? false
-                        : (bool?)null
-            }).ToList();
-
-            int approveCount = votes.Count(v =>
-                string.Equals(v.Vote, "Approve", StringComparison.OrdinalIgnoreCase));
-            int rejectCount = votes.Count(v =>
-                string.Equals(v.Vote, "Reject", StringComparison.OrdinalIgnoreCase));
-            approverDecisionApproved = votes.Count > 0 ? approveCount > rejectCount : null;
-        }
+        // Approval date (latest vote) for the sub-committee header; completed gates the block.
+        DateTime? approvalDate = votes.Count > 0 ? votes.Max(v => v.VotedAt) : (DateTime?)null;
+        bool isCompleted = string.Equals(header.AppraisalStatus, "Completed", StringComparison.OrdinalIgnoreCase);
 
         // ── Q13 / AO name resolution ─────────────────────────────────────────────
         // C#-conditional: issues 0–1 extra query depending on RequestorName presence.
@@ -393,11 +444,21 @@ internal static class AppraisalSummaryCommonLoader
                 g => g.OrderByDescending(r => r.CompletedAt).First(),
                 StringComparer.OrdinalIgnoreCase);
 
+        // ผู้ประเมิน (sign-off appraiser): internal = int-appraisal-execution actor,
+        // external = appraisal-book-verification actor.
+        CompletedTaskRow? staffTask;
+        if (isInternal)
+            latestByActivity.TryGetValue("int-appraisal-execution", out staffTask);
+        else
+            latestByActivity.TryGetValue("appraisal-book-verification", out staffTask);
+
+        // ผู้ตรวจสอบ / ผู้สอบทาน come only from their own activities; they stay blank
+        // until int-appraisal-check / int-appraisal-verification are actually completed.
         latestByActivity.TryGetValue("int-appraisal-check", out var checkerTask);
         latestByActivity.TryGetValue("int-appraisal-verification", out var verifyTask);
-        if (verifyTask is null)
-            latestByActivity.TryGetValue("appraisal-book-verification", out verifyTask);
 
+        string? staffName = string.IsNullOrWhiteSpace(staffTask?.FullName) ? null : staffTask.FullName!.Trim();
+        string? staffPosition = string.IsNullOrWhiteSpace(staffTask?.Position) ? null : staffTask.Position;
         string? checkerName = string.IsNullOrWhiteSpace(checkerTask?.FullName) ? null : checkerTask.FullName!.Trim();
         string? checkerPosition = string.IsNullOrWhiteSpace(checkerTask?.Position) ? null : checkerTask.Position;
         string? verifyName = string.IsNullOrWhiteSpace(verifyTask?.FullName) ? null : verifyTask.FullName!.Trim();
@@ -413,12 +474,17 @@ internal static class AppraisalSummaryCommonLoader
                 StringComparer.OrdinalIgnoreCase);
 
         // ── Derived scalars ──────────────────────────────────────────────────────
-        bool showMeeting = header.FacilityLimit > Group3FacilityThreshold && review is not null;
+        // Show the committee block only when this appraisal actually falls into a meeting.
+        bool showMeeting = review?.MeetingId is not null;
 
-        decimal? loanValue = !string.Equals(
-            header.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase)
-            ? header.FacilityLimit
-            : null;
+        // Purpose "02" = increase credit limit → existing limit (วงเงินสินเชื่อเดิม) + the
+        // loan row relabels to ขอเพิ่มวงเงิน (additional limit). Amounts from the Request detail.
+        bool isIncreaseLimit = string.Equals(header.PurposeCode, "02", StringComparison.OrdinalIgnoreCase);
+        decimal? existingLoanValue = header.PreviousFacilityLimit;
+
+        decimal? loanValue = isIncreaseLimit
+            ? header.AdditionalFacilityLimit
+            : header.FacilityLimit;
 
         decimal? totalAppraisalValue = valuation?.AppraisedValue
             ?? (groupRows.Count > 0 ? (decimal?)groupRows.Sum(g => g.GroupAppraisalValue ?? 0m) : null);
@@ -426,12 +492,19 @@ internal static class AppraisalSummaryCommonLoader
         decimal? forcedSaleValue = valuation?.ForcedSaleValue
             ?? (totalAppraisalValue.HasValue ? totalAppraisalValue.Value * 0.70m : null);
 
+        // ที่ตั้งทรัพย์สิน — built from the Request detail, identical to the land-building form.
+        var reqCollateralAddress = ThaiAddressFormatter.FormatLandBuilding(
+            houseNumber: header.HouseNumber, village: header.ProjectName, moo: header.Moo,
+            soi: header.Soi, road: header.Road,
+            subDistrict: header.ReqSubDistrict, district: header.ReqDistrict, province: header.ReqProvince);
+
         return new CommonAppraisalData(
             AppraisalId: appraisalId,
             AppraisalNumber: header.AppraisalNumber,
             RequestId: header.RequestId,
             AppraisalType: header.AppraisalType,
             AppraisalPurpose: header.AppraisalPurpose,
+            CollateralAddress: string.IsNullOrEmpty(reqCollateralAddress) ? null : reqCollateralAddress,
             FacilityLimit: header.FacilityLimit,
             CustomerName: customerName,
             AppraisalDate: appraisalDate,
@@ -442,13 +515,16 @@ internal static class AppraisalSummaryCommonLoader
             ForcedSaleValue: forcedSaleValue,
             BuildingCoverageAmount: valuation?.InsuranceValue,
             LoanValue: loanValue,
-            IsWqs: methodTypes.Contains("WQS"),
-            IsSaleGrid: methodTypes.Contains("SaleGrid") || methodTypes.Contains("DirectComparison"),
-            IsCost: methodTypes.Contains("BuildingCost"),
-            IsIncome: methodTypes.Contains("Income"),
-            IsHypothesis: methodTypes.Contains("Hypothesis"),
-            IsLeasehold: methodTypes.Contains("Leasehold"),
-            IsProfitRent: methodTypes.Contains("ProfitRent"),
+            IsIncreaseLimit: isIncreaseLimit,
+            ExistingLoanValue: existingLoanValue,
+            IsWqs: globalFlags.IsWqs,
+            IsSaleGrid: globalFlags.IsSaleGrid,
+            IsCost: globalFlags.IsCost,
+            IsIncome: globalFlags.IsIncome,
+            IsHypothesis: globalFlags.IsHypothesis,
+            IsLeasehold: globalFlags.IsLeasehold,
+            IsProfitRent: globalFlags.IsProfitRent,
+            GroupMethodTypes: groupMethodTypes,
             AppraiserComment: decision?.AppraiserOpinion ?? decision?.CommitteeOpinion,
             Condition: decision?.Condition,
             Remark: decision?.Remark,
@@ -461,6 +537,8 @@ internal static class AppraisalSummaryCommonLoader
             Review: review,
             Approvers: approvers,
             ApproverDecisionApproved: approverDecisionApproved,
+            ApprovalDate: approvalDate,
+            IsCompleted: isCompleted,
             ShowMeeting: showMeeting,
             GroupRows: groupRows,
             CollateralTypeMap: collateralTypeMap);
@@ -473,8 +551,20 @@ internal static class AppraisalSummaryCommonLoader
         public string? AppraisalNumber { get; init; }
         public Guid RequestId { get; init; }
         public string? AppraisalType { get; init; }
+        public string? AppraisalStatus { get; init; }
+        public string? PurposeCode { get; init; }
         public string? AppraisalPurpose { get; init; }
         public decimal? FacilityLimit { get; init; }
+        public decimal? AdditionalFacilityLimit { get; init; }
+        public decimal? PreviousFacilityLimit { get; init; }
+        public string? HouseNumber { get; init; }
+        public string? ProjectName { get; init; }
+        public string? Moo { get; init; }
+        public string? Soi { get; init; }
+        public string? Road { get; init; }
+        public string? ReqSubDistrict { get; init; }
+        public string? ReqDistrict { get; init; }
+        public string? ReqProvince { get; init; }
     }
 
     internal sealed class AssignmentRow
@@ -482,12 +572,6 @@ internal static class AppraisalSummaryCommonLoader
         public string? AssignmentType { get; init; }
         public string? AssigneeCompanyId { get; init; }
         public string? InternalAppraiserId { get; init; }
-    }
-
-    internal sealed class StaffRow
-    {
-        public string? FullName { get; init; }
-        public string? Position { get; init; }
     }
 
     internal sealed class ValuationRow
@@ -508,6 +592,12 @@ internal static class AppraisalSummaryCommonLoader
         public string? UnitType { get; init; }
         public string? PropertyType { get; init; }
         public int PropertyCount { get; init; }
+    }
+
+    internal sealed class GroupMethodRow
+    {
+        public Guid GroupId { get; init; }
+        public string? MethodType { get; init; }
     }
 
     internal sealed class DecisionRow
@@ -532,6 +622,8 @@ internal static class AppraisalSummaryCommonLoader
         public string? Position { get; init; }
         public string? Vote { get; init; }
         public string? Comment { get; init; }
+        public string? Member { get; init; }
+        public DateTime VotedAt { get; init; }
     }
 
     internal sealed class RequestorRow
@@ -561,6 +653,11 @@ internal static class AppraisalSummaryCommonLoader
     }
 }
 
+/// <summary>วิธีการประเมิน checkbox flags derived from pricing method types.</summary>
+internal sealed record MethodFlags(
+    bool IsWqs, bool IsSaleGrid, bool IsCost, bool IsIncome,
+    bool IsHypothesis, bool IsLeasehold, bool IsProfitRent);
+
 /// <summary>
 /// Immutable bag of common appraisal-summary data shared across all report variants.
 /// </summary>
@@ -570,6 +667,7 @@ internal sealed record CommonAppraisalData(
     Guid RequestId,
     string? AppraisalType,
     string? AppraisalPurpose,
+    string? CollateralAddress,
     decimal? FacilityLimit,
     string? CustomerName,
     DateTime? AppraisalDate,
@@ -580,6 +678,8 @@ internal sealed record CommonAppraisalData(
     decimal? ForcedSaleValue,
     decimal? BuildingCoverageAmount,
     decimal? LoanValue,
+    bool IsIncreaseLimit,
+    decimal? ExistingLoanValue,
     bool IsWqs,
     bool IsSaleGrid,
     bool IsCost,
@@ -587,6 +687,7 @@ internal sealed record CommonAppraisalData(
     bool IsHypothesis,
     bool IsLeasehold,
     bool IsProfitRent,
+    IReadOnlyDictionary<Guid, IReadOnlySet<string>> GroupMethodTypes,
     string? AppraiserComment,
     string? Condition,
     string? Remark,
@@ -599,6 +700,8 @@ internal sealed record CommonAppraisalData(
     AppraisalSummaryCommonLoader.ReviewRow? Review,
     List<ApproverRow> Approvers,
     bool? ApproverDecisionApproved,
+    DateTime? ApprovalDate,
+    bool IsCompleted,
     bool ShowMeeting,
     List<AppraisalSummaryCommonLoader.GroupRow> GroupRows,
     Dictionary<string, string?> CollateralTypeMap)

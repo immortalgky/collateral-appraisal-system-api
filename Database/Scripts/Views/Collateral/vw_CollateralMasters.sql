@@ -44,7 +44,7 @@ SELECT
     ld.LastAppraisalNumber     AS Land_LastAppraisalNumber,
     ld.LastAppraisedDate       AS Land_LastAppraisedDate,
     ld.UnitPrice               AS Land_UnitPrice,
-    ld.BuildingCost            AS Land_BuildingCost,
+    ld.BuildingValue           AS Land_BuildingValue,
     ld.AppraisalValue          AS Land_AppraisalValue,
 
     -- Condo-specific columns (NULL when not Condo type)
@@ -53,10 +53,10 @@ SELECT
     cd.BuildingNumber          AS Condo_BuildingNumber,
     cd.FloorNumber             AS Condo_FloorNumber,
     cd.RoomNumber              AS Condo_RoomNumber,
-    cd.TitleNumber             AS Condo_TitleNumber,
-    cd.TitleType               AS Condo_TitleType,
     cd.CondoName               AS Condo_CondoName,
     cd.Province                AS Condo_Province,
+    cd.District                AS Condo_District,
+    cd.SubDistrict             AS Condo_SubDistrict,
     cd.UsableArea              AS Condo_UsableArea,
     cd.LocationType            AS Condo_LocationType,
     cd.BuildingAge             AS Condo_BuildingAge,
@@ -69,7 +69,7 @@ SELECT
     cd.LastAppraisalNumber     AS Condo_LastAppraisalNumber,
     cd.LastAppraisedDate       AS Condo_LastAppraisedDate,
     cd.UnitPrice               AS Condo_UnitPrice,
-    cd.BuildingCost            AS Condo_BuildingCost,
+    cd.BuildingValue           AS Condo_BuildingValue,
     cd.AppraisalValue          AS Condo_AppraisalValue,
 
     -- Leasehold-specific columns (NULL when not Leasehold type)

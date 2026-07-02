@@ -25,6 +25,7 @@ public interface IOperationalReportRunner
 internal sealed class OperationalReportRunner(
     ISqlConnectionFactory connectionFactory,
     ITabularExporter exporter,
+    IReportFilterResolver filterResolver,
     IReportAuditLogger auditLogger,
     IDateTimeProvider dateTimeProvider) : IOperationalReportRunner
 {
@@ -65,8 +66,14 @@ internal sealed class OperationalReportRunner(
             if (definition.EnrichAsync is not null)
                 await definition.EnrichAsync(rows, cancellationToken);
 
+            // Resolve the applied-filter block (null => report declares no describer => no block).
+            IReadOnlyList<FilterCriterion>? appliedFilters = definition.DescribeFilter is null
+                ? null
+                : await filterResolver.ResolveAsync(definition.DescribeFilter(filter), cancellationToken);
+
             file = await exporter.ExportAsync(
-                rows, definition.Columns, definition.BaseName, format, definition.Title, cancellationToken);
+                rows, definition.Columns, definition.BaseName, format, definition.Title,
+                appliedFilters, cancellationToken);
             return file;
         }
         catch (Exception ex)

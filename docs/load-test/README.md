@@ -26,6 +26,7 @@ appraisal. So there are **two** results to measure:
 
 | File | Purpose |
 |---|---|
+| `search-tasks.js` | **read-side** — k6 script: load-test `GET /tasks/pool` search ("SearchTask"); **bearer token** auth |
 | `create-submit.js` | **phase 1** — k6 script: create+submit (dev-bypass auth, randomized payloads) |
 | `pools.js` | valid-code pools (synchronized geo triples, names) — shared by both phases |
 | `monitor.sql` | drain + correctness + TPS queries (run during/after phase 1) |
@@ -247,6 +248,66 @@ ramp is trying to surface.
 - The `AppraisalCreationService` runs a 3-phase transaction with several `SaveChanges`,
   an SLA lookup, and appendix generation per appraisal — expect this to be the per-record
   cost center.
+
+## Read-side: load-test the task search ("SearchTask")
+
+`search-tasks.js` exercises `GET /tasks/pool` with a `search` filter — the transaction the
+load-test report flagged at **7.6–9.6s**. The slow path is the leading-wildcard
+`LIKE '%term%'` over the heavy `workflow.vw_TaskList` view, run **twice** per request (count +
+page) whenever a search/customer-name filter is active. `/tasks/pool` is slow because it scans
+the whole group/team pool; `/tasks/me` pre-filters to one user and stays fast (point
+`-e ENDPOINT=/tasks/me` to confirm).
+
+**Auth is different from the other phases:** the pool query scopes rows by the caller's
+groups/team/company, so dev-bypass won't exercise the real candidate set. You must pass a
+**real access token** via `TOKEN` (the `Bearer ` prefix is added for you if missing). Grab a
+token from an authenticated session (browser dev-tools → a `/tasks/pool` request's
+`Authorization` header, or the `/connect/token` response).
+
+```bash
+export TOKEN='eyJhbGci...'      # access token of a user who HAS pool tasks
+
+# 1) Baseline — single-request latency (run first):
+k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+       -e MODE=count -e VUS=1 -e ITERATIONS=100 \
+       --insecure-skip-tls-verify docs/load-test/search-tasks.js
+
+# 2) Concurrency — reproduce the report's contention:
+k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+       -e MODE=count -e VUS=20 -e ITERATIONS=500 \
+       --insecure-skip-tls-verify docs/load-test/search-tasks.js
+
+# 3) Capacity / stress — ramp the rate to find the knee:
+k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+       -e MODE=rate -e PEAK_RPS=20 \
+       --insecure-skip-tls-verify docs/load-test/search-tasks.js
+
+# 4) Typing simulation — one request per keystroke (P, Pe, Per, ...), like the FE:
+k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+       -e MODE=count -e VUS=10 -e ITERATIONS=200 -e TYPE=true -e SEARCH=Performance \
+       --insecure-skip-tls-verify docs/load-test/search-tasks.js
+```
+
+### Tunables (env vars)
+
+| Env | Default | Meaning |
+|---|---|---|
+| `TOKEN` | *(required)* | Bearer access token; the user's groups/team scope the pool rows |
+| `BASE_URL` | `https://localhost:7111` | API base |
+| `ENDPOINT` | `/tasks/pool` | endpoint under test; set `/tasks/me` to compare |
+| `MODE` | `count` | `count` = exact iterations; `rate` = RPS ramp |
+| `VUS` / `ITERATIONS` | `10` / `300` | count-mode concurrency / total requests |
+| `PEAK_RPS` | `20` | rate-mode target req/s (ramps `0.5×→1×→2×→4×`) |
+| `SEARCH` | `a` | the search term (matches AppraisalNumber OR CustomerName) |
+| `SEARCH_FIELD` | `search` | `search` (top box) or `customerName` (explicit column filter) |
+| `TYPE` | `false` | simulate typing: one request per growing prefix of `SEARCH` |
+| `THINK_MS` | `150` | delay between keystrokes when `TYPE=true` |
+| `VARY` | `false` | append a random suffix per request so terms differ |
+| `PAGE_SIZE` / `SORT_BY` / `SORT_DIR` | `25` / *(server default)* / `desc` | query shape |
+
+The threshold `http_req_duration{name:search_task} p(95)<2000` encodes the goal — a clean run
+should be under 2s once the A+B fix lands; today it will breach. Use the baseline run's p50/p95
+as the latency constant, then drive `MODE=rate` to find the rate at which p95 blows past your SLA.
 
 ## Phase 2: fill appraisal property detail (data at volume)
 

@@ -56,10 +56,19 @@ public static class ReportingModule
         services.AddScoped<Application.OperationalReports.Shared.IOperationalReportRunner,
             Application.OperationalReports.Shared.OperationalReportRunner>();
 
+        // Resolves a report's declared filters into the export's "Applied filters" block
+        // (coded values -> parameter.Parameters descriptions).
+        services.AddScoped<Application.OperationalReports.Shared.IReportFilterResolver,
+            Application.OperationalReports.Shared.ReportFilterResolver>();
+
         // OLA timing: reads workflow CompletedTasks + computes business-time segments
         // (reuses Workflow.Contracts.Sla.IBusinessTimeCalculator, implemented by the Workflow module).
         services.AddScoped<Application.OperationalReports.Shared.IOlaTimingService,
             Application.OperationalReports.Shared.OlaTimingService>();
+
+        // Party-SLA evaluator: measures vendor vs bank elapsed business time across rework cycles.
+        services.AddScoped<Application.OperationalReports.Shared.IPartySlaEvaluator,
+            Application.OperationalReports.Shared.PartySlaEvaluator>();
 
         // SaveChanges interceptors: AuditableEntityInterceptor (no-op for Reporting's non-IEntity
         // tables) + DispatchDomainEventInterceptor, which drains the scoped IOutboxScope into the

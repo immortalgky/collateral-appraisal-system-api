@@ -19,12 +19,14 @@ public class CompanyRoundRobinConfigService(
         // At most one active pool per scope (enforced by the filtered-unique index). The active-config
         // table is tiny, so this stays a cheap per-call query — no cache, matching the sibling
         // TaskConfigurationService and avoiding cross-server stale reads (there is no distributed cache).
+        // Fetch all active pools and match in memory so loan-type matching is case-insensitive and
+        // collation-independent (e.g. incoming "RETAIL" still resolves the seeded "Retail" pool).
         var candidates = await context.CompanyRoundRobinConfigurations
-            .Where(c => c.IsActive && (c.LoanType == null || c.LoanType == scope))
+            .Where(c => c.IsActive)
             .ToListAsync(cancellationToken);
 
         // Loan-type-specific pool wins over the global (null) pool.
-        var best = candidates.FirstOrDefault(c => c.LoanType == scope)
+        var best = candidates.FirstOrDefault(c => string.Equals(c.LoanType, scope, StringComparison.OrdinalIgnoreCase))
             ?? candidates.FirstOrDefault(c => c.LoanType == null);
 
         return best is null ? null : MapToDto(best);

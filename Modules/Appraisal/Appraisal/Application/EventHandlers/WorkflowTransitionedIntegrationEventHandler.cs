@@ -1,4 +1,5 @@
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
 using Workflow;
@@ -21,7 +22,7 @@ namespace Appraisal.Application.EventHandlers;
 /// Terminal transitions (DestinationActivityId == null) are intentional no-ops here;
 /// MarkApprovedByCommittee / Cancel own those transitions via their dedicated events.
 ///
-/// Wired to the partitioned, SingleActiveConsumer "appraisal-status-sync" endpoint in Program.cs
+/// Wired to the partitioned "appraisal-sync" endpoint in Program.cs
 /// (per-AppraisalId ordering across the cluster), so [ExcludeFromConfigureEndpoints] keeps
 /// ConfigureEndpoints from also creating a default unordered queue.
 /// </summary>
@@ -30,6 +31,7 @@ public class WorkflowTransitionedIntegrationEventHandler(
     ILogger<WorkflowTransitionedIntegrationEventHandler> logger,
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
+    AppraisalDbContext dbContext,
     InboxGuard<AppraisalDbContext> inboxGuard,
     ISlaCalculatorClient slaCalculatorClient)
     : IConsumer<WorkflowTransitionedIntegrationEvent>
@@ -166,12 +168,31 @@ public class WorkflowTransitionedIntegrationEventHandler(
 
                 // M3: WorkflowDefinitionId is now carried by the event. Pass null when absent so
                 // only wildcard Stage policies (WorkflowDefinitionId = null) match.
+                // The SLA "loan type" axis carries banking-segment values, so the appraisal's segment
+                // and type scope the per-stage (group) OLA policy lookup.
+                // Pass CorrelationId so the calculator can subtract cumulative consumed time
+                // from prior stage executions (rework does not grant a fresh full budget).
+                // Supply the assignment's appointment so an AppointmentDate-anchored window can stamp from
+                // the visit; the calc branches on the resolved policy's AnchorType, so Assignment-anchored
+                // windows ignore it and keep stamping from startedAt.
+                // Use only confirmed appointments — "Pending" (awaiting approval) must not
+                // anchor an SLA stamp, because the date may still change before approval.
+                var appointmentDate = await dbContext.Appointments
+                    .AsNoTracking()
+                    .Where(a => a.AssignmentId == activeAssignment.Id && a.Status == "Appointed")
+                    .OrderByDescending(a => a.AppointmentDateTime)
+                    .Select(a => (DateTime?)a.AppointmentDateTime)
+                    .FirstOrDefaultAsync(ct);
+
                 var stageDueAt = await slaCalculatorClient.GetStageDueAtAsync(
                     workflowDefinitionId: message.WorkflowDefinitionId,
                     startActivityKey: message.DestinationActivityId,
                     startedAt: message.CompletedAt,
                     companyId: companyId,
-                    loanType: null,
+                    loanType: string.IsNullOrWhiteSpace(appraisal.BankingSegment) ? null : appraisal.BankingSegment,
+                    appraisalType: appraisal.AppraisalType,
+                    correlationId: message.CorrelationId,
+                    appointmentDate: appointmentDate,
                     ct: ct);
 
                 if (stageDueAt.HasValue)

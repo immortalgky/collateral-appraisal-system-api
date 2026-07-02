@@ -81,5 +81,10 @@ public class AppraisalEvaluationConfiguration : IEntityTypeConfiguration<Apprais
         builder.Property(e => e.Note)
             .HasColumnType("nvarchar(max)")
             .HasColumnName("Note");
+
+        // ── Frozen composite score (snapshotted at completion; NULL while Pending) ──
+        builder.Property(e => e.TotalScore)
+            .HasPrecision(5, 2)
+            .HasColumnName("TotalScore");
     }
 }

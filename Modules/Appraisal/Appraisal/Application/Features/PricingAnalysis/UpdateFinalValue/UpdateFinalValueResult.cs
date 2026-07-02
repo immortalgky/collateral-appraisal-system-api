@@ -10,7 +10,7 @@ public record UpdateFinalValueResult(
     bool IncludeLandArea,
     decimal? LandArea,
     decimal? LandValue,
-    bool HasBuildingCost,
-    decimal? BuildingCost,
+    bool HasBuildingValue,
+    decimal? BuildingValue,
     decimal? AppraisalPrice
 );

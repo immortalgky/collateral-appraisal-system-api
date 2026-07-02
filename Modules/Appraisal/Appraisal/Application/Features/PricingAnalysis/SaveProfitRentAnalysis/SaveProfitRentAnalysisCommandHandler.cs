@@ -90,8 +90,7 @@ public class SaveProfitRentAnalysisCommandHandler(
             calcResult.TotalMarketRentalFee,
             calcResult.TotalContractRentalFee,
             calcResult.TotalReturnsFromLease,
-            calcResult.TotalPresentValue,
-            calcResult.FinalValueRounded);
+            calcResult.TotalPresentValue);
 
         // Store full calculation table
         analysis.ClearTableRows();
@@ -110,7 +109,22 @@ public class SaveProfitRentAnalysisCommandHandler(
         var finalPrice = command.EstimatePriceRounded ?? calcResult.FinalValueRounded;
         method.SetValue(finalPrice);
 
-        // Handle building cost on PricingFinalValue
+        // Ensure the shared PricingFinalValue row always carries the calc-derived value
+        // as its base (FinalValue/FinalValueRounded ← calcResult).
+        // User overrides (EstimatePriceRounded, AppraisalPrice) are persisted separately
+        // via SetFinalValueAdjusted / SetAppraisalPrice below.
+        var finalValue = method.FinalValue;
+        if (finalValue is null)
+        {
+            finalValue = PricingFinalValue.Create(method.Id, calcResult.FinalValueRounded, calcResult.FinalValueRounded);
+            method.SetFinalValue(finalValue);
+        }
+        else
+        {
+            finalValue.UpdateFinalValue(calcResult.FinalValueRounded, calcResult.FinalValueRounded);
+        }
+
+        // Building cost (optional)
         decimal? totalBuildingCost = null;
         decimal? appraisalPrice = null;
 
@@ -120,26 +134,21 @@ public class SaveProfitRentAnalysisCommandHandler(
             var priceWithBuilding = finalPrice + totalBuildingCost.Value;
             appraisalPrice = command.AppraisalPrice ?? priceWithBuilding;
 
-            var finalValue = method.FinalValue;
-            if (finalValue is null)
-            {
-                finalValue = PricingFinalValue.Create(method.Id, finalPrice, finalPrice);
-                method.SetFinalValue(finalValue);
-            }
-            else
-            {
-                finalValue.UpdateFinalValue(finalPrice, finalPrice);
-            }
-
-            finalValue.SetBuildingCost(totalBuildingCost.Value);
+            finalValue.SetBuildingValue(totalBuildingCost.Value);
+            finalValue.SetFinalValueAdjusted(command.FinalValueAdjusted);
             finalValue.SetAppraisalPrice(appraisalPrice.Value);
 
             // Propagate building-inclusive price upward
             method.SetValue(appraisalPrice.Value);
         }
-        else if (!command.IncludeBuildingCost && method.FinalValue?.HasBuildingCost == true)
+        else
         {
-            method.FinalValue.ClearBuildingCost();
+            if (finalValue.HasBuildingValue)
+                finalValue.ClearBuildingValue();
+
+            // Land area and building value are not applicable for the non-building ProfitRent path.
+            finalValue.SetFinalValueAdjusted(command.FinalValueAdjusted);
+            finalValue.SetAppraisalPrice(command.AppraisalPrice);
         }
 
         // Propagate value up if method is selected

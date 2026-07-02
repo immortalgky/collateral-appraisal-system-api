@@ -10,6 +10,7 @@ public sealed record Rcas008Filter(
     string? BankingSegment,
     string? AppraisalCompany,
     string? EvaluationStatus,
+    string? AppraisalNumber,
     string? SortBy,
     string? SortDir);
 
@@ -27,6 +28,15 @@ internal static class Rcas008Report
         Title = "รายงานประเมินผลคุณภาพการให้บริการของ External Appraisal Company แต่ละบริษัท",
         OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, "AppraisalCompany"),
         Build = Build,
+        DescribeFilter = f =>
+        [
+            new("Approved From", f.ApprovedFrom?.ToString("yyyy-MM-dd")),
+            new("Approved To", f.ApprovedTo?.ToString("yyyy-MM-dd")),
+            new("Retail/IBG", f.BankingSegment, "BankingSegment"),
+            new("Appraisal Company", f.AppraisalCompany),
+            new("Evaluation Status", f.EvaluationStatus, "EvaluationStatus"),
+            new("Appraisal No.", f.AppraisalNumber),
+        ],
         Columns =
         [
             new("Appraisal No.", r => r.AppraisalNumber),
@@ -53,6 +63,7 @@ internal static class Rcas008Report
         ReportFilterSql.Exact(c, p, f.BankingSegment, "BankingSegment", "BankingSegment");
         ReportFilterSql.Contains(c, p, f.AppraisalCompany, "AppraisalCompany", "AppraisalCompany");
         ReportFilterSql.MultiValue(c, p, f.EvaluationStatus, "EvaluationStatus", "EvaluationStatuses");
+        ReportFilterSql.Contains(c, p, f.AppraisalNumber, "AppraisalNumber", "AppraisalNumber");
 
         return ("SELECT * FROM reporting.vw_RCAS008_ServiceQuality" + ReportFilterSql.Where(c), p);
     }

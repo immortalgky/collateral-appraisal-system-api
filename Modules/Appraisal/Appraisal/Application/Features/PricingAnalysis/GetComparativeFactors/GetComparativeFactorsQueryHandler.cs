@@ -191,9 +191,9 @@ public class GetComparativeFactorsQueryHandler(
                 fv.IncludeLandArea,
                 fv.LandArea,
                 fv.LandValue,
-                fv.BuildingCost,
+                fv.BuildingValue,
                 fv.AppraisalPrice,
-                fv.HasBuildingCost
+                fv.HasBuildingValue
             );
         }
 

@@ -58,10 +58,10 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 cad.HasObligation,
                 cad.Soi,
                 cad.Street                AS Road,
-                cad.SubDistrict,
-                cad.District,
-                cad.Province,
-                cad.LandOffice,
+                COALESCE(tsub.NameTh,  cad.SubDistrict) AS SubDistrict,
+                COALESCE(tdist.NameTh, cad.District)    AS District,
+                COALESCE(tprov.NameTh, cad.Province)    AS Province,
+                COALESCE(pLandOffice.[description], cad.LandOffice) AS LandOffice,
                 cad.Latitude,
                 cad.Longitude
             FROM appraisal.CondoAppraisalDetails cad
@@ -71,6 +71,14 @@ public sealed class AppraisalSummaryCondoDataProvider(
                AND ptBC.[Language] = 'TH'
                AND ptBC.[Code] = cad.BuildingConditionType
                AND ptBC.IsActive = 1
+            LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = cad.Province
+            LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = cad.District
+            LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = cad.SubDistrict
+            LEFT JOIN parameter.Parameters pLandOffice
+                ON pLandOffice.[group]    = 'LandOffice'
+               AND pLandOffice.[language] = 'TH'
+               AND pLandOffice.[isactive] = 1
+               AND pLandOffice.[code]     = cad.LandOffice
             WHERE ap.AppraisalId = @AppraisalId
             ORDER BY ap.SequenceNumber;
 
@@ -100,9 +108,9 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 cad.UsableArea,
                 cad.BuildingAge,
                 cad.OwnerName,
-                cad.SubDistrict,
-                cad.District,
-                cad.Province,
+                COALESCE(tsub.NameTh,  cad.SubDistrict) AS SubDistrict,
+                COALESCE(tdist.NameTh, cad.District)    AS District,
+                COALESCE(tprov.NameTh, cad.Province)    AS Province,
                 COALESCE(ptBC.Description, cad.BuildingConditionTypeOther, cad.BuildingConditionType)
                     AS BuildingConditionDisplay
             FROM appraisal.PropertyGroupItems pgi
@@ -113,6 +121,9 @@ public sealed class AppraisalSummaryCondoDataProvider(
                AND ptBC.[Language] = 'TH'
                AND ptBC.[Code] = cad.BuildingConditionType
                AND ptBC.IsActive = 1
+            LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = cad.Province
+            LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = cad.District
+            LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = cad.SubDistrict
             WHERE ap.AppraisalId = @AppraisalId
             ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup;
             """;
@@ -136,22 +147,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
             groupCondoRows = (await multi.ReadAsync<GroupCondoDetailRow>()).ToList();
         }
 
-        // Build condo-style address from first condo detail
-        var collateralAddress = firstCondo is not null
-            ? ThaiAddressFormatter.FormatCondo(
-                roomNumber: firstCondo.RoomNumber,
-                floorNumber: firstCondo.FloorNumber,
-                buildingName: firstCondo.CondoName,
-                soi: firstCondo.Soi,
-                road: firstCondo.Road,
-                subDistrict: firstCondo.SubDistrict,
-                district: firstCondo.District,
-                province: firstCondo.Province)
-            : null;
-
-        var gps = (firstCondo?.Latitude is not null && firstCondo.Longitude is not null)
-            ? $"{firstCondo.Latitude:F6}, {firstCondo.Longitude:F6}"
-            : null;
+        var gps = ThaiAddressFormatter.FormatGps(firstCondo?.Latitude, firstCondo?.Longitude);
 
         var areasByCondoDetailId = areaDetailRows
             .GroupBy(r => r.CondoDetailId)
@@ -161,8 +157,11 @@ public sealed class AppraisalSummaryCondoDataProvider(
             .GroupBy(r => r.PropertyGroupId)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.SequenceInGroup).ToList());
 
-        // ── Build per-group summary rows ─────────────────────────────────────────
-        var summaryGroups = common.GroupRows.Select(g =>
+        // ── Build per-group summary rows (condo groups only) ─────────────────────
+        var condoFamily = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "U", "LSU" };
+        var summaryGroups = common.GroupRows
+            .Where(g => g.PropertyType != null && condoFamily.Contains(g.PropertyType))
+            .Select(g =>
         {
             condoByGroup.TryGetValue(g.GroupId, out var condoRows);
             condoRows ??= [];
@@ -173,39 +172,55 @@ public sealed class AppraisalSummaryCondoDataProvider(
             {
                 var parts = new List<string>();
 
+                // Room / floor / building number
                 if (!string.IsNullOrWhiteSpace(c.RoomNumber))
                     parts.Add($"ห้องชุดเลขที่ {c.RoomNumber}");
                 if (!string.IsNullOrWhiteSpace(c.FloorNumber))
                     parts.Add($"ชั้นที่ {c.FloorNumber}");
+                if (!string.IsNullOrWhiteSpace(c.BuildingNumber))
+                    parts.Add($"อาคารเลขที่ {c.BuildingNumber}");
+
+                // Condo name / registration number
                 if (!string.IsNullOrWhiteSpace(c.CondoName))
-                    parts.Add(c.CondoName);
+                    parts.Add($"ชื่ออาคารชุด {c.CondoName}");
+                if (!string.IsNullOrWhiteSpace(c.CondoRegistrationNumber))
+                    parts.Add($"ทะเบียนอาคารชุดเลขที่ {c.CondoRegistrationNumber}");
+
+                // Built-on title deed + administrative location
                 if (!string.IsNullOrWhiteSpace(c.BuiltOnTitleNumber))
                     parts.Add($"ปลูกสร้างบนโฉนดเลขที่ {c.BuiltOnTitleNumber}");
+                var addressTail = ThaiAddressFormatter.FormatLandBuilding(
+                    houseNumber: null, village: null, moo: null, soi: null, road: null,
+                    subDistrict: c.SubDistrict, district: c.District, province: c.Province);
+                if (!string.IsNullOrWhiteSpace(addressTail))
+                    parts.Add(addressTail);
 
+                // Areas: each component (room / balcony / …) then the total
                 areasByCondoDetailId.TryGetValue(c.CondoDetailId, out var areas);
                 if (areas is { Count: > 0 })
                 {
-                    var totalUsable = areas.Sum(a => a.AreaSize ?? 0m);
-                    if (totalUsable > 0)
-                        parts.Add($"พื้นที่ห้องชุด {totalUsable:0.##} ตารางเมตร");
+                    foreach (var ar in areas)
+                    {
+                        if (ar.AreaSize is not { } sz || sz <= 0) continue;
+                        var label = string.IsNullOrWhiteSpace(ar.AreaDescription) ? "พื้นที่" : $"พื้นที่{ar.AreaDescription}";
+                        parts.Add($"{label} {sz:0.##} ตารางเมตร");
+                    }
+                    var totalArea = areas.Sum(a => a.AreaSize ?? 0m);
+                    if (areas.Count > 1 && totalArea > 0)
+                        parts.Add($"รวมพื้นที่ {totalArea:0.##} ตารางเมตร");
                 }
-                else if (c.UsableArea.HasValue && c.UsableArea.Value > 0)
+                else if (c.UsableArea is { } ua && ua > 0)
                 {
-                    parts.Add($"พื้นที่ห้องชุด {c.UsableArea:0.##} ตารางเมตร");
+                    parts.Add($"พื้นที่ห้องชุด {ua:0.##} ตารางเมตร");
                 }
 
+                // Building height / age / condition
                 if (c.NumberOfFloors.HasValue)
                     parts.Add($"อาคารสูง {c.NumberOfFloors:0.##} ชั้น");
                 if (c.BuildingAge.HasValue)
                     parts.Add($"อายุอาคาร {c.BuildingAge} ปี");
                 if (!string.IsNullOrWhiteSpace(c.BuildingConditionDisplay))
                     parts.Add($"สภาพอาคาร{c.BuildingConditionDisplay}");
-
-                var addressTail = ThaiAddressFormatter.FormatLandBuilding(
-                    houseNumber: null, village: null, moo: null, soi: null, road: null,
-                    subDistrict: c.SubDistrict, district: c.District, province: c.Province);
-                if (!string.IsNullOrWhiteSpace(addressTail))
-                    parts.Add(addressTail);
 
                 if (parts.Count > 0)
                     detailParts.Add(string.Join(" ", parts));
@@ -220,7 +235,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
             {
                 GroupNumber = g.GroupNumber,
                 GroupName = g.GroupName,
-                PropertyType = common.TranslateCollateralType(g.PropertyType),
+                PropertyType = "ห้องชุด",
                 CollateralDetails = collateralDetails,
                 AreaOrUnit = areaOrUnit,
                 PricePerAreaOrUnit = null,
@@ -230,7 +245,10 @@ public sealed class AppraisalSummaryCondoDataProvider(
             };
         }).ToList();
 
-        string? firstPropertyType = summaryGroups.FirstOrDefault()?.PropertyType;
+        // วิธีการประเมิน — scoped to the methods of the condo groups actually shown.
+        var methodFlags = AppraisalSummaryCommonLoader.FlagsForGroups(
+            common.GroupMethodTypes,
+            common.GroupRows.Where(g => g.PropertyType != null && condoFamily.Contains(g.PropertyType)).Select(g => g.GroupId));
 
         // ── Build model ──────────────────────────────────────────────────────────
         var model = new AppraisalSummaryModel
@@ -240,15 +258,20 @@ public sealed class AppraisalSummaryCondoDataProvider(
             CustomerName = common.CustomerName,
             AoName = common.AoName,
             AppraisalPurpose = common.AppraisalPurpose,
-            PropertyType = firstPropertyType,
-            CollateralAddress = string.IsNullOrEmpty(collateralAddress) ? null : collateralAddress,
+            // Condo form: property type is fixed (header + appraiser opinion).
+            PropertyType = "ห้องชุด",
+            SummaryPropertyType = "ห้องชุด",
+            CollateralAddress = common.CollateralAddress,
             AdministrativeDistrict = firstCondo?.SubDistrict,
             LandOffice = firstCondo?.LandOffice,
             OldAppraisalValue = null,
+            IsReAppraisal = string.Equals(common.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase),
+            IsIncreaseLimit = common.IsIncreaseLimit,
+            ExistingLoanValue = common.ExistingLoanValue,
             Appraiser = common.Appraiser,
             LoanValue = common.LoanValue,
             Groups = summaryGroups,
-            TotalAppraisalValue = common.TotalAppraisalValue,
+            TotalAppraisalValue = summaryGroups.Count > 0 ? summaryGroups.Sum(g => g.AppraisalValue ?? 0m) : common.TotalAppraisalValue,
             BuildingCoverageAmount = common.BuildingCoverageAmount,
             ForcedSaleValue = common.ForcedSaleValue,
             Condition = common.Condition,
@@ -264,13 +287,13 @@ public sealed class AppraisalSummaryCondoDataProvider(
             Utilization = null,
             MachineType = null,
             MarketDemandConditions = null,
-            IsWqs = common.IsWqs,
-            IsSaleGrid = common.IsSaleGrid,
-            IsCost = common.IsCost,
-            IsIncome = common.IsIncome,
-            IsHypothesis = common.IsHypothesis,
-            IsLeasehold = common.IsLeasehold,
-            IsProfitRent = common.IsProfitRent,
+            IsWqs = methodFlags.IsWqs,
+            IsSaleGrid = methodFlags.IsSaleGrid,
+            IsCost = methodFlags.IsCost,
+            IsIncome = methodFlags.IsIncome,
+            IsHypothesis = methodFlags.IsHypothesis,
+            IsLeasehold = methodFlags.IsLeasehold,
+            IsProfitRent = methodFlags.IsProfitRent,
             AppraiserComment = common.AppraiserComment,
             AppraisalStaffName = common.StaffName,
             AppraisalStaffPosition = common.StaffPosition,
@@ -280,6 +303,8 @@ public sealed class AppraisalSummaryCondoDataProvider(
             AppraisalVerifyPosition = common.VerifyPosition,
             MeetingNumber = common.Review?.MeetingNo,
             MeetingDate = common.Review?.MeetingDate,
+            ApprovalDate = common.ApprovalDate,
+            IsCompleted = common.IsCompleted,
             ShowMeeting = common.ShowMeeting,
             ApproverDecisionApproved = common.ApproverDecisionApproved,
             Approvers = common.Approvers,

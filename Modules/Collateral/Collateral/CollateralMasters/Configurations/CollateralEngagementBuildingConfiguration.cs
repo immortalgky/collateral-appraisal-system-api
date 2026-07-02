@@ -16,6 +16,8 @@ public class CollateralEngagementBuildingConfiguration : IEntityTypeConfiguratio
         builder.Property(b => b.BuildingArea).HasPrecision(18, 4);
         builder.Property(b => b.BuildingValue).HasPrecision(18, 2);
         builder.Property(b => b.Sequence).IsRequired();
+        builder.Property(b => b.BuildingAge);
+        builder.Property(b => b.NumberOfFloors).HasPrecision(5, 1);
 
         // Search filter: EXISTS (... WHERE ceb.EngagementId = e.Id AND ceb.BuildingTypeCode IN @codes)
         builder.HasIndex(b => new { b.EngagementId, b.BuildingTypeCode })

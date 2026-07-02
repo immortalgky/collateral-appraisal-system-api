@@ -15,7 +15,7 @@ public record GetCollateralCatalogQuery(
     DateOnly? LastAppraisedTo,
     string? Sort,
     // Phase 1 — new filters
-    string? TitleNumber,       // LIKE against Land title number AND Condo TitleNumber
+    string? TitleNumber,       // LIKE against Land title number (Condo has no title number)
     string? District,          // exact match against Land_District
     string? SubDistrict,       // exact match against Land_SubDistrict
     string? CompanyId,         // masters that have at least one engagement with this company

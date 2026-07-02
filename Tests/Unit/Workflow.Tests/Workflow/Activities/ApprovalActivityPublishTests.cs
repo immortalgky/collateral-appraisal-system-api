@@ -32,7 +32,8 @@ public class ApprovalActivityPublishTests
 
     private ApprovalActivity BuildActivity() =>
         new(_memberResolver, _voteRepository, _publisher, _outbox, _committeeRepository,
-            _clock, Substitute.For<ILogger<ApprovalActivity>>());
+            _clock, Substitute.For<global::Workflow.Sla.Services.ISlaCalculator>(),
+            Substitute.For<ILogger<ApprovalActivity>>());
 
     [Fact]
     public async Task ResumeActivityAsync_WhenDecisionIsApprove_PublishesEventWithAppraisalNoAndCommitteeId()

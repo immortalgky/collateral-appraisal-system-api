@@ -1,66 +1,39 @@
 using System.Data;
+using System.Text.Json;
 using Reporting.Application.Models.Sections;
 
 namespace Reporting.Application.Providers.Sections;
 
 /// <summary>
-/// Loads the "ตารางการปรับมูลค่าหลักทรัพย์ (วิธีปรับเปรียบเทียบข้อมูลตลาด)"
-/// (Sale Grid / Direct Comparison) section model — FSD §2.1.2.10.
+/// Loads the "ตารางวิเคราะห์มูลค่าทรัพย์สิน (โดยวิธีเปรียบเทียบข้อมูลตลาด)"
+/// (Sale Grid / Direct Comparison) analysis table — FSD §2.1.2.10.
+///
+/// The FSD table is transposed (factors/lines as rows, comparables + a subject SP column
+/// as columns). It has four blocks, top to bottom:
+///   1. Collateral-detail block  — descriptive rows (ทำเล / ชื่อโครงการ / รูปแบบอาคาร /
+///      ทำเลแปลง / สภาพอาคาร / เนื้อที่ดิน / พื้นที่อาคาร). Comparable cells come from the
+///      MarketComparable EAV data; the SP cell from PricingComparativeFactors.CollateralValue.
+///   2. Price/area adjustment block — from appraisal.PricingCalculations (one row per comparable).
+///   3. Per-factor adjustment block — scoring factors with real Thai names + AdjustmentPct.
+///   4. Summary block — สรุปมูลค่าทรัพย์สิน (บาท) and (ปัดเศษ), SP = MethodValue / rounded.
 ///
 /// Navigation chain (Dapper read-only, no EF tracking):
-///   appraisal.PropertyGroups           (AppraisalId → PropertyGroup.Id = AnchorId)
-///   → appraisal.PricingAnalysis        (SubjectType=0, AnchorId=PropertyGroup.Id)
-///   → appraisal.PricingAnalysisApproaches
-///   → appraisal.PricingAnalysisMethods (MethodType IN ('SaleGrid','DirectComparison'))
+///   appraisal.PropertyGroups (AppraisalId) → PricingAnalysis (SubjectType=0, AnchorId)
+///   → PricingAnalysisApproaches → PricingAnalysisMethods (MethodType IN ('SaleGrid','DirectComparison'))
 ///
-/// Per method:
-///   Q2  appraisal.PricingComparableLinks  → comparable column headers (DisplaySequence order)
-///   Q3  appraisal.PricingCalculations     → per-comparable adjustment values
-///   Q4  appraisal.PricingFactorScores     → per-factor, per-comparable adjustment rows
-///       (WHERE MarketComparableId IS NOT NULL — collateral scores not shown in grid)
-///
-/// Column sourcing:
-///   OfferingPrice            ← PricingCalculations.OfferingPrice            [sourced]
-///   OfferingPriceUnit        ← PricingCalculations.OfferingPriceUnit        [sourced]
-///   AdjustOfferPricePct      ← PricingCalculations.AdjustOfferPricePct      [sourced]
-///   AdjustOfferPriceAmt      ← PricingCalculations.AdjustOfferPriceAmt      [sourced]
-///   SellingPrice             ← PricingCalculations.SellingPrice              [sourced]
-///   BuySellYear              ← PricingCalculations.BuySellYear               [sourced]
-///   BuySellMonth             ← PricingCalculations.BuySellMonth              [sourced]
-///   AdjustedPeriodPct        ← PricingCalculations.AdjustedPeriodPct        [sourced]
-///   CumulativeAdjPeriod      ← PricingCalculations.CumulativeAdjPeriod      [sourced]
-///   LandAreaDeficient        ← PricingCalculations.LandAreaDeficient        [sourced]
-///   LandAreaDeficientUnit    ← PricingCalculations.LandAreaDeficientUnit    [sourced]
-///   LandPrice                ← PricingCalculations.LandPrice                [sourced]
-///   LandValueAdjustment      ← PricingCalculations.LandValueAdjustment      [sourced]
-///   UsableAreaDeficient      ← PricingCalculations.UsableAreaDeficient      [sourced]
-///   UsableAreaDeficientUnit  ← PricingCalculations.UsableAreaDeficientUnit  [sourced]
-///   UsableAreaPrice          ← PricingCalculations.UsableAreaPrice          [sourced]
-///   BuildingValueAdjustment  ← PricingCalculations.BuildingValueAdjustment  [sourced]
-///   TotalFactorDiffPct       ← PricingCalculations.TotalFactorDiffPct       [sourced]
-///   TotalFactorDiffAmt       ← PricingCalculations.TotalFactorDiffAmt       [sourced]
-///   TotalAdjustedValue       ← PricingCalculations.TotalAdjustedValue       [sourced]
-///   Weight                   ← PricingCalculations.Weight                   [sourced]
-///   WeightedAdjustedValue    ← PricingCalculations.WeightedAdjustedValue    [sourced]
-///   SummaryValue             ← PricingAnalysisMethods.MethodValue            [sourced]
-///   SummaryValueRounded      ← MethodValue rounded to nearest 1 000 (server-derived) [no DB column]
-///   Factor label             ← no ComparativeFactors.FactorName column in scope;
-///                              PricingFactorScores carries FactorId (Guid) only;
-///                              factor label rendered as ordinal "ปัจจัยที่ {seq}" [// no source]
-///
-/// Returns <see langword="null"/> when the appraisal has no SaleGrid or DirectComparison method,
-/// so the caller can omit the section from the rendered template.
+/// Returns <see langword="null"/> when the appraisal has no SaleGrid or DirectComparison method.
 /// </summary>
 internal static class SaleGridSectionLoader
 {
     /// <summary>
-    /// Loads the <see cref="SaleGridSection"/> for the given <paramref name="appraisalId"/>.
-    /// Returns <see langword="null"/> when no SaleGrid or DirectComparison method exists.
+    /// FSD §2.1.2.10 collateral-detail block: MarketComparableFactor codes in display order.
+    /// Codes confirmed against Database/Migration/Scripts/20260317002400_SeedData_MarketComparable.sql.
+    /// Only codes that actually have data for the linked comparables produce a row.
     /// </summary>
-    /// <param name="connection">An open Dapper <see cref="IDbConnection"/>.</param>
-    /// <param name="appraisalId">The appraisal to load the sale-grid section for.</param>
-    /// <param name="ct">Cancellation token.</param>
-    public static async Task<SaleGridSection?> LoadAsync(
+    private static readonly string[] DetailFactorCodes =
+        ["16", "17", "45", "43", "10", "01", "13"];
+
+    public static async Task<IReadOnlyList<SaleGridSection>> LoadAllAsync(
         IDbConnection connection,
         Guid appraisalId,
         CancellationToken ct = default)
@@ -68,15 +41,15 @@ internal static class SaleGridSectionLoader
         var p = new DynamicParameters();
         p.Add("AppraisalId", appraisalId);
 
-        // ── Q1: Resolve the first SaleGrid or DirectComparison method ─────────────
-        // Navigation:
-        //   appraisal.PropertyGroups (AppraisalId) → PricingAnalysis (SubjectType=0, AnchorId)
-        //   → PricingAnalysisApproaches → PricingAnalysisMethods
-        // We take the first method ordered by its approach creation order and the method Id,
-        // which gives a deterministic pick when multiple comparisons exist (rare).
-        // MethodValue is retrieved here so we can populate SummaryValue directly.
+        // ── Q1: Resolve all SaleGrid / DirectComparison methods (one per group) ───
+        // pg.GroupNumber and pg.GroupName included for the กลุ่มที่ N bar.
+        // ORDER BY pg.GroupNumber, paa.Id, pam.Id — stable group order; first method
+        // per group taken in C# after grouping by PropertyGroupId.
         const string methodSql = """
-            SELECT TOP 1
+            SELECT
+                pg.Id           AS PropertyGroupId,
+                pg.GroupNumber,
+                pg.GroupName,
                 pam.Id          AS MethodId,
                 pam.MethodValue AS MethodValue
             FROM appraisal.PropertyGroups pg
@@ -89,23 +62,46 @@ internal static class SaleGridSectionLoader
                 ON pam.ApproachId = paa.Id
                AND pam.MethodType IN ('SaleGrid', 'DirectComparison')
             WHERE pg.AppraisalId = @AppraisalId
-            ORDER BY paa.Id, pam.Id
+            ORDER BY pg.GroupNumber, paa.Id, pam.Id
             """;
 
-        var methodRow = await connection.QueryFirstOrDefaultAsync<MethodRow>(methodSql, p);
-        if (methodRow is null)
-            return null;
+        var allMethodRows = (await connection.QueryAsync<MethodRow>(methodSql, p)).ToList();
+        if (allMethodRows.Count == 0)
+            return [];
 
+        // First method per property group (already ordered).
+        var methodsPerGroup = allMethodRows
+            .GroupBy(r => r.PropertyGroupId)
+            .Select(g => g.First())
+            .OrderBy(r => r.GroupNumber)
+            .ToList();
+
+        var sections = new List<SaleGridSection>(methodsPerGroup.Count);
+        foreach (var methodRow in methodsPerGroup)
+        {
+            var section = await LoadOneAsync(connection, methodRow, ct);
+            if (section is not null)
+                sections.Add(section);
+        }
+
+        return sections;
+    }
+
+    private static async Task<SaleGridSection?> LoadOneAsync(
+        IDbConnection connection,
+        MethodRow methodRow,
+        CancellationToken ct)
+    {
         var mp = new DynamicParameters();
         mp.Add("MethodId", methodRow.MethodId);
 
+        decimal? summaryRounded = methodRow.MethodValue.HasValue
+            ? Math.Round(methodRow.MethodValue.Value / 1_000m, MidpointRounding.AwayFromZero) * 1_000m
+            : null;
+
         // ── Q2: Comparable column headers (ordered by DisplaySequence) ────────────
-        // Source: appraisal.PricingComparableLinks.DisplaySequence → "ข้อมูล {seq}" label.
-        // The MarketComparableId is the join key used in Q3/Q4 to align values to columns.
         const string headersSql = """
-            SELECT
-                pcl.MarketComparableId,
-                pcl.DisplaySequence
+            SELECT pcl.MarketComparableId, pcl.DisplaySequence
             FROM appraisal.PricingComparableLinks pcl
             WHERE pcl.PricingMethodId = @MethodId
             ORDER BY pcl.DisplaySequence
@@ -113,9 +109,16 @@ internal static class SaleGridSectionLoader
 
         var headerRows = (await connection.QueryAsync<HeaderRow>(headersSql, mp)).ToList();
         if (headerRows.Count == 0)
-            return BuildEmpty(methodRow);
+            return new SaleGridSection
+            {
+                GroupNumber         = methodRow.GroupNumber,
+                GroupName           = methodRow.GroupName,
+                ComparableHeaders   = [],
+                Rows                = [],
+                SummaryValue        = methodRow.MethodValue,
+                SummaryValueRounded = summaryRounded
+            };
 
-        // Build stable ordered list of comparable IDs (drives column positions)
         var orderedComparableIds = headerRows
             .OrderBy(h => h.DisplaySequence)
             .Select(h => h.MarketComparableId)
@@ -123,37 +126,21 @@ internal static class SaleGridSectionLoader
 
         var headers = headerRows
             .OrderBy(h => h.DisplaySequence)
-            .Select(h => $"ข้อมูล {h.DisplaySequence}")
+            .Select((h, i) => $"ข้อมูล {i + 1}")
             .ToList();
 
-        // ── Q3: Calculation values (one row per comparable) ───────────────────────
-        // All columns confirmed against PricingCalculationConfiguration.cs.
-        // Columns without a DB source (none here) are noted in the header comment above.
+        // ── Q3: Per-comparable calculation values ─────────────────────────────────
         const string calcSql = """
             SELECT
                 pc.MarketComparableId,
-                pc.OfferingPrice,
-                pc.OfferingPriceUnit,
-                pc.AdjustOfferPricePct,
-                pc.AdjustOfferPriceAmt,
-                pc.SellingPrice,
-                pc.BuySellYear,
-                pc.BuySellMonth,
-                pc.AdjustedPeriodPct,
-                pc.CumulativeAdjPeriod,
-                pc.LandAreaDeficient,
-                pc.LandAreaDeficientUnit,
-                pc.LandPrice,
-                pc.LandValueAdjustment,
-                pc.UsableAreaDeficient,
-                pc.UsableAreaDeficientUnit,
-                pc.UsableAreaPrice,
-                pc.BuildingValueAdjustment,
-                pc.TotalFactorDiffPct,
-                pc.TotalFactorDiffAmt,
-                pc.TotalAdjustedValue,
-                pc.Weight,
-                pc.WeightedAdjustedValue
+                pc.OfferingPrice, pc.OfferingPriceUnit,
+                pc.SellingPrice, pc.SellingPriceUnit,
+                pc.BuySellYear, pc.BuySellMonth,
+                pc.AdjustedPeriodPct, pc.CumulativeAdjPeriod,
+                pc.LandAreaDeficient, pc.LandAreaDeficientUnit, pc.LandPrice, pc.LandValueAdjustment,
+                pc.UsableAreaDeficient, pc.UsableAreaDeficientUnit, pc.UsableAreaPrice, pc.BuildingValueAdjustment,
+                pc.TotalFactorDiffPct, pc.TotalFactorDiffAmt,
+                pc.TotalAdjustedValue, pc.WeightedAdjustedValue
             FROM appraisal.PricingCalculations pc
             WHERE pc.PricingMethodId = @MethodId
             """;
@@ -161,14 +148,60 @@ internal static class SaleGridSectionLoader
         var calcRows = (await connection.QueryAsync<CalcRow>(calcSql, mp))
             .ToDictionary(r => r.MarketComparableId);
 
-        // ── Q4: Factor scores per comparable (for dynamic factor rows) ────────────
-        // WHERE MarketComparableId IS NOT NULL — collateral scores (null) are not
-        // shown as grid columns in the FSD table.
-        // Confirmed columns from PricingFactorScoreConfiguration.cs:
-        //   FactorId (Guid), DisplaySequence, AdjustmentPct, AdjustmentAmt, ComparisonResult.
-        // Factor display name: no FactorName column on PricingFactorScores — only FactorId (Guid).
-        // We use DisplaySequence as ordinal label: "ปัจจัยที่ {seq}". // no source for label
-        const string factorSql = """
+        // ── Q4: Comparative factors (scoring flag, subject value, real name) ──────
+        const string compFactorSql = """
+            SELECT
+                pcf.FactorId,
+                pcf.DisplaySequence,
+                pcf.IsSelectedForScoring,
+                pcf.CollateralValue,
+                mcf.FactorCode,
+                mcf.DataType,
+                mcf.ParameterGroup,
+                COALESCE(th.FactorName, en.FactorName, mcf.FieldName) AS FactorName
+            FROM appraisal.PricingComparativeFactors pcf
+            JOIN appraisal.MarketComparableFactors mcf
+                ON mcf.Id = pcf.FactorId
+            LEFT JOIN appraisal.MarketComparableFactorTranslations th
+                ON th.MarketComparableFactorId = mcf.Id AND th.Language = 'th'
+            LEFT JOIN appraisal.MarketComparableFactorTranslations en
+                ON en.MarketComparableFactorId = mcf.Id AND en.Language = 'en'
+            WHERE pcf.PricingMethodId = @MethodId
+            ORDER BY pcf.DisplaySequence
+            """;
+
+        var compFactors = (await connection.QueryAsync<CompFactorRow>(compFactorSql, mp)).ToList();
+        var collateralValueByFactor = compFactors
+            .GroupBy(f => f.FactorId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // ── Q5: EAV factor values for the linked comparables (detail block) ───────
+        var eavParams = new DynamicParameters();
+        eavParams.Add("ComparableIds", orderedComparableIds);
+
+        const string eavSql = """
+            SELECT
+                mcf.Id          AS FactorId,
+                mcf.FactorCode,
+                mcf.DataType,
+                mcf.ParameterGroup,
+                COALESCE(th.FactorName, en.FactorName, mcf.FieldName) AS FactorName,
+                mcd.MarketComparableId,
+                mcd.Value
+            FROM appraisal.MarketComparableData mcd
+            JOIN appraisal.MarketComparableFactors mcf
+                ON mcf.Id = mcd.FactorId AND mcf.IsActive = 1
+            LEFT JOIN appraisal.MarketComparableFactorTranslations th
+                ON th.MarketComparableFactorId = mcf.Id AND th.Language = 'th'
+            LEFT JOIN appraisal.MarketComparableFactorTranslations en
+                ON en.MarketComparableFactorId = mcf.Id AND en.Language = 'en'
+            WHERE mcd.MarketComparableId IN @ComparableIds
+            """;
+
+        var eavRows = (await connection.QueryAsync<EavRow>(eavSql, eavParams)).ToList();
+
+        // ── Q6: Per-factor, per-comparable scoring adjustments (% block) ──────────
+        const string factorScoreSql = """
             SELECT
                 pfs.MarketComparableId,
                 pfs.FactorId,
@@ -182,156 +215,279 @@ internal static class SaleGridSectionLoader
             ORDER BY pfs.DisplaySequence, pfs.MarketComparableId
             """;
 
-        var factorRows = (await connection.QueryAsync<FactorRow>(factorSql, mp)).ToList();
+        var factorScores = (await connection.QueryAsync<FactorScoreRow>(factorScoreSql, mp)).ToList();
 
-        // ── Transpose calculations into label-rows ────────────────────────────────
-        var rows = BuildRows(orderedComparableIds, calcRows, factorRows);
+        // ── Q7: parameter maps for code → Thai resolution ─────────────────────────
+        var paramGroups = eavRows
+            .Where(r => !string.IsNullOrWhiteSpace(r.ParameterGroup))
+            .Select(r => r.ParameterGroup!)
+            .Concat(compFactors.Where(f => !string.IsNullOrWhiteSpace(f.ParameterGroup)).Select(f => f.ParameterGroup!))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-        // ── SummaryValueRounded: MethodValue rounded to nearest 1 000 ────────────
-        // No dedicated "rounded" column on PricingAnalysisMethods; derived server-side.
-        decimal? summaryRounded = methodRow.MethodValue.HasValue
-            ? Math.Round(methodRow.MethodValue.Value / 1_000m, MidpointRounding.AwayFromZero) * 1_000m
-            : null;
+        var paramMaps = await LoadParameterMapsAsync(connection, paramGroups);
+
+        // ── Build rows ────────────────────────────────────────────────────────────
+        var rows = new List<SaleGridRow>();
+        rows.AddRange(BuildDetailRows(orderedComparableIds, eavRows, collateralValueByFactor, paramMaps));
+        rows.AddRange(BuildValueRows(orderedComparableIds, calcRows));
+        rows.AddRange(BuildFactorRows(orderedComparableIds, factorScores, compFactors));
+        rows.AddRange(BuildSummaryRows(orderedComparableIds, calcRows, methodRow.MethodValue, summaryRounded));
 
         return new SaleGridSection
         {
+            GroupNumber         = methodRow.GroupNumber,
+            GroupName           = methodRow.GroupName,
             ComparableHeaders   = headers,
             Rows                = rows,
             SummaryValue        = methodRow.MethodValue,
             SummaryValueRounded = summaryRounded
         };
+    }  // LoadOneAsync
+
+    // ── Detail block (EAV + CollateralValue SP) ─────────────────────────────────
+
+    private static IEnumerable<SaleGridRow> BuildDetailRows(
+        IReadOnlyList<Guid> comparableIds,
+        IReadOnlyList<EavRow> eavRows,
+        IReadOnlyDictionary<Guid, CompFactorRow> collateralValueByFactor,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string?>> paramMaps)
+    {
+        var columnIndex = comparableIds
+            .Select((id, i) => (id, i))
+            .ToDictionary(x => x.id, x => x.i);
+
+        foreach (var code in DetailFactorCodes)
+        {
+            var factorRows = eavRows.Where(r => r.FactorCode == code).ToList();
+            if (factorRows.Count == 0)
+                continue;
+
+            var first = factorRows[0];
+            var values = new string?[comparableIds.Count];
+            foreach (var r in factorRows)
+            {
+                if (columnIndex.TryGetValue(r.MarketComparableId, out var idx))
+                    values[idx] = ResolveValue(r.DataType, r.ParameterGroup, r.Value, paramMaps);
+            }
+
+            // SP value: analyst-entered subject value for this factor (if any).
+            string? subject = null;
+            if (collateralValueByFactor.TryGetValue(first.FactorId, out var cf))
+                subject = ResolveValue(cf.DataType, cf.ParameterGroup, cf.CollateralValue, paramMaps);
+
+            yield return new SaleGridRow
+            {
+                Label        = first.FactorName,
+                Values       = values,
+                SubjectValue = subject
+            };
+        }
     }
 
-    // ── Row construction ──────────────────────────────────────────────────────
+    // ── Price / area adjustment block (from PricingCalculations) ─────────────────
 
-    /// <summary>
-    /// Transposes per-comparable <paramref name="calcs"/> and <paramref name="factors"/>
-    /// into label rows ordered per FSD §2.1.2.10.
-    /// </summary>
-    private static IReadOnlyList<SaleGridRow> BuildRows(
+    private static IEnumerable<SaleGridRow> BuildValueRows(
+        IReadOnlyList<Guid> comparableIds,
+        IReadOnlyDictionary<Guid, CalcRow> calcs)
+    {
+        SaleGridRow Row(string label, Func<CalcRow, string?> selector, bool emphasis = false) => new()
+        {
+            Label  = label,
+            Values = comparableIds.Select(id => calcs.TryGetValue(id, out var c) ? selector(c) : null).ToList(),
+            Emphasis = emphasis
+        };
+
+        static string? WithUnit(decimal? v, string? unit) =>
+            v.HasValue ? v.Value.ToString("N2") + (string.IsNullOrWhiteSpace(unit) ? "" : $" {unit}") : null;
+
+        yield return Row("ราคาเสนอขาย (บาท/หน่วย)", c => WithUnit(c.OfferingPrice, c.OfferingPriceUnit));
+        yield return Row("ราคาคาดว่าจะขายได้ (บาท/หน่วย)", c => WithUnit(c.SellingPrice, c.SellingPriceUnit));
+        yield return Row("ราคาซื้อ - ขาย (ปี/เดือน)", c =>
+            (c.BuySellYear.HasValue || c.BuySellMonth.HasValue)
+                ? $"{c.BuySellYear?.ToString() ?? "-"}/{c.BuySellMonth?.ToString() ?? "-"}"
+                : null);
+        yield return Row("ปรับระยะเวลาซื้อ - ขาย (%)", c => Fmt(c.CumulativeAdjPeriod));
+
+        yield return Row("เนื้อที่ส่วน ขาด - เกิน ที่ดิน", c => WithUnit(c.LandAreaDeficient, c.LandAreaDeficientUnit));
+        yield return Row("ราคาต่อตารางวา", c => Fmt(c.LandPrice));
+        yield return Row("ส่วนชดเชยมูลค่าที่ดิน เพิ่ม - ลด (บาท)", c => Fmt(c.LandValueAdjustment));
+        yield return Row("พื้นที่ส่วน ขาด - เกิน อาคาร", c => WithUnit(c.UsableAreaDeficient, c.UsableAreaDeficientUnit));
+        yield return Row("ราคาต่อตารางเมตร", c => Fmt(c.UsableAreaPrice));
+        yield return Row("ส่วนชดเชยมูลค่าอาคาร เพิ่ม - ลด (บาท)", c => Fmt(c.BuildingValueAdjustment));
+    }
+
+    // ── Per-factor adjustment block (scoring factors, real names) ────────────────
+
+    private static IEnumerable<SaleGridRow> BuildFactorRows(
+        IReadOnlyList<Guid> comparableIds,
+        IReadOnlyList<FactorScoreRow> factorScores,
+        IReadOnlyList<CompFactorRow> compFactors)
+    {
+        // Real Thai factor name by FactorId (from the comparative-factor join).
+        var nameByFactor = compFactors
+            .GroupBy(f => f.FactorId)
+            .ToDictionary(g => g.Key, g => g.First().FactorName);
+
+        var columnIndex = comparableIds
+            .Select((id, i) => (id, i))
+            .ToDictionary(x => x.id, x => x.i);
+
+        // One row per factor (ordered by DisplaySequence), values = AdjustmentPct per comparable.
+        var byFactor = factorScores
+            .GroupBy(f => f.FactorId)
+            .OrderBy(g => g.Min(x => x.DisplaySequence));
+
+        foreach (var group in byFactor)
+        {
+            var values = new string?[comparableIds.Count];
+            foreach (var fs in group)
+            {
+                if (!columnIndex.TryGetValue(fs.MarketComparableId, out var idx))
+                    continue;
+                values[idx] = fs.AdjustmentPct.HasValue
+                    ? Fmt(fs.AdjustmentPct) + "%"
+                    : Fmt(fs.AdjustmentAmt);
+            }
+
+            var label = nameByFactor.TryGetValue(group.Key, out var n) && !string.IsNullOrWhiteSpace(n)
+                ? $"{n} (%)"
+                : $"ปัจจัยที่ {group.Min(x => x.DisplaySequence)} (%)";
+
+            yield return new SaleGridRow { Label = label, Values = values };
+        }
+    }
+
+    // ── Summary block ───────────────────────────────────────────────────────────
+
+    private static IEnumerable<SaleGridRow> BuildSummaryRows(
         IReadOnlyList<Guid> comparableIds,
         IReadOnlyDictionary<Guid, CalcRow> calcs,
-        IReadOnlyList<FactorRow> factors)
+        decimal? methodValue,
+        decimal? methodValueRounded)
     {
-        var rows = new List<SaleGridRow>();
-
-        // Helper: build one row from a projection over each comparable column.
-        SaleGridRow Row(string label, Func<CalcRow?, string?> selector)
+        // รวมผลต่าง ปัจจัยที่มีผลต่อมูลค่าทรัพย์สิน (%)
+        yield return new SaleGridRow
         {
-            var values = comparableIds
-                .Select(id => calcs.TryGetValue(id, out var c) ? selector(c) : null)
-                .ToList();
-            return new SaleGridRow { Label = label, Values = values };
-        }
+            Label  = "รวมผลต่าง ปัจจัยที่มีผลต่อมูลค่าทรัพย์สิน (%)",
+            Values = comparableIds
+                .Select(id => calcs.TryGetValue(id, out var c) ? Fmt(c.TotalFactorDiffPct) : null)
+                .ToList()
+        };
 
-        // 1. ราคาเสนอขาย — OfferingPrice (with unit suffix when present)
-        rows.Add(Row("ราคาเสนอขาย", c =>
-            c?.OfferingPrice.HasValue == true
-                ? FormatDecimal(c.OfferingPrice) + (string.IsNullOrWhiteSpace(c.OfferingPriceUnit) ? "" : $" ({c.OfferingPriceUnit})")
-                : null));
-
-        // 2. ราคาที่ซื้อขาย / ปีที่ซื้อขาย — SellingPrice / BuySellYear+BuySellMonth
-        rows.Add(Row("ราคาที่ซื้อขาย", c => FormatDecimal(c?.SellingPrice)));
-        rows.Add(Row("ปีที่ซื้อขาย (ปี/เดือน)", c =>
-            (c?.BuySellYear.HasValue == true || c?.BuySellMonth.HasValue == true)
-                ? $"{c!.BuySellYear?.ToString() ?? "-"}/{c.BuySellMonth?.ToString() ?? "-"}"
-                : null));
-
-        // 3. ปรับค่าตามช่วงเวลา % / สะสม — AdjustedPeriodPct / CumulativeAdjPeriod
-        rows.Add(Row("ปรับค่าตามช่วงเวลา (%)", c => FormatDecimal(c?.AdjustedPeriodPct)));
-        rows.Add(Row("ค่าปรับสะสม (%)", c => FormatDecimal(c?.CumulativeAdjPeriod)));
-
-        // 4. ส่วนขาดที่ดิน — LandAreaDeficient / LandPrice / LandValueAdjustment
-        rows.Add(Row("ส่วนขาดที่ดิน", c =>
-            c?.LandAreaDeficient.HasValue == true
-                ? FormatDecimal(c.LandAreaDeficient) + (string.IsNullOrWhiteSpace(c.LandAreaDeficientUnit) ? "" : $" {c.LandAreaDeficientUnit}")
-                : null));
-        rows.Add(Row("ราคาที่ดิน (ต่อหน่วย)", c => FormatDecimal(c?.LandPrice)));
-        rows.Add(Row("ค่าปรับที่ดิน", c => FormatDecimal(c?.LandValueAdjustment)));
-
-        // 5. ส่วนขาดอาคาร — UsableAreaDeficient / UsableAreaPrice / BuildingValueAdjustment
-        rows.Add(Row("ส่วนขาดอาคาร", c =>
-            c?.UsableAreaDeficient.HasValue == true
-                ? FormatDecimal(c.UsableAreaDeficient) + (string.IsNullOrWhiteSpace(c.UsableAreaDeficientUnit) ? "" : $" {c.UsableAreaDeficientUnit}")
-                : null));
-        rows.Add(Row("ราคาอาคาร (ต่อหน่วย)", c => FormatDecimal(c?.UsableAreaPrice)));
-        rows.Add(Row("ค่าปรับอาคาร", c => FormatDecimal(c?.BuildingValueAdjustment)));
-
-        // 6. ปรับปัจจัย % / จำนวนเงิน — TotalFactorDiffPct / TotalFactorDiffAmt
-        rows.Add(Row("ปรับปัจจัย (%)", c => FormatDecimal(c?.TotalFactorDiffPct)));
-        rows.Add(Row("ปรับปัจจัย (จำนวนเงิน)", c => FormatDecimal(c?.TotalFactorDiffAmt)));
-
-        // 7. Dynamic factor-score rows (one row per unique DisplaySequence across all comparables)
-        // Factor display name: "ปัจจัยที่ {seq}" — no FactorName column on PricingFactorScores.
-        // // no source for human-readable factor label
-        var factorSeqs = factors
-            .Select(f => f.DisplaySequence)
-            .Distinct()
-            .OrderBy(s => s)
-            .ToList();
-
-        foreach (var seq in factorSeqs)
+        // ราคาหลังปรับแก้ปัจจัย
+        yield return new SaleGridRow
         {
-            // Build a lookup: comparableId → factor row for this sequence
-            var byComparable = factors
-                .Where(f => f.DisplaySequence == seq)
-                .ToDictionary(f => f.MarketComparableId);
+            Label  = "ราคาหลังปรับแก้ปัจจัย",
+            Values = comparableIds
+                .Select(id => calcs.TryGetValue(id, out var c) ? Fmt(c.TotalAdjustedValue) : null)
+                .ToList()
+        };
 
-            var factorValues = comparableIds.Select(id =>
-            {
-                if (!byComparable.TryGetValue(id, out var fr))
-                    return null;
-                // Show: ComparisonResult (±%) when present, else AdjustmentPct, else AdjustmentAmt
-                if (!string.IsNullOrWhiteSpace(fr.ComparisonResult))
-                    return fr.ComparisonResult
-                           + (fr.AdjustmentPct.HasValue ? $" ({FormatDecimal(fr.AdjustmentPct)}%)" : "");
-                if (fr.AdjustmentPct.HasValue)
-                    return FormatDecimal(fr.AdjustmentPct) + "%";
-                return FormatDecimal(fr.AdjustmentAmt);
-            }).ToList();
-
-            rows.Add(new SaleGridRow
-            {
-                Label  = $"ปัจจัยที่ {seq}", // no source — FactorId Guid only; ordinal used
-                Values = factorValues
-            });
-        }
-
-        // 8. รวมค่าปรับทั้งหมด / มูลค่าทรัพย์สิน — TotalAdjustedValue / WeightedAdjustedValue
-        rows.Add(Row("รวมค่าปรับทั้งหมด", c => FormatDecimal(c?.TotalAdjustedValue)));
-        rows.Add(Row("มูลค่าทรัพย์สิน (SP)", c =>
-            // Prefer WeightedAdjustedValue (SaleGrid weighting); fall back to TotalAdjustedValue
-            FormatDecimal(c?.WeightedAdjustedValue ?? c?.TotalAdjustedValue)));
-
-        return rows;
-    }
-
-    /// <summary>Returns an empty section shell when a method exists but has no linked comparables.</summary>
-    private static SaleGridSection BuildEmpty(MethodRow m)
-    {
-        decimal? summaryRounded = m.MethodValue.HasValue
-            ? Math.Round(m.MethodValue.Value / 1_000m, MidpointRounding.AwayFromZero) * 1_000m
-            : null;
-
-        return new SaleGridSection
+        // สรุปมูลค่าทรัพย์สิน (บาท) — per comparable weighted value; SP = MethodValue
+        yield return new SaleGridRow
         {
-            ComparableHeaders   = [],
-            Rows                = [],
-            SummaryValue        = m.MethodValue,
-            SummaryValueRounded = summaryRounded
+            Label  = "สรุปมูลค่าทรัพย์สิน (บาท)",
+            Values = comparableIds
+                .Select(id => calcs.TryGetValue(id, out var c) ? Fmt(c.WeightedAdjustedValue ?? c.TotalAdjustedValue) : null)
+                .ToList(),
+            SubjectValue = Fmt(methodValue),
+            Emphasis = true
+        };
+
+        // สรุปมูลค่าทรัพย์สิน (ปัดเศษ) — SP = rounded MethodValue
+        yield return new SaleGridRow
+        {
+            Label  = "สรุปมูลค่าทรัพย์สิน (ปัดเศษ)",
+            Values = new string?[comparableIds.Count],
+            SubjectValue = Fmt(methodValueRounded),
+            Emphasis = true
         };
     }
 
-    /// <summary>Formats a nullable decimal as N2 string; returns null for null input.</summary>
-    private static string? FormatDecimal(decimal? value) =>
-        value.HasValue ? value.Value.ToString("N2") : null;
+    // ── Value resolution helpers (mirrors ComparisonSectionLoader) ───────────────
 
-    // ── Private flat DTOs for Dapper mapping ─────────────────────────────────
+    private static string? ResolveValue(
+        string? dataType,
+        string? parameterGroup,
+        string? value,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string?>> paramMaps)
+    {
+        if (!IsParameterBacked(dataType) || string.IsNullOrWhiteSpace(parameterGroup))
+            return value;
+        return JsonCodesToThai(value, paramMaps.GetValueOrDefault(parameterGroup) ?? EmptyMap);
+    }
+
+    private static bool IsParameterBacked(string? dataType) => dataType is
+        "Dropdown" or "Radio" or "Checkbox" or "CheckboxGroup";
+
+    private static string? Fmt(decimal? value) => value.HasValue ? value.Value.ToString("N2") : null;
+
+    private static readonly IReadOnlyDictionary<string, string?> EmptyMap = new Dictionary<string, string?>();
+
+    private static async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string?>>>
+        LoadParameterMapsAsync(IDbConnection connection, IReadOnlyList<string> groups)
+    {
+        if (groups.Count == 0)
+            return new Dictionary<string, IReadOnlyDictionary<string, string?>>();
+
+        var p = new DynamicParameters();
+        p.Add("Groups", groups);
+
+        const string sql = """
+            SELECT [group] AS [Group], [code] AS Code, [description] AS Description
+            FROM parameter.Parameters
+            WHERE [language] = 'TH' AND [isactive] = 1
+              AND [group] IN @Groups
+            """;
+
+        var paramRows = (await connection.QueryAsync<ParamRow>(sql, p)).ToList();
+
+        return paramRows
+            .Where(r => !string.IsNullOrWhiteSpace(r.Group) && !string.IsNullOrWhiteSpace(r.Code))
+            .GroupBy(r => r.Group!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyDictionary<string, string?>)g
+                    .GroupBy(x => x.Code!, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(x => x.Key, x => x.First().Description, StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string? JsonCodesToThai(string? raw, IReadOnlyDictionary<string, string?> map)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        var s = raw.Trim();
+        List<string> codes;
+        if (s.StartsWith('['))
+        {
+            try { codes = JsonSerializer.Deserialize<List<string>>(s) ?? []; }
+            catch (JsonException) { codes = [s]; }
+        }
+        else
+        {
+            codes = [s];
+        }
+
+        var labels = codes
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => map.TryGetValue(c, out var d) && !string.IsNullOrWhiteSpace(d) ? d! : c);
+
+        var joined = string.Join(", ", labels);
+        return string.IsNullOrWhiteSpace(joined) ? null : joined;
+    }
+
+    // ── Private Dapper flat DTOs ─────────────────────────────────────────────────
 
     private sealed class MethodRow
     {
-        public Guid    MethodId    { get; init; }
-        public decimal? MethodValue { get; init; }
+        public Guid     PropertyGroupId { get; init; }
+        public int      GroupNumber     { get; init; }
+        public string?  GroupName       { get; init; }
+        public Guid     MethodId        { get; init; }
+        public decimal? MethodValue     { get; init; }
     }
 
     private sealed class HeaderRow
@@ -342,38 +498,66 @@ internal static class SaleGridSectionLoader
 
     private sealed class CalcRow
     {
-        public Guid     MarketComparableId    { get; init; }
-        public decimal? OfferingPrice         { get; init; }
-        public string?  OfferingPriceUnit     { get; init; }
-        public decimal? AdjustOfferPricePct   { get; init; }
-        public decimal? AdjustOfferPriceAmt   { get; init; }
-        public decimal? SellingPrice          { get; init; }
-        public int?     BuySellYear           { get; init; }
-        public int?     BuySellMonth          { get; init; }
-        public decimal? AdjustedPeriodPct     { get; init; }
-        public decimal? CumulativeAdjPeriod   { get; init; }
-        public decimal? LandAreaDeficient     { get; init; }
-        public string?  LandAreaDeficientUnit { get; init; }
-        public decimal? LandPrice             { get; init; }
-        public decimal? LandValueAdjustment   { get; init; }
-        public decimal? UsableAreaDeficient   { get; init; }
+        public Guid     MarketComparableId      { get; init; }
+        public decimal? OfferingPrice           { get; init; }
+        public string?  OfferingPriceUnit       { get; init; }
+        public decimal? SellingPrice            { get; init; }
+        public string?  SellingPriceUnit        { get; init; }
+        public int?     BuySellYear             { get; init; }
+        public int?     BuySellMonth            { get; init; }
+        public decimal? AdjustedPeriodPct       { get; init; }
+        public decimal? CumulativeAdjPeriod     { get; init; }
+        public decimal? LandAreaDeficient       { get; init; }
+        public string?  LandAreaDeficientUnit   { get; init; }
+        public decimal? LandPrice               { get; init; }
+        public decimal? LandValueAdjustment     { get; init; }
+        public decimal? UsableAreaDeficient     { get; init; }
         public string?  UsableAreaDeficientUnit { get; init; }
-        public decimal? UsableAreaPrice       { get; init; }
+        public decimal? UsableAreaPrice         { get; init; }
         public decimal? BuildingValueAdjustment { get; init; }
-        public decimal? TotalFactorDiffPct    { get; init; }
-        public decimal? TotalFactorDiffAmt    { get; init; }
-        public decimal? TotalAdjustedValue    { get; init; }
-        public decimal? Weight                { get; init; }
-        public decimal? WeightedAdjustedValue { get; init; }
+        public decimal? TotalFactorDiffPct      { get; init; }
+        public decimal? TotalFactorDiffAmt      { get; init; }
+        public decimal? TotalAdjustedValue      { get; init; }
+        public decimal? WeightedAdjustedValue   { get; init; }
     }
 
-    private sealed class FactorRow
+    private sealed class CompFactorRow
+    {
+        public Guid    FactorId            { get; init; }
+        public int     DisplaySequence     { get; init; }
+        public bool    IsSelectedForScoring { get; init; }
+        public string? CollateralValue     { get; init; }
+        public string? FactorCode          { get; init; }
+        public string? DataType            { get; init; }
+        public string? ParameterGroup      { get; init; }
+        public string? FactorName          { get; init; }
+    }
+
+    private sealed class EavRow
+    {
+        public Guid    FactorId           { get; init; }
+        public string? FactorCode         { get; init; }
+        public string? DataType           { get; init; }
+        public string? ParameterGroup     { get; init; }
+        public string? FactorName         { get; init; }
+        public Guid    MarketComparableId { get; init; }
+        public string? Value              { get; init; }
+    }
+
+    private sealed class FactorScoreRow
     {
         public Guid     MarketComparableId { get; init; }
         public Guid     FactorId           { get; init; }
         public int      DisplaySequence    { get; init; }
-        public decimal? AdjustmentPct     { get; init; }
-        public decimal? AdjustmentAmt     { get; init; }
-        public string?  ComparisonResult  { get; init; }
+        public decimal? AdjustmentPct      { get; init; }
+        public decimal? AdjustmentAmt      { get; init; }
+        public string?  ComparisonResult   { get; init; }
+    }
+
+    private sealed class ParamRow
+    {
+        public string? Group       { get; init; }
+        public string? Code        { get; init; }
+        public string? Description { get; init; }
     }
 }

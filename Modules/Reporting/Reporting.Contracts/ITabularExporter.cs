@@ -19,11 +19,16 @@ public interface ITabularExporter
     /// <param name="baseName">File name stem, e.g. <c>"RCAS001-AppraisalBooks"</c>.</param>
     /// <param name="format">Xlsx, Csv, or Pdf.</param>
     /// <param name="title">Optional report title rendered above the table (PDF/Excel).</param>
+    /// <param name="appliedFilters">
+    /// Optional display-ready filter criteria rendered as an "Applied filters" block under the title,
+    /// so a saved/shared file records which selection produced it.
+    /// </param>
     Task<ReportFile> ExportAsync<T>(
         IReadOnlyList<T> rows,
         IReadOnlyList<ReportColumn<T>> columns,
         string baseName,
         ReportFormat format,
         string? title = null,
+        IReadOnlyList<FilterCriterion>? appliedFilters = null,
         CancellationToken cancellationToken = default);
 }

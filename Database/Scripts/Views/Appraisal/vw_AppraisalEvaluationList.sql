@@ -25,21 +25,24 @@ SELECT
     e.Id                                    AS EvaluationId,
     COALESCE(e.EvaluationStatus, 'Pending') AS EvaluationStatus,
 
-    -- Composite score — only computed when an evaluation row exists.
-    -- Ratings are nullable (Pending rows may have partial selections); treat NULL as 0
-    -- so a partial draft still produces a usable partial score.
+    -- Composite score — only produced when an evaluation row exists.
+    -- Completed evaluations carry a frozen snapshot (e.TotalScore) stamped at completion
+    -- time, so later edits to EvaluationCriteriaConfig weights do NOT rewrite historical
+    -- scores (or the company averages derived from them).
+    -- Pending rows have no snapshot yet, so they are scored live from the current config
+    -- weights — ratings are nullable (partial drafts), treat NULL as 0 for a partial preview.
     -- Weights are loaded from appraisal.EvaluationCriteriaConfigs keyed by BankingSegment.
     -- NULL BankingSegment defaults to 'IBG' weights (ISNULL fallback in OUTER APPLY).
     CASE
-        WHEN e.Id IS NOT NULL
-            THEN CAST(
+        WHEN e.Id IS NULL THEN NULL
+        WHEN e.TotalScore IS NOT NULL THEN e.TotalScore
+        ELSE CAST(
                 (ISNULL(w.W1, 0) * ISNULL(e.Criteria1Rating, 0))
                     + (ISNULL(w.W2, 0) * ISNULL(e.Criteria2Rating, 0))
                     + (ISNULL(w.W3, 0) * ISNULL(e.Criteria3Rating, 0))
                     + (ISNULL(w.W4, 0) * ISNULL(e.Criteria4Rating, 0))
                     + (ISNULL(w.W5, 0) * ISNULL(e.Criteria5Rating, 0))
             AS DECIMAL(5, 2))
-        ELSE NULL
         END                                 AS TotalScore
 
 FROM appraisal.Appraisals a

@@ -10,6 +10,7 @@ public sealed record Rcas001Filter(
     DateTime? CreatedTo,
     string? Status,
     string? BankingSegment,
+    string? AppraisalNumber,
     string? SortBy,
     string? SortDir);
 
@@ -31,6 +32,14 @@ internal static class Rcas001Report
         Title = "รายงานเล่มประเมินตามช่วงเวลา & ตามสถานะของงาน & ตามฝ่ายงาน",
         Build = Build,
         OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, "AppraisalNumber"),
+        DescribeFilter = f =>
+        [
+            new("Created From", f.CreatedFrom?.ToString("yyyy-MM-dd")),
+            new("Created To", f.CreatedTo?.ToString("yyyy-MM-dd")),
+            new("Status", f.Status),
+            new("Retail/IBG", f.BankingSegment, "BankingSegment"),
+            new("Appraisal No.", f.AppraisalNumber),
+        ],
         Columns =
         [
             new("Appraisal Create Date", r => r.AppraisalCreateDate, ColumnFormat.DateTime),
@@ -59,6 +68,7 @@ internal static class Rcas001Report
         ReportFilterSql.DateRange(c, p, f.CreatedFrom, f.CreatedTo, "AppraisalCreateDate", "Created");
         ReportFilterSql.MultiValue(c, p, f.Status, "AppraisalStatus", "Statuses");
         ReportFilterSql.Exact(c, p, f.BankingSegment, "BankingSegment", "BankingSegment");
+        ReportFilterSql.Contains(c, p, f.AppraisalNumber, "AppraisalNumber", "AppraisalNumber");
 
         return ("SELECT * FROM reporting.vw_RCAS001_AppraisalBooks" + ReportFilterSql.Where(c), p);
     }
