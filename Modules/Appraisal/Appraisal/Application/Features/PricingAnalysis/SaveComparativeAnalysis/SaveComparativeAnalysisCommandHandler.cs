@@ -305,7 +305,7 @@ public class SaveComparativeAnalysisCommandHandler(
                 continue;
 
             if (!comparable.SaleDate.HasValue)
-                throw new NotFoundException("SaleDate", calc.MarketComparableId);
+                continue;
 
             var (years, months) = PricingCalculationHelper.ComputeTimeFromSaleDate(comparable.SaleDate.Value);
             var cumulative = PricingCalculationHelper.ComputeCumulativeAdjPeriod(years, calc.AdjustedPeriodPct);
