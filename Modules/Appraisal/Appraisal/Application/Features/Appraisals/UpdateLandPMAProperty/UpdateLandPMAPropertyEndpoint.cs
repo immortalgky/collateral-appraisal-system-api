@@ -5,7 +5,7 @@ public class UpdateLandPMAPropertyEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPut(
-                "/appraisals/{appraisalId:guid}/properties/{propertyId:guid}/land-pma",
+                "/appraisals/{appraisalId:guid}/properties/{propertyId:guid}/land-building-pma",
                 async (
                     Guid appraisalId,
                     Guid propertyId,

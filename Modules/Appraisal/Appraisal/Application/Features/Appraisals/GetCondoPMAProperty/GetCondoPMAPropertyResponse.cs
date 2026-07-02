@@ -4,7 +4,7 @@ public record GetCondoPMAPropertyResponse(
     Guid AppraisalId,
     decimal? BuildingInsurancePrice,
     decimal? SellingPrice,
-    decimal? ForceSellingPrice,
+    decimal? ForcedSalePrice,
     string? CondoName,
     string? BuildingNumber,
     string? BuiltOnTitleNumber,

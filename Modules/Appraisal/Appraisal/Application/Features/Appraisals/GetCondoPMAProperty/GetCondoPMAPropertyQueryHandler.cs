@@ -36,8 +36,8 @@ public class GetCondoPMAPropertyQueryHandler(
             SubDistrict: detail.Address?.SubDistrict,
             District: detail.Address?.District,
             Province: detail.Address?.Province,
-            BuildingInsurancePrice: detail.BuildingInsurancePrice,
-            SellingPrice: detail.SellingPrice,
-            ForceSellingPrice: detail.ForcedSalePrice);
+            BuildingInsurancePrice: property.BuildingInsurancePrice,
+            SellingPrice: property.SellingPrice,
+            ForcedSalePrice: property.ForcedSalePrice);
     }
 }

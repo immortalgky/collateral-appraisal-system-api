@@ -5,7 +5,7 @@ public class GetLandPMAPropertyEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapGet(
-                "/appraisals/{appraisalId:guid}/properties/{propertyId:guid}/land-pma",
+                "/appraisals/{appraisalId:guid}/properties/{propertyId:guid}/land-building-pma",
                 async (
                     Guid appraisalId,
                     Guid propertyId,

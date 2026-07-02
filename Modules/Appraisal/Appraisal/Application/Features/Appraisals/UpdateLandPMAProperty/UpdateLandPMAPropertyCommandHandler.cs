@@ -21,8 +21,8 @@ public class UpdateLandPMAPropertyCommandHandler(
         var property = appraisal.GetProperty(command.PropertyId)
                        ?? throw new PropertyNotFoundException(command.PropertyId);
 
-        if (property.PropertyType != PropertyType.Land && property.PropertyType != PropertyType.LeaseAgreementLand)
-            throw new InvalidOperationException($"Property {command.PropertyId} is not a land property");
+        if (property.PropertyType != PropertyType.LandAndBuilding && property.PropertyType != PropertyType.LeaseAgreementLandAndBuilding)
+            throw new InvalidOperationException($"Property {command.PropertyId} is not a land and building property");
 
         var landDetail = property.LandDetail
                          ?? throw new InvalidOperationException(
@@ -93,7 +93,7 @@ public class UpdateLandPMAPropertyCommandHandler(
             else
             {
                 // Create new
-                var title = LandTitle.Create(landDetail.Id, titleData.TitleNumber, titleData.TitleType);
+                var title = LandTitle.Create(landDetail.Id, titleData.TitleNumber, titleData.TitleType ?? "DEED");
                 title.Update(
                     titleData.BookNumber, titleData.PageNumber,
                     titleData.LandParcelNumber, titleData.SurveyNumber,

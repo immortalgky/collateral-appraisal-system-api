@@ -7,7 +7,7 @@ public class CreateCondoPMAPropertyEndpoint : ICarterModule
                 "/appraisals/{appraisalId:guid}/condo-pma",
                 async (
                     Guid appraisalId,
-                    Guid? gruopId,
+                    Guid? groupId,
                     CreateCondoPMAPropertyRequest request,
                     ISender sender,
                     CancellationToken cancellationToken
@@ -16,12 +16,17 @@ public class CreateCondoPMAPropertyEndpoint : ICarterModule
                     var command = request.Adapt<CreateCondoPMAPropertyCommand>()
                         with
                         {
-                            AppraisalId = appraisalId, GroupId = gruopId
+                            AppraisalId = appraisalId, GroupId = groupId
                         };
 
-                    await sender.Send(command, cancellationToken);
+                    var result = await sender.Send(command, cancellationToken);
 
-                    return Results.NoContent();
+                    var response = result.Adapt<CreateCondoPMAPropertyResponse>();
+
+
+                    return Results.Created(
+                        $"/appraisals/{appraisalId}/properties-pma/{response.PropertyId}/condo-pma",
+                        response);
                 }
             )
             .WithName("CreateCondoPMAProperty")

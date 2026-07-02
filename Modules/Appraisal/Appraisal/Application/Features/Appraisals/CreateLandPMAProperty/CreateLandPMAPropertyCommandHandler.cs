@@ -19,7 +19,7 @@ public class UpdateLandPMAPropertyCommandHandler(
                             command.AppraisalId, cancellationToken)
                         ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
-        var property = appraisal.AddLandProperty();
+        var property = appraisal.AddLandAndBuildingProperty();
 
         property.UpdatePrice(
             sellingPrice: command.SellingPrice,
@@ -36,6 +36,7 @@ public class UpdateLandPMAPropertyCommandHandler(
                 command.Province
             );
         property.LandDetail!.Update(
+            ownerName: "",
             address: address
         );
 
@@ -45,6 +46,8 @@ public class UpdateLandPMAPropertyCommandHandler(
             SyncTitles(property.LandDetail!, command.Titles);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
 
         return new CreateLandPMAPropertyResult(property.Id, property.LandDetail.Id);
     }
@@ -88,7 +91,7 @@ public class UpdateLandPMAPropertyCommandHandler(
             else
             {
                 // Create new
-                var title = LandTitle.Create(landDetail.Id, titleData.TitleNumber, titleData.TitleType);
+                var title = LandTitle.Create(landDetail.Id, titleData.TitleNumber, titleData.TitleType ?? "DEED");
                 title.Update(
                     titleData.BookNumber, titleData.PageNumber,
                     titleData.LandParcelNumber, titleData.SurveyNumber,

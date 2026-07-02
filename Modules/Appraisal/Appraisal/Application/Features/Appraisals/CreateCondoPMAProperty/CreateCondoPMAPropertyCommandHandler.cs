@@ -37,6 +37,7 @@ public class CreateCondoPMAPropertyCommandHandler(
 
         property.CondoDetail!.Update(
             condoName: command.CondoName,
+            ownerName: "",
             buildingNumber: command.BuildingNumber,
             builtOnTitleNumber: command.BuiltOnTitleNumber,
             condoRegistrationNumber: command.CondoRegistrationNumber,
@@ -46,6 +47,9 @@ public class CreateCondoPMAPropertyCommandHandler(
         );
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        
+        if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
+
 
         return new CreateCondoPMAPropertyResult(property.Id, property.CondoDetail.Id);
     }

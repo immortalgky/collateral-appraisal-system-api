@@ -5,7 +5,7 @@ public class CreateLandPMAPropertyEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPost(
-                "/appraisals/{appraisalId:guid}/land-pma",
+                "/appraisals/{appraisalId:guid}/land-building-pma",
                 async (
                     Guid appraisalId,
                     Guid? groupId,
@@ -23,15 +23,15 @@ public class CreateLandPMAPropertyEndpoint : ICarterModule
 
                     var result = await sender.Send(command, cancellationToken);
 
-                    var response = result.Adapt<CreateLandPropertyResponse>();
+                    var response = result.Adapt<CreateLandPMAPropertyResponse>();
 
                     return Results.Created(
-                        $"/appraisals/{appraisalId}/properties/{response.PropertyId}/land-detail",
+                        $"/appraisals/{appraisalId}/properties-pma/{response.PropertyId}/land-building-pma",
                         response);
                 }
             )
             .WithName("CreateLandPMAProperty")
-            .Produces<CreateLandPropertyResponse>(StatusCodes.Status201Created)
+            .Produces<CreateLandPMAPropertyResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create a land pma property")

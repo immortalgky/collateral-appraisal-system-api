@@ -45,6 +45,7 @@ public class UpdateCondoPMAPropertyCommandHandler(
 
         detail.Update(
             condoName: command.CondoName,
+            ownerName: "",
             buildingNumber: command.BuildingNumber,
             builtOnTitleNumber: command.BuiltOnTitleNumber,
             condoRegistrationNumber: command.CondoRegistrationNumber,
