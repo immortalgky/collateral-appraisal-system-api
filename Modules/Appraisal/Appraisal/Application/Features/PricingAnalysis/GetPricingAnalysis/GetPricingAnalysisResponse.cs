@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysisDocuments;
+
 namespace Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysis;
 
 public record GetPricingAnalysisResponse(
@@ -12,5 +14,7 @@ public record GetPricingAnalysisResponse(
     decimal? FinalForcedSaleValue,
     DateTime? ValuationDate,
     bool UseSystemCalc,
-    List<ApproachDto> Approaches
+    List<ApproachDto> Approaches,
+    List<PricingAnalysisDocumentDto> Documents,
+    string? Remark
 );

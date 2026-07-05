@@ -802,6 +802,91 @@ GET {{baseUrl}}/pricing-analysis/{pricingAnalysisId}
 Content-Type: application/json
 
 ### =====================================================
+### 11A. DOCUMENTS
+### =====================================================
+### Two-step flow: upload the raw file to the Document module first (steps 11A.1-11A.2),
+### then attach the returned documentId to the pricing analysis (11A.3).
+
+### 11A.1 Create an upload session (Document module)
+POST {{baseUrl}}/documents/session
+Content-Type: application/json
+
+### Copy the returned "id" into @uploadSessionId below.
+@uploadSessionId = 00000000-0000-0000-0000-000000000000
+
+### 11A.2 Upload the file (Document module) — multipart/form-data
+POST {{baseUrl}}/documents
+X-Dev-Auth: dev-bypass
+Content-Type: multipart/form-data; boundary=----PricingDocBoundary
+
+------PricingDocBoundary
+Content-Disposition: form-data; name="uploadSessionId"
+
+{{uploadSessionId}}
+------PricingDocBoundary
+Content-Disposition: form-data; name="documentType"
+
+SURVEY
+------PricingDocBoundary
+Content-Disposition: form-data; name="documentCategory"
+
+PricingAnalysis
+------PricingDocBoundary
+Content-Disposition: form-data; name="description"
+
+Content-Disposition: form-data; name="file"; filename="upload.pdf"
+Content-Type: application/pdf
+
+< ./upload.pdf
+------PricingDocBoundary--
+
+### Copy the returned "documentId" into @documentId below.
+@documentId = 00000000-0000-0000-0000-000000000000
+
+### 11A.3 Attach the uploaded document to the pricing analysis
+POST {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/documents
+Content-Type: application/json
+
+{
+  "documentId": "{{documentId}}",
+  "fileName": "survey.pdf"
+}
+
+### Copy the returned "id" into @documentEntryId below (the PricingAnalysisDocument entry id,
+### NOT the documentId).
+@documentEntryId = 00000000-0000-0000-0000-000000000000
+
+### 11A.4 List documents attached to the pricing analysis
+GET {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/documents
+Content-Type: application/json
+
+### 11A.5 Replace the file linked to an existing document entry
+PUT {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/documents/{{documentEntryId}}
+Content-Type: application/json
+
+{
+  "documentId": "{{documentId}}",
+  "fileName": "survey-v2.pdf"
+}
+
+### 11A.6 Unlink without deleting the entry (DocumentId = null)
+PUT {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/documents/{{documentEntryId}}
+Content-Type: application/json
+
+{
+  "documentId": null,
+  "fileName": null
+}
+
+### 11A.7 Delete the document entry entirely
+DELETE {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}/documents/{{documentEntryId}}
+Content-Type: application/json
+
+### 11A.8 Sanity check: GetPricingAnalysis now includes a "documents" array
+GET {{baseUrl}}/pricing-analysis/{{pricingAnalysisId}}
+Content-Type: application/json
+
+### =====================================================
 ### 12. METHOD TYPES REFERENCE
 ### =====================================================
 # MethodType values:

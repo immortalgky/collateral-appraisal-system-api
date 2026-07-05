@@ -31,7 +31,7 @@ public class SelectMethodEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Select method")
-            .WithDescription("Selects a method as the primary method, setting all other methods in the same approach as Alternative.")
+            .WithDescription("Selects a method as the primary method within its approach, setting all other methods in the same approach as Alternative. Does not affect approach selection — use SelectApproach for that.")
             .WithTags("PricingAnalysis");
     }
 }

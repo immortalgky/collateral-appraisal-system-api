@@ -1,0 +1,7 @@
+namespace Appraisal.Application.Features.PricingAnalysis.AttachPricingAnalysisDocument;
+
+public record AttachPricingAnalysisDocumentResponse(
+    Guid Id,
+    Guid PricingAnalysisId,
+    Guid? DocumentId,
+    string? FileName);

@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysisDocuments;
+
 namespace Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysis;
 
 /// <summary>
@@ -29,6 +31,15 @@ public class GetPricingAnalysisQueryHandler(
             )).ToList()
         )).ToList();
 
+        var documents = pricingAnalysis.Documents.Select(d => new PricingAnalysisDocumentDto(
+            d.Id,
+            d.DocumentId,
+            d.FileName,
+            d.FilePath,
+            d.UploadedBy,
+            d.UploadedByName,
+            d.UploadedAt)).ToList();
+
         return new GetPricingAnalysisResult(
             pricingAnalysis.Id,
             pricingAnalysis.SubjectType,
@@ -38,7 +49,9 @@ public class GetPricingAnalysisQueryHandler(
             pricingAnalysis.Status,
             pricingAnalysis.FinalAppraisedValue,
             pricingAnalysis.UseSystemCalc,
-            approaches
+            approaches,
+            documents,
+            pricingAnalysis.Remark
         );
     }
 }
