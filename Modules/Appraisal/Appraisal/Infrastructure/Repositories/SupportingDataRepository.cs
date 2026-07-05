@@ -115,6 +115,18 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
             "createdDate" => isDesc
                 ? query.OrderByDescending(s => s.CreatedAt)
                 : query.OrderBy(s => s.CreatedAt),
+            "importChannel" => isDesc
+                ? query.OrderByDescending(s => s.ImportChannel)
+                : query.OrderBy(s => s.ImportChannel),
+            "sourceOfData" => isDesc
+                ? query.OrderByDescending(s => s.SourceOfData)
+                : query.OrderBy(s => s.SourceOfData),
+            "lastModifiedBy" => isDesc
+                ? query.OrderByDescending(s => s.UpdatedBy)
+                : query.OrderBy(s => s.UpdatedBy),
+            "lastModifiedDate" => isDesc
+                ? query.OrderByDescending(s => s.UpdatedAt)
+                : query.OrderBy(s => s.UpdatedAt),
             _ => query.OrderBy(s => s.CreatedAt),
         };
 
