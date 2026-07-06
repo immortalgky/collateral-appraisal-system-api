@@ -75,6 +75,8 @@ public class SendInvitationCommandValidator : AbstractValidator<SendInvitationCo
         RuleForEach(x => x.Attachments).MaximumLength(200).When(x => x.Attachments is not null);
         RuleFor(x => x.Attachments).Must(a => a is null || a.Length <= 10)
             .WithMessage("Maximum 10 attachments allowed.");
+        RuleFor(x => x.Attachments).Must(a => a is not null && a.Any(d => !string.IsNullOrWhiteSpace(d)))
+            .WithMessage("At least one attachment is required.");
     }
 }
 
@@ -82,7 +84,6 @@ public record SendInvitationResponse(Guid MeetingId, string? MeetingNo, DateTime
 
 public class SendInvitationCommandHandler(
     IMeetingRepository meetingRepository,
-    IMeetingDocumentGenerator meetingDocumentGenerator,
     IDateTimeProvider dateTimeProvider,
     WorkflowDbContext dbContext,
     IIntegrationEventOutbox outbox)
@@ -99,45 +100,16 @@ public class SendInvitationCommandHandler(
             .Select(d => d.Trim())
             .ToList();
 
-        var pickedSet = pickedDocIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        // Determine whether the user already picked a meeting Invitation document.
-        // If so, skip generation to avoid attaching it twice.
-        var invitationAlreadyPicked = meeting.Documents.Any(d =>
-            d.DocumentType == "Invitation" && pickedSet.Contains(d.DocumentId.ToString()));
-
         // Build attachment refs — all as ("document", id) so the email consumer
         // always resolves a real persisted document (no async report rendering after send).
-        var attachmentRefs = new List<EmailAttachmentRefData>();
-
-        if (!invitationAlreadyPicked)
-        {
-            // Generate the invitation PDF synchronously NOW. If it fails, surface an actionable
-            // error and send nothing — the admin can generate/upload the invitation in Documents,
-            // attach it, and resend (which then skips this generation step).
-            MeetingDocument generatedDoc;
-            try
-            {
-                generatedDoc = await meetingDocumentGenerator.GenerateAndLinkAsync(meeting, "Invitation", ct);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                throw new BadRequestException(
-                    "Could not generate the meeting invitation PDF, so the invitation was not sent. " +
-                    "Generate or upload the invitation in Documents, attach it, and try again.",
-                    ex.Message);
-            }
-
-            attachmentRefs.Add(new EmailAttachmentRefData("document", generatedDoc.DocumentId.ToString()));
-        }
-
-        foreach (var docId in pickedDocIds)
-            attachmentRefs.Add(new EmailAttachmentRefData("document", docId));
+        // The email carries exactly what the user attached; nothing is auto-generated here.
+        var attachmentRefs = pickedDocIds
+            .Select(docId => new EmailAttachmentRefData("document", docId))
+            .ToList();
 
         meeting.SendInvitation(dateTimeProvider.ApplicationNow);
 
-        // Audit log records every document actually attached (the auto-generated invitation + picked docs),
-        // not just the user-picked ones.
+        // Audit log records every document actually attached.
         var attachedDocumentIds = attachmentRefs.Select(r => r.Value).ToArray();
 
         var emailLog = MeetingInvitationEmail.Create(

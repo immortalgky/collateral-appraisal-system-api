@@ -53,6 +53,15 @@ public class SubmitDraftToCheckerCommandHandler(
             throw new BadRequestException(
                 $"Cannot submit to checker: existing quotation is in status '{companyQuotation.Status}'");
 
+        // Completeness guard: Fee Amount and Estimated Days are mandatory per item. The draft may be
+        // saved incomplete, but promoting it to Checker review requires every item to be fully priced.
+        if (companyQuotation.Items.Count == 0)
+            throw new BadRequestException("Cannot submit to checker: the quotation has no items");
+
+        if (companyQuotation.Items.Any(i => i.FeeAmount <= 0 || i.EstimatedDays <= 0))
+            throw new BadRequestException(
+                "Cannot submit to checker: every item must have a Fee Amount and Estimated Days greater than zero");
+
         var makerUsername = currentUser.Username
             ?? currentUser.UserId?.ToString()
             ?? throw new UnauthorizedAccessException("Cannot resolve the current user identity for maker attribution");
