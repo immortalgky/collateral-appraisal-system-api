@@ -10,5 +10,6 @@ public record MarketComparableTemplateDto(
     string? Description,
     bool IsActive,
     DateTime? CreatedOn,
-    DateTime? UpdatedOn
+    DateTime? UpdatedOn,
+    int FactorCount
 );

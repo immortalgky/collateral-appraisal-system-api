@@ -1,0 +1,5 @@
+namespace Appraisal.Application.Features.ComparativeAnalysisTemplates.ReorderComparativeAnalysisTemplateFactors;
+
+public record ReorderComparativeAnalysisTemplateFactorsRequest(List<ReorderFactorItem> Factors);
+
+public record ReorderFactorItem(Guid FactorId, int DisplaySequence);

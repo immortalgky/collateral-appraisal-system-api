@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableTemplates.ReorderTemplateFactors;
+
+public record ReorderTemplateFactorsResult(bool Success);

@@ -26,9 +26,10 @@ public class DeleteMarketComparableFactorEndpoint : ICarterModule
             })
             .WithName("DeleteMarketComparableFactor")
             .WithSummary("Delete a market comparable factor")
-            .WithDescription("Soft deletes a market comparable factor by setting IsActive to false.")
+            .WithDescription("Permanently deletes a market comparable factor. Returns 409 if the factor is still used by a template or has existing market comparable data (deactivate it instead).")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithTags("MarketComparableFactors");
     }
 }

@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.ComparativeAnalysisTemplates.UpdateFactorInTemplate;
+
+public record UpdateFactorInTemplateResult(bool Success);

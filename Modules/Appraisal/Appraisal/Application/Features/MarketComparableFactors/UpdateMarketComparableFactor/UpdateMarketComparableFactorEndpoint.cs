@@ -28,7 +28,8 @@ public class UpdateMarketComparableFactorEndpoint : ICarterModule
                     request.FieldLength,
                     request.FieldDecimal,
                     request.ParameterGroup,
-                    request.Translations.Select(t => (t.Language, t.FactorName)).ToList());
+                    request.Translations.Select(t => (t.Language, t.FactorName)).ToList(),
+                    request.IsActive);
 
                 var result = await sender.Send(command, cancellationToken);
 

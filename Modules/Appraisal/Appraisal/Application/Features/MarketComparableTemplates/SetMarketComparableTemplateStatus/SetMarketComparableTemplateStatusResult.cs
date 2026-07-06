@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableTemplates.SetMarketComparableTemplateStatus;
+
+public record SetMarketComparableTemplateStatusResult(bool Success);

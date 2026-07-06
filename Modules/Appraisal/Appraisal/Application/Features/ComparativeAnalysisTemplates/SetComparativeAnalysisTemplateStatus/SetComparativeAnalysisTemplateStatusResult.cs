@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.ComparativeAnalysisTemplates.SetComparativeAnalysisTemplateStatus;
+
+public record SetComparativeAnalysisTemplateStatusResult(bool Success);

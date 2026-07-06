@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableTemplates.SetTemplateFactorMandatory;
+
+public record SetTemplateFactorMandatoryResult(bool Success);
