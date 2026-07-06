@@ -114,33 +114,21 @@
 </div>
 {{ end }}
 
-{{ if land_section.land_description || land_section.land_use_type }}
 <div class="section-bar" style="font-size:8pt;">ลักษณะของที่ดิน</div>
 <div class="pad">
   <div class="cols2">
-    {{ if land_section.land_description }}
     <div class="kv"><span class="k">ลักษณะทางกายภาพ :</span><span class="v">{{ land_section.land_description }}</span></div>
-    {{ end }}
-    {{ if land_section.land_use_type }}
     <div class="kv"><span class="k">การใช้ประโยชน์ที่ดิน :</span><span class="v">{{ land_section.land_use_type }}</span></div>
-    {{ end }}
   </div>
 </div>
-{{ end }}
 
-{{ if land_section.transportation_access_type || land_section.property_anticipation_type }}
 <div class="section-bar" style="font-size:8pt;">สภาพแวดล้อม</div>
 <div class="pad">
   <div class="cols2">
-    {{ if land_section.transportation_access_type }}
     <div class="kv"><span class="k">ทรัพย์สินอยู่ในพื้นที่ :</span><span class="v">{{ land_section.transportation_access_type }}</span></div>
-    {{ end }}
-    {{ if land_section.property_anticipation_type }}
     <div class="kv"><span class="k">สภาพแวดล้อม :</span><span class="v">{{ land_section.property_anticipation_type }}</span></div>
-    {{ end }}
   </div>
 </div>
-{{ end }}
 
 {{ if land_section.is_in_expropriation_line != null || land_section.urban_planning_type || land_section.land_zone_type }}
 <div class="section-bar" style="font-size:8pt;">ข้อกำหนดทางกฎหมาย</div>

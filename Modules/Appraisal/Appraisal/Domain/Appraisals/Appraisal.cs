@@ -26,7 +26,7 @@ public class Appraisal : Aggregate<Guid>
     public Guid RequestId { get; private set; }
     public AppraisalStatus Status { get; private set; } = null!;
     public string AppraisalType { get; private set; } = null!; // New, ReAppraisal, Progressive, PreAppraisal
-    public string Priority { get; private set; } = null!; // Normal, High
+    public Priority Priority { get; private set; } = null!; // Normal, High
 
     // For Progressive (progressive-inspection) appraisals — the prior appraisal this is following up on.
     // Used by AssignmentFeeService to seed the appraisal fee from the prior engagement's
@@ -95,7 +95,10 @@ public class Appraisal : Aggregate<Guid>
         Id = Guid.CreateVersion7();
         RequestId = requestId;
         AppraisalType = appraisalType;
-        Priority = priority;
+        // Appraisal priority is propagated from an already-persisted request, so rehydrate
+        // leniently (normalize known casings, preserve legacy values) rather than throwing
+        // mid-consumer and dead-lettering the appraisal-creation message.
+        Priority = Priority.FromDatabase(priority);
         Status = AppraisalStatus.Pending;
         SLAHours = slaHours;
         IsPma = isPma;

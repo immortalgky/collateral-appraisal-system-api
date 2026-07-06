@@ -1,5 +1,6 @@
 using FluentValidation;
 using Integration.Application.Validation;
+using Request.Domain.Requests;
 
 namespace Integration.Application.Features.AppraisalRequests.CreateRequest;
 
@@ -9,7 +10,10 @@ public class CreateRequestCommandValidator : AbstractValidator<CreateRequestComm
     {
         RuleFor(x => x.Purpose).NotEmpty().MaximumLength(10);
         RuleFor(x => x.Channel).NotEmpty().MaximumLength(10);
-        RuleFor(x => x.Priority).NotEmpty().MaximumLength(255);
+        RuleFor(x => x.Priority)
+            .NotEmpty()
+            .Must(Priority.IsValid)
+            .WithMessage("Priority must be 'Normal' or 'High'.");
         RuleFor(x => x.ExternalCaseKey).MaximumLength(100);
 
         RuleFor(x => x.Requestor).NotNull().SetValidator(new UserInfoDtoValidator());

@@ -160,8 +160,8 @@ internal static class IncomeSectionLoader
             var hbuValue = 0m;
             if (!row.IsHighestBestUsed) // C1: HBU land value added when IsHighestBestUsed = false
             {
-                var totalWa = (row.HighestBestUsed_AreaRai ?? 0m) * 400m
-                            + (row.HighestBestUsed_AreaNgan ?? 0m) * 100m
+                var totalWa = (row.HighestBestUsed_AreaRai ?? 0) * 400m
+                            + (row.HighestBestUsed_AreaNgan ?? 0) * 100m
                             + (row.HighestBestUsed_AreaWa ?? 0m);
                 hbuValue = totalWa * (row.HighestBestUsed_PricePerSqWa ?? 0m);
             }
@@ -186,6 +186,7 @@ internal static class IncomeSectionLoader
             IsHighestBestUsed    = row.IsHighestBestUsed,
             HbuAreaRai           = row.HighestBestUsed_AreaRai,
             HbuAreaNgan          = row.HighestBestUsed_AreaNgan,
+            // (int? widens implicitly to decimal? on assignment)
             HbuAreaWa            = row.HighestBestUsed_AreaWa,
             HbuPricePerSqWa      = row.HighestBestUsed_PricePerSqWa,
             YearRows             = yearRows,
@@ -232,8 +233,8 @@ internal static class IncomeSectionLoader
         decimal? FinalValueAdjust,
         decimal? AppraisalPriceRounded,
         bool     IsHighestBestUsed,
-        decimal? HighestBestUsed_AreaRai,
-        decimal? HighestBestUsed_AreaNgan,
+        int?     HighestBestUsed_AreaRai,
+        int?     HighestBestUsed_AreaNgan,
         decimal? HighestBestUsed_AreaWa,
         decimal? HighestBestUsed_PricePerSqWa,
         string?  Summary_GrossRevenueJson,

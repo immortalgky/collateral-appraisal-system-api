@@ -32,6 +32,10 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
             .HasFilter("[PrevAppraisalId] IS NOT NULL");
 
         builder.Property(a => a.Priority)
+            .HasConversion(
+                v => v.Code,
+                v => Domain.Appraisals.Priority.FromDatabase(v)
+            )
             .IsRequired()
             .HasMaxLength(20);
 
