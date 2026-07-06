@@ -110,7 +110,9 @@ public record QuotationAppraisalResult(
     Guid? RequestId,
     string? CustomerName,
     // Admin-set maximum allowed duration in days (nullable — null means no cap set)
-    int? MaxAppraisalDays
+    int? MaxAppraisalDays,
+    // Appraisal type (New, ReAppraisal, Progressive, PreAppraisal). FE gates Send-to-RM on ReAppraisal.
+    string? AppraisalType
 );
 
 public record CompanyQuotationResult(
