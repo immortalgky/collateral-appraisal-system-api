@@ -73,7 +73,7 @@ public class SendInvitationCommandValidator : AbstractValidator<SendInvitationCo
         RuleFor(x => x.Subject).NotEmpty().MaximumLength(500);
         RuleFor(x => x.Content).MaximumLength(4000).When(x => x.Content is not null);
         RuleForEach(x => x.Attachments).MaximumLength(200).When(x => x.Attachments is not null);
-        RuleFor(x => x.Attachments).Must(a => a is null || a.Length <= 10)
+        RuleFor(x => x.Attachments).Must(a => a is null || a.Count(d => !string.IsNullOrWhiteSpace(d)) <= 10)
             .WithMessage("Maximum 10 attachments allowed.");
         RuleFor(x => x.Attachments).Must(a => a is not null && a.Any(d => !string.IsNullOrWhiteSpace(d)))
             .WithMessage("At least one attachment is required.");
