@@ -4,7 +4,7 @@ namespace Appraisal.Domain.MarketComparables;
 /// Junction entity linking templates to factors with display ordering.
 /// Managed as a child of MarketComparableTemplate.
 /// </summary>
-public class MarketComparableTemplateFactor : Entity<Guid>
+public class MarketComparableTemplateFactor : Entity<Guid>, ISequencedTemplateFactor
 {
     public Guid TemplateId { get; private set; }
     public Guid FactorId { get; private set; }
@@ -38,6 +38,10 @@ public class MarketComparableTemplateFactor : Entity<Guid>
     {
         DisplaySequence = newSequence;
     }
+
+    // Explicit interface implementation delegates to the internal method so the shared reorder
+    // helper can resequence factors without widening UpdateSequence's accessibility.
+    void ISequencedTemplateFactor.UpdateSequence(int sequence) => UpdateSequence(sequence);
 
     internal void SetMandatory(bool isMandatory)
     {

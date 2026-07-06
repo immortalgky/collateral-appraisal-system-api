@@ -62,17 +62,30 @@ public class MarketComparableTemplate : Entity<Guid>
     public void RemoveFactor(Guid factorId)
     {
         var factor = _templateFactors.FirstOrDefault(tf => tf.FactorId == factorId);
-        if (factor != null)
-            _templateFactors.Remove(factor);
+        if (factor is null)
+            return;
+
+        _templateFactors.Remove(factor);
+        Renumber();
     }
 
     public void ReorderFactors(IEnumerable<(Guid FactorId, int NewSequence)> reorderCommands)
     {
-        foreach (var (factorId, newSequence) in reorderCommands)
-        {
-            var factor = _templateFactors.FirstOrDefault(tf => tf.FactorId == factorId);
-            factor?.UpdateSequence(newSequence);
-        }
+        TemplateFactorOrdering.Reorder(_templateFactors, reorderCommands);
+    }
+
+    // Reassigns a contiguous 1..n ordering (by current sequence) so no gaps or duplicates remain.
+    private void Renumber()
+    {
+        var ordered = _templateFactors.OrderBy(tf => tf.DisplaySequence).ToList();
+        for (var i = 0; i < ordered.Count; i++)
+            ordered[i].UpdateSequence(i + 1);
+    }
+
+    public void SetFactorMandatory(Guid factorId, bool isMandatory)
+    {
+        var factor = _templateFactors.FirstOrDefault(tf => tf.FactorId == factorId);
+        factor?.SetMandatory(isMandatory);
     }
 
     public void Activate() => IsActive = true;

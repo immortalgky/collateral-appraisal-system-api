@@ -13,4 +13,5 @@ public sealed record UpdateMarketComparableFactorCommand(
     int? FieldLength,
     int? FieldDecimal,
     string? ParameterGroup,
-    IReadOnlyList<(string Language, string FactorName)> Translations) : ICommand<UpdateMarketComparableFactorResult>;
+    IReadOnlyList<(string Language, string FactorName)> Translations,
+    bool? IsActive) : ICommand<UpdateMarketComparableFactorResult>;

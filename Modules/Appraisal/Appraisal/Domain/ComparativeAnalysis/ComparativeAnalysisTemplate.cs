@@ -95,4 +95,24 @@ public class ComparativeAnalysisTemplate : Entity<Guid>
 
         factor.UpdateSequence(newSequence);
     }
+
+    public void ReorderFactors(IEnumerable<(Guid FactorId, int NewSequence)> reorderCommands)
+    {
+        TemplateFactorOrdering.Reorder(_factors, reorderCommands);
+    }
+
+    public void UpdateFactor(
+        Guid factorId,
+        bool isMandatory,
+        decimal? defaultWeight,
+        decimal? defaultIntensity,
+        bool isCalculationFactor)
+    {
+        var factor = _factors.FirstOrDefault(f => f.FactorId == factorId)
+                     ?? throw new InvalidOperationException($"Factor {factorId} not found in this template");
+
+        // In-place field update — never touches DisplaySequence, so it cannot collide with
+        // the resequencing done by RemoveFactor (unlike the old remove+add toggle flow).
+        factor.Update(isMandatory, defaultWeight, defaultIntensity, isCalculationFactor);
+    }
 }

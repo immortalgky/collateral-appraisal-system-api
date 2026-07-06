@@ -10,6 +10,7 @@ public sealed record UpdateMarketComparableFactorRequest(
     int? FieldLength,
     int? FieldDecimal,
     string? ParameterGroup,
-    List<FactorTranslationRequest> Translations);
+    List<FactorTranslationRequest> Translations,
+    bool? IsActive = null);
 
 public sealed record FactorTranslationRequest(string Language, string FactorName);

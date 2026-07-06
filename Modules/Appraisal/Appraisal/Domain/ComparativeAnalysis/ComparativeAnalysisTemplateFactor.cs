@@ -4,7 +4,7 @@ namespace Appraisal.Domain.ComparativeAnalysis;
 /// Junction entity linking a template to its factors.
 /// References the existing MarketComparableFactor entity.
 /// </summary>
-public class ComparativeAnalysisTemplateFactor : Entity<Guid>
+public class ComparativeAnalysisTemplateFactor : Entity<Guid>, ISequencedTemplateFactor
 {
     public Guid TemplateId { get; private set; }
     public Guid FactorId { get; private set; } // FK → MarketComparableFactor
@@ -25,7 +25,7 @@ public class ComparativeAnalysisTemplateFactor : Entity<Guid>
         decimal? defaultIntensity = null,
         bool isCalculationFactor = false)
     {
-        if (defaultWeight.HasValue && (defaultWeight < 0 || defaultWeight > 100))
+        if (isCalculationFactor && defaultWeight.HasValue && (defaultWeight < 0 || defaultWeight > 100))
             throw new ArgumentException("DefaultWeight must be between 0 and 100");
 
         return new ComparativeAnalysisTemplateFactor
@@ -34,8 +34,9 @@ public class ComparativeAnalysisTemplateFactor : Entity<Guid>
             FactorId = factorId,
             DisplaySequence = displaySequence,
             IsMandatory = isMandatory,
-            DefaultWeight = defaultWeight,
-            DefaultIntensity = defaultIntensity,
+            // Weight/intensity only apply to calculation factors; keep them null otherwise.
+            DefaultWeight = isCalculationFactor ? defaultWeight : null,
+            DefaultIntensity = isCalculationFactor ? defaultIntensity : null,
             IsCalculationFactor = isCalculationFactor
         };
     }
@@ -47,12 +48,15 @@ public class ComparativeAnalysisTemplateFactor : Entity<Guid>
 
     public void Update(bool isMandatory, decimal? defaultWeight, decimal? defaultIntensity = null, bool isCalculationFactor = false)
     {
-        if (defaultWeight.HasValue && (defaultWeight < 0 || defaultWeight > 100))
+        if (isCalculationFactor && defaultWeight.HasValue && (defaultWeight < 0 || defaultWeight > 100))
             throw new ArgumentException("DefaultWeight must be between 0 and 100");
 
         IsMandatory = isMandatory;
-        DefaultWeight = defaultWeight;
-        DefaultIntensity = defaultIntensity;
         IsCalculationFactor = isCalculationFactor;
+
+        // Weight and intensity only apply to calculation factors. Clear the stored values when a
+        // factor is not (or no longer) a calculation factor so no stale data is left behind.
+        DefaultWeight = isCalculationFactor ? defaultWeight : null;
+        DefaultIntensity = isCalculationFactor ? defaultIntensity : null;
     }
 }
