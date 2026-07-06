@@ -12,6 +12,7 @@ public class CreateRequestCommandValidator : AbstractValidator<CreateRequestComm
         RuleFor(x => x.Channel).NotEmpty().MaximumLength(10);
         RuleFor(x => x.Priority)
             .NotEmpty()
+            .MaximumLength(255)
             .Must(Priority.IsValid)
             .WithMessage("Priority must be 'Normal' or 'High'.");
         RuleFor(x => x.ExternalCaseKey).MaximumLength(100);

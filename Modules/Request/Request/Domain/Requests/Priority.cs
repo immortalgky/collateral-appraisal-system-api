@@ -57,8 +57,8 @@ public class Priority : ValueObject
         return Code;
     }
 
-    public static implicit operator string(Priority priority)
+    public static implicit operator string?(Priority? priority)
     {
-        return priority.Code;
+        return priority?.Code;
     }
 }
