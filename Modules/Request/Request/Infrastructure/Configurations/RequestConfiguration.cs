@@ -25,7 +25,12 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             requestor.Property(p => p.UserId).HasMaxLength(10).HasColumnName("Creator");
             requestor.Property(p => p.Username).HasMaxLength(100).HasColumnName("CreatorName");
         });
-        builder.Property(p => p.Priority).HasMaxLength(255);
+        builder.Property(p => p.Priority)
+            .HasConversion(
+                v => v == null ? null : v.Code,
+                v => Priority.FromDatabase(v)
+            )
+            .HasMaxLength(255);
 
         // External system integration
         builder.Property(p => p.ExternalCaseKey).HasMaxLength(100);

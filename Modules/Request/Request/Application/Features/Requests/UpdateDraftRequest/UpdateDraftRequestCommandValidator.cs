@@ -26,7 +26,9 @@ public class UpdateDraftRequestCommandValidator : AbstractValidator<UpdateDraftR
         RuleFor(x => x.Priority)
             .NotNull()
             .NotEmpty()
-            .WithMessage("Priority is required.");
+            .WithMessage("Priority is required.")
+            .Must(Priority.IsValid)
+            .WithMessage("Priority must be 'Normal' or 'High'.");
 
         RuleFor(x => x.IsPma)
             .NotNull()

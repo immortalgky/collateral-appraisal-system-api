@@ -17,7 +17,7 @@ public class Request : Aggregate<Guid>
     public UserInfo Creator { get; private set; } = default!;
     public new DateTime CreatedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
-    public string? Priority { get; private set; }
+    public Priority? Priority { get; private set; }
     public bool IsPma { get; private set; }
     public SoftDelete SoftDelete { get; private set; } = default!;
     public RequestDetail? Detail { get; private set; }
@@ -44,7 +44,7 @@ public class Request : Aggregate<Guid>
     {
         Id = Guid.CreateVersion7();
         Status = RequestStatus.Draft;
-        Priority = "Normal";
+        Priority = Priority.Normal;
         CreatedAt = createdAt;
         SoftDelete = SoftDelete.NotDeleted;
     }
@@ -81,7 +81,7 @@ public class Request : Aggregate<Guid>
         Channel = data.Channel;
         Requestor = data.Requestor;
         Creator = data.Creator;
-        Priority = data.Priority;
+        Priority = Priority.FromString(data.Priority);
         // PMA is auto-derived: purpose code "14" is always a PMA appraisal, regardless of the
         // user-entered flag. Covers create and all update paths (UpdateRequest /
         // UpdateDraftRequest / UpdateRequestService) since they all route through Save.

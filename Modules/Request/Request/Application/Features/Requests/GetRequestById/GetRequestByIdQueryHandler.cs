@@ -43,7 +43,7 @@ internal class GetRequestByIdQueryHandler(
                 CostCenterDescription: requestorInfo?.CostCenterDescription,
                 Department: requestorInfo?.Department),
             Creator = new UserInfoDto(request.Creator.UserId, request.Creator.Username),
-            Priority = request.Priority,
+            Priority = request.Priority?.Code,
             IsPma = request.IsPma,
             Detail = request.Detail?.ToDto(),
             Customers = request.Customers.Select(c => c.ToDto()).ToList(),

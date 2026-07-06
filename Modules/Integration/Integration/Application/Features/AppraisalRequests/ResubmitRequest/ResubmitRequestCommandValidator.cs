@@ -1,5 +1,6 @@
 using FluentValidation;
 using Integration.Application.Validation;
+using Request.Domain.Requests;
 
 namespace Integration.Application.Features.AppraisalRequests.ResubmitRequest;
 
@@ -20,7 +21,10 @@ public class ResubmitRequestCommandValidator : AbstractValidator<ResubmitRequest
         // them). Here we only bound length/shape for whatever is supplied.
         RuleFor(x => x.Purpose).MaximumLength(10);
         RuleFor(x => x.Channel).MaximumLength(10);
-        RuleFor(x => x.Priority).MaximumLength(255);
+        RuleFor(x => x.Priority)
+            .MaximumLength(255)
+            .Must(Priority.IsValid)
+            .WithMessage("Priority must be 'Normal' or 'High'.");
 
         RuleFor(x => x.Requestor!).SetValidator(new UserInfoDtoValidator());
         RuleFor(x => x.Creator!).SetValidator(new UserInfoDtoValidator());

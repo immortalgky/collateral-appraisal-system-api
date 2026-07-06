@@ -75,6 +75,7 @@ internal static class LandSectionLoader
                 lad.PlotLocationType,
                 lad.PublicUtilityType,
                 lad.LandDescription,
+                lad.LandShapeType,
                 lad.LandUseType,
                 lad.TransportationAccessType,
                 lad.PropertyAnticipationType,
@@ -220,9 +221,11 @@ internal static class LandSectionLoader
                 LandEntranceExitType   = Resolve("LandEntranceExit", landRow.LandEntranceExitType),
                 PlotLocationType       = Resolve("PlotLocation", landRow.PlotLocationType),
                 PublicUtilityType      = Resolve("PublicUtility", landRow.PublicUtilityType),
-                LandDescription        = landRow.LandDescription,
+                // ลักษณะทางกายภาพ → LandShapeType (code, group "LandShape"), not LandDescription
+                LandDescription        = Resolve("LandShape", landRow.LandShapeType),
                 LandUseType            = Resolve("LandUse", landRow.LandUseType),
-                TransportationAccessType = Resolve("Transportation", landRow.TransportationAccessType),
+                // ทรัพย์สินอยู่ในพื้นที่ → UrbanPlanningType (group "TypeOfUrbanPlanning"), not TransportationAccessType
+                TransportationAccessType = Resolve("TypeOfUrbanPlanning", landRow.UrbanPlanningType),
                 PropertyAnticipationType = Resolve("AnticipationOfProsperity", landRow.PropertyAnticipationType),
                 IsInExpropriationLine  = landRow.IsInExpropriationLine,
                 UrbanPlanningType      = Resolve("TypeOfUrbanPlanning", landRow.UrbanPlanningType),
@@ -309,6 +312,7 @@ internal static class LandSectionLoader
         public string? LandZoneType { get; init; }
 
         public string? LandDescription { get; init; }
+        public string? LandShapeType { get; init; }
         public string? PropertyAnticipationType { get; init; }
         public bool? IsInExpropriationLine { get; init; }
         public string? UrbanPlanningType { get; init; }

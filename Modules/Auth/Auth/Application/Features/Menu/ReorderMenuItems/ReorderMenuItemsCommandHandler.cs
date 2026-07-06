@@ -31,7 +31,8 @@ public class ReorderMenuItemsCommandHandler(AuthDbContext dbContext, IMenuTreeCa
                 entity.IconColor,
                 dto.SortOrder,
                 entity.ViewPermissionCode,
-                entity.EditPermissionCode);
+                entity.EditPermissionCode,
+                entity.ViewPermissionPrefix); // preserve prefix-only permissions
         }
 
         // Validate no cycles + depth + same-scope-parent after reorder
