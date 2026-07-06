@@ -14,7 +14,7 @@ public class UpdateFactorInTemplateCommandHandler(
         var template = await templateRepository.GetByIdWithFactorsAsync(command.TemplateId, cancellationToken);
 
         if (template is null)
-            throw new InvalidOperationException($"Template {command.TemplateId} not found");
+            throw new NotFoundException("ComparativeAnalysisTemplate", command.TemplateId);
 
         template.UpdateFactor(
             command.FactorId,

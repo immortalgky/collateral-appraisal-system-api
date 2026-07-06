@@ -84,8 +84,9 @@ public class MarketComparableTemplate : Entity<Guid>
 
     public void SetFactorMandatory(Guid factorId, bool isMandatory)
     {
-        var factor = _templateFactors.FirstOrDefault(tf => tf.FactorId == factorId);
-        factor?.SetMandatory(isMandatory);
+        var factor = _templateFactors.FirstOrDefault(tf => tf.FactorId == factorId)
+                     ?? throw new NotFoundException("MarketComparableTemplateFactor", factorId);
+        factor.SetMandatory(isMandatory);
     }
 
     public void Activate() => IsActive = true;

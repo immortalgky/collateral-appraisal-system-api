@@ -14,7 +14,7 @@ public class SetComparativeAnalysisTemplateStatusCommandHandler(
         var template = await templateRepository.GetByIdAsync(command.Id, cancellationToken);
 
         if (template is null)
-            throw new InvalidOperationException($"Template {command.Id} not found");
+            throw new NotFoundException("ComparativeAnalysisTemplate", command.Id);
 
         if (command.IsActive)
             template.Activate();

@@ -91,7 +91,7 @@ public class ComparativeAnalysisTemplate : Entity<Guid>
     public void UpdateFactorSequence(Guid factorId, int newSequence)
     {
         var factor = _factors.FirstOrDefault(f => f.FactorId == factorId)
-                     ?? throw new InvalidOperationException($"Factor {factorId} not found in this template");
+                     ?? throw new NotFoundException("ComparativeAnalysisTemplateFactor", factorId);
 
         factor.UpdateSequence(newSequence);
     }
@@ -109,7 +109,7 @@ public class ComparativeAnalysisTemplate : Entity<Guid>
         bool isCalculationFactor)
     {
         var factor = _factors.FirstOrDefault(f => f.FactorId == factorId)
-                     ?? throw new InvalidOperationException($"Factor {factorId} not found in this template");
+                     ?? throw new NotFoundException("ComparativeAnalysisTemplateFactor", factorId);
 
         // In-place field update — never touches DisplaySequence, so it cannot collide with
         // the resequencing done by RemoveFactor (unlike the old remove+add toggle flow).

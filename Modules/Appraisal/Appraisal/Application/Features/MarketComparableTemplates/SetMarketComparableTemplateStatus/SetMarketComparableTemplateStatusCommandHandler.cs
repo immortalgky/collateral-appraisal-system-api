@@ -14,7 +14,7 @@ public class SetMarketComparableTemplateStatusCommandHandler(
         var template = await repository.GetByIdAsync(command.Id, cancellationToken);
 
         if (template is null)
-            throw new InvalidOperationException($"Market comparable template with ID {command.Id} not found.");
+            throw new NotFoundException("MarketComparableTemplate", command.Id);
 
         if (command.IsActive)
             template.Activate();

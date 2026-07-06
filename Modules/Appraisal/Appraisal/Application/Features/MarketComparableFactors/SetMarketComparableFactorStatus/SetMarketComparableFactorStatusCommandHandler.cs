@@ -25,7 +25,7 @@ internal sealed class SetMarketComparableFactorStatusCommandHandler :
         CancellationToken cancellationToken)
     {
         var factor = await _repository.GetByIdAsync(command.Id, cancellationToken)
-            ?? throw new InvalidOperationException($"Market comparable factor with ID '{command.Id}' not found.");
+            ?? throw new NotFoundException("MarketComparableFactor", command.Id);
 
         if (command.IsActive)
             factor.Activate();

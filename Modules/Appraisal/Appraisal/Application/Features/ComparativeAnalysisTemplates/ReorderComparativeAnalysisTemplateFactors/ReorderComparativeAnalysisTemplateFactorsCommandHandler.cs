@@ -17,6 +17,9 @@ public class ReorderComparativeAnalysisTemplateFactorsCommandHandler(
         if (template is null)
             throw new NotFoundException("ComparativeAnalysisTemplate", command.TemplateId);
 
+        if (command.Factors is null)
+            throw new BadRequestException("The 'factors' collection is required.");
+
         template.ReorderFactors(command.Factors.Select(f => (f.FactorId, f.DisplaySequence)));
 
         return new ReorderComparativeAnalysisTemplateFactorsResult(true);
