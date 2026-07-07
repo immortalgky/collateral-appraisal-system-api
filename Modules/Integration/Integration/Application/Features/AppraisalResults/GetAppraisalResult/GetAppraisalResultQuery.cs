@@ -20,7 +20,6 @@ public record GetAppraisalResultResponse(
     decimal? TotalAppraisalValue,
     decimal? ForceSalePrice,
     decimal? FireInsurance,
-    decimal? MarketValue,
     List<AppraisalResultGroup> Groups,
     List<AppraisalResultDocument> Documents);
 
