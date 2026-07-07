@@ -114,7 +114,7 @@ public class AppraisalCreationService(
         var appraisal = Domain.Appraisals.Appraisal.Create(
             requestId,
             resolvedAppraisalType,
-            priority ?? "Normal",
+            priority,
             dateTimeProvider.ApplicationNow,
             appraisalSlaHours,
             appraisalSlaDueDate,

@@ -17,7 +17,8 @@ public class UpdateMenuItemEndpoint : ICarterModule
                         request.SortOrder,
                         request.ViewPermissionCode,
                         request.EditPermissionCode,
-                        request.Translations);
+                        request.Translations,
+                        request.ViewPermissionPrefix);
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(new UpdateMenuItemResponse(result.Success));
                 })

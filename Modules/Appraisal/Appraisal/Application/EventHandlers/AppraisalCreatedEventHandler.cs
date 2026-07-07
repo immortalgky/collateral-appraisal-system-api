@@ -27,7 +27,7 @@ public class AppraisalCreatedEventHandler(
             CreatedAt = dateTimeProvider.ApplicationNow,
             IsPma = appraisal.IsPma,
             FacilityLimit = appraisal.FacilityLimit,
-            Priority = appraisal.Priority,
+            Priority = appraisal.Priority.Code,
             HasAppraisalBook = appraisal.HasAppraisalBook,
             Channel = appraisal.Channel,
             // Pass-through context from creation (mirrors RequestedBy) — the appointment date flows on

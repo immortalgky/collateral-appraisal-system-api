@@ -1931,6 +1931,10 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(16)")
                         .HasDefaultValue("F");
 
+                    b.Property<string>("ReasonCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<string>("Remark")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");

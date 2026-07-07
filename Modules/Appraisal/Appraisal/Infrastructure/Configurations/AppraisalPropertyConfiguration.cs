@@ -24,6 +24,12 @@ public class
 
         builder.Property(c => c.Description)
             .HasMaxLength(500);
+        
+        // Price for PMA
+        builder.Property(c => c.SellingPrice).HasPrecision(18, 2);
+        builder.Property(c => c.ForcedSalePrice).HasPrecision(18, 2);
+        builder.Property(c => c.BuildingInsurancePrice).HasPrecision(18, 2);
+
 
         // PropertyType Value Object (stored as string)
         builder.OwnsOne(c => c.PropertyType, pt =>

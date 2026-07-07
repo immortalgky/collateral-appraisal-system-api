@@ -420,12 +420,24 @@ public class GetDecisionSummaryQueryHandler(
             WHERE ap.AppraisalId = @AppraisalId
             """;
 
+        // ชื่ออาคาร = village name of the first L/LB land property (same source as report RS04)
+        const string villageSql = """
+            SELECT TOP 1 lad.Village
+            FROM appraisal.LandAppraisalDetails lad
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+              AND ap.PropertyType IN ('L', 'LB')
+            ORDER BY ap.SequenceNumber
+            """;
+
         var landValue = await connectionFactory.QueryFirstOrDefaultAsync<decimal>(landValueSql, p);
         var nonCiBuilding = await connectionFactory.QueryFirstOrDefaultAsync<decimal>(nonCiBuildingValueSql, p);
         var ci = await connectionFactory.QueryFirstOrDefaultAsync<CiAggregateRow>(ciAggregateSql, p);
 
         if (ci is null || ci.CITotalValue == 0m)
             return null;
+
+        var village = await connectionFactory.QueryFirstOrDefaultAsync<string?>(villageSql, p);
 
         var ciTotal = ci.CITotalValue;
         var ciPrev = ci.CIPreviousValue;
@@ -470,7 +482,7 @@ public class GetDecisionSummaryQueryHandler(
                 ciTotal),
         };
 
-        return new ConstructionSummaryData(rows);
+        return new ConstructionSummaryData(village, rows);
     }
 
     private record CiAggregateRow(

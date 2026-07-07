@@ -41,6 +41,13 @@ internal sealed class UpdateMarketComparableFactorCommandHandler :
             command.ParameterGroup,
             command.Translations);
 
+        // Only change active state when the caller explicitly supplies it; a partial payload
+        // that omits IsActive (null) must leave the factor's current state untouched.
+        if (command.IsActive is true)
+            factor.Activate();
+        else if (command.IsActive is false)
+            factor.Deactivate();
+
         await _repository.UpdateAsync(factor, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

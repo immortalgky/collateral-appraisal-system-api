@@ -53,7 +53,7 @@ public class RequestSubmittedEventHandler(
             Fee = feeDto,
             Contact = contactDto,
             CreatedBy = notification.Request.Requestor.UserId,
-            Priority = notification.Request.Priority,
+            Priority = notification.Request.Priority?.Code,
             IsPma = notification.Request.IsPma,
             Purpose = notification.Request.Purpose,
             Channel = notification.Request.Channel,

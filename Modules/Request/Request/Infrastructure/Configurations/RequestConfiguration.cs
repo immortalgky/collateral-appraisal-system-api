@@ -25,16 +25,12 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             requestor.Property(p => p.UserId).HasMaxLength(10).HasColumnName("Creator");
             requestor.Property(p => p.Username).HasMaxLength(100).HasColumnName("CreatorName");
         });
-        builder.OwnsOne(p => p.RequestorSnapshot, snapshot =>
-        {
-            snapshot.Property(p => p.RequestorEmail).HasMaxLength(255).HasColumnName("RequestorEmail");
-            snapshot.Property(p => p.RequestorContactNo).HasMaxLength(50).HasColumnName("RequestorContactNo");
-            snapshot.Property(p => p.RequestorAoCode).HasMaxLength(10).HasColumnName("RequestorAoCode");
-            snapshot.Property(p => p.RequestorCostCenterCode).HasMaxLength(8).HasColumnName("RequestorCostCenterCode");
-            snapshot.Property(p => p.RequestorCostCenterDesc).HasMaxLength(40).HasColumnName("RequestorCostCenterDesc");
-            snapshot.Property(p => p.RequestorDepartment).HasMaxLength(255).HasColumnName("RequestorDepartment");
-        });
-        builder.Property(p => p.Priority).HasMaxLength(255);
+        builder.Property(p => p.Priority)
+            .HasConversion(
+                v => v == null ? null : v.Code,
+                v => Priority.FromDatabase(v)
+            )
+            .HasMaxLength(255);
 
         // External system integration
         builder.Property(p => p.ExternalCaseKey).HasMaxLength(100);

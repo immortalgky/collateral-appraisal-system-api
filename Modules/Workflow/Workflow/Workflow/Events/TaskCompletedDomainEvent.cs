@@ -11,5 +11,6 @@ public record TaskCompletedDomainEvent(
     string? AppraisalNumber = null,
     string Movement = "F",
     Guid? AppraisalId = null,
-    string? ActivityId = null
+    string? ActivityId = null,
+    string? ReasonCode = null
 ) : IDomainEvent;

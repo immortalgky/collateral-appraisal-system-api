@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.MarketComparableFactors.SetMarketComparableFactorStatus;
+
+public record SetMarketComparableFactorStatusResult(bool Success);

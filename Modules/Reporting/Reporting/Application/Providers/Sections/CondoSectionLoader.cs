@@ -100,6 +100,7 @@ internal static class CondoSectionLoader
                 cad.UsableArea,
                 cad.OwnerName,
                 cad.ObligationDetails,
+                cad.LocationType,
                 cad.Street                   AS Road,
                 cad.Soi,
                 cad.DistanceFromMainRoad,
@@ -353,7 +354,13 @@ internal static class CondoSectionLoader
             DistanceText          = distanceText,
             OwnerName             = first.OwnerName,
             Obligation            = first.ObligationDetails,
-            PositionCorrect       = null,           // no source
+            // ตำแหน่งหลักประกัน: LocationType "1" = ถูกต้อง (correct), "2" = ไม่ถูกต้อง; else unset
+            PositionCorrect       = first.LocationType switch
+            {
+                "1" => true,
+                "2" => false,
+                _   => null
+            },
             FloorMaterial         = floorMaterial,
             Wall                  = null,           // no source
             Ceiling               = null,           // no source
@@ -486,6 +493,7 @@ internal static class CondoSectionLoader
         public decimal? UsableArea                  { get; init; }
         public string? OwnerName                    { get; init; }
         public string? ObligationDetails            { get; init; }
+        public string? LocationType                 { get; init; }
         public string? Road                         { get; init; }
         public string? Soi                          { get; init; }
         public decimal? DistanceFromMainRoad        { get; init; }

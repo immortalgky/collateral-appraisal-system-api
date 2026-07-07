@@ -10,6 +10,9 @@ public class AppraisalProperty : Entity<Guid>
     public Guid AppraisalId { get; private set; }
     public int SequenceNumber { get; private set; }
     public PropertyType PropertyType { get; private set; } = null!;
+    public decimal? SellingPrice { get; private set;}
+    public decimal? ForcedSalePrice { get; private set;}
+    public decimal? BuildingInsurancePrice { get; private set;}
     public string? Description { get; private set; }
 
     // Navigation Properties - 1:1 with detail tables (based on PropertyType)
@@ -72,6 +75,16 @@ public class AppraisalProperty : Entity<Guid>
     public void UpdateDescription(string? description)
     {
         Description = description;
+    }
+
+    /// <summary>
+    /// Update the price for pma
+    /// </summary>
+    public void UpdatePrice(decimal? sellingPrice, decimal? forcedSalePrice, decimal? buildingInsurancePrice)
+    {
+        SellingPrice = sellingPrice;
+        ForcedSalePrice = forcedSalePrice;
+        BuildingInsurancePrice = buildingInsurancePrice;
     }
 
     #region Set Detail Methods

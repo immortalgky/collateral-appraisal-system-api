@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.ComparativeAnalysisTemplates.ReorderComparativeAnalysisTemplateFactors;
+
+public record ReorderComparativeAnalysisTemplateFactorsResult(bool Success);

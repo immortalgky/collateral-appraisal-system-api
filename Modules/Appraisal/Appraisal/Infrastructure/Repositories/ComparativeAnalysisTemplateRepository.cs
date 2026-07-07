@@ -45,7 +45,7 @@ public class ComparativeAnalysisTemplateRepository(AppraisalDbContext dbContext)
     {
         return await _dbContext.ComparativeAnalysisTemplates
             .Include(t => t.Factors)
-            .OrderBy(t => t.PropertyType)
+            .OrderBy(t => t.CreatedAt)
             .ThenBy(t => t.TemplateName)
             .ToListAsync(cancellationToken);
     }
@@ -56,7 +56,7 @@ public class ComparativeAnalysisTemplateRepository(AppraisalDbContext dbContext)
         return await _dbContext.ComparativeAnalysisTemplates
             .Include(t => t.Factors)
             .Where(t => t.IsActive)
-            .OrderBy(t => t.PropertyType)
+            .OrderBy(t => t.CreatedAt)
             .ThenBy(t => t.TemplateName)
             .ToListAsync(cancellationToken);
     }

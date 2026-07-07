@@ -19,6 +19,7 @@ public class GetAppraisalWorkflowProgressQueryHandler(
         ["appraisal-initiation"] = "Initiation",
         ["appraisal-initiation-check"] = "Initiation",
         ["appraisal-assignment"] = "Assignment",
+        ["int-pma-input"] = "Execution",
         ["ext-appraisal-assignment"] = "Execution",
         ["ext-appraisal-execution"] = "Execution",
         ["ext-appraisal-check"] = "Execution",
@@ -27,6 +28,7 @@ public class GetAppraisalWorkflowProgressQueryHandler(
         ["appraisal-book-verification"] = "Staff",
         ["int-appraisal-check"] = "Checker",
         ["int-appraisal-verification"] = "Verification",
+        ["pending-meeting"] = "Approval",
         ["pending-approval"] = "Approval"
     };
 
@@ -61,7 +63,8 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                                            CAST(NULL AS nvarchar(10))   AS ActionTaken,
                                            CAST(NULL AS nvarchar(1000)) AS Remark,
                                            'Pending'                    AS TaskStatus,
-                                           pt.ActivityId
+                                           pt.ActivityId,
+                                           CAST(NULL AS nvarchar(10))   AS Movement
                                     FROM workflow.PendingTasks pt
                                     WHERE pt.CorrelationId = @RequestId
 
@@ -70,7 +73,8 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                                     SELECT ct.TaskName, ct.TaskDescription, ct.AssignedTo, ct.AssignedType, ct.AssignedAt,
                                            ct.CompletedAt, ct.ActionTaken, ct.Remark,
                                            'Completed' AS TaskStatus,
-                                           ct.ActivityId
+                                           ct.ActivityId,
+                                           ct.Movement
                                     FROM workflow.CompletedTasks ct
                                     WHERE ct.CorrelationId = @RequestId
 
@@ -158,8 +162,21 @@ public class GetAppraisalWorkflowProgressQueryHandler(
         // ── Step building (BFS over workflow definition) ──────────────────────
         var orderedGroups = BuildOrderedGroups(definitionJson, routeType, logger);
 
+        // ── Cancellation point ────────────────────────────────────────────────
+        // Movement="C" on a completed task is the authoritative "cancelled here" marker.
+        // Fallback: a command-path cancel (no such row) leaves the instance Cancelled with
+        // CurrentActivityId pointing at where it stopped.
+        var cancelActivityId =
+            logRows.FirstOrDefault(r => string.Equals(r.Movement, "C", StringComparison.OrdinalIgnoreCase))?.ActivityId
+            ?? (string.Equals(instance?.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)
+                ? instance!.CurrentActivityId
+                : null);
+
+        var cancelledGroup =
+            cancelActivityId is not null && GroupMap.TryGetValue(cancelActivityId, out var cg) ? cg : null;
+
         // ── Step statuses ─────────────────────────────────────────────────────
-        var steps = BuildSteps(orderedGroups, completedActivityIds, instance);
+        var steps = BuildSteps(orderedGroups, completedActivityIds, instance, cancelledGroup);
 
         // ── Activity log with user display names ──────────────────────────────
         var activityLog = await BuildActivityLogAsync(logRows, cancellationToken);
@@ -300,9 +317,23 @@ public class GetAppraisalWorkflowProgressQueryHandler(
     private static List<PhaseStepDto> BuildSteps(
         List<string> orderedGroups,
         List<string> completedActivityIds,
-        WorkflowInstanceRow? instance)
+        WorkflowInstanceRow? instance,
+        string? cancelledGroup)
     {
         if (orderedGroups.Count == 0) return [];
+
+        // Cancelled → mark the cancellation step red, earlier Completed, later Pending.
+        if (cancelledGroup is not null)
+        {
+            var cancelIdx = orderedGroups.IndexOf(cancelledGroup);
+            if (cancelIdx >= 0)
+                return orderedGroups.Select((g, idx) => new PhaseStepDto
+                {
+                    Group = g,
+                    Status = idx < cancelIdx ? "Completed" : idx == cancelIdx ? "Cancelled" : "Pending"
+                }).ToList();
+            // group filtered out of this route → fall through to normal logic
+        }
 
         // Workflow fully completed → all Completed
         if (string.Equals(instance?.Status, "Completed", StringComparison.OrdinalIgnoreCase))
@@ -394,7 +425,8 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                 Status = r.TaskStatus,
                 Group = group,
                 ActivityId = r.ActivityId,
-                CompanyName = companyName
+                CompanyName = companyName,
+                Movement = r.Movement
             };
         }).ToList();
     }
@@ -421,6 +453,7 @@ public class GetAppraisalWorkflowProgressQueryHandler(
         public string? Remark { get; set; }
         public string TaskStatus { get; set; } = default!;
         public string? ActivityId { get; set; }
+        public string? Movement { get; set; }
     }
 
     // ── JSON DTOs for workflow definition ─────────────────────────────────────
