@@ -48,16 +48,6 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
     {
         var query = _db.SupportingData.AsNoTracking().AsQueryable();
 
-        // Comment duruing requirement change. System support internal user which checker can see every record whether external or internal.
-        // if (currentUserService.CompanyId is not null)
-        // {
-        //     query = query.Where(s => s.AppraisalCompanyId == currentUserService.CompanyId);
-        // }
-        // else
-        // {
-        //     query = query.Where(s => s.AppraisalCompanyId == null);
-        // }
-
         // If user doesn't have edit permission. they should not see the supporting data in Draft or RoutedBack status.
         if (!currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT"))
         {
