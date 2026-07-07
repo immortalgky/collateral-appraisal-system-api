@@ -113,13 +113,14 @@ public class Appointment : Entity<Guid>
         ActionDate = DateTime.Now;
     }
 
-    public void Reschedule(string changedBy, DateTime newDate, string? reason = null)
+    public void Reschedule(string changedBy, DateTime newDate, string locationDetail, string? reason = null)
     {
         if (Status == "Cancelled")
             throw new InvalidOperationException($"Cannot reschedule appointment in status '{Status}'");
 
         RecordHistory("Rescheduled", changedBy, reason);
         AppointmentDateTime = newDate;
+        LocationDetail = locationDetail;
         Reason = reason;
         RescheduleCount++;
         Status = "Pending"; // Reset to pending for re-approval

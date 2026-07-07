@@ -7,5 +7,6 @@ public record RescheduleAppointmentCommand(
     Guid AppointmentId,
     string ChangedBy,
     DateTime NewDateTime,
+    string LocationDetail,
     string? Reason = null
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;

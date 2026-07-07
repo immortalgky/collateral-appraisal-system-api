@@ -19,6 +19,7 @@ public class RescheduleAppointmentEndpoint : ICarterModule
                         appointmentId,
                         request.ChangedBy,
                         request.NewDateTime,
+                        request.LocationDetail,
                         request.Reason);
 
                     await sender.Send(command, cancellationToken);

@@ -37,7 +37,7 @@ public class RescheduleAppointmentCommandHandler(
             throw new InvalidOperationException(
                 "Cannot reschedule: an approval is currently awaiting review. Wait for the approval to be resolved before making further changes.");
 
-        appointment.Reschedule(command.ChangedBy, command.NewDateTime, command.Reason);
+        appointment.Reschedule(command.ChangedBy, command.NewDateTime, command.LocationDetail, command.Reason);
 
         // Derive request source from the acting user — external companies use "Ext" approval rules;
         // internal bank users use "Int" rules (no company_id claim required).
