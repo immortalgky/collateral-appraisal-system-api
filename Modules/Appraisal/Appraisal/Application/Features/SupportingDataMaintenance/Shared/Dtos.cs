@@ -6,7 +6,8 @@ public record SupportingDataHeaderDto(
     string? SourceOfData,
     string? Description,
     string? Decision,
-    string? Remark
+    string? Remark,
+    Guid? AppraisalCompanyId
 );
 
 public record SupportingDataDetailDto(

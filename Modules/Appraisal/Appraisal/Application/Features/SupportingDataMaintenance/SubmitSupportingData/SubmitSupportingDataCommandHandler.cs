@@ -40,7 +40,7 @@ public class SubmitSupportingDataCommandHandler(
                 cmd.Header.ImportChannel,
                 cmd.Header.ImportDate,
                 cmd.Header.SourceOfData,
-                currentUserService.CompanyId,
+                cmd.Header.AppraisalCompanyId,
                 cmd.Header.Description,
                 cmd.Header.Remark));
 
@@ -56,7 +56,7 @@ public class SubmitSupportingDataCommandHandler(
                 cmd.Header.ImportChannel,
                 cmd.Header.ImportDate,
                 cmd.Header.SourceOfData,
-                currentUserService.CompanyId,
+                cmd.Header.AppraisalCompanyId,
                 cmd.Header.Description,
                 cmd.Header.Remark));
         }
