@@ -99,7 +99,7 @@ internal static class GetAppraisalResultSql
                               """;
 
     public const string ValuationTotals = """
-                                          SELECT va.AppraisedValue, va.ForcedSaleValue, va.InsuranceValue, va.MarketValue, va.ValuationDate
+                                          SELECT va.AppraisedValue, va.ForcedSaleValue, va.InsuranceValue, va.ValuationDate
                                           FROM appraisal.ValuationAnalyses va
                                           WHERE va.AppraisalId = @AppraisalId
                                           """;
@@ -205,7 +205,6 @@ internal sealed record ValuationRow(
     decimal? AppraisedValue,
     decimal? ForcedSaleValue,
     decimal? InsuranceValue,
-    decimal? MarketValue,
     DateTime? ValuationDate);
 
 internal sealed record CollateralRow(
@@ -392,7 +391,6 @@ internal static class AppraisalResultBuilder
             TotalAppraisalValue: valuation?.AppraisedValue,
             ForceSalePrice: valuation?.ForcedSaleValue,
             FireInsurance: valuation?.InsuranceValue,
-            MarketValue: valuation?.MarketValue,
             Groups: groups,
             Documents: documents);
     }
