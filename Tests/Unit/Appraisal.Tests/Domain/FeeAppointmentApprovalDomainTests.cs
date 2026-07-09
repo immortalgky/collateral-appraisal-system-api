@@ -231,7 +231,7 @@ public class FeeAppointmentApprovalDomainTests
         var appt = Appointment.Create(Guid.NewGuid(), new DateTime(2026, 6, 10, 9, 0, 0), "company");
         appt.Approve("system"); // start effective
 
-        appt.Reschedule("company", new DateTime(2026, 6, 14, 9, 0, 0));
+        appt.Reschedule("company", new DateTime(2026, 6, 14, 9, 0, 0),"");
         appt.FlagRequiresApproval();
 
         Assert.Equal("Pending", appt.Status);
@@ -263,7 +263,7 @@ public class FeeAppointmentApprovalDomainTests
         var appt = Appointment.Create(Guid.NewGuid(), d1, "company");
         appt.Approve("system");
 
-        appt.Reschedule("company", d2);
+        appt.Reschedule("company", d2, "");
         Assert.Equal(d2, appt.AppointmentDateTime);
         Assert.Equal(1, appt.RescheduleCount);
 
