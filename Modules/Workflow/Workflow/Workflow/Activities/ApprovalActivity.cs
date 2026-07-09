@@ -151,6 +151,8 @@ public class ApprovalActivity : WorkflowActivityBase
                 appointmentDate: null,   // approval activities are assignment-anchored (never appointment-anchored)
                 cancellationToken);
             DateTime? dueAt = deadline.DueAt;
+            // The resolved policy budget (24/48/72h) — persisted for display alongside the due date.
+            int? slaDurationHours = deadline.DurationHours;
 
             // Parity with TaskActivity: if a group window governs this activity, use the shared window
             // deadline. Approval activities aren't window members in the default seed (→ null here), but
@@ -166,7 +168,10 @@ public class ApprovalActivity : WorkflowActivityBase
                 appointmentDate: null,
                 cancellationToken);
             if (governing is not null)
+            {
                 dueAt = governing.DueAt;
+                slaDurationHours = governing.DurationHours;
+            }
 
             // Use CorrelationId if available
             var correlationGuid = !string.IsNullOrEmpty(context.WorkflowInstance.CorrelationId)
@@ -191,7 +196,8 @@ public class ApprovalActivity : WorkflowActivityBase
                 context.WorkflowInstance.Name,
                 appraisalNumber,
                 context.Movement,
-                groupInfo.CommitteeCode), cancellationToken);
+                groupInfo.CommitteeCode,
+                slaDurationHours), cancellationToken);
 
             _logger.LogInformation(
                 "ApprovalActivity {ActivityId} started with {MemberCount} members, committee={CommitteeCode}, memberOverride={IsOverride}",

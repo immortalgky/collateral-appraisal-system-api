@@ -44,6 +44,10 @@ BEGIN
     END
     ELSE IF @SortBy = 'RemainingHours'
         SET @SortBy = 'DueAt';
+    -- RequestedAt carries the same value as RequestReceivedDate (both = request submit
+    -- time), so reuse that sort branch rather than duplicating a column.
+    ELSE IF @SortBy = 'RequestedAt'
+        SET @SortBy = 'RequestReceivedDate';
 
     IF @SortBy IS NULL OR @SortBy NOT IN (
         'AppraisalNumber','RequestNumber','CustomerName','TaskType','Purpose','PropertyType',

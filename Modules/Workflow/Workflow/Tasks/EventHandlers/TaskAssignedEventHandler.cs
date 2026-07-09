@@ -47,7 +47,8 @@ public class TaskAssignedEventHandler(
             notification.DueAt,
             notification.TaskDescription,
             notification.Movement,
-            slaStartAt: notification.SlaStartAt);
+            slaStartAt: notification.SlaStartAt,
+            slaDurationHours: notification.SlaDurationHours);
 
         await assignmentRepository.AddTaskAsync(pendingTask, cancellationToken);
 

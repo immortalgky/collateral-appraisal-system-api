@@ -7,8 +7,10 @@ namespace Workflow.Sla.Services;
 /// the point the budget runs from — AssignedAt for Assignment-anchored policies, the appointment for
 /// AppointmentDate-anchored ones. Both null when no deadline applies. <see cref="StartAt"/> is persisted
 /// so the at-risk monitor measures the 75% threshold from the real clock-start, not AssignedAt.
+/// <see cref="DurationHours"/> is the resolved policy budget (e.g. 24/48/72), persisted onto the task so
+/// the task list can display the SLA policy alongside the due date. Null when no policy applies.
 /// </summary>
-public readonly record struct SlaDeadline(DateTime? DueAt, DateTime? StartAt);
+public readonly record struct SlaDeadline(DateTime? DueAt, DateTime? StartAt, int? DurationHours = null);
 
 /// <summary>
 /// Result of window-governance resolution. A non-null instance means a Stage window governs the
@@ -16,8 +18,10 @@ public readonly record struct SlaDeadline(DateTime? DueAt, DateTime? StartAt);
 /// awaiting an appointment), <see cref="AnchorType"/> lets callers recompute only the
 /// appointment-anchored windows on a reschedule, and <see cref="StartAt"/> is the window's clock-start
 /// (start-activity entry, or the appointment) for the at-risk threshold.
+/// <see cref="DurationHours"/> is the window's budget, persisted onto the member task so the task list
+/// displays the governing SLA policy (not the per-activity one).
 /// </summary>
-public record GoverningStageResult(DateTime? DueAt, SlaAnchorType AnchorType, DateTime? StartAt);
+public record GoverningStageResult(DateTime? DueAt, SlaAnchorType AnchorType, DateTime? StartAt, int? DurationHours = null);
 
 public interface ISlaCalculator
 {

@@ -15,7 +15,8 @@ public record FanOutTasksAssignedEvent(
     string? StartedBy,
     string? WorkflowInstanceName,
     string? AppraisalNumber = null,
-    string Movement = "F"
+    string Movement = "F",
+    int? SlaDurationHours = null
 ) : IDomainEvent;
 
 public record FanOutCompanyAssignment(

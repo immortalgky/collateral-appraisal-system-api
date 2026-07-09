@@ -44,7 +44,8 @@ public class ApprovalTasksAssignedEventHandler(
                 notification.DueAt,
                 member.TaskDescription,
                 notification.Movement,
-                committeeCode: notification.CommitteeCode);
+                committeeCode: notification.CommitteeCode,
+                slaDurationHours: notification.SlaDurationHours);
 
             await assignmentRepository.AddTaskAsync(pendingTask, cancellationToken);
 

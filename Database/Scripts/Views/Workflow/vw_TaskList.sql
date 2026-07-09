@@ -45,6 +45,7 @@ WITH resolved AS (
            pt.DueAt,
            pt.SlaStartAt,
            pt.SlaStatus,
+           pt.SlaDurationHours,
            pt.WorkingBy,
            pt.LockedAt,
            -- Type-resolution columns
@@ -87,6 +88,7 @@ WITH resolved AS (
            pt.DueAt,
            pt.SlaStartAt,
            pt.SlaStatus,
+           pt.SlaDurationHours,
            pt.WorkingBy,
            pt.LockedAt,
            -- Type-resolution columns
@@ -123,6 +125,7 @@ WITH resolved AS (
            pt.DueAt,
            pt.SlaStartAt,
            pt.SlaStatus,
+           pt.SlaDurationHours,
            pt.WorkingBy,
            pt.LockedAt,
            -- Type-resolution columns
@@ -160,6 +163,7 @@ WITH resolved AS (
            pt.DueAt,
            pt.SlaStartAt,
            pt.SlaStatus,
+           pt.SlaDurationHours,
            pt.WorkingBy,
            pt.LockedAt,
            -- Type-resolution columns
@@ -204,17 +208,27 @@ SELECT resolved.Id                                                              
        COALESCE(a.RequestedBy, r.Requestor)                                                     AS RequestedBy,
        COALESCE(CONCAT(u.FirstName, ' ', u.LastName), ISNULL(a.RequestedBy, r.Requestor))       AS RequestedByName,
        COALESCE(a.RequestedAt, r.RequestedAt)                                                   AS RequestReceivedDate,
+       -- Requested At: when the request was submitted (request-side submit timestamp).
+       COALESCE(a.RequestedAt, r.RequestedAt)                                                   AS RequestedAt,
+       -- Report received: external appraiser's first handoff (InProgress -> UnderReview),
+       -- same source/semantics as vw_AppraisalEvaluation{Header,List}.ReportReceivedDate.
+       rr.SubmittedAt                                                                           AS ReportReceivedAt,
        resolved.AssignedAt                                                                      AS AssignedDate,
        resolved.Movement,
-       AA.InternalAppraiserId                                                                   AS InternalFollowupStaff,
+       -- Resolve the internal appraiser code to a full name (fallback to the raw code).
+       COALESCE(NULLIF(LTRIM(RTRIM(CONCAT(ifs.FirstName, ' ', ifs.LastName))), ''),
+                AA.InternalAppraiserId)                                                         AS InternalFollowupStaff,
        CASE
-           WHEN AA.AssignmentType = 'Internal' THEN AA.InternalAppraiserId
+           WHEN AA.AssignmentType = 'Internal' THEN COALESCE(
+                NULLIF(LTRIM(RTRIM(CONCAT(ifs.FirstName, ' ', ifs.LastName))), ''),
+                AA.InternalAppraiserId)
            WHEN AA.AssignmentType = 'External' THEN comp.Name
            END                                                                                  AS Appraiser,
        COALESCE(a.Priority, r.Priority)                                                         AS Priority,
        resolved.DueAt,
        resolved.SlaStartAt,
        resolved.SlaStatus,
+       resolved.SlaDurationHours,
        -- ElapsedHours / RemainingHours are computed in C# (GetTasksQueryHandler) using
        -- IBusinessTimeCalculator so they exclude weekends, holidays and lunch. They are NOT
        -- derived here: a SQL DATEDIFF would count calendar hours (nights/weekends included).
@@ -258,6 +272,16 @@ FROM   resolved
         WHERE  AssignmentId = AA.Id
           AND  Status != 'Cancelled'
     ) ap
+    OUTER APPLY (
+        -- Most-recent external appraiser assignment's submission timestamp (report received).
+        SELECT TOP 1 SubmittedAt
+        FROM   appraisal.AppraisalAssignments
+        WHERE  AppraisalId = a.Id
+          AND  AssignmentType = 'External'
+          AND  AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+        ORDER BY AssignedAt DESC, CreatedAt DESC, Id DESC
+    ) rr
     LEFT JOIN auth.Companies   comp ON comp.Id   = TRY_CAST(AA.AssigneeCompanyId AS uniqueidentifier)
     LEFT JOIN auth.AspNetUsers u    ON u.UserName = ISNULL(a.RequestedBy, r.Requestor)
+    LEFT JOIN auth.AspNetUsers ifs  ON ifs.UserName = AA.InternalAppraiserId
     LEFT JOIN auth.AspNetUsers qrm  ON qrm.UserName = resolved.RmUsername;

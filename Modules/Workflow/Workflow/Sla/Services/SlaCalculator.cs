@@ -79,7 +79,9 @@ public class SlaCalculator(
                 logger.LogDebug(
                     "Activity {ActivityId} is appointment-anchored but no appointment date is set — DueAt deferred",
                     activityId);
-                return new SlaDeadline(null, null);
+                // DueAt is deferred until the appointment is set, but the budget is already resolved —
+                // carry it so the task can display its SLA policy before a deadline exists.
+                return new SlaDeadline(null, null, durationHours);
             }
             anchor = appointmentDate.Value;
         }
@@ -130,8 +132,9 @@ public class SlaCalculator(
             activityId, dueAt, effectiveAnchorType, useBusinessDays, durationHours, cumulativeMinutes, remainingMinutes);
 
         // StartAt is the clock-start anchor (NOT necessarily AssignedAt) so the at-risk monitor can
-        // measure the 75% threshold from where the budget actually began.
-        return new SlaDeadline(dueAt, anchor.Value);
+        // measure the 75% threshold from where the budget actually began. DurationHours is the resolved
+        // budget (persisted onto the task for display alongside the due date).
+        return new SlaDeadline(dueAt, anchor.Value, durationHours);
     }
 
     public async Task<DateTime?> CalculateWorkflowDueAtAsync(
@@ -340,7 +343,7 @@ public class SlaCalculator(
             ? (effectiveAnchorType == SlaAnchorType.AppointmentDate ? appointmentDate : startEntry)
             : null;
 
-        return new GoverningStageResult(dueAt, effectiveAnchorType, startAt);
+        return new GoverningStageResult(dueAt, effectiveAnchorType, startAt, governing.DurationHours);
     }
 
     /// <summary>

@@ -48,7 +48,8 @@ public class FanOutTasksAssignedEventHandler(
                 notification.DueAt,
                 assignment.TaskDescription,
                 notification.Movement,
-                assigneeCompanyId: assignment.CompanyId);
+                assigneeCompanyId: assignment.CompanyId,
+                slaDurationHours: notification.SlaDurationHours);
 
             await assignmentRepository.AddTaskAsync(pendingTask, cancellationToken);
 
