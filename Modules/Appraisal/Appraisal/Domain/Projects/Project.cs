@@ -563,7 +563,7 @@ public class Project : Aggregate<Guid>
                     var stdPrice = model is not null && standardPriceByModelId.TryGetValue(model.Id, out var p) ? p : null;
                     return (
                         StandardPrice: stdPrice ?? 0m,
-                        CoverageAmount: ma.CoverageAmount);
+                        CoverageAmount: CoverageByCondition.Lookup(model?.FireInsuranceCondition) ?? ma.CoverageAmount);
                 })
             : _models
                 .Where(m => m.ModelName != null)
@@ -590,7 +590,7 @@ public class Project : Aggregate<Guid>
             if (unit.ModelType != null && modelLookup.TryGetValue(unit.ModelType, out var matched))
             {
                 standardPrice = matched.StandardPrice;
-                coverageAmount = matched.CoverageAmount;
+                coverageAmount = matched.CoverageAmount * unit.UsableArea ?? 0m;
             }
 
             var rawLocationAdjustment = 0m;
@@ -668,6 +668,7 @@ public class Project : Aggregate<Guid>
 
             var standardLandArea = 0m;
             var standardPrice = 0m;
+            string? fireInsuranceCondition = null;
             if (unit.ModelType != null && projectModelMap.TryGetValue(unit.ModelType, out var projectModel))
             {
                 standardLandArea = projectModel.StandardLandArea ?? 0m;
@@ -675,9 +676,12 @@ public class Project : Aggregate<Guid>
                 // Do not multiply by usable area for LB.
                 // FinalAppraisedValue is supplied by the handler from IPricingAnalysisRepository.
                 standardPrice = standardPriceByModelId.TryGetValue(projectModel.Id, out var sp) ? sp ?? 0m : 0m;
+                fireInsuranceCondition = projectModel.FireInsuranceCondition;
+
             }
-            var coverageAmount = modelAssumption?.CoverageAmount;
+
             var usableArea = unit.UsableArea ?? 0m;
+            var coverageAmount = (CoverageByCondition.Lookup(fireInsuranceCondition) ?? modelAssumption?.CoverageAmount) * usableArea;
 
             var landArea = unit.LandArea ?? 0m;
             var landIncreaseDecreaseRate = assumption.LandIncreaseDecreaseRate ?? 0m;
