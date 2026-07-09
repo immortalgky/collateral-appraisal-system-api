@@ -152,7 +152,7 @@ public class AppointmentDateChangedIntegrationEventConsumer(
                 {
                     if (governing.AnchorType == SlaAnchorType.AppointmentDate)
                     {
-                        task.RecalculateDueAt(governing.DueAt, governing.StartAt);
+                        task.RecalculateDueAt(governing.DueAt, governing.StartAt, governing.DurationHours);
                         logger.LogInformation(
                             "Recalculated window-governed PendingTask DueAt for activity {ActivityId}: {DueAt}",
                             task.ActivityId, governing.DueAt);
@@ -183,7 +183,7 @@ public class AppointmentDateChangedIntegrationEventConsumer(
                     appointmentDate: msg.AppointmentDate,
                     ct: ct);
 
-                task.RecalculateDueAt(deadline.DueAt, deadline.StartAt);
+                task.RecalculateDueAt(deadline.DueAt, deadline.StartAt, deadline.DurationHours);
 
                 logger.LogInformation(
                     "Recalculated PendingTask DueAt for activity {ActivityId}: {DueAt}",

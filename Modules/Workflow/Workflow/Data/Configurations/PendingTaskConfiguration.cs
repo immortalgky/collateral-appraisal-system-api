@@ -55,6 +55,9 @@ public class PendingTaskConfiguration : IEntityTypeConfiguration<PendingTask>
         builder.Property(p => p.SlaBreachedAt)
             .IsRequired(false);
 
+        builder.Property(p => p.SlaDurationHours)
+            .IsRequired(false);
+
         builder.Property(p => p.Movement)
             .HasMaxLength(16)
             .IsRequired()

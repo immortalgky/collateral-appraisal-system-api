@@ -42,6 +42,7 @@ public record PoolTaskDto
     public Guid WorkflowInstanceId { get; init; }
     public string? ActivityId { get; init; }
     public string? AppraisalNumber { get; init; }
+    public string? RequestNumber { get; init; }
     public string? CustomerName { get; init; }
     public string? TaskType { get; init; }
     public string? TaskDescription { get; init; }
@@ -52,7 +53,10 @@ public record PoolTaskDto
     public DateTime? AppointmentDateTime { get; init; }
     public string? AssigneeUserId { get; init; }
     public string? RequestedBy { get; init; }
+    public string? RequestedByName { get; init; }
     public DateTime? RequestReceivedDate { get; init; }
+    public DateTime? RequestedAt { get; init; }
+    public DateTime? ReportReceivedAt { get; init; }
     public DateTime? AssignedDate { get; init; }
     public string? Movement { get; init; }
     public string? InternalFollowupStaff { get; init; }
@@ -61,6 +65,7 @@ public record PoolTaskDto
     public DateTime? DueAt { get; init; }
     public DateTime? SlaStartAt { get; init; }
     public string? SlaStatus { get; init; }
+    public int? SlaDurationHours { get; init; }
     public int? ElapsedHours { get; init; }
     public int? RemainingHours { get; init; }
     public string? WorkingBy { get; init; }

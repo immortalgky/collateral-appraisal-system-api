@@ -25,6 +25,8 @@ public record TaskDto
     public string? RequestedBy { get; init; }
     public string? RequestedByName { get; init; }
     public DateTime? RequestReceivedDate { get; init; }
+    public DateTime? RequestedAt { get; init; }
+    public DateTime? ReportReceivedAt { get; init; }
     public DateTime? AssignedDate { get; init; }
     public string? Movement { get; init; }
     public string? InternalFollowupStaff { get; init; }
@@ -33,6 +35,7 @@ public record TaskDto
     public DateTime? DueAt { get; init; }
     public DateTime? SlaStartAt { get; init; }
     public string? SlaStatus { get; init; }
+    public int? SlaDurationHours { get; init; }
     public int? ElapsedHours { get; init; }
     public int? RemainingHours { get; init; }
 }

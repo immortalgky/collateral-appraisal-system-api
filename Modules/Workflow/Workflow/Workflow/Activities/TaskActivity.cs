@@ -674,6 +674,8 @@ public class TaskActivity : WorkflowActivityBase
         // The SLA clock-start anchor (AssignedAt, appointment, or window start) — persisted so the
         // at-risk monitor measures the 75% threshold from where the budget actually began.
         var slaStartAt = activityDeadline.StartAt;
+        // The resolved policy budget (24/48/72h) — persisted for display alongside the due date.
+        var slaDurationHours = activityDeadline.DurationHours;
 
         // If this activity is a member of a group window, the WINDOW governs its task SLA: use the
         // shared window deadline instead of the per-activity clock (per-activity hours are drill-down
@@ -692,6 +694,7 @@ public class TaskActivity : WorkflowActivityBase
         {
             dueAt = governing.DueAt;
             slaStartAt = governing.StartAt;
+            slaDurationHours = governing.DurationHours;
             // (No workflow-umbrella cap — the window's own deadline stands.)
         }
 
@@ -732,7 +735,7 @@ public class TaskActivity : WorkflowActivityBase
                 _dateTimeProvider.ApplicationNow, context.WorkflowInstanceId, context.ActivityId, dueAt,
                 context.WorkflowInstance.StartedBy, context.WorkflowInstance.Name,
                 context.ActivityName, completedBy, appraisalNumber, context.Movement, appraisalId,
-                reasonCode, reason, slaStartAt),
+                reasonCode, reason, slaStartAt, slaDurationHours),
             cancellationToken);
     }
 

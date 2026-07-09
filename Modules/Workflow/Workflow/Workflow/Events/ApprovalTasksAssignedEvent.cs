@@ -12,7 +12,8 @@ public record ApprovalTasksAssignedEvent(
     string? WorkflowInstanceName,
     string? AppraisalNumber = null,
     string Movement = "F",
-    string? CommitteeCode = null
+    string? CommitteeCode = null,
+    int? SlaDurationHours = null
 ) : IDomainEvent;
 
 public record ApprovalMemberAssignment(string Username, string TaskName, string? TaskDescription = null);

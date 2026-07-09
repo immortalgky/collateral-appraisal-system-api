@@ -44,6 +44,10 @@ BEGIN
     END
     ELSE IF @SortBy = 'RemainingHours'
         SET @SortBy = 'DueAt';
+    -- RequestedAt carries the same value as RequestReceivedDate (both = request submit
+    -- time), so reuse that sort branch rather than duplicating a column.
+    ELSE IF @SortBy = 'RequestedAt'
+        SET @SortBy = 'RequestReceivedDate';
 
     IF @SortBy IS NULL OR @SortBy NOT IN (
         'AppraisalNumber','RequestNumber','CustomerName','TaskType','Purpose','PropertyType',
@@ -261,7 +265,14 @@ BEGIN
             p.PropertyType,
             ap.AppointmentDateTime,
             AA.InternalAppraiserId,
-            CASE WHEN AA.AssignmentType = 'Internal' THEN AA.InternalAppraiserId
+            -- Resolve to the same display names vw_TaskList shows, so sorting by these
+            -- columns matches the returned values (fallback to the raw code).
+            -- InternalFollowupStaff = InternalAppraiserId; Appraiser (internal) = AssigneeUserId.
+            COALESCE(NULLIF(LTRIM(RTRIM(CONCAT(ifs.FirstName, ' ', ifs.LastName))), ''),
+                     AA.InternalAppraiserId)                            AS InternalFollowupStaff,
+            CASE WHEN AA.AssignmentType = 'Internal' THEN COALESCE(
+                     NULLIF(LTRIM(RTRIM(CONCAT(au.FirstName, ' ', au.LastName))), ''),
+                     AA.AssigneeUserId)
                  WHEN AA.AssignmentType = 'External' THEN comp.Name END AS Appraiser,
             r.Id                                       AS ReqId  -- for the any-customer name semi-join (filter only)
         FROM resolved
@@ -270,13 +281,15 @@ BEGIN
             OUTER APPLY (SELECT TOP 1 Name FROM request.RequestCustomers WHERE RequestId = r.Id) c
             OUTER APPLY (SELECT STRING_AGG(PropertyType, ',') AS PropertyType
                          FROM request.RequestProperties WHERE RequestId = r.Id) p
-            OUTER APPLY (SELECT TOP 1 Id, AssignmentType, InternalAppraiserId, AssigneeCompanyId
+            OUTER APPLY (SELECT TOP 1 Id, AssignmentType, AssigneeUserId, InternalAppraiserId, AssigneeCompanyId
                          FROM appraisal.AppraisalAssignments
                          WHERE AppraisalId = a.Id AND AssignmentStatus NOT IN ('Rejected','Cancelled')
                          ORDER BY AssignedAt DESC, CreatedAt DESC, Id DESC) AA
             OUTER APPLY (SELECT TOP 1 AppointmentDateTime FROM appraisal.Appointments
                          WHERE AssignmentId = AA.Id AND Status != 'Cancelled') ap
             LEFT JOIN auth.Companies comp ON comp.Id = TRY_CAST(AA.AssigneeCompanyId AS uniqueidentifier)
+            LEFT JOIN auth.AspNetUsers ifs ON ifs.UserName = AA.InternalAppraiserId
+            LEFT JOIN auth.AspNetUsers au  ON au.UserName  = AA.AssigneeUserId
     )
     INSERT INTO #page (Id, Rn, Total)
     SELECT Id,
@@ -292,7 +305,7 @@ BEGIN
                        WHEN 'Status'                THEN AStatus
                        WHEN 'RequestedBy'           THEN RequestedBy
                        WHEN 'Movement'              THEN Movement
-                       WHEN 'InternalFollowupStaff' THEN InternalAppraiserId
+                       WHEN 'InternalFollowupStaff' THEN InternalFollowupStaff
                        WHEN 'Appraiser'             THEN Appraiser
                        WHEN 'Priority'              THEN Priority
                        WHEN 'SlaStatus'             THEN SlaStatus
@@ -308,7 +321,7 @@ BEGIN
                        WHEN 'Status'                THEN AStatus
                        WHEN 'RequestedBy'           THEN RequestedBy
                        WHEN 'Movement'              THEN Movement
-                       WHEN 'InternalFollowupStaff' THEN InternalAppraiserId
+                       WHEN 'InternalFollowupStaff' THEN InternalFollowupStaff
                        WHEN 'Appraiser'             THEN Appraiser
                        WHEN 'Priority'              THEN Priority
                        WHEN 'SlaStatus'             THEN SlaStatus

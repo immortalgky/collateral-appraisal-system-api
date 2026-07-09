@@ -27,6 +27,14 @@ public class PendingTask : Aggregate<Guid>
 
     public string? SlaStatus { get; private set; }
     public DateTime? SlaBreachedAt { get; private set; }
+
+    /// <summary>
+    /// The resolved SLA policy budget in hours (e.g. 24/48/72) that produced <see cref="DueAt"/> —
+    /// the governing window's budget for window-governed tasks, else the per-activity budget. Persisted
+    /// so the task list can display the SLA policy alongside the due date. Null when no policy applies.
+    /// </summary>
+    public int? SlaDurationHours { get; private set; }
+
     public string Movement { get; private set; } = "F";
 
     /// <summary>
@@ -69,7 +77,8 @@ public class PendingTask : Aggregate<Guid>
     public static PendingTask Create(Guid correlationId, string taskName, string assignedTo,
         string assignedType, DateTime assignedAt, Guid workflowInstanceId, string activityId,
         DateTime? dueAt = null, string? taskDescription = null, string movement = "F",
-        Guid? assigneeCompanyId = null, string? committeeCode = null, DateTime? slaStartAt = null)
+        Guid? assigneeCompanyId = null, string? committeeCode = null, DateTime? slaStartAt = null,
+        int? slaDurationHours = null)
     {
         var task = new PendingTask(correlationId, taskName, assignedTo, assignedType, assignedAt,
             workflowInstanceId, activityId, taskDescription, movement, assigneeCompanyId, committeeCode);
@@ -77,6 +86,9 @@ public class PendingTask : Aggregate<Guid>
         // Default the clock-start to AssignedAt when the caller doesn't supply an explicit anchor.
         task.SlaStartAt = dueAt.HasValue ? (slaStartAt ?? assignedAt) : null;
         task.SlaStatus = dueAt.HasValue ? "OnTime" : null;
+        // The resolved policy budget — display-only; independent of whether a deadline exists yet
+        // (an appointment-anchored task can carry its budget before DueAt is computed).
+        task.SlaDurationHours = slaDurationHours;
         return task;
     }
 
@@ -152,13 +164,18 @@ public class PendingTask : Aggregate<Guid>
     /// Re-stamps DueAt (and its clock-start anchor) and resets SlaStatus to OnTime. Used by
     /// appointment-anchored SLA recalculation when the appointment is set or rescheduled after task
     /// assignment. <paramref name="slaStartAt"/> falls back to the existing AssignedAt when null.
+    /// <paramref name="slaDurationHours"/> re-stamps the resolved budget so the recalc path stays in
+    /// parity with creation (fills a pre-feature null, and refreshes if a policy's hours were edited);
+    /// null leaves the existing value untouched.
     /// </summary>
-    public void RecalculateDueAt(DateTime? dueAt, DateTime? slaStartAt = null)
+    public void RecalculateDueAt(DateTime? dueAt, DateTime? slaStartAt = null, int? slaDurationHours = null)
     {
         DueAt = dueAt;
         SlaStartAt = dueAt.HasValue ? (slaStartAt ?? AssignedAt) : null;
         // If a new deadline is set, reset status to OnTime; null means "no deadline yet".
         SlaStatus = dueAt.HasValue ? "OnTime" : null;
         SlaBreachedAt = null;
+        if (slaDurationHours.HasValue)
+            SlaDurationHours = slaDurationHours;
     }
 }
