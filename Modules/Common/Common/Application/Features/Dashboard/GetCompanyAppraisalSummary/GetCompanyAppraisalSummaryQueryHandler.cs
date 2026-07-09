@@ -27,7 +27,9 @@ public class GetCompanyAppraisalSummaryQueryHandler(
 
         if (query.To.HasValue)
         {
-            conditions.Add("CreatedAt <= @To");
+            // Exclusive upper bound + 1 day so the whole To-day is included
+            // (CreatedAt is a datetime; <= midnight would drop same-day rows).
+            conditions.Add("CreatedAt < DATEADD(day, 1, @To)");
             parameters.Add("To", query.To.Value.ToDateTime(TimeOnly.MinValue));
         }
 
