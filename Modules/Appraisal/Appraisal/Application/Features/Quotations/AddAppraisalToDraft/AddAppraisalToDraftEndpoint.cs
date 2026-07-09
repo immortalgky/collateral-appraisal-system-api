@@ -16,10 +16,6 @@ public class AddAppraisalToDraftEndpoint : ICarterModule
                     var command = new AddAppraisalToDraftCommand(
                         QuotationRequestId: id,
                         AppraisalId: request.AppraisalId,
-                        AppraisalNumber: request.AppraisalNumber,
-                        PropertyType: request.PropertyType,
-                        PropertyLocation: request.PropertyLocation,
-                        EstimatedValue: request.EstimatedValue,
                         MaxAppraisalDays: request.MaxAppraisalDays);
 
                     var result = await sender.Send(command, cancellationToken);

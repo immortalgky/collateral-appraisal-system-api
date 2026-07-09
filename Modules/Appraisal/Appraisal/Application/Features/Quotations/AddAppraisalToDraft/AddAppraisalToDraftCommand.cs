@@ -9,9 +9,5 @@ namespace Appraisal.Application.Features.Quotations.AddAppraisalToDraft;
 public record AddAppraisalToDraftCommand(
     Guid QuotationRequestId,
     Guid AppraisalId,
-    string AppraisalNumber,
-    string PropertyType,
-    string? PropertyLocation = null,
-    decimal? EstimatedValue = null,
     int? MaxAppraisalDays = null
 ) : ICommand<AddAppraisalToDraftResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
