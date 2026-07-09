@@ -16,7 +16,8 @@ public class SubmitSupportingDataEndpoint : ICarterModule
                 request.Header.SourceOfData,
                 request.Header.Description,
                 request.Header.Decision,
-                request.Header.Remark)
+                request.Header.Remark,
+                request.Header.AppraisalCompanyId)
                 );
 
             var result = await sender.Send(command, cancellationToken);

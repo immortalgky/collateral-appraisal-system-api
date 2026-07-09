@@ -48,15 +48,6 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
     {
         var query = _db.SupportingData.AsNoTracking().AsQueryable();
 
-        if (currentUserService.CompanyId is not null)
-        {
-            query = query.Where(s => s.AppraisalCompanyId == currentUserService.CompanyId);
-        }
-        else
-        {
-            query = query.Where(s => s.AppraisalCompanyId == null);
-        }
-
         // If user doesn't have edit permission. they should not see the supporting data in Draft or RoutedBack status.
         if (!currentUserService.HasPermission("SUPPORTING_DATA_MAINT_EDIT"))
         {
@@ -115,6 +106,18 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
             "createdDate" => isDesc
                 ? query.OrderByDescending(s => s.CreatedAt)
                 : query.OrderBy(s => s.CreatedAt),
+            "importChannel" => isDesc
+                ? query.OrderByDescending(s => s.ImportChannel)
+                : query.OrderBy(s => s.ImportChannel),
+            "sourceOfData" => isDesc
+                ? query.OrderByDescending(s => s.SourceOfData)
+                : query.OrderBy(s => s.SourceOfData),
+            "lastModifiedBy" => isDesc
+                ? query.OrderByDescending(s => s.UpdatedBy)
+                : query.OrderBy(s => s.UpdatedBy),
+            "lastModifiedDate" => isDesc
+                ? query.OrderByDescending(s => s.UpdatedAt)
+                : query.OrderBy(s => s.UpdatedAt),
             _ => query.OrderBy(s => s.CreatedAt),
         };
 
