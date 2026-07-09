@@ -49,7 +49,9 @@ public class GetAppraisalStatusSummaryQueryHandler(
 
         if (!string.IsNullOrWhiteSpace(query.BankingSegment))
         {
-            conditions.Add("a.BankingSegment = @BankingSegment");
+            // Compare case-insensitively and treat NULL as 'IBG' so the dashboard's
+            // canonical 'Retail'/'IBG' dropdown values match reliably.
+            conditions.Add("UPPER(ISNULL(a.BankingSegment, 'IBG')) = UPPER(@BankingSegment)");
             parameters.Add("BankingSegment", query.BankingSegment);
         }
 

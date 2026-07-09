@@ -15,10 +15,13 @@ public class GetAppraisalCountsEndpoint : ICarterModule
                     string? period,
                     DateOnly? from,
                     DateOnly? to,
+                    bool? groupByType,
+                    string? bankingSegment,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var query = new GetAppraisalCountsQuery(period ?? "monthly", from, to);
+                    var query = new GetAppraisalCountsQuery(
+                        period ?? "monthly", from, to, groupByType ?? false, bankingSegment);
                     var result = await sender.Send(query, cancellationToken);
                     return Results.Ok(result);
                 })

@@ -29,12 +29,19 @@ public class GetQuotationTaskSummaryQueryHandler(
                     SELECT COUNT(*)
                     FROM appraisal.QuotationRequests
                     WHERE Status = 'PendingRmSelection'
-                ) AS WaitingRmSelection
+                ) AS WaitingRmSelection,
+                (
+                    -- One Open FeeAppointmentApproval = one pending approver task
+                    -- (may bundle a fee line and/or a reschedule line).
+                    SELECT COUNT(*)
+                    FROM workflow.FeeAppointmentApprovals
+                    WHERE Status = 'Open'
+                ) AS PendingApprovals
             """;
 
         var connection = connectionFactory.GetOpenConnection();
         var row = await connection.QuerySingleOrDefaultAsync<GetQuotationTaskSummaryResult>(sql);
 
-        return row ?? new GetQuotationTaskSummaryResult(0, 0, 0);
+        return row ?? new GetQuotationTaskSummaryResult(0, 0, 0, 0);
     }
 }
