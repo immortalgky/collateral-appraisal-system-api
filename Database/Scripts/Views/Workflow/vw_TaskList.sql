@@ -215,13 +215,15 @@ SELECT resolved.Id                                                              
        rr.SubmittedAt                                                                           AS ReportReceivedAt,
        resolved.AssignedAt                                                                      AS AssignedDate,
        resolved.Movement,
-       -- Resolve the internal appraiser code to a full name (fallback to the raw code).
+       -- Internal follow-up staff = InternalAppraiserId; resolve the code to a full name.
        COALESCE(NULLIF(LTRIM(RTRIM(CONCAT(ifs.FirstName, ' ', ifs.LastName))), ''),
                 AA.InternalAppraiserId)                                                         AS InternalFollowupStaff,
+       -- Appraiser (internal) = AssigneeUserId (the assigned internal appraiser), NOT the
+       -- follow-up staff; resolve to a full name. External = company name.
        CASE
            WHEN AA.AssignmentType = 'Internal' THEN COALESCE(
-                NULLIF(LTRIM(RTRIM(CONCAT(ifs.FirstName, ' ', ifs.LastName))), ''),
-                AA.InternalAppraiserId)
+                NULLIF(LTRIM(RTRIM(CONCAT(au.FirstName, ' ', au.LastName))), ''),
+                AA.AssigneeUserId)
            WHEN AA.AssignmentType = 'External' THEN comp.Name
            END                                                                                  AS Appraiser,
        COALESCE(a.Priority, r.Priority)                                                         AS Priority,
@@ -260,7 +262,7 @@ FROM   resolved
         GROUP BY RequestId
     ) p
     OUTER APPLY (
-        SELECT TOP 1 Id, AssignmentType, InternalAppraiserId, AssigneeCompanyId
+        SELECT TOP 1 Id, AssignmentType, AssigneeUserId, InternalAppraiserId, AssigneeCompanyId
         FROM   appraisal.AppraisalAssignments
         WHERE  AppraisalId = a.Id
           AND  AssignmentStatus NOT IN ('Rejected', 'Cancelled')
@@ -284,4 +286,5 @@ FROM   resolved
     LEFT JOIN auth.Companies   comp ON comp.Id   = TRY_CAST(AA.AssigneeCompanyId AS uniqueidentifier)
     LEFT JOIN auth.AspNetUsers u    ON u.UserName = ISNULL(a.RequestedBy, r.Requestor)
     LEFT JOIN auth.AspNetUsers ifs  ON ifs.UserName = AA.InternalAppraiserId
+    LEFT JOIN auth.AspNetUsers au   ON au.UserName  = AA.AssigneeUserId
     LEFT JOIN auth.AspNetUsers qrm  ON qrm.UserName = resolved.RmUsername;
