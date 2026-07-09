@@ -44,8 +44,11 @@
     cannot be resolved by this script and it must be revisited (the C# resolver
     would graph-walk that case).
 
-  IDEMPOTENT: only touches rows where SlaDurationHours IS NULL AND DueAt IS NOT NULL.
-  Re-running affects 0 rows.
+  IDEMPOTENT: only touches rows where SlaDurationHours IS NULL (and a policy
+    resolves). There is intentionally NO DueAt predicate — an appointment-anchored
+    task can have a known budget while its DueAt is still deferred (see the
+    `targets` CTE). Rows with no resolvable policy are left NULL by the final
+    WHERE. Re-running affects 0 rows.
 ==============================================================================*/
 
 SET NOCOUNT ON;

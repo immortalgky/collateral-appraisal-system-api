@@ -15,8 +15,10 @@ public record FanOutTasksAssignedEvent(
     string? StartedBy,
     string? WorkflowInstanceName,
     string? AppraisalNumber = null,
-    string Movement = "F",
-    int? SlaDurationHours = null
+    string Movement = "F"
+    // No SlaDurationHours: FanOutTaskActivity derives DueAt from a workflow variable,
+    // not the SLA policy engine, so there is no governing budget to stamp here. Fan-out
+    // tasks intentionally omit the SLA budget chip.
 ) : IDomainEvent;
 
 public record FanOutCompanyAssignment(

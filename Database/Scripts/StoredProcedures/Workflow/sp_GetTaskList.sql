@@ -265,7 +265,13 @@ BEGIN
             p.PropertyType,
             ap.AppointmentDateTime,
             AA.InternalAppraiserId,
-            CASE WHEN AA.AssignmentType = 'Internal' THEN AA.InternalAppraiserId
+            -- Resolve to the same display name vw_TaskList shows, so sorting by these
+            -- columns matches the returned values (fallback to the raw code).
+            COALESCE(NULLIF(LTRIM(RTRIM(CONCAT(ifs.FirstName, ' ', ifs.LastName))), ''),
+                     AA.InternalAppraiserId)                            AS InternalFollowupStaff,
+            CASE WHEN AA.AssignmentType = 'Internal' THEN COALESCE(
+                     NULLIF(LTRIM(RTRIM(CONCAT(ifs.FirstName, ' ', ifs.LastName))), ''),
+                     AA.InternalAppraiserId)
                  WHEN AA.AssignmentType = 'External' THEN comp.Name END AS Appraiser,
             r.Id                                       AS ReqId  -- for the any-customer name semi-join (filter only)
         FROM resolved
@@ -281,6 +287,7 @@ BEGIN
             OUTER APPLY (SELECT TOP 1 AppointmentDateTime FROM appraisal.Appointments
                          WHERE AssignmentId = AA.Id AND Status != 'Cancelled') ap
             LEFT JOIN auth.Companies comp ON comp.Id = TRY_CAST(AA.AssigneeCompanyId AS uniqueidentifier)
+            LEFT JOIN auth.AspNetUsers ifs ON ifs.UserName = AA.InternalAppraiserId
     )
     INSERT INTO #page (Id, Rn, Total)
     SELECT Id,
@@ -296,7 +303,7 @@ BEGIN
                        WHEN 'Status'                THEN AStatus
                        WHEN 'RequestedBy'           THEN RequestedBy
                        WHEN 'Movement'              THEN Movement
-                       WHEN 'InternalFollowupStaff' THEN InternalAppraiserId
+                       WHEN 'InternalFollowupStaff' THEN InternalFollowupStaff
                        WHEN 'Appraiser'             THEN Appraiser
                        WHEN 'Priority'              THEN Priority
                        WHEN 'SlaStatus'             THEN SlaStatus
@@ -312,7 +319,7 @@ BEGIN
                        WHEN 'Status'                THEN AStatus
                        WHEN 'RequestedBy'           THEN RequestedBy
                        WHEN 'Movement'              THEN Movement
-                       WHEN 'InternalFollowupStaff' THEN InternalAppraiserId
+                       WHEN 'InternalFollowupStaff' THEN InternalFollowupStaff
                        WHEN 'Appraiser'             THEN Appraiser
                        WHEN 'Priority'              THEN Priority
                        WHEN 'SlaStatus'             THEN SlaStatus
