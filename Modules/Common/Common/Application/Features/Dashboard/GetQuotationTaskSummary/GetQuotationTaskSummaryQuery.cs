@@ -7,5 +7,6 @@ public record GetQuotationTaskSummaryQuery : IQuery<GetQuotationTaskSummaryResul
 public record GetQuotationTaskSummaryResult(
     int PendingQuotationCreation,
     int WaitingCompanySubmission,
-    int WaitingRmSelection
+    int WaitingRmSelection,
+    int PendingApprovals
 );

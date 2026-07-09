@@ -18,15 +18,16 @@ public class GetCompanyAppraisalSummaryQueryHandler(
         var parameters = new DynamicParameters();
         var conditions = new List<string>();
 
+        // Filter on the appraisal's CreatedAt (the canonical "Assigned" date axis).
         if (query.From.HasValue)
         {
-            conditions.Add("Date >= @From");
+            conditions.Add("CreatedAt >= @From");
             parameters.Add("From", query.From.Value.ToDateTime(TimeOnly.MinValue));
         }
 
         if (query.To.HasValue)
         {
-            conditions.Add("Date <= @To");
+            conditions.Add("CreatedAt <= @To");
             parameters.Add("To", query.To.Value.ToDateTime(TimeOnly.MinValue));
         }
 
@@ -39,16 +40,16 @@ public class GetCompanyAppraisalSummaryQueryHandler(
 
         var where = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
 
+        // All four counts come from one live source at the appraisal grain, so
+        // CompletedCount + InProgressCount + OverdueCount == AssignedCount for every company.
         var sql = $"""
             SELECT CompanyId,
-                   COALESCE(MAX(CASE WHEN CompanyName <> N'(pending)' THEN CompanyName END), N'(pending)') AS CompanyName,
-                   SUM(AssignedCount)       AS AssignedCount,
-                   SUM(CompletedCount)      AS CompletedCount,
-                   SUM(SubmissionCount)     AS SubmissionCount,
-                   SUM(TotalBusinessMinutes) AS TotalBusinessMinutes,
-                   CASE WHEN SUM(SubmissionCount) = 0 THEN NULL
-                        ELSE CAST(SUM(TotalBusinessMinutes) AS decimal(18,2)) / SUM(SubmissionCount) END AS AverageBusinessMinutes
-            FROM common.CompanyAppraisalSummaries
+                   COALESCE(MAX(NULLIF(CompanyName, N'')), N'(pending)') AS CompanyName,
+                   COUNT(*)          AS AssignedCount,
+                   SUM(IsCompleted)  AS CompletedCount,
+                   SUM(IsOverdue)    AS OverdueCount,
+                   SUM(IsInProgress) AS InProgressCount
+            FROM common.vw_CompanyAppraisalSummaryLive
             {where}
             GROUP BY CompanyId
             ORDER BY AssignedCount DESC
