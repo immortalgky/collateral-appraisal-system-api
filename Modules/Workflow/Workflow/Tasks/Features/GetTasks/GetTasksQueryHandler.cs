@@ -16,7 +16,7 @@ public class GetTasksQueryHandler(
     {
         "AppraisalNumber", "RequestNumber", "CustomerName", "TaskType", "Purpose", "PropertyType",
         "Status", "AppointmentDateTime", "RequestedBy", "RequestReceivedDate", "RequestedAt",
-        "AssignedDate", "Movement", "InternalFollowupStaff", "Appraiser",
+        "ReportReceivedAt", "AssignedDate", "Movement", "InternalFollowupStaff", "Appraiser",
         "Priority", "DueAt", "SlaStatus", "ElapsedHours", "RemainingHours"
     };
 
