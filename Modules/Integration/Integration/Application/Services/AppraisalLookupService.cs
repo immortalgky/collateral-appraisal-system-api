@@ -48,6 +48,35 @@ public class AppraisalLookupService(
         return new AppraisalKeys(row.AppraisalNumber, row.ExternalCaseKey, row.ExternalSystem);
     }
 
+    private const string SqlPriorAppraisalByNumber = """
+        SELECT TOP 1 a.Id, a.Status
+        FROM appraisal.Appraisals a
+        WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
+        """;
+
+    public async Task<PriorAppraisalRef?> ResolvePriorAppraisalByNumberAsync(
+        string appraisalNumber, CancellationToken ct = default)
+    {
+        var connection = connectionFactory.GetOpenConnection();
+
+        var parameters = new DynamicParameters();
+        parameters.Add("AppraisalNumber", appraisalNumber);
+
+        var command = new CommandDefinition(SqlPriorAppraisalByNumber, parameters, cancellationToken: ct);
+        var row = await connection.QueryFirstOrDefaultAsync<PriorAppraisalRefRow>(command);
+
+        if (row is null)
+        {
+            logger.LogWarning(
+                "AppraisalLookupService: no appraisal found for AppraisalNumber {AppraisalNumber}", appraisalNumber);
+            return null;
+        }
+
+        return new PriorAppraisalRef(row.Id, row.Status);
+    }
+
+    private sealed record PriorAppraisalRefRow(Guid Id, string? Status);
+
     public async Task<AppraisalKeys?> GetKeysByRequestIdAsync(Guid requestId, CancellationToken ct = default)
     {
         var connection = connectionFactory.GetOpenConnection();
